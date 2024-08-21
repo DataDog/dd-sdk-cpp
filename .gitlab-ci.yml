@@ -22,6 +22,7 @@ build:
   script:
     - !reference [.script-lib, setup]
     - cmake . -B 'build'
+    - cmake --build build --target format-check
     - cmake --build build --config debug
     - ctest -C debug --test-dir build --output-junit test-results/test-results.xml
   artifacts:
