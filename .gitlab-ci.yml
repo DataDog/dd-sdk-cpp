@@ -1,0 +1,31 @@
+stages:
+  - build
+
+.script-lib:
+  setup:
+    # LLVM
+    - apt-get update
+    - apt-get -y install clang clang-format clang-tidy clang-tools libc++-dev libc++1 libc++abi-dev libc++abi1
+    # CMake
+    - apt-get -y install ca-certificates gpg wget
+    - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+    - echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal-rc main' | tee -a /etc/apt/sources.list.d/kitware.list >/dev/null
+    - apt-get update
+    - apt-get -y install cmake
+
+
+build:
+  stage: build
+  tags:
+    - arch:amd64
+  image: "$BUILDENV_REGISTRY/images/docker:24.0.4-gbi-focal"
+  script:
+    - !reference [.script-lib, setup]
+    - cmake . -B 'build'
+    - cmake --build build --config debug
+    - ctest -C debug --test-dir build --output-junit test-results/test-results.xml
+  artifacts:
+    when: always
+    expire_in: "30 days"
+    reports:
+      junit: $CI_PROJECT_DIR/build/test-results/*.xml

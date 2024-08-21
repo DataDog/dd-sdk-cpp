@@ -10,7 +10,7 @@
         "kind": "build",
         "isDefault": true
       },
-      "problemMatcher": [],
+      "problemMatcher": ["$gcc"],
       "detail": "CMake template build task"
     }
   ]
