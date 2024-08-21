@@ -1,0 +1,18 @@
+FROM registry.ddbuild.io/images/docker:24.0.4-gbi-focal
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Set timezone to UTC by default
+RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
+
+# LLVM
+RUN apt-get update \
+  && apt-get -y install clang clang-format clang-tidy clang-tools libc++-dev libc++1 libc++abi-dev libc++abi1
+
+# CMake
+RUN apt-get -y install ca-certificates gpg wget
+RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
+
+RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal-rc main' | tee -a /etc/apt/sources.list.d/kitware.list >/dev/null \
+  && apt-get update \
+  && apt-get -y install cmake

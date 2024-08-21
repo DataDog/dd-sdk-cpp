@@ -1,26 +1,29 @@
 stages:
+  - ci-image
   - build
 
-.script-lib:
-  setup:
-    # LLVM
-    - apt-get update
-    - apt-get -y install clang clang-format clang-tidy clang-tools libc++-dev libc++1 libc++abi-dev libc++abi1
-    # CMake
-    - apt-get -y install ca-certificates gpg wget
-    - wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-    - echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ focal-rc main' | tee -a /etc/apt/sources.list.d/kitware.list >/dev/null
-    - apt-get update
-    - apt-get -y install cmake
+variables:
+  CURRENT_CI_IMAGE: "1"
+  BUILD_STABLE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
+  CI_IMAGE_REPO: "ci/dd-sdk-cpp"
+  CI_IMAGE_DOCKER: ${BUILD_STABLE_REGISTRY}/${CI_IMAGE_REPO}:$CURRENT_CI_IMAGE
+  IS_ON_CI: $CI
 
+ci-image:
+  when: manual
+  stage: ci-image
+  except: [ tags, schedules ]
+  tags: [ "arch:amd64" ]
+  image: "$BUILDENV_REGISTRY/images/docker:24.0.4-gbi-focal"
+  script:
+    - docker buildx build --tag registry.ddbuild.io/${CI_IMAGE_REPO}:${CURRENT_CI_IMAGE} --label target=build -f Dockerfile.gitlab --push .
 
 build:
   stage: build
   tags:
     - arch:amd64
-  image: "$BUILDENV_REGISTRY/images/docker:24.0.4-gbi-focal"
+  image: $CI_IMAGE_DOCKER
   script:
-    - !reference [.script-lib, setup]
     - cmake . -B 'build'
     - cmake --build build --target format-check
     - cmake --build build --config debug
