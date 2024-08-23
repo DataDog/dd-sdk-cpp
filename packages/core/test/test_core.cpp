@@ -2,7 +2,7 @@
 
 #include <datadog/core.h>
 
-using namespace datadog::core;
+using datadog::core::Core;
 
 TEST_CASE("dummy_function returns 8", "[core]") {
   Core core;

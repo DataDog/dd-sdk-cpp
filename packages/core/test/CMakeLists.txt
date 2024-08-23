@@ -14,6 +14,11 @@ FetchContent_Declare(
 
 FetchContent_MakeAvailable(Catch2)
 list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
+set_target_properties(
+    Catch2
+    PROPERTIES
+        CMAKE_CXX_CLANG_TIDY ""
+)
 
 add_executable(core-tests
     test_core.cpp

@@ -1,0 +1,14 @@
+---
+Checks: >-
+  clang-diagnostic-*,
+  clang-analyzer-*,
+
+  google-*,
+  concurrency-*,
+  
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-do-while,
+
+  performance-*,
+  portability-*,
+FormatStyle: chromium
