@@ -10,9 +10,16 @@ namespace {
 
 class MockFeature : public DatadogFeature {
  public:
-  static constexpr const FeatureId kFeatureId =
+  static constexpr FeatureId kFeatureId =
       datadog::core::four_cc('M', 'O', 'C', 'K');
 };
+
+TEST_CASE("M return proper value W four_cc", "[core]") {
+  // Given
+  auto value = datadog::core::four_cc('A', 'B', 'C', 'D');
+
+  REQUIRE(0x44434241 == value);
+}
 
 TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
   // Given
@@ -22,7 +29,7 @@ TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
   auto feature = core.GetFeature<MockFeature>();
 
   // Then
-  REQUIRE(!feature.has_value());
+  REQUIRE(feature == nullptr);
 }
 
 TEST_CASE("M return registered feature W register_feature", "[core]") {
@@ -34,8 +41,7 @@ TEST_CASE("M return registered feature W register_feature", "[core]") {
   auto feature = core.GetFeature<MockFeature>();
 
   // Then
-  REQUIRE(feature.has_value());
-  REQUIRE(feature.value() != nullptr);
+  REQUIRE(feature != nullptr);
 }
 
 }  // namespace

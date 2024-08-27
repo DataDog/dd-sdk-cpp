@@ -11,14 +11,13 @@ void DatadogCore::RegisterFeature(const FeatureId& feature_id,
   features_.emplace(feature_id, std::move(feature));
 }
 
-std::optional<DatadogFeature*> DatadogCore::GetFeatureById(
-    const FeatureId& feature_id) const {
+DatadogFeature* DatadogCore::GetFeatureById(const FeatureId& feature_id) const {
   auto feature_itr = features_.find(feature_id);
   if (feature_itr != features_.end()) {
     return feature_itr->second.get();
   }
 
-  return std::nullopt;
+  return nullptr;
 }
 
 }  // namespace datadog::core
