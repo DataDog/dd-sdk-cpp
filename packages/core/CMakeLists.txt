@@ -7,7 +7,6 @@ target_include_directories(datadog-core PRIVATE
   src/
 )
 
-
 if(DD_SDK_BUILD_TEST)
   add_subdirectory(test)
 endif()

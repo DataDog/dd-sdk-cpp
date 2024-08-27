@@ -12,27 +12,31 @@
 
 namespace datadog::core {
 
-constexpr FeatureId four_cc(unsigned char a,
-                            unsigned char b,
-                            unsigned char c,
-                            unsigned char d) {
-  return FeatureId{
-      static_cast<uint32_t>(a) << 0 | static_cast<uint32_t>(b) << 8 |
-      static_cast<uint32_t>(c) << 16 | static_cast<uint32_t>(d) << 24};
-}
+using datadog::core::FeatureId;
 
-class DatadogCore {
+class IDatadogCore {
  public:
+  virtual ~IDatadogCore() = default;
+};
+
+// DatadogCore is the integration point for individual features that wish to
+// send data to Datadog intake. "Features" include Logs, Traces, and Real User
+// Monitoring. DatadogCore is responsible for gathering data for individual
+// features, caching or storing the data, and sending that data to the proper
+// intake endpoint.
+class DatadogCore final : public IDatadogCore,
+                          public std::enable_shared_from_this<DatadogCore> {
+  struct CtorKey {
+    explicit CtorKey() = default;
+  };
+
+ public:
+  DatadogCore(const CtorKey&) {};
+  DatadogCore(const DatadogCore&) = delete;
+  DatadogCore& operator=(const DatadogCore&) = delete;
+
   template <typename T>
-  void RegisterFeature() {
-    using TFeatureId = decltype(T::kFeatureId);
-    static_assert(
-        std::is_trivially_assignable<FeatureId&, TFeatureId>::value &&
-            std::is_const<TFeatureId>::value,
-        "Datadog Feature is missing required const value for kFeatureId");
-    auto feature = std::make_unique<T>();
-    RegisterFeature(T::kFeatureId, std::move(feature));
-  }
+  void RegisterFeature();
 
   template <typename T>
   T* GetFeature() const {
@@ -41,12 +45,29 @@ class DatadogCore {
     ;
   }
 
+  static std::shared_ptr<DatadogCore> Create() {
+    return std::make_shared<DatadogCore>(CtorKey());
+  }
+
  private:
+  explicit DatadogCore();
+
   void RegisterFeature(const FeatureId& feature_id,
                        std::unique_ptr<DatadogFeature> feature);
   DatadogFeature* GetFeatureById(const FeatureId& feature_id) const;
 
   std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>> features_;
 };
+
+template <typename T>
+void DatadogCore::RegisterFeature() {
+  using TFeatureId = decltype(T::kFeatureId);
+  static_assert(
+      std::is_trivially_assignable<FeatureId&, TFeatureId>::value &&
+          std::is_const<TFeatureId>::value,
+      "Datadog Feature is missing required const value for kFeatureId");
+  auto feature = std::make_unique<T>(shared_from_this());
+  RegisterFeature(T::kFeatureId, std::move(feature));
+}
 
 }  // namespace datadog::core

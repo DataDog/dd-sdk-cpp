@@ -6,6 +6,8 @@
 
 namespace datadog::core {
 
+DatadogCore::DatadogCore() {}
+
 void DatadogCore::RegisterFeature(const FeatureId& feature_id,
                                   std::unique_ptr<DatadogFeature> feature) {
   features_.emplace(feature_id, std::move(feature));
