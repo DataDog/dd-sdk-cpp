@@ -6,12 +6,12 @@
 
 namespace datadog::core {
 
-void DatadogCore::RegisterFeature(const FeatureId& feature_id,
+void DatadogCore::RegisterFeature(FeatureId feature_id,
                                   std::unique_ptr<DatadogFeature> feature) {
   features_.emplace(feature_id, std::move(feature));
 }
 
-DatadogFeature* DatadogCore::GetFeatureById(const FeatureId& feature_id) const {
+DatadogFeature* DatadogCore::GetFeatureById(FeatureId feature_id) const {
   auto feature_itr = features_.find(feature_id);
   if (feature_itr != features_.end()) {
     return feature_itr->second.get();

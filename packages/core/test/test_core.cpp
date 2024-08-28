@@ -10,7 +10,7 @@ namespace {
 
 class MockFeature : public DatadogFeature {
  public:
-  static constexpr FeatureId kFeatureId =
+  static constexpr FeatureId feature_id =
       datadog::core::four_cc('M', 'O', 'C', 'K');
 };
 
