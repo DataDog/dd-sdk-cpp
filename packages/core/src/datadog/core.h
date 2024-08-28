@@ -40,9 +40,8 @@ class DatadogCore final : public IDatadogCore,
 
   template <typename T>
   T* GetFeature() const {
-    auto feature_opt = GetFeatureById(T::kFeatureId);
+    auto feature_opt = GetFeatureById(T::feature_id);
     return dynamic_cast<T*>(feature_opt);
-    ;
   }
 
   static std::shared_ptr<DatadogCore> Create() {
@@ -50,24 +49,21 @@ class DatadogCore final : public IDatadogCore,
   }
 
  private:
-  explicit DatadogCore();
-
-  void RegisterFeature(const FeatureId& feature_id,
+  void RegisterFeature(FeatureId feature_id,
                        std::unique_ptr<DatadogFeature> feature);
-  DatadogFeature* GetFeatureById(const FeatureId& feature_id) const;
+  DatadogFeature* GetFeatureById(FeatureId feature_id) const;
 
   std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>> features_;
 };
 
 template <typename T>
 void DatadogCore::RegisterFeature() {
-  using TFeatureId = decltype(T::kFeatureId);
+  using TFeatureId = decltype(T::feature_id);
   static_assert(
-      std::is_trivially_assignable<FeatureId&, TFeatureId>::value &&
-          std::is_const<TFeatureId>::value,
-      "Datadog Feature is missing required const value for kFeatureId");
+      std::is_same_v<const FeatureId, TFeatureId>,
+      "Datadog Feature is missing required const value for feature_id");
   auto feature = std::make_unique<T>(shared_from_this());
-  RegisterFeature(T::kFeatureId, std::move(feature));
+  RegisterFeature(T::feature_id, std::move(feature));
 }
 
 }  // namespace datadog::core

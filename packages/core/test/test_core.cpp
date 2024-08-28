@@ -13,7 +13,7 @@ class MockFeature : public DatadogFeature {
  public:
   explicit MockFeature(const std::shared_ptr<DatadogCore>& core) {}
 
-  static constexpr FeatureId kFeatureId =
+  static constexpr FeatureId feature_id =
       datadog::core::internal::four_cc('M', 'O', 'C', 'K');
 
  private:

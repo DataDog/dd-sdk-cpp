@@ -11,7 +11,7 @@ LoggingFeature::LoggingFeature(const std::shared_ptr<IDatadogCore>& core)
 
 std::unique_ptr<Logger> LoggingFeature::CreateLogger(
     const LoggerOptions& options) {
-    return std::make_unique<Logger>(options, core_.lock());
+  return std::make_unique<Logger>(options, core_.lock());
 }
 
 }  // namespace datadog::logging
