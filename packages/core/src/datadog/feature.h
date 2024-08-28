@@ -11,7 +11,7 @@
 
 namespace datadog::core {
 
-using FeatureId = uint32_t;
+enum class FeatureId : uint32_t {};
 
 class DatadogFeature {
  public:
