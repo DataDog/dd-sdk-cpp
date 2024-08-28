@@ -4,8 +4,9 @@
 // Datadog, Inc.
 #pragma once
 
-#include <map>
 #include <memory>
+#include <type_traits>
+#include <unordered_map>
 
 #include "datadog/feature.h"
 
@@ -23,6 +24,10 @@ class DatadogCore {
  public:
   template <typename T>
   void RegisterFeature() {
+    using TFeatureId = decltype(T::kFeatureId);
+    static_assert(
+        std::is_integral<TFeatureId>::value && std::is_const<TFeatureId>::value,
+        "Datadog Feature is missing required const value for kFeatureId");
     auto feature = std::make_unique<T>();
     RegisterFeature(T::kFeatureId, std::move(feature));
   }
