@@ -5,7 +5,7 @@
 #pragma once
 
 #include <map>
-#include <optional>
+#include <memory>
 
 #include "datadog/feature.h"
 
