@@ -12,9 +12,8 @@ void DatadogCore::RegisterFeature(FeatureId feature_id,
 }
 
 DatadogFeature* DatadogCore::GetFeatureById(FeatureId feature_id) const {
-  auto feature_itr = features_.find(feature_id);
-  if (feature_itr != features_.end()) {
-    return feature_itr->second.get();
+  if (auto it = features_.find(feature_id); it != features_.end()) {
+    return it->second.get();
   }
 
   return nullptr;
