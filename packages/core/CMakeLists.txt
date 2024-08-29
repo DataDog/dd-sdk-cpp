@@ -7,7 +7,7 @@ add_library(datadog-core STATIC
 target_include_directories(datadog-core PRIVATE
   src/
 )
-
+add_compile_options(-frtti)
 if(DD_SDK_BUILD_TEST)
   add_subdirectory(test)
 endif()
