@@ -10,6 +10,8 @@ target_include_directories(datadog-logging PRIVATE
   src/
   ${DD_CORE_DIR}/src
 )
+target_link_libraries(datadog-logging PRIVATE
+  datadog-core)
 
 if(DD_SDK_BUILD_TEST)
   add_subdirectory(test)

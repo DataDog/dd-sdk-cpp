@@ -2,6 +2,7 @@ project(datadog-sdk-core)
 
 add_library(datadog-core STATIC
   src/datadog/core.cpp
+  src/datadog/time_provider.cpp
 )
 target_include_directories(datadog-core PRIVATE
   src/

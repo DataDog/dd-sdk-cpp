@@ -6,6 +6,7 @@ enable_testing()
 
 include(../../../cmake/inc/catch2.cmake)
 
+add_compile_options(-frtti)
 add_executable(core-tests
     test_core.cpp
 )

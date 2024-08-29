@@ -6,8 +6,32 @@
 
 namespace datadog::core {
 
+using datadog::core::internal::Writer;
+
+DatadogCoreContext::DatadogCoreContext(const DatadogCoreConfiguration& config)
+    : application_name_(config.application_name),
+      time_provider_(config.time_provider) {
+  if (time_provider_ == nullptr) {
+    time_provider_ = DefaultTimeProvider;
+  }
+}
+
+DatadogCore::DatadogCore(const DatadogCore::CtorKey&,
+                         const DatadogCoreConfiguration& config)
+    : context_(config) {}
+
+void DatadogCore::Write(FeatureId feature,
+                        std::function<void(const DatadogCoreContext&,
+                                           datadog::core::internal::Writer*)>
+                            write_callback) const {
+  // TODO: Get feature storage, create a writer for feature storage
+  Writer writer;
+  write_callback(context_, &writer);
+}
+
 void DatadogCore::RegisterFeature(FeatureId feature_id,
                                   std::unique_ptr<DatadogFeature> feature) {
+  // TODO: Create storage for the feature
   features_.emplace(feature_id, std::move(feature));
 }
 

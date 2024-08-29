@@ -17,13 +17,23 @@ class MockDatadogCore : public IDatadogCore,
   };
 
  public:
-  MockDatadogCore(const CtorKey&) {};
+  MockDatadogCore(const CtorKey&) : context_(DatadogCoreConfiguration()) {};
   MockDatadogCore(const MockDatadogCore&) = delete;
   MockDatadogCore& operator=(const MockDatadogCore&) = delete;
 
   static std::shared_ptr<MockDatadogCore> Create() {
     return std::make_shared<MockDatadogCore>(CtorKey());
   }
+
+  const DatadogCoreContext& GetCoreContext() const override { return context_; }
+
+  void Write(FeatureId feature,
+             std::function<void(const DatadogCoreContext& context,
+                                datadog::core::internal::Writer*)>
+                 write_callback) const override {}
+
+  // Allow public modification of context as part of the mock
+  DatadogCoreContext context_;
 
  private:
   explicit MockDatadogCore();

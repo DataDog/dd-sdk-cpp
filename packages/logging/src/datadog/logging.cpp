@@ -10,7 +10,7 @@ LoggingFeature::LoggingFeature(const std::shared_ptr<IDatadogCore>& core)
     : core_(core) {}
 
 std::unique_ptr<Logger> LoggingFeature::CreateLogger(
-    const LoggerOptions& options) {
+    const LoggerConfiguration& options) {
   return std::make_unique<Logger>(options, core_.lock());
 }
 

@@ -12,17 +12,17 @@ namespace {
 
 using datadog::core::mocks::MockDatadogCore;
 using datadog::logging::Logger;
-using datadog::logging::LoggerOptions;
+using datadog::logging::LoggerConfiguration;
 
 TEST_CASE("M send data to core W log", "[logging]") {
   // Given
   auto mock_core = MockDatadogCore::Create();
 
-  LoggerOptions options;
+  LoggerConfiguration options;
   Logger logger(options, mock_core);
 
   // When
-  logger.Log("my message");
+  logger.Debug("my message");
 
   // Then
 }

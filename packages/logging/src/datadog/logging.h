@@ -20,9 +20,9 @@ class LoggingFeature : public DatadogFeature {
  public:
   explicit LoggingFeature(const std::shared_ptr<IDatadogCore>& core);
 
-  std::unique_ptr<Logger> CreateLogger(const LoggerOptions& options);
+  std::unique_ptr<Logger> CreateLogger(const LoggerConfiguration& options);
 
-  static constexpr const FeatureId kFeatureId =
+  static constexpr const FeatureId feature_id =
       datadog::core::internal::four_cc('L', 'O', 'G', 'S');
 
  private:

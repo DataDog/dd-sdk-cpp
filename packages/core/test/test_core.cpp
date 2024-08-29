@@ -4,6 +4,7 @@
 #include <datadog/internal/utils.h>
 
 using datadog::core::DatadogCore;
+using datadog::core::DatadogCoreConfiguration;
 using datadog::core::DatadogFeature;
 using datadog::core::FeatureId;
 
@@ -29,7 +30,8 @@ TEST_CASE("M return proper value W four_cc", "[core]") {
 
 TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
   // Given
-  auto core = DatadogCore::Create();
+  DatadogCoreConfiguration config;
+  auto core = DatadogCore::Create(config);
 
   // When
   auto feature = core->GetFeature<MockFeature>();
@@ -40,7 +42,8 @@ TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
 
 TEST_CASE("M return registered feature W register_feature", "[core]") {
   // Given
-  std::shared_ptr<DatadogCore> core = DatadogCore::Create();
+  DatadogCoreConfiguration config;
+  std::shared_ptr<DatadogCore> core = DatadogCore::Create(config);
   core->RegisterFeature<MockFeature>();
 
   // When

@@ -8,18 +8,39 @@
 
 namespace datadog::logging {
 
+using datadog::core::DateTimeProvider;
 using datadog::core::IDatadogCore;
 
-struct LoggerOptions {};
+enum class LogStatus {
+  debug,
+  info,
+  notice,
+  warning,
+  error,
+  critical,
+  emergency,
+};
+
+struct LoggerConfiguration {
+  std::string service_name;
+  std::string environment;
+  std::string logger_name;
+  std::string logger_version;
+};
 
 class Logger {
  public:
-  Logger(const LoggerOptions& options,
+  Logger(const LoggerConfiguration& options,
          const std::shared_ptr<IDatadogCore>& core);
 
-  void Log(const std::string_view& message);
+  constexpr void Debug(const std::string_view& message) {
+    Log(LogStatus::debug, message);
+  }
+
+  void Log(LogStatus log_status, const std::string_view& message);
 
  private:
+  const LoggerConfiguration configuration_;
   std::weak_ptr<IDatadogCore> core_;
 };
 
