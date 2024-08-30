@@ -1,9 +1,22 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0. This product includes software
+// developed at Datadog (https://www.datadoghq.com/). Copyright 2023-Present
+// Datadog, Inc.
 #include "core.h"
 
 namespace datadog::core {
 
-int Core::dummy_function() const {
-  return 8;
+void DatadogCore::RegisterFeature(FeatureId feature_id,
+                                  std::unique_ptr<DatadogFeature> feature) {
+  features_.emplace(feature_id, std::move(feature));
+}
+
+DatadogFeature* DatadogCore::GetFeatureById(FeatureId feature_id) const {
+  if (auto it = features_.find(feature_id); it != features_.end()) {
+    return it->second.get();
+  }
+
+  return nullptr;
 }
 
 }  // namespace datadog::core
