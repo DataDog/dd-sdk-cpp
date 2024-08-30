@@ -13,6 +13,7 @@
 #include "datadog/feature.h"
 #include "datadog/internal/writer.h"
 #include "datadog/time_provider.h"
+#include "datadog/version.h"
 
 namespace datadog::core {
 
@@ -21,6 +22,7 @@ using datadog::core::FeatureId;
 // Configuration for DatadogCore
 struct DatadogCoreConfiguration {
   std::string application_name;
+  std::string application_version;
   std::string client_token;
   DateTimeProvider time_provider{DefaultTimeProvider};
 };
@@ -32,22 +34,27 @@ class DatadogCoreContext {
  public:
   DatadogCoreContext(const DatadogCoreConfiguration& config);
 
-  // TODO: Examples of context
-  constexpr std::string_view GetSdkVersion() const { return "0.1"; }
-  constexpr DateTimeProvider GetDateTimeProvider() const {
-    return time_provider_;
+  // TODO: More examples of context (OS information, device information)
+  constexpr std::string_view GetSdkVersion() const noexcept {
+    return kSdkVersion;
+  }
+  constexpr const std::string& GetApplicationName() const noexcept {
+    return application_name_;
+  }
+  constexpr const std::string& GetApplicationVersion() const noexcept {
+    return application_version_;
   }
 
  private:
   std::string application_name_;
-  DateTimeProvider time_provider_;
+  std::string application_version_;
 };
 
 class IDatadogCore {
  public:
   virtual ~IDatadogCore() = default;
 
-  virtual const DatadogCoreContext& GetCoreContext() const = 0;
+  virtual const DateTimeProvider GetTimeProvider() const noexcept = 0;
 
   virtual void Write(FeatureId feature,
                      std::function<void(const DatadogCoreContext&,
@@ -80,8 +87,8 @@ class DatadogCore final : public IDatadogCore,
     return dynamic_cast<T*>(feature_opt);
   }
 
-  virtual const DatadogCoreContext& GetCoreContext() const override {
-    return context_;
+  virtual const DateTimeProvider GetTimeProvider() const noexcept override {
+    return time_provider_;
   }
 
   virtual void Write(FeatureId feature,
@@ -99,6 +106,7 @@ class DatadogCore final : public IDatadogCore,
                        std::unique_ptr<DatadogFeature> feature);
   DatadogFeature* GetFeatureById(FeatureId feature_id) const;
 
+  DateTimeProvider time_provider_;
   DatadogCoreContext context_;
   std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>> features_;
 };

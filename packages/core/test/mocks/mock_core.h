@@ -5,9 +5,11 @@
 #pragma once
 
 #include "datadog/core.h"
+#include "datadog/time_provider.h"
 
 namespace datadog::core::mocks {
 
+using datadog::core::DatadogCoreConfiguration;
 using datadog::core::IDatadogCore;
 
 class MockDatadogCore : public IDatadogCore,
@@ -17,22 +19,27 @@ class MockDatadogCore : public IDatadogCore,
   };
 
  public:
-  MockDatadogCore(const CtorKey&) : context_(DatadogCoreConfiguration()) {};
+  MockDatadogCore(const CtorKey&, const DatadogCoreConfiguration& config)
+      : time_provider_(config.time_provider), context_(config) {};
   MockDatadogCore(const MockDatadogCore&) = delete;
   MockDatadogCore& operator=(const MockDatadogCore&) = delete;
 
-  static std::shared_ptr<MockDatadogCore> Create() {
-    return std::make_shared<MockDatadogCore>(CtorKey());
+  static std::shared_ptr<MockDatadogCore> Create(
+      const DatadogCoreConfiguration& config) {
+    return std::make_shared<MockDatadogCore>(CtorKey(), config);
   }
 
-  const DatadogCoreContext& GetCoreContext() const override { return context_; }
+  virtual const DateTimeProvider GetTimeProvider() const noexcept override {
+    return time_provider_;
+  }
 
   void Write(FeatureId feature,
              std::function<void(const DatadogCoreContext& context,
                                 datadog::core::internal::Writer*)>
                  write_callback) const override {}
 
-  // Allow public modification of context as part of the mock
+  // Allow public modification of members as part of the mock
+  DateTimeProvider time_provider_;
   DatadogCoreContext context_;
 
  private:

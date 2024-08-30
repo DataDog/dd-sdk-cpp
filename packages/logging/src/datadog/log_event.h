@@ -26,6 +26,7 @@ struct LogEvent {
   LogStatus status;
   std::string message;
   std::optional<LogError> error;
+  std::string application_version;
   std::string_view service_name;
   std::string_view environment;
   std::string_view logger_name;

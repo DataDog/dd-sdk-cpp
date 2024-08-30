@@ -10,15 +10,11 @@ using datadog::core::internal::Writer;
 
 DatadogCoreContext::DatadogCoreContext(const DatadogCoreConfiguration& config)
     : application_name_(config.application_name),
-      time_provider_(config.time_provider) {
-  if (time_provider_ == nullptr) {
-    time_provider_ = DefaultTimeProvider;
-  }
-}
+      application_version_(config.application_version) {}
 
 DatadogCore::DatadogCore(const DatadogCore::CtorKey&,
                          const DatadogCoreConfiguration& config)
-    : context_(config) {}
+    : time_provider_(config.time_provider), context_(config) {}
 
 void DatadogCore::Write(FeatureId feature,
                         std::function<void(const DatadogCoreContext&,

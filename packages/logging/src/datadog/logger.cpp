@@ -22,22 +22,40 @@ Logger::Logger(const LoggerConfiguration& options,
 
 void Logger::Log(LogStatus log_status, const std::string_view& message) {
   auto core = core_.lock();
-  auto time_provider = core->GetCoreContext().GetDateTimeProvider();
+  auto time_provider = core->GetTimeProvider();
   auto timestamp = time_provider();
 
-  LogEvent event{
-      timestamp,
-      log_status,
-      std::string(message),
-      std::nullopt,
-      configuration_.service_name,
-      configuration_.environment,
-      configuration_.logger_name,
-      configuration_.logger_version,
-  };
+  auto capture_message = std::string(message);
 
-  core->Write(LoggingFeature::feature_id, [event](auto context, auto writer) {
+  // Write gives us back a writer for the specified feature, taking into
+  // account batching and preferred storage mechanism for the configured core.
+  // It also hands us back the core context at the time of the write.
+  //
+  // Implementation of Write is still up in the air, but one possible
+  // implementation it for Write to use a thread managed by the Core and not
+  // block, so we capture variables used in the lambda by value.
+  //
+  // TODO: This multistage copy (message->captured_message->LogEvent::message)
+  // is definately inefficient, and we would need a way to both capture
+  // and avoid repeated copies of the message and other future parameters of
+  // this funciton
+  core->Write(LoggingFeature::feature_id, [=](auto context, auto writer) {
     std::stringstream ss;
+
+    // LogEvent needs to be created inside the writer because it might need
+    // to use information from context
+    LogEvent event{
+        timestamp,
+        log_status,
+        std::string(message),
+        std::nullopt,
+        context.GetApplicationVersion(),
+        configuration_.service_name,
+        configuration_.environment,
+        configuration_.logger_name,
+        configuration_.logger_version,
+    };
+
     EncodeLogEvent(event, ss);
 
     writer->Write(ss);

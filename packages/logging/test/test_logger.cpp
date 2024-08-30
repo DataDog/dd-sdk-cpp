@@ -10,13 +10,14 @@
 
 namespace {
 
+using datadog::core::DatadogCoreConfiguration;
 using datadog::core::mocks::MockDatadogCore;
 using datadog::logging::Logger;
 using datadog::logging::LoggerConfiguration;
 
 TEST_CASE("M send data to core W log", "[logging]") {
   // Given
-  auto mock_core = MockDatadogCore::Create();
+  auto mock_core = MockDatadogCore::Create(DatadogCoreConfiguration());
 
   LoggerConfiguration options;
   Logger logger(options, mock_core);
