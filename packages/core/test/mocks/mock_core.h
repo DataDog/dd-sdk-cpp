@@ -14,29 +14,21 @@ using datadog::core::IDatadogCore;
 
 class MockDatadogCore : public IDatadogCore,
                         public std::enable_shared_from_this<MockDatadogCore> {
-  struct CtorKey {
-    explicit CtorKey() = default;
-  };
-
  public:
-  MockDatadogCore(const CtorKey&, const DatadogCoreConfiguration& config)
+  explicit MockDatadogCore(Allow allow, const DatadogCoreConfiguration& config)
       : time_provider_(config.time_provider), context_(config) {};
   MockDatadogCore(const MockDatadogCore&) = delete;
   MockDatadogCore& operator=(const MockDatadogCore&) = delete;
 
   static std::shared_ptr<MockDatadogCore> Create(
       const DatadogCoreConfiguration& config) {
-    return std::make_shared<MockDatadogCore>(CtorKey(), config);
+    return std::make_shared<MockDatadogCore>(Allow::ctor, config);
   }
 
-  virtual const DateTimeProvider GetTimeProvider() const noexcept override {
-    return time_provider_;
-  }
+  uint64_t GetNow() const noexcept override { return time_provider_(); }
 
   void Write(FeatureId feature,
-             std::function<void(const DatadogCoreContext& context,
-                                datadog::core::internal::Writer*)>
-                 write_callback) const override {}
+             IDatadogCore::CoreWriteCallback write_callback) const override {}
 
   // Allow public modification of members as part of the mock
   DateTimeProvider time_provider_;

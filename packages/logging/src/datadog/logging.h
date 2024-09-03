@@ -18,7 +18,7 @@ using datadog::core::IDatadogCore;
 
 class LoggingFeature : public DatadogFeature {
  public:
-  explicit LoggingFeature(const std::shared_ptr<IDatadogCore>& core);
+  explicit LoggingFeature(const std::weak_ptr<IDatadogCore>& core);
 
   std::unique_ptr<Logger> CreateLogger(const LoggerConfiguration& options);
 
@@ -26,8 +26,6 @@ class LoggingFeature : public DatadogFeature {
       datadog::core::internal::four_cc('L', 'O', 'G', 'S');
 
  private:
-  LoggingFeature() = delete;
-
   std::weak_ptr<IDatadogCore> core_;
 };
 

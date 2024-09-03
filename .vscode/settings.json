@@ -71,6 +71,9 @@
     "variant": "cpp",
     "vector": "cpp",
     "algorithm": "cpp",
-    "type_traits": "cpp"
+    "type_traits": "cpp",
+    "forward_list": "cpp",
+    "span": "cpp",
+    "unordered_set": "cpp"
   }
 }

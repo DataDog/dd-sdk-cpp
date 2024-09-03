@@ -6,12 +6,12 @@
 
 namespace datadog::logging {
 
-LoggingFeature::LoggingFeature(const std::shared_ptr<IDatadogCore>& core)
+LoggingFeature::LoggingFeature(const std::weak_ptr<IDatadogCore>& core)
     : core_(core) {}
 
 std::unique_ptr<Logger> LoggingFeature::CreateLogger(
     const LoggerConfiguration& options) {
-  return std::make_unique<Logger>(options, core_.lock());
+  return std::make_unique<Logger>(options, core_);
 }
 
 }  // namespace datadog::logging

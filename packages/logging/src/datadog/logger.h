@@ -30,14 +30,14 @@ struct LoggerConfiguration {
 
 class Logger {
  public:
-  Logger(const LoggerConfiguration& options,
-         const std::shared_ptr<IDatadogCore>& core);
+  explicit Logger(const LoggerConfiguration& options,
+                  const std::weak_ptr<IDatadogCore>& core);
 
-  constexpr void Debug(const std::string_view& message) {
+  constexpr void Debug(std::string_view message) {
     Log(LogStatus::debug, message);
   }
 
-  void Log(LogStatus log_status, const std::string_view& message);
+  void Log(LogStatus log_status, std::string_view message);
 
  private:
   const LoggerConfiguration configuration_;

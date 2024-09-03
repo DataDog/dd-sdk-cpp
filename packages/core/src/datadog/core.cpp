@@ -12,14 +12,12 @@ DatadogCoreContext::DatadogCoreContext(const DatadogCoreConfiguration& config)
     : application_name_(config.application_name),
       application_version_(config.application_version) {}
 
-DatadogCore::DatadogCore(const DatadogCore::CtorKey&,
+DatadogCore::DatadogCore(IDatadogCore::Allow allow,
                          const DatadogCoreConfiguration& config)
     : time_provider_(config.time_provider), context_(config) {}
 
 void DatadogCore::Write(FeatureId feature,
-                        std::function<void(const DatadogCoreContext&,
-                                           datadog::core::internal::Writer*)>
-                            write_callback) const {
+                        IDatadogCore::CoreWriteCallback write_callback) const {
   // TODO: Get feature storage, create a writer for feature storage
   Writer writer;
   write_callback(context_, &writer);
@@ -28,11 +26,11 @@ void DatadogCore::Write(FeatureId feature,
 void DatadogCore::RegisterFeature(FeatureId feature_id,
                                   std::unique_ptr<DatadogFeature> feature) {
   // TODO: Create storage for the feature
-  features_.emplace(feature_id, std::move(feature));
+  features_by_id_.emplace(feature_id, std::move(feature));
 }
 
-DatadogFeature* DatadogCore::GetFeatureById(FeatureId feature_id) const {
-  if (auto it = features_.find(feature_id); it != features_.end()) {
+DatadogFeature* DatadogCore::FindFeatureById(FeatureId feature_id) const {
+  if (auto it = features_by_id_.find(feature_id); it != features_by_id_.end()) {
     return it->second.get();
   }
 

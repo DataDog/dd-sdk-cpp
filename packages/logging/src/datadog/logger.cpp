@@ -17,49 +17,50 @@ using datadog::core::IDatadogCore;
 using datadog::core::internal::Writer;
 
 Logger::Logger(const LoggerConfiguration& options,
-               const std::shared_ptr<IDatadogCore>& core)
+               const std::weak_ptr<IDatadogCore>& core)
     : configuration_(options), core_(core) {}
 
-void Logger::Log(LogStatus log_status, const std::string_view& message) {
+void Logger::Log(LogStatus log_status, std::string_view message) {
   auto core = core_.lock();
-  auto time_provider = core->GetTimeProvider();
-  auto timestamp = time_provider();
+  if (core != nullptr) {
+    auto timestamp = core->GetNow();
 
-  auto capture_message = std::string(message);
+    auto capture_message = std::string{message};
 
-  // Write gives us back a writer for the specified feature, taking into
-  // account batching and preferred storage mechanism for the configured core.
-  // It also hands us back the core context at the time of the write.
-  //
-  // Implementation of Write is still up in the air, but one possible
-  // implementation it for Write to use a thread managed by the Core and not
-  // block, so we capture variables used in the lambda by value.
-  //
-  // TODO: This multistage copy (message->captured_message->LogEvent::message)
-  // is definately inefficient, and we would need a way to both capture
-  // and avoid repeated copies of the message and other future parameters of
-  // this funciton
-  core->Write(LoggingFeature::feature_id, [=](auto context, auto writer) {
-    std::stringstream ss;
+    // Write gives us back a writer for the specified feature, taking into
+    // account batching and preferred storage mechanism for the configured core.
+    // It also hands us back the core context at the time of the write.
+    //
+    // Implementation of Write is still up in the air, but one possible
+    // implementation it for Write to use a thread managed by the Core and not
+    // block, so we capture variables used in the lambda by value.
+    //
+    // TODO: This multistage copy (message->captured_message->LogEvent::message)
+    // is definately inefficient, and we would need a way to both capture
+    // and avoid repeated copies of the message and other future parameters of
+    // this funciton
+    core->Write(LoggingFeature::feature_id, [=](auto context, auto writer) {
+      std::stringstream ss;
 
-    // LogEvent needs to be created inside the writer because it might need
-    // to use information from context
-    LogEvent event{
-        timestamp,
-        log_status,
-        std::string(message),
-        std::nullopt,
-        context.GetApplicationVersion(),
-        configuration_.service_name,
-        configuration_.environment,
-        configuration_.logger_name,
-        configuration_.logger_version,
-    };
+      // LogEvent needs to be created inside the writer because it might need
+      // to use information from context
+      LogEvent event{
+          timestamp,
+          log_status,
+          std::string{message},
+          std::nullopt,
+          context.GetApplicationVersion(),
+          configuration_.service_name,
+          configuration_.environment,
+          configuration_.logger_name,
+          configuration_.logger_version,
+      };
 
-    EncodeLogEvent(event, ss);
+      EncodeLogEvent(event, ss);
 
-    writer->Write(ss);
-  });
+      writer->Write(ss);
+    });
+  }
 }
 
 }  // namespace datadog::logging

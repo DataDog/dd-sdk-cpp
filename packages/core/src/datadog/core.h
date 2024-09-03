@@ -32,7 +32,7 @@ struct DatadogCoreConfiguration {
 // Features, such as the current RUM view or session id.
 class DatadogCoreContext {
  public:
-  DatadogCoreContext(const DatadogCoreConfiguration& config);
+  explicit DatadogCoreContext(const DatadogCoreConfiguration& config);
 
   // TODO: More examples of context (OS information, device information)
   constexpr std::string_view GetSdkVersion() const noexcept {
@@ -51,15 +51,20 @@ class DatadogCoreContext {
 };
 
 class IDatadogCore {
+ protected:
+  enum class Allow { ctor };
+
  public:
+  using CoreWriteCallback =
+      std::function<void(const DatadogCoreContext&,
+                         datadog::core::internal::Writer*)>;
+
   virtual ~IDatadogCore() = default;
 
-  virtual const DateTimeProvider GetTimeProvider() const noexcept = 0;
+  virtual uint64_t GetNow() const noexcept = 0;
 
   virtual void Write(FeatureId feature,
-                     std::function<void(const DatadogCoreContext&,
-                                        datadog::core::internal::Writer*)>
-                         write_callback) const = 0;
+                     CoreWriteCallback write_callback) const = 0;
 };
 
 // DatadogCore is the integration point for individual features that wish to
@@ -69,12 +74,9 @@ class IDatadogCore {
 // intake endpoint.
 class DatadogCore final : public IDatadogCore,
                           public std::enable_shared_from_this<DatadogCore> {
-  struct CtorKey {
-    explicit CtorKey() = default;
-  };
-
  public:
-  DatadogCore(const CtorKey&, const DatadogCoreConfiguration& config);
+  explicit DatadogCore(IDatadogCore::Allow allow,
+                       const DatadogCoreConfiguration& config);
   DatadogCore(const DatadogCore&) = delete;
   DatadogCore& operator=(const DatadogCore&) = delete;
 
@@ -83,32 +85,29 @@ class DatadogCore final : public IDatadogCore,
 
   template <typename T>
   T* GetFeature() const {
-    auto feature_opt = GetFeatureById(T::feature_id);
+    auto feature_opt = FindFeatureById(T::feature_id);
     return dynamic_cast<T*>(feature_opt);
   }
 
-  virtual const DateTimeProvider GetTimeProvider() const noexcept override {
-    return time_provider_;
-  }
+  uint64_t GetNow() const noexcept override { return time_provider_(); }
 
-  virtual void Write(FeatureId feature,
-                     std::function<void(const DatadogCoreContext&,
-                                        datadog::core::internal::Writer*)>
-                         write_callback) const override;
+  void Write(FeatureId feature,
+             CoreWriteCallback write_callback) const override;
 
   static std::shared_ptr<DatadogCore> Create(
       const DatadogCoreConfiguration& config) {
-    return std::make_shared<DatadogCore>(CtorKey(), config);
+    return std::make_shared<DatadogCore>(Allow::ctor, config);
   }
 
  private:
   void RegisterFeature(FeatureId feature_id,
                        std::unique_ptr<DatadogFeature> feature);
-  DatadogFeature* GetFeatureById(FeatureId feature_id) const;
+  DatadogFeature* FindFeatureById(FeatureId feature_id) const;
 
   DateTimeProvider time_provider_;
   DatadogCoreContext context_;
-  std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>> features_;
+  std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>>
+      features_by_id_;
 };
 
 template <typename T>
