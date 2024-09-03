@@ -5,19 +5,19 @@
 #pragma once
 
 #include <chrono>
+#include <list>
 #include <memory>
 #include <type_traits>
 #include <unordered_map>
 
 #include <functional>
+#include "datadog/core_message.h"
 #include "datadog/feature.h"
 #include "datadog/internal/writer.h"
 #include "datadog/time_provider.h"
 #include "datadog/version.h"
 
 namespace datadog::core {
-
-using datadog::core::FeatureId;
 
 // Configuration for DatadogCore
 struct DatadogCoreConfiguration {
@@ -35,13 +35,11 @@ class DatadogCoreContext {
   explicit DatadogCoreContext(const DatadogCoreConfiguration& config);
 
   // TODO: More examples of context (OS information, device information)
-  constexpr std::string_view GetSdkVersion() const noexcept {
-    return kSdkVersion;
-  }
-  constexpr const std::string& GetApplicationName() const noexcept {
+  std::string_view GetSdkVersion() const noexcept { return kSdkVersion; }
+  const std::string& GetApplicationName() const noexcept {
     return application_name_;
   }
-  constexpr const std::string& GetApplicationVersion() const noexcept {
+  const std::string& GetApplicationVersion() const noexcept {
     return application_version_;
   }
 
@@ -55,16 +53,12 @@ class IDatadogCore {
   enum class Allow { ctor };
 
  public:
-  using CoreWriteCallback =
-      std::function<void(const DatadogCoreContext&,
-                         datadog::core::internal::Writer*)>;
-
   virtual ~IDatadogCore() = default;
 
   virtual uint64_t GetNow() const noexcept = 0;
+  virtual const DatadogCoreContext& GetCoreContext() const noexcept = 0;
 
-  virtual void Write(FeatureId feature,
-                     CoreWriteCallback write_callback) const = 0;
+  virtual void SendMesage(FeatureId feature, const CoreMessage& msg) = 0;
 };
 
 // DatadogCore is the integration point for individual features that wish to
@@ -91,8 +85,11 @@ class DatadogCore final : public IDatadogCore,
 
   uint64_t GetNow() const noexcept override { return time_provider_(); }
 
-  void Write(FeatureId feature,
-             CoreWriteCallback write_callback) const override;
+  virtual const DatadogCoreContext& GetCoreContext() const noexcept override {
+    return context_;
+  }
+
+  virtual void SendMesage(FeatureId feature, const CoreMessage& msg) override;
 
   static std::shared_ptr<DatadogCore> Create(
       const DatadogCoreConfiguration& config) {
@@ -103,9 +100,12 @@ class DatadogCore final : public IDatadogCore,
   void RegisterFeature(FeatureId feature_id,
                        std::unique_ptr<DatadogFeature> feature);
   DatadogFeature* FindFeatureById(FeatureId feature_id) const;
+  void ProcessWrites();
 
   DateTimeProvider time_provider_;
   DatadogCoreContext context_;
+
+  std::list<std::pair<FeatureId, std::string>> write_queue_;
   std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>>
       features_by_id_;
 };

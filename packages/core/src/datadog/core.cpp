@@ -16,11 +16,42 @@ DatadogCore::DatadogCore(IDatadogCore::Allow allow,
                          const DatadogCoreConfiguration& config)
     : time_provider_(config.time_provider), context_(config) {}
 
-void DatadogCore::Write(FeatureId feature,
-                        IDatadogCore::CoreWriteCallback write_callback) const {
-  // TODO: Get feature storage, create a writer for feature storage
-  Writer writer;
-  write_callback(context_, &writer);
+void DatadogCore::SendMesage(FeatureId feature, const CoreMessage& message) {
+  if (!message.GetData().empty()) {
+    // Queue the write to the feature, processed by the Core thread. This would
+    // need to be modified to ensure thread safety. The repeated copy
+    // of std::string plus the overhead of the queue are potential downsides to
+    // this approach.
+    //
+    // We also run the risk of growing this queue without having enough time to
+    // process what's in it, especially when all features use a single write
+    // queue.
+    write_queue_.push_back({feature, message.GetData()});
+  }
+
+  const auto& context_changes = message.GetContextChanges();
+  if (!context_changes.empty()) {
+    for (const auto& feature_it : features_by_id_) {
+      if (feature_it.second->GetFeatureId() != feature) {
+        feature_it.second->ContextChanged(context_changes);
+      }
+    }
+  }
+}
+
+void DatadogCore::ProcessWrites() {
+  // Sepearate thread performs the writes to storage / caching. This is using
+  // std::list to show the concept, but a real solution would use a structure
+  // allowing a clean producer / consumer pattern
+  while (!write_queue_.empty()) {
+    auto write = write_queue_.front();
+    write_queue_.pop_front();
+
+    // Storage is created for each feature, and writer is created from storage
+    // (this is why the feature id is held with each write).
+    Writer w;
+    w.Write(write.second);
+  }
 }
 
 void DatadogCore::RegisterFeature(FeatureId feature_id,

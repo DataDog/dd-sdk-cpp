@@ -11,6 +11,8 @@
 
 namespace datadog::logging {
 
+using datadog::core::CoreMessage;
+using datadog::core::DatadogAttributes;
 using datadog::core::DatadogCoreContext;
 using datadog::core::DateTimeProvider;
 using datadog::core::IDatadogCore;
@@ -22,45 +24,27 @@ Logger::Logger(const LoggerConfiguration& options,
 
 void Logger::Log(LogStatus log_status, std::string_view message) {
   auto core = core_.lock();
-  if (core != nullptr) {
-    auto timestamp = core->GetNow();
+  auto core_context = core->GetCoreContext();
+  auto timestamp = core->GetNow();
+  ;
 
-    auto capture_message = std::string{message};
+  LogEvent event{
+      timestamp,
+      log_status,
+      std::string(message),
+      std::nullopt,
+      core_context.GetApplicationVersion(),
+      configuration_.service_name,
+      configuration_.environment,
+      configuration_.logger_name,
+      configuration_.logger_version,
+  };
+  // Encode the LogEvent into the format intake expects
+  std::stringstream ss;
+  EncodeLogEvent(event, ss);
 
-    // Write gives us back a writer for the specified feature, taking into
-    // account batching and preferred storage mechanism for the configured core.
-    // It also hands us back the core context at the time of the write.
-    //
-    // Implementation of Write is still up in the air, but one possible
-    // implementation it for Write to use a thread managed by the Core and not
-    // block, so we capture variables used in the lambda by value.
-    //
-    // TODO: This multistage copy (message->captured_message->LogEvent::message)
-    // is definately inefficient, and we would need a way to both capture
-    // and avoid repeated copies of the message and other future parameters of
-    // this funciton
-    core->Write(LoggingFeature::feature_id, [=](auto context, auto writer) {
-      std::stringstream ss;
-
-      // LogEvent needs to be created inside the writer because it might need
-      // to use information from context
-      LogEvent event{
-          timestamp,
-          log_status,
-          std::string{message},
-          std::nullopt,
-          context.GetApplicationVersion(),
-          configuration_.service_name,
-          configuration_.environment,
-          configuration_.logger_name,
-          configuration_.logger_version,
-      };
-
-      EncodeLogEvent(event, ss);
-
-      writer->Write(ss);
-    });
-  }
+  core->SendMesage(LoggingFeature::feature_id,
+                   CoreMessage(DatadogAttributes(), ss.str()));
 }
 
 }  // namespace datadog::logging

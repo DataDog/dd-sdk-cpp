@@ -16,6 +16,11 @@ enum class FeatureId : uint32_t {};
 class DatadogFeature {
  public:
   virtual ~DatadogFeature() = default;
+
+  virtual FeatureId GetFeatureId() = 0;
+
+  virtual void ContextChanged(
+      const std::unordered_map<std::string, std::string>& changed_context) = 0;
 };
 
 }  // namespace datadog::core

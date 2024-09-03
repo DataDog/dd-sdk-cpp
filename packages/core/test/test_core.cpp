@@ -17,6 +17,11 @@ class MockFeature : public DatadogFeature {
   static constexpr FeatureId feature_id =
       datadog::core::internal::four_cc('M', 'O', 'C', 'K');
 
+  FeatureId GetFeatureId() override { return feature_id; }
+
+  void ContextChanged(const std::unordered_map<std::string, std::string>&
+                          changed_values) override {}
+
  private:
   MockFeature() = delete;
 };

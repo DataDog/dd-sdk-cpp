@@ -27,8 +27,13 @@ class MockDatadogCore : public IDatadogCore,
 
   uint64_t GetNow() const noexcept override { return time_provider_(); }
 
-  void Write(FeatureId feature,
-             IDatadogCore::CoreWriteCallback write_callback) const override {}
+  const DatadogCoreContext& GetCoreContext() const noexcept override {
+    return context_;
+  }
+
+  void SendMesage(FeatureId feature, const CoreMessage& message) override {
+
+  };
 
   // Allow public modification of members as part of the mock
   DateTimeProvider time_provider_;
