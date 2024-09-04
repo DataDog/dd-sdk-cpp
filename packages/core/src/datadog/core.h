@@ -21,17 +21,23 @@ constexpr FeatureId four_cc(unsigned char a,
       static_cast<uint32_t>(c) << 16 | static_cast<uint32_t>(d) << 24};
 }
 
-class DatadogCore {
+class IDatadogCore {
+ protected:
+  enum class Allow { ctor };
+
  public:
+  virtual ~IDatadogCore() = default;
+};
+
+class DatadogCore : public IDatadogCore,
+                    std::enable_shared_from_this<DatadogCore> {
+ public:
+  explicit DatadogCore(IDatadogCore::Allow allow) {};
+  DatadogCore(const DatadogCore&) = delete;
+  DatadogCore& operator=(const DatadogCore&) = delete;
+
   template <typename T>
-  void RegisterFeature() {
-    using TFeatureId = decltype(T::feature_id);
-    static_assert(
-        std::is_same_v<const FeatureId, TFeatureId>,
-        "Datadog Feature is missing required const value for feature_id");
-    auto feature = std::make_unique<T>();
-    RegisterFeature(T::feature_id, std::move(feature));
-  }
+  void RegisterFeature();
 
   template <typename T>
   T* GetFeature() const {
@@ -39,12 +45,38 @@ class DatadogCore {
     return dynamic_cast<T*>(feature_opt);
   }
 
+  static std::shared_ptr<DatadogCore> Create() {
+    return std::make_shared<DatadogCore>(IDatadogCore::Allow::ctor);
+  }
+
  private:
   void RegisterFeature(FeatureId feature_id,
                        std::unique_ptr<DatadogFeature> feature);
   DatadogFeature* GetFeatureById(FeatureId feature_id) const;
 
-  std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>> features_;
+  std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>>
+      features_by_id_;
 };
+
+template <typename T>
+void DatadogCore::RegisterFeature() {
+  using TFeatureId = decltype(T::feature_id);
+  static_assert(
+      std::is_constructible_v<T, std::weak_ptr<IDatadogCore>>,
+      "Datadog Feature must be constructable from std::weak_ptr<IDatadogCore>");
+  static_assert(
+      std::is_same_v<const FeatureId, TFeatureId>,
+      "Datadog Feature is missing required const value for feature_id");
+
+  if (const auto& it = features_by_id_.find(T::feature_id);
+      it != features_by_id_.end()) {
+    // TODO(jeff.ward): Add telemetry / logging that a feature is being
+    // registered twice
+    return;
+  }
+
+  auto feature = std::make_unique<T>(weak_from_this());
+  RegisterFeature(T::feature_id, std::move(feature));
+}
 
 }  // namespace datadog::core
