@@ -8,7 +8,7 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 RUN apt-get -y install ca-certificates gpg wget
 
 # LLVM - Focal doesn't have clang 15, to get it directly from LLVM
-RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add -
+RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
 RUN echo 'deb https://apt.llvm.org/focal/ llvm-toolchain-focal-15 main' | tee -a /etc/apt/sources.list.d/llvm.list >/dev/null \
   && apt-get update \
   && apt-get -y install clang-15 clang-format-15 clang-tidy-15 clang-tools-15
