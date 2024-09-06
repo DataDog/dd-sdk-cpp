@@ -32,7 +32,7 @@ class IDatadogCore {
 class DatadogCore : public IDatadogCore,
                     std::enable_shared_from_this<DatadogCore> {
  public:
-  explicit DatadogCore(IDatadogCore::Allow allow){};
+  explicit DatadogCore(IDatadogCore::Allow){};
   DatadogCore(const DatadogCore&) = delete;
   DatadogCore& operator=(const DatadogCore&) = delete;
 
