@@ -22,6 +22,8 @@ set_target_properties(
 
 add_executable(core-tests
     test_core.cpp
+    
+    storage/test_datadog_file_system.cpp
 )
 
 target_include_directories(core-tests

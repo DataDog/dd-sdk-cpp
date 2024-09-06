@@ -6,6 +6,14 @@
 
 namespace datadog::core {
 
+DatadogConfiguration::DatadogConfiguration(
+    const std::shared_ptr<storage::IDatadogFileSystem>& file_system)
+    : file_system_(file_system) {}
+
+DatadogCore::DatadogCore(IDatadogCore::Allow,
+                         const DatadogConfiguration& configuration)
+    : file_system_(configuration.file_system_) {}
+
 void DatadogCore::RegisterFeature(FeatureId feature_id,
                                   std::unique_ptr<DatadogFeature> feature) {
   // The public version of this function already checked that the feature
