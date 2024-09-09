@@ -8,11 +8,13 @@ namespace datadog::core {
 
 void DatadogCore::RegisterFeature(FeatureId feature_id,
                                   std::unique_ptr<DatadogFeature> feature) {
-  features_.emplace(feature_id, std::move(feature));
+  // The public version of this function already checked that the feature
+  // doesn't exist, should be same to just emplace here
+  features_by_id_.emplace(feature_id, std::move(feature));
 }
 
 DatadogFeature* DatadogCore::GetFeatureById(FeatureId feature_id) const {
-  if (auto it = features_.find(feature_id); it != features_.end()) {
+  if (auto it = features_by_id_.find(feature_id); it != features_by_id_.end()) {
     return it->second.get();
   }
 

@@ -2,16 +2,21 @@
 
 #include <datadog/core.h>
 
+namespace {
+
 using datadog::core::DatadogCore;
 using datadog::core::DatadogFeature;
 using datadog::core::FeatureId;
-
-namespace {
+using datadog::core::IDatadogCore;
 
 class MockFeature : public DatadogFeature {
  public:
+  explicit MockFeature(const std::weak_ptr<IDatadogCore>& core) : core_(core) {}
+
   static constexpr FeatureId feature_id =
       datadog::core::four_cc('M', 'O', 'C', 'K');
+
+  std::weak_ptr<IDatadogCore> core_;
 };
 
 TEST_CASE("M return proper value W four_cc", "[core]") {
@@ -23,10 +28,10 @@ TEST_CASE("M return proper value W four_cc", "[core]") {
 
 TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
   // Given
-  DatadogCore core;
+  auto core = DatadogCore::Create();
 
   // When
-  auto feature = core.GetFeature<MockFeature>();
+  auto feature = core->GetFeature<MockFeature>();
 
   // Then
   REQUIRE(feature == nullptr);
@@ -34,14 +39,27 @@ TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
 
 TEST_CASE("M return registered feature W register_feature", "[core]") {
   // Given
-  DatadogCore core;
-  core.RegisterFeature<MockFeature>();
+  auto core = DatadogCore::Create();
+  core->RegisterFeature<MockFeature>();
 
   // When
-  auto feature = core.GetFeature<MockFeature>();
+  auto feature = core->GetFeature<MockFeature>();
 
   // Then
   REQUIRE(feature != nullptr);
+}
+
+TEST_CASE("M not overwrite registered feature W second register", "[core]") {
+  // Given
+  auto core = DatadogCore::Create();
+  core->RegisterFeature<MockFeature>();
+  auto feature = core->GetFeature<MockFeature>();
+
+  // When
+  core->RegisterFeature<MockFeature>();
+  auto second_feature = core->GetFeature<MockFeature>();
+
+  REQUIRE(feature == second_feature);
 }
 
 }  // namespace

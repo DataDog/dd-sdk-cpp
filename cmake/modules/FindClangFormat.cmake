@@ -2,7 +2,7 @@
 # 
 # 
 if(NOT CLANG_FORMAT_BIN_NAME)
-	set(CLANG_FORMAT_BIN_NAME clang-format)
+	set(CLANG_FORMAT_BIN_NAME clang-format clang-format-15)
 endif()
 
 # if custom path check there first

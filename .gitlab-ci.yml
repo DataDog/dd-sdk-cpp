@@ -24,6 +24,7 @@ build:
     - arch:amd64
   image: $CI_IMAGE_DOCKER
   script:
+    - export PATH=/usr/lib/llvm-15/bin:$PATH
     - cmake . -B 'build'
     - cmake --build build --target format-check
     - cmake --build build --config debug --verbose
