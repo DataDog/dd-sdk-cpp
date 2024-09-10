@@ -7,6 +7,7 @@
 #include <cerrno>
 #include <fstream>
 #include <iostream>
+#include "datadog_file_system.h"
 
 namespace datadog::core::storage {
 
@@ -18,7 +19,7 @@ class StdDatadogFile : public IDatadogFile {
   StdDatadogFile& operator=(const StdDatadogFile&) = delete;
   ~StdDatadogFile() override { file_.close(); }
 
-  void Write(const char* buffer, size_t buffer_size) override {
+  void Write(const char* const buffer, size_t buffer_size) override {
     file_.write(buffer, static_cast<std::streamsize>(buffer_size));
   }
 
@@ -47,6 +48,10 @@ std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
   }
 
   return std::make_unique<StdDatadogFile>(std::move(file));
+}
+
+void StdDatadogFileSystem::DeleteFile(const std::filesystem::path& path) {
+  std::filesystem::remove(GetBaseDirectory() / path);
 }
 
 std::vector<std::filesystem::path> StdDatadogFileSystem::GetFiles(

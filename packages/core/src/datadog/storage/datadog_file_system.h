@@ -18,7 +18,7 @@ class IDatadogFile {
 
   // TODO(jeff.ward): Add template methods to simplify writing, or inherit
   // from istream / ostream?
-  virtual void Write(const char* buffer, size_t buffer_size) = 0;
+  virtual void Write(const char* const buffer, size_t buffer_size) = 0;
 };
 
 // Base class for interacting with the filesystem. Allows clients to
@@ -36,9 +36,14 @@ class IDatadogFileSystem {
   // exist.
   virtual const std::filesystem::path& GetBaseDirectory() = 0;
 
-  /// Open a file at the specificed path and return it.
+  // Open a file at the specified path and return it. Can return `nullptr`
+  // if there is an error opening the file.
   virtual std::unique_ptr<IDatadogFile> OpenFile(
       const std::filesystem::path& path) = 0;
+
+  // Delete a file at the specified path. Should fail silently if the file
+  // does not exist.
+  virtual void DeleteFile(const std::filesystem::path& path) = 0;
 
   // List all files under the specified path, non-recursive.
   virtual std::vector<std::filesystem::path> GetFiles(
@@ -56,6 +61,8 @@ class StdDatadogFileSystem : public IDatadogFileSystem {
 
   std::unique_ptr<IDatadogFile> OpenFile(
       const std::filesystem::path& path) override;
+
+  void DeleteFile(const std::filesystem::path& path) override;
 
   std::vector<std::filesystem::path> GetFiles(
       const std::filesystem::path& in_dir) override;

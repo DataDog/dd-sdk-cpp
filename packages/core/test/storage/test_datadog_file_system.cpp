@@ -11,6 +11,9 @@
 
 namespace {
 
+using datadog::core::storage::IDatadogFile;
+using datadog::core::storage::StdDatadogFileSystem;
+
 // Creates a file on creation deletes the file on deletion
 class TempFile {
  public:
@@ -22,6 +25,8 @@ class TempFile {
 
   ~TempFile() { std::filesystem::remove(path_); }
 
+  const std::filesystem::path& GetPath() { return path_; }
+
  private:
   TempFile(const TempFile&) = delete;
   TempFile& operator=(const TempFile&) = delete;
@@ -30,8 +35,6 @@ class TempFile {
 
   const std::filesystem::path path_;
 };
-
-using datadog::core::storage::StdDatadogFileSystem;
 
 TEST_CASE("M return valid cache directory W GetBaseCacheDirectory",
           "[storage]") {
@@ -118,6 +121,51 @@ TEST_CASE("M not recurse directories W GetFiles", "[storage]") {
   REQUIRE(std::find(files.begin(), files.end(),
                     file_system.GetBaseDirectory() / "subdir" / "file1.tmp") ==
           files.end());
+}
+
+TEST_CASE("M delete file W DeleteFile", "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  const auto& file_system_dir = file_system.GetBaseDirectory();
+  TempFile file1(file_system_dir / "file1.tmp");
+
+  // When
+  file_system.DeleteFile("file1.tmp");
+
+  // Then
+  REQUIRE(!std::filesystem::exists(file1.GetPath()));
+}
+
+TEST_CASE("M fail silently W DeleteFile {nonexistant file}", "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  const auto& file_system_dir = file_system.GetBaseDirectory();
+
+  // When / Then
+  REQUIRE_NOTHROW(file_system.DeleteFile("noexist.tmp"));
+}
+
+TEST_CASE("M write file content W IDatadogFileFile::Write", "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  const auto& file_system_dir = file_system.GetBaseDirectory();
+  TempFile file1(file_system_dir / "write_file.tmp");
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+  const char file_content[] = {"file contents\n"};
+
+  // When
+  {
+    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("write_file.tmp");
+    REQUIRE(file);
+    file->Write(static_cast<const char*>(file_content), sizeof(file_content));
+  }
+
+  // Then
+  std::fstream file{file1.GetPath(), std::fstream::in};
+  std::string actual_file_contents;
+  std::getline(file, actual_file_contents);
+
+  REQUIRE(actual_file_contents == "file contents");
 }
 
 }  // namespace
