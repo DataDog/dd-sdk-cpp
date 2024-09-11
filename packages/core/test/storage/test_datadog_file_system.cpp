@@ -11,28 +11,28 @@
 
 namespace {
 
+using datadog::core::storage::DatadogFileStatus;
 using datadog::core::storage::IDatadogFile;
 using datadog::core::storage::StdDatadogFileSystem;
 
-// Creates a file on creation deletes the file on deletion
+// Creates a file on construction deletes the file on destruction
 class TempFile {
  public:
   explicit TempFile(const std::filesystem::path& path) : path_(path) {
     // Create the file and immediately close it.
-    std::fstream file{path, std::fstream::out | std::fstream::trunc};
-    file.close();
+    std::fstream{path, std::fstream::out | std::fstream::trunc};
   }
 
   ~TempFile() { std::filesystem::remove(path_); }
 
   const std::filesystem::path& GetPath() { return path_; }
 
- private:
   TempFile(const TempFile&) = delete;
   TempFile& operator=(const TempFile&) = delete;
   TempFile(TempFile&&) = delete;
   TempFile& operator=(TempFile&&) = delete;
 
+ private:
   const std::filesystem::path path_;
 };
 
@@ -157,7 +157,9 @@ TEST_CASE("M write file content W IDatadogFileFile::Write", "[storage]") {
   {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("write_file.tmp");
     REQUIRE(file);
-    file->Write(static_cast<const char*>(file_content), sizeof(file_content));
+    auto status = file->Write(static_cast<const char*>(file_content),
+                              sizeof(file_content));
+    REQUIRE(status == DatadogFileStatus::Ok);
   }
 
   // Then
@@ -166,6 +168,32 @@ TEST_CASE("M write file content W IDatadogFileFile::Write", "[storage]") {
   std::getline(file, actual_file_contents);
 
   REQUIRE(actual_file_contents == "file contents");
+}
+
+TEST_CASE("M read file content W IDatadogFileFile::Read", "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  const auto& file_system_dir = file_system.GetBaseDirectory();
+  TempFile temp_file(file_system_dir / "read_file.tmp");
+
+  {
+    std::fstream write_file{file_system_dir / "read_file.tmp",
+                            std::fstream::out | std::fstream::trunc};
+    write_file << "file contents" << std::endl;
+  }
+
+  // When
+  // NOLINTNEXTLINE
+  char buffer[128]{0};
+  {
+    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    REQUIRE(file);
+    auto status = file->Read(static_cast<char*>(buffer), sizeof(buffer));
+    REQUIRE(status == DatadogFileStatus::EndOfFile);
+  }
+
+  // Then
+  REQUIRE(std::string(static_cast<char*>(buffer)) == "file contents\n");
 }
 
 }  // namespace

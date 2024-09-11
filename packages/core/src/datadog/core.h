@@ -19,6 +19,11 @@ class DatadogConfiguration {
       const std::shared_ptr<storage::IDatadogFileSystem>& file_system =
           std::make_shared<storage::StdDatadogFileSystem>());
 
+  std::shared_ptr<storage::IDatadogFileSystem> GetFileSystem() const {
+    return file_system_;
+  }
+
+ private:
   std::shared_ptr<storage::IDatadogFileSystem> file_system_;
 };
 
@@ -48,7 +53,7 @@ class DatadogCore : public IDatadogCore,
   }
 
   static std::shared_ptr<DatadogCore> Create(
-      DatadogConfiguration& configuration) {
+      const DatadogConfiguration& configuration) {
     return std::make_shared<DatadogCore>(IDatadogCore::Allow::ctor,
                                          configuration);
   }

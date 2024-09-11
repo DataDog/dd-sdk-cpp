@@ -10,18 +10,43 @@
 
 namespace datadog::core::storage {
 
-// Base class for file operations with Datadog. The default implementation
+// Current state of a file, and the return value for operations on files.
+// IDatadogFile implementaitons should catch (and not rethrow) exceptions, and
+// instead set and return this file status.
+enum class DatadogFileStatus {
+  // Last operation succeeded, or the file is in a good state
+  Ok,
+  // The last operation (read or write) failed, but the file is still usable
+  OperationFailure,
+  // The last operation failed, and the failure is non-recoverable.
+  BadState,
+  // Currently at EoF
+  EndOfFile,
+};
+
+// Interface class for file operations with Datadog. The default implementation
 // is StdDatadogFile which uses classes from the C++ standard library.
 class IDatadogFile {
  public:
-  virtual ~IDatadogFile() {}
+  IDatadogFile() {}
+  virtual ~IDatadogFile() = default;
 
-  // TODO(jeff.ward): Add template methods to simplify writing, or inherit
-  // from istream / ostream?
-  virtual void Write(const char* const buffer, size_t buffer_size) = 0;
+  // Prevent copy and move, as file destructors will close the file
+  IDatadogFile(const IDatadogFile&) = delete;
+  IDatadogFile& operator=(const IDatadogFile&) = delete;
+  IDatadogFile(IDatadogFile&&) = delete;
+  IDatadogFile& operator=(IDatadogFile&&) = delete;
+
+  virtual uintmax_t GetSize() const = 0;
+  virtual DatadogFileStatus GetStatus() const = 0;
+
+  // TODO(jeff.ward): Add template methods to simplify writing and writeing
+  // or inherit from istream / ostream?
+  virtual DatadogFileStatus Write(const char* buffer, size_t buffer_size) = 0;
+  virtual DatadogFileStatus Read(char* buffer, size_t buffer_size) = 0;
 };
 
-// Base class for interacting with the filesystem. Allows clients to
+// Interface class for interacting with the filesystem. Allows clients to
 // override methods for getting file system information, including where
 // to store Datadog cache files.
 //

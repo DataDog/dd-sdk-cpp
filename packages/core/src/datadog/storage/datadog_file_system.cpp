@@ -13,19 +13,91 @@ namespace datadog::core::storage {
 
 class StdDatadogFile : public IDatadogFile {
  public:
-  explicit StdDatadogFile(std::fstream file) : file_(std::move(file)) {}
+  explicit StdDatadogFile(std::fstream file);
+  ~StdDatadogFile() override { file_.close(); }
 
   StdDatadogFile(const StdDatadogFile&) = delete;
   StdDatadogFile& operator=(const StdDatadogFile&) = delete;
-  ~StdDatadogFile() override { file_.close(); }
+  StdDatadogFile(StdDatadogFile&&) = delete;
+  StdDatadogFile& operator=(StdDatadogFile&&) = delete;
 
-  void Write(const char* const buffer, size_t buffer_size) override {
-    file_.write(buffer, static_cast<std::streamsize>(buffer_size));
-  }
+  uintmax_t GetSize() const override { return size_; };
+  DatadogFileStatus GetStatus() const override { return status_; }
+
+  DatadogFileStatus Write(const char* buffer, size_t buffer_size) override;
+  DatadogFileStatus Read(char* buffer, size_t buffer_size) override;
 
  private:
+  uintmax_t size_;
   std::fstream file_;
+  DatadogFileStatus status_;
 };
+
+StdDatadogFile::StdDatadogFile(std::fstream file)
+    : IDatadogFile(),
+      size_(0),
+      file_(std::move(file)),
+      status_(DatadogFileStatus::Ok) {
+  file_.seekg(0, file_.end);
+  size_ = file_.tellg();
+  file_.seekg(0, file_.beg);
+}
+
+DatadogFileStatus StdDatadogFile::Write(const char* buffer,
+                                        size_t buffer_size) {
+  if (buffer == nullptr) {
+    status_ = DatadogFileStatus::OperationFailure;
+    return status_;
+  }
+
+  try {
+    file_.write(buffer, static_cast<std::streamsize>(buffer_size));
+    auto pos = file_.tellp();
+    // We've overwritten the whole file. Stream position is now the file size
+    if (pos > size_) {
+      size_ = pos;
+    }
+  } catch (...) {
+  }
+
+  if (file_.fail()) {
+    status_ = DatadogFileStatus::OperationFailure;
+  }
+  if (file_.bad()) {
+    status_ = DatadogFileStatus::BadState;
+  }
+
+  return status_;
+}
+
+DatadogFileStatus StdDatadogFile::Read(char* buffer, size_t buffer_size) {
+  if (buffer == nullptr) {
+    status_ = DatadogFileStatus::OperationFailure;
+    return status_;
+  }
+
+  auto file_size = GetSize();
+  try {
+    auto remaining = static_cast<size_t>(file_size - file_.tellg());
+    // read the full buffer or "remaining + 1" to trigger EoF
+    file_.read(buffer, static_cast<std::streamsize>(
+                           std::min(buffer_size, remaining + 1)));
+  } catch (...) {
+  }
+
+  if (file_.fail()) {
+    std::cout << std::strerror(errno) << std::endl;
+    status_ = DatadogFileStatus::OperationFailure;
+  }
+  if (file_.bad()) {
+    status_ = DatadogFileStatus::BadState;
+  }
+  if (file_.eof()) {
+    status_ = DatadogFileStatus::EndOfFile;
+  }
+
+  return status_;
+}
 
 StdDatadogFileSystem::StdDatadogFileSystem(
     const std::filesystem::path& base_cache_directory)
@@ -41,8 +113,10 @@ std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
     std::filesystem::create_directories(GetBaseDirectory());
   }
 
-  std::fstream file{GetBaseDirectory() / path,
-                    std::fstream::in | std::fstream::out | std::fstream::app};
+  auto full_path = GetBaseDirectory() / path;
+  std::fstream::openmode open_mode = std::fstream::in | std::fstream::out |
+                                     std::fstream::app | std::fstream::binary;
+  std::fstream file{full_path, open_mode};
   if (!file.is_open()) {
     return nullptr;
   }

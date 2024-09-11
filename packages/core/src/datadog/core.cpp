@@ -12,7 +12,7 @@ DatadogConfiguration::DatadogConfiguration(
 
 DatadogCore::DatadogCore(IDatadogCore::Allow,
                          const DatadogConfiguration& configuration)
-    : file_system_(configuration.file_system_) {}
+    : file_system_(configuration.GetFileSystem()) {}
 
 void DatadogCore::RegisterFeature(FeatureId feature_id,
                                   std::unique_ptr<DatadogFeature> feature) {
