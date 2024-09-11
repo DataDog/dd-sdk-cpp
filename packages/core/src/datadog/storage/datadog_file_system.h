@@ -40,10 +40,8 @@ class IDatadogFile {
   virtual uintmax_t GetSize() const = 0;
   virtual DatadogFileStatus GetStatus() const = 0;
 
-  // TODO(jeff.ward): Add template methods to simplify writing and writeing
-  // or inherit from istream / ostream?
-  virtual DatadogFileStatus Write(const char* buffer, size_t buffer_size) = 0;
-  virtual DatadogFileStatus Read(char* buffer, size_t buffer_size) = 0;
+  virtual DatadogFileStatus Write(std::string_view buffer) = 0;
+  virtual DatadogFileStatus Read(std::vector<char>& buffer) = 0;
 };
 
 // Interface class for interacting with the filesystem. Allows clients to

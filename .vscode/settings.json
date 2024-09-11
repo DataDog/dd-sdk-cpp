@@ -79,6 +79,7 @@
     "__tuple": "cpp",
     "exception": "cpp",
     "memory": "cpp",
-    "atomic": "cpp"
+    "atomic": "cpp",
+    "filesystem": "cpp"
   }
 }

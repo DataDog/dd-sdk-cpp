@@ -24,8 +24,8 @@ class StdDatadogFile : public IDatadogFile {
   uintmax_t GetSize() const override { return size_; };
   DatadogFileStatus GetStatus() const override { return status_; }
 
-  DatadogFileStatus Write(const char* buffer, size_t buffer_size) override;
-  DatadogFileStatus Read(char* buffer, size_t buffer_size) override;
+  DatadogFileStatus Write(std::string_view buffer) override;
+  DatadogFileStatus Read(std::vector<char>& buffer) override;
 
  private:
   uintmax_t size_;
@@ -43,15 +43,9 @@ StdDatadogFile::StdDatadogFile(std::fstream file)
   file_.seekg(0, file_.beg);
 }
 
-DatadogFileStatus StdDatadogFile::Write(const char* buffer,
-                                        size_t buffer_size) {
-  if (buffer == nullptr) {
-    status_ = DatadogFileStatus::OperationFailure;
-    return status_;
-  }
-
+DatadogFileStatus StdDatadogFile::Write(std::string_view buffer) {
   try {
-    file_.write(buffer, static_cast<std::streamsize>(buffer_size));
+    file_ << buffer;
     auto pos = file_.tellp();
     // We've overwritten the whole file. Stream position is now the file size
     if (pos > size_) {
@@ -70,29 +64,29 @@ DatadogFileStatus StdDatadogFile::Write(const char* buffer,
   return status_;
 }
 
-DatadogFileStatus StdDatadogFile::Read(char* buffer, size_t buffer_size) {
-  if (buffer == nullptr) {
+DatadogFileStatus StdDatadogFile::Read(std::vector<char>& buffer) {
+  if (buffer.capacity() == 0) {
     status_ = DatadogFileStatus::OperationFailure;
     return status_;
   }
 
   auto file_size = GetSize();
+  auto remaining = static_cast<size_t>(file_size - file_.tellg());
+  auto read_size =
+      static_cast<std::streamsize>(std::min(buffer.capacity(), remaining));
+  buffer.resize(read_size);
   try {
-    auto remaining = static_cast<size_t>(file_size - file_.tellg());
-    // read the full buffer or "remaining + 1" to trigger EoF
-    file_.read(buffer, static_cast<std::streamsize>(
-                           std::min(buffer_size, remaining + 1)));
+    file_.read(buffer.data(), read_size);
   } catch (...) {
   }
 
   if (file_.fail()) {
-    std::cout << std::strerror(errno) << std::endl;
     status_ = DatadogFileStatus::OperationFailure;
   }
   if (file_.bad()) {
     status_ = DatadogFileStatus::BadState;
   }
-  if (file_.eof()) {
+  if (file_.eof() || read_size == remaining) {
     status_ = DatadogFileStatus::EndOfFile;
   }
 

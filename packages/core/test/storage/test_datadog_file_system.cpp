@@ -150,15 +150,13 @@ TEST_CASE("M write file content W IDatadogFileFile::Write", "[storage]") {
   StdDatadogFileSystem file_system;
   const auto& file_system_dir = file_system.GetBaseDirectory();
   TempFile file1(file_system_dir / "write_file.tmp");
-  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
-  const char file_content[] = {"file contents\n"};
+  std::string file_content{"file contents\n"};
 
   // When
   {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("write_file.tmp");
     REQUIRE(file);
-    auto status = file->Write(static_cast<const char*>(file_content),
-                              sizeof(file_content));
+    auto status = file->Write(file_content);
     REQUIRE(status == DatadogFileStatus::Ok);
   }
 
@@ -183,17 +181,16 @@ TEST_CASE("M read file content W IDatadogFileFile::Read", "[storage]") {
   }
 
   // When
-  // NOLINTNEXTLINE
-  char buffer[128]{0};
+  std::vector<char> buffer(128);
   {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
     REQUIRE(file);
-    auto status = file->Read(static_cast<char*>(buffer), sizeof(buffer));
+    auto status = file->Read(buffer);
     REQUIRE(status == DatadogFileStatus::EndOfFile);
   }
 
   // Then
-  REQUIRE(std::string(static_cast<char*>(buffer)) == "file contents\n");
+  REQUIRE(std::string_view(buffer.data(), buffer.size()) == "file contents\n");
 }
 
 }  // namespace
