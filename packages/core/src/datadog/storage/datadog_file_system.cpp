@@ -103,11 +103,15 @@ const std::filesystem::path& StdDatadogFileSystem::GetBaseDirectory() {
 
 std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
     const std::filesystem::path& path) {
-  if (!std::filesystem::exists(GetBaseDirectory())) {
-    std::filesystem::create_directories(GetBaseDirectory());
+  auto full_path = base_cache_directory_ / path;
+  if (!IsInFileSystem(full_path)) {
+    return nullptr;
   }
 
-  auto full_path = GetBaseDirectory() / path;
+  if (!std::filesystem::exists(base_cache_directory_)) {
+    std::filesystem::create_directories(base_cache_directory_);
+  }
+
   std::fstream::openmode open_mode = std::fstream::in | std::fstream::out |
                                      std::fstream::app | std::fstream::binary;
   std::fstream file{full_path, open_mode};
@@ -119,13 +123,19 @@ std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
 }
 
 void StdDatadogFileSystem::DeleteFile(const std::filesystem::path& path) {
-  std::filesystem::remove(GetBaseDirectory() / path);
+  if (auto full_path = base_cache_directory_ / path;
+      IsInFileSystem(full_path)) {
+    std::filesystem::remove(full_path);
+  }
 }
 
 std::vector<std::filesystem::path> StdDatadogFileSystem::GetFiles(
     const std::filesystem::path& in_dir) {
-  const auto path = GetBaseDirectory() / in_dir;
+  const auto path = base_cache_directory_ / in_dir;
   std::vector<std::filesystem::path> ret{};
+  if (!IsInFileSystem(path)) {
+    return ret;
+  }
 
   if (std::filesystem::is_directory(path)) {
     for (const auto& entry : std::filesystem::directory_iterator(path)) {
@@ -134,6 +144,16 @@ std::vector<std::filesystem::path> StdDatadogFileSystem::GetFiles(
   }
 
   return ret;
+}
+
+bool StdDatadogFileSystem::IsInFileSystem(const std::filesystem::path& path) {
+  const auto normalized = path.lexically_normal();
+
+  auto [rootEnd, _] =
+      std::mismatch(base_cache_directory_.begin(), base_cache_directory_.end(),
+                    normalized.begin());
+
+  return rootEnd == base_cache_directory_.end();
 }
 
 }  // namespace datadog::core::storage

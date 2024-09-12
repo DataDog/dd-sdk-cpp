@@ -48,6 +48,10 @@ class IDatadogFile {
 // override methods for getting file system information, including where
 // to store Datadog cache files.
 //
+// Implementers of IDatadogFileSystem should ensure the class cannot access
+// files outside of its "BaseDirectory" (the path returned from
+// GetBaseDirectory).
+//
 // Default implementation is SdtDatadogFileSystem, which uses the C++
 // standard library to implement file operations
 class IDatadogFileSystem {
@@ -68,7 +72,9 @@ class IDatadogFileSystem {
   // does not exist.
   virtual void DeleteFile(const std::filesystem::path& path) = 0;
 
-  // List all files under the specified path, non-recursive.
+  // List all files under the specified path, non-recursive. Paths returned
+  // should be relative to the file system's root path (the path returned
+  // from GetBaseDirectory).
   virtual std::vector<std::filesystem::path> GetFiles(
       const std::filesystem::path& in_dir) = 0;
 };
@@ -91,6 +97,8 @@ class StdDatadogFileSystem : public IDatadogFileSystem {
       const std::filesystem::path& in_dir) override;
 
  private:
+  bool IsInFileSystem(const std::filesystem::path& path);
+
   std::filesystem::path base_cache_directory_;
 };
 

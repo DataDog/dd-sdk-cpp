@@ -36,6 +36,24 @@ class TempFile {
   const std::filesystem::path path_;
 };
 
+// Deletes a file on destruction
+class CleanupFile {
+ public:
+  explicit CleanupFile(const std::filesystem::path& path) : path_(path) {}
+
+  ~CleanupFile() { std::filesystem::remove(path_); }
+
+  const std::filesystem::path& GetPath() { return path_; }
+
+  CleanupFile(const CleanupFile&) = delete;
+  CleanupFile& operator=(const CleanupFile&) = delete;
+  CleanupFile(CleanupFile&&) = delete;
+  CleanupFile& operator=(CleanupFile&&) = delete;
+
+ private:
+  const std::filesystem::path path_;
+};
+
 TEST_CASE("M return valid cache directory W GetBaseCacheDirectory",
           "[storage]") {
   // Given
@@ -52,15 +70,13 @@ TEST_CASE("M create file in base cache directory W OpenFile", "[storage]") {
   // Given
   StdDatadogFileSystem file_system;
   auto expected_path = std::filesystem::path{"caches/datadog/test.tmp"};
+  CleanupFile cleanup{expected_path};
 
   // When
   { auto file = file_system.OpenFile("test.tmp"); }
 
   // Then
   REQUIRE(std::filesystem::exists(expected_path));
-
-  // Cleanup
-  std::filesystem::remove(expected_path);
 }
 
 TEST_CASE("M return nullptr W OpenFile fails", "[storage]") {
@@ -75,11 +91,73 @@ TEST_CASE("M return nullptr W OpenFile fails", "[storage]") {
   REQUIRE_FALSE(file);
 }
 
-TEST_CASE("M return file empty list for empty directory W GetFiles",
+TEST_CASE("M not create file outside of its directory W OpenFile {relative}",
           "[storage]") {
   // Given
   StdDatadogFileSystem file_system;
+  CleanupFile cleanup{"caches/test.tmp"};
+
+  // When
+  {
+    auto file = file_system.OpenFile("../test.tmp");
+    REQUIRE(file == nullptr);
+  }
+
+  // Then
+  REQUIRE(!std::filesystem::exists("caches/test.tmp"));
+}
+
+TEST_CASE("M not create file outside of its directory W OpenFile {rooted}",
+          "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  CleanupFile cleanup{"/tmp/test.tmp"};
+
+  // When
+  {
+    auto file = file_system.OpenFile("/tmp/test.tmp");
+    REQUIRE(file == nullptr);
+  }
+
+  // Then
+  REQUIRE(!std::filesystem::exists("/tmp/test.tmp"));
+}
+
+TEST_CASE("M return empty list for empty directory W GetFiles", "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
   std::filesystem::path dir{"empty"};
+
+  // When
+  auto files = file_system.GetFiles(dir);
+
+  // Then
+  REQUIRE(files.empty());
+}
+
+TEST_CASE(
+    "M return empty list for directory outside the filesystem W GetFiles "
+    "{relative}",
+    "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  TempFile file1(file_system.GetBaseDirectory() / "../file1.tmp");
+  std::filesystem::path dir{"../"};
+
+  // When
+  auto files = file_system.GetFiles(dir);
+
+  // Then
+  REQUIRE(files.empty());
+}
+
+TEST_CASE(
+    "M return empty list for directory outside the filesystem W GetFiles "
+    "{rooted}",
+    "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  std::filesystem::path dir("/usr/bin");
 
   // When
   auto files = file_system.GetFiles(dir);
@@ -145,6 +223,31 @@ TEST_CASE("M fail silently W DeleteFile {nonexistant file}", "[storage]") {
   REQUIRE_NOTHROW(file_system.DeleteFile("noexist.tmp"));
 }
 
+TEST_CASE(
+    "M not delete files outside of file system W DeleteFile {relative file}",
+    "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  const auto& file_system_dir = file_system.GetBaseDirectory();
+  TempFile file1("caches/file1.tmp");
+
+  // When / Then
+  REQUIRE_NOTHROW(file_system.DeleteFile("../file1.tmp"));
+  REQUIRE(std::filesystem::exists("caches/file1.tmp"));
+}
+
+TEST_CASE("M not delete files outside of file system W DeleteFile {rooted}",
+          "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  const auto& file_system_dir = file_system.GetBaseDirectory();
+  TempFile file1("/tmp/file1.tmp");
+
+  // When / Then
+  REQUIRE_NOTHROW(file_system.DeleteFile("/tmp/file1.tmp"));
+  REQUIRE(std::filesystem::exists("/tmp/file1.tmp"));
+}
+
 TEST_CASE("M write file content W IDatadogFileFile::Write", "[storage]") {
   // Given
   StdDatadogFileSystem file_system;
@@ -181,6 +284,7 @@ TEST_CASE("M read file content W IDatadogFileFile::Read", "[storage]") {
   }
 
   // When
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
   std::vector<char> buffer(128);
   {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
