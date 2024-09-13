@@ -15,12 +15,19 @@ using datadog::core::storage::DatadogFileStatus;
 using datadog::core::storage::IDatadogFile;
 using datadog::core::storage::StdDatadogFileSystem;
 
+enum class FileDisposition : bool { remove_only, create_and_remove };
+
 // Creates a file on construction deletes the file on destruction
 class TempFile {
  public:
-  explicit TempFile(const std::filesystem::path& path) : path_(path) {
+  explicit TempFile(
+      const std::filesystem::path& path,
+      FileDisposition file_disposition = FileDisposition::create_and_remove)
+      : path_(path) {
     // Create the file and immediately close it.
-    std::fstream{path, std::fstream::out | std::fstream::trunc};
+    if (file_disposition == FileDisposition::create_and_remove) {
+      std::fstream{path, std::fstream::out | std::fstream::trunc};
+    }
   }
 
   ~TempFile() { std::filesystem::remove(path_); }
@@ -31,24 +38,6 @@ class TempFile {
   TempFile& operator=(const TempFile&) = delete;
   TempFile(TempFile&&) = delete;
   TempFile& operator=(TempFile&&) = delete;
-
- private:
-  const std::filesystem::path path_;
-};
-
-// Deletes a file on destruction
-class CleanupFile {
- public:
-  explicit CleanupFile(const std::filesystem::path& path) : path_(path) {}
-
-  ~CleanupFile() { std::filesystem::remove(path_); }
-
-  const std::filesystem::path& GetPath() { return path_; }
-
-  CleanupFile(const CleanupFile&) = delete;
-  CleanupFile& operator=(const CleanupFile&) = delete;
-  CleanupFile(CleanupFile&&) = delete;
-  CleanupFile& operator=(CleanupFile&&) = delete;
 
  private:
   const std::filesystem::path path_;
@@ -70,7 +59,7 @@ TEST_CASE("M create file in base cache directory W OpenFile", "[storage]") {
   // Given
   StdDatadogFileSystem file_system;
   auto expected_path = std::filesystem::path{"caches/datadog/test.tmp"};
-  CleanupFile cleanup{expected_path};
+  TempFile cleanup{expected_path, FileDisposition::remove_only};
 
   // When
   { auto file = file_system.OpenFile("test.tmp"); }
@@ -95,7 +84,7 @@ TEST_CASE("M not create file outside of its directory W OpenFile {relative}",
           "[storage]") {
   // Given
   StdDatadogFileSystem file_system;
-  CleanupFile cleanup{"caches/test.tmp"};
+  TempFile cleanup{"caches/test.tmp", FileDisposition::remove_only};
 
   // When
   {
@@ -111,7 +100,7 @@ TEST_CASE("M not create file outside of its directory W OpenFile {rooted}",
           "[storage]") {
   // Given
   StdDatadogFileSystem file_system;
-  CleanupFile cleanup{"/tmp/test.tmp"};
+  TempFile cleanup{"/tmp/test.tmp", FileDisposition::remove_only};
 
   // When
   {
@@ -208,7 +197,7 @@ TEST_CASE("M delete file W DeleteFile", "[storage]") {
   TempFile file1(file_system_dir / "file1.tmp");
 
   // When
-  file_system.DeleteFile("file1.tmp");
+  REQUIRE(file_system.DeleteFile("file1.tmp"));
 
   // Then
   REQUIRE(!std::filesystem::exists(file1.GetPath()));
@@ -219,8 +208,12 @@ TEST_CASE("M fail silently W DeleteFile {nonexistant file}", "[storage]") {
   StdDatadogFileSystem file_system;
   const auto& file_system_dir = file_system.GetBaseDirectory();
 
-  // When / Then
-  REQUIRE_NOTHROW(file_system.DeleteFile("noexist.tmp"));
+  // When
+  bool result = false;
+  REQUIRE_NOTHROW(result = file_system.DeleteFile("noexist.tmp"));
+
+  // Then
+  REQUIRE_FALSE(result);
 }
 
 TEST_CASE(
@@ -231,8 +224,12 @@ TEST_CASE(
   const auto& file_system_dir = file_system.GetBaseDirectory();
   TempFile file1("caches/file1.tmp");
 
-  // When / Then
-  REQUIRE_NOTHROW(file_system.DeleteFile("../file1.tmp"));
+  // When
+  bool result = false;
+  REQUIRE_NOTHROW(result = file_system.DeleteFile("../file1.tmp"));
+
+  // Then
+  REQUIRE_FALSE(result);
   REQUIRE(std::filesystem::exists("caches/file1.tmp"));
 }
 
@@ -243,8 +240,11 @@ TEST_CASE("M not delete files outside of file system W DeleteFile {rooted}",
   const auto& file_system_dir = file_system.GetBaseDirectory();
   TempFile file1("/tmp/file1.tmp");
 
-  // When / Then
+  // When
+  bool result = false;
   REQUIRE_NOTHROW(file_system.DeleteFile("/tmp/file1.tmp"));
+
+  REQUIRE_FALSE(result);
   REQUIRE(std::filesystem::exists("/tmp/file1.tmp"));
 }
 

@@ -68,9 +68,10 @@ class IDatadogFileSystem {
   virtual std::unique_ptr<IDatadogFile> OpenFile(
       const std::filesystem::path& path) = 0;
 
-  // Delete a file at the specified path. Should fail silently if the file
-  // does not exist.
-  virtual void DeleteFile(const std::filesystem::path& path) = 0;
+  // Delete a file at the specified path. Returns true if the file was
+  // deleted successfully, false otherwise, including if the file did not
+  // exist.
+  virtual bool DeleteFile(const std::filesystem::path& path) = 0;
 
   // List all files under the specified path, non-recursive. Paths returned
   // should be relative to the file system's root path (the path returned
@@ -91,7 +92,7 @@ class StdDatadogFileSystem : public IDatadogFileSystem {
   std::unique_ptr<IDatadogFile> OpenFile(
       const std::filesystem::path& path) override;
 
-  void DeleteFile(const std::filesystem::path& path) override;
+  bool DeleteFile(const std::filesystem::path& path) override;
 
   std::vector<std::filesystem::path> GetFiles(
       const std::filesystem::path& in_dir) override;
