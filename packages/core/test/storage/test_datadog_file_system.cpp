@@ -12,6 +12,7 @@
 namespace {
 
 using datadog::core::storage::DatadogFileStatus;
+using datadog::core::storage::DatadogReadBuffer;
 using datadog::core::storage::IDatadogFile;
 using datadog::core::storage::StdDatadogFileSystem;
 
@@ -284,8 +285,8 @@ TEST_CASE("M read file content W IDatadogFileFile::Read", "[storage]") {
   }
 
   // When
-  // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-  std::vector<char> buffer(128);
+  constexpr int buffer_size = 128;
+  DatadogReadBuffer buffer(buffer_size);
   {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
     REQUIRE(file);
@@ -295,6 +296,57 @@ TEST_CASE("M read file content W IDatadogFileFile::Read", "[storage]") {
 
   // Then
   REQUIRE(std::string_view(buffer.data(), buffer.size()) == "file contents\n");
+}
+
+TEST_CASE("M partial file content W IDatadogFileFile::Read", "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  const auto& file_system_dir = file_system.GetBaseDirectory();
+  TempFile temp_file(file_system_dir / "read_file.tmp");
+
+  {
+    std::fstream write_file{file_system_dir / "read_file.tmp",
+                            std::fstream::out | std::fstream::trunc};
+    write_file << "file contents" << std::endl;
+  }
+
+  // When
+  constexpr int buffer_size = 8;
+  DatadogReadBuffer buffer(buffer_size);
+  {
+    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    REQUIRE(file);
+    auto status = file->Read(buffer);
+    REQUIRE(status == DatadogFileStatus::Ok);
+  }
+
+  // Then
+  REQUIRE(buffer.size() == buffer_size);
+  REQUIRE(std::string_view(buffer.data(), buffer.size()) == "file con");
+}
+
+TEST_CASE("M file contents looped W IDatadogFileFile::Read", "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  const auto& file_system_dir = file_system.GetBaseDirectory();
+  TempFile temp_file(file_system_dir / "read_file.tmp");
+
+  {
+    std::fstream write_file{file_system_dir / "read_file.tmp",
+                            std::fstream::out | std::fstream::trunc};
+    write_file << "file contents" << std::endl;
+  }
+
+  // When
+  constexpr int buffer_size = 8;
+  DatadogReadBuffer buffer(buffer_size);
+  {
+    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    REQUIRE(file);
+    while (file->Read(buffer) == DatadogFileStatus::Ok &&
+           buffer.size() == buffer_size) {
+    }
+  }
 }
 
 }  // namespace

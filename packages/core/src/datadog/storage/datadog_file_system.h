@@ -8,7 +8,12 @@
 #include <memory>
 #include <vector>
 
+#include "datadog/internal/allocators.h"
+
 namespace datadog::core::storage {
+
+using DatadogReadBuffer =
+    std::vector<char, datadog::internal::allocators::RawAllocator<char>>;
 
 // Current state of a file, and the return value for operations on files.
 // IDatadogFile implementaitons should catch (and not rethrow) exceptions, and
@@ -37,11 +42,31 @@ class IDatadogFile {
   IDatadogFile(IDatadogFile&&) = delete;
   IDatadogFile& operator=(IDatadogFile&&) = delete;
 
+  // Get the size of the file in bytes
   virtual uintmax_t GetSize() const = 0;
+
+  // Get the current status of the file
   virtual DatadogFileStatus GetStatus() const = 0;
 
+  // Write the specified buffer to the file.
   virtual DatadogFileStatus Write(std::string_view buffer) = 0;
-  virtual DatadogFileStatus Read(std::vector<char>& buffer) = 0;
+
+  // Read from the file, up to the capacity of the given buffer. The buffer
+  // should be resized up to its capacity to indicate the number of bytes read.
+  //
+  // Passing in a buffer with a capacity of zero will immediately return with
+  // no data read.
+  //
+  // For example:
+  //
+  // ```cpp
+  // const buffer_capactiy = 128;
+  // DatadogReadBuffer buffer(buffer_capactiy);
+  // while (file->Read(buffer) == DatadogFileStatus::Ok &&
+  //        buffer.size() == buffer_size) {
+  // }
+  // ```cpp
+  virtual DatadogFileStatus Read(DatadogReadBuffer& buffer) = 0;
 };
 
 // Interface class for interacting with the filesystem. Allows clients to

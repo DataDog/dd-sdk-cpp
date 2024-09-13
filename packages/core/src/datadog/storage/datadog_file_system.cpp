@@ -25,7 +25,7 @@ class StdDatadogFile : public IDatadogFile {
   DatadogFileStatus GetStatus() const override { return status_; }
 
   DatadogFileStatus Write(std::string_view buffer) override;
-  DatadogFileStatus Read(std::vector<char>& buffer) override;
+  DatadogFileStatus Read(DatadogReadBuffer& buffer) override;
 
  private:
   uintmax_t size_ = 0;
@@ -56,22 +56,19 @@ DatadogFileStatus StdDatadogFile::Write(std::string_view buffer) {
   return status_;
 }
 
-DatadogFileStatus StdDatadogFile::Read(std::vector<char>& buffer) {
-  if (buffer.capacity() == 0) {
+DatadogFileStatus StdDatadogFile::Read(DatadogReadBuffer& buffer) {
+  auto buffer_capacity = buffer.capacity();
+  if (buffer_capacity == 0) {
     status_ = DatadogFileStatus::OperationFailure;
     return status_;
   }
 
-  auto file_size = GetSize();
-  auto remaining = static_cast<size_t>(file_size - file_.tellg());
-  auto read_size =
-      static_cast<std::streamsize>(std::min(buffer.capacity(), remaining));
-  buffer.resize(read_size);
-  file_.read(buffer.data(), read_size);
+  file_.read(buffer.data(), static_cast<std::streamsize>(buffer_capacity));
+  buffer.resize(file_.gcount());
 
   if (file_.bad()) {
     status_ = DatadogFileStatus::BadState;
-  } else if (file_.eof() || read_size == remaining) {
+  } else if (file_.eof()) {
     status_ = DatadogFileStatus::EndOfFile;
   } else if (file_.fail()) {
     status_ = DatadogFileStatus::OperationFailure;
@@ -99,8 +96,8 @@ std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
     }
   }
 
-  std::fstream::openmode open_mode = std::fstream::in | std::fstream::out |
-                                     std::fstream::app | std::fstream::binary;
+  auto open_mode = std::fstream::in | std::fstream::out | std::fstream::app |
+                   std::fstream::binary;
   std::fstream file{full_path, open_mode};
   if (!file.is_open()) {
     return nullptr;
