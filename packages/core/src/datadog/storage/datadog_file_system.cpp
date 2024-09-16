@@ -28,8 +28,8 @@ class StdDatadogFile : public IDatadogFile {
   DatadogFileStatus Read(char* buffer, size_t& buffer_size) override;
 
  private:
-  uintmax_t size_ = 0;
-  DatadogFileStatus status_ = DatadogFileStatus::Ok;
+  uintmax_t size_{};
+  DatadogFileStatus status_{DatadogFileStatus::Ok};
   std::fstream file_;
 };
 
@@ -42,7 +42,7 @@ StdDatadogFile::StdDatadogFile(std::fstream&& file) : file_{std::move(file)} {
 DatadogFileStatus StdDatadogFile::Write(std::string_view buffer) {
   file_.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
   auto pos = file_.tellp();
-  // We've overwritten the whole file. Stream position is now the file size
+  // We've overwritten the whole file. Stream position is now the file size.
   if (pos > size_) {
     size_ = pos;
   }
@@ -57,7 +57,7 @@ DatadogFileStatus StdDatadogFile::Write(std::string_view buffer) {
 }
 
 DatadogFileStatus StdDatadogFile::Read(char* buffer, size_t& bytes) {
-  if (!buffer || bytes == 0) {
+  if (!buffer || !bytes) {
     status_ = DatadogFileStatus::OperationFailure;
     bytes = 0;
     return status_;
@@ -136,7 +136,7 @@ bool StdDatadogFileSystem::IsInFileSystem(const std::filesystem::path& path) {
       std::mismatch(base_cache_directory_.begin(), base_cache_directory_.end(),
                     normalized.begin());
 
-  return rootEnd == base_cache_directory_.end();
+  return (rootEnd == base_cache_directory_.end());
 }
 
 }  // namespace datadog::core::storage

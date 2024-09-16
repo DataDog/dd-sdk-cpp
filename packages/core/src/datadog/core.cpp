@@ -8,7 +8,7 @@ namespace datadog::core {
 
 DatadogConfiguration::DatadogConfiguration(
     const std::shared_ptr<storage::IDatadogFileSystem>& file_system)
-    : file_system_(file_system) {}
+    : file_system_{file_system} {}
 
 DatadogCore::DatadogCore(IDatadogCore::Allow,
                          const DatadogConfiguration& configuration)

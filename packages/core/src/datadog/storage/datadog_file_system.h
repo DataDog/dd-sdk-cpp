@@ -71,7 +71,7 @@ class IDatadogFile {
 // GetBaseDirectory).
 //
 // Default implementation is SdtDatadogFileSystem, which uses the C++
-// standard library to implement file operations
+// standard library to implement file operations.
 class IDatadogFileSystem {
  public:
   virtual ~IDatadogFileSystem() = default;
