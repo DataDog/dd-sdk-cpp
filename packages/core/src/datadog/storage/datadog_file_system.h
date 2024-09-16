@@ -4,16 +4,12 @@
 // Datadog, Inc.
 #pragma once
 
+#include <array>
 #include <filesystem>
 #include <memory>
 #include <vector>
 
-#include "datadog/internal/allocators.h"
-
 namespace datadog::core::storage {
-
-using DatadogReadBuffer =
-    std::vector<char, datadog::internal::allocators::RawAllocator<char>>;
 
 // Current state of a file, and the return value for operations on files.
 // IDatadogFile implementaitons should catch (and not rethrow) exceptions, and
@@ -51,22 +47,19 @@ class IDatadogFile {
   // Write the specified buffer to the file.
   virtual DatadogFileStatus Write(std::string_view buffer) = 0;
 
-  // Read from the file, up to the capacity of the given buffer. The buffer
-  // should be resized up to its capacity to indicate the number of bytes read.
-  //
-  // Passing in a buffer with a capacity of zero will immediately return with
-  // no data read.
-  //
-  // For example:
-  //
-  // ```cpp
-  // const buffer_capactiy = 128;
-  // DatadogReadBuffer buffer(buffer_capactiy);
-  // while (file->Read(buffer) == DatadogFileStatus::Ok &&
-  //        buffer.size() == buffer_size) {
-  // }
-  // ```cpp
-  virtual DatadogFileStatus Read(DatadogReadBuffer& buffer) = 0;
+  // Read the contents of the file into a buffer, up to Size.
+  // The number of bytes read is written to the bytes_read parameter.
+  // cpp20: drop std::array and char* in favor of std::span
+  template <size_t Size>
+  DatadogFileStatus Read(std::array<char, Size>& buffer, size_t& bytes_read) {
+    bytes_read = Size;
+    return Read(buffer.data(), bytes_read);
+  }
+
+  // Read up from the file into a buffer.  The size of the buffer should
+  // be passed to `bytes`, and the number of bytes read will be written
+  // to `bytes` on a successful return.
+  virtual DatadogFileStatus Read(char* buffer, size_t& bytes) = 0;
 };
 
 // Interface class for interacting with the filesystem. Allows clients to

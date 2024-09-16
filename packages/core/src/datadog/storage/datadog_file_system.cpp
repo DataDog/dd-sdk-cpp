@@ -25,7 +25,7 @@ class StdDatadogFile : public IDatadogFile {
   DatadogFileStatus GetStatus() const override { return status_; }
 
   DatadogFileStatus Write(std::string_view buffer) override;
-  DatadogFileStatus Read(DatadogReadBuffer& buffer) override;
+  DatadogFileStatus Read(char* buffer, size_t& buffer_size) override;
 
  private:
   uintmax_t size_ = 0;
@@ -56,15 +56,15 @@ DatadogFileStatus StdDatadogFile::Write(std::string_view buffer) {
   return status_;
 }
 
-DatadogFileStatus StdDatadogFile::Read(DatadogReadBuffer& buffer) {
-  auto buffer_capacity = buffer.capacity();
-  if (buffer_capacity == 0) {
+DatadogFileStatus StdDatadogFile::Read(char* buffer, size_t& bytes) {
+  if (!buffer || bytes == 0) {
     status_ = DatadogFileStatus::OperationFailure;
+    bytes = 0;
     return status_;
   }
 
-  file_.read(buffer.data(), static_cast<std::streamsize>(buffer_capacity));
-  buffer.resize(file_.gcount());
+  file_.read(buffer, static_cast<std::streamsize>(bytes));
+  bytes = file_.gcount();
 
   if (file_.bad()) {
     status_ = DatadogFileStatus::BadState;
@@ -87,7 +87,7 @@ const std::filesystem::path& StdDatadogFileSystem::GetBaseDirectory() {
 
 std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
     const std::filesystem::path& path) {
-  auto full_path = base_cache_directory_ / path;
+  const auto full_path = base_cache_directory_ / path;
   if (!IsInFileSystem(full_path)) return nullptr;
 
   if (!std::filesystem::exists(base_cache_directory_)) {
@@ -96,8 +96,8 @@ std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
     }
   }
 
-  auto open_mode = std::fstream::in | std::fstream::out | std::fstream::app |
-                   std::fstream::binary;
+  const auto open_mode = std::fstream::in | std::fstream::out |
+                         std::fstream::app | std::fstream::binary;
   std::fstream file{full_path, open_mode};
   if (!file.is_open()) {
     return nullptr;
@@ -132,7 +132,7 @@ std::vector<std::filesystem::path> StdDatadogFileSystem::GetFiles(
 bool StdDatadogFileSystem::IsInFileSystem(const std::filesystem::path& path) {
   const auto normalized = path.lexically_normal();
 
-  auto [rootEnd, _] =
+  const auto [rootEnd, _] =
       std::mismatch(base_cache_directory_.begin(), base_cache_directory_.end(),
                     normalized.begin());
 
