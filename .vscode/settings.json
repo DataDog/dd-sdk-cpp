@@ -80,6 +80,9 @@
     "exception": "cpp",
     "memory": "cpp",
     "atomic": "cpp",
-    "filesystem": "cpp"
+    "filesystem": "cpp",
+    "__errc": "cpp",
+    "system_error": "cpp",
+    "__availability": "cpp"
   }
 }

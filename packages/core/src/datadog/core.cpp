@@ -10,12 +10,8 @@ DatadogConfiguration::DatadogConfiguration(
     const std::shared_ptr<storage::IDatadogFileSystem>& file_system)
     : file_system_{file_system} {}
 
-DatadogCore::DatadogCore(IDatadogCore::Allow,
-                         const DatadogConfiguration& configuration)
-    : file_system_(configuration.GetFileSystem()) {}
-
 void DatadogCore::RegisterFeature(FeatureId feature_id,
-                                  std::unique_ptr<DatadogFeature> feature) {
+                                  std::unique_ptr<DatadogFeature>&& feature) {
   // The public version of this function already checked that the feature
   // doesn't exist, should be same to just emplace here
   features_by_id_.emplace(feature_id, std::move(feature));

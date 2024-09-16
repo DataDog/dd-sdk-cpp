@@ -39,7 +39,8 @@ class DatadogCore : public IDatadogCore,
                     std::enable_shared_from_this<DatadogCore> {
  public:
   explicit DatadogCore(IDatadogCore::Allow,
-                       const DatadogConfiguration& configuration);
+                       const DatadogConfiguration& configuration)
+      : file_system_{configuration.GetFileSystem()} {};
   DatadogCore(const DatadogCore&) = delete;
   DatadogCore& operator=(const DatadogCore&) = delete;
 
@@ -60,7 +61,7 @@ class DatadogCore : public IDatadogCore,
 
  private:
   void RegisterFeature(FeatureId feature_id,
-                       std::unique_ptr<DatadogFeature> feature);
+                       std::unique_ptr<DatadogFeature>&& feature);
   DatadogFeature* GetFeatureById(FeatureId feature_id) const;
 
   std::shared_ptr<storage::IDatadogFileSystem> file_system_;
