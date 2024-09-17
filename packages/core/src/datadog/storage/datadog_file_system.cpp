@@ -103,7 +103,7 @@ DatadogFileDeleteResult StdDatadogFileSystem::DeleteFile(
 std::vector<std::filesystem::path> StdDatadogFileSystem::ListFilePaths(
     const std::filesystem::path& in_dir) {
   const auto path = base_cache_directory_ / in_dir;
-  std::vector<std::filesystem::path> ret{};
+  std::vector<std::filesystem::path> ret;
   if (!IsInFileSystem(path)) return ret;
 
   if (std::filesystem::is_directory(path)) {

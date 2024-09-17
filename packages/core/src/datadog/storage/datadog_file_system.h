@@ -64,7 +64,7 @@ class IDatadogFile {
     return Read(buffer.data(), bytes_read);
   }
 
-  // Read up from the file into a buffer.  The size of the buffer should
+  // Read up from the file into a buffer. The size of the buffer should
   // be passed to `bytes`, and the number of bytes read will be written
   // to `bytes` on a successful return.
   // If the read attempted to read past the end of the file, this method
