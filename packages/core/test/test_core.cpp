@@ -16,14 +16,14 @@ class MockFeature : public DatadogFeature {
   explicit MockFeature(const std::weak_ptr<IDatadogCore>& core) : core_(core) {}
 
   static constexpr FeatureId feature_id =
-      datadog::core::internal::four_cc('M', 'O', 'C', 'K');
+      datadog::core::internal::CreateFourCC('M', 'O', 'C', 'K');
 
   std::weak_ptr<IDatadogCore> core_;
 };
 
 TEST_CASE("M return proper value W four_cc", "[core]") {
   // Given
-  auto value = datadog::core::internal::four_cc('A', 'B', 'C', 'D');
+  auto value = datadog::core::internal::CreateFourCC('A', 'B', 'C', 'D');
 
   REQUIRE(FeatureId{0x44434241} == value);
 }

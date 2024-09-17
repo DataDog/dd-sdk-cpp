@@ -11,7 +11,6 @@
 
 namespace {
 
-using datadog::core::storage::DatadogFileDeleteResult;
 using datadog::core::storage::DatadogFileStatus;
 using datadog::core::storage::IDatadogFile;
 using datadog::core::storage::StdDatadogFileSystem;
@@ -184,7 +183,7 @@ TEST_CASE("M delete file W DeleteFile", "[storage]") {
   TempFile file1(base_filesystem_dir / "file1.tmp");
 
   // When
-  REQUIRE(DatadogFileDeleteResult::Ok == file_system.DeleteFile("file1.tmp"));
+  REQUIRE(DatadogFileStatus::Ok == file_system.DeleteFile("file1.tmp"));
 
   // Then
   REQUIRE(!std::filesystem::exists(file1.GetPath()));
@@ -193,11 +192,11 @@ TEST_CASE("M delete file W DeleteFile", "[storage]") {
 TEST_CASE("M return NoSuchFile W DeleteFile {nonexistant file}", "[storage]") {
   // When
   StdDatadogFileSystem file_system;
-  DatadogFileDeleteResult result{};
+  DatadogFileStatus result{};
   REQUIRE_NOTHROW(result = file_system.DeleteFile("noexist.tmp"));
 
   // Then
-  REQUIRE(DatadogFileDeleteResult::NoSuchFile == result);
+  REQUIRE(DatadogFileStatus::NoOperation == result);
 }
 
 TEST_CASE(
@@ -208,11 +207,11 @@ TEST_CASE(
   TempFile file1("caches/file1.tmp");
 
   // When
-  DatadogFileDeleteResult result{};
+  DatadogFileStatus result{};
   REQUIRE_NOTHROW(result = file_system.DeleteFile("../file1.tmp"));
 
   // Then
-  REQUIRE(DatadogFileDeleteResult::Failed == result);
+  REQUIRE(DatadogFileStatus::OperationFailure == result);
   REQUIRE(std::filesystem::exists("caches/file1.tmp"));
 }
 
@@ -223,10 +222,10 @@ TEST_CASE("M not delete files outside of file system W DeleteFile {rooted}",
   TempFile file1("/tmp/file1.tmp");
 
   // When
-  DatadogFileDeleteResult result{};
+  DatadogFileStatus result{};
   REQUIRE_NOTHROW(result = file_system.DeleteFile("/tmp/file1.tmp"));
 
-  REQUIRE(DatadogFileDeleteResult::Failed == result);
+  REQUIRE(DatadogFileStatus::OperationFailure == result);
   REQUIRE(std::filesystem::exists("/tmp/file1.tmp"));
 }
 
@@ -269,7 +268,7 @@ TEST_CASE("M read file content W IDatadogFile::Read", "[storage]") {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
-    auto result = file->Read(buffer, read);
+    auto result = file->ReadArray(buffer, read);
 
     // THen
     REQUIRE(result == DatadogFileStatus::EndOfFile);
@@ -294,7 +293,7 @@ TEST_CASE("M partial file content W IDatadogFile::Read", "[storage]") {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
-    auto result = file->Read(buffer, read);
+    auto result = file->ReadArray(buffer, read);
     REQUIRE(result == DatadogFileStatus::Ok);
   }
 
@@ -321,7 +320,7 @@ TEST_CASE("M file contents looped W IDatadogFile::Read", "[storage]") {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
     REQUIRE(file);
     size_t size = 0;
-    while (DatadogFileStatus::Ok == file->Read(buffer, size) &&
+    while (DatadogFileStatus::Ok == file->ReadArray(buffer, size) &&
            size == buffer_size) {
     }
   }
@@ -371,7 +370,7 @@ TEST_CASE("M return error W IDatadogFile::Read {zero size}", "[storage]") {
     std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
-    auto result = file->Read(buffer, read);
+    auto result = file->ReadArray(buffer, read);
 
     // THEN
     REQUIRE(result == DatadogFileStatus::OperationFailure);

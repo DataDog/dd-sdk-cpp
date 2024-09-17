@@ -8,10 +8,10 @@
 
 namespace datadog::core::internal {
 
-constexpr FeatureId four_cc(unsigned char a,
-                            unsigned char b,
-                            unsigned char c,
-                            unsigned char d) {
+constexpr FeatureId CreateFourCC(unsigned char a,
+                                 unsigned char b,
+                                 unsigned char c,
+                                 unsigned char d) {
   return FeatureId{
       static_cast<uint32_t>(a) << 0 | static_cast<uint32_t>(b) << 8 |
       static_cast<uint32_t>(c) << 16 | static_cast<uint32_t>(d) << 24};

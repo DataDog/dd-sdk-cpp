@@ -19,19 +19,13 @@ enum class DatadogFileStatus {
   Ok,
   // The last operation (read or write) failed, but the file is still usable.
   OperationFailure,
+  // The last operation result is no changes, for example when attempting to
+  // delete a non-existant file.
+  NoOperation,
   // The last operation failed, and the failure is non-recoverable.
   BadState,
   // The last operation attempted to read past the end of the file.
   EndOfFile,
-};
-
-enum class DatadogFileDeleteResult {
-  // Deletion of the file succeeded.
-  Ok,
-  // Deletion of the file failed.
-  Failed,
-  // Deletion failed because no such file exists.
-  NoSuchFile,
 };
 
 // Interface class for file operations with Datadog. The default implementation
@@ -53,22 +47,22 @@ class IDatadogFile {
   // Write the specified buffer to the file.
   virtual DatadogFileStatus Write(std::string_view buffer) = 0;
 
-  // Read the contents of the file into a buffer, up to Size.
-  // The number of bytes read is written to the bytes_read parameter.
-  // If the read attempted to read past the end of the file, this method
-  // will return DatadogFileStatus::EndOfFile.
+  // Read the contents of the file into a buffer, up to Size. If the read
+  // attempted to read past the end of the file, this method will return
+  // DatadogFileStatus::EndOfFile, and the number of bytes read will be written
+  // to `bytes_read`.
   // cpp20: drop std::array and char* in favor of std::span.
   template <size_t Size>
-  DatadogFileStatus Read(std::array<char, Size>& buffer, size_t& bytes_read) {
+  DatadogFileStatus ReadArray(std::array<char, Size>& buffer,
+                              size_t& bytes_read) {
     bytes_read = Size;
     return Read(buffer.data(), bytes_read);
   }
 
   // Read up from the file into a buffer. The size of the buffer should
-  // be passed to `bytes`, and the number of bytes read will be written
-  // to `bytes` on a successful return.
-  // If the read attempted to read past the end of the file, this method
-  // will return DatadogFileStatus::EndOfFile.
+  // be passed to `bytes. If the read attempted to read past the end of the
+  // file, this method will return DatadogFileStatus::EndOfFile, and number of
+  // bytes read will be written to `bytes`.
   virtual DatadogFileStatus Read(char* buffer, size_t& bytes) = 0;
 };
 
@@ -92,12 +86,11 @@ class IDatadogFileSystem {
 
   // Delete a file at the specified path, returning the result of the operation.
   // This function should not throw if the file does not exist, and should
-  // instead return Datadog DatadogFileDeleteResult::NoSuchFile.
-  // If a caller attempts to read a file outside of the file system, it should
-  // not check for the existance of the file, and instead return
-  // DatadogFileDeleteResult::Failed,
-  virtual DatadogFileDeleteResult DeleteFile(
-      const std::filesystem::path& path) = 0;
+  // instead return Datadog DatadogFileStatus::NoOperation. If a caller attempts
+  // to read a file outside of the file system, it should not check for the
+  // existance of the file, and instead return
+  // DatadogFileStatus::OperationFailure,
+  virtual DatadogFileStatus DeleteFile(const std::filesystem::path& path) = 0;
 
   // List all files under the specified path, non-recursive. Paths returned
   // should be relative to the file system's root path.
@@ -115,8 +108,7 @@ class StdDatadogFileSystem : public IDatadogFileSystem {
   std::unique_ptr<IDatadogFile> OpenFile(
       const std::filesystem::path& path) override;
 
-  DatadogFileDeleteResult DeleteFile(
-      const std::filesystem::path& path) override;
+  DatadogFileStatus DeleteFile(const std::filesystem::path& path) override;
 
   std::vector<std::filesystem::path> ListFilePaths(
       const std::filesystem::path& in_dir) override;

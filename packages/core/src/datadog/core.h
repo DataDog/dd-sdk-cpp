@@ -4,9 +4,9 @@
 // Datadog, Inc.
 #pragma once
 
+#include <map>
 #include <memory>
 #include <type_traits>
-#include <unordered_map>
 
 #include "datadog/feature.h"
 #include "datadog/storage/datadog_file_system.h"
@@ -65,8 +65,7 @@ class DatadogCore : public IDatadogCore,
   DatadogFeature* GetFeatureById(FeatureId feature_id) const;
 
   std::shared_ptr<storage::IDatadogFileSystem> file_system_;
-  std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>>
-      features_by_id_;
+  std::map<FeatureId, std::unique_ptr<DatadogFeature>> features_by_id_;
 };
 
 template <typename T, typename... Args>
