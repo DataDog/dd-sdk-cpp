@@ -4,6 +4,7 @@
 // Datadog, Inc.
 #pragma once
 
+#include <algorithm>
 #include <random>
 #include <string>
 
