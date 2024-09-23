@@ -14,6 +14,7 @@ namespace {
 using datadog::core::storage::DatadogFileStatus;
 using datadog::core::storage::IDatadogFile;
 using datadog::core::storage::StdDatadogFileSystem;
+using datadog::test::GenerateRandomString;
 
 enum class FileDisposition : bool { remove_only, create_and_remove };
 
@@ -43,12 +44,15 @@ class TempFile {
   const std::filesystem::path path_;
 };
 
-const std::filesystem::path base_filesystem_dir{"caches/datadog"};
+static const std::filesystem::path base_filesystem_dir{
+    std::filesystem::temp_directory_path() /
+    std::filesystem::path(GenerateRandomString(8)) / "caches/datadog"};
 
 TEST_CASE("M create file in base cache directory W OpenFile", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
-  auto expected_path = std::filesystem::path{"caches/datadog/test.tmp"};
+  StdDatadogFileSystem file_system{base_filesystem_dir};
+  auto expected_path = std::filesystem::path{base_filesystem_dir /
+                                             std::filesystem::path("test.tmp")};
   TempFile cleanup{expected_path, FileDisposition::remove_only};
 
   // When
@@ -60,11 +64,11 @@ TEST_CASE("M create file in base cache directory W OpenFile", "[storage]") {
 
 TEST_CASE("M return nullptr W OpenFile fails", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   auto expected_path = std::filesystem::path{"noexist/test.tmp"};
 
   // When
-  auto file = file_system.Open("nexist/test.tmp");
+  auto file = file_system.Open("noexist/test.tmp");
 
   // Then
   REQUIRE_FALSE(file);
@@ -73,7 +77,7 @@ TEST_CASE("M return nullptr W OpenFile fails", "[storage]") {
 TEST_CASE("M not create file outside of its directory W OpenFile {relative}",
           "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile cleanup{"caches/test.tmp", FileDisposition::remove_only};
 
   // When
@@ -89,7 +93,7 @@ TEST_CASE("M not create file outside of its directory W OpenFile {relative}",
 TEST_CASE("M not create file outside of its directory W OpenFile {rooted}",
           "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile cleanup{"/tmp/test.tmp", FileDisposition::remove_only};
 
   // When
@@ -105,7 +109,7 @@ TEST_CASE("M not create file outside of its directory W OpenFile {rooted}",
 TEST_CASE("M return empty list for empty directory W ListFilePaths",
           "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   std::filesystem::path dir{"empty"};
 
   // When
@@ -120,7 +124,7 @@ TEST_CASE(
     "{relative}",
     "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile file1(base_filesystem_dir / "../file1.tmp");
   std::filesystem::path dir{"../"};
 
@@ -136,7 +140,7 @@ TEST_CASE(
     "{rooted}",
     "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   std::filesystem::path dir("/usr/bin");
 
   // When
@@ -148,7 +152,7 @@ TEST_CASE(
 
 TEST_CASE("M return file names for directory W ListFilePaths", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile file1(base_filesystem_dir / "file1.tmp");
   TempFile file2(base_filesystem_dir / "file2.tmp");
 
@@ -168,7 +172,7 @@ TEST_CASE("M not recurse directories W ListFilePaths", "[storage]") {
   TempFile file1(base_filesystem_dir / "subdir" / "file1.tmp");
 
   // When
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   auto files = file_system.ListPaths("");
 
   // Then
@@ -179,7 +183,7 @@ TEST_CASE("M not recurse directories W ListFilePaths", "[storage]") {
 
 TEST_CASE("M delete file W DeleteFile", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile file1(base_filesystem_dir / "file1.tmp");
 
   // When
@@ -191,7 +195,7 @@ TEST_CASE("M delete file W DeleteFile", "[storage]") {
 
 TEST_CASE("M return NoSuchFile W DeleteFile {nonexistant file}", "[storage]") {
   // When
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   DatadogFileStatus result{};
   REQUIRE_NOTHROW(result = file_system.Delete("noexist.tmp"));
 
@@ -203,7 +207,7 @@ TEST_CASE(
     "M not delete files outside of file system W DeleteFile {relative file}",
     "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile file1("caches/file1.tmp");
 
   // When
@@ -231,7 +235,7 @@ TEST_CASE("M not delete files outside of file system W DeleteFile {rooted}",
 
 TEST_CASE("M write file content W IDatadogFile::Write", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile file1(base_filesystem_dir / "write_file.tmp");
   std::string file_content{"file contents\n"};
 
@@ -253,7 +257,7 @@ TEST_CASE("M write file content W IDatadogFile::Write", "[storage]") {
 
 TEST_CASE("M read file content W IDatadogFile::Read", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
   {
     std::fstream write_file{base_filesystem_dir / "read_file.tmp",
@@ -278,7 +282,7 @@ TEST_CASE("M read file content W IDatadogFile::Read", "[storage]") {
 
 TEST_CASE("M partial file content W IDatadogFile::Read", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
   {
     std::fstream write_file{base_filesystem_dir / "read_file.tmp",
@@ -304,7 +308,7 @@ TEST_CASE("M partial file content W IDatadogFile::Read", "[storage]") {
 
 TEST_CASE("M file contents looped W IDatadogFile::Read", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
 
   {
@@ -328,7 +332,7 @@ TEST_CASE("M file contents looped W IDatadogFile::Read", "[storage]") {
 
 TEST_CASE("M return Ok W IDatadogFile::Read {exact length}", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
 
   {
@@ -354,7 +358,7 @@ TEST_CASE("M return Ok W IDatadogFile::Read {exact length}", "[storage]") {
 
 TEST_CASE("M return error W IDatadogFile::Read {zero size}", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
 
   {
@@ -380,7 +384,7 @@ TEST_CASE("M return error W IDatadogFile::Read {zero size}", "[storage]") {
 
 TEST_CASE("M return error W IDatadogFile::Read {nullptr}", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
 
   {
