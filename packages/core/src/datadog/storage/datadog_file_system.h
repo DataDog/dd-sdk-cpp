@@ -67,13 +67,17 @@ class IDatadogFile {
 };
 
 // Interface class for interacting with the filesystem. Allows clients to
-// override methods for getting file system information, including where
-// to store Datadog cache files.
+// override methods for getting file system information, including where to
+// store Datadog cache files.
 //
 // Implementers of IDatadogFileSystem should ensure the class cannot access
 // files outside of its area of control, such as outside of a base directory.
 //
-// Default implementation is SdtDatadogFileSystem, which uses the C++
+// While the default implemenation uses the physical file system, it is possible
+// to implement this interface to use an entirely virtualized filesystem, such
+// as inside of a database.
+//
+// The default implementation is StdDatadogFileSystem, which uses the C++
 // standard library to implement file operations.
 class IDatadogFileSystem {
  public:
@@ -81,7 +85,7 @@ class IDatadogFileSystem {
 
   // Open a file at the specified path and return it. Can return `nullptr`
   // if there is an error opening the file.
-  virtual std::unique_ptr<IDatadogFile> OpenFile(
+  virtual std::unique_ptr<IDatadogFile> Open(
       const std::filesystem::path& path) = 0;
 
   // Delete a file at the specified path, returning the result of the operation.
@@ -90,11 +94,11 @@ class IDatadogFileSystem {
   // to read a file outside of the file system, it should not check for the
   // existance of the file, and instead return
   // DatadogFileStatus::OperationFailure,
-  virtual DatadogFileStatus DeleteFile(const std::filesystem::path& path) = 0;
+  virtual DatadogFileStatus Delete(const std::filesystem::path& path) = 0;
 
   // List all files under the specified path, non-recursive. Paths returned
   // should be relative to the file system's root path.
-  virtual std::vector<std::filesystem::path> ListFilePaths(
+  virtual std::vector<std::filesystem::path> ListPaths(
       const std::filesystem::path& in_dir) = 0;
 };
 
@@ -105,12 +109,12 @@ class StdDatadogFileSystem : public IDatadogFileSystem {
   explicit StdDatadogFileSystem(
       const std::filesystem::path& base_cache_directory = {"caches/datadog"});
 
-  std::unique_ptr<IDatadogFile> OpenFile(
+  std::unique_ptr<IDatadogFile> Open(
       const std::filesystem::path& path) override;
 
-  DatadogFileStatus DeleteFile(const std::filesystem::path& path) override;
+  DatadogFileStatus Delete(const std::filesystem::path& path) override;
 
-  std::vector<std::filesystem::path> ListFilePaths(
+  std::vector<std::filesystem::path> ListPaths(
       const std::filesystem::path& in_dir) override;
 
  private:

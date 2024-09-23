@@ -66,7 +66,7 @@ StdDatadogFileSystem::StdDatadogFileSystem(
     const std::filesystem::path& base_cache_directory)
     : base_cache_directory_(base_cache_directory) {}
 
-std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
+std::unique_ptr<IDatadogFile> StdDatadogFileSystem::Open(
     const std::filesystem::path& path) {
   const auto full_path = base_cache_directory_ / path;
   if (!IsInFileSystem(full_path)) return nullptr;
@@ -85,7 +85,7 @@ std::unique_ptr<IDatadogFile> StdDatadogFileSystem::OpenFile(
   return std::make_unique<StdDatadogFile>(std::move(file));
 }
 
-DatadogFileStatus StdDatadogFileSystem::DeleteFile(
+DatadogFileStatus StdDatadogFileSystem::Delete(
     const std::filesystem::path& path) {
   auto full_path = base_cache_directory_ / path;
 
@@ -100,7 +100,7 @@ DatadogFileStatus StdDatadogFileSystem::DeleteFile(
              : DatadogFileStatus::OperationFailure;
 }
 
-std::vector<std::filesystem::path> StdDatadogFileSystem::ListFilePaths(
+std::vector<std::filesystem::path> StdDatadogFileSystem::ListPaths(
     const std::filesystem::path& in_dir) {
   const auto path = base_cache_directory_ / in_dir;
   std::vector<std::filesystem::path> ret;

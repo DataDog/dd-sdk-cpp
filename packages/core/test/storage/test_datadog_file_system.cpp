@@ -52,7 +52,7 @@ TEST_CASE("M create file in base cache directory W OpenFile", "[storage]") {
   TempFile cleanup{expected_path, FileDisposition::remove_only};
 
   // When
-  { auto file = file_system.OpenFile("test.tmp"); }
+  { auto file = file_system.Open("test.tmp"); }
 
   // Then
   REQUIRE(std::filesystem::exists(expected_path));
@@ -64,7 +64,7 @@ TEST_CASE("M return nullptr W OpenFile fails", "[storage]") {
   auto expected_path = std::filesystem::path{"noexist/test.tmp"};
 
   // When
-  auto file = file_system.OpenFile("nexist/test.tmp");
+  auto file = file_system.Open("nexist/test.tmp");
 
   // Then
   REQUIRE_FALSE(file);
@@ -78,7 +78,7 @@ TEST_CASE("M not create file outside of its directory W OpenFile {relative}",
 
   // When
   {
-    auto file = file_system.OpenFile("../test.tmp");
+    auto file = file_system.Open("../test.tmp");
     REQUIRE(file == nullptr);
   }
 
@@ -94,7 +94,7 @@ TEST_CASE("M not create file outside of its directory W OpenFile {rooted}",
 
   // When
   {
-    auto file = file_system.OpenFile("/tmp/test.tmp");
+    auto file = file_system.Open("/tmp/test.tmp");
     REQUIRE(file == nullptr);
   }
 
@@ -109,7 +109,7 @@ TEST_CASE("M return empty list for empty directory W ListFilePaths",
   std::filesystem::path dir{"empty"};
 
   // When
-  auto files = file_system.ListFilePaths(dir);
+  auto files = file_system.ListPaths(dir);
 
   // Then
   REQUIRE(files.empty());
@@ -125,7 +125,7 @@ TEST_CASE(
   std::filesystem::path dir{"../"};
 
   // When
-  auto files = file_system.ListFilePaths(dir);
+  auto files = file_system.ListPaths(dir);
 
   // Then
   REQUIRE(files.empty());
@@ -140,7 +140,7 @@ TEST_CASE(
   std::filesystem::path dir("/usr/bin");
 
   // When
-  auto files = file_system.ListFilePaths(dir);
+  auto files = file_system.ListPaths(dir);
 
   // Then
   REQUIRE(files.empty());
@@ -153,7 +153,7 @@ TEST_CASE("M return file names for directory W ListFilePaths", "[storage]") {
   TempFile file2(base_filesystem_dir / "file2.tmp");
 
   // When
-  auto files = file_system.ListFilePaths("");
+  auto files = file_system.ListPaths("");
 
   // Then
   REQUIRE(std::find(files.begin(), files.end(),
@@ -169,7 +169,7 @@ TEST_CASE("M not recurse directories W ListFilePaths", "[storage]") {
 
   // When
   StdDatadogFileSystem file_system;
-  auto files = file_system.ListFilePaths("");
+  auto files = file_system.ListPaths("");
 
   // Then
   REQUIRE(std::find(files.begin(), files.end(),
@@ -183,7 +183,7 @@ TEST_CASE("M delete file W DeleteFile", "[storage]") {
   TempFile file1(base_filesystem_dir / "file1.tmp");
 
   // When
-  REQUIRE(DatadogFileStatus::Ok == file_system.DeleteFile("file1.tmp"));
+  REQUIRE(DatadogFileStatus::Ok == file_system.Delete("file1.tmp"));
 
   // Then
   REQUIRE(!std::filesystem::exists(file1.GetPath()));
@@ -193,7 +193,7 @@ TEST_CASE("M return NoSuchFile W DeleteFile {nonexistant file}", "[storage]") {
   // When
   StdDatadogFileSystem file_system;
   DatadogFileStatus result{};
-  REQUIRE_NOTHROW(result = file_system.DeleteFile("noexist.tmp"));
+  REQUIRE_NOTHROW(result = file_system.Delete("noexist.tmp"));
 
   // Then
   REQUIRE(DatadogFileStatus::NoOperation == result);
@@ -208,7 +208,7 @@ TEST_CASE(
 
   // When
   DatadogFileStatus result{};
-  REQUIRE_NOTHROW(result = file_system.DeleteFile("../file1.tmp"));
+  REQUIRE_NOTHROW(result = file_system.Delete("../file1.tmp"));
 
   // Then
   REQUIRE(DatadogFileStatus::OperationFailure == result);
@@ -223,7 +223,7 @@ TEST_CASE("M not delete files outside of file system W DeleteFile {rooted}",
 
   // When
   DatadogFileStatus result{};
-  REQUIRE_NOTHROW(result = file_system.DeleteFile("/tmp/file1.tmp"));
+  REQUIRE_NOTHROW(result = file_system.Delete("/tmp/file1.tmp"));
 
   REQUIRE(DatadogFileStatus::OperationFailure == result);
   REQUIRE(std::filesystem::exists("/tmp/file1.tmp"));
@@ -237,7 +237,7 @@ TEST_CASE("M write file content W IDatadogFile::Write", "[storage]") {
 
   // When
   {
-    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("write_file.tmp");
+    std::unique_ptr<IDatadogFile> file = file_system.Open("write_file.tmp");
     REQUIRE(file);
     auto status = file->Write(file_content);
     REQUIRE(status == DatadogFileStatus::Ok);
@@ -265,7 +265,7 @@ TEST_CASE("M read file content W IDatadogFile::Read", "[storage]") {
   constexpr size_t buffer_size = 128;
   std::array<char, buffer_size> buffer{};
   {
-    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
     auto result = file->ReadArray(buffer, read);
@@ -290,7 +290,7 @@ TEST_CASE("M partial file content W IDatadogFile::Read", "[storage]") {
   constexpr size_t buffer_size = 8;
   std::array<char, buffer_size> buffer{};
   {
-    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
     auto result = file->ReadArray(buffer, read);
@@ -317,7 +317,7 @@ TEST_CASE("M file contents looped W IDatadogFile::Read", "[storage]") {
   constexpr size_t buffer_size = 8;
   std::array<char, buffer_size> buffer{};
   {
-    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t size = 0;
     while (DatadogFileStatus::Ok == file->ReadArray(buffer, size) &&
@@ -339,7 +339,7 @@ TEST_CASE("M return Ok W IDatadogFile::Read {exact length}", "[storage]") {
 
   // When
   {
-    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t file_size = file->GetSize();
     std::vector<char> buffer(file_size);
@@ -367,7 +367,7 @@ TEST_CASE("M return error W IDatadogFile::Read {zero size}", "[storage]") {
   constexpr size_t buffer_size = 0;
   std::array<char, buffer_size> buffer{};
   {
-    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
     auto result = file->ReadArray(buffer, read);
@@ -394,7 +394,7 @@ TEST_CASE("M return error W IDatadogFile::Read {nullptr}", "[storage]") {
   size_t read_size = 32;
   char* buffer = nullptr;
   {
-    std::unique_ptr<IDatadogFile> file = file_system.OpenFile("read_file.tmp");
+    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     auto result = file->Read(buffer, read_size);
 
