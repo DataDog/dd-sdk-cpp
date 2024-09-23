@@ -110,6 +110,42 @@ TEST_CASE("M not create file outside of its directory W OpenFile {rooted}",
   REQUIRE(!std::filesystem::exists("/tmp/test.tmp"));
 }
 
+TEST_CASE("M return true if file exists W FileExists", "storage") {
+  // Given
+  StdDatadogFileSystem file_system;
+  TempFile file(base_filesystem_dir / "test_file.tmp");
+
+  // When / Then
+  REQUIRE(file_system.Exists("test_file.tmp"));
+}
+
+TEST_CASE("M return false if file does not exist W FileExists", "storage") {
+  // Given
+  StdDatadogFileSystem file_system;
+
+  // When / Then
+  REQUIRE_FALSE(file_system.Exists("noexist.tmp"));
+}
+
+TEST_CASE("M return false for file outside of file system W FileExists",
+          "[storage]") {
+  // Given
+  StdDatadogFileSystem file_system;
+  TempFile file("datadog/test_file.tmp");
+
+  // When / Then
+  REQUIRE_FALSE(file_system.Exists("../test_file.tmp"));
+}
+
+TEST_CASE(
+    "M return false for file outside of file system W FileExists { rooted }",
+    "[storage]") {
+  StdDatadogFileSystem file_system;
+
+  // When / Then
+  REQUIRE_FALSE(file_system.Exists("/usr/bin/bash"));
+}
+
 TEST_CASE("M return empty list for empty directory W ListFilePaths",
           "[storage]") {
   // Given
@@ -164,10 +200,8 @@ TEST_CASE("M return file names for directory W ListFilePaths", "[storage]") {
   auto files = file_system.ListFiles("");
 
   // Then
-  REQUIRE(std::find(files.begin(), files.end(),
-                    base_filesystem_dir / "file1.tmp") != files.end());
-  REQUIRE(std::find(files.begin(), files.end(),
-                    base_filesystem_dir / "file2.tmp") != files.end());
+  REQUIRE(std::find(files.begin(), files.end(), "file1.tmp") != files.end());
+  REQUIRE(std::find(files.begin(), files.end(), "file2.tmp") != files.end());
 }
 
 TEST_CASE("M not recurse directories W ListFilePaths", "[storage]") {
@@ -180,8 +214,7 @@ TEST_CASE("M not recurse directories W ListFilePaths", "[storage]") {
   auto files = file_system.ListFiles("");
 
   // Then
-  REQUIRE(std::find(files.begin(), files.end(),
-                    base_filesystem_dir / "subdir" / "file1.tmp") ==
+  REQUIRE(std::find(files.begin(), files.end(), "subdir/file1.tmp") ==
           files.end());
 }
 

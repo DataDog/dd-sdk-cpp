@@ -7,8 +7,15 @@
 #include <memory>
 
 #include "datadog/storage/datadog_file_system.h"
+#include "datadog/time_provider.h"
 
 namespace datadog::core {
+
+enum class TrackingConsent {
+  Granted,
+  NotGranted,
+  Pending,
+};
 
 /// Defines the Datadog SDK policy when batching data together before uploading
 /// it to Datadog servers. Smaller batches mean smaller but more network
@@ -42,21 +49,27 @@ enum class BatchProcessingLevel {
 
 struct DatadogConfiguration {
   explicit DatadogConfiguration(
+      TrackingConsent tracking_consent,
       BatchSize batch_size = BatchSize::Medium,
       UploadFrequency upload_frequency = UploadFrequency::Average,
       BatchProcessingLevel batch_processing_level =
           BatchProcessingLevel::Medium,
+      DateTimeProvider time_provider = DefaultDateTimeProvider,
       std::shared_ptr<storage::DatadogFileSystem> file_system =
           std::make_shared<storage::StdDatadogFileSystem>())
-      : batch_size(batch_size),
+      : tracking_consent(tracking_consent),
+        batch_size(batch_size),
         upload_frequency(upload_frequency),
         batch_processing_level(batch_processing_level),
+        time_provider(time_provider),
         file_system{file_system} {};
 
+  TrackingConsent tracking_consent;
   BatchSize batch_size;
   UploadFrequency upload_frequency;
   BatchProcessingLevel batch_processing_level;
 
+  DateTimeProvider time_provider;
   std::shared_ptr<storage::DatadogFileSystem> file_system;
 };
 

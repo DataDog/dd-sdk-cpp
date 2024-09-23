@@ -10,10 +10,13 @@ using datadog::core::DatadogCore;
 using datadog::core::DatadogFeature;
 using datadog::core::FeatureId;
 using datadog::core::IDatadogCore;
+using datadog::core::TrackingConsent;
 
 class MockFeature : public DatadogFeature {
  public:
   explicit MockFeature(const std::weak_ptr<IDatadogCore>& core) : core_(core) {}
+
+  std::string_view GetName() const override { return "MockFeature"; }
 
   static constexpr FeatureId feature_id =
       datadog::core::internal::CreateFourCC('M', 'O', 'C', 'K');
@@ -30,7 +33,7 @@ TEST_CASE("M return proper value W four_cc", "[core]") {
 
 TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
   // Given
-  DatadogConfiguration config;
+  DatadogConfiguration config{TrackingConsent::Granted};
   auto core = DatadogCore::Create(config);
 
   // When
@@ -42,7 +45,7 @@ TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
 
 TEST_CASE("M return registered feature W register_feature", "[core]") {
   // Given
-  DatadogConfiguration config;
+  DatadogConfiguration config{TrackingConsent::Granted};
   auto core = DatadogCore::Create(config);
   core->RegisterFeature<MockFeature>();
 
@@ -55,7 +58,7 @@ TEST_CASE("M return registered feature W register_feature", "[core]") {
 
 TEST_CASE("M not overwrite registered feature W second register", "[core]") {
   // Given
-  DatadogConfiguration config;
+  DatadogConfiguration config{TrackingConsent::Granted};
   auto core = DatadogCore::Create(config);
   core->RegisterFeature<MockFeature>();
   auto feature = core->GetFeature<MockFeature>();

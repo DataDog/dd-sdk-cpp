@@ -104,6 +104,11 @@ class DatadogFileSystem {
   virtual std::unique_ptr<DatadogFile> Open(
       const std::filesystem::path& path) = 0;
 
+  // Check if a file exits at the specified path. This function should return
+  // false if an attempt is made to check outside of the root of the file
+  // system.
+  virtual bool Exists(const std::filesystem::path& path) = 0;
+
   // Delete a file at the specified path, returning the result of the operation.
   // This function should not throw if the file does not exist, and should
   // instead return Datadog DatadogFileStatus::NoOperation. If a caller attempts
@@ -128,6 +133,8 @@ class StdDatadogFileSystem : public DatadogFileSystem {
       const std::filesystem::path& base_cache_directory = {"caches/datadog"});
 
   std::unique_ptr<DatadogFile> Open(const std::filesystem::path& path) override;
+
+  bool Exists(const std::filesystem::path& path) override;
 
   DatadogFileStatus Delete(const std::filesystem::path& path) override;
 
