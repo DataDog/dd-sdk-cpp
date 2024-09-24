@@ -12,11 +12,11 @@
 namespace datadog::test {
 
 inline std::string GenerateRandomString(size_t length) {
-  static constexpr std::string_view kCharacters =
-      "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+  static constexpr auto kCharacters =
+      "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"sv;
 
   static std::random_device random_device;
-  static std::mt19937 generator(random_device());
+  static std::mt19937 generator{random_device()};
 
   std::uniform_int_distribution<> distribution(0, kCharacters.size() - 1);
 

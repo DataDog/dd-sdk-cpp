@@ -274,9 +274,9 @@ TEST_CASE("M read file content W IDatadogFile::Read", "[storage]") {
     size_t read = 0;
     auto result = file->ReadArray(buffer, read);
 
-    // THen
+    // Then
     REQUIRE(result == DatadogFileStatus::EndOfFile);
-    REQUIRE(std::string_view(buffer.data(), read) == "file contents\n");
+    REQUIRE(std::string_view{buffer.data(), read} == "file contents\n");
   }
 }
 
@@ -376,7 +376,7 @@ TEST_CASE("M return error W IDatadogFile::Read {zero size}", "[storage]") {
     size_t read = 0;
     auto result = file->ReadArray(buffer, read);
 
-    // THEN
+    // Then
     REQUIRE(result == DatadogFileStatus::OperationFailure);
     REQUIRE(read == 0);
   }
@@ -402,7 +402,7 @@ TEST_CASE("M return error W IDatadogFile::Read {nullptr}", "[storage]") {
     REQUIRE(file);
     auto result = file->Read(buffer, read_size);
 
-    // THEN
+    // Then
     REQUIRE(result == DatadogFileStatus::OperationFailure);
     REQUIRE(read_size == 0);
   }
