@@ -83,6 +83,8 @@
     "filesystem": "cpp",
     "__errc": "cpp",
     "system_error": "cpp",
-    "__availability": "cpp"
+    "__availability": "cpp",
+    "any": "cpp",
+    "condition_variable": "cpp"
   }
 }

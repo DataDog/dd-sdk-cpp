@@ -6,14 +6,16 @@
 
 #include <algorithm>
 #include <random>
-#include <string>
+#include <string_view>
 
 #include <catch2/catch_test_macros.hpp>
 
 namespace datadog::test {
 
 inline std::string GenerateRandomString(size_t length) {
-  static constexpr auto kCharacters =
+  using namespace std::literals::string_view_literals;
+
+  constexpr auto kCharacters =
       "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"sv;
 
   static std::random_device random_device;

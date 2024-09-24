@@ -30,22 +30,30 @@ enum class DatadogFileStatus {
 
 // Interface class for file operations with Datadog. The default implementation
 // is StdDatadogFile which uses classes from the C++ standard library.
-class IDatadogFile {
+class DatadogFile {
  public:
-  IDatadogFile() = default;
-  virtual ~IDatadogFile() = default;
+  DatadogFile(const std::filesystem::path& path) : path_(path) {}
+  virtual ~DatadogFile() = default;
 
   // Prevent copy and move, as file destructors will close the file.
-  IDatadogFile(const IDatadogFile&) = delete;
-  IDatadogFile& operator=(const IDatadogFile&) = delete;
-  IDatadogFile(IDatadogFile&&) = delete;
-  IDatadogFile& operator=(IDatadogFile&&) = delete;
+  DatadogFile(const DatadogFile&) = delete;
+  DatadogFile& operator=(const DatadogFile&) = delete;
+  DatadogFile(DatadogFile&&) = delete;
+  DatadogFile& operator=(DatadogFile&&) = delete;
 
   // Get the size of the file in bytes.
   virtual uintmax_t GetSize() const = 0;
 
+  // Get the path of the file. The path will be relative to the
+  // IDatadogFileSystem that created it.
+  const std::filesystem::path& GetPath() { return path_; }
+
+  // Get the current status of the file. This status is updated after a call to
+  // `Read` or `Write`.
+  virtual DatadogFileStatus GetStatus() const { return status_; }
+
   // Write the specified buffer to the file.
-  virtual DatadogFileStatus Write(std::string_view buffer) = 0;
+  virtual bool Write(std::string_view buffer) = 0;
 
   // Read the contents of the file into a buffer, up to Size. If the read
   // attempted to read past the end of the file, this method will return
@@ -53,17 +61,25 @@ class IDatadogFile {
   // to `bytes_read`.
   // cpp20: drop std::array and char* in favor of std::span.
   template <size_t Size>
-  DatadogFileStatus ReadArray(std::array<char, Size>& buffer,
-                              size_t& bytes_read) {
+  bool ReadArray(std::array<char, Size>& buffer, size_t& bytes_read) {
     bytes_read = Size;
     return Read(buffer.data(), bytes_read);
   }
 
   // Read up from the file into a buffer. The size of the buffer should
-  // be passed to `bytes. If the read attempted to read past the end of the
-  // file, this method will return DatadogFileStatus::EndOfFile, and number of
-  // bytes read will be written to `bytes`.
-  virtual DatadogFileStatus Read(char* buffer, size_t& bytes) = 0;
+  // be passed to `bytes`. If the read attempted to read past the end of the
+  // file, this method will return `false`, set the status of the file to
+  // `DatadogFileStatus::EndOfFile`, and number of bytes read will be written to
+  // `bytes`.
+  //
+  // Passing a `nullptr` to this method will seek forward the number of `bytes`
+  // into the file. The caller should take steps to not seek past the end of the
+  // file.
+  virtual bool Read(char* buffer, size_t& bytes) = 0;
+
+ protected:
+  DatadogFileStatus status_;
+  const std::filesystem::path path_;
 };
 
 // Interface class for interacting with the filesystem. Allows clients to
@@ -85,7 +101,7 @@ class IDatadogFileSystem {
 
   // Open a file at the specified path and return it. Can return `nullptr`
   // if there is an error opening the file.
-  virtual std::unique_ptr<IDatadogFile> Open(
+  virtual std::unique_ptr<DatadogFile> Open(
       const std::filesystem::path& path) = 0;
 
   // Delete a file at the specified path, returning the result of the operation.
@@ -93,8 +109,10 @@ class IDatadogFileSystem {
   // instead return Datadog DatadogFileStatus::NoOperation. If a caller attempts
   // to read a file outside of the file system, it should not check for the
   // existance of the file, and instead return
-  // DatadogFileStatus::OperationFailure,
+  // DatadogFileStatus::OperationFailure.
   virtual DatadogFileStatus Delete(const std::filesystem::path& path) = 0;
+
+  // TODO(jeff.ward): Add Exists
 
   // List all files under the specified path, non-recursive. Paths returned
   // should be relative to the file system's root path.
@@ -109,8 +127,7 @@ class StdDatadogFileSystem : public IDatadogFileSystem {
   explicit StdDatadogFileSystem(
       const std::filesystem::path& base_cache_directory = {"caches/datadog"});
 
-  std::unique_ptr<IDatadogFile> Open(
-      const std::filesystem::path& path) override;
+  std::unique_ptr<DatadogFile> Open(const std::filesystem::path& path) override;
 
   DatadogFileStatus Delete(const std::filesystem::path& path) override;
 

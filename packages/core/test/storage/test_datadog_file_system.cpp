@@ -11,8 +11,8 @@
 
 namespace {
 
+using datadog::core::storage::DatadogFile;
 using datadog::core::storage::DatadogFileStatus;
-using datadog::core::storage::IDatadogFile;
 using datadog::core::storage::StdDatadogFileSystem;
 using datadog::test::GenerateRandomString;
 
@@ -241,10 +241,10 @@ TEST_CASE("M write file content W IDatadogFile::Write", "[storage]") {
 
   // When
   {
-    std::unique_ptr<IDatadogFile> file = file_system.Open("write_file.tmp");
+    std::unique_ptr<DatadogFile> file = file_system.Open("write_file.tmp");
     REQUIRE(file);
-    auto status = file->Write(file_content);
-    REQUIRE(status == DatadogFileStatus::Ok);
+    REQUIRE(file->Write(file_content));
+    REQUIRE(file->GetStatus() == DatadogFileStatus::Ok);
   }
 
   // Then
@@ -269,13 +269,14 @@ TEST_CASE("M read file content W IDatadogFile::Read", "[storage]") {
   constexpr size_t buffer_size = 128;
   std::array<char, buffer_size> buffer{};
   {
-    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
+    std::unique_ptr<DatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
     auto result = file->ReadArray(buffer, read);
 
     // Then
-    REQUIRE(result == DatadogFileStatus::EndOfFile);
+    REQUIRE(!result);
+    REQUIRE(file->GetStatus() == DatadogFileStatus::EndOfFile);
     REQUIRE(std::string_view{buffer.data(), read} == "file contents\n");
   }
 }
@@ -294,11 +295,12 @@ TEST_CASE("M partial file content W IDatadogFile::Read", "[storage]") {
   constexpr size_t buffer_size = 8;
   std::array<char, buffer_size> buffer{};
   {
-    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
+    std::unique_ptr<DatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
     auto result = file->ReadArray(buffer, read);
-    REQUIRE(result == DatadogFileStatus::Ok);
+    REQUIRE(result);
+    REQUIRE(file->GetStatus() == DatadogFileStatus::Ok);
   }
 
   // Then
@@ -321,11 +323,10 @@ TEST_CASE("M file contents looped W IDatadogFile::Read", "[storage]") {
   constexpr size_t buffer_size = 8;
   std::array<char, buffer_size> buffer{};
   {
-    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
+    std::unique_ptr<DatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t size = 0;
-    while (DatadogFileStatus::Ok == file->ReadArray(buffer, size) &&
-           size == buffer_size) {
+    while (file->ReadArray(buffer, size) && size == buffer_size) {
     }
   }
 }
@@ -343,7 +344,7 @@ TEST_CASE("M return Ok W IDatadogFile::Read {exact length}", "[storage]") {
 
   // When
   {
-    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
+    std::unique_ptr<DatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t file_size = file->GetSize();
     std::vector<char> buffer(file_size);
@@ -351,7 +352,8 @@ TEST_CASE("M return Ok W IDatadogFile::Read {exact length}", "[storage]") {
     const auto result = file->Read(buffer.data(), read_size);
 
     // Then
-    REQUIRE(result == DatadogFileStatus::Ok);
+    REQUIRE(result);
+    REQUIRE(file->GetStatus() == DatadogFileStatus::Ok);
     REQUIRE(read_size == file_size);
   }
 }
@@ -371,18 +373,19 @@ TEST_CASE("M return error W IDatadogFile::Read {zero size}", "[storage]") {
   constexpr size_t buffer_size = 0;
   std::array<char, buffer_size> buffer{};
   {
-    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
+    std::unique_ptr<DatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     size_t read = 0;
     auto result = file->ReadArray(buffer, read);
 
     // Then
-    REQUIRE(result == DatadogFileStatus::OperationFailure);
+    REQUIRE(result);
+    REQUIRE(file->GetStatus() == DatadogFileStatus::Ok);
     REQUIRE(read == 0);
   }
 }
 
-TEST_CASE("M return error W IDatadogFile::Read {nullptr}", "[storage]") {
+TEST_CASE("M skip bytes W IDatadogFile::Read {nullptr}", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
@@ -395,16 +398,24 @@ TEST_CASE("M return error W IDatadogFile::Read {nullptr}", "[storage]") {
 
   // When
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-  size_t read_size = 32;
+  size_t read_size = 8;
   char* buffer = nullptr;
   {
-    std::unique_ptr<IDatadogFile> file = file_system.Open("read_file.tmp");
+    std::unique_ptr<DatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
     auto result = file->Read(buffer, read_size);
 
     // Then
-    REQUIRE(result == DatadogFileStatus::OperationFailure);
-    REQUIRE(read_size == 0);
+    REQUIRE(result);
+    REQUIRE(file->GetStatus() == DatadogFileStatus::Ok);
+    REQUIRE(read_size == 8);
+
+    // Check Remaining buffer
+    constexpr size_t buffer_size = 32;
+    std::array<char, buffer_size> remaining_buffer{};
+    size_t read = 0;
+    REQUIRE(!file->ReadArray(remaining_buffer, read));
+    REQUIRE(std::string_view{remaining_buffer.data(), read} == "tents\n");
   }
 }
 
