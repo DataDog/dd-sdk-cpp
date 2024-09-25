@@ -117,7 +117,7 @@ TEST_CASE("M return empty list for empty directory W ListFilePaths",
   std::filesystem::path dir{"empty"};
 
   // When
-  auto files = file_system.ListPaths(dir);
+  auto files = file_system.ListFiles(dir);
 
   // Then
   REQUIRE(files.empty());
@@ -133,7 +133,7 @@ TEST_CASE(
   std::filesystem::path dir{"../"};
 
   // When
-  auto files = file_system.ListPaths(dir);
+  auto files = file_system.ListFiles(dir);
 
   // Then
   REQUIRE(files.empty());
@@ -148,7 +148,7 @@ TEST_CASE(
   std::filesystem::path dir("/usr/bin");
 
   // When
-  auto files = file_system.ListPaths(dir);
+  auto files = file_system.ListFiles(dir);
 
   // Then
   REQUIRE(files.empty());
@@ -161,7 +161,7 @@ TEST_CASE("M return file names for directory W ListFilePaths", "[storage]") {
   TempFile file2(base_filesystem_dir / "file2.tmp");
 
   // When
-  auto files = file_system.ListPaths("");
+  auto files = file_system.ListFiles("");
 
   // Then
   REQUIRE(std::find(files.begin(), files.end(),
@@ -177,7 +177,7 @@ TEST_CASE("M not recurse directories W ListFilePaths", "[storage]") {
 
   // When
   StdDatadogFileSystem file_system{base_filesystem_dir};
-  auto files = file_system.ListPaths("");
+  auto files = file_system.ListFiles("");
 
   // Then
   REQUIRE(std::find(files.begin(), files.end(),
@@ -237,7 +237,7 @@ TEST_CASE("M not delete files outside of file system W DeleteFile {rooted}",
   REQUIRE(std::filesystem::exists("/tmp/file1.tmp"));
 }
 
-TEST_CASE("M write file content W IDatadogFile::Write", "[storage]") {
+TEST_CASE("M write file content W StdDatadogFile::Write", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile file1(base_filesystem_dir / "write_file.tmp");
@@ -259,7 +259,7 @@ TEST_CASE("M write file content W IDatadogFile::Write", "[storage]") {
   REQUIRE(actual_file_contents == "file contents");
 }
 
-TEST_CASE("M read file content W IDatadogFile::Read", "[storage]") {
+TEST_CASE("M read file content W StdDatadogFile::Read", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
@@ -285,7 +285,7 @@ TEST_CASE("M read file content W IDatadogFile::Read", "[storage]") {
   }
 }
 
-TEST_CASE("M partial file content W IDatadogFile::Read", "[storage]") {
+TEST_CASE("M partial file content W StdDatadogFile::Read", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
@@ -312,7 +312,7 @@ TEST_CASE("M partial file content W IDatadogFile::Read", "[storage]") {
   REQUIRE(std::string_view(buffer.data(), buffer.size()) == "file con");
 }
 
-TEST_CASE("M file contents looped W IDatadogFile::Read", "[storage]") {
+TEST_CASE("M file contents looped W StdDatadogFile::Read", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
@@ -335,7 +335,7 @@ TEST_CASE("M file contents looped W IDatadogFile::Read", "[storage]") {
   }
 }
 
-TEST_CASE("M return Ok W IDatadogFile::Read {exact length}", "[storage]") {
+TEST_CASE("M return Ok W StdDatadogFile::Read {exact length}", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
@@ -362,7 +362,7 @@ TEST_CASE("M return Ok W IDatadogFile::Read {exact length}", "[storage]") {
   }
 }
 
-TEST_CASE("M return error W IDatadogFile::Read {zero size}", "[storage]") {
+TEST_CASE("M return error W StdDatadogFile::Read {zero size}", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
@@ -389,7 +389,7 @@ TEST_CASE("M return error W IDatadogFile::Read {zero size}", "[storage]") {
   }
 }
 
-TEST_CASE("M skip bytes W IDatadogFile::Read {nullptr}", "[storage]") {
+TEST_CASE("M skip bytes W StdDatadogFile::Read {nullptr}", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");

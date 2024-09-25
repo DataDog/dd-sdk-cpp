@@ -109,7 +109,7 @@ DatadogFileStatus StdDatadogFileSystem::Delete(
              : DatadogFileStatus::OperationFailure;
 }
 
-std::vector<std::filesystem::path> StdDatadogFileSystem::ListPaths(
+std::vector<std::filesystem::path> StdDatadogFileSystem::ListFiles(
     const std::filesystem::path& in_dir) {
   const auto path = base_cache_directory_ / in_dir;
   std::vector<std::filesystem::path> ret;

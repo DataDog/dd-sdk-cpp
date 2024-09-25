@@ -16,16 +16,16 @@ namespace datadog::core {
 class DatadogConfiguration {
  public:
   explicit DatadogConfiguration(
-      const std::shared_ptr<storage::IDatadogFileSystem>& file_system =
+      const std::shared_ptr<storage::DatadogFileSystem>& file_system =
           std::make_shared<storage::StdDatadogFileSystem>())
       : file_system_{file_system} {};
 
-  const std::shared_ptr<storage::IDatadogFileSystem>& GetFileSystem() const {
+  const std::shared_ptr<storage::DatadogFileSystem>& GetFileSystem() const {
     return file_system_;
   }
 
  private:
-  std::shared_ptr<storage::IDatadogFileSystem> file_system_;
+  std::shared_ptr<storage::DatadogFileSystem> file_system_;
 };
 
 class IDatadogCore {
@@ -64,7 +64,7 @@ class DatadogCore : public IDatadogCore,
                        std::unique_ptr<DatadogFeature>&& feature);
   DatadogFeature* GetFeatureById(FeatureId feature_id) const;
 
-  std::shared_ptr<storage::IDatadogFileSystem> file_system_;
+  std::shared_ptr<storage::DatadogFileSystem> file_system_;
   std::map<FeatureId, std::unique_ptr<DatadogFeature>> features_by_id_;
 };
 

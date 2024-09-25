@@ -12,7 +12,7 @@
 namespace datadog::core::storage {
 
 // Current state of a file, and the return value for operations on files.
-// IDatadogFile implementaitons should catch (and not rethrow) exceptions, and
+// DatadogFile implementaitons should catch (and not rethrow) exceptions, and
 // instead set and return this file status.
 enum class DatadogFileStatus {
   // Last operation succeeded, or the file is in a good state.
@@ -45,7 +45,7 @@ class DatadogFile {
   virtual uintmax_t GetSize() const = 0;
 
   // Get the path of the file. The path will be relative to the
-  // IDatadogFileSystem that created it.
+  // DatadogFileSystem that created it.
   const std::filesystem::path& GetPath() { return path_; }
 
   // Get the current status of the file. This status is updated after a call to
@@ -86,7 +86,7 @@ class DatadogFile {
 // override methods for getting file system information, including where to
 // store Datadog cache files.
 //
-// Implementers of IDatadogFileSystem should ensure the class cannot access
+// Implementers of DatadogFileSystem should ensure the class cannot access
 // files outside of its area of control, such as outside of a base directory.
 //
 // While the default implemenation uses the physical file system, it is possible
@@ -95,9 +95,9 @@ class DatadogFile {
 //
 // The default implementation is StdDatadogFileSystem, which uses the C++
 // standard library to implement file operations.
-class IDatadogFileSystem {
+class DatadogFileSystem {
  public:
-  virtual ~IDatadogFileSystem() = default;
+  virtual ~DatadogFileSystem() = default;
 
   // Open a file at the specified path and return it. Can return `nullptr`
   // if there is an error opening the file.
@@ -116,13 +116,13 @@ class IDatadogFileSystem {
 
   // List all files under the specified path, non-recursive. Paths returned
   // should be relative to the file system's root path.
-  virtual std::vector<std::filesystem::path> ListPaths(
+  virtual std::vector<std::filesystem::path> ListFiles(
       const std::filesystem::path& in_dir) = 0;
 };
 
-// Default implementation of IDatadogFileSystem, which uses the C++ standard
+// Default implementation of DatadogFileSystem, which uses the C++ standard
 // library to implement file operations.
-class StdDatadogFileSystem : public IDatadogFileSystem {
+class StdDatadogFileSystem : public DatadogFileSystem {
  public:
   explicit StdDatadogFileSystem(
       const std::filesystem::path& base_cache_directory = {"caches/datadog"});
@@ -131,7 +131,7 @@ class StdDatadogFileSystem : public IDatadogFileSystem {
 
   DatadogFileStatus Delete(const std::filesystem::path& path) override;
 
-  std::vector<std::filesystem::path> ListPaths(
+  std::vector<std::filesystem::path> ListFiles(
       const std::filesystem::path& in_dir) override;
 
  private:
