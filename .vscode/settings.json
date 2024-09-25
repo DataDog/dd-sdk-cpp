@@ -85,6 +85,9 @@
     "system_error": "cpp",
     "__availability": "cpp",
     "any": "cpp",
-    "condition_variable": "cpp"
+    "condition_variable": "cpp",
+    "__bits": "cpp",
+    "__mutex_base": "cpp",
+    "bit": "cpp"
   }
 }

@@ -112,7 +112,7 @@ TEST_CASE("M not create file outside of its directory W OpenFile {rooted}",
 
 TEST_CASE("M return true if file exists W FileExists", "storage") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile file(base_filesystem_dir / "test_file.tmp");
 
   // When / Then
@@ -121,7 +121,7 @@ TEST_CASE("M return true if file exists W FileExists", "storage") {
 
 TEST_CASE("M return false if file does not exist W FileExists", "storage") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
 
   // When / Then
   REQUIRE_FALSE(file_system.Exists("noexist.tmp"));
@@ -130,7 +130,7 @@ TEST_CASE("M return false if file does not exist W FileExists", "storage") {
 TEST_CASE("M return false for file outside of file system W FileExists",
           "[storage]") {
   // Given
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile file("datadog/test_file.tmp");
 
   // When / Then
@@ -140,7 +140,7 @@ TEST_CASE("M return false for file outside of file system W FileExists",
 TEST_CASE(
     "M return false for file outside of file system W FileExists { rooted }",
     "[storage]") {
-  StdDatadogFileSystem file_system;
+  StdDatadogFileSystem file_system{base_filesystem_dir};
 
   // When / Then
   REQUIRE_FALSE(file_system.Exists("/usr/bin/bash"));

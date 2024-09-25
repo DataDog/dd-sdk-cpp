@@ -7,8 +7,6 @@
 
 #include <string>
 
-#include "datadog/core.h"
-
 namespace datadog::core {
 
 enum class FeatureId : uint32_t {};

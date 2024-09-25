@@ -5,86 +5,196 @@
 #include "datadog/storage/feature_storage.h"
 
 #include "datadog/core_configuration.h"
+#include "datadog/internal/utils.h"
 #include "datadog/storage/datadog_file_system.h"
 
-#include "test.h"
+#include "mock_datadog_file_system.h"
 
 namespace {
+
+using namespace std::literals::string_view_literals;
 
 using datadog::core::BatchProcessingLevel;
 using datadog::core::BatchSize;
 using datadog::core::DefaultDateTimeProvider;
 using datadog::core::UploadFrequency;
+using datadog::core::internal::NanoToMs;
 using datadog::core::internal::PerformancePreset;
+using datadog::core::storage::DatadogFileStatus;
 using datadog::core::storage::FeatureStorage;
-using datadog::core::storage::StdDatadogFileSystem;
+using datadog::core::storage::mocks::MockDatadogFile;
+using datadog::core::storage::mocks::MockDatadogFileSystem;
+using trompeloeil::_;
+using trompeloeil::ne;
 
 class FeatureStorageFixture {
  public:
-  FeatureStorageFixture() : performance_preset_{
-    BatchSize::Small, UploadFrequency::Frequent, BatchProcessingLevel::Low,    
-  },
-  file_system_{std::make_shared<StdDatadogFileSystem>("datadog/storage_tests")} {
-    ClearFileSystem();
-  }
-  ~FeatureStorageFixture() { ClearFileSystem(); }
+  FeatureStorageFixture()
+      : performance_preset_{
+            BatchSize::Small,
+            UploadFrequency::Frequent,
+            BatchProcessingLevel::Low,
+        } {}
 
  protected:
-  // NOLINTBEGIN(cppcoreguidelines-non-private-member-variables-in-classes)
+  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
   PerformancePreset performance_preset_;
-  std::shared_ptr<StdDatadogFileSystem> file_system_;
-  // NOLINTEND(cppcoreguidelines-non-private-member-variables-in-classes)
-
- private:
-  void ClearFileSystem() {
-    // Delete any existing files
-    auto files = file_system_->ListFilePaths("");
-    for (const auto& file : files) {
-      file_system_->DeleteFile(file);
-    }
-  }
 };
 
 TEST_CASE_METHOD(FeatureStorageFixture,
                  "M create new file W Write",
                  "[feature_storage]") {
   // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
-                                 DefaultDateTimeProvider, file_system_};
+                                 DefaultDateTimeProvider, file_system};
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+  auto mock_file = std::make_unique<MockDatadogFile>();
+  ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
+
+  // Expect
+  REQUIRE_CALL(*file_system, Open(_)).LR_RETURN(std::move(mock_file));
 
   // When
-  feature_storage.Write("File contents");
-
-  // Then
-  auto files = file_system_->ListFilePaths("");
-  REQUIRE(files.size() == 1);
+  REQUIRE(feature_storage.Write("File contents"));
 }
 
 TEST_CASE_METHOD(FeatureStorageFixture,
                  "M name file based on date W Write",
                  "[feature_storage]") {
   // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
   constexpr uint64_t fake_nanos = 123456789123;
   auto mock_time_provider = [] { return fake_nanos; };
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
-                                 mock_time_provider, file_system_};
+                                 mock_time_provider, file_system};
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+  auto mock_file = std::make_unique<MockDatadogFile>();
+  ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
+
+  // Expect
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
+  auto str_time_ms = std::to_string(NanoToMs(fake_nanos));
+  REQUIRE_CALL(*file_system, Open(str_time_ms)).LR_RETURN(std::move(mock_file));
 
   // When
-  feature_storage.Write("File contents");
-
-  // Then
-  auto files = file_system_->ListFilePaths("");
-  REQUIRE(files.size() == 1);
-  // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-  auto time_ms = fake_nanos / 1000;
-  REQUIRE(files.front() == std::to_string(time_ms));
+  REQUIRE(feature_storage.Write("File contents"));
 }
 
 TEST_CASE_METHOD(FeatureStorageFixture,
-                 "M write block to file W Wfite",
+                 "M request new file if file exists W Write",
                  "[feature_storage]") {
-  // White box test - the format of files is
   // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  constexpr uint64_t fake_nanos = 123456789123;
+  auto mock_time_provider = [] { return fake_nanos; };
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 mock_time_provider, file_system};
+  auto existing_file_path =
+      std::filesystem::path(std::to_string(NanoToMs(fake_nanos)));
+  auto mock_file = std::make_unique<MockDatadogFile>();
+  ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
+
+  // Expect
+  REQUIRE_CALL(*file_system, Exists(existing_file_path)).RETURN(true);
+  REQUIRE_CALL(*file_system,
+               Exists(ne<std::filesystem::path>(existing_file_path)))
+      .RETURN(false);
+
+  std::filesystem::path file_path;
+  REQUIRE_CALL(*file_system, Open(_))
+      .LR_SIDE_EFFECT(file_path = _1)
+      .LR_RETURN(std::move(mock_file));
+
+  // When
+  REQUIRE(feature_storage.Write("File contents"));
+
+  // Then
+  REQUIRE(file_path != existing_file_path);
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M give up looking for file if too many exist W Write",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 DefaultDateTimeProvider, file_system};
+  auto mock_file = std::make_unique<MockDatadogFile>();
+  ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
+
+  // Expect
+  REQUIRE_CALL(*file_system, Exists(_)).TIMES(0, 5).RETURN(true);
+
+  // When
+  REQUIRE(!feature_storage.Write("File contents"));
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M write block to file W Write",
+                 "[feature_storage]") {
+  // White box test - the format of files is part of
+  // requirements Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 DefaultDateTimeProvider, file_system};
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+  auto mock_file = std::make_unique<MockDatadogFile>();
+  ALLOW_CALL(*file_system, Open(_)).LR_RETURN(std::move(mock_file));
+
+  // Expect
+  static constexpr uint16_t kStorageBlockType = 0;
+  static constexpr std::string_view kExpectedHeader{"\0", sizeof(uint16_t)};
+  static constexpr auto kExpectedContent = "File contents"sv;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+  static constexpr const size_t kSize[]{kExpectedContent.size()};
+  static const std::string_view kExpectedSize{
+      reinterpret_cast<const char*>(kSize), sizeof(uint32_t)};
+  {
+    trompeloeil::sequence seq;
+
+    REQUIRE_CALL(*mock_file, Write(kExpectedHeader))
+        .IN_SEQUENCE(seq)
+        .RETURN(true);
+    REQUIRE_CALL(*mock_file, Write(kExpectedSize))
+        .IN_SEQUENCE(seq)
+        .RETURN(true);
+    REQUIRE_CALL(*mock_file, Write(kExpectedContent))
+        .IN_SEQUENCE(seq)
+        .RETURN(true);
+
+    // When
+    REQUIRE(feature_storage.Write(kExpectedContent));
+  }
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M reuse same file when possible W Write ",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 DefaultDateTimeProvider, file_system};
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+  auto mock_file = std::make_unique<MockDatadogFile>();
+  ALLOW_CALL(*file_system, Open(_)).LR_RETURN(std::move(mock_file));
+
+  // Expect
+  static constexpr uint16_t kStorageBlockType = 0;
+  static constexpr std::string_view kExpectedHeader{"\0", sizeof(uint16_t)};
+  static constexpr auto kExpectedContent = "File contents"sv;
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
+  static constexpr const size_t kSize[]{kExpectedContent.size()};
+  static const std::string_view kExpectedSize{
+      reinterpret_cast<const char*>(kSize), sizeof(uint32_t)};
+
+  REQUIRE_CALL(*mock_file, Write(kExpectedHeader)).TIMES(2).RETURN(true);
+  REQUIRE_CALL(*mock_file, Write(kExpectedSize)).TIMES(2).RETURN(true);
+  REQUIRE_CALL(*mock_file, Write(kExpectedContent)).TIMES(2).RETURN(true);
+
+  // When
+  REQUIRE(feature_storage.Write(kExpectedContent));
+  REQUIRE(feature_storage.Write(kExpectedContent));
 }
 
 }  // namespace

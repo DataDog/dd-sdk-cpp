@@ -17,6 +17,8 @@ target_include_directories(core-tests
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+
+    ${CMAKE_SOURCE_DIR}/deps/trompeloeil/include
 )
 target_link_libraries(core-tests PRIVATE
     Catch2::Catch2WithMain

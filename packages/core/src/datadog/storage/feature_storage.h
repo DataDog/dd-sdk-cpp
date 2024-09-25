@@ -7,6 +7,7 @@
 #include <chrono>
 #include <filesystem>
 #include <optional>
+#include <random>
 
 #include "datadog/internal/performance_preset.h"
 #include "datadog/storage/datadog_file_system.h"
@@ -29,14 +30,15 @@ class FeatureStorage {
 
  private:
   bool CanReuseCurrentFile(size_t write_size);
-  std::shared_ptr<IDatadogFile> CreateNewWritableFile();
+  bool CreateNewWritableFile();
 
   std::string feature_name_;
   internal::PerformancePreset performance_preset_;
   DateTimeProvider date_time_provider_;
   std::shared_ptr<IDatadogFileSystem> file_system_;
+  std::mt19937 random_generator_;
 
-  std::optional<std::filesystem::path> current_file_path_;
+  std::unique_ptr<DatadogFile> current_file_;
   // These times are in nanoseconds since epoch, which is
   // what is returned from DateTimeProvider
   uint64_t current_file_creation_time_;

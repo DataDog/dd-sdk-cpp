@@ -8,6 +8,8 @@
 
 namespace datadog::core::internal {
 
+using datadog::core::FeatureId;
+
 constexpr FeatureId CreateFourCC(unsigned char a,
                                  unsigned char b,
                                  unsigned char c,
@@ -15,6 +17,10 @@ constexpr FeatureId CreateFourCC(unsigned char a,
   return FeatureId{
       static_cast<uint32_t>(a) << 0 | static_cast<uint32_t>(b) << 8 |
       static_cast<uint32_t>(c) << 16 | static_cast<uint32_t>(d) << 24};
+}
+
+constexpr uint64_t NanoToMs(uint64_t nano) {
+  return nano / 1000;
 }
 
 }  // namespace datadog::core::internal
