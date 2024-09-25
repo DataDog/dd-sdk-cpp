@@ -15,7 +15,7 @@ class StdDatadogFile : public DatadogFile {
  public:
   explicit StdDatadogFile(const std::filesystem::path& path,
                           std::fstream&& file)
-      : DatadogFile(path), file_{std::move(file)} {
+      : DatadogFile{path}, file_{std::move(file)} {
     file_.seekg(0, file_.end);
     size_ = file_.tellg();
     file_.seekg(0, file_.beg);
@@ -64,7 +64,7 @@ class StdDatadogFile : public DatadogFile {
  private:
   bool StatusReturn(DatadogFileStatus status) {
     status_ = status;
-    return status_ == DatadogFileStatus::Ok;
+    return (status_ == DatadogFileStatus::Ok);
   }
 
   uintmax_t size_{};
@@ -73,7 +73,7 @@ class StdDatadogFile : public DatadogFile {
 
 StdDatadogFileSystem::StdDatadogFileSystem(
     const std::filesystem::path& base_cache_directory)
-    : base_cache_directory_(base_cache_directory) {}
+    : base_cache_directory_{base_cache_directory} {}
 
 std::unique_ptr<DatadogFile> StdDatadogFileSystem::Open(
     const std::filesystem::path& path) {
