@@ -13,7 +13,7 @@ namespace datadog::core::storage::mocks {
 class MockDatadogFile : public DatadogFile {
  public:
   MockDatadogFile() : DatadogFile("mock_path") {}
-  
+
   MAKE_MOCK0(GetSize, uintmax_t(), const override);
   MAKE_MOCK1(Write, bool(std::string_view buffer), override);
   MAKE_MOCK2(Read, bool(char*, size_t&), override);

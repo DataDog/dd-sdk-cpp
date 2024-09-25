@@ -17,5 +17,5 @@ option(DD_SDK_BUILD_TEST "Build the unit tests (packages/*/test/)" ON)
 add_subdirectory(packages/core)
 
 set(CLANG_FORMAT_BIN_NAME clang-format)
-set(CLANG_FORMAT_EXCLUDE_PATTERNS  "build/" ${CMAKE_BINARY_DIR})
+set(CLANG_FORMAT_EXCLUDE_PATTERNS  "build/" "deps/" ${CMAKE_BINARY_DIR})
 find_package(ClangFormat)
