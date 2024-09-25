@@ -41,7 +41,13 @@ bool FeatureStorage::Write(std::string_view data) {
 
   // TODO(jeff.ward): Determine / create encrypted string first if
   // encryption is available.
-  if (!CanReuseCurrentFile(data.size() + block_overhead)) {
+  auto full_write_size = data.size() + block_overhead;
+  if (full_write_size > performance_preset_.max_file_size()) {
+    // TODO(jeff.ward): TELEMETRY - Attempting to write too much data to storage
+    return false;
+  }
+
+  if (!CanReuseCurrentFile(full_write_size)) {
     CreateNewWritableFile();
   }
 
@@ -63,6 +69,8 @@ bool FeatureStorage::Write(std::string_view data) {
     return false;
   }
   // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+
+  current_file_size_ += full_write_size;
 
   return true;
 }
@@ -88,7 +96,7 @@ bool FeatureStorage::CanReuseCurrentFile(size_t write_size) {
 bool FeatureStorage::CreateNewWritableFile() {
   constexpr auto kAttempts = 5;
   constexpr auto kMaxSpread = 100;
-  static std::uniform_int_distribution<> random_spread(0, kMaxSpread);
+  static std::uniform_int_distribution<> random_spread(1, kMaxSpread);
 
   // File name is based on the file creation time, but if the file already
   // exists attempt to add a random spread to get a file that doesn't. Don't

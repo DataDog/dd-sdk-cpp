@@ -64,7 +64,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
                  "[feature_storage]") {
   // Given
   auto file_system = std::make_shared<MockDatadogFileSystem>();
-  constexpr uint64_t fake_nanos = 123456789123;
+  constexpr uint64_t fake_nanos = 123456789123L;
   auto mock_time_provider = [] { return fake_nanos; };
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
                                  mock_time_provider, file_system};
@@ -148,8 +148,11 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   static constexpr auto kExpectedContent = "File contents"sv;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
   static constexpr const size_t kSize[]{kExpectedContent.size()};
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
   static const std::string_view kExpectedSize{
       reinterpret_cast<const char*>(kSize), sizeof(uint32_t)};
+  // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+
   {
     trompeloeil::sequence seq;
 
@@ -185,8 +188,10 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   static constexpr auto kExpectedContent = "File contents"sv;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
   static constexpr const size_t kSize[]{kExpectedContent.size()};
+  // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
   static const std::string_view kExpectedSize{
       reinterpret_cast<const char*>(kSize), sizeof(uint32_t)};
+  // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
   REQUIRE_CALL(*mock_file, Write(kExpectedHeader)).TIMES(2).RETURN(true);
   REQUIRE_CALL(*mock_file, Write(kExpectedSize)).TIMES(2).RETURN(true);
@@ -195,6 +200,125 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   // When
   REQUIRE(feature_storage.Write(kExpectedContent));
   REQUIRE(feature_storage.Write(kExpectedContent));
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M create new file if existing file is too old W Write",
+                 "[feature_storage]") {
+  using std::chrono::seconds;
+
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  constexpr uint64_t fake_start_time = 123456789123L;
+  auto mock_time_provider = [] {
+    // DateTimeProvider will be called twice per file creation
+    static int time_index = 0;
+    constexpr auto ten_seconds = seconds(10);
+    constexpr auto ten_seconds_ns =
+        std::chrono::duration_cast<PerformancePreset::DurationNs>(ten_seconds);
+
+    auto time = time_index < 2 ? fake_start_time
+                               : (fake_start_time + ten_seconds_ns.count());
+    time_index++;
+    return time;
+  };
+
+  // Use original preset for sane defaults
+  PerformancePreset performance_preset{
+      performance_preset_.max_file_size(),
+      performance_preset_.max_directory_size(),
+      std::chrono::duration_cast<PerformancePreset::DurationNs>(seconds(5)),
+      performance_preset_.min_file_age_for_read(),
+      performance_preset_.initial_upload_delay(),
+      performance_preset_.min_upload_delay(),
+      performance_preset_.max_upload_delay(),
+      performance_preset_.max_batches_per_upload()};
+  FeatureStorage feature_storage{"TestFeature", performance_preset,
+                                 mock_time_provider, file_system};
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+
+  // Expect
+  trompeloeil::sequence seq;
+  auto mock_first_file = std::make_unique<MockDatadogFile>();
+  REQUIRE_CALL(*file_system, Open(_))
+      .IN_SEQUENCE(seq)
+      .LR_RETURN(std::move(mock_first_file));
+  REQUIRE_CALL(*mock_first_file, Write(_)).TIMES(1, 3).RETURN(true);
+  auto mock_second_file = std::make_unique<MockDatadogFile>();
+  REQUIRE_CALL(*mock_second_file, Write(_)).TIMES(1, 3).RETURN(true);
+  REQUIRE_CALL(*file_system, Open(_))
+      .IN_SEQUENCE(seq)
+      .LR_RETURN(std::move(mock_second_file));
+
+  // When
+  REQUIRE(feature_storage.Write("First file contents"));
+  REQUIRE(feature_storage.Write("Second file contents"));
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M create new file if existing file is too large W Write",
+                 "[feature_storage]") {
+  using std::chrono::seconds;
+
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  PerformancePreset performance_preset{
+      28,  // max file size in bytes
+      performance_preset_.max_directory_size(),
+      // Use original preset for sane defaults
+      performance_preset_.max_file_age_for_write(),
+      performance_preset_.min_file_age_for_read(),
+      performance_preset_.initial_upload_delay(),
+      performance_preset_.min_upload_delay(),
+      performance_preset_.max_upload_delay(),
+      performance_preset_.max_batches_per_upload()};
+
+  FeatureStorage feature_storage{"TestFeature", performance_preset,
+                                 DefaultDateTimeProvider, file_system};
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+
+  // Expect
+  trompeloeil::sequence seq;
+  auto mock_first_file = std::make_unique<MockDatadogFile>();
+  REQUIRE_CALL(*file_system, Open(_))
+      .IN_SEQUENCE(seq)
+      .LR_RETURN(std::move(mock_first_file));
+  REQUIRE_CALL(*mock_first_file, Write(_)).TIMES(1, 3).RETURN(true);
+  auto mock_second_file = std::make_unique<MockDatadogFile>();
+  REQUIRE_CALL(*mock_second_file, Write(_)).TIMES(1, 3).RETURN(true);
+  REQUIRE_CALL(*file_system, Open(_))
+      .IN_SEQUENCE(seq)
+      .LR_RETURN(std::move(mock_second_file));
+
+  // When
+  REQUIRE(feature_storage.Write("First file contents"));
+  REQUIRE(feature_storage.Write("Second file contents"));
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M reject write if size is too large W Write",
+                 "[feature_storage]") {
+  using std::chrono::seconds;
+
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  PerformancePreset performance_preset{
+      16,  // max file size in bytes
+      performance_preset_.max_directory_size(),
+      // Use original preset for sane defaults
+      performance_preset_.max_file_age_for_write(),
+      performance_preset_.min_file_age_for_read(),
+      performance_preset_.initial_upload_delay(),
+      performance_preset_.min_upload_delay(),
+      performance_preset_.max_upload_delay(),
+      performance_preset_.max_batches_per_upload()};
+
+  FeatureStorage feature_storage{"TestFeature", performance_preset,
+                                 DefaultDateTimeProvider, file_system};
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+
+  // When
+  REQUIRE_FALSE(feature_storage.Write("First file contents"));
 }
 
 }  // namespace

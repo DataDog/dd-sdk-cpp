@@ -25,8 +25,26 @@ class PerformancePreset {
                              UploadFrequency upload_frequency,
                              BatchProcessingLevel batch_processing_level);
 
-  constexpr uint64_t max_file_size() const { return mbToBytes(4); }
-  constexpr uint64_t max_directory_size() const { return mbToBytes(512); }
+  // For testing or override purposes only
+  explicit PerformancePreset(uint64_t max_file_size,
+                             uint64_t max_directory_size,
+                             DurationNs max_file_age_for_write,
+                             DurationNs min_file_age_for_read,
+                             DurationNs initial_upload_delay,
+                             DurationNs min_upload_delay,
+                             DurationNs max_upload_delay,
+                             int32_t max_batches_per_upload)
+      : max_file_size_(max_file_size),
+        max_directory_size_(max_directory_size),
+        max_file_age_for_write_(max_file_age_for_write),
+        min_file_age_for_read_(min_file_age_for_read),
+        initial_upload_delay_(initial_upload_delay),
+        min_upload_delay_(min_upload_delay),
+        max_upload_delay_(max_upload_delay),
+        max_batches_per_upload_(max_batches_per_upload) {}
+
+  uint64_t max_file_size() const { return max_file_size_; }
+  uint64_t max_directory_size() const { return max_directory_size_; }
 
   DurationNs max_file_age_for_write() const { return max_file_age_for_write_; }
   DurationNs min_file_age_for_read() const { return min_file_age_for_read_; }
@@ -42,6 +60,9 @@ class PerformancePreset {
 
  private:
   constexpr static uint64_t mbToBytes(int64_t mb) { return mb * 1024 * 1024; }
+
+  uint64_t max_file_size_;
+  uint64_t max_directory_size_;
 
   DurationNs max_file_age_for_write_;
   DurationNs min_file_age_for_read_;

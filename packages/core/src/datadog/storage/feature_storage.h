@@ -15,7 +15,7 @@
 
 namespace datadog::core::storage {
 
-// FeatureStorage operates as the method for writting and reading batches for a
+// FeatureStorage operates as the method for writing and reading batches for a
 // particular feature, as well as handling moving batches when tracking consent
 // changes.  Each feature should have its own storage, created when the feature
 // is created.
