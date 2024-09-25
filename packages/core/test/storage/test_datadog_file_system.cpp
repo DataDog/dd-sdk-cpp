@@ -25,6 +25,10 @@ class TempFile {
       const std::filesystem::path& path,
       FileDisposition file_disposition = FileDisposition::create_and_remove)
       : path_(path) {
+    const auto parent = path.parent_path();
+    if (!std::filesystem::exists(parent)) {
+      std::filesystem::create_directories(parent);
+    }
     // Create the file and immediately close it.
     if (file_disposition == FileDisposition::create_and_remove) {
       std::fstream{path, std::fstream::out | std::fstream::trunc};
