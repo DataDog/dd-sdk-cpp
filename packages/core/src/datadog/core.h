@@ -62,10 +62,8 @@ class DatadogCore : public IDatadogCore,
   std::shared_ptr<storage::DatadogFileSystem> file_system_;
   DateTimeProvider time_provider_;
 
-  std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>>
-      features_by_id_;
-  std::unordered_map<FeatureId, std::unique_ptr<FeatureStorage>>
-      storage_by_feature_id_;
+  std::map<FeatureId, std::unique_ptr<DatadogFeature>> features_by_id_;
+  std::map<FeatureId, std::unique_ptr<FeatureStorage>> storage_by_feature_id_;
 };
 
 template <typename T, typename... Args>
