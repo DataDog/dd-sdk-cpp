@@ -17,7 +17,7 @@ enum class StorageBlockType : uint16_t { Event = 0, Metadata = 1 };
 FeatureStorage::FeatureStorage(const std::string& feature_name,
                                const PerformancePreset& performance_preset,
                                DateTimeProvider date_time_provider,
-                               std::shared_ptr<IDatadogFileSystem> file_system)
+                               std::shared_ptr<DatadogFileSystem> file_system)
     : feature_name_{feature_name},
       performance_preset_{performance_preset},
       date_time_provider_{date_time_provider},

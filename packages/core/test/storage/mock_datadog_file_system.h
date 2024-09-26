@@ -19,14 +19,14 @@ class MockDatadogFile : public DatadogFile {
   MAKE_MOCK2(Read, bool(char*, size_t&), override);
 };
 
-class MockDatadogFileSystem : public IDatadogFileSystem {
+class MockDatadogFileSystem : public DatadogFileSystem {
  public:
   MAKE_MOCK1(Open,
              std::unique_ptr<DatadogFile>(const std::filesystem::path&),
              override);
   MAKE_MOCK1(Exists, bool(const std::filesystem::path&), override);
   MAKE_MOCK1(Delete, DatadogFileStatus(const std::filesystem::path&), override);
-  MAKE_MOCK1(ListPaths,
+  MAKE_MOCK1(ListFiles,
              std::vector<std::filesystem::path>(const std::filesystem::path&),
              override);
 };

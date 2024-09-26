@@ -10,6 +10,9 @@
 
 #include "mock_datadog_file_system.h"
 
+// Magic numbers okay in test files
+// NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
+
 namespace {
 
 using namespace std::literals::string_view_literals;
@@ -320,5 +323,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   // When
   REQUIRE_FALSE(feature_storage.Write("First file contents"));
 }
+
+// NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
 
 }  // namespace

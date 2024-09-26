@@ -24,7 +24,7 @@ class FeatureStorage {
   explicit FeatureStorage(const std::string& feature_name,
                           const internal::PerformancePreset& performance_preset,
                           datadog::core::DateTimeProvider date_time_provider,
-                          std::shared_ptr<IDatadogFileSystem> file_system);
+                          std::shared_ptr<DatadogFileSystem> file_system);
 
   bool Write(std::string_view data);
 
@@ -35,7 +35,7 @@ class FeatureStorage {
   std::string feature_name_;
   internal::PerformancePreset performance_preset_;
   DateTimeProvider date_time_provider_;
-  std::shared_ptr<IDatadogFileSystem> file_system_;
+  std::shared_ptr<DatadogFileSystem> file_system_;
   std::mt19937 random_generator_;
 
   std::unique_ptr<DatadogFile> current_file_;
