@@ -14,11 +14,11 @@ namespace datadog::core {
 /// it to Datadog servers. Smaller batches mean smaller but more network
 /// requests, whereas larger batches mean fewer but larger network requests.
 enum class BatchSize {
-  /// Prefer small sized data batches.
+  /// Prefer small-sized data batches.
   Small,
-  /// Prefer medium sized data batches.
+  /// Prefer medium-sized data batches.
   Medium,
-  /// Prefer large sized data batches.
+  /// Prefer large-sized data batches.
   Large,
 };
 
