@@ -4,3 +4,6 @@ BasedOnStyle: Chromium
 
 # Put escaped newlines into the rightmost column.
 AlignEscapedNewlinesLeft: false
+
+# Allow `if (cond) return;`
+AllowShortIfStatementsOnASingleLine: true

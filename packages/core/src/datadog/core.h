@@ -4,22 +4,29 @@
 // Datadog, Inc.
 #pragma once
 
+#include <map>
 #include <memory>
 #include <type_traits>
-#include <unordered_map>
 
 #include "datadog/feature.h"
+#include "datadog/storage/datadog_file_system.h"
 
 namespace datadog::core {
 
-constexpr FeatureId four_cc(unsigned char a,
-                            unsigned char b,
-                            unsigned char c,
-                            unsigned char d) {
-  return FeatureId{
-      static_cast<uint32_t>(a) << 0 | static_cast<uint32_t>(b) << 8 |
-      static_cast<uint32_t>(c) << 16 | static_cast<uint32_t>(d) << 24};
-}
+class DatadogConfiguration {
+ public:
+  explicit DatadogConfiguration(
+      const std::shared_ptr<storage::DatadogFileSystem>& file_system =
+          std::make_shared<storage::StdDatadogFileSystem>())
+      : file_system_{file_system} {};
+
+  const std::shared_ptr<storage::DatadogFileSystem>& GetFileSystem() const {
+    return file_system_;
+  }
+
+ private:
+  std::shared_ptr<storage::DatadogFileSystem> file_system_;
+};
 
 class IDatadogCore {
  protected:
@@ -32,12 +39,14 @@ class IDatadogCore {
 class DatadogCore : public IDatadogCore,
                     std::enable_shared_from_this<DatadogCore> {
  public:
-  explicit DatadogCore(IDatadogCore::Allow){};
+  explicit DatadogCore(IDatadogCore::Allow,
+                       const DatadogConfiguration& configuration)
+      : file_system_{configuration.GetFileSystem()} {};
   DatadogCore(const DatadogCore&) = delete;
   DatadogCore& operator=(const DatadogCore&) = delete;
 
-  template <typename T>
-  void RegisterFeature();
+  template <typename T, typename... Args>
+  void RegisterFeature(Args&&... args);
 
   template <typename T>
   T* GetFeature() const {
@@ -45,21 +54,22 @@ class DatadogCore : public IDatadogCore,
     return dynamic_cast<T*>(feature_opt);
   }
 
-  static std::shared_ptr<DatadogCore> Create() {
-    return std::make_shared<DatadogCore>(IDatadogCore::Allow::ctor);
+  static auto Create(const DatadogConfiguration& configuration) {
+    return std::make_shared<DatadogCore>(IDatadogCore::Allow::ctor,
+                                         configuration);
   }
 
  private:
   void RegisterFeature(FeatureId feature_id,
-                       std::unique_ptr<DatadogFeature> feature);
+                       std::unique_ptr<DatadogFeature>&& feature);
   DatadogFeature* GetFeatureById(FeatureId feature_id) const;
 
-  std::unordered_map<FeatureId, std::unique_ptr<DatadogFeature>>
-      features_by_id_;
+  std::shared_ptr<storage::DatadogFileSystem> file_system_;
+  std::map<FeatureId, std::unique_ptr<DatadogFeature>> features_by_id_;
 };
 
-template <typename T>
-void DatadogCore::RegisterFeature() {
+template <typename T, typename... Args>
+void DatadogCore::RegisterFeature(Args&&... args) {
   using TFeatureId = decltype(T::feature_id);
   static_assert(
       std::is_constructible_v<T, std::weak_ptr<IDatadogCore>>,
@@ -75,7 +85,7 @@ void DatadogCore::RegisterFeature() {
     return;
   }
 
-  auto feature = std::make_unique<T>(weak_from_this());
+  auto feature = std::make_unique<T>(weak_from_this(), std::forward(args)...);
   RegisterFeature(T::feature_id, std::move(feature));
 }
 

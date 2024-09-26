@@ -71,6 +71,20 @@
     "variant": "cpp",
     "vector": "cpp",
     "algorithm": "cpp",
-    "type_traits": "cpp"
+    "type_traits": "cpp",
+    "forward_list": "cpp",
+    "span": "cpp",
+    "unordered_set": "cpp",
+    "__debug": "cpp",
+    "__tuple": "cpp",
+    "exception": "cpp",
+    "memory": "cpp",
+    "atomic": "cpp",
+    "filesystem": "cpp",
+    "__errc": "cpp",
+    "system_error": "cpp",
+    "__availability": "cpp",
+    "any": "cpp",
+    "condition_variable": "cpp"
   }
 }
