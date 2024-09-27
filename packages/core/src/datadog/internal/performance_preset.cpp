@@ -8,8 +8,7 @@
 
 namespace datadog::core::internal {
 
-using std::literals::chrono_literals::operator""s;
-using std::literals::chrono_literals::operator""ms;
+using namespace std::literals::chrono_literals;
 using std::chrono::duration_cast;
 
 // This file is full of magic numbers according to clang-tidy,
@@ -71,6 +70,7 @@ PerformancePreset::PerformancePreset(
     case BatchProcessingLevel::Medium:
       max_batches_per_upload_ = 10;
       break;
+
     case BatchProcessingLevel::High:
       max_batches_per_upload_ = 100;
       break;

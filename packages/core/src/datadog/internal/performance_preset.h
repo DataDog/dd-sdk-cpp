@@ -59,7 +59,7 @@ class PerformancePreset {
   uint32_t max_batches_per_upload() const { return max_batches_per_upload_; }
 
  private:
-  constexpr static uint64_t mbToBytes(int64_t mb) { return mb * 1024 * 1024; }
+  static constexpr uint64_t mbToBytes(int64_t mb) { return mb * 1024 * 1024; }
 
   uint64_t max_file_size_;
   uint64_t max_directory_size_;
