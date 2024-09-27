@@ -41,23 +41,12 @@ enum class BatchProcessingLevel {
 };
 
 struct DatadogConfiguration {
-  explicit DatadogConfiguration(
-      BatchSize batch_size = BatchSize::Medium,
-      UploadFrequency upload_frequency = UploadFrequency::Average,
-      BatchProcessingLevel batch_processing_level =
-          BatchProcessingLevel::Medium,
-      std::shared_ptr<storage::DatadogFileSystem> file_system =
-          std::make_shared<storage::StdDatadogFileSystem>())
-      : batch_size(batch_size),
-        upload_frequency(upload_frequency),
-        batch_processing_level(batch_processing_level),
-        file_system{file_system} {};
+  BatchSize batch_size{BatchSize::Medium};
+  UploadFrequency upload_frequency{UploadFrequency::Average};
+  BatchProcessingLevel batch_processing_level{BatchProcessingLevel::Medium};
 
-  BatchSize batch_size;
-  UploadFrequency upload_frequency;
-  BatchProcessingLevel batch_processing_level;
-
-  std::shared_ptr<storage::DatadogFileSystem> file_system;
+  std::shared_ptr<storage::DatadogFileSystem> file_system{
+      std::make_shared<storage::StdDatadogFileSystem>()};
 };
 
 }  // namespace datadog::core

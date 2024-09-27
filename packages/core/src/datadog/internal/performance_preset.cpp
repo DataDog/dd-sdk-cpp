@@ -8,6 +8,10 @@
 
 namespace datadog::core::internal {
 
+using std::literals::chrono_literals::operator""s;
+using std::literals::chrono_literals::operator""ms;
+using std::chrono::duration_cast;
+
 // This file is full of magic numbers according to clang-tidy,
 // quiet it down a bit
 // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
@@ -18,39 +22,42 @@ PerformancePreset::PerformancePreset(
     BatchSize batch_size,
     UploadFrequency upload_frequency,
     BatchProcessingLevel batch_processing_level) {
-  using std::chrono::duration_cast;
-  using std::chrono::milliseconds;
-  using std::chrono::seconds;
-
   std::chrono::seconds mean_file_age;
   switch (batch_size) {
     case BatchSize::Small:
-      mean_file_age = seconds(3);
+      mean_file_age = 3s;
       break;
 
     case BatchSize::Medium:
-      mean_file_age = seconds(10);
+      mean_file_age = 10s;
       break;
 
     case BatchSize::Large:
-      mean_file_age = seconds(35);
+      mean_file_age = 35s;
       break;
+
+    default:
+      throw std::invalid_argument("batch_size");
   }
-  max_file_age_for_write_ = duration_cast<DurationNs>(mean_file_age * 0.95f);
-  min_file_age_for_read_ = duration_cast<DurationNs>(mean_file_age * 1.05f);
+
+  max_file_age_for_write_ = duration_cast<Nanoseconds>(mean_file_age * 0.95);
+  min_file_age_for_read_ = duration_cast<Nanoseconds>(mean_file_age * 1.05);
 
   switch (upload_frequency) {
     case UploadFrequency::Frequent:
-      min_upload_delay_ = duration_cast<DurationNs>(milliseconds(500));
+      min_upload_delay_ = 500ms;
       break;
 
     case UploadFrequency::Average:
-      min_upload_delay_ = duration_cast<DurationNs>(seconds(2));
+      min_upload_delay_ = 2s;
       break;
 
     case UploadFrequency::Rare:
-      min_upload_delay_ = duration_cast<DurationNs>(seconds(5));
+      min_upload_delay_ = 5s;
       break;
+
+    default:
+      throw std::invalid_argument("upload_frequency");
   }
 
   initial_upload_delay_ = min_upload_delay_ * 5;
@@ -67,6 +74,9 @@ PerformancePreset::PerformancePreset(
     case BatchProcessingLevel::High:
       max_batches_per_upload_ = 100;
       break;
+
+    default:
+      throw std::invalid_argument("batch_processing_level");
   }
 }
 

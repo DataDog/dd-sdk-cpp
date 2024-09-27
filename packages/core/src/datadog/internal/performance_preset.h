@@ -19,7 +19,7 @@ using datadog::core::UploadFrequency;
 // out old data.
 class PerformancePreset {
  public:
-  using DurationNs = std::chrono::duration<uint64_t, std::nano>;
+  using Nanoseconds = std::chrono::duration<uint64_t, std::nano>;
 
   explicit PerformancePreset(BatchSize batch_size,
                              UploadFrequency upload_frequency,
@@ -28,29 +28,29 @@ class PerformancePreset {
   constexpr uint64_t max_file_size() const { return mbToBytes(4); }
   constexpr uint64_t max_directory_size() const { return mbToBytes(512); }
 
-  DurationNs max_file_age_for_write() const { return max_file_age_for_write_; }
-  DurationNs min_file_age_for_read() const { return min_file_age_for_read_; }
-  constexpr DurationNs max_file_age_for_read() const {
-    return std::chrono::duration_cast<DurationNs>(std::chrono::hours(18));
+  Nanoseconds max_file_age_for_write() const { return max_file_age_for_write_; }
+  Nanoseconds min_file_age_for_read() const { return min_file_age_for_read_; }
+  constexpr Nanoseconds max_file_age_for_read() const {
+    return std::chrono::hours(18);
   }
 
-  DurationNs initial_upload_delay() const { return initial_upload_delay_; }
-  DurationNs min_upload_delay() const { return min_upload_delay_; }
-  DurationNs max_upload_delay() const { return max_upload_delay_; }
+  Nanoseconds initial_upload_delay() const { return initial_upload_delay_; }
+  Nanoseconds min_upload_delay() const { return min_upload_delay_; }
+  Nanoseconds max_upload_delay() const { return max_upload_delay_; }
 
-  int32_t max_batches_per_upload() const { return max_batches_per_upload_; }
+  uint32_t max_batches_per_upload() const { return max_batches_per_upload_; }
 
  private:
   constexpr static uint64_t mbToBytes(int64_t mb) { return mb * 1024 * 1024; }
 
-  DurationNs max_file_age_for_write_;
-  DurationNs min_file_age_for_read_;
+  Nanoseconds max_file_age_for_write_;
+  Nanoseconds min_file_age_for_read_;
 
-  DurationNs initial_upload_delay_;
-  DurationNs min_upload_delay_;
-  DurationNs max_upload_delay_;
+  Nanoseconds initial_upload_delay_;
+  Nanoseconds min_upload_delay_;
+  Nanoseconds max_upload_delay_;
 
-  int32_t max_batches_per_upload_;
+  uint32_t max_batches_per_upload_;
 };
 
 }  // namespace datadog::core::internal
