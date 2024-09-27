@@ -41,7 +41,7 @@ class PerformancePreset {
   uint32_t max_batches_per_upload() const { return max_batches_per_upload_; }
 
  private:
-  constexpr static uint64_t mbToBytes(int64_t mb) { return mb * 1024 * 1024; }
+  static constexpr uint64_t mbToBytes(int64_t mb) { return mb * 1024 * 1024; }
 
   Nanoseconds max_file_age_for_write_;
   Nanoseconds min_file_age_for_read_;
