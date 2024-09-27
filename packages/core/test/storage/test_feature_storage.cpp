@@ -218,7 +218,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
     static int time_index = 0;
     constexpr auto ten_seconds = seconds(10);
     constexpr auto ten_seconds_ns =
-        std::chrono::duration_cast<PerformancePreset::DurationNs>(ten_seconds);
+        std::chrono::duration_cast<PerformancePreset::Nanoseconds>(ten_seconds);
 
     auto time = time_index < 2 ? fake_start_time
                                : (fake_start_time + ten_seconds_ns.count());
@@ -230,7 +230,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   PerformancePreset performance_preset{
       performance_preset_.max_file_size(),
       performance_preset_.max_directory_size(),
-      std::chrono::duration_cast<PerformancePreset::DurationNs>(seconds(5)),
+      std::chrono::duration_cast<PerformancePreset::Nanoseconds>(seconds(5)),
       performance_preset_.min_file_age_for_read(),
       performance_preset_.initial_upload_delay(),
       performance_preset_.min_upload_delay(),

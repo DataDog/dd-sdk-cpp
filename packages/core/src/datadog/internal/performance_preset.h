@@ -19,7 +19,7 @@ using datadog::core::UploadFrequency;
 // out old data.
 class PerformancePreset {
  public:
-  using DurationNs = std::chrono::duration<uint64_t, std::nano>;
+  using Nanoseconds = std::chrono::duration<uint64_t, std::nano>;
 
   explicit PerformancePreset(BatchSize batch_size,
                              UploadFrequency upload_frequency,
@@ -28,12 +28,12 @@ class PerformancePreset {
   // For testing or override purposes only
   explicit PerformancePreset(uint64_t max_file_size,
                              uint64_t max_directory_size,
-                             DurationNs max_file_age_for_write,
-                             DurationNs min_file_age_for_read,
-                             DurationNs initial_upload_delay,
-                             DurationNs min_upload_delay,
-                             DurationNs max_upload_delay,
-                             int32_t max_batches_per_upload)
+                             Nanoseconds max_file_age_for_write,
+                             Nanoseconds min_file_age_for_read,
+                             Nanoseconds initial_upload_delay,
+                             Nanoseconds min_upload_delay,
+                             Nanoseconds max_upload_delay,
+                             uint32_t max_batches_per_upload)
       : max_file_size_(max_file_size),
         max_directory_size_(max_directory_size),
         max_file_age_for_write_(max_file_age_for_write),
@@ -46,32 +46,31 @@ class PerformancePreset {
   uint64_t max_file_size() const { return max_file_size_; }
   uint64_t max_directory_size() const { return max_directory_size_; }
 
-  DurationNs max_file_age_for_write() const { return max_file_age_for_write_; }
-  DurationNs min_file_age_for_read() const { return min_file_age_for_read_; }
-  constexpr DurationNs max_file_age_for_read() const {
-    return std::chrono::duration_cast<DurationNs>(std::chrono::hours(18));
+  Nanoseconds max_file_age_for_write() const { return max_file_age_for_write_; }
+  Nanoseconds min_file_age_for_read() const { return min_file_age_for_read_; }
+  constexpr Nanoseconds max_file_age_for_read() const {
+    return std::chrono::hours(18);
   }
 
-  DurationNs initial_upload_delay() const { return initial_upload_delay_; }
-  DurationNs min_upload_delay() const { return min_upload_delay_; }
-  DurationNs max_upload_delay() const { return max_upload_delay_; }
+  Nanoseconds initial_upload_delay() const { return initial_upload_delay_; }
+  Nanoseconds min_upload_delay() const { return min_upload_delay_; }
+  Nanoseconds max_upload_delay() const { return max_upload_delay_; }
 
-  int32_t max_batches_per_upload() const { return max_batches_per_upload_; }
+  uint32_t max_batches_per_upload() const { return max_batches_per_upload_; }
 
  private:
   constexpr static uint64_t mbToBytes(int64_t mb) { return mb * 1024 * 1024; }
 
   uint64_t max_file_size_;
   uint64_t max_directory_size_;
+  Nanoseconds max_file_age_for_write_;
+  Nanoseconds min_file_age_for_read_;
 
-  DurationNs max_file_age_for_write_;
-  DurationNs min_file_age_for_read_;
+  Nanoseconds initial_upload_delay_;
+  Nanoseconds min_upload_delay_;
+  Nanoseconds max_upload_delay_;
 
-  DurationNs initial_upload_delay_;
-  DurationNs min_upload_delay_;
-  DurationNs max_upload_delay_;
-
-  int32_t max_batches_per_upload_;
+  uint32_t max_batches_per_upload_;
 };
 
 }  // namespace datadog::core::internal

@@ -23,4 +23,13 @@ constexpr uint64_t NanoToMs(uint64_t nano) {
   return nano / 1000;
 }
 
+template <typename T>
+struct no_default {
+  // Over-explicitly showing that it isn't default constructable.
+  no_default() = delete;
+  no_default(T&& t) : value{std::move(t)} {}
+  no_default(const T& t) : value{t} {}
+  T value;
+};
+
 }  // namespace datadog::core::internal

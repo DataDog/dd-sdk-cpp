@@ -6,10 +6,13 @@
 
 #include <memory>
 
+#include "datadog/internal/utils.h"
 #include "datadog/storage/datadog_file_system.h"
 #include "datadog/time_provider.h"
 
 namespace datadog::core {
+
+using internal::no_default;
 
 enum class TrackingConsent {
   Granted,
@@ -21,11 +24,11 @@ enum class TrackingConsent {
 /// it to Datadog servers. Smaller batches mean smaller but more network
 /// requests, whereas larger batches mean fewer but larger network requests.
 enum class BatchSize {
-  /// Prefer small sized data batches.
+  /// Prefer small-sized data batches.
   Small,
-  /// Prefer medium sized data batches.
+  /// Prefer medium-sized data batches.
   Medium,
-  /// Prefer large sized data batches.
+  /// Prefer large-sized data batches.
   Large,
 };
 
@@ -48,29 +51,14 @@ enum class BatchProcessingLevel {
 };
 
 struct DatadogConfiguration {
-  explicit DatadogConfiguration(
-      TrackingConsent tracking_consent,
-      BatchSize batch_size = BatchSize::Medium,
-      UploadFrequency upload_frequency = UploadFrequency::Average,
-      BatchProcessingLevel batch_processing_level =
-          BatchProcessingLevel::Medium,
-      DateTimeProvider time_provider = DefaultDateTimeProvider,
-      std::shared_ptr<storage::DatadogFileSystem> file_system =
-          std::make_shared<storage::StdDatadogFileSystem>())
-      : tracking_consent(tracking_consent),
-        batch_size(batch_size),
-        upload_frequency(upload_frequency),
-        batch_processing_level(batch_processing_level),
-        time_provider(time_provider),
-        file_system{file_system} {};
+  no_default<TrackingConsent> tracking_consent;
 
-  TrackingConsent tracking_consent;
-  BatchSize batch_size;
-  UploadFrequency upload_frequency;
-  BatchProcessingLevel batch_processing_level;
+  BatchSize batch_size{BatchSize::Medium};
+  UploadFrequency upload_frequency{UploadFrequency::Average};
+  BatchProcessingLevel batch_processing_level{BatchProcessingLevel::Medium};
 
-  DateTimeProvider time_provider;
-  std::shared_ptr<storage::DatadogFileSystem> file_system;
+  std::shared_ptr<storage::DatadogFileSystem> file_system{
+      std::make_shared<storage::StdDatadogFileSystem>()};
 };
 
 }  // namespace datadog::core
