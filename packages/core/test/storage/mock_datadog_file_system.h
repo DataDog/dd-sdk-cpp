@@ -12,7 +12,7 @@ namespace datadog::core::storage::mocks {
 
 class MockDatadogFile : public DatadogFile {
  public:
-  MockDatadogFile() : DatadogFile("mock_path") {}
+  MockDatadogFile(const std::filesystem::path& path) : DatadogFile(path) {}
 
   MAKE_MOCK0(GetSize, uintmax_t(), const override);
   MAKE_MOCK1(Write, bool(std::string_view buffer), override);
@@ -26,8 +26,9 @@ class MockDatadogFileSystem : public DatadogFileSystem {
              override);
   MAKE_MOCK1(Exists, bool(const std::filesystem::path&), override);
   MAKE_MOCK1(Delete, DatadogFileStatus(const std::filesystem::path&), override);
-  MAKE_MOCK1(ListFiles,
-             std::vector<std::filesystem::path>(const std::filesystem::path&),
+  MAKE_MOCK2(ListFiles,
+             bool(const std::filesystem::path&,
+                  std::vector<std::filesystem::path>&),
              override);
 };
 

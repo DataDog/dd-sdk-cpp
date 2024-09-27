@@ -146,21 +146,22 @@ TEST_CASE(
   REQUIRE_FALSE(file_system.Exists("/usr/bin/bash"));
 }
 
-TEST_CASE("M return empty list for empty directory W ListFilePaths",
-          "[storage]") {
+TEST_CASE("M return empty list for empty directory W ListFiles", "[storage]") {
   // Given
-  StdDatadogFileSystem file_system{base_filesystem_dir};
-  std::filesystem::path dir{"empty"};
+  StdDatadogFileSystem file_system{base_filesystem_dir / "empty"};
+  std::filesystem::path dir{""};
 
   // When
-  auto files = file_system.ListFiles(dir);
+  std::vector<std::filesystem::path> files;
+  REQUIRE(file_system.ListFiles(dir, files));
 
   // Then
   REQUIRE(files.empty());
 }
 
 TEST_CASE(
-    "M return empty list for directory outside the filesystem W ListFilePaths "
+    "M return false and empty list for directory outside the filesystem W "
+    "ListFiles "
     "{relative}",
     "[storage]") {
   // Given
@@ -169,14 +170,16 @@ TEST_CASE(
   std::filesystem::path dir{"../"};
 
   // When
-  auto files = file_system.ListFiles(dir);
+  std::vector<std::filesystem::path> files;
+  REQUIRE_FALSE(file_system.ListFiles(dir, files));
 
   // Then
   REQUIRE(files.empty());
 }
 
 TEST_CASE(
-    "M return empty list for directory outside the filesystem W ListFilePaths "
+    "M return false and empty list for directory outside the filesystem W "
+    "ListFiles "
     "{rooted}",
     "[storage]") {
   // Given
@@ -184,7 +187,8 @@ TEST_CASE(
   std::filesystem::path dir("/usr/bin");
 
   // When
-  auto files = file_system.ListFiles(dir);
+  std::vector<std::filesystem::path> files;
+  REQUIRE_FALSE(file_system.ListFiles(dir, files));
 
   // Then
   REQUIRE(files.empty());
@@ -197,7 +201,8 @@ TEST_CASE("M return file names for directory W ListFilePaths", "[storage]") {
   TempFile file2(base_filesystem_dir / "file2.tmp");
 
   // When
-  auto files = file_system.ListFiles("");
+  std::vector<std::filesystem::path> files;
+  REQUIRE(file_system.ListFiles("", files));
 
   // Then
   REQUIRE(std::find(files.begin(), files.end(), "file1.tmp") != files.end());
@@ -211,7 +216,8 @@ TEST_CASE("M not recurse directories W ListFilePaths", "[storage]") {
 
   // When
   StdDatadogFileSystem file_system{base_filesystem_dir};
-  auto files = file_system.ListFiles("");
+  std::vector<std::filesystem::path> files;
+  REQUIRE(file_system.ListFiles("", files));
 
   // Then
   REQUIRE(std::find(files.begin(), files.end(), "subdir/file1.tmp") ==

@@ -121,8 +121,10 @@ class DatadogFileSystem {
 
   // List all files under the specified path, non-recursive. Paths returned
   // should be relative to the file system's root path.
-  virtual std::vector<std::filesystem::path> ListFiles(
-      const std::filesystem::path& in_dir) = 0;
+  //
+  // Returns false if there was an error reading files in the requested path.
+  virtual bool ListFiles(const std::filesystem::path& in_dir,
+                         std::vector<std::filesystem::path>& files) = 0;
 };
 
 // Default implementation of DatadogFileSystem, which uses the C++ standard
@@ -138,8 +140,8 @@ class StdDatadogFileSystem : public DatadogFileSystem {
 
   DatadogFileStatus Delete(const std::filesystem::path& path) override;
 
-  std::vector<std::filesystem::path> ListFiles(
-      const std::filesystem::path& in_dir) override;
+  bool ListFiles(const std::filesystem::path& in_dir,
+                 std::vector<std::filesystem::path>& files) override;
 
  private:
   bool IsInFileSystem(const std::filesystem::path& path);

@@ -52,7 +52,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
                                  DefaultDateTimeProvider, file_system};
   ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
-  auto mock_file = std::make_unique<MockDatadogFile>();
+  auto mock_file = std::make_unique<MockDatadogFile>("any");
   ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
 
   // Expect
@@ -72,7 +72,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
                                  mock_time_provider, file_system};
   ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
-  auto mock_file = std::make_unique<MockDatadogFile>();
+  auto mock_file = std::make_unique<MockDatadogFile>("any");
   ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
 
   // Expect
@@ -95,7 +95,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
                                  mock_time_provider, file_system};
   auto existing_file_path =
       std::filesystem::path(std::to_string(NanoToMs(fake_nanos)));
-  auto mock_file = std::make_unique<MockDatadogFile>();
+  auto mock_file = std::make_unique<MockDatadogFile>("any");
   ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
 
   // Expect
@@ -123,7 +123,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   auto file_system = std::make_shared<MockDatadogFileSystem>();
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
                                  DefaultDateTimeProvider, file_system};
-  auto mock_file = std::make_unique<MockDatadogFile>();
+  auto mock_file = std::make_unique<MockDatadogFile>("any");
   ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
 
   // Expect
@@ -142,7 +142,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
                                  DefaultDateTimeProvider, file_system};
   ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
-  auto mock_file = std::make_unique<MockDatadogFile>();
+  auto mock_file = std::make_unique<MockDatadogFile>("any");
   ALLOW_CALL(*file_system, Open(_)).LR_RETURN(std::move(mock_file));
 
   // Expect
@@ -182,7 +182,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
                                  DefaultDateTimeProvider, file_system};
   ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
-  auto mock_file = std::make_unique<MockDatadogFile>();
+  auto mock_file = std::make_unique<MockDatadogFile>("any");
   ALLOW_CALL(*file_system, Open(_)).LR_RETURN(std::move(mock_file));
 
   // Expect
@@ -242,12 +242,12 @@ TEST_CASE_METHOD(FeatureStorageFixture,
 
   // Expect
   trompeloeil::sequence seq;
-  auto mock_first_file = std::make_unique<MockDatadogFile>();
+  auto mock_first_file = std::make_unique<MockDatadogFile>("any");
   REQUIRE_CALL(*file_system, Open(_))
       .IN_SEQUENCE(seq)
       .LR_RETURN(std::move(mock_first_file));
   REQUIRE_CALL(*mock_first_file, Write(_)).TIMES(1, 3).RETURN(true);
-  auto mock_second_file = std::make_unique<MockDatadogFile>();
+  auto mock_second_file = std::make_unique<MockDatadogFile>("any_2");
   REQUIRE_CALL(*mock_second_file, Write(_)).TIMES(1, 3).RETURN(true);
   REQUIRE_CALL(*file_system, Open(_))
       .IN_SEQUENCE(seq)
@@ -282,12 +282,12 @@ TEST_CASE_METHOD(FeatureStorageFixture,
 
   // Expect
   trompeloeil::sequence seq;
-  auto mock_first_file = std::make_unique<MockDatadogFile>();
+  auto mock_first_file = std::make_unique<MockDatadogFile>("any");
   REQUIRE_CALL(*file_system, Open(_))
       .IN_SEQUENCE(seq)
       .LR_RETURN(std::move(mock_first_file));
   REQUIRE_CALL(*mock_first_file, Write(_)).TIMES(1, 3).RETURN(true);
-  auto mock_second_file = std::make_unique<MockDatadogFile>();
+  auto mock_second_file = std::make_unique<MockDatadogFile>("any_2");
   REQUIRE_CALL(*mock_second_file, Write(_)).TIMES(1, 3).RETURN(true);
   REQUIRE_CALL(*file_system, Open(_))
       .IN_SEQUENCE(seq)
@@ -322,6 +322,159 @@ TEST_CASE_METHOD(FeatureStorageFixture,
 
   // When
   REQUIRE_FALSE(feature_storage.Write("First file contents"));
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M list no files when none exist",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 DefaultDateTimeProvider, file_system};
+  ALLOW_CALL(*file_system, ListFiles(_, _)).RETURN(true);
+
+  // When
+  std::vector<std::filesystem::path> readable_files;
+  REQUIRE(feature_storage.ListReadableFiles(readable_files));
+
+  // Then
+  REQUIRE(readable_files.size() == 0);
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M list files W ListReadableFiles",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 DefaultDateTimeProvider, file_system};
+  ALLOW_CALL(*file_system, ListFiles(_, _))
+      .LR_SIDE_EFFECT({
+        _2.push_back("125566717");
+        _2.push_back("1666712718");
+      })
+      .RETURN(true);
+
+  // When
+  std::vector<std::filesystem::path> readable_files;
+  REQUIRE(feature_storage.ListReadableFiles(readable_files));
+
+  // Then
+  REQUIRE(readable_files.size() == 2);
+  REQUIRE(readable_files[0] == "125566717");
+  REQUIRE(readable_files[1] == "1666712718");
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M not list open file W ListReadableFiles",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  constexpr uint64_t fake_nanos = 123456789123L;
+  auto mock_file_path =
+      std::filesystem::path(std::to_string(fake_nanos / 1000));
+  auto mock_time_provider = [] { return fake_nanos; };
+  auto mock_file = std::make_unique<MockDatadogFile>(mock_file_path);
+  ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
+  ALLOW_CALL(*file_system, Open(mock_file_path))
+      .LR_RETURN(std::move(mock_file));
+
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 mock_time_provider, file_system};
+  ALLOW_CALL(*file_system, ListFiles(_, _))
+      .LR_SIDE_EFFECT({
+        _2.push_back("125566717");
+        _2.push_back(mock_file_path);
+      })
+      .RETURN(true);
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+  // Write to open the file
+  feature_storage.Write("File Contents");
+
+  // When
+  std::vector<std::filesystem::path> readable_files;
+  REQUIRE(feature_storage.ListReadableFiles(readable_files));
+
+  // Then
+  REQUIRE(readable_files.size() == 1);
+  REQUIRE(readable_files[0] == "125566717");
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M list files sorted numerically W ListReadableFiles",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  ALLOW_CALL(*file_system, ListFiles(_, _))
+      .LR_SIDE_EFFECT({
+        _2.push_back("1255667172");
+        _2.push_back("125566717");
+        _2.push_back("24412557");
+        _2.push_back("125");
+        _2.push_back("24412556");
+        _2.push_back("1255667171");
+      })
+      .RETURN(true);
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 DefaultDateTimeProvider, file_system};
+
+  // When
+  std::vector<std::filesystem::path> readable_files;
+  REQUIRE(feature_storage.ListReadableFiles(readable_files));
+
+  // Then
+  REQUIRE(readable_files.size() == 6);
+  REQUIRE(readable_files[0] == "125");
+  REQUIRE(readable_files[1] == "24412556");
+  REQUIRE(readable_files[2] == "24412557");
+  REQUIRE(readable_files[3] == "125566717");
+  REQUIRE(readable_files[4] == "1255667171");
+  REQUIRE(readable_files[5] == "1255667172");
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M open file in file system W GetReadableFile",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  auto mock_file_path = std::filesystem::path("any");
+  auto mock_file = std::make_unique<MockDatadogFile>(mock_file_path);
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 DefaultDateTimeProvider, file_system};
+
+  // Expect
+  REQUIRE_CALL(*file_system, Open(mock_file_path))
+      .LR_RETURN(std::move(mock_file));
+
+  // When
+  auto file = feature_storage.GetReadableFile(mock_file_path);
+
+  // Then
+  REQUIRE(file);
+  REQUIRE(file->GetPath() == mock_file_path);
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M delete file W DeleteReadableFile",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  auto mock_file_path = std::filesystem::path("any");
+  auto mock_file = std::make_unique<MockDatadogFile>(mock_file_path);
+  ALLOW_CALL(*file_system, Open(mock_file_path))
+      .LR_RETURN(std::move(mock_file));
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 DefaultDateTimeProvider, file_system};
+
+  // Expect
+  REQUIRE_CALL(*file_system, Delete(mock_file_path))
+      .RETURN(DatadogFileStatus::Ok);
+
+  // When
+  auto file = feature_storage.GetReadableFile(mock_file_path);
+  REQUIRE(file);
+  bool result = feature_storage.DeleteReadableFile(std::move(file));
+  REQUIRE(result);
 }
 
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)

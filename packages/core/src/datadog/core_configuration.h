@@ -52,7 +52,7 @@ enum class BatchProcessingLevel {
 
 struct DatadogConfiguration {
   no_default<TrackingConsent> tracking_consent;
-
+  
   BatchSize batch_size{BatchSize::Medium};
   UploadFrequency upload_frequency{UploadFrequency::Average};
   BatchProcessingLevel batch_processing_level{BatchProcessingLevel::Medium};

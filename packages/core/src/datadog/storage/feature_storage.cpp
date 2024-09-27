@@ -12,6 +12,16 @@ using datadog::core::DateTimeProvider;
 using datadog::core::internal::NanoToMs;
 using datadog::core::internal::PerformancePreset;
 
+// This assumes all of our filenames in FeatureStorage are numbers for the
+// purpose of comparison, but thankfully doesn't fail if it encounters a
+// non-number, and doesn't spend extra time parsing the number.
+static bool numerical_string_comparitor(const std::string& a,
+                                        const std::string& b) {
+  if (a.size() == b.size()) return a < b;
+
+  return a.size() < b.size();
+}
+
 enum class StorageBlockType : uint16_t { Event = 0, Metadata = 1 };
 
 FeatureStorage::FeatureStorage(const std::string& feature_name,
@@ -73,6 +83,40 @@ bool FeatureStorage::Write(std::string_view data) {
   current_file_size_ += full_write_size;
 
   return true;
+}
+
+bool FeatureStorage::ListReadableFiles(
+    std::vector<std::filesystem::path>& files) {
+  if (!file_system_->ListFiles("", files)) return false;
+
+  std::sort(files.begin(), files.end(), numerical_string_comparitor);
+
+  // Remove the current file, which should be near the end, so doing a find
+  // using the reverse iterator and erasing should have a minimal impact
+  if (current_file_) {
+    const auto current_file_pos =
+        std::find(files.rbegin(), files.rend(), current_file_->GetPath());
+    if (current_file_pos != files.rend()) {
+      files.erase(std::next(current_file_pos).base());
+    }
+  }
+
+  return true;
+}
+
+std::unique_ptr<DatadogFile> FeatureStorage::GetReadableFile(
+    const std::filesystem::path& path) {
+  return file_system_->Open(path);
+}
+
+bool FeatureStorage::DeleteReadableFile(std::unique_ptr<DatadogFile> file) {
+  if (!file) return false;
+
+  auto path = file->GetPath();
+  // Clear the file, closing it before deleting it
+  file.reset();
+
+  return file_system_->Delete(path) == DatadogFileStatus::Ok;
 }
 
 bool FeatureStorage::CanReuseCurrentFile(size_t write_size) {

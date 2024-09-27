@@ -116,21 +116,24 @@ DatadogFileStatus StdDatadogFileSystem::Delete(
              : DatadogFileStatus::OperationFailure;
 }
 
-std::vector<std::filesystem::path> StdDatadogFileSystem::ListFiles(
-    const std::filesystem::path& in_dir) {
+bool StdDatadogFileSystem::ListFiles(
+    const std::filesystem::path& in_dir,
+    std::vector<std::filesystem::path>& files) {
   const auto path = base_cache_directory_ / in_dir;
-  std::vector<std::filesystem::path> ret;
-  if (!IsInFileSystem(path)) return ret;
+  if (!IsInFileSystem(path)) return false;
+  // If the path doesn't exist, assume it's an empty directory. This can happen
+  // if no files have been created at that path yet, as we lazily create the
+  // base parent directory.
+  if (!std::filesystem::exists(path)) return true;
+  if (!std::filesystem::is_directory(path)) return false;
 
-  if (std::filesystem::is_directory(path)) {
-    for (const auto& entry : std::filesystem::directory_iterator(path)) {
-      const auto& relative_entry =
-          std::filesystem::relative(entry, base_cache_directory_);
-      ret.push_back(relative_entry);
-    }
+  for (const auto& entry : std::filesystem::directory_iterator(path)) {
+    const auto& relative_entry =
+        std::filesystem::relative(entry, base_cache_directory_);
+    files.push_back(relative_entry);
   }
 
-  return ret;
+  return true;
 }
 
 bool StdDatadogFileSystem::IsInFileSystem(const std::filesystem::path& path) {

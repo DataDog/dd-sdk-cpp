@@ -8,6 +8,7 @@
 #include <filesystem>
 #include <optional>
 #include <random>
+#include <set>
 
 #include "datadog/internal/performance_preset.h"
 #include "datadog/storage/datadog_file_system.h"
@@ -26,7 +27,13 @@ class FeatureStorage {
                           datadog::core::DateTimeProvider date_time_provider,
                           std::shared_ptr<DatadogFileSystem> file_system);
 
+  // Write data to this feature's storage.
   bool Write(std::string_view data);
+
+  bool ListReadableFiles(std::vector<std::filesystem::path>& files);
+  std::unique_ptr<DatadogFile> GetReadableFile(
+      const std::filesystem::path& path);
+  bool DeleteReadableFile(std::unique_ptr<DatadogFile> file);
 
  private:
   bool CanReuseCurrentFile(size_t write_size);
