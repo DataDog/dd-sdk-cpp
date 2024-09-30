@@ -8,6 +8,7 @@ add_library(datadog-core STATIC
 
   src/datadog/storage/datadog_file_system.cpp
   src/datadog/storage/feature_storage.cpp
+  src/datadog/storage/tlv_file_reader.cpp
 )
 target_include_directories(datadog-core PRIVATE
   .

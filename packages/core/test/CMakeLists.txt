@@ -11,6 +11,7 @@ add_executable(core-tests
     
     storage/test_datadog_file_system.cpp
     storage/test_feature_storage.cpp
+    storage/test_tlv_file_reader.cpp
 )
 
 target_include_directories(core-tests

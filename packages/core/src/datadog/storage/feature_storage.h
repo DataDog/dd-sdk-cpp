@@ -12,6 +12,7 @@
 
 #include "datadog/internal/performance_preset.h"
 #include "datadog/storage/datadog_file_system.h"
+#include "datadog/storage/tlv_file_reader.h"
 #include "datadog/time_provider.h"
 
 namespace datadog::core::storage {
@@ -31,11 +32,13 @@ class FeatureStorage {
   bool Write(std::string_view data);
 
   bool ListReadableFiles(std::vector<std::filesystem::path>& files);
-  std::unique_ptr<DatadogFile> GetReadableFile(
+  std::unique_ptr<TLVFileReader> GetReadableFile(
       const std::filesystem::path& path);
-  bool DeleteReadableFile(std::unique_ptr<DatadogFile> file);
+  bool DeleteReadableFile(std::unique_ptr<TLVFileReader> file);
 
  private:
+  using Nanoseconds = std::chrono::duration<uint64_t, std::nano>;
+
   bool CanReuseCurrentFile(size_t write_size);
   bool CreateNewWritableFile();
 
@@ -46,9 +49,7 @@ class FeatureStorage {
   std::mt19937 random_generator_;
 
   std::unique_ptr<DatadogFile> current_file_;
-  // These times are in nanoseconds since epoch, which is
-  // what is returned from DateTimeProvider
-  uint64_t current_file_creation_time_;
+  Nanoseconds current_file_creation_time_;
   uintmax_t current_file_size_;
 };
 

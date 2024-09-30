@@ -22,8 +22,6 @@ static bool numerical_string_comparitor(const std::string& a,
   return a.size() < b.size();
 }
 
-enum class StorageBlockType : uint16_t { Event = 0, Metadata = 1 };
-
 FeatureStorage::FeatureStorage(const std::string& feature_name,
                                const PerformancePreset& performance_preset,
                                DateTimeProvider date_time_provider,
@@ -104,12 +102,15 @@ bool FeatureStorage::ListReadableFiles(
   return true;
 }
 
-std::unique_ptr<DatadogFile> FeatureStorage::GetReadableFile(
+std::unique_ptr<TLVFileReader> FeatureStorage::GetReadableFile(
     const std::filesystem::path& path) {
-  return file_system_->Open(path);
+  auto file = file_system_->Open(path);
+  if (!file) return nullptr;
+
+  return std::make_unique<TLVFileReader>(std::move(file));
 }
 
-bool FeatureStorage::DeleteReadableFile(std::unique_ptr<DatadogFile> file) {
+bool FeatureStorage::DeleteReadableFile(std::unique_ptr<TLVFileReader> file) {
   if (!file) return false;
 
   auto path = file->GetPath();
@@ -125,10 +126,10 @@ bool FeatureStorage::CanReuseCurrentFile(size_t write_size) {
   auto expected_file_size = current_file_size_ + write_size;
   if (expected_file_size >= performance_preset_.max_file_size()) return false;
 
-  auto current_time = date_time_provider_();
+  auto current_time = Nanoseconds{date_time_provider_()};
   auto file_age = current_time - current_file_creation_time_;
 
-  if (file_age > performance_preset_.max_file_age_for_write().count()) {
+  if (file_age > performance_preset_.max_file_age_for_write()) {
     return false;
   }
 
@@ -155,7 +156,7 @@ bool FeatureStorage::CreateNewWritableFile() {
         return false;
       }
 
-      current_file_creation_time_ = date_time_provider_();
+      current_file_creation_time_ = Nanoseconds{date_time_provider_()};
       current_file_size_ = 0;
       return true;
     }

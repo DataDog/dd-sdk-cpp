@@ -17,6 +17,8 @@ class MockDatadogFile : public DatadogFile {
   MAKE_MOCK0(GetSize, uintmax_t(), const override);
   MAKE_MOCK1(Write, bool(std::string_view buffer), override);
   MAKE_MOCK2(Read, bool(char*, size_t&), override);
+
+  void SetStatus(DatadogFileStatus status) { status_ = status; }
 };
 
 class MockDatadogFileSystem : public DatadogFileSystem {

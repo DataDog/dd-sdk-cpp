@@ -46,7 +46,7 @@ class DatadogFile {
 
   // Get the path of the file. The path will be relative to the
   // DatadogFileSystem that created it.
-  const std::filesystem::path& GetPath() { return path_; }
+  const std::filesystem::path& GetPath() const { return path_; }
 
   // Get the current status of the file. This status is updated after a call to
   // `Read` or `Write`.
