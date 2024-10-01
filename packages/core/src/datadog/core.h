@@ -8,25 +8,12 @@
 #include <memory>
 #include <type_traits>
 
+#include "datadog/core_configuration.h"
 #include "datadog/feature.h"
+#include "datadog/internal/performance_preset.h"
 #include "datadog/storage/datadog_file_system.h"
 
 namespace datadog::core {
-
-class DatadogConfiguration {
- public:
-  explicit DatadogConfiguration(
-      const std::shared_ptr<storage::DatadogFileSystem>& file_system =
-          std::make_shared<storage::StdDatadogFileSystem>())
-      : file_system_{file_system} {};
-
-  const std::shared_ptr<storage::DatadogFileSystem>& GetFileSystem() const {
-    return file_system_;
-  }
-
- private:
-  std::shared_ptr<storage::DatadogFileSystem> file_system_;
-};
 
 class IDatadogCore {
  protected:
@@ -41,7 +28,10 @@ class DatadogCore : public IDatadogCore,
  public:
   explicit DatadogCore(IDatadogCore::Allow,
                        const DatadogConfiguration& configuration)
-      : file_system_{configuration.GetFileSystem()} {};
+      : performance_preset_{configuration.batch_size,
+                            configuration.upload_frequency,
+                            configuration.batch_processing_level},
+        file_system_{configuration.file_system} {};
   DatadogCore(const DatadogCore&) = delete;
   DatadogCore& operator=(const DatadogCore&) = delete;
 
@@ -63,6 +53,8 @@ class DatadogCore : public IDatadogCore,
   void RegisterFeature(FeatureId feature_id,
                        std::unique_ptr<DatadogFeature>&& feature);
   DatadogFeature* GetFeatureById(FeatureId feature_id) const;
+
+  datadog::core::internal::PerformancePreset performance_preset_;
 
   std::shared_ptr<storage::DatadogFileSystem> file_system_;
   std::map<FeatureId, std::unique_ptr<DatadogFeature>> features_by_id_;

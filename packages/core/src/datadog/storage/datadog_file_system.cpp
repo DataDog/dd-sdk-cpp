@@ -31,7 +31,7 @@ class StdDatadogFile : public DatadogFile {
 
   bool Write(std::string_view buffer) override {
     file_.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-    auto pos = file_.tellp();
+    auto pos = static_cast<uintmax_t>(file_.tellp());
     // We've overwritten the whole file. Stream position is now the file size.
     if (pos > size_) {
       size_ = pos;
