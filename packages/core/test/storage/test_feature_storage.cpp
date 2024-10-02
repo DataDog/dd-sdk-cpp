@@ -21,7 +21,7 @@ using datadog::core::BatchProcessingLevel;
 using datadog::core::BatchSize;
 using datadog::core::DefaultDateTimeProvider;
 using datadog::core::UploadFrequency;
-using datadog::core::internal::NanoToMs;
+using datadog::core::internal::NanoToMillis;
 using datadog::core::internal::PerformancePreset;
 using datadog::core::storage::DatadogFileStatus;
 using datadog::core::storage::FeatureStorage;
@@ -77,7 +77,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
 
   // Expect
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
-  auto str_time_ms = std::to_string(NanoToMs(fake_nanos));
+  auto str_time_ms = std::to_string(NanoToMillis(fake_nanos));
   REQUIRE_CALL(*file_system, Open(str_time_ms)).LR_RETURN(std::move(mock_file));
 
   // When
@@ -94,7 +94,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   FeatureStorage feature_storage{"TestFeature", performance_preset_,
                                  mock_time_provider, file_system};
   auto existing_file_path =
-      std::filesystem::path(std::to_string(NanoToMs(fake_nanos)));
+      std::filesystem::path(std::to_string(NanoToMillis(fake_nanos)));
   auto mock_file = std::make_unique<MockDatadogFile>("any");
   ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
 
@@ -372,7 +372,7 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   auto file_system = std::make_shared<MockDatadogFileSystem>();
   constexpr uint64_t fake_nanos = 123456789123L;
   auto mock_file_path =
-      std::filesystem::path(std::to_string(fake_nanos / 1000));
+      std::filesystem::path(std::to_string(NanoToMillis(fake_nanos)));
   auto mock_time_provider = [] { return fake_nanos; };
   auto mock_file = std::make_unique<MockDatadogFile>(mock_file_path);
   ALLOW_CALL(*mock_file, Write(_)).RETURN(true);

@@ -4,7 +4,10 @@
 // Datadog, Inc.
 #pragma once
 
+#include <cstdint>
+#include <filesystem>
 #include <memory>
+#include <vector>
 
 #include "datadog/storage/datadog_file_system.h"
 

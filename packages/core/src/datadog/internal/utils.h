@@ -19,8 +19,8 @@ constexpr FeatureId CreateFourCC(unsigned char a,
       static_cast<uint32_t>(c) << 16 | static_cast<uint32_t>(d) << 24};
 }
 
-constexpr uint64_t NanoToMs(uint64_t nano) {
-  return nano / 1000;
+constexpr uint64_t NanoToMillis(uint64_t nano) {
+  return nano / 1'000'000;
 }
 
 template <typename T>

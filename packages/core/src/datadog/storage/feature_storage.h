@@ -5,10 +5,12 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
-#include <optional>
+#include <memory>
 #include <random>
-#include <set>
+#include <string>
+#include <vector>
 
 #include "datadog/internal/performance_preset.h"
 #include "datadog/storage/datadog_file_system.h"

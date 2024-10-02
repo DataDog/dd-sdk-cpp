@@ -4,12 +4,14 @@
 // Datadog, Inc.
 #include "datadog/storage/feature_storage.h"
 
+#include <algorithm>
+
 #include "datadog/internal/utils.h"
 
 namespace datadog::core::storage {
 
 using datadog::core::DateTimeProvider;
-using datadog::core::internal::NanoToMs;
+using datadog::core::internal::NanoToMillis;
 using datadog::core::internal::PerformancePreset;
 
 // This assumes all of our filenames in FeatureStorage are numbers for the
@@ -146,7 +148,7 @@ bool FeatureStorage::CreateNewWritableFile() {
   // File name is based on the file creation time, but if the file already
   // exists attempt to add a random spread to get a file that doesn't. Don't
   // try this for too long and fail if lots of these files already exist.
-  auto nowMs = NanoToMs(date_time_provider_());
+  auto nowMs = NanoToMillis(date_time_provider_());
   for (int i = 0; i < kAttempts; ++i) {
     auto file_name = std::to_string(nowMs);
     if (!file_system_->Exists(file_name)) {
