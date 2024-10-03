@@ -11,6 +11,7 @@ using datadog::core::DatadogFeature;
 using datadog::core::FeatureId;
 using datadog::core::IDatadogCore;
 using datadog::core::TrackingConsent;
+using datadog::test::GenerateRandomString;
 
 class MockFeature : public DatadogFeature {
  public:
@@ -31,9 +32,20 @@ TEST_CASE("M return proper value W four_cc", "[core]") {
   REQUIRE(FeatureId{0x44434241} == value);
 }
 
+DatadogConfiguration CreateMockConfig() {
+  // NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
+  return DatadogConfiguration{
+      TrackingConsent::Granted,
+      GenerateRandomString(12),
+      GenerateRandomString(20),
+      GenerateRandomString(4),
+  };
+  // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
+}
+
 TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
   // Given
-  DatadogConfiguration config{TrackingConsent::Granted};
+  auto config = CreateMockConfig();
   auto core = DatadogCore::Create(config);
 
   // When
@@ -45,7 +57,7 @@ TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
 
 TEST_CASE("M return registered feature W register_feature", "[core]") {
   // Given
-  DatadogConfiguration config{TrackingConsent::Granted};
+  auto config = CreateMockConfig();
   auto core = DatadogCore::Create(config);
   core->RegisterFeature<MockFeature>();
 
@@ -58,7 +70,7 @@ TEST_CASE("M return registered feature W register_feature", "[core]") {
 
 TEST_CASE("M not overwrite registered feature W second register", "[core]") {
   // Given
-  DatadogConfiguration config{TrackingConsent::Granted};
+  auto config = CreateMockConfig();
   auto core = DatadogCore::Create(config);
   core->RegisterFeature<MockFeature>();
   auto feature = core->GetFeature<MockFeature>();
