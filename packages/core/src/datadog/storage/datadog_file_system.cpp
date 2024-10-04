@@ -16,8 +16,6 @@ class StdDatadogFile : public DatadogFile {
   explicit StdDatadogFile(const std::filesystem::path& path,
                           std::fstream&& file)
       : DatadogFile{path}, file_{std::move(file)} {
-    file_.seekg(0, file_.end);
-    size_ = file_.tellg();
     file_.seekg(0, file_.beg);
   }
   ~StdDatadogFile() override { file_.close(); }
@@ -27,15 +25,8 @@ class StdDatadogFile : public DatadogFile {
   StdDatadogFile(StdDatadogFile&&) = delete;
   StdDatadogFile& operator=(StdDatadogFile&&) = delete;
 
-  uintmax_t GetSize() const override { return size_; };
-
   bool Write(std::string_view buffer) override {
     file_.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-    auto pos = static_cast<uintmax_t>(file_.tellp());
-    // We've overwritten the whole file. Stream position is now the file size.
-    if (pos > size_) {
-      size_ = pos;
-    }
 
     if (file_.bad()) return StatusReturn(DatadogFileStatus::BadState);
     if (file_.fail()) return StatusReturn(DatadogFileStatus::OperationFailure);
@@ -67,7 +58,6 @@ class StdDatadogFile : public DatadogFile {
     return (status_ == DatadogFileStatus::Ok);
   }
 
-  uintmax_t size_{};
   std::fstream file_;
 };
 

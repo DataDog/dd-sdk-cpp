@@ -52,7 +52,7 @@ class FeatureStorage {
 
   std::unique_ptr<DatadogFile> current_file_;
   Nanoseconds current_file_creation_time_;
-  uintmax_t current_file_size_;
+  uintmax_t current_file_bytes_written_;
 };
 
 }  // namespace datadog::core::storage

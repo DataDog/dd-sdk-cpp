@@ -41,9 +41,6 @@ class DatadogFile {
   DatadogFile(DatadogFile&&) = delete;
   DatadogFile& operator=(DatadogFile&&) = delete;
 
-  // Get the size of the file in bytes.
-  virtual uintmax_t GetSize() const = 0;
-
   // Get the path of the file. The path will be relative to the
   // DatadogFileSystem that created it.
   const std::filesystem::path& GetPath() const { return path_; }

@@ -298,7 +298,7 @@ TEST_CASE("M write file content W StdDatadogFile::Write", "[storage]") {
   REQUIRE(actual_file_contents == "file contents");
 }
 
-TEST_CASE("M read file content W StdDatadogFile::Read", "[storage]") {
+TEST_CASE("M read file content W StdDatadogFile::ReadArray", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
@@ -378,18 +378,19 @@ TEST_CASE("M return Ok W StdDatadogFile::Read {exact length}", "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
   TempFile temp_file(base_filesystem_dir / "read_file.tmp");
+  std::string file_contents{"file_contents\n"};
 
   {
     std::fstream write_file{base_filesystem_dir / "read_file.tmp",
                             std::fstream::out | std::fstream::trunc};
-    write_file << "file contents" << std::endl;
+    write_file << file_contents;
   }
 
   // When
   {
     std::unique_ptr<DatadogFile> file = file_system.Open("read_file.tmp");
     REQUIRE(file);
-    size_t file_size = file->GetSize();
+    size_t file_size = file_contents.size();
     std::vector<char> buffer(file_size);
     size_t read_size{file_size};
     const auto result = file->Read(buffer.data(), read_size);

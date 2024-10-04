@@ -34,7 +34,7 @@ FeatureStorage::FeatureStorage(const std::string& feature_name,
       file_system_{std::move(file_system)},
       random_generator_(std::random_device{}()),
       current_file_creation_time_{0},
-      current_file_size_{0} {}
+      current_file_bytes_written_{0} {}
 
 bool FeatureStorage::Write(std::string_view data) {
   // Write the given data, encrypting it if encryption is available.
@@ -80,7 +80,7 @@ bool FeatureStorage::Write(std::string_view data) {
   }
   // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
-  current_file_size_ += full_write_size;
+  current_file_bytes_written_ += full_write_size;
 
   return true;
 }
@@ -125,7 +125,7 @@ bool FeatureStorage::DeleteReadableFile(std::unique_ptr<TLVFileReader> file) {
 bool FeatureStorage::CanReuseCurrentFile(size_t write_size) {
   if (!current_file_) return false;
 
-  auto expected_file_size = current_file_size_ + write_size;
+  auto expected_file_size = current_file_bytes_written_ + write_size;
   if (expected_file_size >= performance_preset_.max_file_size()) return false;
 
   auto current_time = Nanoseconds{date_time_provider_()};
@@ -159,7 +159,7 @@ bool FeatureStorage::CreateNewWritableFile() {
       }
 
       current_file_creation_time_ = Nanoseconds{date_time_provider_()};
-      current_file_size_ = 0;
+      current_file_bytes_written_ = 0;
       return true;
     }
     nowMs += random_spread(random_generator_);
