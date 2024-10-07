@@ -12,7 +12,7 @@
 
 namespace datadog::test {
 
-inline std::string GenerateRandomString(size_t length) {
+inline std::string GenerateRandomString(size_t length = 20) {
   using namespace std::literals::string_view_literals;
 
   constexpr auto kCharacters =

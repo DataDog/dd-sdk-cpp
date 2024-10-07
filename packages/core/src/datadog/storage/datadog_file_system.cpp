@@ -126,12 +126,20 @@ bool StdDatadogFileSystem::ListFiles(
   return true;
 }
 
+std::shared_ptr<DatadogFileSystem> StdDatadogFileSystem::CreateChildFileSystem(
+    std::string_view name) {
+  const auto path = base_cache_directory_ / name;
+  if (!IsInFileSystem(path)) return nullptr;
+
+  return std::make_shared<StdDatadogFileSystem>(path);
+}
+
 bool StdDatadogFileSystem::IsInFileSystem(const std::filesystem::path& path) {
   const auto normalized = path.lexically_normal();
 
   const auto [rootEnd, _] =
       std::mismatch(base_cache_directory_.begin(), base_cache_directory_.end(),
-                    normalized.begin());
+                    normalized.begin(), normalized.end());
 
   return (rootEnd == base_cache_directory_.end());
 }

@@ -40,7 +40,6 @@ class FeatureStorageFixture {
         } {}
 
  protected:
-  // NOLINTNEXTLINE(cppcoreguidelines-non-private-member-variables-in-classes)
   PerformancePreset performance_preset_;
 };
 
@@ -146,7 +145,6 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   ALLOW_CALL(*file_system, Open(_)).LR_RETURN(std::move(mock_file));
 
   // Expect
-  static constexpr uint16_t kStorageBlockType = 0;
   static constexpr std::string_view kExpectedHeader{"\0", sizeof(uint16_t)};
   static constexpr auto kExpectedContent = "File contents"sv;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)
@@ -186,7 +184,6 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   ALLOW_CALL(*file_system, Open(_)).LR_RETURN(std::move(mock_file));
 
   // Expect
-  static constexpr uint16_t kStorageBlockType = 0;
   static constexpr std::string_view kExpectedHeader{"\0", sizeof(uint16_t)};
   static constexpr auto kExpectedContent = "File contents"sv;
   // NOLINTNEXTLINE(cppcoreguidelines-avoid-c-arrays)

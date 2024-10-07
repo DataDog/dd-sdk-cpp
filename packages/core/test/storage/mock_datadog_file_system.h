@@ -4,7 +4,7 @@
 // Datadog, Inc.
 #include "datadog/storage/datadog_file_system.h"
 
-#include "test.h"
+#include "datadog/datadog_test.h"
 
 #include <catch2/trompeloeil.hpp>
 
@@ -30,6 +30,9 @@ class MockDatadogFileSystem : public DatadogFileSystem {
   MAKE_MOCK2(ListFiles,
              bool(const std::filesystem::path&,
                   std::vector<std::filesystem::path>&),
+             override);
+  MAKE_MOCK1(CreateChildFileSystem,
+             std::shared_ptr<DatadogFileSystem>(std::string_view),
              override);
 };
 

@@ -5,6 +5,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 
 #include "datadog/core_configuration.h"
 
@@ -59,8 +60,10 @@ class PerformancePreset {
   uint32_t max_batches_per_upload() const { return max_batches_per_upload_; }
 
  private:
-  uint64_t max_file_size_;
-  uint64_t max_directory_size_;
+  constexpr uint64_t MbToBytes(uint64_t mb) { return mb * 1024 * 1024; };
+
+  uint64_t max_file_size_{MbToBytes(4)};
+  uint64_t max_directory_size_{MbToBytes(512)};
   Nanoseconds max_file_age_for_write_;
   Nanoseconds min_file_age_for_read_;
 

@@ -88,6 +88,8 @@
     "condition_variable": "cpp",
     "__bits": "cpp",
     "__mutex_base": "cpp",
-    "bit": "cpp"
+    "bit": "cpp",
+    "strstream": "cpp",
+    "queue": "cpp"
   }
 }

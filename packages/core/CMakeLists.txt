@@ -15,10 +15,7 @@ target_include_directories(datadog-core PRIVATE
   src/
 )
 add_compile_options(-frtti)
-target_compile_options(datadog-core PRIVATE
-  $<$<CXX_COMPILER_ID:MSVC>:/W4 /WX>
-  $<$<NOT:$<CXX_COMPILER_ID:MSVC>>:-Wall -Wextra -Wpedantic -Werror>
-)
+target_link_libraries(datadog-core PRIVATE common_options)
 
 if(DD_SDK_BUILD_TEST)
   add_subdirectory(test)
