@@ -12,6 +12,8 @@
 #include "datadog/feature.h"
 #include "datadog/internal/performance_preset.h"
 #include "datadog/storage/datadog_file_system.h"
+#include "datadog/storage/feature_storage.h"
+#include "datadog/time_provider.h"
 
 namespace datadog::core {
 
@@ -50,14 +52,18 @@ class DatadogCore : public IDatadogCore,
   }
 
  private:
+  using FeatureStorage = datadog::core::storage::FeatureStorage;
+
   void RegisterFeature(FeatureId feature_id,
                        std::unique_ptr<DatadogFeature>&& feature);
   DatadogFeature* GetFeatureById(FeatureId feature_id) const;
 
   datadog::core::internal::PerformancePreset performance_preset_;
-
   std::shared_ptr<storage::DatadogFileSystem> file_system_;
+  DateTimeProvider time_provider_;
+
   std::map<FeatureId, std::unique_ptr<DatadogFeature>> features_by_id_;
+  std::map<FeatureId, std::unique_ptr<FeatureStorage>> storage_by_feature_id_;
 };
 
 template <typename T, typename... Args>

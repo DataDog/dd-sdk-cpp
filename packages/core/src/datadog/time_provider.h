@@ -2,20 +2,15 @@
 // under the Apache License Version 2.0. This product includes software
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2023-Present
 // Datadog, Inc.
-
 #pragma once
 
-#include <string>
+#include <cstdint>
 
 namespace datadog::core {
 
-enum class FeatureId : uint32_t {};
-
-class DatadogFeature {
- public:
-  virtual ~DatadogFeature() = default;
-
-  virtual std::string_view GetName() const = 0;
-};
+// A function for providing the current date time in nanoseconds since unix
+// epoch. The default implementation uses std::chrono::system_clock
+using DateTimeProvider = uint64_t (*)();
+uint64_t DefaultDateTimeProvider();
 
 }  // namespace datadog::core

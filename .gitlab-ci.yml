@@ -3,6 +3,7 @@ stages:
   - build
 
 variables:
+  GIT_SUBMODULE_STRATEGY: normal
   CURRENT_CI_IMAGE: "1"
   BUILD_STABLE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
   CI_IMAGE_REPO: "ci/dd-sdk-cpp"

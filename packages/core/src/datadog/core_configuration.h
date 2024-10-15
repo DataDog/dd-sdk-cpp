@@ -6,9 +6,19 @@
 
 #include <memory>
 
+#include "datadog/internal/utils.h"
 #include "datadog/storage/datadog_file_system.h"
+#include "datadog/time_provider.h"
 
 namespace datadog::core {
+
+using internal::no_default;
+
+enum class TrackingConsent {
+  Granted,
+  NotGranted,
+  Pending,
+};
 
 /// Defines the Datadog SDK policy when batching data together before uploading
 /// it to Datadog servers. Smaller batches mean smaller but more network
@@ -41,6 +51,8 @@ enum class BatchProcessingLevel {
 };
 
 struct DatadogConfiguration {
+  no_default<TrackingConsent> tracking_consent;
+
   BatchSize batch_size{BatchSize::Medium};
   UploadFrequency upload_frequency{UploadFrequency::Average};
   BatchProcessingLevel batch_processing_level{BatchProcessingLevel::Medium};

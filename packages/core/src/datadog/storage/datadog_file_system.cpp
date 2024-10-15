@@ -16,8 +16,6 @@ class StdDatadogFile : public DatadogFile {
   explicit StdDatadogFile(const std::filesystem::path& path,
                           std::fstream&& file)
       : DatadogFile{path}, file_{std::move(file)} {
-    file_.seekg(0, file_.end);
-    size_ = file_.tellg();
     file_.seekg(0, file_.beg);
   }
   ~StdDatadogFile() override { file_.close(); }
@@ -27,15 +25,8 @@ class StdDatadogFile : public DatadogFile {
   StdDatadogFile(StdDatadogFile&&) = delete;
   StdDatadogFile& operator=(StdDatadogFile&&) = delete;
 
-  uintmax_t GetSize() const override { return size_; };
-
   bool Write(std::string_view buffer) override {
     file_.write(buffer.data(), static_cast<std::streamsize>(buffer.size()));
-    auto pos = static_cast<uintmax_t>(file_.tellp());
-    // We've overwritten the whole file. Stream position is now the file size.
-    if (pos > size_) {
-      size_ = pos;
-    }
 
     if (file_.bad()) return StatusReturn(DatadogFileStatus::BadState);
     if (file_.fail()) return StatusReturn(DatadogFileStatus::OperationFailure);
@@ -67,7 +58,6 @@ class StdDatadogFile : public DatadogFile {
     return (status_ == DatadogFileStatus::Ok);
   }
 
-  uintmax_t size_{};
   std::fstream file_;
 };
 
@@ -94,6 +84,13 @@ std::unique_ptr<DatadogFile> StdDatadogFileSystem::Open(
   return std::make_unique<StdDatadogFile>(path, std::move(file));
 }
 
+bool StdDatadogFileSystem::Exists(const std::filesystem::path& path) {
+  auto full_path = base_cache_directory_ / path;
+  if (!IsInFileSystem(full_path)) return false;
+
+  return std::filesystem::is_regular_file(full_path);
+}
+
 DatadogFileStatus StdDatadogFileSystem::Delete(
     const std::filesystem::path& path) {
   auto full_path = base_cache_directory_ / path;
@@ -109,19 +106,24 @@ DatadogFileStatus StdDatadogFileSystem::Delete(
              : DatadogFileStatus::OperationFailure;
 }
 
-std::vector<std::filesystem::path> StdDatadogFileSystem::ListFiles(
-    const std::filesystem::path& in_dir) {
+bool StdDatadogFileSystem::ListFiles(
+    const std::filesystem::path& in_dir,
+    std::vector<std::filesystem::path>& files) {
   const auto path = base_cache_directory_ / in_dir;
-  std::vector<std::filesystem::path> ret;
-  if (!IsInFileSystem(path)) return ret;
+  if (!IsInFileSystem(path)) return false;
+  // If the path doesn't exist, assume it's an empty directory. This can happen
+  // if no files have been created at that path yet, as we lazily create the
+  // base parent directory.
+  if (!std::filesystem::exists(path)) return true;
+  if (!std::filesystem::is_directory(path)) return false;
 
-  if (std::filesystem::is_directory(path)) {
-    for (const auto& entry : std::filesystem::directory_iterator(path)) {
-      ret.push_back(entry);
-    }
+  for (const auto& entry : std::filesystem::directory_iterator(path)) {
+    const auto& relative_entry =
+        std::filesystem::relative(entry, base_cache_directory_);
+    files.push_back(relative_entry);
   }
 
-  return ret;
+  return true;
 }
 
 bool StdDatadogFileSystem::IsInFileSystem(const std::filesystem::path& path) {

@@ -8,6 +8,8 @@
 
 namespace datadog::core::internal {
 
+using datadog::core::FeatureId;
+
 constexpr FeatureId CreateFourCC(unsigned char a,
                                  unsigned char b,
                                  unsigned char c,
@@ -16,5 +18,18 @@ constexpr FeatureId CreateFourCC(unsigned char a,
       static_cast<uint32_t>(a) << 0 | static_cast<uint32_t>(b) << 8 |
       static_cast<uint32_t>(c) << 16 | static_cast<uint32_t>(d) << 24};
 }
+
+constexpr uint64_t NanoToMillis(uint64_t nano) {
+  return nano / 1'000'000;
+}
+
+template <typename T>
+struct no_default {
+  // Over-explicitly showing that it isn't default constructable.
+  no_default() = delete;
+  no_default(T&& t) : value{std::move(t)} {}
+  no_default(const T& t) : value{t} {}
+  T value;
+};
 
 }  // namespace datadog::core::internal

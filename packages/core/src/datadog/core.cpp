@@ -8,6 +8,11 @@ namespace datadog::core {
 
 void DatadogCore::RegisterFeature(FeatureId feature_id,
                                   std::unique_ptr<DatadogFeature>&& feature) {
+  storage_by_feature_id_.emplace(
+      feature_id, std::make_unique<FeatureStorage>(
+                      std::string{feature->GetName()}, performance_preset_,
+                      time_provider_, file_system_));
+
   // The public version of this function already checked that the feature
   // doesn't exist, should be same to just emplace here
   features_by_id_.emplace(feature_id, std::move(feature));

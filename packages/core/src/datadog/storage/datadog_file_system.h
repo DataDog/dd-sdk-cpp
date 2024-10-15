@@ -41,12 +41,9 @@ class DatadogFile {
   DatadogFile(DatadogFile&&) = delete;
   DatadogFile& operator=(DatadogFile&&) = delete;
 
-  // Get the size of the file in bytes.
-  virtual uintmax_t GetSize() const = 0;
-
   // Get the path of the file. The path will be relative to the
   // DatadogFileSystem that created it.
-  const std::filesystem::path& GetPath() { return path_; }
+  const std::filesystem::path& GetPath() const { return path_; }
 
   // Get the current status of the file. This status is updated after a call to
   // `Read` or `Write`.
@@ -104,6 +101,11 @@ class DatadogFileSystem {
   virtual std::unique_ptr<DatadogFile> Open(
       const std::filesystem::path& path) = 0;
 
+  // Check if a file exits at the specified path. This function should return
+  // false if an attempt is made to check outside of the root of the file
+  // system.
+  virtual bool Exists(const std::filesystem::path& path) = 0;
+
   // Delete a file at the specified path, returning the result of the operation.
   // This function should not throw if the file does not exist, and should
   // instead return Datadog DatadogFileStatus::NoOperation. If a caller attempts
@@ -116,8 +118,10 @@ class DatadogFileSystem {
 
   // List all files under the specified path, non-recursive. Paths returned
   // should be relative to the file system's root path.
-  virtual std::vector<std::filesystem::path> ListFiles(
-      const std::filesystem::path& in_dir) = 0;
+  //
+  // Returns false if there was an error reading files in the requested path.
+  virtual bool ListFiles(const std::filesystem::path& in_dir,
+                         std::vector<std::filesystem::path>& files) = 0;
 };
 
 // Default implementation of DatadogFileSystem, which uses the C++ standard
@@ -129,10 +133,12 @@ class StdDatadogFileSystem : public DatadogFileSystem {
 
   std::unique_ptr<DatadogFile> Open(const std::filesystem::path& path) override;
 
+  bool Exists(const std::filesystem::path& path) override;
+
   DatadogFileStatus Delete(const std::filesystem::path& path) override;
 
-  std::vector<std::filesystem::path> ListFiles(
-      const std::filesystem::path& in_dir) override;
+  bool ListFiles(const std::filesystem::path& in_dir,
+                 std::vector<std::filesystem::path>& files) override;
 
  private:
   bool IsInFileSystem(const std::filesystem::path& path);

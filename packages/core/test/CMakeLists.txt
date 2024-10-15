@@ -4,32 +4,22 @@ project(datadog-sdk-core-tests LANGUAGES CXX)
 
 enable_testing()
 
-Include(FetchContent)
-
-FetchContent_Declare(
-    Catch2
-    GIT_REPOSITORY https://github.com/catchorg/Catch2.git
-    GIT_TAG 31588bb4f56b638dd5afc28d3ebff9b9dcefb88d # Release 3.7.0
-)
-
-FetchContent_MakeAvailable(Catch2)
-list(APPEND CMAKE_MODULE_PATH ${catch2_SOURCE_DIR}/extras)
-set_target_properties(
-    Catch2
-    PROPERTIES
-        CMAKE_CXX_CLANG_TIDY ""
-)
+include(../../../cmake/deps/catch2.cmake)
 
 add_executable(core-tests
     test_core.cpp
     
     storage/test_datadog_file_system.cpp
+    storage/test_feature_storage.cpp
+    storage/test_tlv_file_reader.cpp
 )
 
 target_include_directories(core-tests
     PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
+
+    ${CMAKE_SOURCE_DIR}/deps/trompeloeil/include
 )
 target_link_libraries(core-tests PRIVATE
     Catch2::Catch2WithMain
