@@ -17,7 +17,8 @@ class MockDatadogCore : public IDatadogCore {
  public:
   MAKE_MOCK0(GetNow, Nanoseconds(), const override);
   MAKE_MOCK0(GetContext, const internal::CoreContext&(), const override);
-  MAKE_MOCK2(SendMessage, void(FeatureId, CoreMessage&&), override);
+  MAKE_MOCK1(SendMessage, void(CoreMessage&&), override);
+  MAKE_MOCK0(Shutdown, void(), override);
 };
 
 }  // namespace datadog::core::mocks

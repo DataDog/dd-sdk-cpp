@@ -146,8 +146,9 @@ TEST_CASE("M write to child file system for feature W SendMessage", "[core]") {
   ALLOW_CALL(*mock_file, Write(ne("feature message"))).RETURN(true);
 
   // When
-  CoreMessage msg{{}, "feature message"};
-  core->SendMessage(MockFeature::feature_id, std::move(msg));
+  CoreMessage msg{MockFeature::feature_id, {}, "feature message"};
+  core->SendMessage(std::move(msg));
+  core->Shutdown();
 }
 
 }  // namespace

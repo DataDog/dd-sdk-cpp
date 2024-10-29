@@ -17,6 +17,7 @@ using datadog::core::BatchProcessingLevel;
 using datadog::core::BatchSize;
 using datadog::core::DatadogCore;
 using datadog::core::DefaultDateTimeProvider;
+using datadog::core::FeatureId;
 using datadog::core::Nanoseconds;
 using datadog::core::UploadFrequency;
 using datadog::core::internal::CoreContext;
@@ -71,10 +72,16 @@ TEST_CASE_METHOD(LoggingTestFixture,
   ALLOW_CALL(*core_, GetContext()).RETURN(context);
 
   // Expect
-  REQUIRE_CALL(*core_, SendMessage(DatadogLogging::feature_id, _)).TIMES(1);
+  FeatureId feature_id{0};
+  REQUIRE_CALL(*core_, SendMessage(_))
+      .LR_SIDE_EFFECT(feature_id = _1.feature_id())
+      .TIMES(1);
 
   // When
   logger->Log(LogLevel::Info, "logging message");
+
+  // Then
+  REQUIRE(feature_id == DatadogLogging::feature_id);
 }
 
 TEST_CASE_METHOD(LoggingTestFixture,
@@ -88,8 +95,8 @@ TEST_CASE_METHOD(LoggingTestFixture,
 
   // Expect
   std::string data;
-  REQUIRE_CALL(*core_, SendMessage(DatadogLogging::feature_id, _))
-      .LR_SIDE_EFFECT(data = _2.data())
+  REQUIRE_CALL(*core_, SendMessage(_))
+      .LR_SIDE_EFFECT(data = _1.data())
       .TIMES(1);
 
   // When
