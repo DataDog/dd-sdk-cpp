@@ -19,7 +19,9 @@ using datadog::core::internal::PerformancePreset;
 // non-number, and doesn't spend extra time parsing the number.
 static bool numerical_string_comparitor(const std::string& a,
                                         const std::string& b) {
-  if (a.size() == b.size()) return a < b;
+  if (a.size() == b.size()) {
+    return a < b;
+  }
 
   return a.size() < b.size();
 }
@@ -87,7 +89,9 @@ bool FeatureStorage::Write(std::string_view data) {
 
 bool FeatureStorage::ListReadableFiles(
     std::vector<std::filesystem::path>& files) {
-  if (!file_system_->ListFiles("", files)) return false;
+  if (!file_system_->ListFiles("", files)) {
+    return false;
+  }
 
   std::sort(files.begin(), files.end(), numerical_string_comparitor);
 
@@ -107,13 +111,17 @@ bool FeatureStorage::ListReadableFiles(
 std::unique_ptr<TLVFileReader> FeatureStorage::GetReadableFile(
     const std::filesystem::path& path) {
   auto file = file_system_->Open(path);
-  if (!file) return nullptr;
+  if (!file) {
+    return nullptr;
+  }
 
   return std::make_unique<TLVFileReader>(std::move(file));
 }
 
 bool FeatureStorage::DeleteReadableFile(std::unique_ptr<TLVFileReader> file) {
-  if (!file) return false;
+  if (!file) {
+    return false;
+  }
 
   auto path = file->GetPath();
   // Clear the file, closing it before deleting it
@@ -123,10 +131,14 @@ bool FeatureStorage::DeleteReadableFile(std::unique_ptr<TLVFileReader> file) {
 }
 
 bool FeatureStorage::CanReuseCurrentFile(size_t write_size) {
-  if (!current_file_) return false;
+  if (!current_file_) {
+    return false;
+  }
 
   auto expected_file_size = current_file_bytes_written_ + write_size;
-  if (expected_file_size >= performance_preset_.max_file_size()) return false;
+  if (expected_file_size >= performance_preset_.max_file_size()) {
+    return false;
+  }
 
   auto current_time = Nanoseconds{date_time_provider_()};
   auto file_age = current_time - current_file_creation_time_;

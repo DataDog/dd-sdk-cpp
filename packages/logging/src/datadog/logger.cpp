@@ -85,10 +85,14 @@ std::string_view AsStringViewOr(const std::optional<std::string>& optional_str,
 
 void DatadogLogger::Log(LogLevel level, std::string_view message) {
   auto feature = feature_.lock();
-  if (!feature) return;
+  if (!feature) {
+    return;
+  }
 
   auto core = feature->GetCore();
-  if (!core) return;
+  if (!core) {
+    return;
+  }
 
   auto timestamp = core->GetNow();
   // REVISIT: Get Core context or keep on the feature?
