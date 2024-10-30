@@ -21,8 +21,9 @@ DatadogCore::DatadogCore(IDatadogCore::Allow,
       file_system_{configuration.file_system},
       time_provider_{configuration.date_time_provider} {};
 
-void DatadogCore::RegisterFeature(FeatureId feature_id,
-                                  std::unique_ptr<DatadogFeature>&& feature) {
+void DatadogCore::RegisterFeature(
+    FeatureId feature_id,
+    const std::shared_ptr<DatadogFeature>& feature) {
   // The public version of this function already checked that the feature
   // doesn't exist, should be safe to just emplace in this function.
   std::shared_ptr<DatadogFileSystem> feature_file_system{
@@ -32,12 +33,13 @@ void DatadogCore::RegisterFeature(FeatureId feature_id,
                       std::string{feature->GetName()}, performance_preset_,
                       time_provider_, feature_file_system));
 
-  features_by_id_.emplace(feature_id, std::move(feature));
+  features_by_id_.emplace(feature_id, feature);
 }
 
-DatadogFeature* DatadogCore::GetFeatureById(FeatureId feature_id) const {
+std::shared_ptr<DatadogFeature> DatadogCore::GetFeatureById(
+    FeatureId feature_id) const {
   if (auto it = features_by_id_.find(feature_id); it != features_by_id_.end()) {
-    return it->second.get();
+    return it->second;
   }
 
   return nullptr;

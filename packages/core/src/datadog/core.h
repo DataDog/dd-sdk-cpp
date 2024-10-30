@@ -45,12 +45,11 @@ class DatadogCore : public IDatadogCore,
   DatadogCore& operator=(const DatadogCore&) = delete;
 
   template <typename T, typename... Args>
-  T* RegisterFeature(Args&&... args);
+  std::shared_ptr<T> RegisterFeature(Args&&... args);
 
   template <typename T>
-  T* GetFeature() const {
-    auto feature_opt = GetFeatureById(T::feature_id);
-    return dynamic_cast<T*>(feature_opt);
+  std::shared_ptr<T> GetFeature() const {
+    return std::dynamic_pointer_cast<T>(GetFeatureById(T::feature_id));
   }
 
   Nanoseconds GetNow() const override { return Nanoseconds(time_provider_()); }
@@ -69,8 +68,8 @@ class DatadogCore : public IDatadogCore,
   using FeatureStorage = datadog::core::storage::FeatureStorage;
 
   void RegisterFeature(FeatureId feature_id,
-                       std::unique_ptr<DatadogFeature>&& feature);
-  DatadogFeature* GetFeatureById(FeatureId feature_id) const;
+                       const std::shared_ptr<DatadogFeature>& feature);
+  std::shared_ptr<DatadogFeature> GetFeatureById(FeatureId feature_id) const;
 
   internal::PerformancePreset performance_preset_;
   internal::CoreContext core_context_;
@@ -78,12 +77,12 @@ class DatadogCore : public IDatadogCore,
   std::shared_ptr<storage::DatadogFileSystem> file_system_;
   DateTimeProvider time_provider_;
 
-  std::map<FeatureId, std::unique_ptr<DatadogFeature>> features_by_id_;
+  std::map<FeatureId, std::shared_ptr<DatadogFeature>> features_by_id_;
   std::map<FeatureId, std::unique_ptr<FeatureStorage>> storage_by_feature_id_;
 };
 
 template <typename T, typename... Args>
-T* DatadogCore::RegisterFeature(Args&&... args) {
+std::shared_ptr<T> DatadogCore::RegisterFeature(Args&&... args) {
   using TFeatureId = decltype(T::feature_id);
   static_assert(
       std::is_constructible_v<T, std::weak_ptr<IDatadogCore>>,
@@ -99,10 +98,9 @@ T* DatadogCore::RegisterFeature(Args&&... args) {
     return nullptr;
   }
 
-  auto feature = std::make_unique<T>(weak_from_this(), std::forward(args)...);
-  auto ptr = feature.get();
-  RegisterFeature(T::feature_id, std::move(feature));
-  return ptr;
+  auto feature = std::make_shared<T>(weak_from_this(), std::forward(args)...);
+  RegisterFeature(T::feature_id, feature);
+  return feature;
 }
 
 }  // namespace datadog::core

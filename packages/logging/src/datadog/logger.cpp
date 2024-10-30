@@ -58,33 +58,28 @@ std::string EncodeTimestamp(Nanoseconds ns) {
 void EncodeLogEvent(std::stringstream& ss, const LogEvent& log_event) {
   // TODO(jeff.ward): Replace with real JSON serialization
   ss << "{";
-  ss << "\"date\":\"" << EncodeTimestamp(log_event.date) << "\",";
-  ss << "\"status\":\"" << LogLevelAsString(log_event.status) << "\",";
-  ss << "\"service\":\"" << log_event.service_name << "\",";
+  ss << R"("date":")" << EncodeTimestamp(log_event.date) << R"(",)";
+  ss << R"("status":")" << LogLevelAsString(log_event.status) << R"(",)";
+  ss << R"("service":")" << log_event.service_name << R"(",)";
   if (!log_event.application_version.empty()) {
-    ss << "\"version\":\"" << log_event.application_version << "\",";
+    ss << R"("version":")" << log_event.application_version << R"(",)";
   }
-  ss << "\"logger\": {";
+  ss << R"("logger": {)";
   {
-    ss << "\"name\":\"" << log_event.logger_name << "\",";
-    ss << "\"version\":\"" << log_event.logger_version << "\"";
+    ss << R"("name":")" << log_event.logger_name << R"(",)";
+    ss << R"("version":")" << log_event.logger_version << R"(")";
   }
   ss << "},";
-  ss << "\"message\":\"" << log_event.message << "\"";
+  ss << R"("message":")" << log_event.message << R"(")";
   ss << "}";
 }
 
 // Cannot use `value_or` on std::optional<string> as it won't return the string
-// by reference to create the string_view.  This allows us to make a string_view
+// by reference to create the string_view. This allows us to make a string_view
 // reference to the parent string if a value exists, or use a default
 // string_view instead.
 std::string_view AsStringViewOr(const std::optional<std::string>& optional_str,
                                 std::string_view or_value) {
-  return optional_str.has_value() ? optional_str.value() : or_value;
-}
-
-std::string_view AsStringViewOr(const std::optional<std::string>& optional_str,
-                                const std::string& or_value) {
   return optional_str.has_value() ? optional_str.value() : or_value;
 }
 
