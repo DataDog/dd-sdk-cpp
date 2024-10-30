@@ -5,5 +5,5 @@ BasedOnStyle: Chromium
 # Put escaped newlines into the rightmost column.
 AlignEscapedNewlinesLeft: false
 
-# Allow `if (cond) return;`
-AllowShortIfStatementsOnASingleLine: true
+# Insert brackets on all if statements
+InsertBraces: true

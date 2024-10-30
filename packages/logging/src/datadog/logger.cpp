@@ -1,6 +1,6 @@
 // Unless explicitly stated otherwise all files in this repository are licensed
 // under the Apache License Version 2.0. This product includes software
-// developed at Datadog (https://www.datadoghq.com/). Copyright 2023-Present
+// developed at Datadog (https://www.datadoghq.com/). Copyright 2024-Present
 // Datadog, Inc.
 #include "datadog/logger.h"
 
@@ -85,10 +85,14 @@ std::string_view AsStringViewOr(const std::optional<std::string>& optional_str,
 
 void DatadogLogger::Log(LogLevel level, std::string_view message) {
   auto feature = feature_.lock();
-  if (!feature) return;
+  if (!feature) {
+    return;
+  }
 
   auto core = feature->GetCore();
-  if (!core) return;
+  if (!core) {
+    return;
+  }
 
   auto timestamp = core->GetNow();
   // REVISIT: Get Core context or keep on the feature?
