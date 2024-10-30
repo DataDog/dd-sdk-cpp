@@ -1,3 +1,6 @@
 Component,Origin,License,Copyright
 test,Catch2,Boost,Copyright (c) 2022 Two Blue Cubes Ltd. All rights reserved.
 vendored,Trompeloeil C++ mocking framework,Boost,Copyright (C) Björn Fahller 2014-2021
+vendored,Date,MIT,"Copyright (c) 2015, 2016, 2017 Howard Hinnant, Copyright (c) 2016 Adrian Colomitchi, Copyright (c) 2017 Florian Dang,Copyright (c) 2017 Paul Thompson,Copyright (c) 2018, 2019 Tomasz Kamiński,Copyright (c) 2019 Jiangang Zhuang"
+vendored,RapidJSON,MIT,"Copyright (C) 2015 THL A29 Limited, a Tencent company, and Milo Yip."
+vendored,msinttypes,BSD,Copyright (c) 2006-2013 Alexander Chemeris

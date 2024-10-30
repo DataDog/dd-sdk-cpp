@@ -7,7 +7,7 @@
 #include <algorithm>
 #include <fstream>
 
-#include "test.h"
+#include "datadog/datadog_test.h"
 
 namespace {
 
@@ -82,7 +82,9 @@ TEST_CASE("M not create file outside of its directory W OpenFile {relative}",
           "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
-  TempFile cleanup{"caches/test.tmp", FileDisposition::remove_only};
+  auto relative_file_path =
+      (base_filesystem_dir / "../test.tmp").lexically_normal();
+  TempFile cleanup{relative_file_path, FileDisposition::remove_only};
 
   // When
   {
@@ -91,7 +93,7 @@ TEST_CASE("M not create file outside of its directory W OpenFile {relative}",
   }
 
   // Then
-  REQUIRE(!std::filesystem::exists("caches/test.tmp"));
+  REQUIRE(!std::filesystem::exists(relative_file_path));
 }
 
 TEST_CASE("M not create file outside of its directory W OpenFile {rooted}",
@@ -251,7 +253,9 @@ TEST_CASE(
     "[storage]") {
   // Given
   StdDatadogFileSystem file_system{base_filesystem_dir};
-  TempFile file1("caches/file1.tmp");
+  auto relative_file_path =
+      (base_filesystem_dir / "../file1.tmp").lexically_normal();
+  TempFile file1(relative_file_path);
 
   // When
   DatadogFileStatus result{};
@@ -259,7 +263,7 @@ TEST_CASE(
 
   // Then
   REQUIRE(DatadogFileStatus::OperationFailure == result);
-  REQUIRE(std::filesystem::exists("caches/file1.tmp"));
+  REQUIRE(std::filesystem::exists(relative_file_path));
 }
 
 TEST_CASE("M not delete files outside of file system W DeleteFile {rooted}",
@@ -274,6 +278,55 @@ TEST_CASE("M not delete files outside of file system W DeleteFile {rooted}",
 
   REQUIRE(DatadogFileStatus::OperationFailure == result);
   REQUIRE(std::filesystem::exists("/tmp/file1.tmp"));
+}
+
+TEST_CASE(
+    "M return subdirectory file system W "
+    "StdDatadogFileSystem::CreateChildFileSystem",
+    "[storage]") {
+  // Given
+  TempFile parent_file(base_filesystem_dir / "parent_file.tmp");
+  TempFile caches_file(base_filesystem_dir / "feature/cache_file.tmp");
+
+  StdDatadogFileSystem parent_file_system(base_filesystem_dir);
+
+  // When
+  auto child_file_system = parent_file_system.CreateChildFileSystem("feature");
+  std::vector<std::filesystem::path> files;
+  REQUIRE(child_file_system->ListFiles("", files));
+
+  // Then
+  REQUIRE(files.size() == 1);
+  REQUIRE(files[0] == "cache_file.tmp");
+}
+
+TEST_CASE(
+    "M return nullptr for paths outside of file system W "
+    "StdDatadogFileSystem::CreateChildFileSystem {relative}",
+    "[storage]") {
+  // Given
+  StdDatadogFileSystem parent_file_system(base_filesystem_dir);
+
+  // When
+  auto child_file_system =
+      parent_file_system.CreateChildFileSystem("../relative");
+
+  // Then
+  REQUIRE(child_file_system == nullptr);
+}
+
+TEST_CASE(
+    "M return nullptr for paths outside of file system W "
+    "StdDatadogFileSystem::CreateChildFileSystem {rooted}",
+    "[storage]") {
+  // Given
+  StdDatadogFileSystem parent_file_system(base_filesystem_dir);
+
+  // When
+  auto child_file_system = parent_file_system.CreateChildFileSystem("/tmp");
+
+  // Then
+  REQUIRE(child_file_system == nullptr);
 }
 
 TEST_CASE("M write file content W StdDatadogFile::Write", "[storage]") {

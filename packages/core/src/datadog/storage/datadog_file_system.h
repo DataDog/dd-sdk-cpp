@@ -114,14 +114,20 @@ class DatadogFileSystem {
   // DatadogFileStatus::OperationFailure.
   virtual DatadogFileStatus Delete(const std::filesystem::path& path) = 0;
 
-  // TODO(jeff.ward): Add Exists
-
   // List all files under the specified path, non-recursive. Paths returned
   // should be relative to the file system's root path.
   //
   // Returns false if there was an error reading files in the requested path.
   virtual bool ListFiles(const std::filesystem::path& in_dir,
                          std::vector<std::filesystem::path>& files) = 0;
+
+  // Create a file system held under this file system with the given name. This
+  // is most commonly implemented as a subdirectory of the requested filesystem.
+  //
+  // Returns nullptr when attempting to create a filesystem outside the current
+  // file system by requesting a relative or rooted path.
+  virtual std::shared_ptr<DatadogFileSystem> CreateChildFileSystem(
+      std::string_view name) = 0;
 };
 
 // Default implementation of DatadogFileSystem, which uses the C++ standard
@@ -139,6 +145,9 @@ class StdDatadogFileSystem : public DatadogFileSystem {
 
   bool ListFiles(const std::filesystem::path& in_dir,
                  std::vector<std::filesystem::path>& files) override;
+
+  std::shared_ptr<DatadogFileSystem> CreateChildFileSystem(
+      std::string_view name) override;
 
  private:
   bool IsInFileSystem(const std::filesystem::path& path);

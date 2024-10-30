@@ -5,6 +5,7 @@
 #pragma once
 
 #include <memory>
+#include <string_view>
 
 #include "datadog/internal/utils.h"
 #include "datadog/storage/datadog_file_system.h"
@@ -12,6 +13,7 @@
 
 namespace datadog::core {
 
+using namespace std::string_view_literals;
 using internal::no_default;
 
 // Possible values for the Data Tracking Consent given by the user of the app.
@@ -74,13 +76,18 @@ struct DatadogConfiguration {
   // Datadog.
   no_default<std::string> client_token;
 
-  // The service name associated with data sent to Datadog. This is usually
-  // done with reverse domain name notation (e.g. "com.datadog.application").
+  // The service name associated with data sent to Datadog. See: [Unified
+  // Service
+  // Tagging](https://docs.datadoghq.com/getting_started/tagging/unified_service_tagging).
   no_default<std::string> service;
 
   // The environment name sent to Datadog. You can use env to filter events by
   // environment (for example, "staging" or "production").
   no_default<std::string> env;
+
+  // The version of your application. An empty string will not be sent to
+  // Datadog.
+  std::string application_version{""sv};
 
   // Defines the Datadog SDK policy for batching data before uploading it to
   // Datadog servers. See `BatchSize`.  Defaults to `BatchSize::Medium`.
@@ -99,6 +106,10 @@ struct DatadogConfiguration {
   // data.  See `DatadogFileSystem`.
   std::shared_ptr<storage::DatadogFileSystem> file_system{
       std::make_shared<storage::StdDatadogFileSystem>()};
+
+  // Override the method Datadog uses to access the current time. See
+  // `DateTimeProvider`.
+  DateTimeProvider date_time_provider{DefaultDateTimeProvider};
 };
 
 }  // namespace datadog::core

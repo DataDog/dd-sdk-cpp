@@ -9,12 +9,21 @@ set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake/modules
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_CLANG_TIDY clang-tidy)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 enable_testing()
 
 option(DD_SDK_BUILD_TEST "Build the unit tests (packages/*/test/)" ON)
+option(DD_SDK_BUILD_EXAMPLE "Build example" ON)
+
+include (cmake/common.cmake)
 
 add_subdirectory(packages/core)
+add_subdirectory(packages/logging)
+
+if (DD_SDK_BUILD_EXAMPLE)
+  add_subdirectory(example)
+endif()
 
 set(CLANG_FORMAT_BIN_NAME clang-format)
 set(CLANG_FORMAT_EXCLUDE_PATTERNS  "build/" "deps/" ${CMAKE_BINARY_DIR})
