@@ -20,12 +20,17 @@ class OwningBlockingQueue {
  public:
   OwningBlockingQueue() : is_shutdown_{false} {}
 
-  void Push(T&& element) {
+  bool Push(T&& element) {
+    if (is_shutdown_) {
+      return false;
+    }
+
     {
       std::lock_guard<std::mutex> lock{lock_};
       element_queue_.push(std::move(element));
     }
     signal_.notify_one();
+    return true;
   }
 
   bool IsEmpty() {

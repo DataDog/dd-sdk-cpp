@@ -32,11 +32,10 @@ void DatadogCore::Start() {
 void DatadogCore::Shutdown() {
   // Graceful shutdown, try to clear out the storage queue before a full
   // shutdown
-  if (is_started_) {
+  auto was_started = std::exchange(is_started_, false);
+  if (was_started) {
     storage_queue_.Shutdown();
     storage_thread_.join();
-
-    is_started_ = false;
   }
 }
 
@@ -70,14 +69,14 @@ void DatadogCore::SendMessage(CoreMessage&& message) {
 }
 
 void DatadogCore::StorageThreadProc() {
-  bool should_shutdown = true;
-  while (should_shutdown) {
+  bool should_continue = true;
+  while (should_continue) {
     auto opt_val = storage_queue_.GetNext();
     if (opt_val.has_value()) {
       auto& feature_storage = storage_by_feature_id_[opt_val->feature_id()];
       feature_storage->Write(opt_val->data());
     } else {
-      should_shutdown = !storage_queue_.IsEmpty();
+      should_continue = !storage_queue_.IsEmpty();
     }
   }
 }

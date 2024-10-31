@@ -182,6 +182,24 @@ TEST_CASE("M be move only W Push & GetNext", "[blocking_queue]") {
   REQUIRE(MoveOnly::construct_count == 2);
 }
 
+TEST_CASE("M return false W Push { shutdown }", "[blocking_queue]") {
+  // Given
+  OwningBlockingQueue<MoveOnly> queue;
+  ThreadedConsumer consumer{&queue};
+  std::thread t(ThreadedConsumer<MoveOnly>::ThreadProc, &consumer);
+  REQUIRE(consumer.WaitUntilStarted());
+
+  queue.Push(MoveOnly("first_value"));
+  queue.Shutdown();
+
+  // When
+  REQUIRE(!queue.Push(MoveOnly("second_value")));
+
+  // Then
+  t.join();
+  REQUIRE(consumer.last_object.property == "first_value");
+}
+
 }  // namespace
 
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
