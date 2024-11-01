@@ -21,7 +21,6 @@ using datadog::core::FeatureId;
 using datadog::core::Nanoseconds;
 using datadog::core::UploadFrequency;
 using datadog::core::internal::CoreContext;
-using datadog::core::internal::PerformancePreset;
 using datadog::core::mocks::MockDatadogCore;
 using datadog::logging::DatadogLogConfiguration;
 using datadog::logging::DatadogLogging;
@@ -35,16 +34,10 @@ using trompeloeil::_;
 class LoggingTestFixture {
  public:
   LoggingTestFixture()
-      : performance_preset_{
-            BatchSize::Small,
-            UploadFrequency::Frequent,
-            BatchProcessingLevel::Medium,
-        }, 
-        core_{std::make_shared<MockDatadogCore>()},
+      : core_{MockDatadogCore::Create()},
         logging_{std::make_shared<DatadogLogging>(core_)} {}
 
  protected:
-  PerformancePreset performance_preset_;
   std::shared_ptr<MockDatadogCore> core_;
   std::shared_ptr<DatadogLogging> logging_;
 };

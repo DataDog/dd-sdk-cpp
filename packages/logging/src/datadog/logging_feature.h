@@ -32,7 +32,7 @@ struct DatadogLogConfiguration {
 class DatadogLogging : public core::DatadogFeature,
                        public std::enable_shared_from_this<DatadogLogging> {
  public:
-  explicit DatadogLogging(const std::weak_ptr<core::IDatadogCore>& core)
+  explicit DatadogLogging(const std::weak_ptr<core::DatadogCore>& core)
       : core_(core) {}
 
   std::string_view GetName() const override { return "logs"; }
@@ -40,13 +40,13 @@ class DatadogLogging : public core::DatadogFeature,
   static constexpr core::FeatureId feature_id =
       core::internal::CreateFourCC('L', 'O', 'G', 'S');
 
+  std::shared_ptr<core::DatadogCore> GetCore() { return core_.lock(); }
+
   std::unique_ptr<DatadogLogger> CreateLogger(
       const DatadogLogConfiguration& configuration);
 
-  std::shared_ptr<core::IDatadogCore> GetCore() { return core_.lock(); }
-
  private:
-  std::weak_ptr<core::IDatadogCore> core_;
+  std::weak_ptr<core::DatadogCore> core_;
 };
 
 }  // namespace datadog::logging

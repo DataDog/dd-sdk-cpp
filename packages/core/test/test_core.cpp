@@ -8,6 +8,7 @@
 #include <trompeloeil.hpp>
 
 #include "datadog/datadog_test.h"
+#include "datadog/internal/core_internal.h"
 #include "storage/mock_datadog_file_system.h"
 
 namespace {
@@ -17,8 +18,8 @@ using datadog::core::DatadogConfiguration;
 using datadog::core::DatadogCore;
 using datadog::core::DatadogFeature;
 using datadog::core::FeatureId;
-using datadog::core::IDatadogCore;
 using datadog::core::TrackingConsent;
+using datadog::core::internal::DatadogCoreInternal;
 using datadog::core::storage::mocks::MockDatadogFile;
 using datadog::core::storage::mocks::MockDatadogFileSystem;
 using datadog::test::GenerateRandomString;
@@ -28,14 +29,14 @@ using trompeloeil::ne;
 
 class MockFeature : public DatadogFeature {
  public:
-  explicit MockFeature(const std::weak_ptr<IDatadogCore>& core) : core_(core) {}
+  explicit MockFeature(const std::weak_ptr<DatadogCore>& core) : core_(core) {}
 
   std::string_view GetName() const override { return "mock"; }
 
   static constexpr FeatureId feature_id =
       datadog::core::internal::CreateFourCC('M', 'O', 'C', 'K');
 
-  std::weak_ptr<IDatadogCore> core_;
+  std::weak_ptr<DatadogCore> core_;
 };
 
 TEST_CASE("M return proper value W four_cc", "[core]") {
@@ -61,7 +62,7 @@ DatadogConfiguration CreateMockConfig() {
 TEST_CASE("M return null for unregistered feature W GetFeature", "[core]") {
   // Given
   auto config = CreateMockConfig();
-  auto core = DatadogCore::Create(config);
+  auto core = DatadogCoreInternal::Create(config);
 
   // When
   auto feature = core->GetFeature<MockFeature>();
@@ -77,7 +78,7 @@ TEST_CASE("M return registered feature W RegisterFeature", "[core]") {
   ALLOW_CALL(*mock_file_system, CreateChildFileSystem(_))
       .RETURN(mock_file_system);
   config.file_system = mock_file_system;
-  auto core = DatadogCore::Create(config);
+  auto core = DatadogCoreInternal::Create(config);
   core->RegisterFeature<MockFeature>();
 
   // When
@@ -94,7 +95,7 @@ TEST_CASE("M not overwrite registered feature W second register", "[core]") {
   ALLOW_CALL(*mock_file_system, CreateChildFileSystem(_))
       .RETURN(mock_file_system);
   config.file_system = mock_file_system;
-  auto core = DatadogCore::Create(config);
+  auto core = DatadogCoreInternal::Create(config);
   core->RegisterFeature<MockFeature>();
   auto feature = core->GetFeature<MockFeature>();
 
@@ -113,7 +114,7 @@ TEST_CASE(
   auto mock_file_system = std::make_shared<MockDatadogFileSystem>();
   config.file_system = mock_file_system;
 
-  auto core = DatadogCore::Create(config);
+  auto core = DatadogCoreInternal::Create(config);
 
   // Expect
   auto child_file_system = std::make_shared<MockDatadogFileSystem>();
@@ -134,7 +135,7 @@ TEST_CASE("M write to child file system for feature W SendMessage", "[core]") {
   ALLOW_CALL(*child_file_system, Exists(_)).RETURN(false);
   config.file_system = mock_file_system;
 
-  auto core = DatadogCore::Create(config);
+  auto core = DatadogCoreInternal::Create(config);
   core->RegisterFeature<MockFeature>();
 
   // Expect
