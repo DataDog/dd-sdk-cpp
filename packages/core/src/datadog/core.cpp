@@ -13,13 +13,31 @@ using datadog::core::storage::DatadogFileSystem;
 
 DatadogCore::DatadogCore(IDatadogCore::Allow,
                          const DatadogConfiguration& configuration)
-    : performance_preset_{configuration.batch_size,
+    : is_started_(false),
+      performance_preset_{configuration.batch_size,
                           configuration.upload_frequency,
                           configuration.batch_processing_level},
       core_context_{std::string(configuration.service.value),
                     std::string(configuration.env.value), kSdkVersion},
       file_system_{configuration.file_system},
       time_provider_{configuration.date_time_provider} {};
+
+void DatadogCore::Start() {
+  if (!is_started_) {
+    storage_thread_ = std::thread(StorageThreadStart, shared_from_this());
+  }
+  is_started_ = true;
+}
+
+void DatadogCore::Shutdown() {
+  // Graceful shutdown, try to clear out the storage queue before a full
+  // shutdown
+  auto was_started = std::exchange(is_started_, false);
+  if (was_started) {
+    storage_queue_.Shutdown();
+    storage_thread_.join();
+  }
+}
 
 void DatadogCore::RegisterFeature(
     FeatureId feature_id,
@@ -45,13 +63,22 @@ std::shared_ptr<DatadogFeature> DatadogCore::GetFeatureById(
   return nullptr;
 }
 
-void DatadogCore::SendMessage(FeatureId feature_id, CoreMessage&& message) {
+void DatadogCore::SendMessage(CoreMessage&& message) {
   // TODO(jeff.ward): Inform features of context changes.
+  storage_queue_.Push(std::move(message));
+}
 
-  // TODO(jeff.ward): Writing to storage should be done from a background
-  // thread.
-  auto& feature_storage = storage_by_feature_id_[feature_id];
-  feature_storage->Write(message.data());
+void DatadogCore::StorageThreadProc() {
+  bool should_continue = true;
+  while (should_continue) {
+    auto opt_val = storage_queue_.GetNext();
+    if (opt_val.has_value()) {
+      auto& feature_storage = storage_by_feature_id_[opt_val->feature_id()];
+      feature_storage->Write(opt_val->data());
+    } else {
+      should_continue = !storage_queue_.IsEmpty();
+    }
+  }
 }
 
 }  // namespace datadog::core

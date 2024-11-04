@@ -1,5 +1,7 @@
 project(datadog-sdk-core)
 
+find_package(Threads REQUIRED)
+
 add_library(datadog-core STATIC
   src/datadog/core.cpp
   
@@ -15,7 +17,10 @@ target_include_directories(datadog-core PRIVATE
   src/
 )
 add_compile_options(-frtti)
-target_link_libraries(datadog-core PRIVATE common_options)
+target_link_libraries(datadog-core PRIVATE 
+  common_options
+  ${CMAKE_THREAD_LIBS_INIT}
+)
 
 if(DD_SDK_BUILD_TEST)
   add_subdirectory(test)

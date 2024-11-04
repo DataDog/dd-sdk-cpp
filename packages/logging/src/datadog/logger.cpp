@@ -116,9 +116,10 @@ void DatadogLogger::Log(LogLevel level, std::string_view message) {
   EncodeLogEvent(ss, event);
 
   auto str_event = ss.str();
-  CoreMessage core_message{{}, std::move(str_event)};
+  CoreMessage core_message{
+      DatadogLogging::feature_id, {}, std::move(str_event)};
 
-  core->SendMessage(DatadogLogging::feature_id, std::move(core_message));
+  core->SendMessage(std::move(core_message));
 }
 
 }  // namespace datadog::logging

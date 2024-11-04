@@ -12,14 +12,19 @@ namespace datadog::core {
 
 class CoreMessage {
  public:
-  explicit CoreMessage(const DatadogAttributes& context_changes,
+  explicit CoreMessage(FeatureId feature_id,
+                       const DatadogAttributes& context_changes,
                        std::string&& data)
-      : context_changes_(context_changes), data_(std::move(data)) {}
+      : feature_id_{feature_id},
+        context_changes_(context_changes),
+        data_(std::move(data)) {}
 
-  const DatadogAttributes& context_changes() { return context_changes_; }
-  const std::string& data() { return data_; }
+  FeatureId feature_id() const { return feature_id_; }
+  const DatadogAttributes& context_changes() const { return context_changes_; }
+  const std::string& data() const { return data_; }
 
  private:
+  FeatureId feature_id_;
   DatadogAttributes context_changes_;
   std::string data_;
 };

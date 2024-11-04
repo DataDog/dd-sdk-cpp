@@ -6,12 +6,14 @@
 
 #include <map>
 #include <memory>
+#include <thread>
 #include <type_traits>
 
 #include "datadog/core_configuration.h"
 #include "datadog/core_message.h"
 #include "datadog/feature.h"
 #include "datadog/internal/core_context.h"
+#include "datadog/internal/owning_blocking_queue.h"
 #include "datadog/internal/performance_preset.h"
 #include "datadog/storage/datadog_file_system.h"
 #include "datadog/storage/feature_storage.h"
@@ -33,7 +35,8 @@ class IDatadogCore {
   // initialization, then broadcast changes via the ContextChanged API that
   // we're planning on features
   virtual const internal::CoreContext& GetContext() const = 0;
-  virtual void SendMessage(FeatureId feature_id, CoreMessage&& msg) = 0;
+  virtual void SendMessage(CoreMessage&& msg) = 0;
+  virtual void Shutdown() = 0;
 };
 
 class DatadogCore : public IDatadogCore,
@@ -57,22 +60,38 @@ class DatadogCore : public IDatadogCore,
     return core_context_;
   }
 
-  void SendMessage(FeatureId feature_id, CoreMessage&& msg) override;
+  void SendMessage(CoreMessage&& msg) override;
+
+  void Shutdown() override;
 
   static auto Create(const DatadogConfiguration& configuration) {
-    return std::make_shared<DatadogCore>(IDatadogCore::Allow::ctor,
-                                         configuration);
+    auto core =
+        std::make_shared<DatadogCore>(IDatadogCore::Allow::ctor, configuration);
+    core->Start();
+    return core;
   }
 
  private:
   using FeatureStorage = datadog::core::storage::FeatureStorage;
 
+  void Start();
   void RegisterFeature(FeatureId feature_id,
                        const std::shared_ptr<DatadogFeature>& feature);
   std::shared_ptr<DatadogFeature> GetFeatureById(FeatureId feature_id) const;
 
+  static void StorageThreadStart(std::shared_ptr<DatadogCore> self) {
+    self->StorageThreadProc();
+  }
+  void StorageThreadProc();
+
+  bool is_started_;
+
   internal::PerformancePreset performance_preset_;
   internal::CoreContext core_context_;
+
+  // TODO(jeff.ward): Encapsulate into a separate class?
+  std::thread storage_thread_;
+  internal::OwningBlockingQueue<CoreMessage> storage_queue_;
 
   std::shared_ptr<storage::DatadogFileSystem> file_system_;
   DateTimeProvider time_provider_;
