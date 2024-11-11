@@ -7,6 +7,9 @@
 
 #include <string>
 
+#include "datadog/reporting/report.h"
+#include "datadog/storage/tlv_file_reader.h"
+
 namespace datadog::core {
 
 enum class FeatureId : uint32_t {};
@@ -16,6 +19,9 @@ class DatadogFeature {
   virtual ~DatadogFeature() = default;
 
   virtual std::string_view GetName() const = 0;
+
+  virtual reporting::Report CreateReportFromBatch(
+      storage::TLVFileReader& file_reader) const = 0;
 };
 
 }  // namespace datadog::core

@@ -2,6 +2,8 @@
 // under the Apache License Version 2.0. This product includes software
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2024-Present
 // Datadog, Inc.
+#pragma once
+
 #include "datadog/storage/datadog_file_system.h"
 
 #include "datadog/datadog_test.h"

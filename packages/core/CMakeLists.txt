@@ -2,17 +2,31 @@ project(datadog-sdk-core)
 
 find_package(Threads REQUIRED)
 
-add_library(datadog-core STATIC
-  src/datadog/core.cpp
-  
+option(DD_SDK_INCLUDE_LIBCURL_REPORTER "Include the default reporter that relies on libcurl" ON)
+
+set(DD_SDK_CORE_SOURCES
+  src/datadog/core.cpp  
+  src/datadog/time_provider.cpp
+
   src/datadog/internal/core_internal.cpp
   src/datadog/internal/performance_preset.cpp
-  src/datadog/time_provider.cpp
+  src/datadog/internal/reporting_thread.cpp
+
+  src/datadog/reporting/reporter.cpp
 
   src/datadog/storage/datadog_file_system.cpp
   src/datadog/storage/feature_storage.cpp
   src/datadog/storage/tlv_file_reader.cpp
 )
+
+if(DD_SDK_INCLUDE_LIBCURL_REPORTER)
+  list(APPEND DD_SDK_CORE_SOURCES
+    src/datadog/reporting/libcurl_reporter.cpp
+  )
+endif()
+
+add_library(datadog-core STATIC ${DD_SDK_CORE_SOURCES})
+
 target_include_directories(datadog-core PRIVATE
   .
   src/

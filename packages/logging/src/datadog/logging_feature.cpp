@@ -8,9 +8,16 @@
 
 namespace datadog::logging {
 
+using datadog::core::reporting::Report;
+using datadog::core::storage::TLVFileReader;
+
 std::unique_ptr<DatadogLogger> DatadogLogging::CreateLogger(
     const DatadogLogConfiguration& configuration) {
   return std::make_unique<DatadogLogger>(configuration, weak_from_this());
+}
+
+Report DatadogLogging::CreateReportFromBatch(TLVFileReader&) const {
+  return Report("api/v2/logging");
 }
 
 }  // namespace datadog::logging

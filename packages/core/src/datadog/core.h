@@ -30,6 +30,16 @@ class DatadogCore : public std::enable_shared_from_this<DatadogCore> {
   DatadogCore(const DatadogCore&) = delete;
   DatadogCore& operator=(const DatadogCore&) = delete;
 
+  // Start Datadog. Call this once after registering all expected features. Any
+  // request to register features after calling `Start` will be ignored.
+  virtual void Start() = 0;
+
+  // Check if `Start` has been called on this core, and it has not been
+  // shutdown.
+  virtual bool IsRunning() const = 0;
+
+  virtual void Shutdown() = 0;
+
   virtual Nanoseconds GetNow() const = 0;
   // REVISIT: It might be better to pass the initial context during feature
   // initialization, then broadcast changes via the ContextChanged API that
@@ -40,8 +50,6 @@ class DatadogCore : public std::enable_shared_from_this<DatadogCore> {
 
   template <typename T, typename... Args>
   std::shared_ptr<T> RegisterFeature(Args&&... args);
-
-  virtual void Shutdown() = 0;
 
   static std::shared_ptr<DatadogCore> Create(
       const DatadogConfiguration& configuration);
@@ -54,14 +62,19 @@ class DatadogCore : public std::enable_shared_from_this<DatadogCore> {
 
 template <typename T, typename... Args>
 std::shared_ptr<T> DatadogCore::RegisterFeature(Args&&... args) {
+  if (IsRunning()) {
+    // TELEM: Add telemetry / logging that a feature is being added post a Start
+    // call
+    return nullptr;
+  }
+
   using TFeatureId = decltype(T::feature_id);
   static_assert(
       std::is_same_v<const FeatureId, TFeatureId>,
       "Datadog Feature is missing required const value for feature_id");
 
   if (FeatureExists(T::feature_id)) {
-    // TODO(jeff.ward): Add telemetry / logging that a feature is being
-    // registered twice
+    // TELEM: Add telemetry / logging that a feature is being registered twice
     return nullptr;
   }
 
