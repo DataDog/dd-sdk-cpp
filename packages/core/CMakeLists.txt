@@ -5,6 +5,7 @@ find_package(Threads REQUIRED)
 add_library(datadog-core STATIC
   src/datadog/core.cpp
   
+  src/datadog/internal/core_internal.cpp
   src/datadog/internal/performance_preset.cpp
   src/datadog/time_provider.cpp
 
