@@ -12,6 +12,9 @@
 #include "reporting/mock_datadog_reporter.h"
 #include "storage/mock_datadog_file_system.h"
 
+// Magic numbers okay in test files
+// NOLINTBEGIN(cppcoreguidelines-avoid-magic-numbers)
+
 namespace {
 
 using datadog::core::CoreMessage;
@@ -216,3 +219,5 @@ TEST_CASE("M send batches to reporter W ListFiles", "[core]") {
 }
 
 }  // namespace
+
+// NOLINTEND(cppcoreguidelines-avoid-magic-numbers)

@@ -4,7 +4,10 @@
 // Datadog, Inc.
 #pragma once
 
+#include <condition_variable>
 #include <memory>
+#include <mutex>
+#include <thread>
 
 #include "datadog/internal/core_internal.h"
 #include "datadog/internal/performance_preset.h"

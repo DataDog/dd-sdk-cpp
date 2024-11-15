@@ -4,8 +4,6 @@
 // Datadog, Inc.
 #include "datadog/internal/reporting_thread.h"
 
-#include <thread>
-
 namespace datadog::core::internal {
 
 using datadog::core::reporting::DatadogReporter;

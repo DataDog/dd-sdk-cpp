@@ -36,7 +36,7 @@ int main() {
     logger->Error("Error log");
   }
 
-  // TODO: Create a flush funcition
+  // TODO(jeff.ward): Create a flush funcition
 
   datadog_core->Shutdown();
 
