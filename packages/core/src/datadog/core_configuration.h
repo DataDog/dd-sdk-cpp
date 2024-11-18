@@ -8,6 +8,9 @@
 #include <string_view>
 
 #include "datadog/internal/utils.h"
+// TODO(RUM-7075): Provide a way to remove libcurl
+#include "datadog/reporting/libcurl_reporter.h"
+#include "datadog/reporting/reporter.h"
 #include "datadog/storage/datadog_file_system.h"
 #include "datadog/time_provider.h"
 
@@ -35,6 +38,27 @@ enum class TrackingConsent {
   // `TrackingConsent::NotGranted` consent value is set. Based on the next
   // consent value, intermediate data will be send to Datadog or deleted.
   Pending,
+};
+
+enum class Site {
+  // US based servers.
+  // Sends data to [app.datadoghq.com](https://app.datadoghq.com/).
+  us1,
+  // US based servers.
+  // Sends data to [app.datadoghq.com](https://us3.datadoghq.com/).
+  us3,
+  // US based servers.
+  // Sends data to [app.datadoghq.com](https://us5.datadoghq.com/).
+  us5,
+  // Europe based servers.
+  // Sends data to [app.datadoghq.eu](https://app.datadoghq.eu/).
+  eu1,
+  // Asia based servers.
+  // Sends data to [ap1.datadoghq.com](https://ap1.datadoghq.com/).
+  ap1,
+  // US based servers, FedRAMP compatible.
+  // Sends data to [app.ddog-gov.com](https://app.ddog-gov.com/).
+  us1_fed
 };
 
 // Defines the Datadog SDK policy when batching data together before uploading
@@ -72,6 +96,9 @@ struct DatadogConfiguration {
   // The current tracking consent for the user.  See `TrackingConsent`
   no_default<TrackingConsent> tracking_consent;
 
+  // The Datadog site to send data to
+  no_default<Site> datadog_site;
+
   // A client token for RUM or logging/APM. You can obtain this token in
   // Datadog.
   no_default<std::string> client_token;
@@ -106,6 +133,11 @@ struct DatadogConfiguration {
   // data.  See `DatadogFileSystem`.
   std::shared_ptr<storage::DatadogFileSystem> file_system{
       std::make_shared<storage::StdDatadogFileSystem>()};
+
+  // Override the method for creating a DatadogReporter. See `DatadogReporter`
+  // TODO(RUM-7075): Provide a way to remove libcurl
+  reporting::DatadogReporter::CreateFunc reporter_create_func{
+      reporting::LibcurlReporter::Create};
 
   // Override the method Datadog uses to access the current time. See
   // `DateTimeProvider`.

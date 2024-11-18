@@ -13,23 +13,32 @@ using namespace std::string_view_literals;
 
 int main() {
   DatadogConfiguration config{TrackingConsent::Granted,
+                              Site::us1,
                               /* client token */ std::string(""),
                               std::string("com.datadoghq.example.cpp"),
-                              std::string("prod"), std::string("1.0.0")};
+                              std::string("prod"),
+                              std::string("1.0.0")};
   auto datadog_core = DatadogCore::Create(config);
+  auto logging = datadog_core->RegisterFeature<DatadogLogging>();
 
-  if (auto logging = datadog_core->RegisterFeature<DatadogLogging>()) {
-    DatadogLogConfiguration logger_config{};
-
-    if (auto logger = logging->CreateLogger(logger_config)) {
-      logger->Debug("Info log");
-      logger->Info("Info log");
-      logger->Info("Warn log");
-      logger->Error("Error log");
-    }
-
-    // TODO(jeff.ward): Create a flush function
+  if (!logging) {
+    return -1;
   }
+
+  datadog_core->Start();
+
+  DatadogLogConfiguration logger_config{};
+
+  if (auto logger = logging->CreateLogger(logger_config)) {
+    logger->Debug("Info log");
+    logger->Info("Info log");
+    logger->Info("Warn log");
+    logger->Error("Error log");
+  }
+
+  // TODO(jeff.ward): Create a flush funcition
+
+  datadog_core->Shutdown();
 
   return 0;
 }

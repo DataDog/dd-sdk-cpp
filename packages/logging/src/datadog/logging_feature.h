@@ -47,6 +47,8 @@ class DatadogLogging : public core::DatadogFeature,
 
  private:
   std::weak_ptr<core::DatadogCore> core_;
+  core::reporting::Report CreateReportFromBatch(
+      core::storage::TLVFileReader& file) const override;
 };
 
 }  // namespace datadog::logging

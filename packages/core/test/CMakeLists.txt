@@ -10,6 +10,7 @@ add_executable(core-tests
     test_core.cpp
 
     internal/test_owning_blocking_queue.cpp
+    internal/test_reporting_thread.cpp
     
     storage/test_datadog_file_system.cpp
     storage/test_feature_storage.cpp
