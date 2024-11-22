@@ -61,6 +61,7 @@ bool ReportingThread::SingleReportingFrame() {
 
     const auto& features_by_id = core->GetFeatureInfoMap();
     auto reporter = core->GetReporter();
+    const auto& context = core->GetContext();
 
     for (const auto& [id, feature_info] : features_by_id) {
       const auto& storage = feature_info.storage;
@@ -72,7 +73,8 @@ bool ReportingThread::SingleReportingFrame() {
         for (uint32_t i = 0; i < files_to_process; ++i) {
           const auto& path = readable_files[i];
           auto file = storage->GetReadableFile(path);
-          auto report = feature_info.feature->CreateReportFromBatch(*file);
+          auto report =
+              feature_info.feature->CreateReportFromBatch(context, *file);
           switch (reporter->Send(report)) {
             case DatadogReporter::Status::Ok:
               storage->DeleteReadableFile(std::move(file));

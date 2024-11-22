@@ -7,6 +7,7 @@
 
 #include <string>
 
+#include "datadog/internal/core_context.h"
 #include "datadog/reporting/report.h"
 #include "datadog/storage/tlv_file_reader.h"
 
@@ -21,6 +22,7 @@ class DatadogFeature {
   virtual std::string_view GetName() const = 0;
 
   virtual reporting::Report CreateReportFromBatch(
+      const datadog::core::internal::CoreContext& core_context,
       storage::TLVFileReader& file_reader) const = 0;
 };
 

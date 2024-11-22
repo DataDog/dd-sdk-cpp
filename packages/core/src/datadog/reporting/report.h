@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 namespace datadog::core::reporting {
 
@@ -25,6 +26,7 @@ class Report {
   };
 
   using Headers = std::unordered_map<std::string, std::string>;
+  using Query = std::vector<std::string>;
 
   Report() {}
   explicit Report(std::string_view path) : path_(path) {}
@@ -42,11 +44,18 @@ class Report {
     headers_.emplace(header, value);
   }
 
-  void SetBody(std::string_view body) { body_ = body; }
+  void AddQuery(std::string_view query) {
+    query_.push_back(std::string(query));
+  }
+  const Query& GetQuery() const { return query_; }
+
+  void SetBody(std::string&& body) { body_ = body; }
+  const std::string& GetBody() const { return body_; }
 
  private:
   std::string_view path_;
   Headers headers_;
+  Query query_;
   std::string body_;
 };
 

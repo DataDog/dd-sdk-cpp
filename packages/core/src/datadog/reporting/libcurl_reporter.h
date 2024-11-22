@@ -4,7 +4,10 @@
 // Datadog, Inc.
 #pragma once
 
+#include <string>
 #include <string_view>
+
+#include <curl/curl.h>
 
 #include "datadog/reporting/reporter.h"
 
@@ -20,6 +23,9 @@ class LibcurlReporter : public DatadogReporter {
   static std::unique_ptr<DatadogReporter> Create(std::string_view host);
 
  private:
+  void Init();
+  CURLU* AssembleUrl(const Report& report);
+
   std::string host_;
 };
 

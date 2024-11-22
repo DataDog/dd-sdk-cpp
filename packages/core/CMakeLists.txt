@@ -27,6 +27,13 @@ endif()
 
 add_library(datadog-core STATIC ${DD_SDK_CORE_SOURCES})
 
+if(DD_SDK_INCLUDE_LIBCURL_REPORTER)
+  include(../../cmake/deps/libcurl.cmake)
+
+  add_dependencies(datadog-core CURL::libcurl_shared)
+  set(LIBCURL_SHARED CURL::libcurl_shared)
+endif()
+
 target_include_directories(datadog-core PRIVATE
   .
   src/
@@ -35,6 +42,7 @@ add_compile_options(-frtti)
 target_link_libraries(datadog-core PRIVATE 
   common_options
   ${CMAKE_THREAD_LIBS_INIT}
+  ${LIBCURL_SHARED}
 )
 
 if(DD_SDK_BUILD_TEST)

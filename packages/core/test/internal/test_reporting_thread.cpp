@@ -19,6 +19,7 @@ using datadog::core::DatadogCore;
 using datadog::core::DatadogFeature;
 using datadog::core::FeatureId;
 using datadog::core::UploadFrequency;
+using datadog::core::internal::CoreContext;
 using datadog::core::internal::PerformancePreset;
 using datadog::core::internal::ReportingThread;
 using datadog::core::mocks::MockDatadogCoreInternal;
@@ -29,6 +30,7 @@ using datadog::core::storage::DatadogFileStatus;
 using datadog::core::storage::TLVFileReader;
 using datadog::core::storage::mocks::MockDatadogFile;
 using datadog::core::storage::mocks::MockDatadogFileSystem;
+using datadog::test::GenerateRandomString;
 
 using trompeloeil::_;
 
@@ -40,8 +42,8 @@ class MockFeature : public DatadogFeature {
 
   std::string_view GetName() const override { return name_; }
 
-  MAKE_MOCK1(CreateReportFromBatch,
-             Report(TLVFileReader& batch_file),
+  MAKE_MOCK2(CreateReportFromBatch,
+             Report(const CoreContext& context, TLVFileReader& batch_file),
              const override);
 
   static constexpr FeatureId feature_id =
@@ -54,11 +56,20 @@ class MockFeature : public DatadogFeature {
 class ReportingThreadFixture {
  public:
   ReportingThreadFixture()
-      : core_{MockDatadogCoreInternal::Create()},
+      : context_{
+            GenerateRandomString(),
+            GenerateRandomString(),
+            GenerateRandomString(),
+            GenerateRandomString(),
+            GenerateRandomString(),
+        },
+        core_{MockDatadogCoreInternal::Create()},
         feature_{std::make_shared<MockFeature>(core_)},
         feature_file_system_{std::make_shared<MockDatadogFileSystem>()},
-        reporter_{std::make_shared<MockDatadogReporter>("any")} {}
+        reporter_{std::make_shared<MockDatadogReporter>("any")} {    
+  }
 
+  CoreContext context_;
   std::shared_ptr<MockDatadogCoreInternal> core_;
   std::shared_ptr<MockFeature> feature_;
   std::shared_ptr<MockDatadogFileSystem> feature_file_system_;
@@ -74,6 +85,7 @@ TEST_CASE_METHOD(ReportingThreadFixture,
       .LR_RETURN(feature_file_system_);
   ALLOW_CALL(*feature_file_system_, Exists(_)).RETURN(false);
   ALLOW_CALL(*feature_file_system_, Delete(_)).RETURN(DatadogFileStatus::Ok);
+  ALLOW_CALL(*core_, GetContext()).RETURN(context_);
   ALLOW_CALL(*core_, GetReporter())
       .LR_RETURN(std::dynamic_pointer_cast<DatadogReporter>(reporter_));
 
@@ -109,8 +121,8 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report.GetPath())
         .RETURN(DatadogReporter::Status::Ok);
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .LR_RETURN(std::move(report));
 
     // When
@@ -144,11 +156,11 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report2.GetPath())
         .RETURN(DatadogReporter::Status::Ok);
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .LR_RETURN(std::move(report));
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any_2")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any_2")
         .LR_RETURN(std::move(report2));
 
     // When
@@ -194,11 +206,11 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report2.GetPath())
         .RETURN(DatadogReporter::Status::Ok);
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .LR_RETURN(std::move(report));
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any_2")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any_2")
         .LR_RETURN(std::move(report2));
 
     // When
@@ -232,11 +244,11 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report2.GetPath())
         .RETURN(DatadogReporter::Status::Ok);
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .LR_RETURN(std::move(report));
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any_2")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any_2")
         .LR_RETURN(std::move(report2));
     REQUIRE_CALL(*feature_file_system_, Delete("any"))
         .RETURN(DatadogFileStatus::Ok);
@@ -268,8 +280,8 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report.GetPath())
         .RETURN(DatadogReporter::Status::ErrorNeedsRetry);
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .LR_RETURN(std::move(report));
     FORBID_CALL(*feature_file_system_, Delete(_));
 
@@ -299,8 +311,8 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*feature_file_system_, Open("any"))
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(file_1a));
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(report));
     REQUIRE_CALL(*reporter_, Send(_))
@@ -310,8 +322,8 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*feature_file_system_, Open("any"))
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(file_1b));
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(report2));
     REQUIRE_CALL(*reporter_, Send(_))
@@ -321,8 +333,8 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*feature_file_system_, Open("any_2"))
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(file_2));
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any_2")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any_2")
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(report3));
     REQUIRE_CALL(*reporter_, Send(_))
@@ -348,8 +360,8 @@ TEST_CASE_METHOD(ReportingThreadFixture,
 
     // Expect
     Report report = Report{"any_path"};
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .LR_RETURN(std::move(report));
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report.GetPath())
@@ -382,8 +394,8 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*feature_file_system_, Open("any"))
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(file_1));
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any")
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(report));
     REQUIRE_CALL(*reporter_, Send(_))
@@ -393,8 +405,8 @@ TEST_CASE_METHOD(ReportingThreadFixture,
     REQUIRE_CALL(*feature_file_system_, Open("any_2"))
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(file_2));
-    REQUIRE_CALL(*feature_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any_2")
+    REQUIRE_CALL(*feature_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any_2")
         .IN_SEQUENCE(seq)
         .LR_RETURN(std::move(report2));
     REQUIRE_CALL(*reporter_, Send(_))
@@ -410,13 +422,22 @@ TEST_CASE_METHOD(ReportingThreadFixture,
 class ReportingThreadMultipleFeaturesFixture {
  public:
   ReportingThreadMultipleFeaturesFixture()
-      : core_{MockDatadogCoreInternal::Create()},
+      : context_{
+            GenerateRandomString(),
+            GenerateRandomString(),
+            GenerateRandomString(),
+            GenerateRandomString(),
+            GenerateRandomString(),
+        },
+        core_{MockDatadogCoreInternal::Create()},
         feature_a_{std::make_shared<MockFeature>(core_)},
         feature_b_{std::make_shared<MockFeature>(core_, "mock2")},
         feature_file_system_a_{std::make_shared<MockDatadogFileSystem>()},
         feature_file_system_b_{std::make_shared<MockDatadogFileSystem>()},
-        reporter_{std::make_shared<MockDatadogReporter>("any")} {}
+        reporter_{std::make_shared<MockDatadogReporter>("any")} {
+  }
 
+  CoreContext context_;
   std::shared_ptr<MockDatadogCoreInternal> core_;
   std::shared_ptr<MockFeature> feature_a_;
   std::shared_ptr<MockFeature> feature_b_;
@@ -437,6 +458,7 @@ TEST_CASE_METHOD(ReportingThreadMultipleFeaturesFixture,
   ALLOW_CALL(*feature_file_system_a_, Delete(_)).RETURN(DatadogFileStatus::Ok);
   ALLOW_CALL(*feature_file_system_b_, Exists(_)).RETURN(false);
   ALLOW_CALL(*feature_file_system_b_, Delete(_)).RETURN(DatadogFileStatus::Ok);
+  ALLOW_CALL(*core_, GetContext()).RETURN(context_);
   ALLOW_CALL(*core_, GetReporter())
       .LR_RETURN(std::dynamic_pointer_cast<DatadogReporter>(reporter_));
 
@@ -461,8 +483,8 @@ TEST_CASE_METHOD(ReportingThreadMultipleFeaturesFixture,
     Report report_a = Report{"any_a"};
     REQUIRE_CALL(*feature_file_system_a_, Open("any_a"))
         .LR_RETURN(std::move(file_a));
-    REQUIRE_CALL(*feature_a_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any_a")
+    REQUIRE_CALL(*feature_a_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any_a")
         .LR_RETURN(std::move(report_a));
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report_a.GetPath())
@@ -473,8 +495,8 @@ TEST_CASE_METHOD(ReportingThreadMultipleFeaturesFixture,
     Report report_b = Report{"any_b"};
     REQUIRE_CALL(*feature_file_system_b_, Open("any_b"))
         .LR_RETURN(std::move(file_b));
-    REQUIRE_CALL(*feature_b_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any_b")
+    REQUIRE_CALL(*feature_b_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any_b")
         .LR_RETURN(std::move(report_b));
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report_b.GetPath())
@@ -507,8 +529,8 @@ TEST_CASE_METHOD(ReportingThreadMultipleFeaturesFixture,
     REQUIRE_CALL(*reporter_, Send(_))
         .LR_WITH(_1.GetPath() == report.GetPath())
         .RETURN(DatadogReporter::Status::ErrorNeedsRetry);
-    REQUIRE_CALL(*feature_b_, CreateReportFromBatch(_))
-        .WITH(_1.GetPath() == "any_b")
+    REQUIRE_CALL(*feature_b_, CreateReportFromBatch(_, _))
+        .WITH(_2.GetPath() == "any_b")
         .LR_RETURN(std::move(report));
     FORBID_CALL(*feature_file_system_a_, Delete(_));
     FORBID_CALL(*feature_file_system_b_, Delete(_));

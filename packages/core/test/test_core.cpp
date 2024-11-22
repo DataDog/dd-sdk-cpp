@@ -24,6 +24,7 @@ using datadog::core::DatadogFeature;
 using datadog::core::FeatureId;
 using datadog::core::Site;
 using datadog::core::TrackingConsent;
+using datadog::core::internal::CoreContext;
 using datadog::core::internal::DatadogCoreInternal;
 using datadog::core::reporting::DatadogReporter;
 using datadog::core::reporting::Report;
@@ -46,7 +47,8 @@ class MockFeature : public DatadogFeature {
   std::string_view GetName() const override { return "mock"; }
 
   Report CreateReportFromBatch(
-      [[maybe_unused]] TLVFileReader& batch_file) const override {
+      [[maybe_unused]] const CoreContext& core_context,
+      [[maybe_unused]] TLVFileReader& file_reader) const override {
     return Report("path");
   }
 
