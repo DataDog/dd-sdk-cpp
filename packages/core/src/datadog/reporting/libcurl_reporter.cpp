@@ -95,8 +95,9 @@ DatadogReporter::Status LibcurlReporter::Send(const Report& report) {
       // Not all header sets are failure. If a header is set in a way that
       // intake doesn't like, it will return a failure in the
       // TODO(jeff.ward): Prevent this extra string allocation
-      std::string full_header =
-          (std::stringstream() << header.first << ": " << header.second).str();
+      std::stringstream ss;
+      ss << header.first << ": " << header.second;
+      auto full_header = ss.str();
       header_list = curl_slist_append(header_list, full_header.c_str());
     }
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, header_list);
