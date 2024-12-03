@@ -6,26 +6,27 @@
 
 #include <string>
 
-#include "datadog/attributes.h"
+#include "datadog/attribute.h"
+#include "datadog/feature.h"
 
 namespace datadog::core {
 
 class CoreMessage {
  public:
   explicit CoreMessage(FeatureId feature_id,
-                       const DatadogAttributes& context_changes,
+                       const DatadogAttribute& context_changes,
                        std::string&& data)
       : feature_id_{feature_id},
         context_changes_(context_changes),
         data_(std::move(data)) {}
 
   FeatureId feature_id() const { return feature_id_; }
-  const DatadogAttributes& context_changes() const { return context_changes_; }
+  const DatadogAttribute& context_changes() const { return context_changes_; }
   const std::string& data() const { return data_; }
 
  private:
   FeatureId feature_id_;
-  DatadogAttributes context_changes_;
+  DatadogAttribute context_changes_;
   std::string data_;
 };
 

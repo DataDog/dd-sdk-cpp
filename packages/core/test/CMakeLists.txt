@@ -7,6 +7,7 @@ enable_testing()
 include(../../../cmake/deps/catch2.cmake)
 
 add_executable(core-tests
+    test_attribute.cpp
     test_core.cpp
 
     internal/test_owning_blocking_queue.cpp
