@@ -11,7 +11,7 @@ Note: Datadog requires that all commits within this repository must be signed, i
 
 For any urgent matters (such as outages) or issues concerning the Datadog service or UI, contact our support team via https://docs.datadoghq.com/help/ for direct, faster assistance.
 
-You may submit a bug report concerning the Datadog Plugin for Flutter by opening a GitHub Issue. Use appropriate template and provide all listed details to help us resolve the issue.
+You may submit a bug report concerning the Datadog C++ RUM SDK by opening a GitHub Issue. Use appropriate template and provide all listed details to help us resolve the issue.
 
 ## Getting Started
 
