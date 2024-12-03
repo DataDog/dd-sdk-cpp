@@ -6,6 +6,8 @@
 
 #include <sstream>
 
+#include <curl/curl.h>
+
 namespace datadog::core::reporting {
 
 DatadogReporter::Status TranslateLibCurlCode(CURLcode code, CURL* curl) {
@@ -59,6 +61,24 @@ void LibcurlReporter::Init() {
   curl_global_init(CURL_GLOBAL_ALL);
 }
 
+CURLU* AssembleUrl(const std::string& host, const Report& report) {
+  CURLU* urlp = curl_url();
+  if (!urlp) {
+    return nullptr;
+  }
+  if (CURLUE_OK != curl_url_set(urlp, CURLUPART_URL, host.c_str(), 0)) {
+    curl_url_cleanup(urlp);
+    return nullptr;
+  }
+  if (CURLUE_OK !=
+      curl_url_set(urlp, CURLUPART_PATH, report.GetPath().data(), 0)) {
+    curl_url_cleanup(urlp);
+    return nullptr;
+  }
+
+  return urlp;
+}
+
 DatadogReporter::Status LibcurlReporter::Send(const Report& report) {
   CURL* curl{nullptr};
   CURLU* urlp{nullptr};
@@ -77,7 +97,7 @@ DatadogReporter::Status LibcurlReporter::Send(const Report& report) {
     // Use of goto here simplifies cleanup. It is safe to goto out of a try
     // block
     // NOLINTBEGIN(cppcoreguidelines-avoid-goto,cppcoreguidelines-pro-type-vararg)
-    if (!(urlp = AssembleUrl(report))) {
+    if (!(urlp = AssembleUrl(host_, report))) {
       goto fail;
     }
     if (CURLE_OK != curl_easy_setopt(curl, CURLOPT_CURLU, urlp)) {
@@ -122,24 +142,6 @@ fail:
   }
 
   return status;
-}
-
-CURLU* LibcurlReporter::AssembleUrl(const Report& report) {
-  CURLU* urlp = curl_url();
-  if (!urlp) {
-    return nullptr;
-  }
-  if (CURLUE_OK != curl_url_set(urlp, CURLUPART_URL, host_.c_str(), 0)) {
-    curl_url_cleanup(urlp);
-    return nullptr;
-  }
-  if (CURLUE_OK !=
-      curl_url_set(urlp, CURLUPART_PATH, report.GetPath().data(), 0)) {
-    curl_url_cleanup(urlp);
-    return nullptr;
-  }
-
-  return urlp;
 }
 
 }  // namespace datadog::core::reporting

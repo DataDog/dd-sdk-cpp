@@ -7,8 +7,6 @@
 #include <string>
 #include <string_view>
 
-#include <curl/curl.h>
-
 #include "datadog/reporting/reporter.h"
 
 namespace datadog::core::reporting {
@@ -24,7 +22,6 @@ class LibcurlReporter : public DatadogReporter {
 
  private:
   void Init();
-  CURLU* AssembleUrl(const Report& report);
 
   std::string host_;
 };
