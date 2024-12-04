@@ -6,6 +6,8 @@
 
 #include <cstdint>
 #include <string>
+#include <string_view>
+#include <type_traits>
 #include <unordered_map>
 
 #include <cstdint>
@@ -35,24 +37,90 @@ class DatadogAttribute {
   };
 
   DatadogAttribute() : type_(Type::Null) {}
-  constexpr explicit DatadogAttribute(Type type) : type_(type) {
+
+  // Create an attribute that should hold the supplied type, with an optional
+  // reserved size.
+  explicit DatadogAttribute(Type type, uint32_t size = 0) : type_(type) {
     if (IsCowType(type_)) {
       cow_data_ = std::make_shared<CowStorage>(type);
+      Reserve(size);
     }
   }
-  explicit DatadogAttribute(int64_t value) { SetValue(value); }
+
+  explicit DatadogAttribute(std::string_view str) { SetValue(str); }
+
+  // Create an attribute with the given integral or floating point value.
+  template <
+      typename T,
+      std::enable_if_t<std::is_integral_v<T> || std::is_floating_point_v<T>,
+                       int> = 0>
+  explicit DatadogAttribute(T value) {
+    SetValue(value);
+  }
   ~DatadogAttribute();
 
   Type type() const { return type_; }
 
-  int64_t IntValue() const { return prim_.int_value; }
+  // Return the Integer value stored in this attribute.
+  // If the attribute is an unsigned integer, it will be cast to a signed
+  // integer. If the attribute is a double, it will be truncated. All other
+  // types wil return zero.
+  int64_t IntValue() const;
 
-  void SetValue(int64_t value) {
-    Detach();
+  // Return the Unsigned Integer value stored in this attribute.
+  // If the attribute is a double or signed integer below zero, this will return
+  // zero. If the attribute is a double above zero, it will be truncated.
+  uint64_t UIntValue() const;
+
+  // Return the Double value stored in this attribute.
+  // If the attribute is an integer or unsigned integer, it will be converted to
+  // a double.
+  double DoubleValue() const;
+
+  // Return the string value stored in this attribute.
+  // If the attribute is not a string, an empty string will be returned.
+  std::string_view StringValue() const;
+
+  // Set the value of this attribute (for signed integral types)
+  template <
+      typename T,
+      std::enable_if_t<std::is_integral_v<T> && std::is_signed_v<T>, int> = 0>
+  void SetValue(T value) {
     type_ = Type::Int;
-    prim_.int_value = value;
+    cow_data_ = nullptr;
+    prim_.int_value = static_cast<int64_t>(value);
   }
 
+  // Set the value of this attribute (for unsigned integral types)
+  template <
+      typename T,
+      std::enable_if_t<std::is_integral_v<T> && !std::is_signed_v<T>, int> = 0>
+  void SetValue(T value) {
+    type_ = Type::UInt;
+    cow_data_ = nullptr;
+    prim_.int_value = static_cast<uint64_t>(value);
+  }
+
+  // Set the value of this attribute (for floating point types)
+  template <typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+  void SetValue(T value) {
+    type_ = Type::Double;
+    cow_data_ = nullptr;
+    prim_.double_value = value;
+  }
+
+  // Set the string value of this attribute
+  void SetValue(std::string_view str) {
+    type_ = Type::String;
+    cow_data_ = std::make_shared<CowStorage>(Type::String);
+    char* str_copy = new char[str.length()];
+    str.copy(str_copy, str.length(), 0);
+    cow_data_->string_value.length = str.length();
+    cow_data_->string_value.str = str_copy;
+  }
+
+  // Reserve a number of elements for this attribute to hold. Reserving
+  // space only works for attributes that hold Arrays and Objects
   void Reserve(uint32_t size);
   void ArraySetAt(uint32_t index, DatadogAttribute attr) {
     if (type_ != Type::Array) {

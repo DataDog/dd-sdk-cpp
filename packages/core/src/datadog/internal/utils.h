@@ -4,6 +4,8 @@
 // Datadog, Inc.
 #pragma once
 
+#include <cstdint>
+
 #include "datadog/feature.h"
 
 namespace datadog::core::internal {
