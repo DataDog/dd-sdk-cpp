@@ -16,6 +16,10 @@
 
 namespace datadog::core {
 
+namespace internal {
+struct ObjectMember;
+}
+
 // DatadogAttribute is a JSON-like value with Copy on Write semantics.
 //
 // DatadogAttribute is optimized for storing, full serialization, and
@@ -24,6 +28,9 @@ namespace datadog::core {
 // where we need to capture attributes at a specific time, but clients do not
 // want the overhead of copying or serializing attributes, and they also do not
 // need to read the information they set.
+//
+// DatadogAttributes are not guarenteed to be thread safe, and a given attribute
+// should not be modified from multiple threads.
 class DatadogAttribute {
  public:
   enum class Type {
@@ -111,6 +118,9 @@ class DatadogAttribute {
 
   // Set the string value of this attribute
   void SetValue(std::string_view str) {
+    if (this == &kNull) {
+      return;
+    }
     type_ = Type::String;
     cow_data_ = std::make_shared<CowStorage>(Type::String);
     char* str_copy = new char[str.length()];
@@ -122,6 +132,10 @@ class DatadogAttribute {
   // Reserve a number of elements for this attribute to hold. Reserving
   // space only works for attributes that hold Arrays and Objects
   void Reserve(uint32_t size);
+
+  // Set the attribute at the given index of the array.
+  // If this attribute is not an array or is smaller than the requested index,
+  // this method silently fails.
   void ArraySetAt(uint32_t index, DatadogAttribute attr) {
     if (type_ != Type::Array) {
       return;
@@ -133,6 +147,10 @@ class DatadogAttribute {
     Detach();
     cow_data_->array_value.values[index] = attr;
   }
+
+  // Get the attribute at the given index of the array.
+  // If this attribute is not an array or is smaller than the requested index,
+  // this method return kNull.
   const DatadogAttribute& ArrayGetAt(uint32_t index) {
     if (type_ != Type::Array) {
       return kNull;
@@ -143,6 +161,17 @@ class DatadogAttribute {
 
     return cow_data_->array_value.values[index];
   }
+
+  // Set the value for the given object's member.
+  // If this attribute is not an object, this method will silently fail.
+  // If there is insufficient room in the object for this member, the memory
+  // allocated for this object will be expanded by 1.
+  void SetMember(std::string_view member_name, const DatadogAttribute& value);
+
+  // Get the value for the given object's member.
+  // If this attribute is not an object or the member does not exist, this
+  // method will return kNull.
+  const DatadogAttribute& GetMember(std::string_view member_name) const;
 
   static const DatadogAttribute kNull;
 
@@ -160,7 +189,7 @@ class DatadogAttribute {
   struct ObjectStorage {
     uint32_t size;
     uint32_t capacity;
-    DatadogAttribute* members;
+    internal::ObjectMember* members;
   };
 
   struct PrimitiveStorage {
@@ -203,5 +232,16 @@ class DatadogAttribute {
   PrimitiveStorage prim_;
   std::shared_ptr<CowStorage> cow_data_;
 };
+
+namespace internal {
+// Must be declared outside of Datadog Attribute so we can store a
+// DatadogAttribute inside it (instead of a pointer).
+struct ObjectMember {
+  // TODO(RUM-): Optimize member lookup potentially by storing a hash of the
+  // member name.
+  std::string name;
+  DatadogAttribute value;
+};
+}  // namespace internal
 
 }  // namespace datadog::core

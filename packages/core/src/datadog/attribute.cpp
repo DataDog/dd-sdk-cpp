@@ -4,9 +4,13 @@
 // Datadog, Inc.
 #include "datadog/attribute.h"
 
+#include <cassert>
+
 #include "datadog/internal/utils.h"
 
 namespace datadog::core {
+
+using internal::ObjectMember;
 
 const DatadogAttribute DatadogAttribute::kNull{DatadogAttribute::Type::Null};
 
@@ -22,7 +26,7 @@ void DatadogAttribute::Detach() {
 
 void DatadogAttribute::Reserve(uint32_t new_capacity) {
   // Don't allow reserve of non-arrays
-  if (type_ != Type::Array) {
+  if (type_ != Type::Array && type_ != Type::Object) {
     return;
   }
 
@@ -87,6 +91,57 @@ std::string_view DatadogAttribute::StringValue() const {
                           cow_data_->string_value.length);
 }
 
+void DatadogAttribute::SetMember(std::string_view member_name,
+                                 const DatadogAttribute& value) {
+  if (type_ != Type::Object) {
+    return;
+  }
+
+  Detach();
+  // TODO(RUM-): Optimize member lookup with hashing
+  ObjectMember* member = nullptr;
+  for (uint32_t i = 0; i < cow_data_->object_value.size; ++i) {
+    ObjectMember* current_member = &cow_data_->object_value.members[i];
+    if (current_member->name == member_name) {
+      member = current_member;
+      break;
+    }
+  }
+
+  if (member) {
+    member->value = value;
+  } else {
+    auto current_capacity = cow_data_->object_value.capacity;
+    if (cow_data_->object_value.size >= current_capacity) {
+      Reserve(current_capacity + 1);
+    }
+
+    member = &cow_data_->object_value.members[cow_data_->object_value.size];
+    member->name = member_name;
+    member->value = value;
+    cow_data_->object_value.size++;
+  }
+}
+
+const DatadogAttribute& DatadogAttribute::GetMember(
+    std::string_view member_name) const {
+  if (type_ != Type::Object) {
+    return kNull;
+  }
+
+  // TODO(RUM-): Optimize member lookup with hashing
+  ObjectMember* member = nullptr;
+  for (uint32_t i = 0; i < cow_data_->object_value.size; ++i) {
+    ObjectMember* current_member = &cow_data_->object_value.members[i];
+    if (current_member->name == member_name) {
+      member = current_member;
+      break;
+    }
+  }
+
+  return member ? member->value : kNull;
+}
+
 // ----------
 // CowStorage
 // ----------
@@ -94,7 +149,8 @@ DatadogAttribute::CowStorage::CowStorage(const CowStorage& old)
     : type_(old.type_), object_value{0, 0, nullptr} {
   switch (type_) {
     case Type::String:
-      // TODO
+      // Strings don't actually get detached, so this copy shouldn't happen.
+      assert(false);
       break;
     case Type::Array:
       Reserve(old.array_value.size);
@@ -104,6 +160,12 @@ DatadogAttribute::CowStorage::CowStorage(const CowStorage& old)
       }
       break;
     default:
+      Reserve(old.object_value.capacity);
+      object_value.size = old.object_value.size;
+      for (uint32_t i = 0; i < old.object_value.size; ++i) {
+        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+        object_value.members[i] = old.object_value.members[i];
+      }
       break;
   }
 }
@@ -142,6 +204,18 @@ void DatadogAttribute::CowStorage::Reserve(uint32_t size) {
       array_value.size = size;
     }
   } else if (type_ == Type::Object) {
+    if (object_value.capacity < size) {
+      auto old_members = object_value.members;
+      object_value.members = new ObjectMember[size];
+      if (old_members) {
+        for (uint32_t i = 0; i < object_value.size; ++i) {
+          object_value.members[i].name = std::move(old_members[i].name);
+          object_value.members[i].value = old_members[i].value;
+        }
+        delete[] old_members;
+      }
+      object_value.capacity = size;
+    }
   }
   // NOLINTEND(cppcoreguidelines-owning-memory)
   // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
