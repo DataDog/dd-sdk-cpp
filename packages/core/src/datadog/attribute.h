@@ -173,6 +173,13 @@ class DatadogAttribute {
   // method will return kNull.
   const DatadogAttribute& GetMember(std::string_view member_name) const;
 
+  // Merge a DatadogAttribute into this attribute. This method is only performed
+  // if both this attribute and the provided attribute are of type
+  // DatadogAttribute::Type::Object. Keys in this attribute are overwritten with
+  // values from the provided attribute by default, but this can be prevented by
+  // passing `false` to the `override` parameter.
+  void Merge(const DatadogAttribute& attr, bool overwrite = true);
+
   static const DatadogAttribute kNull;
 
  private:

@@ -430,6 +430,107 @@ TEST_CASE_METHOD(ComplexObjectTestFixture,
               .DoubleValue() == 222.451);
 }
 
+TEST_CASE_METHOD(ComplexObjectTestFixture,
+                 "M merge attributes W Merge",
+                 "[attribute_values]") {
+  // Given
+  DatadogAttribute second_attr{DatadogAttribute::Type::Object};
+  second_attr.SetMember("second_member_1", DatadogAttribute{"second_value"});
+  second_attr.SetMember("second_member_2", DatadogAttribute{655});
+
+  // When
+  complex_object_.Merge(second_attr);
+
+  // Then
+  REQUIRE(complex_object_.GetMember("object_member")
+              .GetMember("sub_member_1")
+              .StringValue() == "sub_object_value"sv);
+  REQUIRE(complex_object_.GetMember("object_member")
+              .GetMember("sub_member_2")
+              .IntValue() == 915);
+  REQUIRE(complex_object_.GetMember("second_member_1").StringValue() ==
+          "second_value"sv);
+  REQUIRE(complex_object_.GetMember("second_member_2").IntValue() == 655);
+}
+
+TEST_CASE_METHOD(ComplexObjectTestFixture,
+                 "M merge attributes and overwrite members W Merge",
+                 "[attribute_values]") {
+  // Given
+  DatadogAttribute second_attr{DatadogAttribute::Type::Object};
+  second_attr.SetMember("second_member_1", DatadogAttribute{"second_value"});
+  second_attr.SetMember("prim_member", DatadogAttribute{655});
+
+  // When
+  complex_object_.Merge(second_attr);
+
+  // Then
+  REQUIRE(complex_object_.GetMember("object_member")
+              .GetMember("sub_member_1")
+              .StringValue() == "sub_object_value"sv);
+  REQUIRE(complex_object_.GetMember("object_member")
+              .GetMember("sub_member_2")
+              .IntValue() == 915);
+  REQUIRE(complex_object_.GetMember("second_member_1").StringValue() ==
+          "second_value"sv);
+  REQUIRE(complex_object_.GetMember("prim_member").IntValue() == 655);
+}
+
+TEST_CASE_METHOD(ComplexObjectTestFixture,
+                 "M merge attributes and not overwrite members W Merge { "
+                 "overwrite = false }",
+                 "[attribute_values]") {
+  // Given
+  DatadogAttribute second_attr{DatadogAttribute::Type::Object};
+  second_attr.SetMember("second_member_1", DatadogAttribute{"second_value"});
+  second_attr.SetMember("prim_member", DatadogAttribute{655});
+
+  // When
+  complex_object_.Merge(second_attr, false);
+
+  // Then
+  REQUIRE(complex_object_.GetMember("object_member")
+              .GetMember("sub_member_1")
+              .StringValue() == "sub_object_value"sv);
+  REQUIRE(complex_object_.GetMember("object_member")
+              .GetMember("sub_member_2")
+              .IntValue() == 915);
+  REQUIRE(complex_object_.GetMember("second_member_1").StringValue() ==
+          "second_value"sv);
+  REQUIRE(complex_object_.GetMember("prim_member").IntValue() == 12166);
+}
+
+TEST_CASE_METHOD(ComplexObjectTestFixture,
+                 "M not modify copy W Merge",
+                 "[attribute_cow]") {
+  // Given
+  DatadogAttribute second_attr{DatadogAttribute::Type::Object};
+  second_attr.SetMember("second_member_1", DatadogAttribute{"second_value"});
+  second_attr.SetMember("prim_member", DatadogAttribute{655});
+  DatadogAttribute copy{complex_object_};
+
+  // When
+  complex_object_.Merge(second_attr);
+
+  // Then
+  REQUIRE(copy.GetMember("second_member_1").type() ==
+          DatadogAttribute::Type::Null);
+  REQUIRE(copy.GetMember("prim_member").IntValue() == 12166);
+}
+
+TEST_CASE_METHOD(ComplexObjectTestFixture,
+                 "M not attempt merge on non objects",
+                 "[attribute_values]") {
+  // Given
+  DatadogAttribute second_attr{15};
+
+  // When
+  complex_object_.Merge(second_attr);
+
+  // Then
+  REQUIRE(complex_object_.GetMember("prim_member").IntValue() == 12166);
+}
+
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)
 
 }  // namespace

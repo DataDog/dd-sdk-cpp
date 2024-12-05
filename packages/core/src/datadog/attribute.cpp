@@ -6,6 +6,7 @@
 
 #include <cassert>
 
+#include "attribute.h"
 #include "datadog/internal/utils.h"
 
 namespace datadog::core {
@@ -98,7 +99,8 @@ void DatadogAttribute::SetMember(std::string_view member_name,
   }
 
   Detach();
-  // TODO(RUM-): Optimize member lookup with hashing
+  // TODO(RUM-7586): Optimize member lookup with hashing
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   ObjectMember* member = nullptr;
   for (uint32_t i = 0; i < cow_data_->object_value.size; ++i) {
     ObjectMember* current_member = &cow_data_->object_value.members[i];
@@ -121,6 +123,7 @@ void DatadogAttribute::SetMember(std::string_view member_name,
     member->value = value;
     cow_data_->object_value.size++;
   }
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 }
 
 const DatadogAttribute& DatadogAttribute::GetMember(
@@ -129,7 +132,8 @@ const DatadogAttribute& DatadogAttribute::GetMember(
     return kNull;
   }
 
-  // TODO(RUM-): Optimize member lookup with hashing
+  // TODO(RUM-7586): Optimize member lookup with hashing
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
   ObjectMember* member = nullptr;
   for (uint32_t i = 0; i < cow_data_->object_value.size; ++i) {
     ObjectMember* current_member = &cow_data_->object_value.members[i];
@@ -138,13 +142,36 @@ const DatadogAttribute& DatadogAttribute::GetMember(
       break;
     }
   }
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 
   return member ? member->value : kNull;
+}
+
+void DatadogAttribute::Merge(const DatadogAttribute& attr, bool overwrite) {
+  if (type_ != Type::Object || attr.type_ != Type::Object) {
+    return;
+  }
+
+  // This may waste a small amount of space, but better than doing multiple
+  // reallocations.
+  Reserve(cow_data_->object_value.size + attr.cow_data_->object_value.size);
+
+  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  for (uint32_t i = 0; i < attr.cow_data_->object_value.size; i++) {
+    const auto& member_name = attr.cow_data_->object_value.members[i].name;
+    const auto& existing = GetMember(member_name);
+    if (overwrite || existing.type() == Type::Null) {
+      const auto& to_merge = attr.cow_data_->object_value.members[i].value;
+      SetMember(member_name, to_merge);
+    }
+  }
+  // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 }
 
 // ----------
 // CowStorage
 // ----------
+// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 DatadogAttribute::CowStorage::CowStorage(const CowStorage& old)
     : type_(old.type_), object_value{0, 0, nullptr} {
   switch (type_) {
