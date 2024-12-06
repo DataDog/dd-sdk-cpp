@@ -2,9 +2,10 @@
 // under the Apache License Version 2.0. This product includes software
 // developed at Datadog (https://www.datadoghq.com/). Copyright 2024-Present
 // Datadog, Inc.
+#include <condition_variable>
+
 #include <datadog/core.h>
 #include <datadog/internal/utils.h>
-
 #include <trompeloeil.hpp>
 
 #include "datadog/datadog_test.h"
@@ -24,6 +25,7 @@ using datadog::core::DatadogFeature;
 using datadog::core::FeatureId;
 using datadog::core::Site;
 using datadog::core::TrackingConsent;
+using datadog::core::internal::CoreContext;
 using datadog::core::internal::DatadogCoreInternal;
 using datadog::core::reporting::DatadogReporter;
 using datadog::core::reporting::Report;
@@ -46,7 +48,8 @@ class MockFeature : public DatadogFeature {
   std::string_view GetName() const override { return "mock"; }
 
   Report CreateReportFromBatch(
-      [[maybe_unused]] TLVFileReader& batch_file) const override {
+      [[maybe_unused]] const CoreContext& core_context,
+      [[maybe_unused]] TLVFileReader& file_reader) const override {
     return Report("path");
   }
 

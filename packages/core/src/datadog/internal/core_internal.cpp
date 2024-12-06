@@ -47,8 +47,15 @@ class DatadogCoreImpl : public DatadogCoreInternal {
         performance_preset_{configuration.batch_size,
                             configuration.upload_frequency,
                             configuration.batch_processing_level},
-        core_context_{std::string(configuration.service.value),
-                      std::string(configuration.env.value), kSdkVersion},
+        core_context_{
+            std::string{configuration.client_token.value},
+            std::string{configuration.service.value},
+            std::string{configuration.env.value},
+            std::string(configuration.application_version),
+            // TODO(RUM-7416): This is temporary until we setup pipelines for
+            // "rum-cpp"
+            "unity",
+        },
         file_system_{configuration.file_system},
         time_provider_{configuration.date_time_provider} {}
 

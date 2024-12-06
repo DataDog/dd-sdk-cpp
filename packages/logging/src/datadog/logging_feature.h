@@ -5,6 +5,7 @@
 #pragma once
 
 #include <memory>
+#include <optional>
 #include <string_view>
 
 #include <datadog/core.h>
@@ -48,6 +49,7 @@ class DatadogLogging : public core::DatadogFeature,
  private:
   std::weak_ptr<core::DatadogCore> core_;
   core::reporting::Report CreateReportFromBatch(
+      const datadog::core::internal::CoreContext& context,
       core::storage::TLVFileReader& file) const override;
 };
 

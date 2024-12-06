@@ -32,7 +32,8 @@ enum class DatadogFileStatus {
 // is StdDatadogFile which uses classes from the C++ standard library.
 class DatadogFile {
  public:
-  DatadogFile(const std::filesystem::path& path) : path_(path) {}
+  DatadogFile(const std::filesystem::path& path)
+      : status_{DatadogFileStatus::Ok}, path_{path} {}
   virtual ~DatadogFile() = default;
 
   // Prevent copy and move, as file destructors will close the file.

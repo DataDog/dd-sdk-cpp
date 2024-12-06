@@ -16,6 +16,7 @@
 namespace {
 
 using namespace std::literals::string_view_literals;
+using namespace std::chrono_literals;
 
 using datadog::core::BatchProcessingLevel;
 using datadog::core::BatchSize;
@@ -211,13 +212,12 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   auto file_system = std::make_shared<MockDatadogFileSystem>();
   constexpr uint64_t fake_start_time = 123456789123L;
   auto mock_time_provider = [] {
-    // DateTimeProvider will be called twice per file creation
     static int time_index = 0;
     constexpr auto ten_seconds = seconds(10);
     constexpr auto ten_seconds_ns =
         std::chrono::duration_cast<PerformancePreset::Nanoseconds>(ten_seconds);
 
-    auto time = time_index < 2 ? fake_start_time
+    auto time = time_index < 1 ? fake_start_time
                                : (fake_start_time + ten_seconds_ns.count());
     time_index++;
     return time;
@@ -363,14 +363,14 @@ TEST_CASE_METHOD(FeatureStorageFixture,
 }
 
 TEST_CASE_METHOD(FeatureStorageFixture,
-                 "M not list open file W ListReadableFiles",
+                 "M not list young open file W ListReadableFiles",
                  "[feature_storage]") {
   // Given
   auto file_system = std::make_shared<MockDatadogFileSystem>();
-  constexpr uint64_t fake_nanos = 123456789123L;
+  constexpr uint64_t fake_start_time = 123456789123L;
   auto mock_file_path =
-      std::filesystem::path(std::to_string(NanoToMillis(fake_nanos)));
-  auto mock_time_provider = [] { return fake_nanos; };
+      std::filesystem::path(std::to_string(NanoToMillis(fake_start_time)));
+  auto mock_time_provider = [] { return fake_start_time; };
   auto mock_file = std::make_unique<MockDatadogFile>(mock_file_path);
   ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
   ALLOW_CALL(*file_system, Open(mock_file_path))
@@ -395,6 +395,48 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   // Then
   REQUIRE(readable_files.size() == 1);
   REQUIRE(readable_files[0] == "125566717");
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M list open file old enough for read W ListReadableFiles",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  constexpr uint64_t fake_start_time = 123456789123L;
+  auto mock_file_path =
+      std::filesystem::path(std::to_string(NanoToMillis(fake_start_time)));
+  auto mock_time_provider = [] {
+    static int time_index = 0;
+    static uint64_t time_interval = PerformancePreset::Nanoseconds{5s}.count();
+    auto time = fake_start_time + time_index * time_interval;
+    time_index++;
+    return time;
+  };
+  auto mock_file = std::make_unique<MockDatadogFile>(mock_file_path);
+  ALLOW_CALL(*mock_file, Write(_)).RETURN(true);
+  ALLOW_CALL(*file_system, Open(mock_file_path))
+      .LR_RETURN(std::move(mock_file));
+
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 mock_time_provider, file_system};
+  ALLOW_CALL(*file_system, ListFiles(_, _))
+      .LR_SIDE_EFFECT({
+        _2.push_back("125566717");
+        _2.push_back(mock_file_path);
+      })
+      .RETURN(true);
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+  // Write to open the file
+  feature_storage.Write("File Contents");
+
+  // When
+  std::vector<std::filesystem::path> readable_files;
+  REQUIRE(feature_storage.ListReadableFiles(readable_files));
+
+  // Then
+  REQUIRE(readable_files.size() == 2);
+  REQUIRE(readable_files[0] == mock_file_path);
+  REQUIRE(readable_files[1] == "125566717");
 }
 
 TEST_CASE_METHOD(FeatureStorageFixture,
@@ -471,6 +513,55 @@ TEST_CASE_METHOD(FeatureStorageFixture,
   auto file = feature_storage.GetReadableFile(mock_file_path);
   REQUIRE(file);
   bool result = feature_storage.DeleteReadableFile(std::move(file));
+  REQUIRE(result);
+}
+
+TEST_CASE_METHOD(FeatureStorageFixture,
+                 "M close open file W GetReadableFile",
+                 "[feature_storage]") {
+  // Given
+  auto file_system = std::make_shared<MockDatadogFileSystem>();
+  constexpr uint64_t fake_start_time = 123456789123L;
+  auto mock_file_path =
+      std::filesystem::path(std::to_string(NanoToMillis(fake_start_time)));
+
+  auto mock_time_provider = [] {
+    static int time_index = 0;
+    static uint64_t time_interval = PerformancePreset::Nanoseconds{5s}.count();
+    return fake_start_time + time_index * time_interval;
+  };
+
+  FeatureStorage feature_storage{"TestFeature", performance_preset_,
+                                 mock_time_provider, file_system};
+  ALLOW_CALL(*file_system, Exists(_)).RETURN(false);
+
+  // Expect
+  trompeloeil::sequence seq;
+  // First open to write
+  auto mock_file_a = std::make_unique<MockDatadogFile>(mock_file_path);
+  ALLOW_CALL(*mock_file_a, Write(_)).RETURN(true);
+  REQUIRE_CALL(*file_system, Open(mock_file_path))
+      .IN_SEQUENCE(seq)
+      .LR_RETURN(std::move(mock_file_a));
+
+  // First file open to read
+  auto mock_file_b = std::make_unique<MockDatadogFile>(mock_file_path);
+  REQUIRE_CALL(*file_system, Open(mock_file_path))
+      .IN_SEQUENCE(seq)
+      .LR_RETURN(std::move(mock_file_b));
+
+  // Second file open to write
+  auto mock_file_c = std::make_unique<MockDatadogFile>("new_file");
+  ALLOW_CALL(*mock_file_c, Write(_)).RETURN(true);
+  REQUIRE_CALL(*file_system, Open(_))
+      .IN_SEQUENCE(seq)
+      .LR_RETURN(std::move(mock_file_c));
+
+  // When
+  REQUIRE(feature_storage.Write("File Contents"));
+  auto file = feature_storage.GetReadableFile(mock_file_path);
+  REQUIRE(file);
+  bool result = feature_storage.Write("File Contents 2");
   REQUIRE(result);
 }
 

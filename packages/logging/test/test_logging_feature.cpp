@@ -60,7 +60,10 @@ TEST_CASE_METHOD(LoggingTestFixture,
   // Given
   DatadogLogConfiguration config{};
   auto logger = logging_->CreateLogger(config);
-  CoreContext context{GenerateRandomString(), GenerateRandomString(), ""sv};
+  CoreContext context{
+      GenerateRandomString(), GenerateRandomString(), GenerateRandomString(),
+      GenerateRandomString(), GenerateRandomString(),
+  };
   ALLOW_CALL(*core_, GetNow()).RETURN(Nanoseconds{DefaultDateTimeProvider()});
   ALLOW_CALL(*core_, GetContext()).RETURN(context);
 
@@ -82,7 +85,10 @@ TEST_CASE_METHOD(LoggingTestFixture,
   // Given
   DatadogLogConfiguration config{};
   auto logger = logging_->CreateLogger(config);
-  CoreContext context{GenerateRandomString(), GenerateRandomString(), ""sv};
+  CoreContext context{
+      GenerateRandomString(), GenerateRandomString(), GenerateRandomString(),
+      GenerateRandomString(), GenerateRandomString(),
+  };
   ALLOW_CALL(*core_, GetNow()).RETURN(Nanoseconds{DefaultDateTimeProvider()});
   ALLOW_CALL(*core_, GetContext()).RETURN(context);
 

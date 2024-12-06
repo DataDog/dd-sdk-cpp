@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <memory>
+#include <mutex>
 #include <random>
 #include <string>
 #include <vector>
@@ -43,6 +44,7 @@ class FeatureStorage {
 
   bool CanReuseCurrentFile(size_t write_size);
   bool CreateNewWritableFile();
+  void CloseCurrentFile();
 
   std::string feature_name_;
   internal::PerformancePreset performance_preset_;
@@ -50,6 +52,7 @@ class FeatureStorage {
   std::shared_ptr<DatadogFileSystem> file_system_;
   std::mt19937 random_generator_;
 
+  std::mutex current_file_lock_;
   std::unique_ptr<DatadogFile> current_file_;
   Nanoseconds current_file_creation_time_;
   uintmax_t current_file_bytes_written_;

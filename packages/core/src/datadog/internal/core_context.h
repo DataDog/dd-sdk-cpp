@@ -10,9 +10,11 @@ namespace datadog::core::internal {
 
 // Properties that were configured during Core initialization
 struct CoreContext {
+  std::string client_token;
   std::string service;
   std::string env;
-  std::string_view application_version;
+  std::string application_version;
+  std::string source;
 };
 
 }  // namespace datadog::core::internal

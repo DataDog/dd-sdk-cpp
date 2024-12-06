@@ -10,7 +10,10 @@ target_include_directories(datadog-logging PRIVATE
   src/
   ${CMAKE_SOURCE_DIR}/deps/date/include
 )
-target_link_libraries(datadog-logging PRIVATE common_options)
+target_link_libraries(datadog-logging PRIVATE 
+  datadog-core
+  common_options
+)
 
 if(DD_SDK_BUILD_TEST)
   add_subdirectory(test)

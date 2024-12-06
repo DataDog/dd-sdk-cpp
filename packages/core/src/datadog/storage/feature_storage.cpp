@@ -59,28 +59,31 @@ bool FeatureStorage::Write(std::string_view data) {
     return false;
   }
 
-  if (!CanReuseCurrentFile(full_write_size)) {
-    CreateNewWritableFile();
-  }
+  {
+    std::lock_guard<std::mutex> lock{current_file_lock_};
+    if (!CanReuseCurrentFile(full_write_size)) {
+      CreateNewWritableFile();
+    }
 
-  if (!current_file_) {
-    // TODO(jeff.ward): TELEMETRY - Failed to get writable file of size
-    return false;
-  }
+    if (!current_file_) {
+      // TODO(jeff.ward): TELEMETRY - Failed to get writable file of size
+      return false;
+    }
 
-  StorageBlockType type{StorageBlockType::Event};
-  uint32_t event_size = data.size();
+    StorageBlockType type{StorageBlockType::Event};
+    uint32_t event_size = data.size();
 
-  // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
-  if (!current_file_->Write(
-          {reinterpret_cast<char*>(&type), sizeof(StorageBlockType)}) ||
-      !current_file_->Write(
-          {reinterpret_cast<char*>(&event_size), sizeof(event_size)}) ||
-      !current_file_->Write(data)) {
-    // TODO(jeff.ward): TELEMETRY - Failed to write to file
-    return false;
+    // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+    if (!current_file_->Write(
+            {reinterpret_cast<char*>(&type), sizeof(StorageBlockType)}) ||
+        !current_file_->Write(
+            {reinterpret_cast<char*>(&event_size), sizeof(event_size)}) ||
+        !current_file_->Write(data)) {
+      // TODO(jeff.ward): TELEMETRY - Failed to write to file
+      return false;
+    }
+    // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
   }
-  // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
   current_file_bytes_written_ += full_write_size;
 
@@ -95,13 +98,22 @@ bool FeatureStorage::ListReadableFiles(
 
   std::sort(files.begin(), files.end(), numerical_string_comparitor);
 
-  // Remove the current file, which should be near the end, so doing a find
-  // using the reverse iterator and erasing should have a minimal impact
-  if (current_file_) {
-    const auto current_file_pos =
-        std::find(files.rbegin(), files.rend(), current_file_->GetPath());
-    if (current_file_pos != files.rend()) {
-      files.erase(std::next(current_file_pos).base());
+  {
+    std::lock_guard<std::mutex> lock{current_file_lock_};
+    auto current_time = Nanoseconds{date_time_provider_()};
+    auto file_age = current_time - current_file_creation_time_;
+
+    // Remove the current file if it is too young to be read. It should be near
+    // the end, so doing a find using the reverse iterator and erasing should
+    // have a minimal impact
+    if (file_age < performance_preset_.min_file_age_for_read()) {
+      if (current_file_) {
+        const auto current_file_pos =
+            std::find(files.rbegin(), files.rend(), current_file_->GetPath());
+        if (current_file_pos != files.rend()) {
+          files.erase(std::next(current_file_pos).base());
+        }
+      }
     }
   }
 
@@ -110,6 +122,16 @@ bool FeatureStorage::ListReadableFiles(
 
 std::unique_ptr<TLVFileReader> FeatureStorage::GetReadableFile(
     const std::filesystem::path& path) {
+  {
+    std::lock_guard<std::mutex> lock{current_file_lock_};
+    if (current_file_ && path == current_file_->GetPath()) {
+      // Need to close the file first.
+      // TELEM: This shouldn't happen if the current file is witin the
+      // performance_preset_.min_file_age_for_read()
+      CloseCurrentFile();
+    }
+  }
+
   auto file = file_system_->Open(path);
   if (!file) {
     return nullptr;
@@ -160,9 +182,10 @@ bool FeatureStorage::CreateNewWritableFile() {
   // File name is based on the file creation time, but if the file already
   // exists attempt to add a random spread to get a file that doesn't. Don't
   // try this for too long and fail if lots of these files already exist.
-  auto nowMs = NanoToMillis(date_time_provider_());
+  auto now = date_time_provider_();
+  auto file_name_ms = NanoToMillis(now);
   for (int i = 0; i < kAttempts; ++i) {
-    auto file_name = std::to_string(nowMs);
+    auto file_name = std::to_string(file_name_ms);
     if (!file_system_->Exists(file_name)) {
       current_file_ = file_system_->Open(file_name);
       if (!current_file_) {
@@ -170,14 +193,19 @@ bool FeatureStorage::CreateNewWritableFile() {
         return false;
       }
 
-      current_file_creation_time_ = Nanoseconds{date_time_provider_()};
+      current_file_creation_time_ = Nanoseconds(now);
       current_file_bytes_written_ = 0;
       return true;
     }
-    nowMs += random_spread(random_generator_);
+    file_name_ms += random_spread(random_generator_);
   }
 
   return false;
+}
+
+void FeatureStorage::CloseCurrentFile() {
+  current_file_ = nullptr;
+  current_file_bytes_written_ = 0;
 }
 
 }  // namespace datadog::core::storage

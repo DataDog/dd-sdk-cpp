@@ -6,6 +6,7 @@
 #include <datadog/logging.h>
 
 // NOLINTBEGIN(google-build-using-namespace)
+using namespace std::chrono_literals;
 using namespace datadog::core;
 using namespace datadog::logging;
 using namespace std::string_view_literals;
@@ -37,6 +38,8 @@ int main() {
   }
 
   // TODO(jeff.ward): Create a flush funcition
+  // NOLINTNEXTLINE(cppcoreguidelines-avoid-magic-numbers)
+  std::this_thread::sleep_for(100s);
 
   datadog_core->Shutdown();
 
