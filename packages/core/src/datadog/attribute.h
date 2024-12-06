@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -179,6 +180,10 @@ class DatadogAttribute {
   // values from the provided attribute by default, but this can be prevented by
   // passing `false` to the `override` parameter.
   void Merge(const DatadogAttribute& attr, bool overwrite = true);
+
+  // Recursively serialize this attribute to the given std::stringstream in JSON
+  // format.
+  void SerializeTo(std::stringstream& stream) const;
 
   static const DatadogAttribute kNull;
 
