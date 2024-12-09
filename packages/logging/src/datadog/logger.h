@@ -6,28 +6,57 @@
 
 #include <optional>
 
+#include "datadog/attribute.h"
 #include "datadog/logging_feature.h"
 
 namespace datadog::logging {
+
+using datadog::core::DatadogAttribute;
 
 class DatadogLogger {
  public:
   explicit DatadogLogger(const DatadogLogConfiguration& configuration,
                          const std::weak_ptr<DatadogLogging>& logging_feature)
-      : configuration_{configuration}, feature_{logging_feature} {}
+      : configuration_{configuration},
+        feature_{logging_feature},
+        logger_attributes_{DatadogAttribute::Type::Object} {}
 
-  void Log(LogLevel level, std::string_view message);
+  void Log(LogLevel level,
+           std::string_view message,
+           const DatadogAttribute& attribues);
 
-  void Debug(std::string_view message) { Log(LogLevel::Debug, message); }
-  void Info(std::string_view message) { Log(LogLevel::Info, message); }
-  void Notice(std::string_view message) { Log(LogLevel::Notice, message); }
-  void Warn(std::string_view message) { Log(LogLevel::Warn, message); }
-  void Error(std::string_view message) { Log(LogLevel::Error, message); }
-  void Critical(std::string_view message) { Log(LogLevel::Critical, message); }
+  void AddAttribute(std::string_view name, const DatadogAttribute& value);
+  void RemoveAttribute(std::string_view name);
+
+  void Debug(std::string_view message,
+             const DatadogAttribute& attributes = DatadogAttribute::kNull) {
+    Log(LogLevel::Debug, message, attributes);
+  }
+  void Info(std::string_view message,
+            const DatadogAttribute& attributes = DatadogAttribute::kNull) {
+    Log(LogLevel::Info, message, attributes);
+  }
+  void Notice(std::string_view message,
+              const DatadogAttribute& attributes = DatadogAttribute::kNull) {
+    Log(LogLevel::Notice, message, attributes);
+  }
+  void Warn(std::string_view message,
+            const DatadogAttribute& attributes = DatadogAttribute::kNull) {
+    Log(LogLevel::Warn, message, attributes);
+  }
+  void Error(std::string_view message,
+             const DatadogAttribute& attributes = DatadogAttribute::kNull) {
+    Log(LogLevel::Error, message, attributes);
+  }
+  void Critical(std::string_view message,
+                const DatadogAttribute& attributes = DatadogAttribute::kNull) {
+    Log(LogLevel::Critical, message, attributes);
+  }
 
  private:
   DatadogLogConfiguration configuration_;
   std::weak_ptr<DatadogLogging> feature_;
+  core::DatadogAttribute logger_attributes_;
 };
 
 }  // namespace datadog::logging

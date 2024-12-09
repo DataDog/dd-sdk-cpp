@@ -90,6 +90,10 @@
     "__mutex_base": "cpp",
     "bit": "cpp",
     "strstream": "cpp",
-    "queue": "cpp"
+    "queue": "cpp",
+    "thread": "cpp",
+    "memory_resource": "cpp",
+    "utility": "cpp",
+    "version": "cpp"
   }
 }

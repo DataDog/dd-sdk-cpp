@@ -57,7 +57,8 @@ std::unique_ptr<DatadogReporter> LibcurlReporter::Create(
 }
 
 void LibcurlReporter::Init() {
-  // TODO: curl_global_cleanup -- need to ensure cleanup happens only once?
+  // TODO(RUM-7617): curl_global_cleanup -- need to ensure cleanup happens only
+  // once?
   curl_global_init(CURL_GLOBAL_ALL);
 }
 

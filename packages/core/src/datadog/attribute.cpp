@@ -222,6 +222,50 @@ void DatadogAttribute::SerializeTo(std::stringstream& stream) const {
   }
 }
 
+DatadogAttribute::MemberIterator DatadogAttribute::begin() const {
+  if (type_ != Type::Object) {
+    return MemberIterator(nullptr);
+  }
+
+  return MemberIterator(cow_data_->object_value.members);
+}
+
+DatadogAttribute::MemberIterator DatadogAttribute::end() const {
+  if (type_ != Type::Object) {
+    return MemberIterator(nullptr);
+  }
+
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  return MemberIterator(cow_data_->object_value.members +
+                        cow_data_->object_value.size);
+}
+
+// ------------------
+// MemberIterator
+// ------------------
+DatadogAttribute::MemberIterator::reference
+DatadogAttribute::MemberIterator::operator*() const {
+  return *ptr_;
+}
+
+DatadogAttribute::MemberIterator::pointer
+DatadogAttribute::MemberIterator::operator->() {
+  return ptr_;
+}
+
+DatadogAttribute::MemberIterator&
+DatadogAttribute::MemberIterator::operator++() {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  ptr_++;
+  return *this;
+}
+DatadogAttribute::MemberIterator DatadogAttribute::MemberIterator::operator++(
+    int) {
+  auto tmp = *this;
+  ++(*this);
+  return tmp;
+}
+
 // ----------
 // CowStorage
 // ----------

@@ -8,6 +8,7 @@
 
 #include "datadog/internal/sdk_version.h"
 #include "datadog/logger.h"
+#include "logging_feature.h"
 
 namespace datadog::logging {
 
@@ -23,6 +24,11 @@ using datadog::core::storage::TLVFileReader;
 std::unique_ptr<DatadogLogger> DatadogLogging::CreateLogger(
     const DatadogLogConfiguration& configuration) {
   return std::make_unique<DatadogLogger>(configuration, weak_from_this());
+}
+
+void DatadogLogging::AddAttribute(std::string_view name,
+                                  const core::DatadogAttribute& value) {
+  global_attributes_.SetMember(name, value);
 }
 
 Report DatadogLogging::CreateReportFromBatch(const CoreContext& context,
