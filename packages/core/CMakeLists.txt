@@ -7,6 +7,7 @@ option(DD_SDK_INCLUDE_LIBCURL_REPORTER "Include the default reporter that relies
 set(DD_SDK_CORE_SOURCES
   src/datadog/core.cpp  
   src/datadog/time_provider.cpp
+  src/datadog/attribute.cpp
 
   src/datadog/internal/core_internal.cpp
   src/datadog/internal/performance_preset.cpp
