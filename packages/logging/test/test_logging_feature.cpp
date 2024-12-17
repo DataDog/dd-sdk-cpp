@@ -130,7 +130,7 @@ TEST_CASE_METHOD(LoggingTestFixture, "Simple logging tests", "[logging]") {
 
     // Then
     REQUIRE(message_datas.size() == 6);
-    for (int i = 0; i < 6; ++i) {
+    for (size_t i = 0; i < message_datas.size(); ++i) {
       auto [_, level_name] = levels[i];
       const auto& data = message_datas[i];
       Document d;
