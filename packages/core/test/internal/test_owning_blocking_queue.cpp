@@ -30,6 +30,9 @@ class ThreadedConsumer {
 
   bool WaitUntilStarted() {
     std::unique_lock<std::mutex> lock(lock_);
+    if (running) {
+      return true;
+    }
     return started_cv_.wait_for(lock, 200ms) == std::cv_status::no_timeout;
   }
 
