@@ -168,6 +168,104 @@ void DatadogAttribute::Merge(const DatadogAttribute& attr, bool overwrite) {
   // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
 }
 
+void DatadogAttribute::SerializeTo(std::stringstream& stream) const {
+  switch (type_) {
+    case Type::Null:
+      stream << "null";
+      break;
+    case Type::Int:
+      stream << prim_.int_value;
+      break;
+    case Type::UInt:
+      stream << prim_.uint_value;
+      break;
+    case Type::Double:
+      stream << prim_.double_value;
+      break;
+    case Type::String: {
+      std::string_view sv{cow_data_->string_value.str,
+                          cow_data_->string_value.length};
+      stream << "\"" << sv << "\"";
+      break;
+    }
+    case Type::Array: {
+      // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      stream << "[";
+      for (uint32_t i = 0; i < cow_data_->array_value.size; ++i) {
+        const auto& attr = cow_data_->array_value.values[i];
+        attr.SerializeTo(stream);
+        if (i < cow_data_->array_value.size - 1) {
+          stream << ',';
+        }
+      }
+      // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      stream << "]";
+      break;
+    }
+    case Type::Object: {
+      // NOLINTBEGIN(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      stream << "{";
+      for (uint32_t i = 0; i < cow_data_->object_value.size; ++i) {
+        const auto& member = cow_data_->object_value.members[i];
+        stream << "\"" << member.name << "\":";
+        member.value.SerializeTo(stream);
+        if (i < cow_data_->object_value.size - 1) {
+          stream << ',';
+        }
+      }
+      // NOLINTEND(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+      stream << "}";
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+DatadogAttribute::MemberIterator DatadogAttribute::begin() const {
+  if (type_ != Type::Object) {
+    return MemberIterator(nullptr);
+  }
+
+  return MemberIterator(cow_data_->object_value.members);
+}
+
+DatadogAttribute::MemberIterator DatadogAttribute::end() const {
+  if (type_ != Type::Object) {
+    return MemberIterator(nullptr);
+  }
+
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  return MemberIterator(cow_data_->object_value.members +
+                        cow_data_->object_value.size);
+}
+
+// ------------------
+// MemberIterator
+// ------------------
+DatadogAttribute::MemberIterator::reference
+DatadogAttribute::MemberIterator::operator*() const {
+  return *ptr_;
+}
+
+DatadogAttribute::MemberIterator::pointer
+DatadogAttribute::MemberIterator::operator->() {
+  return ptr_;
+}
+
+DatadogAttribute::MemberIterator&
+DatadogAttribute::MemberIterator::operator++() {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-pointer-arithmetic)
+  ptr_++;
+  return *this;
+}
+DatadogAttribute::MemberIterator DatadogAttribute::MemberIterator::operator++(
+    int) {
+  auto tmp = *this;
+  ++(*this);
+  return tmp;
+}
+
 // ----------
 // CowStorage
 // ----------

@@ -10,6 +10,7 @@
 
 #include "datadog/core_message.h"
 #include "datadog/internal/sdk_version.h"
+#include "logger.h"
 
 namespace datadog::logging {
 
@@ -22,6 +23,7 @@ struct LogEvent {
   Nanoseconds date;
   LogLevel status;
   std::string message;
+  DatadogAttribute attributes;
   std::string_view application_version;
   std::string_view service_name;
   std::string_view logger_name;
@@ -71,6 +73,12 @@ void EncodeLogEvent(std::stringstream& ss, const LogEvent& log_event) {
   }
   ss << "},";
   ss << R"("message":")" << log_event.message << R"(")";
+  for (const auto& member : log_event.attributes) {
+    // Comma every time is fine as it will come after the message
+    ss << ",";
+    ss << "\"" << member.name << "\":";
+    member.value.SerializeTo(ss);
+  }
   ss << "}";
 }
 
@@ -83,7 +91,9 @@ std::string_view AsStringViewOr(const std::optional<std::string>& optional_str,
   return optional_str.has_value() ? optional_str.value() : or_value;
 }
 
-void DatadogLogger::Log(LogLevel level, std::string_view message) {
+void DatadogLogger::Log(LogLevel level,
+                        std::string_view message,
+                        const DatadogAttribute& attributes) {
   auto feature = feature_.lock();
   if (!feature) {
     return;
@@ -98,10 +108,24 @@ void DatadogLogger::Log(LogLevel level, std::string_view message) {
   // REVISIT: Get Core context or keep on the feature?
   const auto& context = core->GetContext();
 
+  // To prevent multiple re-allocations, we calculate a total size then perform
+  // merges backwords and prevent overwrites.  This potentially wastes a little
+  // memory if lots of duplicate attributes exist, but prevents lots of small
+  // resize allocations.
+  const auto& global_attributes = feature->GetAttributes();
+  auto reserve_size = attributes.GetSize() + logger_attributes_.GetSize() +
+                      global_attributes.GetSize();
+  DatadogAttribute combined_attributes{DatadogAttribute::Type::Object,
+                                       reserve_size};
+  combined_attributes.Merge(attributes);
+  combined_attributes.Merge(logger_attributes_, false);
+  combined_attributes.Merge(global_attributes, false);
+
   LogEvent event{
       timestamp,
       level,
       std::string{message},
+      combined_attributes,
       context.application_version,
       AsStringViewOr(configuration_.service, context.service),
       AsStringViewOr(configuration_.name, context.service),
@@ -120,6 +144,11 @@ void DatadogLogger::Log(LogLevel level, std::string_view message) {
       DatadogLogging::feature_id, {}, std::move(str_event)};
 
   core->SendMessage(std::move(core_message));
+}
+
+void DatadogLogger::AddAttribute(std::string_view name,
+                                 const DatadogAttribute& value) {
+  logger_attributes_.SetMember(name, value);
 }
 
 }  // namespace datadog::logging

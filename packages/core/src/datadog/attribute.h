@@ -5,6 +5,7 @@
 #pragma once
 
 #include <cstdint>
+#include <sstream>
 #include <string>
 #include <string_view>
 #include <type_traits>
@@ -29,7 +30,7 @@ struct ObjectMember;
 // want the overhead of copying or serializing attributes, and they also do not
 // need to read the information they set.
 //
-// DatadogAttributes are not guarenteed to be thread safe, and a given attribute
+// DatadogAttributes are not guaranteed to be thread safe, and a given attribute
 // should not be modified from multiple threads.
 class DatadogAttribute {
  public:
@@ -173,12 +174,60 @@ class DatadogAttribute {
   // method will return kNull.
   const DatadogAttribute& GetMember(std::string_view member_name) const;
 
+  // Get the size of this attribute. If this is an array, this is the size of
+  // the array. If this is an object, it the number of members in the object,
+  // not its total capacity.  For all primitive types, including "String", this
+  // is zero.
+  uint32_t GetSize() const {
+    if (type_ == Type::Array) {
+      return cow_data_->array_value.size;
+    } else if (type_ == Type::Object) {
+      return cow_data_->object_value.size;
+    }
+    return 0;
+  }
+
   // Merge a DatadogAttribute into this attribute. This method is only performed
   // if both this attribute and the provided attribute are of type
   // DatadogAttribute::Type::Object. Keys in this attribute are overwritten with
   // values from the provided attribute by default, but this can be prevented by
   // passing `false` to the `override` parameter.
   void Merge(const DatadogAttribute& attr, bool overwrite = true);
+
+  // Recursively serialize this attribute to the given std::stringstream in JSON
+  // format.
+  void SerializeTo(std::stringstream& stream) const;
+
+  // Member iteration
+  // Iterating members is only valid for attributes of Object type
+  struct MemberIterator {
+    using iterator_category = std::input_iterator_tag;
+    using difference_type = std::ptrdiff_t;
+    using value_type = internal::ObjectMember;
+    using pointer = value_type*;
+    using reference = value_type&;
+
+    MemberIterator(internal::ObjectMember* ptr) : ptr_(ptr) {}
+
+    reference operator*() const;
+    pointer operator->();
+    MemberIterator& operator++();
+    MemberIterator operator++(int);
+
+    friend bool operator==(const MemberIterator& a, const MemberIterator& b) {
+      return a.ptr_ == b.ptr_;
+    }
+
+    friend bool operator!=(const MemberIterator& a, const MemberIterator& b) {
+      return a.ptr_ != b.ptr_;
+    }
+
+   private:
+    internal::ObjectMember* ptr_;
+  };
+
+  MemberIterator begin() const;
+  MemberIterator end() const;
 
   static const DatadogAttribute kNull;
 

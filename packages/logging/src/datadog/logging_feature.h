@@ -10,6 +10,8 @@
 
 #include <datadog/core.h>
 
+#include "datadog/attribute.h"
+
 namespace datadog::logging {
 
 class DatadogLogger;
@@ -34,7 +36,7 @@ class DatadogLogging : public core::DatadogFeature,
                        public std::enable_shared_from_this<DatadogLogging> {
  public:
   explicit DatadogLogging(const std::weak_ptr<core::DatadogCore>& core)
-      : core_(core) {}
+      : core_(core), global_attributes_{core::DatadogAttribute::Type::Object} {}
 
   std::string_view GetName() const override { return "logs"; }
 
@@ -42,6 +44,12 @@ class DatadogLogging : public core::DatadogFeature,
       core::internal::CreateFourCC('L', 'O', 'G', 'S');
 
   std::shared_ptr<core::DatadogCore> GetCore() { return core_.lock(); }
+
+  void AddAttribute(std::string_view name, const core::DatadogAttribute& value);
+  void RemoveAttribute(std::string_view name);
+  const core::DatadogAttribute& GetAttributes() const {
+    return global_attributes_;
+  }
 
   std::unique_ptr<DatadogLogger> CreateLogger(
       const DatadogLogConfiguration& configuration);
@@ -51,6 +59,8 @@ class DatadogLogging : public core::DatadogFeature,
   core::reporting::Report CreateReportFromBatch(
       const datadog::core::internal::CoreContext& context,
       core::storage::TLVFileReader& file) const override;
+
+  core::DatadogAttribute global_attributes_;
 };
 
 }  // namespace datadog::logging

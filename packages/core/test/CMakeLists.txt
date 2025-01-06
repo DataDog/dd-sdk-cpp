@@ -24,6 +24,7 @@ target_include_directories(core-tests
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
     ${CMAKE_CURRENT_SOURCE_DIR}/../../common_test/src
 
+    ${CMAKE_SOURCE_DIR}/deps/rapidjson/include
     ${CMAKE_SOURCE_DIR}/deps/trompeloeil/include
 )
 target_link_libraries(core-tests PRIVATE

@@ -4,7 +4,9 @@
 // Datadog, Inc.
 #include "datadog/attribute.h"
 
+#include <rapidjson/document.h>
 #include <catch2/catch_test_macros.hpp>
+#include <sstream>
 
 #include "datadog/datadog_test.h"
 
@@ -16,6 +18,8 @@ using namespace std::string_view_literals;
 
 using datadog::core::DatadogAttribute;
 using datadog::test::GenerateRandomString;
+using rapidjson::Document;
+using rapidjson::kParseErrorNone;
 
 TEST_CASE("M create attribute with int W ctor {int}", "[attribute_values]") {
   // Given
@@ -380,6 +384,7 @@ class ComplexObjectTestFixture {
     complex_object_.SetMember("string_member",
                               DatadogAttribute{"string_value"});
     complex_object_.SetMember("prim_member", DatadogAttribute{12166});
+    complex_object_.SetMember("double_member", DatadogAttribute{-3.44});
   }
 
   DatadogAttribute complex_object_;
@@ -529,6 +534,121 @@ TEST_CASE_METHOD(ComplexObjectTestFixture,
 
   // Then
   REQUIRE(complex_object_.GetMember("prim_member").IntValue() == 12166);
+}
+
+// Serialization Tests
+
+TEST_CASE("M serialize null W SerializeTo {null}",
+          "[attribute_serialization]") {
+  // Given
+  std::stringstream ss;
+  DatadogAttribute attr;
+
+  // When
+  attr.SerializeTo(ss);
+
+  // Then
+  REQUIRE(ss.str() == "null");
+}
+
+TEST_CASE("M serialize integer types W SerializeTo {int, uint}",
+          "[attribute_serialization]") {
+  // Given
+  std::stringstream int_ss;
+  std::stringstream uint_ss;
+  DatadogAttribute int_attr{223};
+  DatadogAttribute uint_attr{1223u};
+
+  // When
+  int_attr.SerializeTo(int_ss);
+  uint_attr.SerializeTo(uint_ss);
+
+  // Then
+  REQUIRE(int_ss.str() == "223");
+  REQUIRE(uint_ss.str() == "1223");
+}
+
+TEST_CASE("M serialize double W SerializeTo {double}",
+          "[attribute_serialization]") {
+  // Given
+  std::stringstream ss;
+  DatadogAttribute attr{2.441};
+
+  // When
+  attr.SerializeTo(ss);
+
+  // Then
+  REQUIRE(ss.str() == "2.441");
+}
+
+TEST_CASE("M serialize string W SerializeTo {string}",
+          "[attribute_serialization]") {
+  // Given
+  std::stringstream ss;
+  DatadogAttribute attr{"testing_string"};
+
+  // When
+  attr.SerializeTo(ss);
+
+  // Then
+  REQUIRE(ss.str() == "\"testing_string\"");
+}
+
+TEST_CASE("M serialize array W SerializeTo {array}",
+          "[attribute_serialization]") {
+  // Given
+  std::stringstream ss;
+  DatadogAttribute attr{DatadogAttribute::Type::Array, 3};
+  attr.ArraySetAt(0, DatadogAttribute{"string"});
+  attr.ArraySetAt(1, DatadogAttribute{2244});
+  attr.ArraySetAt(2, DatadogAttribute{2.5});
+
+  // When
+  attr.SerializeTo(ss);
+
+  // Then
+  REQUIRE(ss.str() == R"(["string",2244,2.5])");
+}
+
+TEST_CASE("M serialize object W SerializeTo {object}",
+          "[attribute_serialization]") {
+  // Given
+  std::stringstream ss;
+  DatadogAttribute attr{DatadogAttribute::Type::Object, 3};
+  attr.SetMember("string_member", DatadogAttribute{"string_value"});
+  attr.SetMember("int_member", DatadogAttribute{-124});
+  attr.SetMember("double_member", DatadogAttribute{-6.223});
+
+  // When
+  attr.SerializeTo(ss);
+
+  // Then
+  // Note: This only works because we write members in the order we recieve
+  // them. If we move to a hashtable implementation, we'll have to use RapidJSON
+  // to deserialize this and check members.
+  REQUIRE(
+      ss.str() ==
+      R"({"string_member":"string_value","int_member":-124,"double_member":-6.223})");
+}
+
+TEST_CASE_METHOD(ComplexObjectTestFixture,
+                 "M serialize complex object W SerializeTo {object}",
+                 "[attribute_serialization]") {
+  // Given
+  std::stringstream ss;
+
+  // When
+  complex_object_.SerializeTo(ss);
+
+  Document d;
+  d.Parse(ss.str().c_str());
+  REQUIRE(d.GetParseError() == kParseErrorNone);
+  const auto& object_member = d["object_member"];
+  REQUIRE(object_member["sub_member_1"] == "sub_object_value");
+  REQUIRE(object_member["sub_member_2"] == 915);
+  REQUIRE(d["string_member"] == "string_value");
+  REQUIRE(d["prim_member"] == 12166);
+  REQUIRE(d["double_member"] == -3.44);
 }
 
 // NOLINTEND(cppcoreguidelines-avoid-magic-numbers)

@@ -31,7 +31,10 @@ int main() {
   DatadogLogConfiguration logger_config{};
 
   if (auto logger = logging->CreateLogger(logger_config)) {
-    logger->Debug("Info log");
+    DatadogAttribute log_attr{DatadogAttribute::Type::Object, 1};
+    log_attr.SetMember("log_attribute", DatadogAttribute{"my value"});
+
+    logger->Debug("Info log", log_attr);
     logger->Info("Info log");
     logger->Info("Warn log");
     logger->Error("Error log");
