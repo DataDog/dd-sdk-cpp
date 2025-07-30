@@ -1,0 +1,13 @@
+# C example
+add_executable(dd_native_c_example
+    c/main.c
+)
+
+target_link_libraries(dd_native_c_example PRIVATE dd_native_c_api)
+
+# C++ example
+add_executable(dd_native_cpp_example
+    cpp/main.cpp
+)
+
+target_link_libraries(dd_native_cpp_example PRIVATE dd_native_cpp_api)
