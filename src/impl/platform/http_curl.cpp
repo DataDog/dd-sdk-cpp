@@ -12,12 +12,12 @@ static size_t read_callback(char* buffer, size_t size, size_t nitems, void* user
     assert(userdata && "CURLOPT_READFUNCTION set without valid CURLOPT_READDATA");
 
     // userdata should always point to an HttpBodyWriter function
-    HttpBodyWriter body_writer = *(reinterpret_cast<HttpBodyWriter*>(userdata));
+    HttpBodyWriter* body_writer = (reinterpret_cast<HttpBodyWriter*>(userdata));
 
     // Defer to the body reader to read the next chunk and write it into the buffer
     // representing the request body
     const size_t num_bytes = size * nitems;
-    const size_t result = body_writer(buffer, num_bytes);
+    const size_t result = (*body_writer)(buffer, num_bytes);
 
     // If the reader signaled an error, abort; otherwise return the number of bytes
     // written to buffer

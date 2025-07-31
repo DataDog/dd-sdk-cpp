@@ -2,6 +2,7 @@
 
 #include "platform/clock.hpp"
 #include "platform/http.hpp"
+#include "platform/http_writer.hpp"
 #include "core/types.hpp"
 
 #include <iostream>
@@ -45,34 +46,11 @@ bool impl::Core::Start()
     }
     ss << "]";
     std::string s = ss.str();
-    size_t offset = 0;
-    platform::HttpBodyWriter writer = [&](char* buffer, size_t num_bytes) -> size_t
-    {
-        printf("Offset is %zu\n", offset);
-
-        size_t num_bytes_to_copy = s.length() - offset;
-        if (num_bytes_to_copy == 0)
-        {
-            printf("Returning 0\n");
-            return 0;
-        }
-
-        if (num_bytes_to_copy > num_bytes)
-        {
-            num_bytes_to_copy = num_bytes;
-        }
-
-        memcpy(buffer, s.data() + offset, num_bytes_to_copy);
-        offset += num_bytes_to_copy;
-        printf("Wrote %zu bytes; offset now %zu; returning %zu\n", num_bytes_to_copy, offset, num_bytes_to_copy);
-        return num_bytes_to_copy;
-    };
-
 
     const platform::HttpResult result = _http_client->Post(
         "http://192.168.0.135:5000/api/v2/something?foo=bar&message=hello%20world",
         "Authorization: Bearer secret\nContent-Type: application/json\n",
-        writer
+        platform::StringWriter{s}
     );
 
     std::cout << "Datadog core started.\n";
