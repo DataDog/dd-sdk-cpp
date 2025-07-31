@@ -7,7 +7,8 @@
 
 namespace datadog::impl {
 
-struct Feature {
+struct Feature
+{
     FeatureId id;
     std::string name;
 };
