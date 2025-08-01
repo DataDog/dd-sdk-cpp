@@ -19,15 +19,25 @@ int main()
     };
 
     auto core = datadog::Core::Create(config);
-    if (!core) {
+    if (!core)
+    {
         std::cout << "Failed to create Datadog core\n";
         return 1;
     }
 
     auto logging = datadog::Logging::Register(*core);
+    if (!logging)
+    {
+        std::cout << "Failed to register logging\n";
+        return 1;
+    }
 
     std::cout << "Starting Datadog core...\n";
-    core->Start();
+    if (!core->Start())
+    {
+        std::cout << "Failed to start core\n";
+        return 1;
+    }
 
     std::cout << "Core started successfully. Shutting down...\n";
     core->Shutdown();

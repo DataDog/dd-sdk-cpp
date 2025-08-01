@@ -59,7 +59,7 @@ struct Core
 {
     static std::shared_ptr<Core> Create(const CoreConfig& config);
 
-    void Start();
+    bool Start();
     void Shutdown();
 
 private:

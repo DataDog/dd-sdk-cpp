@@ -1,6 +1,8 @@
 # Internal library implementation, used with both C and C++ APIs
 add_library(dd_native_impl STATIC
     core/core.cpp
+    core/storage.cpp
+    core/feature.cpp
     logging/logging.cpp
 )
 
@@ -12,7 +14,7 @@ target_include_directories(dd_native_impl
 
 # expected-lite is a header-only implementation of C++23's std::expected
 include(${CMAKE_SOURCE_DIR}/cmake/deps/expected-lite.cmake)
-target_link_libraries(dd_native_impl PRIVATE
+target_link_libraries(dd_native_impl PUBLIC
   nonstd::expected-lite
 )
 

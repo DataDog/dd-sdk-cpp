@@ -1,3 +1,6 @@
+/**
+ * Default HTTP client implementation using libcurl.
+ */
 #include "platform/http.hpp"
 
 #include <cassert>
@@ -6,6 +9,21 @@
 
 namespace datadog::platform {
 
+/**
+ * Callback passed via CURLOPT_READFUNCTION in order to populate the body of an HTTP
+ * request. Wraps an HttpBodyWriter function.
+ * 
+ * @param buffer The address to which the next chunk of the request body should be
+ *  written.
+ * @param size The size of an "item" (i.e. byte) in that buffer; always 1.
+ * @param nitems The number of "items" to write: `size * nitems` represents the maxmium
+ *  number of bytes that may be written to `buffer`.
+ * @param userdata The value provided via CURLOPT_READDATA; must be the address of an
+ *  HttpBodyWriter.
+ * 
+ * @returns The number of bytes actually written to the buffer, with 0 signalling EOF,
+ *  or CURL_READFUNC_ABORT to signal an error.
+ */
 static size_t read_callback(char* buffer, size_t size, size_t nitems, void* userdata)
 {
     // We should never be called without a valid userdata pointer
@@ -219,6 +237,12 @@ public:
 
 std::unique_ptr<IHttpSubsystem> Http::Init()
 {
+    // NOTE: Our current HTTP client implementation uses default, system-level DNS.
+    // dd-sdk-android implements an application-level name resolution cache that rotates
+    // through available addresses for the given host, providing failover and load
+    // balancing at the level of the HTTP client. TODO investigate providing similar
+    // behavior here, whether that's an internal libcurl implementation detail, a
+    // separate platform::dns subsystem, or a static component of datadog::impl.
     return std::make_unique<CurlHttpSubsystem>();
 }
 

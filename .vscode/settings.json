@@ -57,6 +57,8 @@
         "iomanip": "cpp",
         "regex": "cpp",
         "set": "cpp",
-        "fstream": "cpp"
+        "fstream": "cpp",
+        "condition_variable": "cpp",
+        "__assert": "cpp"
     }
 }

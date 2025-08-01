@@ -6,14 +6,19 @@ namespace datadog {
 
 std::shared_ptr<Core> Core::Create(const CoreConfig& config)
 {
+    auto impl = std::make_unique<impl::Core>(config);
+    if (!impl->Init())
+    {
+        return nullptr;
+    }
     const std::shared_ptr<Core> core = std::make_shared<Core>();
-    core->_impl = std::make_unique<impl::Core>(config);
+    core->_impl = std::move(impl);
     return core;
 }
 
-void Core::Start()
+bool Core::Start()
 {
-    _impl->Start();
+    return _impl->Start();
 }
 
 void Core::Shutdown()

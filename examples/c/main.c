@@ -19,13 +19,25 @@ int main()
     };
 
     dd_core_t* core = dd_core_create(&config);
-    if (!core) {
+    if (!core)
+    {
         printf("Failed to create dd_core\n");
         return 1;
     }
 
+    dd_logging_t* logging = dd_logging_init(core);
+    if (!logging)
+    {
+        printf("Failed to register logging\n");
+        return 1;
+    }
+
     printf("Starting Datadog core...\n");
-    dd_core_start(core);
+    if (!dd_core_start(core))
+    {
+        printf("Failed to start core\n");
+        return 1;
+    }
 
     printf("Core started successfully. Shutting down...\n");
     dd_core_shutdown(core);

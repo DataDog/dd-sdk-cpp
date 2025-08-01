@@ -19,8 +19,6 @@ private:
 
 struct Logging
 {
-    static const FeatureId FEATURE_ID = CreateFeatureId("LOGS");
-
     void Register(Core& core);
 
     std::unique_ptr<Logger> CreateLogger(LoggerConfig& config);

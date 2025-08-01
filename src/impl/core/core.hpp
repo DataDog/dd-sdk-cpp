@@ -1,10 +1,16 @@
 #pragma once
 
+#include <cinttypes>
 #include <vector>
 #include <memory>
+#include <thread>
+#include <optional>
 
 #include "core/types.hpp"
+#include "core/context.hpp"
 #include "core/feature.hpp"
+#include "core/queue.hpp"
+#include "core/storage.hpp"
 
 namespace datadog::platform { class IStorageDirectory; }
 namespace datadog::platform { class IHttpSubsystem; }
@@ -12,8 +18,51 @@ namespace datadog::platform { class IHttpClient; }
 
 namespace datadog::impl {
 
-using CoreConfig = datadog::CoreConfig;
+enum class CoreState : uint8_t
+{
+    Uninitialized,
+    Initialized,
+    Started,
+};
 
+/**
+ * Implements the core business logic of the Datadog SDK.
+ * 
+ * The entry point to the C API is a series of functions that operate on dd_core_t, e.g.
+ * dd_core_init(). The entry point to the C++ API is the datadog::Core type.
+ * datadog::impl::Core handles API calls from both of those interfaces.
+ * 
+ * Internally, the core has a few responsibilities:
+ * 
+ * - It initializes platform-specific subsystems (e.g. filesystem-backed storage, HTTP
+ *   client functionality) using the interfaces defined in datadog::platform.
+ * 
+ * - It interoperates with the different modular features (e.g. logging, RUM, etc.) that
+ *   have been registered with it, maintaining a Feature object for each. From the
+ *   core's perspective, a feature is a child component that:
+ * 
+ *     1. Produces blocks of feature-specific data to be written to storage
+ *     2. Generates reports (i.e. HTTP requests) to send batches
+ * 
+ * - It maintains a storage thread that flushes
+ * 
+ * - It maintainsa "core context" containing the metadata
+ * 
+
+ * 
+
+ * 
+ * - It manages the set of 
+ * 
+ * - It maintains a "core context" containing the metadata that's relevant for all
+ *   features when generating reports.
+ * 
+
+ * 
+ * - It creates
+ * 
+ * The core outlives all other 
+ */
 struct Core
 {
     explicit Core(const CoreConfig& config);
@@ -24,18 +73,36 @@ struct Core
     Core(Core&&) = default;
     Core& operator=(Core&&) = default;
 
+    void SetService(std::string_view value);
+    void SetEnv(std::string_view value);
+
+    bool Init();
+
+    /**
+     * Registers a feature implementation with the core.
+     */
+    bool RegisterFeature(FeatureId id, std::string_view name);
+
     bool Start();
     void Shutdown();
 
-    void RegisterFeature(Feature&& feature);
-
 private:
-    CoreConfig _config;
-    std::vector<Feature> _features;
+    // Initialized in ctor
+    CoreState _state;
+    datadog::CoreConfig _config;
+    CoreContext _context;
 
-    std::unique_ptr<datadog::platform::IStorageDirectory> _storage_root;
-    std::unique_ptr<datadog::platform::IHttpSubsystem> _http;
-    std::unique_ptr<datadog::platform::IHttpClient> _http_client;
+    // Initialized on Init; entirely implementation-controlled
+    std::unique_ptr<platform::IStorageDirectory> _storage_root;
+    std::unique_ptr<platform::IHttpSubsystem> _http;
+    std::unique_ptr<platform::IHttpClient> _http_client;
+
+    // Initialized before Start in response to user-initiated feature registration
+    std::vector<Feature> _features; // May not be modified after Start()
+
+    // Initialized on Start, cleaned up on Shutdown
+    std::unique_ptr<Queue<StorageWriteMessage>> _storage_queue;
+    std::optional<std::thread> _storage_thread;
 };
 
 }

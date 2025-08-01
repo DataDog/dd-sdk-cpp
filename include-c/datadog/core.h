@@ -1,6 +1,8 @@
 #ifndef __DATADOG_CORE_H__
 #define __DATADOG_CORE_H__
 
+#include <stdbool.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -56,7 +58,7 @@ typedef struct dd_core dd_core_t;
 dd_core_t* dd_core_create(dd_core_config_t* config);
 void dd_core_destroy(dd_core_t* core);
 
-void dd_core_start(dd_core_t* core);
+bool dd_core_start(dd_core_t* core);
 void dd_core_shutdown(dd_core_t* core);
 
 #ifdef __cplusplus
