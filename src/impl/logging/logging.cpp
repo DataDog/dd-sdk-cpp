@@ -8,9 +8,17 @@ void Logger::Log(LogLevel level, std::string_view message)
 {
 }
 
-void Logging::Register(Core& core)
+bool Logging::Register(Core& core)
 {
-    core.RegisterFeature(CreateFeatureId("LOGS"), "logs");
+    auto writer = core.RegisterFeature(CreateFeatureId("LOGS"), "logs");
+    if (!writer)
+    {
+        return false;
+    }
+
+    writer("hello world", "");
+
+    return true;
 }
 
 std::unique_ptr<Logger> Logging::CreateLogger(LoggerConfig& config)

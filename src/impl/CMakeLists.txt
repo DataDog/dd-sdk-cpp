@@ -2,7 +2,6 @@
 add_library(dd_native_impl STATIC
     core/core.cpp
     core/storage.cpp
-    core/feature.cpp
     logging/logging.cpp
 )
 

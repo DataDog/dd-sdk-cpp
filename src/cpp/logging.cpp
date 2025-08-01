@@ -3,7 +3,6 @@
 #include "datadog/core.hpp"
 
 #include "core/core.hpp"
-#include "core/feature_id.hpp"
 #include "core/feature.hpp"
 #include "logging/logging.hpp"
 
@@ -16,9 +15,13 @@ void Logger::Log(LogLevel level, std::string_view message)
 
 std::shared_ptr<Logging> Logging::Register(Core& core)
 {
+    auto impl = std::make_unique<impl::Logging>();
+    if (!impl->Register(*core._impl))
+    {
+        return nullptr;
+    }
     const std::shared_ptr<Logging> logging = std::make_shared<Logging>();
-    logging->_impl = std::make_unique<impl::Logging>();
-    logging->_impl->Register(*core._impl);
+    logging->_impl = std::move(impl);
     return logging;
 }
 

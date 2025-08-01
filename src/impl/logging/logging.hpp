@@ -1,13 +1,9 @@
 #pragma once
 
-#include "core/feature_id.hpp"
-#include "core/core.hpp"
+#include "core/feature.hpp"
 #include "logging/types.hpp"
 
 namespace datadog::impl {
-
-using LogLevel = datadog::LogLevel;
-using LoggerConfig = datadog::LoggerConfig;
 
 struct Logger
 {
@@ -19,7 +15,7 @@ private:
 
 struct Logging
 {
-    void Register(Core& core);
+    bool Register(Core& core);
 
     std::unique_ptr<Logger> CreateLogger(LoggerConfig& config);
 };

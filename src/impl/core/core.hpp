@@ -7,8 +7,8 @@
 #include <optional>
 
 #include "core/types.hpp"
-#include "core/context.hpp"
 #include "core/feature.hpp"
+#include "core/context.hpp"
 #include "core/queue.hpp"
 #include "core/storage.hpp"
 
@@ -23,6 +23,24 @@ enum class CoreState : uint8_t
     Uninitialized,
     Initialized,
     Started,
+};
+
+struct Feature
+{
+    FeatureId id;
+    std::string name;
+    std::unique_ptr<platform::IDirectory> directory;
+
+    Feature(
+        FeatureId in_id,
+        std::string_view in_name, 
+        std::unique_ptr<platform::IDirectory>&& in_directory
+    )
+        : id(in_id)
+        , name(in_name)
+        , directory(std::move(in_directory))
+    {
+    }
 };
 
 /**
@@ -81,10 +99,13 @@ struct Core
     /**
      * Registers a feature implementation with the core.
      */
-    bool RegisterFeature(FeatureId id, std::string_view name);
+    StorageWriter RegisterFeature(FeatureId id, std::string_view name);
 
     bool Start();
     void Shutdown();
+
+private:
+    bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
 
 private:
     // Initialized in ctor

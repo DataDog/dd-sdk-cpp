@@ -153,13 +153,13 @@ bool Core::Init()
     return true;
 }
 
-bool Core::RegisterFeature(FeatureId id, std::string_view name)
+StorageWriter Core::RegisterFeature(FeatureId id, std::string_view name)
 {
     // Features may only be registered after init but before the core is started
     if (_state != CoreState::Initialized)
     {
         std::cout << "Failed to register feature " << name << " (id " << id << "): core in improper state\n";
-        return false;
+        return nullptr;
     }
 
     // Don't allow a feature to be registered with a duplicate ID (each feature must
@@ -172,7 +172,7 @@ bool Core::RegisterFeature(FeatureId id, std::string_view name)
     if (existing != _features.end())
     {
         std::cout << "Failed to register feature " << name << " (id " << id << "): id or name conflict\n";
-        return false;
+        return nullptr;
     }
 
     // Initialize a subdirectory within our root storage directory that will contain
@@ -181,12 +181,18 @@ bool Core::RegisterFeature(FeatureId id, std::string_view name)
     if (!feature_storage)
     {
         std::cout << "Failed to register feature " << name << " (id " << id << "): filesystem init failed with error " << static_cast<int>(feature_storage.error()) << "\n";
-        return false;
+        return nullptr;
     }
+
+    // Create an interface that can be used to enqueue
+    StorageWriter writer = [this, id](Block event, Block event_metadata) -> bool {
+        return EnqueueStorageWrite(id, event, event_metadata);
+    };
 
     _features.emplace_back(id, name, std::move(*feature_storage));
     std::cout << "Feature registered: " << name << "(id " << id << ")" << "\n";
-    return true;
+
+    return writer;
 }
 
 bool Core::Start()
@@ -260,6 +266,18 @@ void Core::Shutdown()
 
     // Revert to the initialized state; subsequent calls to Start() will restart us
     _state = CoreState::Initialized;
+}
+
+bool Core::EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata)
+{
+    if (_state != CoreState::Started)
+    {
+        std::cout << "Feature " << feature_id << " attempted to write to storage while core not running\n";
+        return false;
+    }
+
+    assert(_storage_queue && "_storage_queue is invalid while core is running");
+    return _storage_queue->Push(StorageWriteMessage{feature_id, event, event_metadata});
 }
 
 }

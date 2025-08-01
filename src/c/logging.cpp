@@ -26,9 +26,13 @@ dd_logging_t* dd_logging_init(dd_core_t* core)
     if (!core->impl) return nullptr;
 
     try {
+        auto impl = std::make_unique<datadog::impl::Logging>();
+        if (!impl->Register(*core->impl))
+        {
+            return nullptr;
+        }
         dd_logging_t* logging = new dd_logging;
-        logging->impl = std::make_unique<datadog::impl::Logging>();
-        logging->impl->Register(*(core->impl));
+        logging->impl = std::move(impl);
         return logging;
     } catch (...) {
         return nullptr;

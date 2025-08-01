@@ -39,6 +39,6 @@ struct StorageWriteMessage
     Block event_metadata;
 };
 
-void StorageThreadMain(Queue<StorageWriteMessage>& queue, std::vector<Feature>& features);
+void StorageThreadMain(Queue<StorageWriteMessage>& queue, std::vector<struct Feature>& features);
 
 }

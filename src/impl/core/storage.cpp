@@ -3,6 +3,8 @@
 #include <iostream>
 #include <algorithm>
 
+#include "core/core.hpp"
+
 namespace datadog::impl {
 
 void StorageThreadMain(Queue<StorageWriteMessage>& queue, std::vector<Feature>& features)
