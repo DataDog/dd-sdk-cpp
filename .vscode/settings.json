@@ -52,6 +52,11 @@
         "utility": "cpp",
         "__config": "cpp",
         "charconv": "cpp",
-        "forward_list": "cpp"
+        "forward_list": "cpp",
+        "__tree": "cpp",
+        "iomanip": "cpp",
+        "regex": "cpp",
+        "set": "cpp",
+        "fstream": "cpp"
     }
 }

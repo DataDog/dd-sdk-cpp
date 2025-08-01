@@ -6,6 +6,7 @@
 #include "core/types.hpp"
 #include "core/feature.hpp"
 
+namespace datadog::platform { class IStorageDirectory; }
 namespace datadog::platform { class IHttpSubsystem; }
 namespace datadog::platform { class IHttpClient; }
 
@@ -32,6 +33,7 @@ private:
     CoreConfig _config;
     std::vector<Feature> _features;
 
+    std::unique_ptr<datadog::platform::IStorageDirectory> _storage_root;
     std::unique_ptr<datadog::platform::IHttpSubsystem> _http;
     std::unique_ptr<datadog::platform::IHttpClient> _http_client;
 };

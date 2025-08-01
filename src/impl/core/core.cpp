@@ -1,13 +1,14 @@
 #include "core/core.hpp"
 
-#include "platform/clock.hpp"
-#include "platform/http.hpp"
-#include "platform/http_writer.hpp"
-#include "core/types.hpp"
-
 #include <iostream>
 #include <algorithm>
 #include <sstream>
+
+#include "platform/clock.hpp"
+#include "platform/filesystem.hpp"
+#include "platform/http.hpp"
+#include "platform/http_writer.hpp"
+#include "core/types.hpp"
 
 namespace datadog {
 
@@ -23,10 +24,87 @@ impl::Core::~Core()
 
 bool impl::Core::Start()
 {
+    // Initialize the filesystem interface, using a temporary directory for testing
+    _storage_root = platform::Filesystem::Init("temp-test/storage");
+    if (!_storage_root)
+    {
+        std::cout << "Failed to initialize filesystem\n";
+        return false;
+    }
+
+    std::vector<std::string> filenames;
+    filenames.reserve(64);
+    const auto list_files_result = _storage_root->ListFiles(filenames);
+    if (list_files_result)
+    {
+        std::cout << "Got " << filenames.size() << " files from root storage dir.\n" << std::endl;
+    }
+    else
+    {
+        const auto err = list_files_result.error();
+        std::cout << "Failed to list files in root storage dir: " << static_cast<int>(err) << "\n";
+    }
+
+    auto create_subdir_result = _storage_root->GetOrCreateChild("logs");
+    if (create_subdir_result)
+    {
+        auto subdir = std::move(*create_subdir_result);
+        
+        auto infile_result = subdir->OpenForRead("foo.dat");
+        if (infile_result)
+        {
+            uint32_t x;
+            auto infile = std::move(*infile_result);
+            auto read_result = infile->Read(reinterpret_cast<char*>(&x), sizeof(x));
+            if (read_result)
+            {
+                std::cout << "Read int from file: " << x << "\n";
+            }
+            else
+            {
+                const auto err = read_result.error();
+                std::cout << "Failed to read from open file: " << static_cast<int>(err) << "\n";    
+            }
+        }
+        else
+        {
+            const auto err = infile_result.error();
+            std::cout << "Failed to open file for read: " << static_cast<int>(err) << "\n";
+        }
+
+        uint32_t x = 8675309;
+        auto outfile_result = subdir->OpenForWrite("foo.dat");
+        if (outfile_result)
+        {
+            auto outfile = std::move(*outfile_result);
+            auto write_result = outfile->Write(reinterpret_cast<const char*>(&x), sizeof(x));
+            if (write_result)
+            {
+                std::cout << "Wrote int to file: " << x << "\n";
+            }
+            else
+            {
+                const auto err = write_result.error();
+                std::cout << "Failed to write to open file: " << static_cast<int>(err) << "\n";    
+            }
+        }
+        else
+        {
+            const auto err = outfile_result.error();
+            std::cout << "Failed to open file for write: " << static_cast<int>(err) << "\n";
+        }
+    }
+    else
+    {
+        const auto err = create_subdir_result.error();
+        std::cout << "Failed to create subdirectory: " << static_cast<int>(err) << "\n";
+    }
+
     // Initialize the HTTP subsystem
     _http = platform::Http::Init();
     if (!_http)
     {
+        std::cout << "Failed to initialize HTTP subsystem\n";
         return false;
     }
 
@@ -34,6 +112,7 @@ bool impl::Core::Start()
     _http_client = _http->CreateClient();
     if (!_http_client)
     {
+        std::cout << "Failed to create HTTP client\n";
         return false;
     }
 
