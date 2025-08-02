@@ -153,13 +153,18 @@ bool Core::Init()
     return true;
 }
 
-StorageWriter Core::RegisterFeature(FeatureId id, std::string_view name)
+bool Core::RegisterFeature(
+    FeatureId id,
+    std::string_view name,
+    std::function<void(StorageWriter)> start_callback,
+    std::function<void()> stop_callback
+)
 {
     // Features may only be registered after init but before the core is started
     if (_state != CoreState::Initialized)
     {
         std::cout << "Failed to register feature " << name << " (id " << id << "): core in improper state\n";
-        return nullptr;
+        return false;
     }
 
     // Don't allow a feature to be registered with a duplicate ID (each feature must
@@ -172,7 +177,7 @@ StorageWriter Core::RegisterFeature(FeatureId id, std::string_view name)
     if (existing != _features.end())
     {
         std::cout << "Failed to register feature " << name << " (id " << id << "): id or name conflict\n";
-        return nullptr;
+        return false;
     }
 
     // Initialize a subdirectory within our root storage directory that will contain
@@ -181,18 +186,18 @@ StorageWriter Core::RegisterFeature(FeatureId id, std::string_view name)
     if (!feature_storage)
     {
         std::cout << "Failed to register feature " << name << " (id " << id << "): filesystem init failed with error " << static_cast<int>(feature_storage.error()) << "\n";
-        return nullptr;
+        return false;
     }
 
-    // Create an interface that can be used to enqueue
-    StorageWriter writer = [this, id](Block event, Block event_metadata) -> bool {
-        return EnqueueStorageWrite(id, event, event_metadata);
-    };
-
-    _features.emplace_back(id, name, std::move(*feature_storage));
+    _features.emplace_back(
+        id,
+        name,
+        start_callback,
+        stop_callback,
+        std::move(*feature_storage)
+    );
     std::cout << "Feature registered: " << name << "(id " << id << ")" << "\n";
-
-    return writer;
+    return true;
 }
 
 bool Core::Start()
@@ -237,6 +242,17 @@ bool Core::Start()
     std::cout << "- Batch Processing Level: " << BatchProcessingLevel_ToString(_config.batch_processing_level) << "\n";
 
     _state = CoreState::Started;
+
+    // Notify each registered feature that the core has started, providing it with a
+    // function that it can use to send events to storage
+    for (const auto& feature : _features)
+    {
+        const FeatureId id = feature.id;
+        StorageWriter writer = [this, id](Block event, Block event_metadata) -> bool {
+            return EnqueueStorageWrite(id, event, event_metadata);
+        };
+        feature.start_callback(writer);
+    }
     return true;
 }
 
@@ -246,6 +262,12 @@ void Core::Shutdown()
     if (_state != CoreState::Started)
     {
         return;
+    }
+
+    // Notify each registered feature that the core has stopped
+    for (const auto& feature : _features)
+    {
+        feature.stop_callback();
     }
 
     // If we were previously started, the storage thread should be running

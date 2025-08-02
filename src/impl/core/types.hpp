@@ -115,7 +115,7 @@ static CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
         .client_token = config.client_token ? std::string(config.client_token) : "",
         .service = config.service ? std::string(config.service) : "",
         .env = config.env ? std::string(config.env) : "",
-        .application_version = config.application_version ? std::string(config.env) : "",
+        .application_version = config.application_version ? std::string(config.application_version) : "",
         .batch_size = BatchSize_FromC(config.batch_size),
         .upload_frequency = UploadFrequency_FromC(config.upload_frequency),
         .batch_processing_level = BatchProcessingLevel_FromC(config.batch_processing_level),

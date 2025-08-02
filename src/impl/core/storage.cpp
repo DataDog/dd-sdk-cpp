@@ -1,6 +1,7 @@
 #include "core/storage.hpp"
 
 #include <iostream>
+#include <sstream>
 #include <algorithm>
 
 #include "core/core.hpp"
@@ -25,7 +26,12 @@ void StorageThreadMain(Queue<StorageWriteMessage>& queue, std::vector<Feature>& 
             continue;
         }
 
-        std::cout << "[STORAGE] Got write for feature id " << item->feature_id << "\n";
+        std::ostringstream oss;
+        if (!item->event_metadata.empty())
+        {
+            oss << " <" << item->event_metadata << ">";
+        }
+        std::cout << "[STORAGE] Got write for feature id " << item->feature_id << ": " << item->event << oss.str() << "\n";
     }
 
     std::cout << "[STORAGE] Finished\n";

@@ -18,6 +18,11 @@ struct Logging
     bool Register(Core& core);
 
     std::unique_ptr<Logger> CreateLogger(LoggerConfig& config);
+
+private:
+    StorageWriter _writer;
+    void OnStart(StorageWriter writer);
+    void OnStop();
 };
 
 }
