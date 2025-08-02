@@ -216,7 +216,7 @@ bool Core::Start()
     // Initialize a thread-safe queue that features can write to whenever they produce
     // events that need to be written to disk
     assert(!_storage_queue && "_storage_queue already exists on Start()");
-    _storage_queue = std::make_unique<Queue<StorageWriteMessage>>();
+    _storage_queue = std::make_unique<Queue<WriteToStorage>>();
 
     // Start a thread that will read those events from the queue and write them to
     // persistent storage: the thread accepts non-owning references to the queue and the
@@ -296,7 +296,7 @@ bool Core::EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_me
     }
 
     assert(_storage_queue && "_storage_queue is invalid while core is running");
-    return _storage_queue->Push(StorageWriteMessage{feature_id, event, event_metadata});
+    return _storage_queue->Push(WriteToStorage{feature_id, event, event_metadata});
 }
 
 }

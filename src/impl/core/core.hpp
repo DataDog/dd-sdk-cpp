@@ -125,7 +125,7 @@ private:
     std::vector<Feature> _features; // May not be modified after Start()
 
     // Initialized on Start, cleaned up on Shutdown
-    std::unique_ptr<Queue<StorageWriteMessage>> _storage_queue;
+    std::unique_ptr<Queue<WriteToStorage>> _storage_queue;
     std::optional<std::thread> _storage_thread;
 };
 
