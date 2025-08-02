@@ -153,13 +153,11 @@ bool Core::Init()
     return true;
 }
 
-bool Core::RegisterFeature(
-    FeatureId id,
-    std::string_view name,
-    std::function<void(StorageWriter)> start_callback,
-    std::function<void()> stop_callback
-)
+bool Core::RegisterFeature(std::shared_ptr<FeatureBase> impl)
 {
+    const FeatureId id = impl->GetId();
+    const std::string_view name = impl->GetName();
+
     // Features may only be registered after init but before the core is started
     if (_state != CoreState::Initialized)
     {
@@ -192,8 +190,7 @@ bool Core::RegisterFeature(
     _features.emplace_back(
         id,
         name,
-        start_callback,
-        stop_callback,
+        impl,
         std::move(*feature_storage)
     );
     std::cout << "Feature registered: " << name << "(id " << id << ")" << "\n";
@@ -251,7 +248,7 @@ bool Core::Start()
         StorageWriter writer = [this, id](Block event, Block event_metadata) -> bool {
             return EnqueueStorageWrite(id, event, event_metadata);
         };
-        feature.start_callback(writer);
+        feature.impl->OnCoreStarted(writer);
     }
     return true;
 }
@@ -267,7 +264,7 @@ void Core::Shutdown()
     // Notify each registered feature that the core has stopped
     for (const auto& feature : _features)
     {
-        feature.stop_callback();
+        feature.impl->OnCoreStopping();
     }
 
     // If we were previously started, the storage thread should be running

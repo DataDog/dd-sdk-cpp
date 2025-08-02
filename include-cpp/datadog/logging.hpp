@@ -72,7 +72,7 @@ struct Logging
     static std::shared_ptr<Logging> Register(struct Core& core);
 
 private:
-    std::unique_ptr<impl::Logging> _impl;
+    std::shared_ptr<impl::Logging> _impl;
 };
 
 }

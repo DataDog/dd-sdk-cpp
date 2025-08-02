@@ -15,8 +15,8 @@ void Logger::Log(LogLevel level, std::string_view message)
 
 std::shared_ptr<Logging> Logging::Register(Core& core)
 {
-    auto impl = std::make_unique<impl::Logging>();
-    if (!impl->Register(*core._impl))
+    auto impl = std::make_shared<impl::Logging>();
+    if (!core._impl->RegisterFeature(impl))
     {
         return nullptr;
     }

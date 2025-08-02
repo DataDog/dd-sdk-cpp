@@ -15,7 +15,7 @@ struct dd_logger
 
 struct dd_logging
 {
-    std::unique_ptr<datadog::impl::Logging> impl;
+    std::shared_ptr<datadog::impl::Logging> impl;
 };
 
 extern "C" {
@@ -26,8 +26,8 @@ dd_logging_t* dd_logging_init(dd_core_t* core)
     if (!core->impl) return nullptr;
 
     try {
-        auto impl = std::make_unique<datadog::impl::Logging>();
-        if (!impl->Register(*core->impl))
+        auto impl = std::make_shared<datadog::impl::Logging>();
+        if (!core->impl->RegisterFeature(impl))
         {
             return nullptr;
         }

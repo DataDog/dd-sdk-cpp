@@ -8,31 +8,19 @@ void Logger::Log(LogLevel level, std::string_view message)
 {
 }
 
-bool Logging::Register(Core& core)
+void Logging::Start()
 {
-    return core.RegisterFeature(
-        CreateFeatureId("LOGS"), 
-        "logs",
-        [this](StorageWriter writer) { OnStart(writer); },
-        [this]() { OnStop(); }
-    );
+    WriteEvent("hello world");
+}
+
+void Logging::Stop()
+{
+    WriteEvent("goodbye", "metadata");
 }
 
 std::unique_ptr<Logger> Logging::CreateLogger(LoggerConfig& config)
 {
     return nullptr;
-}
-
-void Logging::OnStart(StorageWriter writer)
-{
-    _writer = writer;
-    _writer("hello world", "");
-}
-
-void Logging::OnStop()
-{
-    _writer("goodbye", "metadata");
-    _writer = nullptr;
 }
 
 }

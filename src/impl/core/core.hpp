@@ -29,21 +29,18 @@ struct Feature
 {
     FeatureId id;
     std::string name;
-    std::function<void(StorageWriter)> start_callback;
-    std::function<void()> stop_callback;
+    std::shared_ptr<FeatureBase> impl;
     std::unique_ptr<platform::IDirectory> directory;
 
     Feature(
         FeatureId in_id,
         std::string_view in_name,
-        std::function<void(StorageWriter)> in_start_callback,
-        std::function<void()> in_stop_callback,
+        std::shared_ptr<FeatureBase> in_impl,
         std::unique_ptr<platform::IDirectory>&& in_directory
     )
         : id(in_id)
         , name(in_name)
-        , start_callback(in_start_callback)
-        , stop_callback(in_stop_callback)
+        , impl(in_impl)
         , directory(std::move(in_directory))
     {
     }
@@ -105,12 +102,7 @@ struct Core
     /**
      * Registers a feature implementation with the core.
      */
-    bool RegisterFeature(
-        FeatureId id,
-        std::string_view name,
-        std::function<void(StorageWriter)> start_callback,
-        std::function<void()> stop_callback
-    );
+    bool RegisterFeature(std::shared_ptr<FeatureBase> impl);
 
     bool Start();
     void Shutdown();

@@ -13,16 +13,18 @@ private:
     LoggerConfig _config;
 };
 
-struct Logging
+class Logging : public FeatureBase
 {
-    bool Register(Core& core);
+public:
+    FeatureId GetId() const override { return CreateFeatureId("LOGS"); }
+    std::string_view GetName() const override { return "logs"; }
 
+protected:
+    void Start() override;
+    void Stop() override;
+
+public:
     std::unique_ptr<Logger> CreateLogger(LoggerConfig& config);
-
-private:
-    StorageWriter _writer;
-    void OnStart(StorageWriter writer);
-    void OnStop();
 };
 
 }
