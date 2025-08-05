@@ -87,7 +87,7 @@ static curl_slist* build_slist(std::string_view headers)
     return slist;
 }
 
-class CurlHttpClient : public IHttpClient
+class CurlHttpClient final : public IHttpClient
 {
 private:
     CURL* _curl;
@@ -204,7 +204,7 @@ public:
     }
 };
 
-class CurlHttpSubsystem : public IHttpSubsystem
+class CurlHttpSubsystem final : public IHttpSubsystem
 {
 public:
     CurlHttpSubsystem()

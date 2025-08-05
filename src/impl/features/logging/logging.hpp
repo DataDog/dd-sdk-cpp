@@ -13,7 +13,7 @@ private:
     LoggerConfig _config;
 };
 
-class Logging : public Feature
+class Logging final : public Feature
 {
 public:
     FeatureId GetId() const override { return CreateFeatureId("LOGS"); }

@@ -68,7 +68,7 @@ static _check_path_result _check_path(const std::filesystem::path& path)
  * result in `FilesystemError::IOError`, all other failures will result in
  * `FilesystemError::Failed`.
  */
-class StdFileReader : public IFileReader
+class StdFileReader final : public IFileReader
 {
 private:
     std::ifstream _infile;
@@ -130,7 +130,7 @@ public:
  * result in `FilesystemError::IOError`, all other failures will result in
  * `FilesystemError::Failed`.
  */
-class StdFileWriter : public IFileWriter
+class StdFileWriter final : public IFileWriter
 {
 private:
     const std::filesystem::path _path;
@@ -317,7 +317,7 @@ public:
     }
 };
 
-class StdStorageDirectory : public StdDirectory, public IStorageDirectory
+class StdStorageDirectory final : public StdDirectory, public IStorageDirectory
 {
 public:
     explicit StdStorageDirectory(const std::filesystem::path& path)
