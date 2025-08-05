@@ -133,28 +133,51 @@ public:
 class StdFileWriter : public IFileWriter
 {
 private:
-    std::ofstream _outfile;
+    const std::filesystem::path _path;
 
 public:
-    StdFileWriter(std::ofstream&& outfile)
-        : _outfile(std::move(outfile))
+    explicit StdFileWriter(std::filesystem::path&& path)
+        : _path(std::move(path))
     {
     }
 
      ~StdFileWriter()
      {
-        // std::ofstream destructor closes _outfile
+        // We hold no resources
      }
 
     FilesystemResult<void> Write(const char* src, size_t n) override
     {
-        // Attempt to write all n bytes to the file, then check error bits
-        _outfile.write(src, n);
-        if (_outfile.bad())
+        // Attempt to open the file for append
+        const std::ios::openmode mode = std::ios::binary | std::ios::app;
+        std::ofstream outfile(_path, mode);
+
+        // If we couldn't open the file, it may be because some parent directory doesn't
+        // yet exist or has been externally deleted
+        if (!outfile)
+        {
+            // Attempt to create the required directories, then retry opening the file
+            std::error_code ec;
+            if (!std::filesystem::create_directories(_path, ec) || ec)
+            {
+                return nonstd::make_unexpected(FilesystemError::Failed);
+            }
+            outfile.open(_path, mode);
+        }
+
+        // If the file still isn't open, there's some other problem: abort
+        if (!outfile)
+        {
+            return nonstd::make_unexpected(FilesystemError::Failed);
+        }
+
+        // File is open: attempt to write all n bytes to the file, then check error bits
+        outfile.write(src, n);
+        if (outfile.bad())
         {
             return nonstd::make_unexpected(FilesystemError::IOError);
         }
-        if (_outfile.fail())
+        if (outfile.fail())
         {
             return nonstd::make_unexpected(FilesystemError::Failed);
         }
@@ -168,26 +191,9 @@ public:
  * Implements IDirectory using std::filesystem, providing access to files and
  * subdirectories that are direct children of the directory indicated by `_path`.
  *
- * The path with which an StdDirectory is initialized need not exist initially. In cases
- * where `_path` does not point to a valid directory, StdDirectory exhibits the
- * following behaviors:
- * 
- * - In `ListFiles()`: successfully returns an empty list of filenames, unless `_path`
- *   points to an existing file that conflicts with the target directory name, in which
- *   case the result will be `FilesystemError::Failed`.
- * 
- * - In `OpenForRead()`: returns `FilesystemError::DoesNotExist` for any nonexistent
- *   file, regardless of whether the parent directory exists.
- * 
- * - In `OpenForWrite()`: if `_path` does not exist, it will be created along with all
- *   parent directories, a la `mkdir -p`. If any directory in the path could not be
- *   created, returns `FilesystemError::Failed`.
- * 
- * This behavior ensures that the SDK's default storage implementation is tolerant to
- * unexpected file deletions that occur during the lifetime of the program: if a storage
- * directory is removed, either externally or as the result of some error-recovery
- * routine elsewhere in the program, existing filesystem interfaces will be able to
- * continue writing files.
+ * The path with which an StdDirectory is initialized need not exist initially: write
+ * operations will create parent directories automatically if needed, allowing lazy
+ * directory creation and handling external deletion of storage directories gracefully.
  */
 class StdDirectory : public virtual IDirectory
 {
@@ -273,35 +279,16 @@ public:
         }
     }
 
-    FilesystemResult<std::unique_ptr<IFileWriter>> OpenForWrite(
+    FilesystemResult<std::unique_ptr<IFileWriter>> PrepareForWrite(
         std::string_view name
     ) override
     {
-        // Build the path to the target file
+        // Initialize a wrapper for a file at the target path
         assert(_is_clean_basename(name));
-        const std::filesystem::path file_path = _path / name;
-
-        // Ensure the parent directory exists (create if necessary)
-        std::error_code ec;
-        std::filesystem::create_directories(_path, ec);
-        if (ec)
-        {
-            // Any failure to create the directories is a failure to open the file
-            return nonstd::make_unexpected(FilesystemError::Failed);
-        }
-
-        // Open the file for write in binary mode, and wrap it in a StdFileWriter
-        std::ofstream outfile(file_path, std::ios::binary);
-        if (outfile.is_open())
-        {
-            return std::make_unique<StdFileWriter>(std::move(outfile));
-        }
-
-        // We failed to open the file for writing
-        return nonstd::make_unexpected(FilesystemError::Failed);
+        return std::make_unique<StdFileWriter>(_path / name);
     }
 
-    FilesystemResult<std::unique_ptr<IDirectory>> GetOrCreateChild(
+    FilesystemResult<std::unique_ptr<IDirectory>> PrepareSubdirectory(
         std::string_view name
     ) override
     {

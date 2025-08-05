@@ -1,5 +1,6 @@
 # Internal library implementation, used with both C and C++ APIs
 add_library(dd_native_impl STATIC
+    core/tlv.cpp
     core/core.cpp
     core/feature.cpp
     core/storage.cpp

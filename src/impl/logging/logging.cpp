@@ -18,6 +18,11 @@ void Logging::Stop()
     WriteEvent("goodbye", "metadata");
 }
 
+std::optional<Report> Logging::PrepareReport(BatchReader& reader)
+{
+    return std::nullopt;
+}
+
 std::unique_ptr<Logger> Logging::CreateLogger(LoggerConfig& config)
 {
     return nullptr;

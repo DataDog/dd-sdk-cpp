@@ -7,6 +7,7 @@
 #include <optional>
 
 #include "core/types.hpp"
+#include "core/block.hpp"
 #include "core/feature.hpp"
 #include "core/context.hpp"
 #include "core/queue.hpp"
@@ -25,23 +26,27 @@ enum class CoreState : uint8_t
     Started,
 };
 
+// TODO: Rename `Feature` -> `RegisteredFeature`; `FeatureBase` -> `Feature`
 struct Feature
 {
     FeatureId id;
     std::string name;
     std::shared_ptr<FeatureBase> impl;
     std::unique_ptr<platform::IDirectory> directory;
+    std::unique_ptr<EventStorage> event_storage;
 
     Feature(
         FeatureId in_id,
         std::string_view in_name,
         std::shared_ptr<FeatureBase> in_impl,
-        std::unique_ptr<platform::IDirectory>&& in_directory
+        std::unique_ptr<platform::IDirectory>&& in_directory,
+        std::unique_ptr<EventStorage>&& in_event_storage
     )
         : id(in_id)
         , name(in_name)
         , impl(in_impl)
         , directory(std::move(in_directory))
+        , event_storage(std::move(in_event_storage))
     {
     }
 };
@@ -94,6 +99,8 @@ struct Core
     Core(Core&&) = default;
     Core& operator=(Core&&) = default;
 
+    void SetTrackingConsent(TrackingConsent value);
+
     void SetService(std::string_view value);
     void SetEnv(std::string_view value);
 
@@ -112,6 +119,11 @@ private:
 
 private:
     // Initialized in ctor
+    /**
+     * Current state of the Core. The API for the Datadog SDK is not thread-safe: all
+     * calls must be made from the same thread. Therefore, Core state is checked without
+     * synchronization.
+     */
     CoreState _state;
     datadog::CoreConfig _config;
     CoreContext _context;
@@ -125,7 +137,7 @@ private:
     std::vector<Feature> _features; // May not be modified after Start()
 
     // Initialized on Start, cleaned up on Shutdown
-    std::unique_ptr<Queue<WriteToStorage>> _storage_queue;
+    std::unique_ptr<Queue<StorageMessage>> _storage_queue;
     std::optional<std::thread> _storage_thread;
 };
 

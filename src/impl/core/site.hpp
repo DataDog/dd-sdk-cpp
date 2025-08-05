@@ -8,7 +8,7 @@
 
 namespace datadog::impl {
 
-static std::string GetIntakeHost(Site site)
+inline std::string GetIntakeHost(Site site)
 {
     // Use hardcoded values for sites with special URLs
     switch (site)
@@ -31,7 +31,7 @@ static std::string GetIntakeHost(Site site)
     return oss.str();
 }
 
-static std::string GetIntakeOrigin(Site site, std::string_view custom_endpoint_url)
+inline std::string GetIntakeOrigin(Site site, std::string_view custom_endpoint_url)
 {
     // Allow a custom endpoint URL (used for internal testing) to override site
     if (custom_endpoint_url.empty())

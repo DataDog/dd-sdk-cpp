@@ -19,6 +19,8 @@ public:
     FeatureId GetId() const override { return CreateFeatureId("LOGS"); }
     std::string_view GetName() const override { return "logs"; }
 
+    std::optional<Report> PrepareReport(BatchReader& reader) override;
+
 protected:
     void Start() override;
     void Stop() override;

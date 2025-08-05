@@ -48,10 +48,16 @@ struct FileReadResult
 class IFileReader
 {
 public:
-    /**
-     * Closes the file handle held by this reader.
-     */
+    IFileReader() = default;
     virtual ~IFileReader() = default;
+
+    // File-reader interfaces will never be copied
+    IFileReader(const IFileReader&) = delete;
+    IFileReader& operator=(const IFileReader&) = delete;
+
+    // File-reader interfaces may be moved
+    IFileReader(IFileReader&&) = default;
+    IFileReader& operator=(IFileReader&&) = delete;
 
     /**
      * Seeks forward or backward in the file by the given number of bytes.
@@ -78,18 +84,31 @@ public:
 };
 
 /**
- * Handle to a binary file that's currently open for write.
+ * Handle to a binary file that may be written to. Implies exclusive write access to the
+ * underlying file: no two IFileWriter instances will be in use for the same file.
+ *
+ * To ensure durable event storage is and relatively simple synchronization between
+ * writer and reader threads, we use a close-after-write approach: every file write
+ * opens the file, appends the relevant data, then closes the file to flush it to disk.
  */
 class IFileWriter
 {
 public:
-    /**
-     * Closes the file handle held by this writer.
-     */
+    IFileWriter() = default;
     virtual ~IFileWriter() = default;
 
+    // File-writer interfaces will never be copied
+    IFileWriter(const IFileWriter&) = delete;
+    IFileWriter& operator=(const IFileWriter&) = delete;
+
+    // File-writer interfaces may be moved
+    IFileWriter(IFileWriter&&) = default;
+    IFileWriter& operator=(IFileWriter&&) = delete;
+
     /**
-     * Writes the provided n bytes into the file.
+     * Opens the file for append (a la `fopen("ab")`), writes the provided n bytes at
+     * the end of the file, then closes the file, ensuring that the write is flushed to
+     * disk.
      */
     virtual FilesystemResult<void> Write(const char* src, size_t n) = 0;
 };
@@ -122,18 +141,17 @@ public:
     ) = 0;
 
     /**
-     * Opens a new or existing file for write, in binary mode, a la `fopen(name, "wb")`.
-     * If the file does not exist, it will be created. If the file already exists, it
-     * will be truncated to 0 bytes and overwritten.
+     * Constructs a new wrapper for a file at the given path. Does not actually open the
+     * file, but ensures that all parent directories exist.
      */
-    virtual FilesystemResult<std::unique_ptr<IFileWriter>> OpenForWrite(
+    virtual FilesystemResult<std::unique_ptr<IFileWriter>> PrepareForWrite(
         std::string_view name
     ) = 0;
 
     /**
      * Returns a handle to a new or existing subdirectory with the given name.
      */
-    virtual FilesystemResult<std::unique_ptr<IDirectory>> GetOrCreateChild(
+    virtual FilesystemResult<std::unique_ptr<IDirectory>> PrepareSubdirectory(
         std::string_view name
     ) = 0;
 };

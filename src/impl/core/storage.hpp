@@ -3,6 +3,8 @@
 #include <cinttypes>
 #include <string_view>
 #include <vector>
+#include <optional>
+#include <utility>
 
 #include "core/feature.hpp"
 #include "core/queue.hpp"
@@ -10,11 +12,50 @@
 namespace datadog::impl {
 
 /**
- * Message representing an event that needs to be flushed to persistent storage.
- * Produced by a feature implementation in the main thread; handled in the storage
- * thread.
+ * Type identifier for an internal message that can be produced to the storage queue in
+ * order to push data to the storage thread.
+ * 
+ * @note If adding a new message type, take care to:
+ * 
+ * 1. Define a payload type `struct StorageMessage_<NewTypeName>`
+ * 2. Add that type as a member of the `StorageMessage::Payload` union
+ * 3. Add a branch to `~StorageMessage()` to explicitly handle the destruction of
+ *    `payload.<new_type_name>` when `type == StorageMessageType:<NewTypeName>`: if
+ *    payload type is trivially destructible, static_assert so; if it owns memory or
+ *    manages resources, invoke its destructor on `payload.<new_type_name>` explicitly.
+ * 4. Add a branch to `StorageMessage(StorageMessage&&)` to handle move construction
+ *    with payloads of the new type
+ * 5. Add a branch to `operator= (StorageMessage&&)` to handle move-assignment with
+ *    payloads of the new type
+ * 6. Add a static function `StorageMessage <NewTypeName>(...)` to initialize messages
+ *    of the new type.
+ * 
+ * We might avoid this complexity by switching to std::variant, but this approach treats
+ * message handling as performance-critical since message construction occurs in the
+ * main thread.
  */
-struct WriteToStorage
+enum class StorageMessageType : uint8_t
+{
+    TrackingConsentChanged,
+    EventGenerated,
+};
+
+/**
+ * An API call has changed the configured user tracking consent value.
+ */
+struct StorageMessage_TrackingConsentChanged
+{
+    /**
+     * Whether the user has consented to tracking.
+     */
+    TrackingConsent value;
+};
+
+/**
+ * A feature implementation has produced an event that should be flushed to persistent
+ * storage.
+ */
+struct StorageMessage_EventGenerated
 {
     /**
      * Unique FourCC identifier of the feature that produced this message. The
@@ -29,12 +70,12 @@ struct WriteToStorage
     std::vector<uint8_t> event;
     /**
      * An optional payload describing the event, also copied. Will be written as a TLV
-     * block of type 'Metadata', immediately following the Event block, if and only if
+     * block of type 'Metadata', immediately preceiding the Event block, if and only if
      * non-empty.
      */
     std::vector<uint8_t> event_metadata;
 
-    WriteToStorage(FeatureId in_feature_id, Block in_event, Block in_event_metadata)
+    StorageMessage_EventGenerated(FeatureId in_feature_id, Block in_event, Block in_event_metadata)
         : feature_id(in_feature_id)
         , event(in_event.begin(), in_event.end())
         , event_metadata(in_event_metadata.begin(), in_event_metadata.end())
@@ -42,6 +83,315 @@ struct WriteToStorage
     }
 };
 
-void StorageThreadMain(Queue<WriteToStorage>& queue, std::vector<struct Feature>& features);
+/**
+ * A message consumed by the storage thread.
+ */
+struct StorageMessage
+{
+    /**
+     * Actual data associated with a message; discriminated by StorageMessage::type.
+     * 
+     * If adding a new payload type that is not trivially destructible, you MUST ensure
+     * that `~StorageMessage()` manually invokes the destructor on the appropriate union
+     * member when the message has the corresponding type.
+     * 
+     * For clarity: if your payload type owns memory (or manages resources) such that
+     * its destructor must be called when it goes out of scope (regardless of whether
+     * that destructor is explicitly-defined or compiler-generated), then it is NOT
+     * trivially destructible and you MUST invoke its destructor explicitly in
+     * `~StorageMessage()`.
+     */
+    union Payload
+    {
+        StorageMessage_TrackingConsentChanged tracking_consent_changed;
+        StorageMessage_EventGenerated event_generated;
+
+        /**
+         * Messages are initialized using static functions that use placement new to
+         * initialize payloads; let the compiler know that it's OK for a Payload to
+         * exist in a non-initialized state.
+         */
+        Payload() {};
+
+        /**
+         * Deletion of union members is explicitly handled by ~StorageMessage(); define
+         * an empty union destructor to signal this fact to the compiler.
+         */
+        ~Payload() {};
+    };
+
+    StorageMessageType type;
+    Payload payload;
+
+private:
+    StorageMessage(StorageMessageType in_type)
+        : type(in_type)
+    {
+    }
+
+public:
+    ~StorageMessage()
+    {
+        // When a union value goes out of the scope, the compiler can't know which
+        // destructor to invoke: ensure that a Payload is always cleaned up
+        switch (type)
+        {
+            case StorageMessageType::TrackingConsentChanged:
+                static_assert(std::is_trivially_destructible<StorageMessage_TrackingConsentChanged>::value);
+                break;
+
+            case StorageMessageType::EventGenerated:
+                payload.event_generated.~StorageMessage_EventGenerated();
+                break;
+        }
+    }
+
+    // Copying is disallowed; storage queue moves messages in and out
+    StorageMessage(const StorageMessage&) = delete;
+    StorageMessage& operator=(const StorageMessage&) = delete;
+
+    StorageMessage(StorageMessage&& other)
+        : type(other.type)
+    {
+        // When a union value is moved, the compiler can't know which member's move
+        // constructor to invoke: ensure that a Payload is moved correctly based on
+        // type, using placement new to construct the new value in-place
+        switch (type)
+        {
+            case StorageMessageType::TrackingConsentChanged:
+                new (&payload.tracking_consent_changed)
+                    StorageMessage_TrackingConsentChanged(
+                        std::move(other.payload.tracking_consent_changed)
+                    );
+                break;
+
+            case StorageMessageType::EventGenerated:
+                new (&payload.event_generated)
+                    StorageMessage_EventGenerated(
+                        std::move(other.payload.event_generated)
+                    );
+                break;
+        }
+    }
+
+    StorageMessage& operator=(StorageMessage&& other)
+    {
+        // Handle move-assignment as in the move constructor; cleaning up the
+        // destination value first
+        if (this != &other)
+        {
+            // Destroy the existing payload
+            this->~StorageMessage();
+
+            // Move-construct the new payload in-place
+            type = other.type;
+            switch (type)
+            {
+                case StorageMessageType::TrackingConsentChanged:
+                    new (&payload.tracking_consent_changed)
+                        StorageMessage_TrackingConsentChanged(
+                            std::move(other.payload.tracking_consent_changed)
+                        );
+                    break;
+                
+                case StorageMessageType::EventGenerated:
+                    new (&payload.event_generated)
+                        StorageMessage_EventGenerated(
+                            std::move(other.payload.event_generated)
+                        );
+                    break;
+            }
+        }
+        return *this;
+    }
+
+    /**
+     * Creates a new TrackingConsentChanged message.
+     */
+    static StorageMessage TrackingConsentChanged(TrackingConsent value)
+    {
+        StorageMessage m{StorageMessageType::TrackingConsentChanged};
+        new (&m.payload.tracking_consent_changed)
+            StorageMessage_TrackingConsentChanged{value};
+        return m;
+    }
+
+    /**
+     * Creates a new EventGenerated message.
+     */
+    static StorageMessage EventGenerated(FeatureId feature_id, Block event, Block event_metadata)
+    {
+        StorageMessage m{StorageMessageType::EventGenerated};
+        new (&m.payload.event_generated)
+            StorageMessage_EventGenerated{feature_id, event, event_metadata};
+        return m;
+    }
+};
+
+/**
+ * Implements the logic used in the 
+ * 
+ * Wraps a subdirectory, either '<STORAGE_ROOT>/<FEATURE>/pending' or
+ * '<STORAGE_ROOT>/<FEATURE>/granted', representing a directory in which batches of
+ * event data are stored.
+ *
+ * The BatchWriter maintains at most one open file handle, representing the latest file
+ * to which TLV blocks are being written for that feature. The BatchWriter makes
+ * decisions about when to close the file and start a new one, what new files should be
+ * named, etc.
+ */
+class BatchWriter
+{
+private:
+    /**
+     * The directory containing TLV-format batch files with event data for this feature
+     * and tracking consent permutation.
+     * 
+     * @note While the BatchWriter uniquely owns this IDirectory _interface_, it is not
+     *  guaranteed exclusive access to the underlying directory on disk, as the upload
+     *  thread may be reading from the same directory that a BatchWriter is writing to.
+     *  Our primary mechanism for avoiding file contention between these threads is
+     *  time-based: the storage thread won't write to files past a certain age, and the
+     *  upload thread won't read from files until they reach a slightly older age than
+     *  the write-cutoff threshold. Other synchronization mechanisms may also exist,
+     *  e.g. for coordinated operations like moving or cleaning up files.
+     */
+    std::unique_ptr<platform::IDirectory> _directory;
+
+    /**
+     * Names of all files that we found in this directory the last time we checked.
+     */
+    mutable std::vector<std::string> _last_known_filenames;
+
+    /**
+     * Pointer to the IFileWriter interface for the file that we most recently wrote
+     * event data to.
+     */
+    std::unique_ptr<platform::IFileWriter> _last_file;
+
+    /**
+     * Details of _last_file, if one is open. Reinitialized when we start a new batch.
+     * 
+     * @note We never reopen existing files such that we would need to reinitialize this
+     *  state from a non-empty file. If the SDK is initialized and batch files from a
+     *  prior run are still present in the storage directory, the storage thread makes
+     *  no attempt to reopen them.
+     */
+    struct FileDetails
+    {
+        uint64_t filename_ms;
+        int num_writes;
+        size_t num_bytes_written;
+
+        FileDetails()
+            : filename_ms(0)
+            , num_writes(0)
+            , num_bytes_written(0)
+        {
+        }
+
+        void Reset(uint64_t in_filename_ms)
+        {
+            filename_ms = in_filename_ms;
+            num_writes = 0;
+            num_bytes_written = 0;
+        }
+    };
+    FileDetails _last_file_details;
+
+    /**
+     * Buffer used to concatenate TLV block data prior to writing, so that we can ensure
+     * atomic writes: i.e. a TLV header will never be written without its corresponding
+     * block data, and if a Metadata block is present, it will always be followed by the
+     * corresponding Event block.
+     * 
+     * We might be able to avoid allocations from this buffer if we loosened our
+     * guarantees about batch file consistency and allowed partial writes.
+     */
+    std::vector<char> _write_buffer;
+
+public:
+    explicit BatchWriter(std::unique_ptr<platform::IDirectory>&& directory);
+    bool Delete();
+    bool MigrateTo(BatchWriter& other);
+    bool HandleWrite(Block event, Block event_metadata);
+
+private:
+    platform::IFileWriter* PrepareFileForNextWrite(Block event, Block event_metadata);
+    bool CanReuseFileForNextWrite(uint64_t current_time_millis, Block event, Block event_metadata) const;
+    std::optional<std::pair<uint64_t, std::string>> GetFilenameForNextWrite(uint64_t current_time_millis) const;
+    bool CacheKnownFilenames() const;
+};
+
+/**
+ * Implements the logic used in the storage thread to store event data generated by a
+ * specific feature.
+ * 
+ * Wraps a subdirectory, '<STORAGE_ROOT>/<FEATURE>', which contains all the event data
+ * for that feature. Event data is written in TLV format to files that represent batches
+ * of data being prepared for upload.
+ *
+ * 
+ *
+ * 
+ * The EventStorage is initialized and owned by the Core, which also owns the filesystem
+ * and the directory interface for the associated feature.
+ */
+class EventStorage
+{
+public:
+    static const char* PENDING_SUBDIRECTORY_NAME;
+    static const char* GRANTED_SUBDIRECTORY_NAME;
+
+private:
+    std::unique_ptr<BatchWriter> _pending;
+    std::unique_ptr<BatchWriter> _granted;
+    TrackingConsent _consent;
+
+public:
+    /**
+     * Initializes new state for writing batches to the given directory.
+     * 
+     * @param directory Non-owning reference to the directory where the EventStorage will
+     *  list, create, and write to files. The lifetime of the IDirectory is guaranteed
+     *  to extend beyond the lifetime of the EventStorage.
+     */
+    explicit EventStorage(TrackingConsent consent, std::unique_ptr<BatchWriter>&& pending, std::unique_ptr<BatchWriter>&& granted);
+
+    bool SetTrackingConsent(TrackingConsent value);
+
+    /**
+     * Writes the given event data to the appropriate batch file, in TLV format.
+     * 
+     * @param event Binary data to be written as a TLV 'Event' block. Must have nonzero
+     *  length; write attempts with no event data will always fail.
+     * @param event_metadata Optional arbitrary metadata describing the event, to be
+     *  written as a TLV 'Metadata' block immediately preceding the 'Event' block. If
+     *  empty, no 'Metadata' block will be written. If both an 'Event' block and a
+     *  'Metadata' block are to be written, they will always be written within the same
+     *  file.
+     * 
+     * @returns whether all requested data was successfully written. Atomic writes are
+     *  not guaranteed: if the HandleWrite calls fails, the BatchWriter may have written
+     *  an 'Event' block with no 'Metadata' block, a TLV Header without the accompanying
+     *  block data, or nothing at all.
+     */
+    bool HandleWrite(Block event, Block event_metadata);
+};
+
+/**
+ * Entry point for the "storage thread", a background thread owned by the Core.
+ * 
+ * The storage thread is responsible for consuming from the "storage queue," a blocking,
+ * thread-safe queue that contains data
+ * 
+ * @param queue Non-owning reference to the thread-safe queue that we should read from;
+ *  guaranteed to outlive the thread.
+ * @param features Non-owning reference to the array of features that may produce to
+ *  that queue. All Feature objects contained in the vector are guaranteed to outlive
+ *  the thread, and the vector itself is guaranteed to remain immutable for the lifetime
+ *  of the thread.
+ */
+void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<struct Feature>& features);
 
 }
