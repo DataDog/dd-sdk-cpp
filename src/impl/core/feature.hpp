@@ -134,9 +134,9 @@ struct FeatureStorageConfig
 /**
  * Base class used for the implementation of a feature.
  * 
- * The Core is only aware of the FeatureBase interface, and it keeps track of registered
+ * The Core is only aware of the Feature interface, and it keeps track of registered
  * features via its own feature-agnostic data stucture. Each feature is implemented by
- * defining a subclass of FeatureBase and implementing the required member functions.
+ * defining a subclass of Feature and implementing the required member functions.
  *
  * Inheritance (with a one-level-deep hierarchy) is a natural fit for this pattern,
  * especially since each feature forms an architectural boundary with the Core. Overhead
@@ -144,10 +144,10 @@ struct FeatureStorageConfig
  * occur on init/shutdown and when periodically preparing data for upload from a
  * background thread.
  */
-class FeatureBase
+class Feature
 {
 public:
-    virtual ~FeatureBase() = default;
+    virtual ~Feature() = default;
     
     virtual FeatureId GetId() const = 0;
     virtual std::string_view GetName() const = 0;

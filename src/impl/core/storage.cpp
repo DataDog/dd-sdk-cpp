@@ -419,7 +419,7 @@ bool EventStorage::HandleWrite(Block event, Block event_metadata)
     }
 }
 
-static void _handle_tracking_consent_changed(std::vector<Feature>& features, const StorageMessage_TrackingConsentChanged& m)
+static void _handle_tracking_consent_changed(std::vector<RegisteredFeature>& features, const StorageMessage_TrackingConsentChanged& m)
 {
     for (auto& feature : features)
     {
@@ -430,10 +430,10 @@ static void _handle_tracking_consent_changed(std::vector<Feature>& features, con
     }
 }
 
-static void _handle_event_generated(std::vector<Feature>& features, const StorageMessage_EventGenerated& m)
+static void _handle_event_generated(std::vector<RegisteredFeature>& features, const StorageMessage_EventGenerated& m)
 {
     // Find the feature implementation identified in the message
-    const auto feature = std::find_if(features.begin(), features.end(), [&](const Feature& f){
+    const auto feature = std::find_if(features.begin(), features.end(), [&](const RegisteredFeature& f){
         return f.id == m.feature_id;
     });
 
@@ -444,12 +444,12 @@ static void _handle_event_generated(std::vector<Feature>& features, const Storag
         return;
     }
 
-    // No Feature should ever be initialized without a valid EventStorage
+    // No RegisteredFeature should ever be initialized without a valid EventStorage
     assert(feature->event_storage &&
         "feature identified by generated event does not have a valid EventStorage"
     );
 
-    // Use the Feature's EventStorage to process the write operation, only continuing
+    // Use the RegisteredFeature's EventStorage to process the write operation, only continuing
     // once the filesystem write operations return
     const bool write_ok = feature->event_storage->HandleWrite(
         Block(
@@ -469,7 +469,7 @@ static void _handle_event_generated(std::vector<Feature>& features, const Storag
     }
 }
 
-void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<Feature>& features)
+void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<RegisteredFeature>& features)
 {
     std::cout << "[STORAGE] Started\n";
 

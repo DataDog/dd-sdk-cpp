@@ -4,7 +4,7 @@
 
 namespace datadog::impl {
 
-void FeatureBase::OnCoreStarted(StorageWriter writer)
+void Feature::OnCoreStarted(StorageWriter writer)
 {
     // We're now permitted to write events; store a reference to our writer callback
     assert(!_writer && "Feature received OnCoreStop with non-null writer");
@@ -14,7 +14,7 @@ void FeatureBase::OnCoreStarted(StorageWriter writer)
     Start();
 }
 
-void FeatureBase::OnCoreStopping()
+void Feature::OnCoreStopping()
 {
     // Notify the feature that the core is about to stop, while it's still able to write
     // events
@@ -25,7 +25,7 @@ void FeatureBase::OnCoreStopping()
     _writer = nullptr;
 }
 
-bool FeatureBase::WriteEvent(Block event, Block event_metadata)
+bool Feature::WriteEvent(Block event, Block event_metadata)
 {
     if (_writer)
     {
@@ -34,7 +34,7 @@ bool FeatureBase::WriteEvent(Block event, Block event_metadata)
     return false;
 }
 
-bool FeatureBase::IsRunning() const
+bool Feature::IsRunning() const
 {
     return _writer != nullptr;
 }

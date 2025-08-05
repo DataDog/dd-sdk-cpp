@@ -26,19 +26,18 @@ enum class CoreState : uint8_t
     Started,
 };
 
-// TODO: Rename `Feature` -> `RegisteredFeature`; `FeatureBase` -> `Feature`
-struct Feature
+struct RegisteredFeature
 {
     FeatureId id;
     std::string name;
-    std::shared_ptr<FeatureBase> impl;
+    std::shared_ptr<Feature> impl;
     std::unique_ptr<platform::IDirectory> directory;
     std::unique_ptr<EventStorage> event_storage;
 
-    Feature(
+    RegisteredFeature(
         FeatureId in_id,
         std::string_view in_name,
-        std::shared_ptr<FeatureBase> in_impl,
+        std::shared_ptr<Feature> in_impl,
         std::unique_ptr<platform::IDirectory>&& in_directory,
         std::unique_ptr<EventStorage>&& in_event_storage
     )
@@ -64,7 +63,7 @@ struct Feature
  *   client functionality) using the interfaces defined in datadog::platform.
  * 
  * - It interoperates with the different modular features (e.g. logging, RUM, etc.) that
- *   have been registered with it, maintaining a Feature object for each. From the
+ *   have been registered with it, maintaining a RegisteredFeature object for each. From the
  *   core's perspective, a feature is a child component that:
  * 
  *     1. Produces blocks of feature-specific data to be written to storage
@@ -109,7 +108,7 @@ struct Core
     /**
      * Registers a feature implementation with the core.
      */
-    bool RegisterFeature(std::shared_ptr<FeatureBase> impl);
+    bool RegisterFeature(std::shared_ptr<Feature> impl);
 
     bool Start();
     void Shutdown();
@@ -134,7 +133,7 @@ private:
     std::unique_ptr<platform::IHttpClient> _http_client;
 
     // Initialized before Start in response to user-initiated feature registration
-    std::vector<Feature> _features; // May not be modified after Start()
+    std::vector<RegisteredFeature> _features; // May not be modified after Start()
 
     // Initialized on Start, cleaned up on Shutdown
     std::unique_ptr<Queue<StorageMessage>> _storage_queue;

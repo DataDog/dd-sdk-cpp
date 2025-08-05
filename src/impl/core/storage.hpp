@@ -388,10 +388,10 @@ public:
  * @param queue Non-owning reference to the thread-safe queue that we should read from;
  *  guaranteed to outlive the thread.
  * @param features Non-owning reference to the array of features that may produce to
- *  that queue. All Feature objects contained in the vector are guaranteed to outlive
+ *  that queue. All RegisteredFeature objects contained in the vector are guaranteed to outlive
  *  the thread, and the vector itself is guaranteed to remain immutable for the lifetime
  *  of the thread.
  */
-void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<struct Feature>& features);
+void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<struct RegisteredFeature>& features);
 
 }

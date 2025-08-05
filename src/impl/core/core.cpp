@@ -184,7 +184,7 @@ bool Core::Init()
     return true;
 }
 
-bool Core::RegisterFeature(std::shared_ptr<FeatureBase> impl)
+bool Core::RegisterFeature(std::shared_ptr<Feature> impl)
 {
     const FeatureId id = impl->GetId();
     const std::string_view name = impl->GetName();
@@ -200,7 +200,7 @@ bool Core::RegisterFeature(std::shared_ptr<FeatureBase> impl)
     // have a unique ID, and each feature may only be registered once), and don't alllow
     // two features to have the same name, either, as this would cause filesystem
     // contention
-    const auto existing = std::find_if(_features.begin(), _features.end(), [&](const Feature& f) {
+    const auto existing = std::find_if(_features.begin(), _features.end(), [&](const RegisteredFeature& f) {
         return f.id == id || f.name == name;
     });
     if (existing != _features.end())
