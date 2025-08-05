@@ -1,8 +1,8 @@
 #include "datadog/logging.h"
 
 #include "datadog/core.h"
-#include "logging/types.hpp"
-#include "logging/logging.hpp"
+#include "features/logging/types.hpp"
+#include "features/logging/logging.hpp"
 
 #include "core_glue.hpp"
 

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "core/feature.hpp"
-#include "logging/types.hpp"
+#include "features/logging/types.hpp"
 
 namespace datadog::impl {
 

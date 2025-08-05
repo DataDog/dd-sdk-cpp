@@ -4,7 +4,7 @@
 
 #include "core/core.hpp"
 #include "core/feature.hpp"
-#include "logging/logging.hpp"
+#include "features/logging/logging.hpp"
 
 namespace datadog {
 

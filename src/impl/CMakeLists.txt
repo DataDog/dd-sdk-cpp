@@ -4,7 +4,7 @@ add_library(dd_native_impl STATIC
     core/core.cpp
     core/feature.cpp
     core/storage.cpp
-    logging/logging.cpp
+    features/logging/logging.cpp
 )
 
 target_include_directories(dd_native_impl
