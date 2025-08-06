@@ -1,4 +1,8 @@
 {
+    "cmake.configureArgs": [
+        "-DDD_BUILD_TESTING=ON",
+        "-DDD_BUILD_EXAMPLES=ON"
+    ],
     "files.associations": {
         "memory": "cpp",
         "__bit_reference": "cpp",

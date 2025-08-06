@@ -2,11 +2,16 @@ include(${CMAKE_SOURCE_DIR}/cmake/deps/catch2.cmake)
 
 # Create test executable
 add_executable(dd_tests
-    example_test.cpp
+    impl/core/block_test.cpp
+    impl/core/context_test.cpp
+    impl/core/queue_test.cpp
+    impl/core/site_test.cpp
+    impl/platform/filesystem_std_test.cpp
 )
 
 target_link_libraries(dd_tests 
-    PRIVATE 
+    PRIVATE
+    dd_native_impl
     Catch2::Catch2WithMain
 )
 
