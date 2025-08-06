@@ -181,7 +181,7 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
         REQUIRE(result_headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
         // TODO: Update when real request ID generation is implemented
         REQUIRE(result_headers.find("DD-REQUEST-ID: 00000000-0000-0000-0000-000000000000\n") != std::string::npos);
-        // TODO: Update when real User-Agent generation is implemented  
+        // TODO: Update when real User-Agent generation is implemented
         REQUIRE(result_headers.find("User-Agent: nobody\n") != std::string::npos);
 
         // And DD-EVP-ORIGIN-VERSION matches SDK_VERSION stamped into library build
@@ -189,7 +189,7 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
         expected_version_header += SDK_VERSION;
         expected_version_header += "\n";
         REQUIRE(result_headers.find(expected_version_header) != std::string::npos);
-        
+
         REQUIRE(result_headers.back() == '\n'); // Should end with newline
     }
 
@@ -198,7 +198,7 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
         // When feature implementation provides custom headers
         std::string feature_headers = "X-Custom-Header: custom_value\nX-Another-Header: another_value\n";
         context.BuildRequestHeaders("application/json", feature_headers, result_headers);
-        
+
         // Then standard headers appear first
         size_t api_key_pos = result_headers.find("DD-API-KEY: test_client_token_456\n");
         REQUIRE(api_key_pos != std::string::npos);
@@ -210,7 +210,7 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
         size_t another_header_pos = result_headers.find("X-Another-Header: another_value\n");
         REQUIRE(another_header_pos != std::string::npos);
         REQUIRE(another_header_pos > custom_header_pos);
-        
+
         REQUIRE(result_headers.back() == '\n');
     }
 
@@ -220,7 +220,7 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
         std::string long_feature_headers = "X-Very-Long-Header-Name: very_long_header_value_that_takes_up_space\n";
         context.BuildRequestHeaders("application/json", long_feature_headers, result_headers);
         size_t first_capacity = result_headers.capacity();
-        
+
         // And the second call uses a shorter set
         context.BuildRequestHeaders("text/plain", "", result_headers);
 

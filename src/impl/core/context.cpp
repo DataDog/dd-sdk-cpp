@@ -82,7 +82,7 @@ void CoreContext::BuildRequestHeaders(
         user_agent.size() + user_agent_value.size() + 1 +
         feature_headers.size()
     );
-    
+
     // Ensure that our destination string has enough memory to fit everything
     out_headers.reserve(headers_len);
 

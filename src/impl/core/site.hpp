@@ -28,7 +28,7 @@ inline std::string GetIntakeHost(Site site)
         return "browser-intake-datadoghq.eu";
     case Site::us1_fed:
         return "browser-intake-ddog-gov.com";
-    
+
     // Fall out to default implementation
     default:
         break;

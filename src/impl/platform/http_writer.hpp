@@ -16,7 +16,7 @@ struct StringWriter
     /**
      * Initializes a new StringWriter that will read the given string value and write it
      * into the request body when used as a functor.
-     * 
+     *
      * @param s The string data to write into the request body. The underlying storage
      *  for the string must remain stable throughout the lifetime of the StringWriter.
      */

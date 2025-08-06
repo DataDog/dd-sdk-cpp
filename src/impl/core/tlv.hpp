@@ -31,7 +31,7 @@ struct TLVBlockHeader
 /**
  * Encodes a block of binary data to the given buffer, with the accompanying header
  * prepended.
- * 
+ *
  * @param dst Pointer to a contiguous region of memory that can fit the block, header
  *  included.
  * @param n Number of available bytes in that buffer. Must be greater than or equal to

@@ -166,12 +166,12 @@ struct FeatureStorageConfig
  * Base class used for the implementation of a feature. Implements user-facing API
  * operations, generates event payloads for storage, and processes batches of those
  * events for periodic upload.
- * 
+ *
  * The Core is only aware of the Feature interface, and it keeps track of registered
  * features via its own feature-agnostic data stucture, RegisteredFeature.
- * 
+ *
  * To implement a new feature:
- * 
+ *
  * - Establish a new source module `src/impl/features/foo`
  * - In that module, define `class Foo final : public Feature { ... };`
  * - Implement `GetId()` to return the globally unique FourCC code for that feature
@@ -184,7 +184,7 @@ struct FeatureStorageConfig
  * - Implement `UploadThread_PrepareReport()` to read batches of events (in the same
  *    format) and return a `Report` object describing the resulting HTTP request that
  *    should be made to upload that batch to the appropriate intake endpoint
- * 
+ *
  * Additionally, for the user-facing operations that your new feature exposes:
  *
  * - Create `include-c/datadog/foo.h` and declare the feature's C API
@@ -198,7 +198,7 @@ class Feature
 {
 public:
     virtual ~Feature() = default;
-    
+
     virtual FeatureId GetId() const = 0;
     virtual std::string_view GetName() const = 0;
     virtual FeatureStorageConfig GetStorageConfig() const { return {}; }
@@ -224,7 +224,7 @@ protected:
      * event payload(s) into the storage queue so that the storage thread can write them
      * to persistent storage. Once the batch containing this event is ready for upload,
      * the upload thread will pass it to UploadThread_PrepareReport().
-     * 
+     *
      * @returns whether the event was successfully enqueued for storage. If called
      *  before Start() or after Stop(), always returns false.
      */

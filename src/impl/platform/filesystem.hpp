@@ -61,13 +61,13 @@ public:
 
     /**
      * Seeks forward or backward in the file by the given number of bytes.
-     * 
+     *
      * If the operation seeks forward past the end of the file, no error will result
      * until the next read, and Seek will return without error.
-     * 
+     *
      * If the operation would seek backward past the _beginning_ of the file, Seek
      * will return FilesystemError::Failed.
-     * 
+     *
      * @param offset Number of bytes to move relative to the current position in the
      *  file. May be negative to indicate a backward offset.
      */
@@ -75,7 +75,7 @@ public:
 
     /**
      * Reads up to `n` bytes from the file into `dst`.
-     * 
+     *
      * @returns On successful read, the number of bytes actually read from the file,
      *  and a flag indicating whether the read operation encountered the end of the
      *  file. If the read operation failed, returns a FilesystemError.
@@ -127,7 +127,7 @@ public:
     /**
      * Populates the provided vector with the names of all regular files that exist in
      * this directory.
-     * 
+     *
      * @param out_names Reference to an empty vector to be populated with filenames.
      */
     virtual FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) = 0;

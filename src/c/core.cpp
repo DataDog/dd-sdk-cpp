@@ -12,7 +12,7 @@ extern "C" {
 dd_core_t* dd_core_create(dd_core_config_t* config)
 {
     if (!config) return nullptr;
-    
+
     try {
         datadog::CoreConfig cpp_config = datadog::CoreConfig_FromC(*config);
         auto impl = std::make_unique<datadog::impl::Core>(cpp_config);

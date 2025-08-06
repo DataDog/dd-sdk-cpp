@@ -73,7 +73,7 @@ struct RegisteredFeature
     /**
      * Pointer to the feature-specific implementation. Uses shared ownership semantics
      * so that the API layer can retain references via std::weak_ptr or std::shared_ptr.
-     * 
+     *
      * All calls to member functions are made by the Core, on the main thread, with one
      * notable exception: the upload thread calls Feature::UploadThread_PrepareReport
      * directly.
@@ -125,64 +125,64 @@ struct RegisteredFeature
 
 /**
  * Implements the core business logic of the Datadog SDK; namely:
- * 
+ *
  * - allowing modular features to generate event data in response to API operations
  * - quickly flushing that event data to persistent storage in a background thread
  * - periodically processing and uploading batches of event data in another thread
- * 
+ *
  * The entry point to the C API is a series of functions that operate on dd_core_t, e.g.
  * dd_core_init(). The entry point to the C++ API is the datadog::Core type.
  * datadog::impl::Core handles API calls from both of those interfaces.
- * 
+ *
  * The Core owns all global resources that belong to a specific instance of the SDK.
  *
  * On Init(), the Core initializes platform-specific subsystems that include persistent
  * filesystem storage, HTTP client functionality, etc.
- * 
+ *
  * The Core manages a set of Feature implementations (see `feature.hpp`) that have been
  * registered with it. Each Feature provides its own set of user-callable operations,
  * and each Feature knows how to do two things that are of concern to the Core:
- * 
+ *
  * 1.) A feature can generate event payloads in response to API operations, yielding
  *     data that can be flushed to persistent storage in batches
- * 
+ *
  * 2.) A feature can process batches of those same payloads when they are ready for
  *     upload, describing an appropriate HTTP request that will send them to intake
- * 
+ *
  * RegisterFeature() may be called (after Init() but before Start()) in order to
  * activate a specific subset of SDK functionality. Once the core is started, all
  * registered feature implementations receive OnStart(). When the core is stopped, all
  * features receive OnStop() prior to shutdown.
- * 
+ *
  * When started, the Core runs two background threads:
- * 
+ *
  * 1.) The storage thread (see `storage.hpp`), which consumes from a thread-safe queue
  *     that's owned by the Core (see `queue.hpp`). When a feature generates new event
  *     data, or when the Core needs to change the state of the storage thread, code
  *     running in the the main thread produces a `StorageMessage` to the storage queue.
- * 
+ *
  *     For each registered feature, the storage thread takes responsibility for writing
  *     event data to '<storage_root>/<feature_name>/', split into two subdirectories:
  *     one for batches of events collected while tracking consent is pending, and
  *     another containing batches that we have consent to upload. Each batch is a stored
  *     as a binary file in TLV format (see `tlv.hpp`).
- * 
+ *
  *     In `StorageThreadMain`, the storage thread consumes from the storage queue,
  *     blocking until messages are available, and processes each message serially.
- * 
- *     When a new event has been queued for write, the storage thread writes it to the 
+ *
+ *     When a new event has been queued for write, the storage thread writes it to the
  *     appropriate batch file, in '<storage_root>/<feature_name>/<consent_subdir>/'.
  *     The name of each batch file is a Unix timestamp (in milliseconds, no extension)
  *     representing the timestamp at which it was created. The storage thread makes
  *     decisions about when to stop writing to the the current file and start a new
  *     batch, based on size limits, timing requirements, etc., some of which are
  *     user-configurable and some of which are feature-defined.
- * 
+ *
  *     When the storage thread is stopped in response to Core::Stop():
  *     - The storage queue will stop accepting new messages
  *     - The storage thread will drain the queue, flushing all pending writes to disk
  *     - The storage thread will exit
- * 
+ *
  * 2.) The upload thread (see `upload.hpp`), which uses an `UploadScheduler` to
  *     periodically initiate "upload cycles" for all registered features. The timing of
  *     upload cycles is controlled independently for each feature, but the upload thread
@@ -192,39 +192,39 @@ struct RegisteredFeature
  *     event data from '<storage_root>/<feature_name>/<consent_subdir>', where
  *     consent_subdir is the subdirectory that contains event data that we have consent
  *     to process and upload.
- * 
+ *
  *     In `UploadThreadMain`, the upload thread waits until the next scheduled upload
  *     cycle is ready. At that time, it runs an upload cycle for the relevant feature,
  *     then schedules the next upload cycle for the same feature, adjusting the delay
  *     for that feature as needed based on the results of the cycle it just ran.
- * 
+ *
  *     In each upload cycle, the upload thread scans through the target directory in
  *     order, starting from the oldest file, looking for batches of event data that are
  *     ready to be processed and uploaded. Files are not considered ready for upload
  *     until they've reached a certain age, and the storage thread refrains from writing
  *     to files once they're nearing that age, providing a time-based means of
  *     synchronizing access to the filesystem.
- * 
+ *
  *     Each upload cycle may process multiple batches for a given feature. For each
  *     batch, the upload thread opens the relevant file for read, then defers to the
  *     feature implementation to read each event from the batch, along with any
  *     associated metadata, in order to build an HTTP request payload. The upload thread
  *     initiates an HTTP request as instructed by the feature implementation, streaming
  *     the request body directly over the HTTP connection.
- * 
+ *
  *     When the upload thread successfully processes a batch, or when it determines that
  *     the batch is malformed or unacceptable to the intake server, it deletes the batch
  *     from the storage directory. If the upload thread fails to upload a batch due to
  *     transient network problems, it retains the batch and aborts the upload cycle.
- * 
+ *
  *     When the upload thread successfully uploads batches for a feature, it reduces the
  *     interval between upload cycles for that feature. When upload cycles fail, the
  *     storage thread increases the delay with which that feature's next upload cycle is
  *     scheduled.
- * 
+ *
  *     The upload thread makes decisions about the timing and throughput of upload
  *     cycles based on user-configurable values.
- * 
+ *
  *     When the upload thread is stopped in response to Core::Stop():
  *     - If there is an upload cycle in progress, it will be completed
  *     - The upload thread will exit
@@ -234,12 +234,12 @@ struct RegisteredFeature
  * thread-safe by design, the primary point of overlap between threads is the vector of
  * RegisteredFeature objects that is maintained by the Core and shared by reference
  * between threads.
- * 
+ *
  * The Core guarantees that this vector and all its RegisteredFeature objects will
  * remain immutable for the lifetime of all threads, and each thread treats these
  * state objects as read-only, obviating the need for synchronization. The storage
  * thread has exclusive access to a feature's `EventStorage` interface, and the upload
- * thread has exclusive access to a feature's `UploadThreadState` and 
+ * thread has exclusive access to a feature's `UploadThreadState` and
  * `event_read_directory`.
  */
 struct Core
@@ -248,7 +248,7 @@ struct Core
      * Constructs a new core from the provided configuration.
      */
     explicit Core(const CoreConfig& config);
-    
+
     /**
      * Ensures that the core is stopped, if necessary, when it goes out of scope.
      */
@@ -262,7 +262,7 @@ struct Core
 
     /**
      * Updates the configured tracking consent value.
-     * 
+     *
      * May be called at any time from the main thread. If the core is running, the state
      * change will be pushed to the storage thread.
      */
@@ -270,10 +270,10 @@ struct Core
 
     /**
      * Updates the configured 'service' value used in requests.
-     * 
+     *
      * May only be called when the core is not running. Calling this function while the
      * core is running is undefined behavior.
-     * 
+     *
      * TODO: Clarify user-facing interface for setting service/env at runtime, as the
      * most permissible approach would add considerable complexity to the sychronization
      * boundary between the main thread and the upload thread.
@@ -282,10 +282,10 @@ struct Core
 
     /**
      * Updates the configured 'env' value used in requests.
-     * 
+     *
      * May only be called when the core is not running. Calling this function while the
      * core is running is undefined behavior.
-     * 
+     *
      * TODO: See note on SetService; we'd need the upload thread to read from a message
      * queue, or acquire a mutex on every upload cycle, etc.
      */
@@ -293,7 +293,7 @@ struct Core
 
     /**
      * Initializes the core.
-     * 
+     *
      * Must be called before RegisterFeature() or Start() may be called. May not be
      * called more than once.
      */
@@ -301,11 +301,11 @@ struct Core
 
     /**
      * Registers a feature implementation with the core.
-     * 
+     *
      * Must be called after Init() but before Start(): features may not be registered
      * while the core is running. No feature can be registered more than once. Once
      * registered, a feature can not be unregistered.
-     * 
+     *
      * @returns whether the feature was successfully registered. If the feature was
      *  already registered, returns false nonetheless.
      */
@@ -313,13 +313,13 @@ struct Core
 
     /**
      * Starts the core.
-     * 
+     *
      * Must be called after Init(), and after at least one feature has been successfully
      * registered. The core must not already be running.
-     * 
+     *
      * If successful, starts the storage and upload threads, notifies all registered
      * features, and begins normal SDK operation.
-     * 
+     *
      * @returns whether the core was successfully started. If the core was already
      *  running, returns false nonetheless.
      */
@@ -328,10 +328,10 @@ struct Core
     /**
      * Stops the core, ensuring that all background threads are stopped and all
      * in-flight processing is completed cleanly.
-     * 
+     *
      * If the core is not actually running, including if the core is not initialized,
      * has no effect.
-     * 
+     *
      * If the core is running: notifies all features; then signals the end of storage
      * queue processing; waits for the storage thread to drain the queue and flush
      * writes to disk; then signals the end of upload cycle scheduling and waits for the

@@ -15,7 +15,7 @@ TEST_CASE("Queue<int>", "[unit]")
         // Given a queue with one item
         Queue<int> queue;
         REQUIRE(queue.Push(42) == true);
-        
+
         // When Pop() is called
         auto result = queue.Pop();
 
@@ -33,7 +33,7 @@ TEST_CASE("Queue<int>", "[unit]")
     {
         // Given a queue with a move-only item item
         Queue<std::unique_ptr<int>> queue;
-        
+
         // When an rvalue is passed to Push()
         auto item = std::make_unique<int>(42);
         int* raw_ptr = item.get();
@@ -41,7 +41,7 @@ TEST_CASE("Queue<int>", "[unit]")
 
         // Then ownership is transferred to the queue
         REQUIRE(item == nullptr);
-        
+
         // And: When the item is returned from Pop()
         auto result = queue.Pop();
 
@@ -61,7 +61,7 @@ TEST_CASE("Queue<int>", "[unit]")
         REQUIRE(queue.Push(1) == true);
         REQUIRE(queue.Push(2) == true);
         REQUIRE(queue.Push(3) == true);
-        
+
         // When those three items are popped
         auto first = queue.Pop();
         auto second = queue.Pop();
@@ -71,7 +71,7 @@ TEST_CASE("Queue<int>", "[unit]")
         REQUIRE(first.value() == 1);
         REQUIRE(second.value() == 2);
         REQUIRE(third.value() == 3);
-        
+
         // Manual cleanup
         queue.Stop();
     }
@@ -80,10 +80,10 @@ TEST_CASE("Queue<int>", "[unit]")
     {
         // Given a queue
         Queue<int> queue;
-        
+
         // When the queue is stopped
         queue.Stop();
-        
+
         // Then pushing new items will fail
         REQUIRE(queue.Push(42) == false);
     }
@@ -92,10 +92,10 @@ TEST_CASE("Queue<int>", "[unit]")
     {
         // Given a queue
         Queue<int> queue;
-        
+
         // When the queue is stopped
         queue.Stop();
-        
+
         // Then Pop() will return nullopt without blocking
         auto result = queue.Pop();
         REQUIRE_FALSE(result.has_value());
@@ -110,7 +110,7 @@ TEST_CASE("Queue<int>", "[unit]")
 
         // When the queue is stopped
         queue.Stop();
-        
+
         // Then items should still be returned from Pop()
         auto first = queue.Pop();
         auto second = queue.Pop();
@@ -127,13 +127,13 @@ TEST_CASE("Queue<int>", "[unit]")
         // Given a queue with one item
         Queue<int> queue;
         REQUIRE(queue.Push(1) == true);
-        
+
         // When the queue is stopped
         queue.Stop();
-        
+
         // Then subsequent items should be dropped
         REQUIRE(queue.Push(2) == false);
-        
+
         // And new items should still be returned from pop
         auto result = queue.Pop();
         REQUIRE(result.value() == 1);
@@ -146,7 +146,7 @@ TEST_CASE("Queue threading", "[unit]")
     {
         // Given a queue
         Queue<int> queue;
-        
+
         // And multiple producer threads that all push lots of items into the queue
         const int num_threads = 4;
         const int items_per_thread = 100;
@@ -162,7 +162,7 @@ TEST_CASE("Queue threading", "[unit]")
                 }
             });
         }
-        
+
         // And a single consumer thread that pops items and adds them to this vector
         std::vector<int> consumed;
         std::thread consumer([&queue, &consumed, num_threads, items_per_thread]()
@@ -180,7 +180,7 @@ TEST_CASE("Queue threading", "[unit]")
                 }
             }
         });
-        
+
         // When all producers have finished
         for (auto& producer : producers)
         {
@@ -192,7 +192,7 @@ TEST_CASE("Queue threading", "[unit]")
 
         // And all consumers have finished
         consumer.join();
-        
+
         // Then the vector contains all values that were produced
         REQUIRE(consumed.size() == num_threads * items_per_thread);
         std::sort(consumed.begin(), consumed.end());
@@ -206,7 +206,7 @@ TEST_CASE("Queue threading", "[unit]")
     {
         // Given a queue
         Queue<int> queue;
-        
+
         // And a consumer thread that will block on Pop()
         std::atomic<bool> popped{false};
         std::atomic<int> result{0};
@@ -219,22 +219,22 @@ TEST_CASE("Queue threading", "[unit]")
                 popped.store(true);
             }
         });
-        
+
         // And a brief delay to allow the consumer thread to start and block
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        
+
         // Then the consumer is still waiting for an item
         REQUIRE_FALSE(popped.load());
-        
+
         // Given this setup,
         // When we push a value into the queue
         REQUIRE(queue.Push(42) == true);
-        
+
         // Then the consumer thread receives value and exits
         consumer.join();
         REQUIRE(popped.load());
         REQUIRE(result.load() == 42);
-        
+
         // Manual cleanup
         queue.Stop();
     }
@@ -263,13 +263,13 @@ TEST_CASE("Queue threading", "[unit]")
                 }
             });
         }
-        
+
         // And a brief delay to ensure consumers are blocking
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        
+
         // When the queue is stopped
         queue.Stop();
-        
+
         // Then all consumers will exit
         for (auto& consumer : consumers)
         {

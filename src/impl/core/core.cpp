@@ -115,7 +115,7 @@ bool Core::Init()
     if (create_subdir_result)
     {
         auto subdir = std::move(*create_subdir_result);
-        
+
         auto infile_result = subdir->OpenForRead("foo.dat");
         if (infile_result)
         {
@@ -129,7 +129,7 @@ bool Core::Init()
             else
             {
                 const auto err = read_result.error();
-                std::cout << "Failed to read from open file: " << static_cast<int>(err) << "\n";    
+                std::cout << "Failed to read from open file: " << static_cast<int>(err) << "\n";
             }
         }
         else
@@ -151,7 +151,7 @@ bool Core::Init()
             else
             {
                 const auto err = write_result.error();
-                std::cout << "Failed to write to open file: " << static_cast<int>(err) << "\n";    
+                std::cout << "Failed to write to open file: " << static_cast<int>(err) << "\n";
             }
         }
         else

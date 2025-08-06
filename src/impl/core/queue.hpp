@@ -12,19 +12,19 @@ namespace datadog::impl {
  * Thread-safe FIFO queue that allows messages to be passed between threads. Uses move
  * semantics to avoid copies: items successfully pushed onto the queue are owned by the
  * queue, and ownership is transferred to the consumer once an item is popped.
- * 
+ *
  * `Push()` is non-blocking and may be invoked from any thread, including the main
  * thread. A return value of false from `Push()` indicates that queue processing has
  * stopped and no new items will be accepted.
- * 
+ *
  * `Pop()` is blocking: a consumer thread should call `Pop()` continually, blocking on
  * each call until an item is ready. A return value of std::nullopt from `Pop()`
  * indicates that queue processing has been stopped and all items have been processed.
- * 
+ *
  * `Stop()` triggers graceful shutdown: no further items will be accepted from
  * producers, and consumers will be allowed to continue reading items until the queue is
  * drained.
- * 
+ *
  * The owner of the Queue MUST call `Stop()`, and then join on all threads that use it,
  * before the Queue leaves scope.
  */
@@ -36,7 +36,7 @@ public:
         : _is_stopped(false)
     {
     }
-    
+
     ~Queue()
     {
         // A call to Stop() here would represent a race condition, as stopping queue
@@ -52,8 +52,8 @@ public:
 
     /**
      * Adds a new item to the back of the queue, without blocking. Will succeed if the
-     * queue is active; will fail and return false if queue processing has stopped. 
-     * 
+     * queue is active; will fail and return false if queue processing has stopped.
+     *
      * @param item rvalue reference to the new item, which will be moved into the queue
      *  if successful. If unsuccessful; no move will occur.
      * @returns success.
@@ -82,7 +82,7 @@ public:
     /**
      * Retrieves an item from the front of the queue, blocking until either an item is
      * available or queue processing has stopped.
-     * 
+     *
      * @returns The next item to process, or `std::nullopt` if the queue is shut down
      *  and all items have been processed.
      */
@@ -131,7 +131,7 @@ public:
         // Signal to consumers that it's time to shut down
         _condition.notify_all();
     }
-    
+
 private:
     mutable std::mutex _mutex;
     std::condition_variable _condition;

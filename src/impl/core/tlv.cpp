@@ -75,7 +75,7 @@ size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data)
     {
         return 0;
     }
-    
+
     // Write the header into the start of the buffer
     header.Encode(dst);
 

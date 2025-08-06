@@ -9,7 +9,7 @@ add_executable(dd_tests
     impl/platform/filesystem_std_test.cpp
 )
 
-target_link_libraries(dd_tests 
+target_link_libraries(dd_tests
     PRIVATE
     dd_native_impl
     Catch2::Catch2WithMain

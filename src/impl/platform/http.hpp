@@ -1,15 +1,15 @@
 /**
  * Type definitions for the HTTP client functionality used by the Datadog SDK.
- * 
+ *
  * As currently implemented, the SDK's concurrency model for HTTP requests favors
  * clarity and simplicity.  The SDK has at most one HTTP request in flight at any given
  * time, and HTTP client state is isolated per-feature, not shared between them.
- * 
+ *
  * Each Feature has its own IHttpClient, and a background thread (maintained by the
  * Core) periodically checks each Feature to see see if it's ready to send a batch of
  * data. This background thread processes batches serially, blocking with each call to
  * IHttpClient::Post().
- * 
+ *
  * TODO: We can take advantage of connection pooling using curl_simple by sending all
  * requests through a single CURL* handle; do that
  */
@@ -61,7 +61,7 @@ struct HttpResult
 /**
  * Reads up to num_bytes bytes of data from the payload representing the body of an
  * outgoing HTTP request, then writes it into buffer.
- * 
+ *
  * @return The number of bytes written to buffer. If HTTP_WRITE_RESULT_EOF, no bytes
  *  were written, there is no more data to write, and the request should be finished
  *  successfully. If HTTP_WRITE_RESULT_ABORT, writing can not proceed due to an error,

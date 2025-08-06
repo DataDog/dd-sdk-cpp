@@ -48,7 +48,7 @@ static _check_path_result _check_path(const std::filesystem::path& path)
     }
 
     // Make a call to std::filesystem::is_directory to test if it's a directory or
-    // something else 
+    // something else
     const bool is_directory = std::filesystem::is_directory(path, ec);
     if (ec)
     {
@@ -63,7 +63,7 @@ static _check_path_result _check_path(const std::filesystem::path& path)
 
 /**
  * Wraps a std::ifstream in the IFileReader interface.
- * 
+ *
  * Read operations that set the bad bit (indicating a catastrophic I/O problem) will
  * result in `FilesystemError::IOError`, all other failures will result in
  * `FilesystemError::Failed`.
@@ -125,7 +125,7 @@ public:
 
 /**
  * Wraps a std::ofstream in the IFileWriter interface.
- * 
+ *
  * Write operations that set the bad bit (indicating a catastrophic I/O problem) will
  * result in `FilesystemError::IOError`, all other failures will result in
  * `FilesystemError::Failed`.
@@ -263,7 +263,7 @@ public:
         {
             if (ec == std::errc::no_such_file_or_directory)
             {
-                return nonstd::make_unexpected(FilesystemError::DoesNotExist);   
+                return nonstd::make_unexpected(FilesystemError::DoesNotExist);
             }
             return nonstd::make_unexpected(FilesystemError::Failed);
         }
@@ -383,7 +383,7 @@ std::unique_ptr<IStorageDirectory> Filesystem::Init(std::string_view path)
 
         // If it already exists, we're good to go
         case _check_path_result::exists_as_directory:
-            // 
+            //
             break;
     }
 

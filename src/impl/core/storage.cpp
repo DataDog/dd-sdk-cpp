@@ -377,7 +377,7 @@ bool EventStorage::HandleWrite(Block event, Block event_metadata)
         // captured locally but not yet uploaded
         case TrackingConsent::Pending:
             return _pending->HandleWrite(event, event_metadata);
-        
+
         // If consent has been explicitly revoked, store no data
         case TrackingConsent::NotGranted:
             return true; // Event successfully handled as a no-op

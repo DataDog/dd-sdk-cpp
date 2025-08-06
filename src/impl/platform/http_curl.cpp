@@ -12,7 +12,7 @@ namespace datadog::platform {
 /**
  * Callback passed via CURLOPT_READFUNCTION in order to populate the body of an HTTP
  * request. Wraps an HttpBodyWriter function.
- * 
+ *
  * @param buffer The address to which the next chunk of the request body should be
  *  written.
  * @param size The size of an "item" (i.e. byte) in that buffer; always 1.
@@ -20,7 +20,7 @@ namespace datadog::platform {
  *  number of bytes that may be written to `buffer`.
  * @param userdata The value provided via CURLOPT_READDATA; must be the address of an
  *  HttpBodyWriter.
- * 
+ *
  * @returns The number of bytes actually written to the buffer, with 0 signalling EOF,
  *  or CURL_READFUNC_ABORT to signal an error.
  */

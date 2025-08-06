@@ -13,7 +13,7 @@ namespace datadog::impl {
 
 /**
  * Details of SDK configuration and/or state that influence how HTTP requests are built.
- * 
+ *
  * Maintained by the Core; provided to Features in UploadThread_PrepareReport.
  */
 struct CoreContext
@@ -58,7 +58,7 @@ struct CoreContext
     /**
      * Given the basic details of a request, populates out_url with the fully qualified
      * URL used to make that request.
-     * 
+     *
      * @param path URL pathname component, optionally with query params appended after
      *  '?'.
      * @param with_ddsource If true, '(?|&)ddsource=<source>'  will be appended to the
@@ -76,7 +76,7 @@ struct CoreContext
     /**
      * Given the basic details of a request, populates out_headers with the full set of
      * headers that can be supplied to an HTTP client to make the request.
-     * 
+     *
      * @param content_type Value to use for the 'Content-Type' header, e.g.
      *  'application/json'.
      * @param feature_headers Additional feature-specific header values to be appended

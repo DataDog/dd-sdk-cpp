@@ -58,7 +58,7 @@ static _process_and_upload_batch_result _interpret_http_result(platform::HttpRes
         // keep the batch file around, but don't process any more batches for now
         case platform::HttpResultType::GotNoResponse_Retryable:
             return _process_and_upload_batch_result::retryable_failure;
-        
+
         // If we got a valid HTTP response, discriminate based on the status code
         case platform::HttpResultType::GotResponse:
             // Any 200-level response indicates success
@@ -184,8 +184,8 @@ static duration _run_upload_cycle(
         // read when it created the file
         uint64_t timestamp_ms;
         const auto parse_result = std::from_chars(
-            filename.data(), 
-            filename.data() + filename.size(), 
+            filename.data(),
+            filename.data() + filename.size(),
             timestamp_ms
         );
 
@@ -270,7 +270,7 @@ static duration _run_upload_cycle(
     }
 
     std::cout << "<UPLOAD> " << feature.name << ": cycle finished with " << num_uploads_attempted << " uploads attempted; " << num_uploads_completed_successfully << " uploads successful\n";
-    
+
     // If we didn't find any batches to upload, leave our backoff interval unchanged
     if (num_uploads_attempted == 0)
     {

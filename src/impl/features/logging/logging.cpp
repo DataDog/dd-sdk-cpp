@@ -37,7 +37,7 @@ std::optional<Report> Logging::UploadThread_PrepareReport(
 
     // Request headers
     static const std::string_view content_type = "application/json";
-    static const std::string_view feature_headers = "X-Cool: beans\n"; 
+    static const std::string_view feature_headers = "X-Cool: beans\n";
 
     // Rebuild URL and headers only if context has changed, reusing existing strings
     if (_last_context_version != context.version)

@@ -180,7 +180,7 @@ private:
 
 /**
  * Entry point for the upload thread. See description in `core.hpp`.
- * 
+ *
  * @param core_context The context values held by the SDK when the thread started;
  *  passed to UploadThread_PrepareReport to inform request headers etc. TODO: changes
  *  made via SetService() and SetEnv() do not propagate to this thread.
