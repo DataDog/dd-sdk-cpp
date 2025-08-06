@@ -133,6 +133,11 @@ public:
     virtual FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) = 0;
 
     /**
+     * Deletes the file with the given name.
+     */
+    virtual FilesystemResult<void> DeleteFile(std::string_view name) = 0;
+
+    /**
      * Opens an existing file for read, in binary mode, a la `fopen(name, "rb")`. If the
      * file does not exist, returns FilesystemError::DoesNotExist.
      */

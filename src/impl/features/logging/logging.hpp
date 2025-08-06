@@ -1,5 +1,8 @@
 #pragma once
 
+#include <cinttypes>
+#include <string>
+
 #include "core/feature.hpp"
 #include "features/logging/types.hpp"
 
@@ -16,10 +19,15 @@ private:
 class Logging final : public Feature
 {
 public:
+    Logging();
+
     FeatureId GetId() const override { return CreateFeatureId("LOGS"); }
     std::string_view GetName() const override { return "logs"; }
 
-    std::optional<Report> PrepareReport(BatchReader& reader) override;
+    std::optional<Report> UploadThread_PrepareReport(
+        const CoreContext& context,
+        BatchReader& reader
+    ) override;
 
 protected:
     void Start() override;
@@ -27,6 +35,11 @@ protected:
 
 public:
     std::unique_ptr<Logger> CreateLogger(LoggerConfig& config);
+
+private:
+    int32_t _last_context_version;
+    std::string _request_url;
+    std::string _request_headers;
 };
 
 }

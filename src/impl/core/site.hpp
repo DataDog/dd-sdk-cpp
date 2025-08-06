@@ -8,6 +8,15 @@
 
 namespace datadog::impl {
 
+static bool _is_valid_custom_endpoint_url(std::string_view s)
+{
+    return s.find("http:") == 0 || s.find("https:") == 0;
+}
+
+/**
+ * Returns the host (i.e. hostname and port, if any) associated with the intake server
+ * for the given Datadog site (i.e. datacenter).
+ */
 inline std::string GetIntakeHost(Site site)
 {
     // Use hardcoded values for sites with special URLs
@@ -31,10 +40,13 @@ inline std::string GetIntakeHost(Site site)
     return oss.str();
 }
 
+/**
+ * Given the relevant configuration options, returns the origin (i.e. protocol and host)
+ */
 inline std::string GetIntakeOrigin(Site site, std::string_view custom_endpoint_url)
 {
     // Allow a custom endpoint URL (used for internal testing) to override site
-    if (custom_endpoint_url.empty())
+    if (_is_valid_custom_endpoint_url(custom_endpoint_url))
     {
         return std::string(custom_endpoint_url);
     }

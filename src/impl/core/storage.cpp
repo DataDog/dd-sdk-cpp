@@ -50,41 +50,6 @@ static std::string_view _timestamp_to_string(
     return std::string_view{begin, len};
 };
 
-static size_t _quantize_buffer_size(const size_t n)
-{
-    // For values under 64kb, round up to the nearest power of two
-    if (n <= 64 * 1024)
-    {
-        // Clamp the minimum buffer size to 256 bytes
-        size_t q = std::max(n, static_cast<size_t>(256));
-
-        // Decrement to handle values that are already a power of two
-        q--;
-
-        // Smear the highest set bit rightward, resulting in a value that contains all
-        // 1s starting from the most significant bit that was set in the original value;
-        // e.g. 01011001 -> 01111111; 00001101 -> 00001111
-        q |= q >> 1;
-        q |= q >> 2;
-        q |= q >> 4;
-        q |= q >> 8;
-        q |= q >> 16;
-        if constexpr (sizeof(size_t) > 4)
-        {
-            q |= q >> 32;
-        }
-
-        // Increment to arrive at the resulting power of two;
-        // e.g. 01111111 -> 10000000; 00001111 -> 00010000
-        q++;
-        return q;
-    }
-
-    // For values above that threshold, increase in 16kb increments
-    const size_t snap_increment = 16 * 1024;
-    return ((n + snap_increment - 1) / snap_increment) * snap_increment;
-}
-
 BatchWriter::BatchWriter(std::unique_ptr<platform::IDirectory>&& directory)
     : _directory(std::move(directory))
 {
@@ -124,7 +89,7 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata)
     // We maintain a reusable buffer to concatenate all this data into a single
     // contiguous region, so we can write it to file atomically: to avoid excessive
     // allocations, round up to a reasonable threshold
-    const size_t buffer_capacity = _quantize_buffer_size(num_bytes);
+    const size_t buffer_capacity = QuantizeBufferSize(num_bytes);
     _write_buffer.reserve(buffer_capacity);
     _write_buffer.resize(num_bytes);
 

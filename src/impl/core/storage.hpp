@@ -6,6 +6,7 @@
 #include <optional>
 #include <utility>
 
+#include "core/block.hpp"
 #include "core/feature.hpp"
 #include "core/queue.hpp"
 
@@ -75,7 +76,11 @@ struct StorageMessage_EventGenerated
      */
     std::vector<uint8_t> event_metadata;
 
-    StorageMessage_EventGenerated(FeatureId in_feature_id, Block in_event, Block in_event_metadata)
+    explicit StorageMessage_EventGenerated(
+        FeatureId in_feature_id,
+        Block in_event,
+        Block in_event_metadata
+    )
         : feature_id(in_feature_id)
         , event(in_event.begin(), in_event.end())
         , event_metadata(in_event_metadata.begin(), in_event_metadata.end())
@@ -84,7 +89,7 @@ struct StorageMessage_EventGenerated
 };
 
 /**
- * A message consumed by the storage thread.
+ * A message sent to the storage thread.
  */
 struct StorageMessage
 {
@@ -124,7 +129,7 @@ struct StorageMessage
     Payload payload;
 
 private:
-    StorageMessage(StorageMessageType in_type)
+    explicit StorageMessage(StorageMessageType in_type)
         : type(in_type)
     {
     }
@@ -219,7 +224,11 @@ public:
     /**
      * Creates a new EventGenerated message.
      */
-    static StorageMessage EventGenerated(FeatureId feature_id, Block event, Block event_metadata)
+    static StorageMessage EventGenerated(
+        FeatureId feature_id,
+        Block event,
+        Block event_metadata
+    )
     {
         StorageMessage m{StorageMessageType::EventGenerated};
         new (&m.payload.event_generated)
@@ -229,16 +238,16 @@ public:
 };
 
 /**
- * Implements the logic used in the 
+ * Implements the logic used in the storage thread to commit events to persistent
+ * storage.
  * 
  * Wraps a subdirectory, either '<STORAGE_ROOT>/<FEATURE>/pending' or
  * '<STORAGE_ROOT>/<FEATURE>/granted', representing a directory in which batches of
  * event data are stored.
  *
- * The BatchWriter maintains at most one open file handle, representing the latest file
- * to which TLV blocks are being written for that feature. The BatchWriter makes
- * decisions about when to close the file and start a new one, what new files should be
- * named, etc.
+ * The BatchWriter keeps track of a the bacth file that it most recently wrote to, and 
+ * on each write it makes decisions about when to close the file and start a new one,
+ * what new files should be named, etc.
  */
 class BatchWriter
 {
@@ -330,12 +339,12 @@ private:
  * Wraps a subdirectory, '<STORAGE_ROOT>/<FEATURE>', which contains all the event data
  * for that feature. Event data is written in TLV format to files that represent batches
  * of data being prepared for upload.
- *
  * 
- *
- * 
- * The EventStorage is initialized and owned by the Core, which also owns the filesystem
- * and the directory interface for the associated feature.
+ * The EventStorage object manages two BatchWriters, one for the directory containing
+ * events for which tracking consent has been granted, and another for events collected
+ * while tracking consent is pending. EventStorage defers to the appropriate writer for
+ * the current tracking consent state, and it coordinates migration/deletion of events
+ * when tracking consent changes.
  */
 class EventStorage
 {
@@ -344,9 +353,9 @@ public:
     static const char* GRANTED_SUBDIRECTORY_NAME;
 
 private:
+    TrackingConsent _consent;
     std::unique_ptr<BatchWriter> _pending;
     std::unique_ptr<BatchWriter> _granted;
-    TrackingConsent _consent;
 
 public:
     /**
@@ -358,6 +367,9 @@ public:
      */
     explicit EventStorage(TrackingConsent consent, std::unique_ptr<BatchWriter>&& pending, std::unique_ptr<BatchWriter>&& granted);
 
+    /**
+     * Notifies the storage thread that the SDK's tracking consent value has changed.
+     */
     bool SetTrackingConsent(TrackingConsent value);
 
     /**
@@ -380,17 +392,14 @@ public:
 };
 
 /**
- * Entry point for the "storage thread", a background thread owned by the Core.
- * 
- * The storage thread is responsible for consuming from the "storage queue," a blocking,
- * thread-safe queue that contains data
+ * Entry point for the storage thread. See description in `core.hpp`.
  * 
  * @param queue Non-owning reference to the thread-safe queue that we should read from;
  *  guaranteed to outlive the thread.
  * @param features Non-owning reference to the array of features that may produce to
- *  that queue. All RegisteredFeature objects contained in the vector are guaranteed to outlive
- *  the thread, and the vector itself is guaranteed to remain immutable for the lifetime
- *  of the thread.
+ *  that queue. All RegisteredFeature objects contained in the vector are guaranteed to
+ *  outlive the thread, and both the objects and the vector itself are guaranteed to
+ *  remain immutable for the lifetime of the thread.
  */
 void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<struct RegisteredFeature>& features);
 

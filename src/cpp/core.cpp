@@ -23,7 +23,7 @@ bool Core::Start()
 
 void Core::Shutdown()
 {
-    _impl->Shutdown();
+    _impl->Stop();
 }
 
 }

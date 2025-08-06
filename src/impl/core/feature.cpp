@@ -4,11 +4,12 @@
 
 namespace datadog::impl {
 
-void Feature::OnCoreStarted(StorageWriter writer)
+void Feature::OnCoreStarted(EventGeneratedFunc event_callback)
 {
     // We're now permitted to write events; store a reference to our writer callback
-    assert(!_writer && "Feature received OnCoreStop with non-null writer");
-    _writer = writer;
+    assert(!_event_callback && "Feature has non-null _event_callback in OnCoreStarted");
+    assert(event_callback && "Feature received null event_callback in OnCoreStarted");
+    _event_callback = event_callback;
 
     // Notify the feature that the core is started
     Start();
@@ -21,22 +22,22 @@ void Feature::OnCoreStopping()
     Stop();
 
     // Clear the writer callback; we're no longer permitted to write anything
-    assert(_writer && "Feature received OnCoreStop with null writer");
-    _writer = nullptr;
+    assert(_event_callback && "Feature has null _event_callback in OnCoreStop");
+    _event_callback = nullptr;
 }
 
 bool Feature::WriteEvent(Block event, Block event_metadata)
 {
-    if (_writer)
+    if (_event_callback)
     {
-        return _writer(event, event_metadata);
+        return _event_callback(event, event_metadata);
     }
     return false;
 }
 
 bool Feature::IsRunning() const
 {
-    return _writer != nullptr;
+    return _event_callback != nullptr;
 }
 
 }

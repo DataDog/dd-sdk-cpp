@@ -51,7 +51,7 @@ void dd_core_shutdown(dd_core_t* core)
     if (core && core->impl)
     {
         try {
-            core->impl->Shutdown();
+            core->impl->Stop();
         } catch (...) {
             // Silently ignore exceptions for now
         }

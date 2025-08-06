@@ -1,5 +1,8 @@
 #include <iostream>
 
+#include <thread>
+#include <chrono>
+
 #include "datadog.hpp"
 
 int main()
@@ -40,6 +43,7 @@ int main()
     }
 
     std::cout << "Core started successfully. Shutting down...\n";
+    std::this_thread::sleep_for(std::chrono::seconds(60));
     core->Shutdown();
 
     std::cout << "Example completed successfully\n";

@@ -250,6 +250,28 @@ public:
         return {};
     }
 
+    FilesystemResult<void> DeleteFile(std::string_view name) override
+    {
+        // Build the path to the target file
+        assert(_is_clean_basename(name));
+        const std::filesystem::path file_path = _path / name;
+
+        // Attempt to delete the file
+        std::error_code ec;
+        std::filesystem::remove(file_path, ec);
+        if (ec)
+        {
+            if (ec == std::errc::no_such_file_or_directory)
+            {
+                return nonstd::make_unexpected(FilesystemError::DoesNotExist);   
+            }
+            return nonstd::make_unexpected(FilesystemError::Failed);
+        }
+
+        // No error; return default expected<void>
+        return {};
+    }
+
     FilesystemResult<std::unique_ptr<IFileReader>> OpenForRead(
         std::string_view name
     ) override

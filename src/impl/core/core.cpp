@@ -9,6 +9,7 @@
 #include "platform/http.hpp"
 #include "platform/http_writer.hpp"
 #include "core/types.hpp"
+#include "core/upload.hpp"
 
 namespace datadog::impl {
 
@@ -22,6 +23,7 @@ Core::Core(const datadog::CoreConfig& config)
 
 Core::~Core()
 {
+    Stop();
 }
 
 void Core::SetTrackingConsent(TrackingConsent value)
@@ -36,17 +38,31 @@ void Core::SetTrackingConsent(TrackingConsent value)
         // handle the state change
         if (_state == CoreState::Started)
         {
+            // If the core is running, send a message using the storage queue
             assert(_storage_queue &&
                 "_storage_queue is invalid with CoreState::Started on "
                 "SetTrackingConsent"
             );
             _storage_queue->Push(StorageMessage::TrackingConsentChanged(value));
         }
+        else
+        {
+            // Otherwise, notify each feature directly, since EventStorage is
+            // initialized from config on RegisterFeature(), not on Start()
+            for (auto& feature : _features)
+            {
+                if (!feature.event_storage->SetTrackingConsent(value))
+                {
+                    std::cout << "Failed to set tracking consent synchronously\n";
+                }
+            }
+        }
     }
 }
 
 void Core::SetService(std::string_view value)
 {
+    // TODO: Push context changes to upload thread; requires synchronization
     if (_config.service != value)
     {
         // Cache value and update the context; subsequent reports will be generated
@@ -58,6 +74,7 @@ void Core::SetService(std::string_view value)
 
 void Core::SetEnv(std::string_view value)
 {
+    // TODO: Push context changes to upload thread; requires synchronization
     if (_config.env != value)
     {
         // Cache value and update the context; subsequent reports will be generated
@@ -69,7 +86,9 @@ void Core::SetEnv(std::string_view value)
 
 bool Core::Init()
 {
-    assert(_state == CoreState::Uninitialized && "Core::Init should only be called once");
+    // We call Init() internally at the API binding layer; users should not be able to
+    // attempt initialization of the same core twice
+    assert(_state == CoreState::Uninitialized && "Core::Init called multiple times");
 
     // Initialize the filesystem interface, using a temporary directory for testing
     _storage_root = platform::Filesystem::Init("temp-test/storage");
@@ -221,13 +240,17 @@ bool Core::RegisterFeature(std::shared_ptr<Feature> impl)
     // Initialize two subdirectories within that feature directory: one that we'll write
     // to when tracking consent is pending, and another to contain the files that the
     // user has consented to being uploaded: the upload thread will read from the latter
-    auto pending_subdir = (*feature_subdir)->PrepareSubdirectory(EventStorage::PENDING_SUBDIRECTORY_NAME);
+    auto pending_subdir = (*feature_subdir)->PrepareSubdirectory(
+        EventStorage::PENDING_SUBDIRECTORY_NAME
+    );
     if (!pending_subdir)
     {
         std::cout << "Failed to register feature " << name << " (id " << id << "): pending subdir init failed with error " << static_cast<int>(pending_subdir.error()) << "\n";
         return false;
     }
-    auto granted_subdir = (*feature_subdir)->PrepareSubdirectory(EventStorage::GRANTED_SUBDIRECTORY_NAME);
+    auto granted_subdir = (*feature_subdir)->PrepareSubdirectory(
+        EventStorage::GRANTED_SUBDIRECTORY_NAME
+    );
     if (!granted_subdir)
     {
         std::cout << "Failed to register feature " << name << " (id " << id << "): granted subdir init failed with error " << static_cast<int>(granted_subdir.error()) << "\n";
@@ -242,12 +265,29 @@ bool Core::RegisterFeature(std::shared_ptr<Feature> impl)
         std::make_unique<BatchWriter>(std::move(*granted_subdir))
     );
 
+    // Prepare a separate interface to the directory that the upload thread should read
+    // from: this is the same location on disk that the storage thread may write to
+    // (i.e. granted_subdir), but we want each thread to have its own handle
+    auto event_read_directory = (*feature_subdir)->PrepareSubdirectory(
+        EventStorage::GRANTED_SUBDIRECTORY_NAME
+    );
+    if (!event_read_directory)
+    {
+        std::cout << "Failed to register feature " << name << " (id " << id << "): event read subdir init failed with error " << static_cast<int>(event_read_directory.error()) << "\n";
+        return false;
+    }
+
+    // Initialize the feature-specific state used by the upload thread
+    auto upload_state = std::make_unique<UploadThreadState>(_config.upload_frequency);
+
     _features.emplace_back(
         id,
         name,
         impl,
         std::move(*feature_subdir),
-        std::move(event_storage)
+        std::move(event_storage),
+        std::move(*event_read_directory),
+        std::move(upload_state)
     );
     std::cout << "Feature registered: " << name << "(id " << id << ")" << "\n";
     return true;
@@ -284,6 +324,22 @@ bool Core::Start()
         std::ref(_features)
     );
 
+    assert(!_upload_scheduler && "_upload_scheduler already exists on Start()");
+    _upload_scheduler = std::make_unique<UploadScheduler>();
+
+    // Start another thread that will schedule periodic upload cycles on a per-feature
+    // basis: each time an upload cycle runs, the thread will check the relevant storage
+    // directory for batches of events that are ready for read, processing them via the
+    // feature implementation and sending them to intake over HTTP
+    assert(!_upload_thread && "_upload_thread already exists on Start()");
+    _upload_thread = std::thread(
+        UploadThreadMain,
+        std::ref(_context),
+        std::ref(*_upload_scheduler),
+        std::ref(_features),
+        std::ref(*_http_client)
+    );
+
     std::cout << "Datadog core started.\n";
     std::cout << "- Tracking Consent: " << TrackingConsent_ToString(_config.tracking_consent) << "\n";
     std::cout << "- Site: " << Site_ToString(_config.datadog_site) << "\n";
@@ -301,15 +357,15 @@ bool Core::Start()
     for (const auto& feature : _features)
     {
         const FeatureId id = feature.id;
-        StorageWriter writer = [this, id](Block event, Block event_metadata) -> bool {
+        EventGeneratedFunc event_callback = [this, id](Block event, Block event_metadata) -> bool {
             return EnqueueStorageWrite(id, event, event_metadata);
         };
-        feature.impl->OnCoreStarted(writer);
+        feature.impl->OnCoreStarted(event_callback);
     }
     return true;
 }
 
-void Core::Shutdown()
+void Core::Stop()
 {
     // Double-shutdown is fine; just ignore it
     if (_state != CoreState::Started)
@@ -323,10 +379,14 @@ void Core::Shutdown()
         feature.impl->OnCoreStopping();
     }
 
-    // If we were previously started, the storage thread should be running
-    assert(_storage_queue && "_storage_queue is invalid on Shutdown");
+    // If we were previously started, the storage and upload threads should be running
+    assert(_storage_queue && "_storage_queue is invalid on Stop");
     assert(_storage_thread && _storage_thread->joinable() &&
-        "_storage_thread is non-joinable on Shutdown"
+        "_storage_thread is non-joinable on Stop"
+    );
+    assert(_upload_scheduler && "_upload_scheduler is invalid on Stop");
+    assert(_upload_thread && _upload_thread->joinable() &&
+        "_upload_thread is non-joinable on Stop"
     );
 
     // Stop all queue processing, then block until the consumer thread drains the queue
@@ -336,7 +396,14 @@ void Core::Shutdown()
     _storage_thread.reset();
     _storage_queue.reset();
 
-    std::cout << "Datadog core shut down.\n";
+    // Once the storage thread is fully shut down, signal to the upload thread (with
+    // synchronization) that it should exit, then wait for it to do so
+    _upload_scheduler->Stop();
+    _upload_thread->join();
+    _upload_thread.reset();
+    _upload_scheduler.reset();
+
+    std::cout << "Datadog core stopped.\n";
     std::cout << "Time at shutdown: " << datadog::platform::Clock::read_utc_nanos() << "\n";
 
     // Revert to the initialized state; subsequent calls to Start() will restart us
