@@ -32,11 +32,13 @@ Repository structure:
 [impl-platform]: ./src/impl/platform/
 [examples]: ./examples/
 
-To build and run examples:
+To build and run tests and examples:
 
 ```
 mkdir build && cd build
-cmake -DDD_BUILD_EXAMPLES=ON .. && cmake --build .
+cmake -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON ..
+cmake --build .
+ctest
 examples/dd_native_c_example
 examples/dd_native_cpp_example
 ```
