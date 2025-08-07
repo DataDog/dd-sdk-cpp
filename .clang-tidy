@@ -1,8 +1,12 @@
 ---
 Checks: >
+  clang-diagnostic-*,
+
+  clang-analyzer-*,
+
   bugprone-*,
   -bugprone-easily-swappable-parameters,
-  clang-analyzer-*,
+
   readability-*,
   -readability-magic-numbers,
   -readability-identifier-length,
@@ -10,8 +14,12 @@ Checks: >
   -readability-simplify-boolean-expr,
   -readability-uppercase-literal-suffix,
   -readability-redundant-access-specifiers,
+
   performance-*,
 
+  portability-*,
+
+  concurrency-*,
 
 WarningsAsErrors: '*'
 
