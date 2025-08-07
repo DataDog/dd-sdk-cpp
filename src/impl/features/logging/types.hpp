@@ -40,10 +40,10 @@ inline const char* LogLevel_ToString(LogLevel value)
 inline LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config)
 {
     return LoggerConfig{
-        .remote_sample_rate = config.remote_sample_rate,
-        .service = config.service,
-        .name = config.name,
-        .remote_log_threshold = LogLevel_FromC(config.remote_log_threshold),
+        config.remote_sample_rate,
+        config.service,
+        config.name,
+        LogLevel_FromC(config.remote_log_threshold),
     };
 }
 

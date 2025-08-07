@@ -38,7 +38,7 @@ void CoreContext::BuildRequestURL(
         out_url += query_delim;
         out_url += ddsource_param;
         out_url += source;
-        query_delim = '&';
+        query_delim = '&'; // NOLINT: Defensive; needed if we add ddtags etc.
     }
 }
 

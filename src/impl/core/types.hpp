@@ -153,18 +153,17 @@ inline const char* BatchProcessingLevel_ToString(BatchProcessingLevel value)
 
 inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config)
 {
+    // TODO: Avoid positional args; mandate first 5 parameters
     return CoreConfig{
-        .tracking_consent = TrackingConsent_FromC(config.tracking_consent),
-        .datadog_site = Site_FromC(config.datadog_site),
-        .client_token = config.client_token ? std::string(config.client_token) : "",
-        .service = config.service ? std::string(config.service) : "",
-        .env = config.env ? std::string(config.env) : "",
-        .application_version =
-            config.application_version ? std::string(config.application_version) : "",
-        .batch_size = BatchSize_FromC(config.batch_size),
-        .upload_frequency = UploadFrequency_FromC(config.upload_frequency),
-        .batch_processing_level =
-            BatchProcessingLevel_FromC(config.batch_processing_level),
+        TrackingConsent_FromC(config.tracking_consent),
+        Site_FromC(config.datadog_site),
+        config.client_token ? std::string(config.client_token) : "",
+        config.service ? std::string(config.service) : "",
+        config.env ? std::string(config.env) : "",
+        config.application_version ? std::string(config.application_version) : "",
+        BatchSize_FromC(config.batch_size),
+        UploadFrequency_FromC(config.upload_frequency),
+        BatchProcessingLevel_FromC(config.batch_processing_level),
     };
 }
 

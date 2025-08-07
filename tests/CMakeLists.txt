@@ -1,15 +1,19 @@
 include(${CMAKE_SOURCE_DIR}/cmake/deps/catch2.cmake)
 
 # Create test executable
-add_executable(dd_tests
+add_executable(dd_native_tests
     impl/core/block_test.cpp
     impl/core/context_test.cpp
     impl/core/queue_test.cpp
     impl/core/site_test.cpp
 )
-target_enable_strict_warnings(dd_tests)
+target_enable_strict_warnings(dd_native_tests)
 
-target_link_libraries(dd_tests
+target_include_directories(dd_native_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/impl
+)
+
+target_link_libraries(dd_native_tests
     PRIVATE
     dd_native_impl
     Catch2::Catch2WithMain
@@ -18,4 +22,4 @@ target_link_libraries(dd_tests
 # Register tests with CTest
 include(CTest)
 include(Catch)
-catch_discover_tests(dd_tests)
+catch_discover_tests(dd_native_tests)

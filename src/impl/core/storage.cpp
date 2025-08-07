@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cassert>
+#include <charconv>
 #include <iostream>
 #include <sstream>
 #include <string>
@@ -17,15 +18,15 @@
 // the event of breaking changes in order to abandon previously-written events on disk.
 // This versioning scheme applies to the storage implementation as a whole: individual
 // features should implement their own versioning schemes internally if needed.
-#define __EVENT_STORAGE_VERSION "1"
+#define DATADOG_EVENT_STORAGE_VERSION "1"
 
 namespace datadog::impl {
 
 // Use (e.g.) 'v1' to store events gathered while tracking consent is granted;
 // 'intermediate-v1' for events gathered while tracking consent is pending
 const char* EventStorage::PENDING_SUBDIRECTORY_NAME =
-    "intermediate-v" __EVENT_STORAGE_VERSION;
-const char* EventStorage::GRANTED_SUBDIRECTORY_NAME = "v" __EVENT_STORAGE_VERSION;
+    "intermediate-v" DATADOG_EVENT_STORAGE_VERSION;
+const char* EventStorage::GRANTED_SUBDIRECTORY_NAME = "v" DATADOG_EVENT_STORAGE_VERSION;
 
 // Maximum possible base-10 digits in a uint64_t, without null terminator
 static const size_t MAX_UINT64_DECIMAL_DIGITS = 20;
@@ -189,7 +190,7 @@ bool BatchWriter::CanReuseFileForNextWrite(
     // TODO: Specify constants; derive max age cutoff from BatchSize
     const int64_t max_file_age_for_write_ms = 2850;
     const int max_writes_per_file = 500;
-    const size_t max_file_size_in_bytes = 4 * 1024 * 1024;
+    const size_t max_file_size_in_bytes = 0x400000;
 
     // If we have no current file, we need a new one
     if (!_last_file)

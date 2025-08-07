@@ -1,5 +1,5 @@
-#ifndef __DATADOG_CORE_H__
-#define __DATADOG_CORE_H__
+#ifndef DATADOG_INCLUDE_CORE_H
+#define DATADOG_INCLUDE_CORE_H
 
 #include <stdbool.h>
 
@@ -71,4 +71,4 @@ void dd_core_shutdown(dd_core_t* core);
 }
 #endif
 
-#endif // __DATADOG_CORE_H__
+#endif // DATADOG_INCLUDE_CORE_H

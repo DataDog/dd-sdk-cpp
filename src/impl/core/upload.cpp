@@ -76,6 +76,10 @@ static _process_and_upload_batch_result _interpret_http_result(platform::HttpRes
                 case 504: // Gateway Timeout
                 case 507: // Insufficient Storage
                     return _process_and_upload_batch_result::retryable_failure;
+
+                // For all other status codes, break
+                default:
+                    break;
             }
 
             // Treat all other responses as inherent flaws in the request payload itself
@@ -141,22 +145,22 @@ static duration _run_upload_cycle(
     std::vector<char>& mut_read_buffer
 )
 {
+    // The feature should have its own state related to upload attempt timing etc.
+    if (!feature.upload_state)
+    {
+        assert(false && "registered feature has no upload state in upload thread");
+        return ASSERTION_FAILURE_BACKOFF;
+    }
+
     // The storage thread maintains a separate subdirectory for events that we have the
     // user's consent to upload: a wrapper for that directory should have been
     // initialized when the feature was registered
     if (!feature.event_read_directory)
     {
         assert(false && "registered feature has no read directory in upload thread");
-        return feature.upload_state->current_delay;
+        return ASSERTION_FAILURE_BACKOFF;
     }
     platform::IDirectory& directory = *feature.event_read_directory.get();
-
-    // The feature should also have its own state related to upload attempt timing etc.
-    if (!feature.upload_state)
-    {
-        assert(false && "registered feature has no upload state in upload thread");
-        return feature.upload_state->current_delay;
-    }
 
     // Retrieve a list of all filenames in the relevant directory
     mut_filenames.clear();

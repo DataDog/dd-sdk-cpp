@@ -3,6 +3,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <limits>
 
 namespace datadog::platform {
 
@@ -101,7 +102,8 @@ public:
     FilesystemResult<FileReadResult> Read(char* dst, size_t n) override
     {
         // Read up to n bytes from the file into dst
-        _infile.read(dst, n);
+        assert(n <= std::numeric_limits<std::streamsize>::max());
+        _infile.read(dst, static_cast<std::streamsize>(n));
 
         // Check error bits and fail if we couldn't read from the file
         if (_infile.bad())
@@ -168,7 +170,8 @@ public:
         }
 
         // File is open: attempt to write all n bytes to the file, then check error bits
-        outfile.write(src, n);
+        assert(n <= std::numeric_limits<std::streamsize>::max());
+        outfile.write(src, static_cast<std::streamsize>(n));
         if (outfile.bad())
         {
             return nonstd::make_unexpected(FilesystemError::IOError);

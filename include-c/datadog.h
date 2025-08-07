@@ -1,7 +1,7 @@
-#ifndef __DATADOG_H__
-#define __DATADOG_H__
+#ifndef DATADOG_INCLUDE_DATADOG_H
+#define DATADOG_INCLUDE_DATADOG_H
 
 #include "datadog/core.h"
 #include "datadog/logging.h"
 
-#endif // __DATADOG_H__
+#endif // DATADOG_INCLUDE_DATADOG_H

@@ -1,0 +1,14 @@
+---
+Checks: >
+  bugprone-*,
+  -bugprone-easily-swappable-parameters,
+#  clang-analyzer-*,
+#  readability-*,
+#  performance-*,
+#  modernize-*,
+#  -modernize-use-trailing-return-type,
+#  -readability-magic-numbers
+
+WarningsAsErrors: '*'
+
+HeaderFilterRegex: '(src/|include-c/|include-cpp/|tests/).*'

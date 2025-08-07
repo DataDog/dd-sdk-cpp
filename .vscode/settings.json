@@ -1,8 +1,13 @@
 {
     "cmake.configureArgs": [
-        "-DDD_BUILD_TESTING=ON",
-        "-DDD_BUILD_EXAMPLES=ON"
+        "-DDD_DEVELOPMENT=ON",
     ],
+    "C_Cpp.codeAnalysis.clangTidy.enabled": true,
+    "C_Cpp.codeAnalysis.runAutomatically": true,
+    "C_Cpp.codeAnalysis.exclude": {
+        "build/_deps/**": true,
+        "tests/**": true
+    },
     "files.associations": {
         "*.h": "c",
         "*.c": "c",

@@ -5,7 +5,7 @@ namespace datadog::impl {
 static uint16_t _read_big_endian_16(const char* buf)
 {
     const uint16_t b0 = static_cast<uint16_t>(buf[0]) << 8;
-    const uint16_t b1 = static_cast<uint16_t>(buf[1]);
+    const uint16_t b1 = static_cast<uint16_t>(buf[1]) << 0;
     return b0 | b1;
 }
 
@@ -14,7 +14,7 @@ static uint32_t _read_big_endian_32(const char* buf)
     const uint32_t b0 = static_cast<uint32_t>(buf[0]) << 24;
     const uint32_t b1 = static_cast<uint32_t>(buf[1]) << 16;
     const uint32_t b2 = static_cast<uint32_t>(buf[2]) << 8;
-    const uint32_t b3 = static_cast<uint32_t>(buf[3]);
+    const uint32_t b3 = static_cast<uint32_t>(buf[3]) << 0;
     return b0 | b1 | b2 | b3;
 }
 
@@ -46,13 +46,18 @@ std::optional<TLVBlockHeader> TLVBlockHeader::Decode(
         return std::nullopt;
     }
 
-    // Parse block type, ensuring it's a recognized value
+    // Parse block type
     switch (type)
     {
+        // If the value is recognized, we're good
         case static_cast<uint16_t>(TLVBlockType::Event):
         case static_cast<uint16_t>(TLVBlockType::Metadata):
             return TLVBlockHeader{ static_cast<TLVBlockType>(type),
                                    static_cast<uint32_t>(block_size) };
+
+        // For all other values, break and return nullopt
+        default:
+            break;
     }
     return std::nullopt;
 }

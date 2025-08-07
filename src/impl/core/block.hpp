@@ -27,7 +27,9 @@ using Block = std::string_view;
 inline size_t QuantizeBufferSize(const size_t n)
 {
     // For values under 64kb, round up to the nearest power of two
-    if (n <= 64 * 1024)
+    const size_t threshold_kb = 64;
+    const size_t threshold = threshold_kb * static_cast<size_t>(1024);
+    if (n <= threshold)
     {
         // Clamp the minimum buffer size to 256 bytes
         size_t q = std::max(n, static_cast<size_t>(256));
@@ -55,6 +57,7 @@ inline size_t QuantizeBufferSize(const size_t n)
     }
 
     // For values above that threshold, increase in 16kb increments
-    const size_t snap_increment = 16 * 1024;
+    const size_t snap_increment_kb = 16;
+    const size_t snap_increment = snap_increment_kb * static_cast<size_t>(1024);
     return ((n + snap_increment - 1) / snap_increment) * snap_increment;
 }

@@ -22,26 +22,19 @@ extern "C" {
 
 dd_logging_t* dd_logging_init(dd_core_t* core)
 {
-    if (!core)
+    if (!core || !core->impl)
+    {
         return nullptr;
-    if (!core->impl)
-        return nullptr;
+    }
 
-    try
-    {
-        auto impl = std::make_shared<datadog::impl::Logging>();
-        if (!core->impl->RegisterFeature(impl))
-        {
-            return nullptr;
-        }
-        dd_logging_t* logging = new dd_logging;
-        logging->impl = std::move(impl);
-        return logging;
-    }
-    catch (...)
+    auto impl = std::make_shared<datadog::impl::Logging>();
+    if (!core->impl->RegisterFeature(impl))
     {
         return nullptr;
     }
+    dd_logging_t* logging = new dd_logging;
+    logging->impl = std::move(impl);
+    return logging;
 }
 
 void dd_logging_destroy(dd_logging_t* logging)
@@ -51,10 +44,10 @@ void dd_logging_destroy(dd_logging_t* logging)
 
 dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* config)
 {
-    if (!logging)
+    if (!logging || !config)
+    {
         return nullptr;
-    if (!config)
-        return nullptr;
+    }
 
     datadog::LoggerConfig cpp_config = datadog::LoggerConfig_FromC(*config);
     dd_logger_t* logger = new dd_logger;

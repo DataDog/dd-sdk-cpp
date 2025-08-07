@@ -1,5 +1,5 @@
-#ifndef __DATADOG_LOGGING_H__
-#define __DATADOG_LOGGING_H__
+#ifndef DATADOG_INCLUDE_LOGGING_H
+#define DATADOG_INCLUDE_LOGGING_H
 
 #include "datadog/core.h"
 
@@ -46,4 +46,4 @@ void dd_logger_critical(dd_logger_t* log, const char* message);
 }
 #endif
 
-#endif // __DATADOG_LOGGING_H__
+#endif // DATADOG_INCLUDE_LOGGING_H
