@@ -450,4 +450,4 @@ bool Core::EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_me
     );
 }
 
-}
+} // namespace datadog::impl

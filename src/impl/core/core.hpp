@@ -366,4 +366,4 @@ private:
     std::optional<std::thread> _upload_thread;
 };
 
-}
+} // namespace datadog::impl

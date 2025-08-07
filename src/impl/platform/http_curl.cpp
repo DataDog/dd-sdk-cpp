@@ -245,4 +245,4 @@ std::unique_ptr<IHttpSubsystem> Http::Init()
     return std::make_unique<CurlHttpSubsystem>();
 }
 
-}
+} // namespace datadog::platform

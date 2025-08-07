@@ -57,4 +57,4 @@ inline std::string GetIntakeOrigin(Site site, std::string_view custom_endpoint_u
     return oss.str();
 }
 
-}
+} // namespace datadog::impl

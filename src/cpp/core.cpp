@@ -26,4 +26,4 @@ void Core::Shutdown()
     _impl->Stop();
 }
 
-}
+} // namespace datadog

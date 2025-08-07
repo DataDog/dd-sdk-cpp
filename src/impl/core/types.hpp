@@ -167,4 +167,4 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config)
     };
 }
 
-}
+} // namespace datadog

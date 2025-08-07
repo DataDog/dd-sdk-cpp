@@ -22,8 +22,14 @@ class Logging final : public Feature
 public:
     Logging();
 
-    FeatureId GetId() const override { return CreateFeatureId("LOGS"); }
-    std::string_view GetName() const override { return "logs"; }
+    FeatureId GetId() const override
+    {
+        return CreateFeatureId("LOGS");
+    }
+    std::string_view GetName() const override
+    {
+        return "logs";
+    }
 
     std::optional<Report> UploadThread_PrepareReport(
         const CoreContext& context,
@@ -43,4 +49,4 @@ private:
     std::string _request_headers;
 };
 
-}
+} // namespace datadog::impl

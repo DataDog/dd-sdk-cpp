@@ -42,4 +42,4 @@ static_assert(
     "StringWriter does not implement HttpBodyWriter"
 );
 
-}
+} // namespace datadog::platform

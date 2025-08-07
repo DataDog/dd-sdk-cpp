@@ -143,4 +143,4 @@ private:
     std::atomic<bool> _is_stopped;
 };
 
-}
+} // namespace datadog::impl

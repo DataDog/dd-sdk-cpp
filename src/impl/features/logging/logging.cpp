@@ -62,4 +62,4 @@ std::unique_ptr<Logger> Logging::CreateLogger(LoggerConfig& config) // NOLINT (T
     return nullptr;
 }
 
-}
+} // namespace datadog::impl

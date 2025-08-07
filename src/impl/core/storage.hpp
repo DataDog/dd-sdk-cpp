@@ -409,4 +409,4 @@ void StorageThreadMain(
     std::vector<struct RegisteredFeature>& features
 );
 
-}
+} // namespace datadog::impl

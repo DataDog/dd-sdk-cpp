@@ -21,6 +21,9 @@ Checks: >
 
   concurrency-*,
 
+  google-*,
+  -google-readability-todo
+
 WarningsAsErrors: '*'
 
 HeaderFilterRegex: '(src/|tests/).*'

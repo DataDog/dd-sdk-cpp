@@ -92,4 +92,4 @@ struct CoreContext
     ) const;
 };
 
-}
+} // namespace datadog::impl

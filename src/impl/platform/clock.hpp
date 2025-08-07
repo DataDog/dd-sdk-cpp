@@ -21,4 +21,4 @@ struct Clock
     static uint64_t read_utc_nanos();
 };
 
-}
+} // namespace datadog::platform

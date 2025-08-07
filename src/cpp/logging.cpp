@@ -25,4 +25,4 @@ std::shared_ptr<Logging> Logging::Register(Core& core)
     return logging;
 }
 
-}
+} // namespace datadog

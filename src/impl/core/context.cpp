@@ -121,4 +121,4 @@ void CoreContext::BuildRequestHeaders(
     out_headers += feature_headers;
 }
 
-}
+} // namespace datadog::impl

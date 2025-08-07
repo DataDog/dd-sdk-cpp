@@ -152,4 +152,4 @@ platform::FilesystemResult<bool> ReadTLVBlock(
     return true; // TODO: propagate result->eof?
 }
 
-}
+} // namespace datadog::impl

@@ -124,4 +124,4 @@ struct Http
     static std::unique_ptr<IHttpSubsystem> Init();
 };
 
-}
+} // namespace datadog::platform

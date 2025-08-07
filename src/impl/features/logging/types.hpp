@@ -47,4 +47,4 @@ inline LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config)
     };
 }
 
-}
+} // namespace datadog

@@ -178,4 +178,4 @@ struct Filesystem
     static std::unique_ptr<IStorageDirectory> Init(std::string_view path);
 };
 
-}
+} // namespace datadog::platform

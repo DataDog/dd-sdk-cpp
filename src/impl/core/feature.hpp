@@ -252,4 +252,4 @@ private:
     EventGeneratedFunc _event_callback;
 };
 
-}
+} // namespace datadog::impl

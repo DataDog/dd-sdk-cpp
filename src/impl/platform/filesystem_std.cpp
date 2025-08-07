@@ -390,4 +390,4 @@ std::unique_ptr<IStorageDirectory> Filesystem::Init(std::string_view path)
     return std::make_unique<StdStorageDirectory>(root_path);
 }
 
-}
+} // namespace datadog::platform

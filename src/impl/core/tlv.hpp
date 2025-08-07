@@ -48,4 +48,4 @@ platform::FilesystemResult<bool> ReadTLVBlock(
     std::vector<char>& out_block_data
 );
 
-}
+} // namespace datadog::impl

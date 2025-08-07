@@ -482,4 +482,4 @@ void StorageThreadMain(
     std::cout << "[STORAGE] Finished\n";
 }
 
-}
+} // namespace datadog::impl

@@ -40,4 +40,4 @@ bool Feature::IsRunning() const
     return _event_callback != nullptr;
 }
 
-}
+} // namespace datadog::impl

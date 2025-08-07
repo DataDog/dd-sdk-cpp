@@ -381,4 +381,4 @@ void UploadThreadMain(
     std::cout << "<UPLOAD> Finished\n";
 }
 
-}
+} // namespace datadog::impl

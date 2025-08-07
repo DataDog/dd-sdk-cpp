@@ -27,7 +27,7 @@ struct UploadThreadState
     duration min_delay;
     duration max_delay;
 
-    UploadThreadState(UploadFrequency upload_frequency)
+    explicit UploadThreadState(UploadFrequency upload_frequency)
         : current_delay(0)
         , min_delay(0)
         , max_delay(0)
@@ -205,4 +205,4 @@ void UploadThreadMain(
     platform::IHttpClient& http_client
 );
 
-}
+} // namespace datadog::impl

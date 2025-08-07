@@ -2,6 +2,8 @@
 
 #include "core/block.hpp"
 
+using namespace datadog::impl;
+
 TEST_CASE("QuantizeBufferSize", "[unit]")
 {
     SECTION("M clamp to 256 W value below 256")
