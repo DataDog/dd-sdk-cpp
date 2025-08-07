@@ -9,7 +9,6 @@
 # - ./build.sh --clang-version 20 --rebuild
 #
 set -euo pipefail
-set -x
 
 DEFAULT_VISUAL_STUDIO_VERSION="Visual Studio 17 2022"
 

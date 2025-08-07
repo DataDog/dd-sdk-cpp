@@ -52,8 +52,7 @@ std::optional<TLVBlockHeader> TLVBlockHeader::Decode(
         // If the value is recognized, we're good
         case static_cast<uint16_t>(TLVBlockType::Event):
         case static_cast<uint16_t>(TLVBlockType::Metadata):
-            return TLVBlockHeader{ static_cast<TLVBlockType>(type),
-                                   static_cast<uint32_t>(block_size) };
+            return TLVBlockHeader{ static_cast<TLVBlockType>(type), block_size };
 
         // For all other values, break and return nullopt
         default:
@@ -93,7 +92,7 @@ platform::FilesystemResult<void>
 EncodeTLVBlock(platform::IFileWriter& file, TLVBlockType type, Block block)
 {
     // We should not attempt to write empty blocks
-    assert(block.size() == 0);
+    assert(!block.empty());
 
     // Encode the header, representing type and size in big-endian byte order
     char header_buf[TLVBlockHeader::SIZE];

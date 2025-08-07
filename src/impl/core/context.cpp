@@ -13,8 +13,8 @@ void CoreContext::BuildRequestURL(
     static const std::string_view ddsource_param = "ddsource=";
 
     // Origin should never end with '/'; path should always start with '/'
-    assert(intake_origin.size() > 0 && intake_origin.back() != '/');
-    assert(path.size() > 0 && path.front() == '/');
+    assert(!intake_origin.empty() && intake_origin.back() != '/');
+    assert(!path.empty() && path.front() == '/');
 
     // Compute the size of our updated URL
     size_t url_len = intake_origin.size() + path.size();

@@ -200,9 +200,12 @@ public:
 
     virtual FeatureId GetId() const = 0;
     virtual std::string_view GetName() const = 0;
-    virtual FeatureStorageConfig GetStorageConfig() const { return {}; }
+    virtual FeatureStorageConfig GetStorageConfig() const
+    {
+        return {};
+    }
 
-    void OnCoreStarted(EventGeneratedFunc writer);
+    void OnCoreStarted(EventGeneratedFunc event_callback);
     void OnCoreStopping();
 
 protected:
@@ -210,13 +213,15 @@ protected:
      * Called from the main thread when the SDK has finished starting up. This is the
      * first point at which events may be generated.
      */
-    virtual void Start() {}
+    virtual void Start()
+    {}
 
     /**
      * Called from the main thread when the SDK is about to shut down. This is the last
      * point at which events may be generated.
      */
-    virtual void Stop() {}
+    virtual void Stop()
+    {}
 
     /**
      * Callable from the main thread in order to produce a new event. Copies the given

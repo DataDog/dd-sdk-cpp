@@ -16,7 +16,7 @@ using system_clock = std::chrono::system_clock;
 using duration = std::chrono::duration<uint64_t, std::nano>;
 using time_point = std::chrono::time_point<system_clock, duration>;
 
-inline constexpr duration from_seconds(double sec)
+constexpr duration from_seconds(double sec)
 {
     return std::chrono::duration_cast<duration>(std::chrono::duration<double>(sec));
 }

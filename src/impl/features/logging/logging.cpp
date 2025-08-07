@@ -5,7 +5,7 @@
 
 namespace datadog::impl {
 
-void Logger::Log(LogLevel level, std::string_view message)
+void Logger::Log(LogLevel level, std::string_view message) // NOLINT (TODO)
 {
     // TODO: Implement
     (void)level;
@@ -55,7 +55,7 @@ Logging::UploadThread_PrepareReport(const CoreContext& context, BatchReader& rea
     return Report{ _request_url, _request_headers, platform::StringWriter(body) };
 }
 
-std::unique_ptr<Logger> Logging::CreateLogger(LoggerConfig& config)
+std::unique_ptr<Logger> Logging::CreateLogger(LoggerConfig& config) // NOLINT (TODO)
 {
     // TODO: Implement
     (void)config;

@@ -94,8 +94,7 @@ private:
 
 public:
     explicit CurlHttpClient(CURL* curl)
-        : IHttpClient()
-        , _curl(curl)
+        : _curl(curl)
     {
         assert(_curl && "CurlHttpClient constructed with null curl handle");
     }
@@ -209,7 +208,6 @@ class CurlHttpSubsystem final : public IHttpSubsystem
 {
 public:
     CurlHttpSubsystem()
-        : IHttpSubsystem()
     {
         // Initialize curl on SDK startup
         curl_global_init(CURL_GLOBAL_ALL);

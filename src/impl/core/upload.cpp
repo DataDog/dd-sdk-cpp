@@ -136,7 +136,7 @@ static _process_and_upload_batch_result _process_and_upload_batch(
     return _interpret_http_result(res);
 }
 
-static duration _run_upload_cycle(
+static duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
     const CoreContext& core_context,
     RegisteredFeature& feature,
     platform::IHttpClient& http_client,
@@ -160,7 +160,7 @@ static duration _run_upload_cycle(
         assert(false && "registered feature has no read directory in upload thread");
         return ASSERTION_FAILURE_BACKOFF;
     }
-    platform::IDirectory& directory = *feature.event_read_directory.get();
+    platform::IDirectory& directory = *feature.event_read_directory;
 
     // Retrieve a list of all filenames in the relevant directory
     mut_filenames.clear();

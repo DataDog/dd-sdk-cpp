@@ -56,13 +56,13 @@ BatchWriter::BatchWriter(std::unique_ptr<platform::IDirectory>&& directory)
     : _directory(std::move(directory))
 {}
 
-bool BatchWriter::Delete()
+bool BatchWriter::Delete() // NOLINT (TODO)
 {
     // TODO: Implement
     return false;
 }
 
-bool BatchWriter::MigrateTo(BatchWriter& other)
+bool BatchWriter::MigrateTo(BatchWriter& other) // NOLINT (TODO)
 {
     // TODO: Implement
     (void)other;

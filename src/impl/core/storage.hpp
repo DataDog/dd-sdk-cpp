@@ -321,12 +321,12 @@ public:
 private:
     platform::IFileWriter* PrepareFileForNextWrite(Block event, Block event_metadata);
     bool CanReuseFileForNextWrite(
-        uint64_t current_time_millis,
+        uint64_t current_time_ms,
         Block event,
         Block event_metadata
     ) const;
     std::optional<std::pair<uint64_t, std::string>> GetFilenameForNextWrite(
-        uint64_t current_time_millis
+        uint64_t current_time_ms
     ) const;
     bool CacheKnownFilenames() const;
 };

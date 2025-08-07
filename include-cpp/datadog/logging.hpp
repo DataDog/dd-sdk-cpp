@@ -36,17 +36,35 @@ class Logger
 public:
     void Log(LogLevel level, std::string_view message);
 
-    inline void Debug(std::string_view message) { Log(LogLevel::Debug, message); }
+    void Debug(std::string_view message)
+    {
+        Log(LogLevel::Debug, message);
+    }
 
-    inline void Info(std::string_view message) { Log(LogLevel::Info, message); }
+    void Info(std::string_view message)
+    {
+        Log(LogLevel::Info, message);
+    }
 
-    inline void Notice(std::string_view message) { Log(LogLevel::Notice, message); }
+    void Notice(std::string_view message)
+    {
+        Log(LogLevel::Notice, message);
+    }
 
-    inline void Warn(std::string_view message) { Log(LogLevel::Warn, message); }
+    void Warn(std::string_view message)
+    {
+        Log(LogLevel::Warn, message);
+    }
 
-    inline void Error(std::string_view message) { Log(LogLevel::Error, message); }
+    void Error(std::string_view message)
+    {
+        Log(LogLevel::Error, message);
+    }
 
-    inline void Critical(std::string_view message) { Log(LogLevel::Critical, message); }
+    void Critical(std::string_view message)
+    {
+        Log(LogLevel::Critical, message);
+    }
 
 private:
     std::unique_ptr<impl::Logger> _impl;
