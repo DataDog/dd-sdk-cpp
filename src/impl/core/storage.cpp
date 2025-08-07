@@ -18,7 +18,7 @@
 // the event of breaking changes in order to abandon previously-written events on disk.
 // This versioning scheme applies to the storage implementation as a whole: individual
 // features should implement their own versioning schemes internally if needed.
-#define DATADOG_EVENT_STORAGE_VERSION "1"
+#define DATADOG_EVENT_STORAGE_VERSION "1" // NOLINT(cppcoreguidelines-macro-usage)
 
 namespace datadog::impl {
 
@@ -254,7 +254,7 @@ std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextW
     }
 
     // Use stack memory to convert uint64 to string for candidate filenames
-    std::array<char, MAX_UINT64_DECIMAL_DIGITS> buffer;
+    std::array<char, MAX_UINT64_DECIMAL_DIGITS> buffer{ 0 };
 
     // Run an initial binary search to find the position in our sorted filenames array
     // where this entry would theoretically be inserted
@@ -440,9 +440,9 @@ static void _handle_event_generated(
     // Use the RegisteredFeature's EventStorage to process the write operation, only
     // continuing once the filesystem write operations return
     const bool write_ok = feature->event_storage->HandleWrite(
-        Block(reinterpret_cast<const char*>(m.event.data()), m.event.size()),
+        Block(reinterpret_cast<const char*>(m.event.data()), m.event.size()), // NOLINT
         Block(
-            reinterpret_cast<const char*>(m.event_metadata.data()),
+            reinterpret_cast<const char*>(m.event_metadata.data()), // NOLINT
             m.event_metadata.size()
         )
     );

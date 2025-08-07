@@ -346,7 +346,7 @@ private:
 
 private:
     // Initialized in ctor
-    CoreState _state;
+    CoreState _state{ CoreState::Uninitialized };
     datadog::CoreConfig _config;
     CoreContext _context;
 

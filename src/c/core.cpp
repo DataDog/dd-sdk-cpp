@@ -7,6 +7,8 @@
 
 #include <memory>
 
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+
 extern "C" {
 
 dd_core_t* dd_core_create(dd_core_config_t* config)
@@ -49,3 +51,5 @@ void dd_core_shutdown(dd_core_t* core)
     }
 }
 }
+
+// NOLINTEND(cppcoreguidelines-owning-memory)

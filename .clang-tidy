@@ -1,19 +1,19 @@
 ---
-Checks: >
+Checks: [
   clang-diagnostic-*,
 
   clang-analyzer-*,
 
   bugprone-*,
-  -bugprone-easily-swappable-parameters,
+  -bugprone-easily-swappable-parameters, # permit `coord(int x, int y, int z)
 
   readability-*,
-  -readability-magic-numbers,
-  -readability-identifier-length,
-  -readability-implicit-bool-conversion,
-  -readability-simplify-boolean-expr,
-  -readability-uppercase-literal-suffix,
-  -readability-redundant-access-specifiers,
+  -readability-magic-numbers,               # many constants are trivial; sometimes extracting them makes code less readable
+  -readability-identifier-length,           # sometimes short identifiers are OK in general-purpose/low-level routines
+  -readability-implicit-bool-conversion,    # permit `if (!ptr)`
+  -readability-simplify-boolean-expr,       # sometimes control flow can be more clearly documented w/ comments if branches are explicit
+  -readability-uppercase-literal-suffix,    # permit `1.0f`
+  -readability-redundant-access-specifiers, # public:/private: can delineate logical groupings of members; should be close to what they modify
 
   performance-*,
 
@@ -22,7 +22,15 @@ Checks: >
   concurrency-*,
 
   google-*,
-  -google-readability-todo
+  -google-readability-todo, # allow naked TODO for now; mandate JIRA ID once production-ready
+
+  cppcoreguidelines-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -cppcoreguidelines-pro-type-union-access,           # unions are fragile, but OK if move/copy/dtor are managed tightly
+  -cppcoreguidelines-avoid-const-or-ref-data-members, # member references are fragile, but OK if lifetime guarantees are assured
+  -cppcoreguidelines-avoid-c-arrays,                  # quite often unavoidable w/o std::span; reevaluate for C++20
+  -cppcoreguidelines-pro-bounds-pointer-arithmetic,   # ditto; no good alternative w/o std::span
+]
 
 WarningsAsErrors: '*'
 

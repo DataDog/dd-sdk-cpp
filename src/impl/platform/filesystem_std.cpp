@@ -70,17 +70,12 @@ static _check_path_result _check_path(const std::filesystem::path& path)
 class StdFileReader final : public IFileReader
 {
 private:
-    std::ifstream _infile;
+    std::ifstream _infile; // Default destructor closes file if open
 
 public:
     explicit StdFileReader(std::ifstream&& infile)
         : _infile(std::move(infile))
     {}
-
-    ~StdFileReader()
-    {
-        // std::ifstream destructor closes _infile
-    }
 
     FilesystemResult<void> Seek(int offset) override
     {
@@ -138,11 +133,6 @@ public:
     explicit StdFileWriter(std::filesystem::path&& path)
         : _path(std::move(path))
     {}
-
-    ~StdFileWriter()
-    {
-        // We hold no resources
-    }
 
     FilesystemResult<void> Write(const char* src, size_t n) override
     {
@@ -203,11 +193,6 @@ public:
     explicit StdDirectory(const std::filesystem::path& path)
         : _path(path)
     {}
-
-    ~StdDirectory() override
-    {
-        // We hold no resources
-    }
 
     FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) override
     {
@@ -345,11 +330,6 @@ public:
     explicit StdStorageDirectory(const std::filesystem::path& path)
         : StdDirectory(path)
     {}
-
-    ~StdStorageDirectory()
-    {
-        // We hold no global state
-    }
 };
 
 std::unique_ptr<IStorageDirectory> Filesystem::Init(std::string_view path)

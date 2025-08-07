@@ -14,8 +14,7 @@
 namespace datadog::impl {
 
 Core::Core(const datadog::CoreConfig& config)
-    : _state(CoreState::Uninitialized)
-    , _config(config)
+    : _config(config)
     , _context(config)
 {
     _features.reserve(16);
@@ -121,9 +120,10 @@ bool Core::Init()
         auto infile_result = subdir->OpenForRead("foo.dat");
         if (infile_result)
         {
-            uint32_t x;
+            uint32_t x = 0;
             auto infile = std::move(*infile_result);
-            auto read_result = infile->Read(reinterpret_cast<char*>(&x), sizeof(x));
+            auto read_result =
+                infile->Read(reinterpret_cast<char*>(&x), sizeof(x)); // NOLINT
             if (read_result)
             {
                 std::cout << "Read int from file: " << x << "\n";
@@ -148,7 +148,7 @@ bool Core::Init()
         {
             auto outfile = std::move(*outfile_result);
             auto write_result =
-                outfile->Write(reinterpret_cast<const char*>(&x), sizeof(x));
+                outfile->Write(reinterpret_cast<const char*>(&x), sizeof(x)); // NOLINT
             if (write_result)
             {
                 std::cout << "Wrote int to file: " << x << "\n";

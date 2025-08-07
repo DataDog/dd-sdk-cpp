@@ -97,10 +97,10 @@ EncodeTLVBlock(platform::IFileWriter& file, TLVBlockType type, Block block)
     // Encode the header, representing type and size in big-endian byte order
     char header_buf[TLVBlockHeader::SIZE];
     const TLVBlockHeader header{ type, static_cast<uint32_t>(block.size()) };
-    header.Encode(header_buf);
+    header.Encode(static_cast<char*>(header_buf));
 
     // Write the six-byte header to the file, propagating error if unsuccessful
-    auto result = file.Write(header_buf, sizeof(header_buf));
+    auto result = file.Write(static_cast<char*>(header_buf), sizeof(header_buf));
     if (!result)
     {
         return result;
@@ -118,7 +118,7 @@ platform::FilesystemResult<bool> ReadTLVBlock(
 {
     // Read the next six bytes of the file, which should contain the next block's header
     char header_buf[TLVBlockHeader::SIZE];
-    auto result = file.Read(header_buf, sizeof(header_buf));
+    auto result = file.Read(static_cast<char*>(header_buf), sizeof(header_buf));
     if (!result)
     {
         // If we failed to read from the file, propagate the error
@@ -126,7 +126,8 @@ platform::FilesystemResult<bool> ReadTLVBlock(
     }
 
     // Decode the header, failing if the block type or size isn't valid
-    std::optional<const TLVBlockHeader> header = TLVBlockHeader::Decode(header_buf);
+    std::optional<const TLVBlockHeader> header =
+        TLVBlockHeader::Decode(static_cast<const char*>(header_buf));
     if (!header)
     {
         // There was no filesystem error, but we did not read a valid block

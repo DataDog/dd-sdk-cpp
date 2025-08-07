@@ -82,6 +82,12 @@ protected:
 public:
     virtual ~IHttpClient() = default;
 
+    // An IHttpClient is never copied or moved
+    IHttpClient(const IHttpClient&) = delete;
+    IHttpClient& operator=(const IHttpClient&) = delete;
+    IHttpClient(IHttpClient&&) = delete;
+    IHttpClient& operator=(IHttpClient&&) = delete;
+
     /**
      * Sends a POST request to the given HTTP endpoint, blocking until finished.
      *
@@ -115,6 +121,12 @@ protected:
 
 public:
     virtual ~IHttpSubsystem() = default;
+
+    // The IHttpSubsystem is never copied or moved
+    IHttpSubsystem(const IHttpSubsystem&) = delete;
+    IHttpSubsystem& operator=(const IHttpSubsystem&) = delete;
+    IHttpSubsystem(IHttpSubsystem&&) = delete;
+    IHttpSubsystem& operator=(IHttpSubsystem&&) = delete;
 
     virtual std::unique_ptr<IHttpClient> CreateClient() = 0;
 };

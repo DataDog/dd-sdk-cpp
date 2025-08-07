@@ -30,6 +30,7 @@ static size_t read_callback(char* buffer, size_t size, size_t nitems, void* user
     assert(userdata && "CURLOPT_READFUNCTION set without valid CURLOPT_READDATA");
 
     // userdata should always point to an HttpBodyWriter function
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
     HttpBodyWriter* body_writer = (reinterpret_cast<HttpBodyWriter*>(userdata));
 
     // Defer to the body reader to read the next chunk and write it into the buffer
@@ -104,6 +105,12 @@ public:
         curl_easy_cleanup(_curl);
     }
 
+    // An IHttpClient is never copied or moved
+    CurlHttpClient(const CurlHttpClient&) = delete;
+    CurlHttpClient& operator=(const CurlHttpClient&) = delete;
+    CurlHttpClient(CurlHttpClient&&) = delete;
+    CurlHttpClient& operator=(CurlHttpClient&&) = delete;
+
     HttpResult Post(
         std::string_view url,
         std::string_view headers,
@@ -111,7 +118,7 @@ public:
     ) override
     {
         // Store the error code from our most recent curl API call
-        CURLcode res;
+        CURLcode res{ CURL_LAST };
 
         // Reset our handle: we only make one request at a time in any given HttpClient
         curl_easy_reset(_curl);
@@ -218,6 +225,12 @@ public:
         // Tear down curl on SDK shutdown
         curl_global_cleanup();
     }
+
+    // The IHttpSubsystem is never copied or moved
+    CurlHttpSubsystem(const CurlHttpSubsystem&) = delete;
+    CurlHttpSubsystem& operator=(const CurlHttpSubsystem&) = delete;
+    CurlHttpSubsystem(CurlHttpSubsystem&&) = delete;
+    CurlHttpSubsystem& operator=(CurlHttpSubsystem&&) = delete;
 
     std::unique_ptr<IHttpClient> CreateClient() override
     {

@@ -47,8 +47,10 @@ struct FileReadResult
  */
 class IFileReader
 {
-public:
+protected:
     IFileReader() = default;
+
+public:
     virtual ~IFileReader() = default;
 
     // File-reader interfaces will never be copied
@@ -93,8 +95,10 @@ public:
  */
 class IFileWriter
 {
-public:
+protected:
     IFileWriter() = default;
+
+public:
     virtual ~IFileWriter() = default;
 
     // File-writer interfaces will never be copied
@@ -121,12 +125,21 @@ public:
  */
 class IDirectory
 {
+protected:
+    IDirectory() = default;
+
 public:
     virtual ~IDirectory() = default;
 
+    // Noncopyable, movable
+    IDirectory(const IDirectory&) = delete;
+    IDirectory& operator=(const IDirectory&) = delete;
+    IDirectory(IDirectory&&) = default;
+    IDirectory& operator=(IDirectory&&) = default;
+
     /**
-     * Populates the provided vector with the names of all regular files that exist in
-     * this directory.
+     * Populates the provided vector with the names of all regular files that exist
+     * in this directory.
      *
      * @param out_names Reference to an empty vector to be populated with filenames.
      */
@@ -166,11 +179,20 @@ public:
  */
 class IStorageDirectory : public virtual IDirectory
 {
+protected:
+    IStorageDirectory() = default;
+
 public:
     /**
      * Cleans up any global state maintained by the filesystem implementation.
      */
-    virtual ~IStorageDirectory() = default;
+    ~IStorageDirectory() override = default;
+
+    // Noncopyable, movable
+    IStorageDirectory(const IStorageDirectory&) = delete;
+    IStorageDirectory& operator=(const IStorageDirectory&) = delete;
+    IStorageDirectory(IStorageDirectory&&) = default;
+    IStorageDirectory& operator=(IStorageDirectory&&) = default;
 };
 
 struct Filesystem

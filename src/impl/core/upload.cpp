@@ -145,6 +145,7 @@ static duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     std::vector<char>& mut_read_buffer
 )
 {
+
     // The feature should have its own state related to upload attempt timing etc.
     if (!feature.upload_state)
     {
@@ -176,13 +177,15 @@ static duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // Iterate over the names of all files, starting with the oldest
     int num_uploads_attempted = 0;
     int num_uploads_completed_successfully = 0;
-    _process_and_upload_batch_result last_batch_result;
+    _process_and_upload_batch_result last_batch_result{
+        _process_and_upload_batch_result::success
+    };
     for (const std::string& filename : mut_filenames)
     {
         // If a filename is all-integer, it's taken to be a Unix timestamp in
         // milliseconds, corresponding to the system_clock value that the storage thread
         // read when it created the file
-        uint64_t timestamp_ms;
+        uint64_t timestamp_ms{ 0 };
         const auto parse_result = std::from_chars(
             filename.data(), filename.data() + filename.size(), timestamp_ms
         );

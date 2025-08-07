@@ -7,7 +7,7 @@
 #include "datadog/core.hpp"
 
 // Use local mock server for testing (custom endpoint is not yet configurable)
-#define TEMP_CUSTOM_ENDPOINT_URL "http://192.168.0.135:5000"
+static const char* const TEMP_CUSTOM_ENDPOINT_URL = "http://192.168.0.135:5000";
 
 namespace datadog::impl {
 
@@ -18,7 +18,7 @@ namespace datadog::impl {
  */
 struct CoreContext
 {
-    int version;
+    int version{ 1 };
 
     std::string intake_origin;
     std::string client_token;
@@ -31,8 +31,7 @@ struct CoreContext
      * Initializes a new context from the user-supplied config.
      */
     explicit CoreContext(const datadog::CoreConfig& config)
-        : version(1)
-        , intake_origin(GetIntakeOrigin(config.datadog_site, TEMP_CUSTOM_ENDPOINT_URL))
+        : intake_origin(GetIntakeOrigin(config.datadog_site, TEMP_CUSTOM_ENDPOINT_URL))
         , client_token(config.client_token)
         , service(config.service)
         , env(config.env)

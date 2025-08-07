@@ -13,7 +13,6 @@ void Logger::Log(LogLevel level, std::string_view message) // NOLINT (TODO)
 }
 
 Logging::Logging()
-    : _last_context_version(0)
 {
     _request_url.reserve(256);
     _request_headers.reserve(512);

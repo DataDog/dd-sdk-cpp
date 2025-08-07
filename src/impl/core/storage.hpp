@@ -115,13 +115,19 @@ struct StorageMessage
          * initialize payloads; let the compiler know that it's OK for a Payload to
          * exist in a non-initialized state.
          */
-        Payload() {};
+        Payload() {}; // NOLINT(cppcoreguidelines-pro-type-member-init)
 
         /**
          * Deletion of union members is explicitly handled by ~StorageMessage(); define
          * an empty union destructor to signal this fact to the compiler.
          */
         ~Payload() {};
+
+        // Payload itself should have no compiler-generated copy/move operations
+        Payload(const Payload&) = delete;
+        Payload(Payload&&) = delete;
+        Payload& operator=(const Payload&) = delete;
+        Payload& operator=(Payload&&) = delete;
     };
 
     StorageMessageType type;
@@ -282,15 +288,9 @@ private:
      */
     struct FileDetails
     {
-        uint64_t filename_ms;
-        int num_writes;
-        size_t num_bytes_written;
-
-        FileDetails()
-            : filename_ms(0)
-            , num_writes(0)
-            , num_bytes_written(0)
-        {}
+        uint64_t filename_ms{ 0 };
+        int num_writes{ 0 };
+        size_t num_bytes_written{ 0 };
 
         void Reset(uint64_t in_filename_ms)
         {

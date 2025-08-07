@@ -11,7 +11,7 @@ namespace datadog::platform {
 struct StringWriter
 {
     std::string_view s;
-    size_t offset;
+    size_t offset{ 0 };
 
     /**
      * Initializes a new StringWriter that will read the given string value and write it
@@ -22,7 +22,6 @@ struct StringWriter
      */
     explicit StringWriter(std::string_view s)
         : s(s)
-        , offset(0)
     {}
 
     size_t operator()(char* buffer, size_t num_bytes)

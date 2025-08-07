@@ -18,6 +18,8 @@ struct dd_logging
     std::shared_ptr<datadog::impl::Logging> impl;
 };
 
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+
 extern "C" {
 
 dd_logging_t* dd_logging_init(dd_core_t* core)
@@ -95,3 +97,5 @@ void dd_logger_critical(dd_logger_t* logger, const char* message)
     dd_logger_log(logger, DD_LOG_LEVEL_CRITICAL, message);
 }
 }
+
+// NOLINTEND(cppcoreguidelines-owning-memory)

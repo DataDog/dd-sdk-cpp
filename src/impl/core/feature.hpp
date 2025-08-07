@@ -88,13 +88,12 @@ class BatchReader
 {
 private:
     platform::IFileReader& _file;
-    TLVBlockType _current_type;
+    TLVBlockType _current_type{ TLVBlockType::Event };
     std::vector<char>& _block_data_buffer;
 
 public:
     BatchReader(platform::IFileReader& file, std::vector<char>& buffer)
         : _file(file)
-        , _current_type(TLVBlockType::Event)
         , _block_data_buffer(buffer)
     {}
 
@@ -196,7 +195,14 @@ struct FeatureStorageConfig
 class Feature
 {
 public:
+    Feature() = default;
     virtual ~Feature() = default;
+
+    // Noncopyable, movable
+    Feature(const Feature&) = delete;
+    Feature& operator=(const Feature&) = delete;
+    Feature(Feature&&) = default;
+    Feature& operator=(Feature&&) = default;
 
     virtual FeatureId GetId() const = 0;
     virtual std::string_view GetName() const = 0;

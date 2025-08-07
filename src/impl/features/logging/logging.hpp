@@ -44,7 +44,7 @@ public:
     std::unique_ptr<Logger> CreateLogger(LoggerConfig& config);
 
 private:
-    int32_t _last_context_version;
+    int32_t _last_context_version{ 0 };
     std::string _request_url;
     std::string _request_headers;
 };
