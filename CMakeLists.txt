@@ -4,6 +4,14 @@ project(dd-native VERSION 0.1.0 LANGUAGES C CXX)
 set(CMAKE_C_STANDARD 99)
 set(CMAKE_CXX_STANDARD 17)
 
+function(target_enable_strict_warnings target_name)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        target_compile_options(${target_name} PRIVATE /W4 /WX)
+    else()
+        target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endfunction()
+
 # Core implementation library (private)
 add_subdirectory(src/impl)
 

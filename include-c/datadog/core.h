@@ -7,13 +7,15 @@
 extern "C" {
 #endif
 
-typedef enum {
+typedef enum
+{
     DD_TRACKING_CONSENT_GRANTED,
     DD_TRACKING_CONSENT_NOT_GRANTED,
     DD_TRACKING_CONSENT_PENDING,
 } dd_tracking_consent_t;
 
-typedef enum {
+typedef enum
+{
     DD_SITE_US1,
     DD_SITE_US3,
     DD_SITE_US5,
@@ -23,25 +25,29 @@ typedef enum {
     DD_SITE_US1_FED,
 } dd_site_t;
 
-typedef enum {
+typedef enum
+{
     DD_BATCH_SIZE_SMALL,
     DD_BATCH_SIZE_MEDIUM,
     DD_BATCH_SIZE_LARGE,
 } dd_batch_size_t;
 
-typedef enum {
+typedef enum
+{
     DD_UPLOAD_FREQUENCY_FREQUENT,
     DD_UPLOAD_FREQUENCY_AVERAGE,
     DD_UPLOAD_FREQUENCY_RARE,
 } dd_upload_frequency_t;
 
-typedef enum {
+typedef enum
+{
     DD_BATCH_PROCESSING_LEVEL_LOW,
     DD_BATCH_PROCESSING_LEVEL_MEDIUM,
     DD_BATCH_PROCESSING_LEVEL_HIGH,
 } dd_batch_processing_level_t;
 
-typedef struct dd_core_config {
+typedef struct dd_core_config
+{
     dd_tracking_consent_t tracking_consent;
     dd_site_t datadog_site;
     const char* client_token;

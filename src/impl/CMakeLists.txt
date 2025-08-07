@@ -8,6 +8,7 @@ add_library(dd_native_impl STATIC
     core/upload.cpp
     features/logging/logging.cpp
 )
+target_enable_strict_warnings(dd_native_impl)
 
 target_include_directories(dd_native_impl
     PUBLIC ${CMAKE_SOURCE_DIR}/include-c

@@ -5,7 +5,12 @@
 
 namespace datadog::impl {
 
-void Logger::Log(LogLevel level, std::string_view message) {}
+void Logger::Log(LogLevel level, std::string_view message)
+{
+    // TODO: Implement
+    (void)level;
+    (void)message;
+}
 
 Logging::Logging()
     : _last_context_version(0)
@@ -44,6 +49,7 @@ Logging::UploadThread_PrepareReport(const CoreContext& context, BatchReader& rea
     }
 
     // TODO: Read TLV blocks
+    (void)reader;
     std::string body = "{}";
 
     return Report{ _request_url, _request_headers, platform::StringWriter(body) };
@@ -51,6 +57,8 @@ Logging::UploadThread_PrepareReport(const CoreContext& context, BatchReader& rea
 
 std::unique_ptr<Logger> Logging::CreateLogger(LoggerConfig& config)
 {
+    // TODO: Implement
+    (void)config;
     return nullptr;
 }
 

@@ -5,7 +5,7 @@
 
 namespace datadog {
 
-static TrackingConsent TrackingConsent_FromC(dd_tracking_consent_t value)
+inline TrackingConsent TrackingConsent_FromC(dd_tracking_consent_t value)
 {
     static_assert(
         static_cast<int>(TrackingConsent::Granted) == DD_TRACKING_CONSENT_GRANTED
@@ -19,7 +19,7 @@ static TrackingConsent TrackingConsent_FromC(dd_tracking_consent_t value)
     return static_cast<TrackingConsent>(value);
 }
 
-static const char* TrackingConsent_ToString(TrackingConsent value)
+inline const char* TrackingConsent_ToString(TrackingConsent value)
 {
     switch (value)
     {
@@ -34,7 +34,7 @@ static const char* TrackingConsent_ToString(TrackingConsent value)
     }
 }
 
-static Site Site_FromC(dd_site_t value)
+inline Site Site_FromC(dd_site_t value)
 {
     static_assert(static_cast<int>(Site::us1) == DD_SITE_US1);
     static_assert(static_cast<int>(Site::us3) == DD_SITE_US3);
@@ -46,7 +46,7 @@ static Site Site_FromC(dd_site_t value)
     return static_cast<Site>(value);
 }
 
-static const char* Site_ToString(Site value)
+inline const char* Site_ToString(Site value)
 {
     switch (value)
     {
@@ -69,7 +69,7 @@ static const char* Site_ToString(Site value)
     }
 }
 
-static BatchSize BatchSize_FromC(dd_batch_size_t value)
+inline BatchSize BatchSize_FromC(dd_batch_size_t value)
 {
     static_assert(static_cast<int>(BatchSize::Small) == DD_BATCH_SIZE_SMALL);
     static_assert(static_cast<int>(BatchSize::Medium) == DD_BATCH_SIZE_MEDIUM);
@@ -77,7 +77,7 @@ static BatchSize BatchSize_FromC(dd_batch_size_t value)
     return static_cast<BatchSize>(value);
 }
 
-static const char* BatchSize_ToString(BatchSize value)
+inline const char* BatchSize_ToString(BatchSize value)
 {
     switch (value)
     {
@@ -92,7 +92,7 @@ static const char* BatchSize_ToString(BatchSize value)
     }
 }
 
-static UploadFrequency UploadFrequency_FromC(dd_upload_frequency_t value)
+inline UploadFrequency UploadFrequency_FromC(dd_upload_frequency_t value)
 {
     static_assert(
         static_cast<int>(UploadFrequency::Frequent) == DD_UPLOAD_FREQUENCY_FREQUENT
@@ -104,7 +104,7 @@ static UploadFrequency UploadFrequency_FromC(dd_upload_frequency_t value)
     return static_cast<UploadFrequency>(value);
 }
 
-static const char* UploadFrequency_ToString(UploadFrequency value)
+inline const char* UploadFrequency_ToString(UploadFrequency value)
 {
     switch (value)
     {
@@ -119,7 +119,7 @@ static const char* UploadFrequency_ToString(UploadFrequency value)
     }
 }
 
-static BatchProcessingLevel BatchProcessingLevel_FromC(
+inline BatchProcessingLevel BatchProcessingLevel_FromC(
     dd_batch_processing_level_t value
 )
 {
@@ -136,7 +136,7 @@ static BatchProcessingLevel BatchProcessingLevel_FromC(
     return static_cast<BatchProcessingLevel>(value);
 }
 
-static const char* BatchProcessingLevel_ToString(BatchProcessingLevel value)
+inline const char* BatchProcessingLevel_ToString(BatchProcessingLevel value)
 {
     switch (value)
     {
@@ -151,7 +151,7 @@ static const char* BatchProcessingLevel_ToString(BatchProcessingLevel value)
     }
 }
 
-static CoreConfig CoreConfig_FromC(const dd_core_config_t& config)
+inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config)
 {
     return CoreConfig{
         .tracking_consent = TrackingConsent_FromC(config.tracking_consent),

@@ -7,7 +7,7 @@ namespace datadog {
 
 // Forward declarations
 namespace impl {
-struct Core;
+class Core;
 }
 
 enum class TrackingConsent
@@ -113,14 +113,15 @@ struct CoreConfig
     BatchProcessingLevel batch_processing_level;
 };
 
-struct Core
+class Core
 {
+public:
     static std::shared_ptr<Core> Create(const CoreConfig& config);
 
     bool Start();
     void Shutdown();
 
-  private:
+private:
     std::unique_ptr<impl::Core> _impl;
 
     friend class Logging;

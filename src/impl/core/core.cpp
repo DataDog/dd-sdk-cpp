@@ -205,6 +205,7 @@ bool Core::Init()
         "Authorization: Bearer secret\nContent-Type: application/json\n",
         platform::StringWriter{ s }
     );
+    std::cout << "Test request got HTTP " << result.status_code << "\n";
 
     // Core is initialized; ready to register features and start
     _state = CoreState::Initialized;

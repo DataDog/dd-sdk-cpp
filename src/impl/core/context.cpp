@@ -49,21 +49,23 @@ void CoreContext::BuildRequestHeaders(
 ) const
 {
     // These standard headers are set by this core implementation, for all features
+    static const std::string_view content_type_header = "Content-Type: ";
     static const std::string_view dd_api_key = "DD-API-KEY: ";
     static const std::string_view dd_evp_origin = "DD-EVP-ORIGIN: ";
     static const std::string_view dd_evp_origin_version = "DD-EVP-ORIGIN-VERSION: ";
     static const std::string_view dd_request_id = "DD-REQUEST-ID: ";
-    static const std::string_view user_agent = "User-Agent: ";
+    static const std::string_view user_agent_header = "User-Agent: ";
 
     // If the feature supplies extra headers, they should always end with a newline
     assert(feature_headers.empty() || feature_headers.back() == '\n');
 
     // Values for standard headers should not be supplied by the feature implementation
+    assert(feature_headers.find(content_type_header) == std::string_view::npos);
     assert(feature_headers.find(dd_api_key) == std::string_view::npos);
     assert(feature_headers.find(dd_evp_origin) == std::string_view::npos);
     assert(feature_headers.find(dd_evp_origin_version) == std::string_view::npos);
     assert(feature_headers.find(dd_request_id) == std::string_view::npos);
-    assert(feature_headers.find(user_agent) == std::string_view::npos);
+    assert(feature_headers.find(user_agent_header) == std::string_view::npos);
 
     // TODO: Generate Request ID
     static const size_t HYPHENATED_UUID_LEN = 36;
@@ -71,18 +73,24 @@ void CoreContext::BuildRequestHeaders(
     assert(request_id.size() == HYPHENATED_UUID_LEN);
 
     // TODO: Generate User-Agent
-    static const std::string_view user_agent_value = "nobody";
+    static const std::string_view user_agent = "nobody";
 
     // Compute the size of our final set of headers, with values
     const size_t headers_len =
+        (content_type_header.size() + content_type.size() + 1) +
         (dd_api_key.size() + client_token.size() + 1) +
         (dd_evp_origin.size() + source.size() + 1) +
         (dd_evp_origin_version.size() + SDK_VERSION.size() + 1) +
         (dd_request_id.size() + HYPHENATED_UUID_LEN + 1) +
-        (user_agent.size() + user_agent_value.size() + 1 + feature_headers.size());
+        (user_agent_header.size() + user_agent.size() + 1 + feature_headers.size());
 
     // Ensure that our destination string has enough memory to fit everything
     out_headers.reserve(headers_len);
+
+    // Concatenate Content-Type
+    out_headers += content_type_header;
+    out_headers += content_type;
+    out_headers += '\n';
 
     // Concatenate DD-API-KEY
     out_headers += dd_api_key;
@@ -105,8 +113,8 @@ void CoreContext::BuildRequestHeaders(
     out_headers += '\n';
 
     // Concatenate User-Agent
+    out_headers += user_agent_header;
     out_headers += user_agent;
-    out_headers += user_agent_value;
     out_headers += '\n';
 
     // Tack on any feature-supplied headers

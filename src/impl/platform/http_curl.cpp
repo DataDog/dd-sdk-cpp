@@ -100,7 +100,10 @@ public:
         assert(_curl && "CurlHttpClient constructed with null curl handle");
     }
 
-    ~CurlHttpClient() override { curl_easy_cleanup(_curl); }
+    ~CurlHttpClient() override
+    {
+        curl_easy_cleanup(_curl);
+    }
 
     HttpResult Post(
         std::string_view url,
@@ -120,7 +123,7 @@ public:
         {
             // Failing to set the URL likely means that we were given a malformed URL,
             // which implies a bug in the reporter implementation: this is fatal
-            return HttpResult{ HttpResultType::SentNoRequest };
+            return HttpResult{ HttpResultType::SentNoRequest, 0 };
         }
 
         // Build a curl-compatible linked list specifying our request headers

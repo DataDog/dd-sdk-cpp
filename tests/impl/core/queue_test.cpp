@@ -154,7 +154,7 @@ TEST_CASE("Queue threading", "[unit]")
         for (int t = 0; t < num_threads; ++t)
         {
             producers.emplace_back(
-                [&queue, t, items_per_thread]()
+                [&queue, t]()
                 {
                     for (int i = 0; i < items_per_thread; ++i)
                     {
@@ -168,7 +168,7 @@ TEST_CASE("Queue threading", "[unit]")
         // And a single consumer thread that pops items and adds them to this vector
         std::vector<int> consumed;
         std::thread consumer(
-            [&queue, &consumed, num_threads, items_per_thread]()
+            [&queue, &consumed]()
             {
                 for (int expected = 0; expected < num_threads * items_per_thread;
                      ++expected)

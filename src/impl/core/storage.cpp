@@ -57,11 +57,14 @@ BatchWriter::BatchWriter(std::unique_ptr<platform::IDirectory>&& directory)
 
 bool BatchWriter::Delete()
 {
+    // TODO: Implement
     return false;
 }
 
 bool BatchWriter::MigrateTo(BatchWriter& other)
 {
+    // TODO: Implement
+    (void)other;
     return false;
 }
 
@@ -335,7 +338,6 @@ bool EventStorage::SetTrackingConsent(TrackingConsent value)
     }
 
     // Store the new value
-    const TrackingConsent prev_value = _consent;
     _consent = value;
 
     // If tracking consent has been revoked, delete all pending data

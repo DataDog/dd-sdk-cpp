@@ -5,7 +5,7 @@
 
 namespace datadog {
 
-static LogLevel LogLevel_FromC(dd_log_level_t value)
+inline LogLevel LogLevel_FromC(dd_log_level_t value)
 {
     static_assert(static_cast<int>(LogLevel::Debug) == DD_LOG_LEVEL_DEBUG);
     static_assert(static_cast<int>(LogLevel::Info) == DD_LOG_LEVEL_INFO);
@@ -16,7 +16,7 @@ static LogLevel LogLevel_FromC(dd_log_level_t value)
     return static_cast<LogLevel>(value);
 }
 
-static const char* LogLevel_ToString(LogLevel value)
+inline const char* LogLevel_ToString(LogLevel value)
 {
     switch (value)
     {
@@ -37,7 +37,7 @@ static const char* LogLevel_ToString(LogLevel value)
     }
 }
 
-static LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config)
+inline LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config)
 {
     return LoggerConfig{
         .remote_sample_rate = config.remote_sample_rate,

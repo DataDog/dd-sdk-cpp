@@ -168,9 +168,15 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
     SECTION("M include standard headers W no feature headers provided")
     {
         // When
-        context.BuildRequestHeaders("application/json", "", result_headers);
+        context.BuildRequestHeaders(
+            "application/json; charset=utf-8", "", result_headers
+        );
 
         // Then expected headers are present
+        REQUIRE(
+            result_headers.find("Content-Type: application/json; charset=utf-8\n") !=
+            std::string::npos
+        );
         REQUIRE(
             result_headers.find("DD-API-KEY: test_client_token_456\n") !=
             std::string::npos

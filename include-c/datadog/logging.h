@@ -7,7 +7,8 @@
 extern "C" {
 #endif
 
-typedef enum {
+typedef enum
+{
     DD_LOG_LEVEL_DEBUG,
     DD_LOG_LEVEL_INFO,
     DD_LOG_LEVEL_NOTICE,
@@ -16,7 +17,8 @@ typedef enum {
     DD_LOG_LEVEL_CRITICAL,
 } dd_log_level_t;
 
-typedef struct dd_logger_config {
+typedef struct dd_logger_config
+{
     float remote_sample_rate;
     const char* service;
     const char* name;

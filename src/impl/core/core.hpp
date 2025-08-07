@@ -243,8 +243,9 @@ struct RegisteredFeature
  * thread has exclusive access to a feature's `UploadThreadState` and
  * `event_read_directory`.
  */
-struct Core
+class Core
 {
+public:
     /**
      * Constructs a new core from the provided configuration.
      */

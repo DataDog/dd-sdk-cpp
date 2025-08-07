@@ -9,10 +9,8 @@ namespace datadog {
 
 // Forward declarations
 namespace impl {
-struct Logger;
-}
-namespace impl {
-struct Logging;
+class Logger;
+class Logging;
 }
 
 enum class LogLevel
@@ -33,8 +31,9 @@ struct LoggerConfig
     LogLevel remote_log_threshold = LogLevel::Debug;
 };
 
-struct Logger
+class Logger
 {
+public:
     void Log(LogLevel level, std::string_view message);
 
     inline void Debug(std::string_view message) { Log(LogLevel::Debug, message); }
@@ -49,15 +48,16 @@ struct Logger
 
     inline void Critical(std::string_view message) { Log(LogLevel::Critical, message); }
 
-  private:
+private:
     std::unique_ptr<impl::Logger> _impl;
 };
 
-struct Logging
+class Logging
 {
-    static std::shared_ptr<Logging> Register(struct Core& core);
+public:
+    static std::shared_ptr<Logging> Register(class Core& core);
 
-  private:
+private:
     std::shared_ptr<impl::Logging> _impl;
 };
 

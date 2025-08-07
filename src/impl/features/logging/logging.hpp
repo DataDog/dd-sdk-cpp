@@ -8,8 +8,9 @@
 
 namespace datadog::impl {
 
-struct Logger
+class Logger
 {
+public:
     void Log(LogLevel level, std::string_view message);
 
 private:
