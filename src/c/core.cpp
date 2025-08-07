@@ -1,7 +1,7 @@
 #include "datadog/core.h"
 
-#include "core/types.hpp"
 #include "core/core.hpp"
+#include "core/types.hpp"
 
 #include "core_glue.hpp"
 
@@ -11,9 +11,11 @@ extern "C" {
 
 dd_core_t* dd_core_create(dd_core_config_t* config)
 {
-    if (!config) return nullptr;
+    if (!config)
+        return nullptr;
 
-    try {
+    try
+    {
         datadog::CoreConfig cpp_config = datadog::CoreConfig_FromC(*config);
         auto impl = std::make_unique<datadog::impl::Core>(cpp_config);
         if (!impl->Init())
@@ -23,7 +25,9 @@ dd_core_t* dd_core_create(dd_core_config_t* config)
         dd_core_t* core = new dd_core;
         core->impl = std::move(impl);
         return core;
-    } catch (...) {
+    }
+    catch (...)
+    {
         return nullptr;
     }
 }
@@ -37,9 +41,12 @@ bool dd_core_start(dd_core_t* core)
 {
     if (core && core->impl)
     {
-        try {
+        try
+        {
             return core->impl->Start();
-        } catch (...) {
+        }
+        catch (...)
+        {
             // Silently ignore exceptions for now
         }
     }
@@ -50,12 +57,14 @@ void dd_core_shutdown(dd_core_t* core)
 {
     if (core && core->impl)
     {
-        try {
+        try
+        {
             core->impl->Stop();
-        } catch (...) {
+        }
+        catch (...)
+        {
             // Silently ignore exceptions for now
         }
     }
 }
-
 }

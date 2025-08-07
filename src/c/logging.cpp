@@ -1,8 +1,8 @@
 #include "datadog/logging.h"
 
 #include "datadog/core.h"
-#include "features/logging/types.hpp"
 #include "features/logging/logging.hpp"
+#include "features/logging/types.hpp"
 
 #include "core_glue.hpp"
 
@@ -22,10 +22,13 @@ extern "C" {
 
 dd_logging_t* dd_logging_init(dd_core_t* core)
 {
-    if (!core) return nullptr;
-    if (!core->impl) return nullptr;
+    if (!core)
+        return nullptr;
+    if (!core->impl)
+        return nullptr;
 
-    try {
+    try
+    {
         auto impl = std::make_shared<datadog::impl::Logging>();
         if (!core->impl->RegisterFeature(impl))
         {
@@ -34,7 +37,9 @@ dd_logging_t* dd_logging_init(dd_core_t* core)
         dd_logging_t* logging = new dd_logging;
         logging->impl = std::move(impl);
         return logging;
-    } catch (...) {
+    }
+    catch (...)
+    {
         return nullptr;
     }
 }
@@ -46,8 +51,10 @@ void dd_logging_destroy(dd_logging_t* logging)
 
 dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* config)
 {
-    if (!logging) return nullptr;
-    if (!config) return nullptr;
+    if (!logging)
+        return nullptr;
+    if (!config)
+        return nullptr;
 
     datadog::LoggerConfig cpp_config = datadog::LoggerConfig_FromC(*config);
     dd_logger_t* logger = new dd_logger;
@@ -94,5 +101,4 @@ void dd_logger_critical(dd_logger_t* logger, const char* message)
 {
     dd_logger_log(logger, DD_LOG_LEVEL_CRITICAL, message);
 }
-
 }

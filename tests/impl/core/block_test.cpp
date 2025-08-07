@@ -62,7 +62,8 @@ TEST_CASE("QuantizeBufferSize", "[unit]")
     SECTION("M handle correctly W value is very large")
     {
         const size_t large_value = 1024 * 1024;
-        const size_t expected = ((large_value + 16 * 1024 - 1) / (16 * 1024)) * (16 * 1024);
+        const size_t expected =
+            ((large_value + 16 * 1024 - 1) / (16 * 1024)) * (16 * 1024);
         REQUIRE(QuantizeBufferSize(large_value) == expected);
 
         const size_t very_large = SIZE_MAX - 100000;
@@ -80,7 +81,10 @@ TEST_CASE("QuantizeBufferSize", "[unit]")
 
     SECTION("M return power of two W input <= 64KB")
     {
-        auto is_power_of_two = [](size_t n) { return n > 0 && (n & (n - 1)) == 0; };
+        auto is_power_of_two = [](size_t n)
+        {
+            return n > 0 && (n & (n - 1)) == 0;
+        };
 
         for (size_t i = 1; i <= 64 * 1024; i += 1000)
         {

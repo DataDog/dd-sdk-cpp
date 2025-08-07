@@ -1,7 +1,7 @@
 #pragma once
 
-#include <string>
 #include <sstream>
+#include <string>
 #include <string_view>
 
 #include "core/types.hpp"
@@ -22,16 +22,16 @@ inline std::string GetIntakeHost(Site site)
     // Use hardcoded values for sites with special URLs
     switch (site)
     {
-    case Site::us1:
-        return "browser-intake-datadoghq.com";
-    case Site::eu1:
-        return "browser-intake-datadoghq.eu";
-    case Site::us1_fed:
-        return "browser-intake-ddog-gov.com";
+        case Site::us1:
+            return "browser-intake-datadoghq.com";
+        case Site::eu1:
+            return "browser-intake-datadoghq.eu";
+        case Site::us1_fed:
+            return "browser-intake-ddog-gov.com";
 
-    // Fall out to default implementation
-    default:
-        break;
+        // Fall out to default implementation
+        default:
+            break;
     }
 
     // For all other sites, fall back to 'browser-intake-%s-datadoghq.com'

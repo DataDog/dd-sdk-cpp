@@ -20,17 +20,25 @@ static const char* LogLevel_ToString(LogLevel value)
 {
     switch (value)
     {
-        case LogLevel::Debug: return "Debug";
-        case LogLevel::Info: return "Info";
-        case LogLevel::Notice: return "Notice";
-        case LogLevel::Warn: return "Warn";
-        case LogLevel::Error: return "Error";
-        case LogLevel::Critical: return "Critical";
-        default: return "";
+        case LogLevel::Debug:
+            return "Debug";
+        case LogLevel::Info:
+            return "Info";
+        case LogLevel::Notice:
+            return "Notice";
+        case LogLevel::Warn:
+            return "Warn";
+        case LogLevel::Error:
+            return "Error";
+        case LogLevel::Critical:
+            return "Critical";
+        default:
+            return "";
     }
 }
 
-static LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config) {
+static LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config)
+{
     return LoggerConfig{
         .remote_sample_rate = config.remote_sample_rate,
         .service = config.service,

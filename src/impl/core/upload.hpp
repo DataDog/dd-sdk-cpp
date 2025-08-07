@@ -1,14 +1,14 @@
 #pragma once
 
-#include <vector>
 #include <chrono>
-#include <queue>
-#include <mutex>
 #include <condition_variable>
+#include <mutex>
+#include <queue>
+#include <vector>
 
-#include "platform/http.hpp"
-#include "core/types.hpp"
 #include "core/feature.hpp"
+#include "core/types.hpp"
+#include "platform/http.hpp"
 
 namespace datadog::impl {
 
@@ -56,9 +56,8 @@ struct UploadThreadState
     duration IncreaseDelayTowardMax()
     {
         const uint64_t current = current_delay.count();
-        const uint64_t ten_percent = static_cast<uint64_t>(
-            static_cast<double>(current) * 0.1
-        );
+        const uint64_t ten_percent =
+            static_cast<uint64_t>(static_cast<double>(current) * 0.1);
         current_delay = duration(std::min(max_delay.count(), current + ten_percent));
         return current_delay;
     }
@@ -87,7 +86,7 @@ class UploadScheduler
      * Flag used to signal that the scheduling is stopped and the upload thread should
      * exit.
      */
-    std::atomic<bool> _stopped{false};
+    std::atomic<bool> _stopped{ false };
     /**
      * Min-heap containing the timestamps at which the next upload cycle for each
      * feature should begin. Only accessed from the upload thread.
@@ -126,7 +125,7 @@ public:
         // upload thread uses this queue in a single-threaded fashion. Therefore, we
         // don't need to synchronize those operations or worry about waking consumers in
         // response to this push call.
-        _pq.push({feature_id, next_cycle_at});
+        _pq.push({ feature_id, next_cycle_at });
     }
 
     std::optional<FeatureId> WaitForNext(time_point current_time)
@@ -171,10 +170,15 @@ private:
     {
         // Wait until the desired time, -or- until the atomic shutdown flag is set
         std::unique_lock lock(_mutex);
-        return _cv.wait_until(lock, time, [&]{
-            // On spurious wakeup, go back to sleep unless shutdown flag is set
-            return _stopped.load(std::memory_order_acquire);
-        });
+        return _cv.wait_until(
+            lock,
+            time,
+            [&]
+            {
+                // On spurious wakeup, go back to sleep unless shutdown flag is set
+                return _stopped.load(std::memory_order_acquire);
+            }
+        );
     }
 };
 

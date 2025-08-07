@@ -74,14 +74,12 @@ void CoreContext::BuildRequestHeaders(
     static const std::string_view user_agent_value = "nobody";
 
     // Compute the size of our final set of headers, with values
-    const size_t headers_len = (
-        dd_api_key.size() + client_token.size() + 1 +
-        dd_evp_origin.size() + source.size() + 1 +
-        dd_evp_origin_version.size() + SDK_VERSION.size() + 1 +
-        dd_request_id.size() + HYPHENATED_UUID_LEN + 1 +
-        user_agent.size() + user_agent_value.size() + 1 +
-        feature_headers.size()
-    );
+    const size_t headers_len =
+        (dd_api_key.size() + client_token.size() + 1) +
+        (dd_evp_origin.size() + source.size() + 1) +
+        (dd_evp_origin_version.size() + SDK_VERSION.size() + 1) +
+        (dd_request_id.size() + HYPHENATED_UUID_LEN + 1) +
+        (user_agent.size() + user_agent_value.size() + 1 + feature_headers.size());
 
     // Ensure that our destination string has enough memory to fit everything
     out_headers.reserve(headers_len);

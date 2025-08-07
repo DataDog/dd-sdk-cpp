@@ -100,10 +100,7 @@ public:
         assert(_curl && "CurlHttpClient constructed with null curl handle");
     }
 
-    ~CurlHttpClient() override
-    {
-        curl_easy_cleanup(_curl);
-    }
+    ~CurlHttpClient() override { curl_easy_cleanup(_curl); }
 
     HttpResult Post(
         std::string_view url,
@@ -123,7 +120,7 @@ public:
         {
             // Failing to set the URL likely means that we were given a malformed URL,
             // which implies a bug in the reporter implementation: this is fatal
-            return HttpResult{HttpResultType::SentNoRequest};
+            return HttpResult{ HttpResultType::SentNoRequest };
         }
 
         // Build a curl-compatible linked list specifying our request headers
@@ -161,7 +158,8 @@ public:
             // If our request completed successfully, get the response code
             case CURLE_OK:
                 res = curl_easy_getinfo(_curl, CURLINFO_RESPONSE_CODE, &status_code);
-                assert(res == CURLE_OK &&
+                assert(
+                    res == CURLE_OK &&
                     "Failed to get CURLINFO_RESPONSE_CODE after curl_easy_perform "
                     "returned OK"
                 );
@@ -200,7 +198,7 @@ public:
         curl_slist_free_all(headers_slist);
 
         // Return our result
-        return HttpResult{result_type, status_code};
+        return HttpResult{ result_type, status_code };
     }
 };
 

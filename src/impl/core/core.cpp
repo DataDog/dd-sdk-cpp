@@ -1,15 +1,15 @@
 #include "core/core.hpp"
 
-#include <iostream>
 #include <algorithm>
+#include <iostream>
 #include <sstream>
 
+#include "core/types.hpp"
+#include "core/upload.hpp"
 #include "platform/clock.hpp"
 #include "platform/filesystem.hpp"
 #include "platform/http.hpp"
 #include "platform/http_writer.hpp"
-#include "core/types.hpp"
-#include "core/upload.hpp"
 
 namespace datadog::impl {
 
@@ -39,7 +39,8 @@ void Core::SetTrackingConsent(TrackingConsent value)
         if (_state == CoreState::Started)
         {
             // If the core is running, send a message using the storage queue
-            assert(_storage_queue &&
+            assert(
+                _storage_queue &&
                 "_storage_queue is invalid with CoreState::Started on "
                 "SetTrackingConsent"
             );
@@ -103,12 +104,14 @@ bool Core::Init()
     const auto list_files_result = _storage_root->ListFiles(filenames);
     if (list_files_result)
     {
-        std::cout << "Got " << filenames.size() << " files from root storage dir.\n" << std::endl;
+        std::cout << "Got " << filenames.size() << " files from root storage dir.\n"
+                  << std::endl;
     }
     else
     {
         const auto err = list_files_result.error();
-        std::cout << "Failed to list files in root storage dir: " << static_cast<int>(err) << "\n";
+        std::cout << "Failed to list files in root storage dir: "
+                  << static_cast<int>(err) << "\n";
     }
 
     auto create_subdir_result = _storage_root->PrepareSubdirectory("logs");
@@ -129,13 +132,15 @@ bool Core::Init()
             else
             {
                 const auto err = read_result.error();
-                std::cout << "Failed to read from open file: " << static_cast<int>(err) << "\n";
+                std::cout << "Failed to read from open file: " << static_cast<int>(err)
+                          << "\n";
             }
         }
         else
         {
             const auto err = infile_result.error();
-            std::cout << "Failed to open file for read: " << static_cast<int>(err) << "\n";
+            std::cout << "Failed to open file for read: " << static_cast<int>(err)
+                      << "\n";
         }
 
         uint32_t x = 8675309;
@@ -143,7 +148,8 @@ bool Core::Init()
         if (outfile_result)
         {
             auto outfile = std::move(*outfile_result);
-            auto write_result = outfile->Write(reinterpret_cast<const char*>(&x), sizeof(x));
+            auto write_result =
+                outfile->Write(reinterpret_cast<const char*>(&x), sizeof(x));
             if (write_result)
             {
                 std::cout << "Wrote int to file: " << x << "\n";
@@ -151,13 +157,15 @@ bool Core::Init()
             else
             {
                 const auto err = write_result.error();
-                std::cout << "Failed to write to open file: " << static_cast<int>(err) << "\n";
+                std::cout << "Failed to write to open file: " << static_cast<int>(err)
+                          << "\n";
             }
         }
         else
         {
             const auto err = outfile_result.error();
-            std::cout << "Failed to open file for write: " << static_cast<int>(err) << "\n";
+            std::cout << "Failed to open file for write: " << static_cast<int>(err)
+                      << "\n";
         }
     }
     else
@@ -187,7 +195,7 @@ bool Core::Init()
     ss << "{\"objects\":[{\"value\":0}";
     for (int i = 1; i < 65535; i++)
     {
-        ss << "{\"value\":" <<  i << "}";
+        ss << "{\"value\":" << i << "}";
     }
     ss << "]";
     std::string s = ss.str();
@@ -195,7 +203,7 @@ bool Core::Init()
     const platform::HttpResult result = _http_client->Post(
         "http://192.168.0.135:5000/api/v2/something?foo=bar&message=hello%20world",
         "Authorization: Bearer secret\nContent-Type: application/json\n",
-        platform::StringWriter{s}
+        platform::StringWriter{ s }
     );
 
     // Core is initialized; ready to register features and start
@@ -211,7 +219,8 @@ bool Core::RegisterFeature(std::shared_ptr<Feature> impl)
     // Features may only be registered after init but before the core is started
     if (_state != CoreState::Initialized)
     {
-        std::cout << "Failed to register feature " << name << " (id " << id << "): core in improper state\n";
+        std::cout << "Failed to register feature " << name << " (id " << id
+                  << "): core in improper state\n";
         return false;
     }
 
@@ -219,12 +228,18 @@ bool Core::RegisterFeature(std::shared_ptr<Feature> impl)
     // have a unique ID, and each feature may only be registered once), and don't alllow
     // two features to have the same name, either, as this would cause filesystem
     // contention
-    const auto existing = std::find_if(_features.begin(), _features.end(), [&](const RegisteredFeature& f) {
-        return f.id == id || f.name == name;
-    });
+    const auto existing = std::find_if(
+        _features.begin(),
+        _features.end(),
+        [&](const RegisteredFeature& f)
+        {
+            return f.id == id || f.name == name;
+        }
+    );
     if (existing != _features.end())
     {
-        std::cout << "Failed to register feature " << name << " (id " << id << "): id or name conflict\n";
+        std::cout << "Failed to register feature " << name << " (id " << id
+                  << "): id or name conflict\n";
         return false;
     }
 
@@ -233,27 +248,31 @@ bool Core::RegisterFeature(std::shared_ptr<Feature> impl)
     auto feature_subdir = _storage_root->PrepareSubdirectory(name);
     if (!feature_subdir)
     {
-        std::cout << "Failed to register feature " << name << " (id " << id << "): feature subdir init failed with error " << static_cast<int>(feature_subdir.error()) << "\n";
+        std::cout << "Failed to register feature " << name << " (id " << id
+                  << "): feature subdir init failed with error "
+                  << static_cast<int>(feature_subdir.error()) << "\n";
         return false;
     }
 
     // Initialize two subdirectories within that feature directory: one that we'll write
     // to when tracking consent is pending, and another to contain the files that the
     // user has consented to being uploaded: the upload thread will read from the latter
-    auto pending_subdir = (*feature_subdir)->PrepareSubdirectory(
-        EventStorage::PENDING_SUBDIRECTORY_NAME
-    );
+    auto pending_subdir =
+        (*feature_subdir)->PrepareSubdirectory(EventStorage::PENDING_SUBDIRECTORY_NAME);
     if (!pending_subdir)
     {
-        std::cout << "Failed to register feature " << name << " (id " << id << "): pending subdir init failed with error " << static_cast<int>(pending_subdir.error()) << "\n";
+        std::cout << "Failed to register feature " << name << " (id " << id
+                  << "): pending subdir init failed with error "
+                  << static_cast<int>(pending_subdir.error()) << "\n";
         return false;
     }
-    auto granted_subdir = (*feature_subdir)->PrepareSubdirectory(
-        EventStorage::GRANTED_SUBDIRECTORY_NAME
-    );
+    auto granted_subdir =
+        (*feature_subdir)->PrepareSubdirectory(EventStorage::GRANTED_SUBDIRECTORY_NAME);
     if (!granted_subdir)
     {
-        std::cout << "Failed to register feature " << name << " (id " << id << "): granted subdir init failed with error " << static_cast<int>(granted_subdir.error()) << "\n";
+        std::cout << "Failed to register feature " << name << " (id " << id
+                  << "): granted subdir init failed with error "
+                  << static_cast<int>(granted_subdir.error()) << "\n";
         return false;
     }
 
@@ -268,12 +287,13 @@ bool Core::RegisterFeature(std::shared_ptr<Feature> impl)
     // Prepare a separate interface to the directory that the upload thread should read
     // from: this is the same location on disk that the storage thread may write to
     // (i.e. granted_subdir), but we want each thread to have its own handle
-    auto event_read_directory = (*feature_subdir)->PrepareSubdirectory(
-        EventStorage::GRANTED_SUBDIRECTORY_NAME
-    );
+    auto event_read_directory =
+        (*feature_subdir)->PrepareSubdirectory(EventStorage::GRANTED_SUBDIRECTORY_NAME);
     if (!event_read_directory)
     {
-        std::cout << "Failed to register feature " << name << " (id " << id << "): event read subdir init failed with error " << static_cast<int>(event_read_directory.error()) << "\n";
+        std::cout << "Failed to register feature " << name << " (id " << id
+                  << "): event read subdir init failed with error "
+                  << static_cast<int>(event_read_directory.error()) << "\n";
         return false;
     }
 
@@ -318,11 +338,8 @@ bool Core::Start()
     // persistent storage: the thread accepts non-owning references to the queue and the
     // vector of features, as both are stable for the lifetime of the thread
     assert(!_storage_thread && "_storage_thread already exists on Start()");
-    _storage_thread = std::thread(
-        StorageThreadMain,
-        std::ref(*_storage_queue),
-        std::ref(_features)
-    );
+    _storage_thread =
+        std::thread(StorageThreadMain, std::ref(*_storage_queue), std::ref(_features));
 
     assert(!_upload_scheduler && "_upload_scheduler already exists on Start()");
     _upload_scheduler = std::make_unique<UploadScheduler>();
@@ -341,14 +358,17 @@ bool Core::Start()
     );
 
     std::cout << "Datadog core started.\n";
-    std::cout << "- Tracking Consent: " << TrackingConsent_ToString(_config.tracking_consent) << "\n";
+    std::cout << "- Tracking Consent: "
+              << TrackingConsent_ToString(_config.tracking_consent) << "\n";
     std::cout << "- Site: " << Site_ToString(_config.datadog_site) << "\n";
     std::cout << "- Client Token: " << _config.client_token << "\n";
     std::cout << "- Env: " << _config.env << "\n";
     std::cout << "- Application Version: " << _config.application_version << "\n";
     std::cout << "- Batch Size: " << BatchSize_ToString(_config.batch_size) << "\n";
-    std::cout << "- Upload Frequency: " << UploadFrequency_ToString(_config.upload_frequency) << "\n";
-    std::cout << "- Batch Processing Level: " << BatchProcessingLevel_ToString(_config.batch_processing_level) << "\n";
+    std::cout << "- Upload Frequency: "
+              << UploadFrequency_ToString(_config.upload_frequency) << "\n";
+    std::cout << "- Batch Processing Level: "
+              << BatchProcessingLevel_ToString(_config.batch_processing_level) << "\n";
 
     _state = CoreState::Started;
 
@@ -357,7 +377,9 @@ bool Core::Start()
     for (const auto& feature : _features)
     {
         const FeatureId id = feature.id;
-        EventGeneratedFunc event_callback = [this, id](Block event, Block event_metadata) -> bool {
+        EventGeneratedFunc event_callback =
+            [this, id](Block event, Block event_metadata) -> bool
+        {
             return EnqueueStorageWrite(id, event, event_metadata);
         };
         feature.impl->OnCoreStarted(event_callback);
@@ -381,11 +403,13 @@ void Core::Stop()
 
     // If we were previously started, the storage and upload threads should be running
     assert(_storage_queue && "_storage_queue is invalid on Stop");
-    assert(_storage_thread && _storage_thread->joinable() &&
+    assert(
+        _storage_thread && _storage_thread->joinable() &&
         "_storage_thread is non-joinable on Stop"
     );
     assert(_upload_scheduler && "_upload_scheduler is invalid on Stop");
-    assert(_upload_thread && _upload_thread->joinable() &&
+    assert(
+        _upload_thread && _upload_thread->joinable() &&
         "_upload_thread is non-joinable on Stop"
     );
 
@@ -404,7 +428,8 @@ void Core::Stop()
     _upload_scheduler.reset();
 
     std::cout << "Datadog core stopped.\n";
-    std::cout << "Time at shutdown: " << datadog::platform::Clock::read_utc_nanos() << "\n";
+    std::cout << "Time at shutdown: " << datadog::platform::Clock::read_utc_nanos()
+              << "\n";
 
     // Revert to the initialized state; subsequent calls to Start() will restart us
     _state = CoreState::Initialized;
@@ -414,7 +439,8 @@ bool Core::EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_me
 {
     if (_state != CoreState::Started)
     {
-        std::cout << "Feature " << feature_id << " attempted to write to storage while core not running\n";
+        std::cout << "Feature " << feature_id
+                  << " attempted to write to storage while core not running\n";
         return false;
     }
 

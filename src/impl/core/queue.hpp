@@ -28,14 +28,13 @@ namespace datadog::impl {
  * The owner of the Queue MUST call `Stop()`, and then join on all threads that use it,
  * before the Queue leaves scope.
  */
-template <typename T>
+template<typename T>
 class Queue
 {
 public:
     Queue()
         : _is_stopped(false)
-    {
-    }
+    {}
 
     ~Queue()
     {
@@ -93,16 +92,21 @@ public:
 
         // Wait until there are items available in the queue, or processing is stopped,
         // handling spurious wakeups
-        _condition.wait(lock, [this]() {
-            // Relaxed ordering is also fine here because condition_variable reacquires
-            // the lock each time it evaluates this condition
-            return !_items.empty() || _is_stopped.load(std::memory_order_relaxed);
-        });
+        _condition.wait(
+            lock,
+            [this]()
+            {
+                // Relaxed ordering is also fine here because condition_variable
+                // reacquires the lock each time it evaluates this condition
+                return !_items.empty() || _is_stopped.load(std::memory_order_relaxed);
+            }
+        );
 
         // If we're awake with zero items in the queue, it's because queue processing
         // has stopped and we've drained all remaining items: return nullopt to signal
         // that it's time to exit
-        if (_items.empty()) {
+        if (_items.empty())
+        {
             return std::nullopt;
         }
 

@@ -9,11 +9,9 @@ namespace datadog::platform {
 static bool _is_clean_basename(std::string_view name)
 {
     return (
-        !name.empty()
-        && name != "."
-        && name != ".."
-        && name.find('/') == std::string_view::npos
-        && name.find('\\') == std::string_view::npos
+        !name.empty() && name != "." && name != ".." &&
+        name.find('/') == std::string_view::npos &&
+        name.find('\\') == std::string_view::npos
     );
 }
 
@@ -75,9 +73,8 @@ private:
 
 public:
     explicit StdFileReader(std::ifstream&& infile)
-        :_infile(std::move(infile))
-    {
-    }
+        : _infile(std::move(infile))
+    {}
 
     ~StdFileReader()
     {
@@ -119,7 +116,7 @@ public:
         // Read succeeded; return EOF bit and number of bytes actually read
         const bool eof = _infile.eof();
         const size_t num_bytes_read = _infile.gcount();
-        return FileReadResult{num_bytes_read, eof};
+        return FileReadResult{ num_bytes_read, eof };
     }
 };
 
@@ -138,13 +135,12 @@ private:
 public:
     explicit StdFileWriter(std::filesystem::path&& path)
         : _path(std::move(path))
-    {
-    }
+    {}
 
-     ~StdFileWriter()
-     {
+    ~StdFileWriter()
+    {
         // We hold no resources
-     }
+    }
 
     FilesystemResult<void> Write(const char* src, size_t n) override
     {
@@ -203,8 +199,7 @@ private:
 public:
     explicit StdDirectory(const std::filesystem::path& path)
         : _path(path)
-    {
-    }
+    {}
 
     ~StdDirectory() override
     {
@@ -339,13 +334,14 @@ public:
     }
 };
 
-class StdStorageDirectory final : public StdDirectory, public IStorageDirectory
+class StdStorageDirectory final
+    : public StdDirectory
+    , public IStorageDirectory
 {
 public:
     explicit StdStorageDirectory(const std::filesystem::path& path)
         : StdDirectory(path)
-    {
-    }
+    {}
 
     ~StdStorageDirectory()
     {
@@ -356,7 +352,7 @@ public:
 std::unique_ptr<IStorageDirectory> Filesystem::Init(std::string_view path)
 {
     // Resolve the configured path for our root storage directory
-    const std::filesystem::path root_path{path};
+    const std::filesystem::path root_path{ path };
 
     // Check to see if the target directory exists
     switch (_check_path(root_path))
@@ -369,17 +365,17 @@ std::unique_ptr<IStorageDirectory> Filesystem::Init(std::string_view path)
 
         // If the target directory doesn't yet exist, create it
         case _check_path_result::does_not_exist:
+        {
+            // Create the target directory, requiring that the parent already exist
+            std::error_code ec;
+            std::filesystem::create_directory(root_path, ec);
+            if (ec)
             {
-                // Create the target directory, requiring that the parent already exist
-                std::error_code ec;
-                std::filesystem::create_directory(root_path, ec);
-                if (ec)
-                {
-                    // Failed to create directory; we can't initialize the filesystem
-                    return nullptr;
-                }
+                // Failed to create directory; we can't initialize the filesystem
+                return nullptr;
             }
-            break;
+        }
+        break;
 
         // If it already exists, we're good to go
         case _check_path_result::exists_as_directory:

@@ -23,8 +23,7 @@ struct StringWriter
     explicit StringWriter(std::string_view s)
         : s(s)
         , offset(0)
-    {
-    }
+    {}
 
     size_t operator()(char* buffer, size_t num_bytes)
     {
@@ -38,7 +37,8 @@ struct StringWriter
         return num_bytes_to_copy;
     }
 };
-static_assert(std::is_convertible_v<StringWriter, HttpBodyWriter>,
+static_assert(
+    std::is_convertible_v<StringWriter, HttpBodyWriter>,
     "StringWriter does not implement HttpBodyWriter"
 );
 

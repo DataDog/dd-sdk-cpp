@@ -3,8 +3,8 @@
 #include <cassert>
 #include <string>
 
-#include "datadog/core.hpp"
 #include "core/site.hpp"
+#include "datadog/core.hpp"
 
 // Use local mock server for testing (custom endpoint is not yet configurable)
 #define _TEMP_CUSTOM_ENDPOINT_URL "http://192.168.0.135:5000"
@@ -38,8 +38,7 @@ struct CoreContext
         , env(config.env)
         , application_version(config.application_version)
         , source("unity") // TODO(RUM-7416): "rum-cpp" is not yet supported as a source
-    {
-    }
+    {}
 
     void SetService(std::string_view value)
     {

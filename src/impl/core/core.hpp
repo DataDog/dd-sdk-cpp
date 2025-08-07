@@ -1,23 +1,25 @@
 #pragma once
 
-#include <cinttypes>
-#include <vector>
-#include <memory>
-#include <thread>
-#include <optional>
 #include <atomic>
+#include <cinttypes>
+#include <memory>
+#include <optional>
+#include <thread>
+#include <vector>
 
-#include "core/types.hpp"
 #include "core/block.hpp"
-#include "core/feature.hpp"
 #include "core/context.hpp"
+#include "core/feature.hpp"
 #include "core/queue.hpp"
 #include "core/storage.hpp"
+#include "core/types.hpp"
 #include "core/upload.hpp"
 
-namespace datadog::platform { class IStorageDirectory; }
-namespace datadog::platform { class IHttpSubsystem; }
-namespace datadog::platform { class IHttpClient; }
+namespace datadog::platform {
+class IStorageDirectory;
+class IHttpSubsystem;
+class IHttpClient;
+}
 
 namespace datadog::impl {
 
@@ -119,8 +121,7 @@ struct RegisteredFeature
         , event_storage(std::move(in_event_storage))
         , event_read_directory(std::move(in_event_read_directory))
         , upload_state(std::move(in_upload_state))
-    {
-    }
+    {}
 };
 
 /**

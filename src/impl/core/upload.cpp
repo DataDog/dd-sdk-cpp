@@ -1,18 +1,18 @@
 #include "core/upload.hpp"
 
-#include <iostream>
-#include <atomic>
-#include <queue>
-#include <chrono>
-#include <thread>
 #include <algorithm>
-#include <string>
+#include <atomic>
 #include <charconv>
+#include <chrono>
+#include <iostream>
+#include <queue>
+#include <string>
+#include <thread>
 
-#include "platform/clock.hpp"
-#include "platform/filesystem.hpp"
 #include "core/block.hpp"
 #include "core/core.hpp"
+#include "platform/clock.hpp"
+#include "platform/filesystem.hpp"
 
 namespace datadog::impl {
 
@@ -39,8 +39,6 @@ enum class _process_and_upload_batch_result
      */
     bad_batch
 };
-
-
 
 static _process_and_upload_batch_result _interpret_http_result(platform::HttpResult res)
 {
@@ -124,12 +122,10 @@ static _process_and_upload_batch_result _process_and_upload_batch(
 
     // Initiate an HTTP request, blocking until it finishes
     std::cout << "<UPLOAD> POST " << report->url << "\n";
-    const platform::HttpResult res = http_client.Post(
-        report->url,
-        report->headers,
-        report->body_writer
-    );
-    std::cout << "<UPLOAD> Result type " << static_cast<int>(res.type) << ", status " << res.status_code << "\n";
+    const platform::HttpResult res =
+        http_client.Post(report->url, report->headers, report->body_writer);
+    std::cout << "<UPLOAD> Result type " << static_cast<int>(res.type) << ", status "
+              << res.status_code << "\n";
 
     // Interpret the result of our HTTP request and return the intended action, closing
     // the file in the process
@@ -184,16 +180,13 @@ static duration _run_upload_cycle(
         // read when it created the file
         uint64_t timestamp_ms;
         const auto parse_result = std::from_chars(
-            filename.data(),
-            filename.data() + filename.size(),
-            timestamp_ms
+            filename.data(), filename.data() + filename.size(), timestamp_ms
         );
 
         // Skip any files whose names are not strictly numeric
         const bool parse_ok = parse_result.ec == std::errc{};
-        const bool parsed_full_string = parse_result.ptr == (
-            filename.data() + filename.size()
-        );
+        const bool parsed_full_string =
+            parse_result.ptr == (filename.data() + filename.size());
         if (!parse_ok || !parsed_full_string)
         {
             continue;
@@ -202,7 +195,7 @@ static duration _run_upload_cycle(
         // If we've encountered a valid file that is _newer_ than the current time,
         // we're not going to find any more files ready to process: handle this
         // explicitly to avoid underflow on age calculation
-        const time_point file_time{std::chrono::milliseconds(timestamp_ms)};
+        const time_point file_time{ std::chrono::milliseconds(timestamp_ms) };
         const time_point now = system_clock::now();
         if (file_time > now)
         {
@@ -237,16 +230,19 @@ static duration _run_upload_cycle(
         switch (last_batch_result)
         {
             case _process_and_upload_batch_result::success:
-                std::cout << "<UPLOAD> " << feature.name << " (batch" << filename << "): Upload OK\n";
+                std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
+                          << "): Upload OK\n";
                 num_uploads_completed_successfully++;
                 should_delete_batch = true;
                 break;
             case _process_and_upload_batch_result::retryable_failure:
-                std::cout << "<UPLOAD> " << feature.name << " (batch" << filename << "): Failed; will retry\n";
+                std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
+                          << "): Failed; will retry\n";
                 should_abort_upload_cycle = true;
                 break;
             case _process_and_upload_batch_result::bad_batch:
-                std::cout << "<UPLOAD> " << feature.name << " (batch" << filename << "): Bad batch; will delete\n";
+                std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
+                          << "): Bad batch; will delete\n";
                 should_delete_batch = true;
                 break;
         }
@@ -257,9 +253,11 @@ static duration _run_upload_cycle(
         {
             if (!directory.DeleteFile(filename))
             {
-                std::cout << "<UPLOAD> " << feature.name << " (batch" << filename << "): ERROR: delete failed\n";
+                std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
+                          << "): ERROR: delete failed\n";
             }
-            std::cout << "<UPLOAD> " << feature.name << " (batch" << filename << "): deleted\n";
+            std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
+                      << "): deleted\n";
         }
 
         // Break out of the loop if we don't want to continue processing batches
@@ -269,7 +267,9 @@ static duration _run_upload_cycle(
         }
     }
 
-    std::cout << "<UPLOAD> " << feature.name << ": cycle finished with " << num_uploads_attempted << " uploads attempted; " << num_uploads_completed_successfully << " uploads successful\n";
+    std::cout << "<UPLOAD> " << feature.name << ": cycle finished with "
+              << num_uploads_attempted << " uploads attempted; "
+              << num_uploads_completed_successfully << " uploads successful\n";
 
     // If we didn't find any batches to upload, leave our backoff interval unchanged
     if (num_uploads_attempted == 0)
@@ -303,7 +303,8 @@ static duration _handle_upload_proc(
     const auto feature = std::find_if(
         features.begin(),
         features.end(),
-        [feature_id](const RegisteredFeature& f){
+        [feature_id](const RegisteredFeature& f)
+        {
             return f.id == feature_id;
         }
     );
@@ -347,7 +348,8 @@ void UploadThreadMain(
     {
         const time_point now = system_clock::now();
         const time_point first_cycle_at = now + feature.upload_state->current_delay;
-        std::cout << "<UPLOAD> First cycle in " << feature.upload_state->current_delay.count() << "\n";
+        std::cout << "<UPLOAD> First cycle in "
+                  << feature.upload_state->current_delay.count() << "\n";
         scheduler.Schedule(feature.id, first_cycle_at);
     }
 
@@ -366,12 +368,7 @@ void UploadThreadMain(
     while (auto feature_id = scheduler.WaitForNext(system_clock::now()))
     {
         const duration delay_until_next_cycle = _handle_upload_proc(
-            core_context,
-            *feature_id,
-            features,
-            http_client,
-            filenames,
-            read_buffer
+            core_context, *feature_id, features, http_client, filenames, read_buffer
         );
         const time_point next_cycle_at = system_clock::now() + delay_until_next_cycle;
         scheduler.Schedule(*feature_id, next_cycle_at);

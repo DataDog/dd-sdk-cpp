@@ -1,10 +1,10 @@
 #pragma once
 
 #include <cinttypes>
-#include <string_view>
-#include <vector>
 #include <optional>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "core/block.hpp"
 #include "core/feature.hpp"
@@ -84,8 +84,7 @@ struct StorageMessage_EventGenerated
         : feature_id(in_feature_id)
         , event(in_event.begin(), in_event.end())
         , event_metadata(in_event_metadata.begin(), in_event_metadata.end())
-    {
-    }
+    {}
 };
 
 /**
@@ -131,8 +130,7 @@ struct StorageMessage
 private:
     explicit StorageMessage(StorageMessageType in_type)
         : type(in_type)
-    {
-    }
+    {}
 
 public:
     ~StorageMessage()
@@ -142,7 +140,8 @@ public:
         switch (type)
         {
             case StorageMessageType::TrackingConsentChanged:
-                static_assert(std::is_trivially_destructible<StorageMessage_TrackingConsentChanged>::value);
+                static_assert(std::is_trivially_destructible<
+                              StorageMessage_TrackingConsentChanged>::value);
                 break;
 
             case StorageMessageType::EventGenerated:
@@ -171,10 +170,9 @@ public:
                 break;
 
             case StorageMessageType::EventGenerated:
-                new (&payload.event_generated)
-                    StorageMessage_EventGenerated(
-                        std::move(other.payload.event_generated)
-                    );
+                new (&payload.event_generated) StorageMessage_EventGenerated(
+                    std::move(other.payload.event_generated)
+                );
                 break;
         }
     }
@@ -200,10 +198,9 @@ public:
                     break;
 
                 case StorageMessageType::EventGenerated:
-                    new (&payload.event_generated)
-                        StorageMessage_EventGenerated(
-                            std::move(other.payload.event_generated)
-                        );
+                    new (&payload.event_generated) StorageMessage_EventGenerated(
+                        std::move(other.payload.event_generated)
+                    );
                     break;
             }
         }
@@ -215,24 +212,21 @@ public:
      */
     static StorageMessage TrackingConsentChanged(TrackingConsent value)
     {
-        StorageMessage m{StorageMessageType::TrackingConsentChanged};
+        StorageMessage m{ StorageMessageType::TrackingConsentChanged };
         new (&m.payload.tracking_consent_changed)
-            StorageMessage_TrackingConsentChanged{value};
+            StorageMessage_TrackingConsentChanged{ value };
         return m;
     }
 
     /**
      * Creates a new EventGenerated message.
      */
-    static StorageMessage EventGenerated(
-        FeatureId feature_id,
-        Block event,
-        Block event_metadata
-    )
+    static StorageMessage
+    EventGenerated(FeatureId feature_id, Block event, Block event_metadata)
     {
-        StorageMessage m{StorageMessageType::EventGenerated};
+        StorageMessage m{ StorageMessageType::EventGenerated };
         new (&m.payload.event_generated)
-            StorageMessage_EventGenerated{feature_id, event, event_metadata};
+            StorageMessage_EventGenerated{ feature_id, event, event_metadata };
         return m;
     }
 };
@@ -296,8 +290,7 @@ private:
             : filename_ms(0)
             , num_writes(0)
             , num_bytes_written(0)
-        {
-        }
+        {}
 
         void Reset(uint64_t in_filename_ms)
         {
@@ -327,8 +320,14 @@ public:
 
 private:
     platform::IFileWriter* PrepareFileForNextWrite(Block event, Block event_metadata);
-    bool CanReuseFileForNextWrite(uint64_t current_time_millis, Block event, Block event_metadata) const;
-    std::optional<std::pair<uint64_t, std::string>> GetFilenameForNextWrite(uint64_t current_time_millis) const;
+    bool CanReuseFileForNextWrite(
+        uint64_t current_time_millis,
+        Block event,
+        Block event_metadata
+    ) const;
+    std::optional<std::pair<uint64_t, std::string>> GetFilenameForNextWrite(
+        uint64_t current_time_millis
+    ) const;
     bool CacheKnownFilenames() const;
 };
 
@@ -361,11 +360,15 @@ public:
     /**
      * Initializes new state for writing batches to the given directory.
      *
-     * @param directory Non-owning reference to the directory where the EventStorage will
-     *  list, create, and write to files. The lifetime of the IDirectory is guaranteed
-     *  to extend beyond the lifetime of the EventStorage.
+     * @param directory Non-owning reference to the directory where the EventStorage
+     * will list, create, and write to files. The lifetime of the IDirectory is
+     * guaranteed to extend beyond the lifetime of the EventStorage.
      */
-    explicit EventStorage(TrackingConsent consent, std::unique_ptr<BatchWriter>&& pending, std::unique_ptr<BatchWriter>&& granted);
+    explicit EventStorage(
+        TrackingConsent consent,
+        std::unique_ptr<BatchWriter>&& pending,
+        std::unique_ptr<BatchWriter>&& granted
+    );
 
     /**
      * Notifies the storage thread that the SDK's tracking consent value has changed.
@@ -401,6 +404,9 @@ public:
  *  outlive the thread, and both the objects and the vector itself are guaranteed to
  *  remain immutable for the lifetime of the thread.
  */
-void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<struct RegisteredFeature>& features);
+void StorageThreadMain(
+    Queue<StorageMessage>& queue,
+    std::vector<struct RegisteredFeature>& features
+);
 
 }

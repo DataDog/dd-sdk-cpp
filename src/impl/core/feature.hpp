@@ -1,17 +1,17 @@
 #pragma once
 
 #include <cinttypes>
-#include <string>
 #include <functional>
 #include <memory>
+#include <string>
 
 #include "nonstd/expected.hpp"
 
-#include "platform/filesystem.hpp"
-#include "platform/http.hpp"
 #include "core/block.hpp"
 #include "core/context.hpp"
 #include "core/tlv.hpp"
+#include "platform/filesystem.hpp"
+#include "platform/http.hpp"
 
 namespace datadog::impl {
 
@@ -96,8 +96,7 @@ public:
         : _file(file)
         , _current_type(TLVBlockType::Event)
         , _block_data_buffer(buffer)
-    {
-    }
+    {}
 
     nonstd::expected<TLVBlock, BatchReadError> ReadNext()
     {
@@ -123,8 +122,8 @@ public:
 
         // Successful read; block is valid: construct a lightweight view of our member
         // vector, and return a TLVBlock object
-        Block block{_block_data_buffer.data(), _block_data_buffer.size()};
-        return TLVBlock{_current_type, block};
+        Block block{ _block_data_buffer.data(), _block_data_buffer.size() };
+        return TLVBlock{ _current_type, block };
     }
 };
 
@@ -241,10 +240,8 @@ public:
      * Called from the upload thread when a batch of events written to storage by this
      * feature is ready to be processed and uploaded.
      */
-    virtual std::optional<Report> UploadThread_PrepareReport(
-        const CoreContext& context,
-        BatchReader& reader
-    ) = 0;
+    virtual std::optional<Report>
+    UploadThread_PrepareReport(const CoreContext& context, BatchReader& reader) = 0;
 
 private:
     EventGeneratedFunc _event_callback;

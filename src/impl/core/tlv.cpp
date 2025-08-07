@@ -32,7 +32,9 @@ static void _write_big_endian_32(char* buf, uint32_t value)
     buf[3] = static_cast<char>(value);
 }
 
-std::optional<TLVBlockHeader> TLVBlockHeader::Decode(const char buf[TLVBlockHeader::SIZE])
+std::optional<TLVBlockHeader> TLVBlockHeader::Decode(
+    const char buf[TLVBlockHeader::SIZE]
+)
 {
     // Multi-byte binary values are always written big-endian; decode them
     uint16_t type = _read_big_endian_16(buf);
@@ -49,10 +51,8 @@ std::optional<TLVBlockHeader> TLVBlockHeader::Decode(const char buf[TLVBlockHead
     {
         case static_cast<uint16_t>(TLVBlockType::Event):
         case static_cast<uint16_t>(TLVBlockType::Metadata):
-            return TLVBlockHeader{
-                static_cast<TLVBlockType>(type),
-                static_cast<uint32_t>(block_size)
-            };
+            return TLVBlockHeader{ static_cast<TLVBlockType>(type),
+                                   static_cast<uint32_t>(block_size) };
     }
     return std::nullopt;
 }
@@ -69,7 +69,7 @@ size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data)
     assert(n > 0 && "EncodeTLVBlock called with size 0");
 
     // Construct the header and validate that the buffer is large enough
-    const TLVBlockHeader header{type, static_cast<uint32_t>(data.size())};
+    const TLVBlockHeader header{ type, static_cast<uint32_t>(data.size()) };
     const size_t num_bytes = TLVBlockHeader::SIZE + header.block_size;
     if (num_bytes > n)
     {
@@ -84,18 +84,15 @@ size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data)
     return num_bytes;
 }
 
-platform::FilesystemResult<void> EncodeTLVBlock(
-    platform::IFileWriter& file,
-    TLVBlockType type,
-    Block block
-)
+platform::FilesystemResult<void>
+EncodeTLVBlock(platform::IFileWriter& file, TLVBlockType type, Block block)
 {
     // We should not attempt to write empty blocks
     assert(block.size() == 0);
 
     // Encode the header, representing type and size in big-endian byte order
     char header_buf[TLVBlockHeader::SIZE];
-    const TLVBlockHeader header{type, static_cast<uint32_t>(block.size())};
+    const TLVBlockHeader header{ type, static_cast<uint32_t>(block.size()) };
     header.Encode(header_buf);
 
     // Write the six-byte header to the file, propagating error if unsuccessful

@@ -11,17 +11,15 @@ TEST_CASE("CoreContext constructor", "[unit]")
     SECTION("M initialize from CoreConfig W valid config provided")
     {
         // Given an ordinary config
-        CoreConfig config = {
-            .tracking_consent = TrackingConsent::Granted,
-            .datadog_site = Site::us1,
-            .client_token = "test_token_123",
-            .service = "test_service",
-            .env = "test_env",
-            .application_version = "1.2.3",
-            .batch_size = BatchSize::Medium,
-            .upload_frequency = UploadFrequency::Average,
-            .batch_processing_level = BatchProcessingLevel::Medium
-        };
+        CoreConfig config = { .tracking_consent = TrackingConsent::Granted,
+                              .datadog_site = Site::us1,
+                              .client_token = "test_token_123",
+                              .service = "test_service",
+                              .env = "test_env",
+                              .application_version = "1.2.3",
+                              .batch_size = BatchSize::Medium,
+                              .upload_frequency = UploadFrequency::Average,
+                              .batch_processing_level = BatchProcessingLevel::Medium };
 
         // When CoreContext is constructed from that config
         CoreContext context(config);
@@ -42,17 +40,15 @@ TEST_CASE("CoreContext SetService", "[unit]")
     SECTION("M update service and increment version W new value provided")
     {
         // Given a CoreContext at version id 1, with service 'original_service'
-        CoreConfig config = {
-            .tracking_consent = TrackingConsent::Granted,
-            .datadog_site = Site::us1,
-            .client_token = "token",
-            .service = "original_service",
-            .env = "env",
-            .application_version = "1.0.0",
-            .batch_size = BatchSize::Medium,
-            .upload_frequency = UploadFrequency::Average,
-            .batch_processing_level = BatchProcessingLevel::Medium
-        };
+        CoreConfig config = { .tracking_consent = TrackingConsent::Granted,
+                              .datadog_site = Site::us1,
+                              .client_token = "token",
+                              .service = "original_service",
+                              .env = "env",
+                              .application_version = "1.0.0",
+                              .batch_size = BatchSize::Medium,
+                              .upload_frequency = UploadFrequency::Average,
+                              .batch_processing_level = BatchProcessingLevel::Medium };
         CoreContext context(config);
         int original_version = context.version;
         REQUIRE(original_version == 1);
@@ -71,17 +67,15 @@ TEST_CASE("CoreContext SetEnv", "[unit]")
     SECTION("M update env and increment version W new value provided")
     {
         // Given a CoreContext at version id 1, with env 'original_env'
-        CoreConfig config = {
-            .tracking_consent = TrackingConsent::Granted,
-            .datadog_site = Site::us1,
-            .client_token = "token",
-            .service = "service",
-            .env = "original_env",
-            .application_version = "1.0.0",
-            .batch_size = BatchSize::Medium,
-            .upload_frequency = UploadFrequency::Average,
-            .batch_processing_level = BatchProcessingLevel::Medium
-        };
+        CoreConfig config = { .tracking_consent = TrackingConsent::Granted,
+                              .datadog_site = Site::us1,
+                              .client_token = "token",
+                              .service = "service",
+                              .env = "original_env",
+                              .application_version = "1.0.0",
+                              .batch_size = BatchSize::Medium,
+                              .upload_frequency = UploadFrequency::Average,
+                              .batch_processing_level = BatchProcessingLevel::Medium };
         CoreContext context(config);
         int original_version = context.version;
         REQUIRE(original_version == 1);
@@ -98,17 +92,15 @@ TEST_CASE("CoreContext SetEnv", "[unit]")
 TEST_CASE("CoreContext BuildRequestURL", "[unit]")
 {
     // Given an ordinary config
-    CoreConfig config = {
-        .tracking_consent = TrackingConsent::Granted,
-        .datadog_site = Site::us1,
-        .client_token = "token",
-        .service = "test_service",
-        .env = "test_env",
-        .application_version = "1.0.0",
-        .batch_size = BatchSize::Medium,
-        .upload_frequency = UploadFrequency::Average,
-        .batch_processing_level = BatchProcessingLevel::Medium
-    };
+    CoreConfig config = { .tracking_consent = TrackingConsent::Granted,
+                          .datadog_site = Site::us1,
+                          .client_token = "token",
+                          .service = "test_service",
+                          .env = "test_env",
+                          .application_version = "1.0.0",
+                          .batch_size = BatchSize::Medium,
+                          .upload_frequency = UploadFrequency::Average,
+                          .batch_processing_level = BatchProcessingLevel::Medium };
     CoreContext context(config);
     std::string result_url;
 
@@ -125,11 +117,16 @@ TEST_CASE("CoreContext BuildRequestURL", "[unit]")
         REQUIRE(result_url == "http://192.168.0.135:5000/api/v1/logs?ddsource=unity");
     }
 
-    SECTION("M append ddsource with ampersand W with_ddsource is true and path has query")
+    SECTION(
+        "M append ddsource with ampersand W with_ddsource is true and path has query"
+    )
     {
         context.BuildRequestURL("/api/v1/logs?existing=param", true, result_url);
         // TODO: Update when cpp source exists
-        REQUIRE(result_url == "http://192.168.0.135:5000/api/v1/logs?existing=param&ddsource=unity");
+        REQUIRE(
+            result_url ==
+            "http://192.168.0.135:5000/api/v1/logs?existing=param&ddsource=unity"
+        );
     }
 
     SECTION("M not append ddsource W with_ddsource is false")
@@ -156,17 +153,15 @@ TEST_CASE("CoreContext BuildRequestURL", "[unit]")
 TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
 {
     // Given an ordinary config
-    CoreConfig config = {
-        .tracking_consent = TrackingConsent::Granted,
-        .datadog_site = Site::us1,
-        .client_token = "test_client_token_456",
-        .service = "test_service",
-        .env = "production",
-        .application_version = "2.1.0",
-        .batch_size = BatchSize::Medium,
-        .upload_frequency = UploadFrequency::Average,
-        .batch_processing_level = BatchProcessingLevel::Medium
-    };
+    CoreConfig config = { .tracking_consent = TrackingConsent::Granted,
+                          .datadog_site = Site::us1,
+                          .client_token = "test_client_token_456",
+                          .service = "test_service",
+                          .env = "production",
+                          .application_version = "2.1.0",
+                          .batch_size = BatchSize::Medium,
+                          .upload_frequency = UploadFrequency::Average,
+                          .batch_processing_level = BatchProcessingLevel::Medium };
     CoreContext context(config);
     std::string result_headers;
 
@@ -176,11 +171,18 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
         context.BuildRequestHeaders("application/json", "", result_headers);
 
         // Then expected headers are present
-        REQUIRE(result_headers.find("DD-API-KEY: test_client_token_456\n") != std::string::npos);
+        REQUIRE(
+            result_headers.find("DD-API-KEY: test_client_token_456\n") !=
+            std::string::npos
+        );
         // TODO: Update when cpp source exists
         REQUIRE(result_headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
         // TODO: Update when real request ID generation is implemented
-        REQUIRE(result_headers.find("DD-REQUEST-ID: 00000000-0000-0000-0000-000000000000\n") != std::string::npos);
+        REQUIRE(
+            result_headers.find(
+                "DD-REQUEST-ID: 00000000-0000-0000-0000-000000000000\n"
+            ) != std::string::npos
+        );
         // TODO: Update when real User-Agent generation is implemented
         REQUIRE(result_headers.find("User-Agent: nobody\n") != std::string::npos);
 
@@ -196,18 +198,23 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
     SECTION("M append feature headers W feature headers provided")
     {
         // When feature implementation provides custom headers
-        std::string feature_headers = "X-Custom-Header: custom_value\nX-Another-Header: another_value\n";
-        context.BuildRequestHeaders("application/json", feature_headers, result_headers);
+        std::string feature_headers =
+            "X-Custom-Header: custom_value\nX-Another-Header: another_value\n";
+        context.BuildRequestHeaders(
+            "application/json", feature_headers, result_headers
+        );
 
         // Then standard headers appear first
         size_t api_key_pos = result_headers.find("DD-API-KEY: test_client_token_456\n");
         REQUIRE(api_key_pos != std::string::npos);
 
         // And those custom headers are appended unmodified
-        size_t custom_header_pos = result_headers.find("X-Custom-Header: custom_value\n");
+        size_t custom_header_pos =
+            result_headers.find("X-Custom-Header: custom_value\n");
         REQUIRE(custom_header_pos != std::string::npos);
         REQUIRE(custom_header_pos > api_key_pos);
-        size_t another_header_pos = result_headers.find("X-Another-Header: another_value\n");
+        size_t another_header_pos =
+            result_headers.find("X-Another-Header: another_value\n");
         REQUIRE(another_header_pos != std::string::npos);
         REQUIRE(another_header_pos > custom_header_pos);
 
@@ -217,8 +224,11 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
     SECTION("M reuse string memory W out_headers is reused")
     {
         // When the first call uses a long set of headers
-        std::string long_feature_headers = "X-Very-Long-Header-Name: very_long_header_value_that_takes_up_space\n";
-        context.BuildRequestHeaders("application/json", long_feature_headers, result_headers);
+        std::string long_feature_headers =
+            "X-Very-Long-Header-Name: very_long_header_value_that_takes_up_space\n";
+        context.BuildRequestHeaders(
+            "application/json", long_feature_headers, result_headers
+        );
         size_t first_capacity = result_headers.capacity();
 
         // And the second call uses a shorter set

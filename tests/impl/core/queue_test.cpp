@@ -1,8 +1,8 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include <chrono>
 #include <thread>
 #include <vector>
-#include <chrono>
 
 #include "core/queue.hpp"
 
@@ -153,33 +153,38 @@ TEST_CASE("Queue threading", "[unit]")
         std::vector<std::thread> producers;
         for (int t = 0; t < num_threads; ++t)
         {
-            producers.emplace_back([&queue, t, items_per_thread]()
-            {
-                for (int i = 0; i < items_per_thread; ++i)
+            producers.emplace_back(
+                [&queue, t, items_per_thread]()
                 {
-                    int value = t * items_per_thread + i;
-                    queue.Push(std::move(value));
+                    for (int i = 0; i < items_per_thread; ++i)
+                    {
+                        int value = t * items_per_thread + i;
+                        queue.Push(std::move(value));
+                    }
                 }
-            });
+            );
         }
 
         // And a single consumer thread that pops items and adds them to this vector
         std::vector<int> consumed;
-        std::thread consumer([&queue, &consumed, num_threads, items_per_thread]()
-        {
-            for (int expected = 0; expected < num_threads * items_per_thread; ++expected)
+        std::thread consumer(
+            [&queue, &consumed, num_threads, items_per_thread]()
             {
-                auto item = queue.Pop();
-                if (item.has_value())
+                for (int expected = 0; expected < num_threads * items_per_thread;
+                     ++expected)
                 {
-                    consumed.push_back(item.value());
-                }
-                else
-                {
-                    break;
+                    auto item = queue.Pop();
+                    if (item.has_value())
+                    {
+                        consumed.push_back(item.value());
+                    }
+                    else
+                    {
+                        break;
+                    }
                 }
             }
-        });
+        );
 
         // When all producers have finished
         for (auto& producer : producers)
@@ -208,17 +213,19 @@ TEST_CASE("Queue threading", "[unit]")
         Queue<int> queue;
 
         // And a consumer thread that will block on Pop()
-        std::atomic<bool> popped{false};
-        std::atomic<int> result{0};
-        std::thread consumer([&queue, &popped, &result]()
-        {
-            auto item = queue.Pop();
-            if (item.has_value())
+        std::atomic<bool> popped{ false };
+        std::atomic<int> result{ 0 };
+        std::thread consumer(
+            [&queue, &popped, &result]()
             {
-                result.store(item.value());
-                popped.store(true);
+                auto item = queue.Pop();
+                if (item.has_value())
+                {
+                    result.store(item.value());
+                    popped.store(true);
+                }
             }
-        });
+        );
 
         // And a brief delay to allow the consumer thread to start and block
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -246,22 +253,24 @@ TEST_CASE("Queue threading", "[unit]")
 
         // And three consumers that will increment finished_consumers on exit
         const int num_consumers = 3;
-        std::atomic<int> finished_consumers{0};
+        std::atomic<int> finished_consumers{ 0 };
         std::vector<std::thread> consumers;
         for (int i = 0; i < num_consumers; ++i)
         {
-            consumers.emplace_back([&queue, &finished_consumers]()
-            {
-                while (true)
+            consumers.emplace_back(
+                [&queue, &finished_consumers]()
                 {
-                    auto item = queue.Pop();
-                    if (!item.has_value())
+                    while (true)
                     {
-                        finished_consumers.fetch_add(1);
-                        break;
+                        auto item = queue.Pop();
+                        if (!item.has_value())
+                        {
+                            finished_consumers.fetch_add(1);
+                            break;
+                        }
                     }
                 }
-            });
+            );
         }
 
         // And a brief delay to ensure consumers are blocking

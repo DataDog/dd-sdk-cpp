@@ -1,17 +1,17 @@
 #include "core/storage.hpp"
 
+#include <algorithm>
+#include <array>
 #include <cassert>
 #include <iostream>
 #include <sstream>
-#include <algorithm>
-#include <vector>
 #include <string>
 #include <string_view>
-#include <array>
+#include <vector>
 
-#include "platform/clock.hpp"
 #include "core/core.hpp"
 #include "core/tlv.hpp"
+#include "platform/clock.hpp"
 
 // Global version number applied to all event data stored persistently; may be bumped in
 // the event of breaking changes in order to abandon previously-written events on disk.
@@ -23,7 +23,8 @@ namespace datadog::impl {
 
 // Use (e.g.) 'v1' to store events gathered while tracking consent is granted;
 // 'intermediate-v1' for events gathered while tracking consent is pending
-const char* EventStorage::PENDING_SUBDIRECTORY_NAME = "intermediate-v" __EVENT_STORAGE_VERSION;
+const char* EventStorage::PENDING_SUBDIRECTORY_NAME =
+    "intermediate-v" __EVENT_STORAGE_VERSION;
 const char* EventStorage::GRANTED_SUBDIRECTORY_NAME = "v" __EVENT_STORAGE_VERSION;
 
 // Maximum possible base-10 digits in a uint64_t, without null terminator
@@ -47,13 +48,12 @@ static std::string_view _timestamp_to_string(
     // Return a std::string_view, which does NOT require a null terminator, constructed
     // from our buffer
     const size_t len = result.ptr - begin;
-    return std::string_view{begin, len};
+    return std::string_view{ begin, len };
 };
 
 BatchWriter::BatchWriter(std::unique_ptr<platform::IDirectory>&& directory)
     : _directory(std::move(directory))
-{
-}
+{}
 
 bool BatchWriter::Delete()
 {
@@ -112,10 +112,7 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata)
 
     // Write the event block
     const size_t event_tlv_size = EncodeTLVBlock(
-        write_addr,
-        write_buffer_end - write_addr,
-        TLVBlockType::Event,
-        event
+        write_addr, write_buffer_end - write_addr, TLVBlockType::Event, event
     );
     assert(event_tlv_size > 0 && "Failed to write TLV event block to buffer");
     write_addr += event_tlv_size;
@@ -142,7 +139,8 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata)
     return true;
 }
 
-platform::IFileWriter* BatchWriter::PrepareFileForNextWrite(Block event, Block event_metadata)
+platform::IFileWriter*
+BatchWriter::PrepareFileForNextWrite(Block event, Block event_metadata)
 {
     // Check our last-used file's age, size, etc. to see if we can reuse it
     const uint64_t current_time_nanos = platform::Clock::read_utc_nanos();
@@ -179,7 +177,11 @@ platform::IFileWriter* BatchWriter::PrepareFileForNextWrite(Block event, Block e
     return _last_file.get();
 }
 
-bool BatchWriter::CanReuseFileForNextWrite(uint64_t current_time_ms, Block event, Block event_metadata) const
+bool BatchWriter::CanReuseFileForNextWrite(
+    uint64_t current_time_ms,
+    Block event,
+    Block event_metadata
+) const
 {
     // TODO: Specify constants; derive max age cutoff from BatchSize
     const int64_t max_file_age_for_write_ms = 2850;
@@ -195,10 +197,9 @@ bool BatchWriter::CanReuseFileForNextWrite(uint64_t current_time_ms, Block event
     // If the current file is older than our maximum age for a writable file, leave it
     // alone and start a new file
     const uint64_t presumed_creation_time = _last_file_details.filename_ms;
-    const int64_t presumed_age_ms = (
-        static_cast<int64_t>(current_time_ms) -
-        static_cast<int64_t>(presumed_creation_time)
-    );
+    const int64_t presumed_age_ms =
+        (static_cast<int64_t>(current_time_ms) -
+         static_cast<int64_t>(presumed_creation_time));
     if (presumed_age_ms > max_file_age_for_write_ms)
     {
         return false;
@@ -222,7 +223,8 @@ bool BatchWriter::CanReuseFileForNextWrite(uint64_t current_time_ms, Block event
 
     // If the file would exceed our hard limit on file size after write, it's time to
     // call it quits on that file and start a new one
-    const size_t expected_size_after_write = _last_file_details.num_bytes_written + num_bytes_to_write;
+    const size_t expected_size_after_write =
+        _last_file_details.num_bytes_written + num_bytes_to_write;
     if (expected_size_after_write > max_file_size_in_bytes)
     {
         return false;
@@ -255,9 +257,7 @@ std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextW
     uint64_t filename_ms = current_time_ms;
     std::string_view filename = _timestamp_to_string(filename_ms, buffer);
     std::vector<std::string>::const_iterator it = std::lower_bound(
-        _last_known_filenames.cbegin(),
-        _last_known_filenames.cend(),
-        filename
+        _last_known_filenames.cbegin(), _last_known_filenames.cend(), filename
     );
 
     // If we didn't find an exact match, there's no existing file with this name, so
@@ -282,7 +282,10 @@ std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextW
         it = std::find_if(
             it,
             _last_known_filenames.cend(),
-            [=](const std::string& s) { return s == filename; }
+            [=](const std::string& s)
+            {
+                return s == filename;
+            }
         );
 
         // If we got no match, we're good to use the current filename
@@ -312,12 +315,15 @@ bool BatchWriter::CacheKnownFilenames() const
     return true;
 }
 
-EventStorage::EventStorage(TrackingConsent consent, std::unique_ptr<BatchWriter>&& pending, std::unique_ptr<BatchWriter>&& granted)
+EventStorage::EventStorage(
+    TrackingConsent consent,
+    std::unique_ptr<BatchWriter>&& pending,
+    std::unique_ptr<BatchWriter>&& granted
+)
     : _consent(consent)
     , _pending(std::move(pending))
     , _granted(std::move(granted))
-{
-}
+{}
 
 bool EventStorage::SetTrackingConsent(TrackingConsent value)
 {
@@ -384,23 +390,36 @@ bool EventStorage::HandleWrite(Block event, Block event_metadata)
     }
 }
 
-static void _handle_tracking_consent_changed(std::vector<RegisteredFeature>& features, const StorageMessage_TrackingConsentChanged& m)
+static void _handle_tracking_consent_changed(
+    std::vector<RegisteredFeature>& features,
+    const StorageMessage_TrackingConsentChanged& m
+)
 {
     for (auto& feature : features)
     {
         if (!feature.event_storage->SetTrackingConsent(m.value))
         {
-            std::cout << "[STORAGE] ERROR: failed to handle tracking consent change for feature " << feature.name << "\n";
+            std::cout << "[STORAGE] ERROR: failed to handle tracking consent change "
+                         "for feature "
+                      << feature.name << "\n";
         }
     }
 }
 
-static void _handle_event_generated(std::vector<RegisteredFeature>& features, const StorageMessage_EventGenerated& m)
+static void _handle_event_generated(
+    std::vector<RegisteredFeature>& features,
+    const StorageMessage_EventGenerated& m
+)
 {
     // Find the feature implementation identified in the message
-    const auto feature = std::find_if(features.begin(), features.end(), [&](const RegisteredFeature& f){
-        return f.id == m.feature_id;
-    });
+    const auto feature = std::find_if(
+        features.begin(),
+        features.end(),
+        [&](const RegisteredFeature& f)
+        {
+            return f.id == m.feature_id;
+        }
+    );
 
     // Ignore the message if no such feature exists
     if (feature == features.end())
@@ -410,17 +429,15 @@ static void _handle_event_generated(std::vector<RegisteredFeature>& features, co
     }
 
     // No RegisteredFeature should ever be initialized without a valid EventStorage
-    assert(feature->event_storage &&
+    assert(
+        feature->event_storage &&
         "feature identified by generated event does not have a valid EventStorage"
     );
 
-    // Use the RegisteredFeature's EventStorage to process the write operation, only continuing
-    // once the filesystem write operations return
+    // Use the RegisteredFeature's EventStorage to process the write operation, only
+    // continuing once the filesystem write operations return
     const bool write_ok = feature->event_storage->HandleWrite(
-        Block(
-            reinterpret_cast<const char*>(m.event.data()),
-            m.event.size()
-        ),
+        Block(reinterpret_cast<const char*>(m.event.data()), m.event.size()),
         Block(
             reinterpret_cast<const char*>(m.event_metadata.data()),
             m.event_metadata.size()
@@ -434,7 +451,10 @@ static void _handle_event_generated(std::vector<RegisteredFeature>& features, co
     }
 }
 
-void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<RegisteredFeature>& features)
+void StorageThreadMain(
+    Queue<StorageMessage>& queue,
+    std::vector<RegisteredFeature>& features
+)
 {
     std::cout << "[STORAGE] Started\n";
 
@@ -446,16 +466,12 @@ void StorageThreadMain(Queue<StorageMessage>& queue, std::vector<RegisteredFeatu
         {
             case StorageMessageType::TrackingConsentChanged:
                 _handle_tracking_consent_changed(
-                    features,
-                    item->payload.tracking_consent_changed
+                    features, item->payload.tracking_consent_changed
                 );
                 break;
 
             case StorageMessageType::EventGenerated:
-                _handle_event_generated(
-                    features,
-                    item->payload.event_generated
-                );
+                _handle_event_generated(features, item->payload.event_generated);
                 break;
         }
     }

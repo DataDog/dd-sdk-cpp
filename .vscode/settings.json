@@ -4,6 +4,10 @@
         "-DDD_BUILD_EXAMPLES=ON"
     ],
     "files.associations": {
+        "*.h": "c",
+        "*.c": "c",
+        "*.hpp": "cpp",
+        "*.cpp": "cpp",
         "memory": "cpp",
         "__bit_reference": "cpp",
         "__hash_table": "cpp",
@@ -63,6 +67,11 @@
         "set": "cpp",
         "fstream": "cpp",
         "condition_variable": "cpp",
-        "__assert": "cpp"
+        "__assert": "cpp",
+        "cassert": "cpp",
+        "csignal": "cpp",
+        "future": "cpp",
+        "list": "cpp",
+        "map": "cpp"
     }
 }

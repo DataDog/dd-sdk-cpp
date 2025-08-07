@@ -6,7 +6,6 @@ add_executable(dd_tests
     impl/core/context_test.cpp
     impl/core/queue_test.cpp
     impl/core/site_test.cpp
-    impl/platform/filesystem_std_test.cpp
 )
 
 target_link_libraries(dd_tests

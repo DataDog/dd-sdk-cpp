@@ -1,20 +1,24 @@
 #pragma once
 
-#include <string>
 #include <memory>
+#include <string>
 
 namespace datadog {
 
 // Forward declarations
-namespace impl { struct Core; }
+namespace impl {
+struct Core;
+}
 
-enum class TrackingConsent {
+enum class TrackingConsent
+{
     Granted,
     NotGranted,
     Pending,
 };
 
-enum class Site {
+enum class Site
+{
     us1,
     us3,
     us5,
@@ -49,7 +53,8 @@ enum class Site {
  * a direct, hard limit on the size of files or requests. The SDK imposes such limits
  * internally.
  */
-enum class BatchSize {
+enum class BatchSize
+{
     Small,
     Medium,
     Large,
@@ -73,7 +78,8 @@ enum class BatchSize {
  * process those batches sequentially, without delay, up to a limit determined by
  * BatchProcessingLevel.
  */
-enum class UploadFrequency {
+enum class UploadFrequency
+{
     Frequent,
     Average,
     Rare,
@@ -87,7 +93,8 @@ enum class UploadFrequency {
  * maximize throughput by processing more batches per cycle, potentially creating bursts
  * of HTTP requests.
  */
-enum class BatchProcessingLevel {
+enum class BatchProcessingLevel
+{
     Low,
     Medium,
     High,
@@ -113,7 +120,7 @@ struct Core
     bool Start();
     void Shutdown();
 
-private:
+  private:
     std::unique_ptr<impl::Core> _impl;
 
     friend class Logging;

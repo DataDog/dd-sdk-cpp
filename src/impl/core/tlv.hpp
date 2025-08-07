@@ -3,8 +3,8 @@
 #include <cinttypes>
 #include <optional>
 
-#include "platform/filesystem.hpp"
 #include "core/block.hpp"
+#include "platform/filesystem.hpp"
 
 namespace datadog::impl {
 
@@ -17,7 +17,8 @@ enum class TLVBlockType : uint16_t
 struct TLVBlockHeader
 {
     static const size_t SIZE = 6;
-    static_assert(SIZE == sizeof(TLVBlockType) + sizeof(uint32_t),
+    static_assert(
+        SIZE == sizeof(TLVBlockType) + sizeof(uint32_t),
         "Unexpected binary size for unpacked TLV block header"
     );
 
