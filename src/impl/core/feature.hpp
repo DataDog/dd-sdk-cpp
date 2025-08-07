@@ -205,7 +205,7 @@ public:
         return {};
     }
 
-    void OnCoreStarted(EventGeneratedFunc event_callback);
+    void OnCoreStarted(const EventGeneratedFunc& event_callback);
     void OnCoreStopping();
 
 protected:

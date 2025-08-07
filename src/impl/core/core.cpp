@@ -104,8 +104,7 @@ bool Core::Init()
     const auto list_files_result = _storage_root->ListFiles(filenames);
     if (list_files_result)
     {
-        std::cout << "Got " << filenames.size() << " files from root storage dir.\n"
-                  << std::endl;
+        std::cout << "Got " << filenames.size() << " files from root storage dir.\n";
     }
     else
     {
@@ -212,7 +211,7 @@ bool Core::Init()
     return true;
 }
 
-bool Core::RegisterFeature(std::shared_ptr<Feature> impl)
+bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl)
 {
     const FeatureId id = impl->GetId();
     const std::string_view name = impl->GetName();

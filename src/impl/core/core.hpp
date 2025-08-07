@@ -108,7 +108,7 @@ struct RegisteredFeature
     explicit RegisteredFeature(
         FeatureId in_id,
         std::string_view in_name,
-        std::shared_ptr<Feature> in_impl,
+        const std::shared_ptr<Feature>& in_impl,
         std::unique_ptr<platform::IDirectory>&& in_directory,
         std::unique_ptr<EventStorage>&& in_event_storage,
         std::unique_ptr<platform::IDirectory>&& in_event_read_directory,
@@ -311,7 +311,7 @@ public:
      * @returns whether the feature was successfully registered. If the feature was
      *  already registered, returns false nonetheless.
      */
-    bool RegisterFeature(std::shared_ptr<Feature> impl);
+    bool RegisterFeature(const std::shared_ptr<Feature>& impl);
 
     /**
      * Starts the core.

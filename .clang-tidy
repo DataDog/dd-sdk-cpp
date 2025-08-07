@@ -10,10 +10,9 @@ Checks: >
   -readability-simplify-boolean-expr,
   -readability-uppercase-literal-suffix,
   -readability-redundant-access-specifiers,
-#  performance-*,
-#  modernize-*,
-#  -modernize-use-trailing-return-type,
+  performance-*,
+
 
 WarningsAsErrors: '*'
 
-HeaderFilterRegex: '(src/|include-c/|include-cpp/|tests/).*'
+HeaderFilterRegex: '(src/|tests/).*'

@@ -16,7 +16,7 @@ static bool _is_clean_basename(std::string_view name)
     );
 }
 
-enum class _check_path_result
+enum class _check_path_result : uint8_t
 {
     does_not_exist,
     exists_as_file,

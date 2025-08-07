@@ -4,7 +4,7 @@
 
 namespace datadog::impl {
 
-void Feature::OnCoreStarted(EventGeneratedFunc event_callback)
+void Feature::OnCoreStarted(const EventGeneratedFunc& event_callback)
 {
     // We're now permitted to write events; store a reference to our writer callback
     assert(!_event_callback && "Feature has non-null _event_callback in OnCoreStarted");

@@ -154,7 +154,7 @@ public:
     StorageMessage(const StorageMessage&) = delete;
     StorageMessage& operator=(const StorageMessage&) = delete;
 
-    StorageMessage(StorageMessage&& other)
+    StorageMessage(StorageMessage&& other) noexcept
         : type(other.type)
     {
         // When a union value is moved, the compiler can't know which member's move
@@ -163,10 +163,10 @@ public:
         switch (type)
         {
             case StorageMessageType::TrackingConsentChanged:
-                new (&payload.tracking_consent_changed)
-                    StorageMessage_TrackingConsentChanged(
-                        std::move(other.payload.tracking_consent_changed)
-                    );
+                static_assert(std::is_trivially_copyable<
+                              StorageMessage_TrackingConsentChanged>::value);
+                other.payload.tracking_consent_changed =
+                    payload.tracking_consent_changed;
                 break;
 
             case StorageMessageType::EventGenerated:
@@ -177,7 +177,7 @@ public:
         }
     }
 
-    StorageMessage& operator=(StorageMessage&& other)
+    StorageMessage& operator=(StorageMessage&& other) noexcept
     {
         // Handle move-assignment as in the move constructor; cleaning up the
         // destination value first
@@ -191,10 +191,10 @@ public:
             switch (type)
             {
                 case StorageMessageType::TrackingConsentChanged:
-                    new (&payload.tracking_consent_changed)
-                        StorageMessage_TrackingConsentChanged(
-                            std::move(other.payload.tracking_consent_changed)
-                        );
+                    static_assert(std::is_trivially_copyable<
+                                  StorageMessage_TrackingConsentChanged>::value);
+                    other.payload.tracking_consent_changed =
+                        payload.tracking_consent_changed;
                     break;
 
                 case StorageMessageType::EventGenerated:

@@ -8,7 +8,7 @@
 
 namespace datadog::impl {
 
-enum class TLVBlockType : uint16_t
+enum class TLVBlockType : uint16_t // NOLINT(performance-enum-size)
 {
     Event = 0x0000,
     Metadata = 0x0001,

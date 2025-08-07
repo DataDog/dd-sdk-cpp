@@ -18,7 +18,7 @@ namespace datadog::impl {
 
 static const duration ASSERTION_FAILURE_BACKOFF = from_seconds(60.0);
 
-enum class _process_and_upload_batch_result
+enum class _process_and_upload_batch_result : uint8_t
 {
     /**
      * Request was successful; upload thread should delete the file and continue the
