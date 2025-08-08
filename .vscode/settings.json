@@ -79,6 +79,7 @@
         "csignal": "cpp",
         "future": "cpp",
         "list": "cpp",
-        "map": "cpp"
+        "map": "cpp",
+        "cerrno": "cpp"
     }
 }

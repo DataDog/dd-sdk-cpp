@@ -100,19 +100,25 @@ public:
         assert(n <= std::numeric_limits<std::streamsize>::max());
         _infile.read(dst, static_cast<std::streamsize>(n));
 
-        // Check error bits and fail if we couldn't read from the file
+        // If bad bit is set, an I/O error occurred
         if (_infile.bad())
         {
             return nonstd::make_unexpected(FilesystemError::IOError);
         }
-        if (_infile.fail())
+
+        // If we read anything, or if we've successfully reached the end of the file,
+        // the operation succeeded (even if fail bit was set, as this happens on EOF)
+        const size_t num_bytes_read = _infile.gcount();
+        const bool eof = _infile.eof();
+        const bool read_ok = num_bytes_read > 0 || eof;
+
+        // If the read operation failed, return an error
+        if (_infile.fail() && !read_ok)
         {
             return nonstd::make_unexpected(FilesystemError::Failed);
         }
 
         // Read succeeded; return EOF bit and number of bytes actually read
-        const bool eof = _infile.eof();
-        const size_t num_bytes_read = _infile.gcount();
         return FileReadResult{ num_bytes_read, eof };
     }
 };
@@ -136,9 +142,12 @@ public:
 
     FilesystemResult<void> Write(const char* src, size_t n) override
     {
+        // Default-initialize std::ofstream
+        std::ofstream outfile;
+
         // Attempt to open the file for append
         const std::ios::openmode mode = std::ios::binary | std::ios::app;
-        std::ofstream outfile(_path, mode);
+        outfile.open(_path, mode);
 
         // If we couldn't open the file, it may be because some parent directory doesn't
         // yet exist or has been externally deleted
@@ -146,7 +155,7 @@ public:
         {
             // Attempt to create the required directories, then retry opening the file
             std::error_code ec;
-            if (!std::filesystem::create_directories(_path, ec) || ec)
+            if (!std::filesystem::create_directories(_path.parent_path(), ec) || ec)
             {
                 return nonstd::make_unexpected(FilesystemError::Failed);
             }

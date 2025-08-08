@@ -29,9 +29,13 @@
 // Wrap socket.h/WinSock for cross-platform support
 #ifdef _WIN32
 
-// Machine-generated; TODO test on Windows and tweak as necessary
+/**
+ * Windows implementation of the cross-platform TCP socket wrapper used by
+ * MockHttpServer.
+ */
 struct Socket
 {
+    // Machine-generated; TODO test on Windows and tweak as necessary
     SOCKET sock;
     static bool winsock_initialized;
 
@@ -175,6 +179,10 @@ struct Socket
 
 bool Socket::winsock_initialized = false;
 #else
+/**
+ * POSIX implementation of the cross-platform TCP socket wrapper used by
+ * MockHttpServer.
+ */
 struct Socket
 {
     int fd;
@@ -309,61 +317,88 @@ struct Socket
 };
 #endif
 
+/**
+ * Working, bare-bones HTTP server used for testing real HTTP client functionality.
+ *
+ * Wraps a TCP socket that's bound on ctor
+ */
 struct MockHttpServer
 {
-    uint16_t port;        // TCP port the server is bound to
-    std::string response; // Desired HTTP response to use as reply for all requests
-    bool close_after_read{ false };    // If true, close the connection w/o response
-    std::vector<std::string> requests; // Record of all HTTP requests received
+    // Port on which the server is accepting connections
+    uint16_t port;
+
+    // Raw text that we'll send in reply to any and all connections; tests can override
+    // or call SetResponseStatus() to populate with a valid-enough HTTP response
+    std::string response;
+
+    // If set by test, server will close the client connection after reading the
+    // request, without sending a response
+    bool close_after_read{ false };
+
+    // All HTTP requests received will be recorded here for tests to examine
+    std::vector<std::string> requests;
 
     explicit MockHttpServer(uint16_t in_port = 0)
         : port(in_port)
     {
+        // Use platform-agnostic wrapper interface for socket operations
         if (!_sock.Create())
         {
             return;
         }
 
+        // Set REUSEADDR to avoid port conflicts
         _sock.SetReuseAddr();
 
+        // Bind to the configured port
         if (!_sock.Bind(port))
         {
             _sock.Close();
             return;
         }
 
+        // If configured to auto-bind, cache the actual port in use
         if (port == 0)
         {
             port = _sock.GetBoundPort();
         }
 
+        // Default to replying with a valid HTTP/1.1 200 response; tests can override
         SetResponseStatus(200);
     }
 
     ~MockHttpServer()
     {
+        // Ensure that the server is stopped at end of tests
         Stop();
         _sock.Close();
     }
 
     void Start()
     {
+        // Abort if shut down or socket init failed
         if (!_sock.IsValid() || _running.load())
         {
             return;
         }
 
+        // Prepare to accept incoming requests; abort if socket not usable
         if (!_sock.Listen())
         {
             return;
         }
 
+        // Start a background thread to run the accept-connections-and-reply loop.
+        // NOTE: Thread writes to requests vector without synchronization, so to avoid
+        // the possibility of a data race, tests should call Stop() before reading from
+        // the requests vector
         _running = true;
         _server_thread = std::thread(&MockHttpServer::ServerLoop, this);
     }
 
     void Stop()
     {
+        // Signal shutdown and wait for thread to exit
         _running = false;
         if (_server_thread.joinable())
         {
@@ -371,6 +406,9 @@ struct MockHttpServer
         }
     }
 
+    /**
+     * Configures the server to respond to all requests with the given HTTP status.
+     */
     void SetResponseStatus(int status_code)
     {
         std::string_view response_body = "mock-response";
@@ -383,6 +421,9 @@ struct MockHttpServer
         response = oss.str();
     }
 
+    /**
+     * Constructs a fully-qualified URL that will resolve to this server.
+     */
     std::string BuildURL(std::string_view path) const
     {
         std::ostringstream oss;
@@ -398,15 +439,16 @@ struct MockHttpServer
 private:
     void ServerLoop()
     {
+        // Loop indefinitely, actively checking for shutdown quite frequently
+        const int timeout_ms = 50;
         while (_running.load())
         {
-            const int timeout_ms = 50;
+            // If we get a client connection, handle it
             Socket conn = _sock.Accept(timeout_ms);
-            if (!conn.IsValid())
+            if (conn.IsValid())
             {
-                continue;
+                HandleClient(conn);
             }
-            HandleClient(conn);
         }
     }
 
@@ -428,9 +470,9 @@ private:
         }
         requests.push_back(request);
 
+        // If configured, simulate a server that drops the connection
         if (close_after_read)
         {
-            // Close the connection without responding
             conn.Close();
             return;
         }

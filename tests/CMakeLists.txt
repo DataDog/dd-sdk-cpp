@@ -6,6 +6,7 @@ add_executable(dd_native_tests
     impl/core/context_test.cpp
     impl/core/queue_test.cpp
     impl/core/site_test.cpp
+    impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
 )
 target_enable_strict_warnings(dd_native_tests)
