@@ -250,10 +250,10 @@ public:
 
         // Attempt to delete the file
         std::error_code ec;
-        std::filesystem::remove(file_path, ec);
-        if (ec)
+        const bool removed = std::filesystem::remove(file_path, ec);
+        if (!removed || ec)
         {
-            if (ec == std::errc::no_such_file_or_directory)
+            if (!removed || ec == std::errc::no_such_file_or_directory)
             {
                 return nonstd::make_unexpected(FilesystemError::DoesNotExist);
             }

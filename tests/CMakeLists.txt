@@ -9,6 +9,7 @@ add_executable(dd_native_tests
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
     mock/feature_mock_test.cpp
+    mock/filesystem_mock_test.cpp
 )
 target_enable_strict_warnings(dd_native_tests)
 

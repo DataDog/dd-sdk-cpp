@@ -52,19 +52,17 @@ class MockFileReader : public platform::IFileReader
 public:
     std::shared_ptr<MockFileEntry> f;
     int fd;
-    int read_offset;
+    size_t read_offset;
 
     explicit MockFileReader(std::shared_ptr<MockFileEntry> in_f, int in_fd)
         : f(in_f)
         , fd(in_fd)
+        , read_offset(0)
     {
+        // Constructor should only be called when exclusivity is already guaranteed
+        // by HandleOpenForRead, so we can safely claim the file handle
         std::lock_guard lock(f->mutex);
-
-        // Acquire a handle for write, simulating fopen w/ Windows-style exclusivity
-        if (f->reader_fd == 0 && f->writer_fd == 0)
-        {
-            f->reader_fd = fd;
-        }
+        f->reader_fd = fd;
     }
 
     ~MockFileReader()
@@ -94,14 +92,16 @@ public:
             return nonstd::make_unexpected(platform::FilesystemError::IOError);
         }
 
-        // Increment our read offset
-        read_offset += offset;
-
-        // Seeking backward past start of file is an error
-        if (read_offset < 0)
+        // Check if seeking backward past start of file
+        if (offset < 0 && static_cast<size_t>(-offset) > read_offset)
         {
             return nonstd::make_unexpected(platform::FilesystemError::Failed);
         }
+
+        // Increment our read offset
+        read_offset = static_cast<size_t>(static_cast<int>(read_offset) + offset);
+        
+        return {};
     }
 
     virtual platform::FilesystemResult<platform::FileReadResult>
@@ -274,6 +274,7 @@ struct MockFilesystem
                 out_names.push_back(file_path.filename().string());
             }
         }
+        return {};
     }
 
     /**
@@ -342,8 +343,18 @@ struct MockFilesystem
             return nonstd::make_unexpected(platform::FilesystemError::DoesNotExist);
         }
 
-        // Create a reader and give it a shared_ptr to the FileEntry; it'll acquire the
-        // file mutex as needed
+        // Check exclusivity before creating reader (Windows-style locking)
+        {
+            std::lock_guard file_lock(file->mutex);
+            if (file->reader_fd != 0 || file->writer_fd != 0)
+            {
+                return nonstd::make_unexpected(platform::FilesystemError::Failed);
+            }
+            // Reserve the file handle for the reader we're about to create
+            // (MockFileReader constructor will claim it)
+        }
+
+        // Create a reader and give it a shared_ptr to the FileEntry
         return std::make_unique<MockFileReader>(file, next_fd++);
     }
 
@@ -463,16 +474,43 @@ public:
  * Mock implementation of IStorageDirectory. Wraps a MockFilesystem and simulates the
  * interface to the root event storage directory.
  */
-class MockStorageDirectory
-    : public MockDirectory
-    , public platform::IStorageDirectory
+class MockStorageDirectory : public platform::IStorageDirectory
 {
 public:
     MockFilesystem fs;
 
-    MockStorageDirectory()
-        : MockDirectory(fs, "")
-    {}
+    MockStorageDirectory() {}
+
+    // IDirectory interface implementation - delegate to MockFilesystem
+    virtual platform::FilesystemResult<void> ListFiles(
+        std::vector<std::string>& out_names
+    ) override
+    {
+        return fs.HandleListFiles("", out_names);
+    }
+
+    virtual platform::FilesystemResult<void> DeleteFile(std::string_view name) override
+    {
+        return fs.HandleDeleteFile(name);
+    }
+
+    virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>
+    OpenForRead(std::string_view name) override
+    {
+        return fs.HandleOpenForRead(name);
+    }
+
+    virtual platform::FilesystemResult<std::unique_ptr<platform::IFileWriter>>
+    PrepareForWrite(std::string_view name) override
+    {
+        return fs.HandlePrepareForWrite(name);
+    }
+
+    virtual platform::FilesystemResult<std::unique_ptr<platform::IDirectory>>
+    PrepareSubdirectory(std::string_view name) override
+    {
+        return std::make_unique<MockDirectory>(fs, name);
+    }
 
     /**
      * Called during test setup to initialize the mock filesystem with files.

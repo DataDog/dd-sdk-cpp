@@ -1,5 +1,6 @@
 #include <catch2/catch_test_macros.hpp>
 
+#include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/tempdir.hpp"
 
