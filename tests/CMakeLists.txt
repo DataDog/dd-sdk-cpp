@@ -6,11 +6,13 @@ add_executable(dd_native_tests
     impl/core/context_test.cpp
     impl/core/queue_test.cpp
     impl/core/site_test.cpp
+    impl/platform/http_test.cpp
 )
 target_enable_strict_warnings(dd_native_tests)
 
 target_include_directories(dd_native_tests
     PRIVATE ${CMAKE_SOURCE_DIR}/src/impl
+    PRIVATE .
 )
 
 target_link_libraries(dd_native_tests

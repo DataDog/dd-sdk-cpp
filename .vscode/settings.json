@@ -2,6 +2,8 @@
     "cmake.configureArgs": [
         "-DDD_DEVELOPMENT=ON",
     ],
+    "cmake.configureOnOpen": false,
+    "cmake.configureOnEdit": false,
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
     "C_Cpp.codeAnalysis.runAutomatically": true,
     "C_Cpp.codeAnalysis.exclude": {

@@ -156,6 +156,12 @@ public:
         res = curl_easy_setopt(_curl, CURLOPT_POST, 1L);
         assert(res == CURLE_OK && "Failed to set CURLOPT_POST");
 
+        // Configure timeouts to prevent hanging
+        res = curl_easy_setopt(_curl, CURLOPT_CONNECTTIMEOUT, 10L);  // 10 second connection timeout
+        assert(res == CURLE_OK && "Failed to set CURLOPT_CONNECTTIMEOUT");
+        res = curl_easy_setopt(_curl, CURLOPT_TIMEOUT, 30L);  // 30 second total timeout
+        assert(res == CURLE_OK && "Failed to set CURLOPT_TIMEOUT");
+
         // Initiate the request and block until it's finished
         const CURLcode perform_res = curl_easy_perform(_curl);
 
