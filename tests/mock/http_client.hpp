@@ -105,6 +105,7 @@ public:
  */
 class MockHttpSubsystem : public platform::IHttpSubsystem
 {
+public:
     virtual std::unique_ptr<platform::IHttpClient> CreateClient() override
     {
         return std::make_unique<MockHttpClient>();

@@ -14,8 +14,8 @@
 
 using namespace datadog;
 
-// Tag [mock-filesystem] describes tests used to validate that the mock filesystem
-// implementation behaves correctly and consistently
+// [mock-filesystem] tests validate that the mock filesystem implementation behaves
+// correctly and consistently
 
 TEST_CASE("MockFilesystem Basic Operations", "[unit][mock-filesystem]")
 {
