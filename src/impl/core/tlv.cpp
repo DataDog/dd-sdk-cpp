@@ -110,19 +110,24 @@ EncodeTLVBlock(platform::IFileWriter& file, TLVBlockType type, Block block)
     return file.Write(block.data(), block.size());
 }
 
-platform::FilesystemResult<bool> ReadTLVBlock(
-    platform::IFileReader& file,
-    TLVBlockType& out_type,
-    std::vector<char>& out_block_data
-)
+static TLVBlockReadResult _propagate_filesystem_error(platform::FilesystemError err)
+{
+    if (err == platform::FilesystemError::IOError)
+    {
+        return TLVBlockReadResult{ TLVBlockReadResultType::IOError };
+    }
+    return TLVBlockReadResult{ TLVBlockReadResultType::ReadFailed };
+}
+
+TLVBlockReadResult
+ReadTLVBlock(platform::IFileReader& file, std::vector<char>& out_block_data)
 {
     // Read the next six bytes of the file, which should contain the next block's header
     char header_buf[TLVBlockHeader::SIZE];
     auto result = file.Read(static_cast<char*>(header_buf), sizeof(header_buf));
     if (!result)
     {
-        // If we failed to read from the file, propagate the error
-        return nonstd::make_unexpected(result.error());
+        return _propagate_filesystem_error(result.error());
     }
 
     // Decode the header, failing if the block type or size isn't valid
@@ -131,7 +136,7 @@ platform::FilesystemResult<bool> ReadTLVBlock(
     if (!header)
     {
         // There was no filesystem error, but we did not read a valid block
-        return false;
+        return TLVBlockReadResult(TLVBlockReadResultType::Malformed);
     }
 
     // Read the next N bytes, where N is the block size indicated in the header
@@ -139,18 +144,19 @@ platform::FilesystemResult<bool> ReadTLVBlock(
     result = file.Read(out_block_data.data(), out_block_data.size());
     if (!result)
     {
-        // File read failed; propagate filesystem error
-        return nonstd::make_unexpected(result.error());
+        return _propagate_filesystem_error(result.error());
     }
     if (result->num_bytes_read != header->block_size)
     {
         // We failed to read the number of bytes we needed
-        return nonstd::make_unexpected(platform::FilesystemError::Failed);
+        return TLVBlockReadResult(TLVBlockReadResultType::Malformed);
     }
 
-    // We got the whole block; read OK
-    out_type = header->type;
-    return true; // TODO: propagate result->eof?
+    // We got the whole block; construct a view into our reusable buffer and return a
+    // successful result struct, propagating EOF
+    Block block_data{ out_block_data.data(), out_block_data.size() };
+    assert(out_block_data.size() == header->block_size);
+    return TLVBlockReadResult{ *header, result->eof };
 }
 
 } // namespace datadog::impl

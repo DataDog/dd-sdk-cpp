@@ -56,6 +56,7 @@ struct TLVBlock
 {
     TLVBlockType type;
     Block block;
+    bool eof;
 };
 
 /**
@@ -88,7 +89,6 @@ class BatchReader
 {
 private:
     platform::IFileReader& _file;
-    TLVBlockType _current_type{ TLVBlockType::Event };
     std::vector<char>& _block_data_buffer;
 
 public:
@@ -99,30 +99,33 @@ public:
 
     nonstd::expected<TLVBlock, BatchReadError> ReadNext()
     {
-        // A filesystem error indicates we couldn't read from the file
-        auto result = ReadTLVBlock(_file, _current_type, _block_data_buffer);
-        if (!result)
+        // Read and parse the TLV header at the current file position, then read the
+        // adjacent block data into the buffer, returning a result that contains a
+        // lightweight view of that buffer
+        const TLVBlockReadResult result = ReadTLVBlock(_file, _block_data_buffer);
+        switch (result.type)
         {
-            // Signal IOError (bad bit set on read) explicitly
-            if (result.error() == platform::FilesystemError::IOError)
-            {
-                return nonstd::make_unexpected(BatchReadError::IOError);
-            }
-            return nonstd::make_unexpected(BatchReadError::FailedRead);
-        }
+            // Successful read; continue
+            case TLVBlockReadResultType::Success:
+                break;
 
-        // A return value of false means we read from the file but the data was not
-        // semantically valid
-        const bool read_ok = *result;
-        if (!read_ok)
-        {
-            return nonstd::make_unexpected(BatchReadError::InvalidBlockFormat);
+            // On any failure, early-out with an appropriate error
+            case TLVBlockReadResultType::IOError:
+                return nonstd::make_unexpected(BatchReadError::IOError);
+            case TLVBlockReadResultType::ReadFailed:
+                return nonstd::make_unexpected(BatchReadError::FailedRead);
+            case TLVBlockReadResultType::Malformed:
+                return nonstd::make_unexpected(BatchReadError::InvalidBlockFormat);
         }
 
         // Successful read; block is valid: construct a lightweight view of our member
         // vector, and return a TLVBlock object
-        Block block{ _block_data_buffer.data(), _block_data_buffer.size() };
-        return TLVBlock{ _current_type, block };
+        Block block_data{ _block_data_buffer.data(), _block_data_buffer.size() };
+        assert(
+            block_data.size() == result.header.block_size &&
+            "After OK ReadTLVBlock, buffer size does not match block size in header"
+        );
+        return TLVBlock{ result.header.type, block_data, result.eof };
     }
 };
 

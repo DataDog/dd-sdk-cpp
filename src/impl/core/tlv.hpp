@@ -43,10 +43,59 @@ struct TLVBlockHeader
  */
 size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data);
 
-platform::FilesystemResult<bool> ReadTLVBlock(
-    platform::IFileReader& file,
-    TLVBlockType& out_type,
-    std::vector<char>& out_block_data
-);
+enum class TLVBlockReadResultType : uint8_t
+{
+    /** A valid TLV-formatted block was read successfully. */
+    Success,
+    /** A low-level I/O error occurred. */
+    IOError,
+    /** The filesystem read operation failed. */
+    ReadFailed,
+    /** The data read from the file was not a valid TLV block. */
+    Malformed
+};
+
+struct TLVBlockReadResult
+{
+    /**
+     * Result of the read operation.
+     */
+    TLVBlockReadResultType type{ TLVBlockReadResultType::Malformed };
+    /**
+     * Block header read from file, usable only if result type is success.
+     */
+    TLVBlockHeader header{ TLVBlockType::Event, 0 };
+    /**
+     * If true, the read operation reached or surpassed the end of the file, and no more
+     * blocks should be read.
+     */
+    bool eof{ false };
+
+    explicit TLVBlockReadResult(TLVBlockReadResultType in_type)
+        : type(in_type)
+    {}
+
+    explicit TLVBlockReadResult(const TLVBlockHeader& in_header, bool in_eof)
+        : type(TLVBlockReadResultType::Success)
+        , header(in_header)
+        , eof(in_eof)
+    {}
+};
+
+/**
+ * Reads the next block of TLV-formatted data from the open file.
+ *
+ * @param file The open input file to read from.
+ * @param out_block_data A mutable reference to the vector where the block data (just
+ *  the 'V' portion of the TLV block, not including the 'TL' header) will be written. If
+ *  successful, out_block_data is guaranteed to be the exact size indicated by the
+ *  length encoded in the block header.
+ *
+ * @returns a struct indicating the result of the operation: if result.type is Success,
+ *  other values may be read. If result.eof is set, no further reads should be
+ *  attempted.
+ */
+TLVBlockReadResult
+ReadTLVBlock(platform::IFileReader& file, std::vector<char>& out_block_data);
 
 } // namespace datadog::impl

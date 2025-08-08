@@ -80,6 +80,7 @@
         "future": "cpp",
         "list": "cpp",
         "map": "cpp",
-        "cerrno": "cpp"
+        "cerrno": "cpp",
+        "unordered_set": "cpp"
     }
 }

@@ -47,7 +47,7 @@ static std::filesystem::path _get_temp_root()
 /**
  * Generates a random string that is highly likely to be globally unique.
  */
-std::string _generate_random_string()
+static std::string _generate_random_string()
 {
     // Concatenate current timestamp and a random number
     auto now = std::chrono::high_resolution_clock::now().time_since_epoch().count();
