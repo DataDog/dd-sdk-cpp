@@ -1,7 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <csignal>
 #include <cstdint>
 #include <cstring>
 #include <iostream>
@@ -163,28 +162,16 @@ struct Socket
 };
 #endif
 
-// Shut down the server gracefully if tests are aborted
-static std::atomic<bool> g_shutdown_requested{ false };
-
-static void signal_handler(int signum)
-{
-    (void)signum;
-    g_shutdown_requested = true;
-}
-
 struct MockHttpServer
 {
     uint16_t port;        // TCP port the server is bound to
     std::string response; // Desired HTTP response to use as reply for all requests
+    bool close_after_read{ false };    // If true, close the connection w/o response
     std::vector<std::string> requests; // Record of all HTTP requests received
 
     explicit MockHttpServer(uint16_t in_port = 0)
         : port(in_port)
-        , _running(false)
     {
-        std::signal(SIGINT, signal_handler);
-        std::signal(SIGTERM, signal_handler);
-
         if (!_sock.Create())
         {
             return;
@@ -231,7 +218,6 @@ struct MockHttpServer
     void Stop()
     {
         _running = false;
-        g_shutdown_requested = true;
         if (_server_thread.joinable())
         {
             _server_thread.join();
@@ -265,7 +251,7 @@ struct MockHttpServer
 private:
     void ServerLoop()
     {
-        while (_running.load() && !g_shutdown_requested.load())
+        while (_running.load())
         {
             const int timeout_ms = 50;
             Socket conn = _sock.Accept(timeout_ms);
@@ -295,6 +281,13 @@ private:
         }
         requests.push_back(request);
 
+        if (close_after_read)
+        {
+            // Close the connection without responding
+            conn.Close();
+            return;
+        }
+
         // We don't implement any HTTP-request-handling logic; we just record the
         // request for tests to examine, and we respond with whatever response the test
         // instructed us to send
@@ -303,6 +296,6 @@ private:
     }
 
     Socket _sock;
-    std::atomic<bool> _running;
+    std::atomic<bool> _running{ false };
     std::thread _server_thread;
 };

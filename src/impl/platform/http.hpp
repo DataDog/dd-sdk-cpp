@@ -98,6 +98,9 @@ public:
      *  will be present in the URL, properly URL-encoded.
      * @param headers The full set of request headers, in wire format, i.e.
      *  'Content-Type: application/json', delimited by '\n', with a trailing newline.
+     *  TODO whoops, wire format actually uses '\r\n' - curl does the right thing, but
+     *  the application currently expects the nonstandard '\n', so we should fix this
+     *  and make sure comments are clear about the expected behavior.
      * @param body_writer A function that will populate the body of the request,
      *  chunk-by-chunk, allowing payloads to be streamed from the application layer to
      *  the HTTP connection. Note that this function will only be called during the
