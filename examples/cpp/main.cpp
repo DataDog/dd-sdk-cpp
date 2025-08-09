@@ -5,8 +5,11 @@
 
 #include "datadog.hpp"
 
-int main()
+int main() // NOLINT(bugprone-exception-escape)
 {
+    // TODO: Compile with -fno-exceptions; clarify exception guarantees; ensure that all
+    // exceptions besides std::bad_alloc are practically impossible
+
     std::cout << "Datadog Native SDK C++ Example\n";
 
     datadog::CoreConfig config{ datadog::TrackingConsent::Granted,
