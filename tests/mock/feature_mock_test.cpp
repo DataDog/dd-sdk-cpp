@@ -20,18 +20,22 @@ TEST_CASE("MockFeature", "[unit]")
     SECTION("TEMP")
     {
         // Given a registered feature in a running core
-        MockCore core;
+        auto test = CoreTestHarness::Init();
         auto feature = std::make_shared<CoolFeature>();
-        core.RegisterMockFeature(feature);
-        core.Start();
+        REQUIRE(test.core.RegisterFeature(feature));
+        REQUIRE(test.core.Start());
+
+        // And an HTTP client that is unable to complete requests
+        test.client.SimulateTransientNetworkError();
 
         // When the feature generates an event
         feature->GenerateEvent("hello world");
         feature->GenerateEvent("goodbye", "metadata");
 
         // And the Core is stopped
-        core.Stop();
+        test.core.Stop();
 
+        // Then TODO
         REQUIRE(2 == 2);
     }
 }

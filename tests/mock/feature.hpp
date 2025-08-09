@@ -168,6 +168,9 @@ public:
     }
 };
 
+/**
+ * Default SDK configuration used in tests.
+ */
 static const CoreConfig MOCK_CORE_CONFIG{
     TrackingConsent::Granted,
     Site::us1,
@@ -181,176 +184,58 @@ static const CoreConfig MOCK_CORE_CONFIG{
 };
 
 /**
- * Most of this state and logic is duplicated; we could feasibly use the actual Core
- * implementation if we make subsystem init non-static and just do some creative
- * static_casting.
+ * Encapsulates test setup, initializing a working Core implementation with mock
+ * implementations of platform subsystems.
+ *
+ * Allows you to register features (real or mock), start and stop the core, and examine
+ * the resulting filesystem state and network requests, while exercising the actual
+ * implementation of the Core and its storage and upload threads.
  */
-struct MockCore
+struct CoreTestHarness
 {
-    TrackingConsent tracking_consent{ MOCK_CORE_CONFIG.tracking_consent };
-    UploadFrequency upload_frequency{ MOCK_CORE_CONFIG.upload_frequency };
-    impl::CoreState state{ impl::CoreState::Initialized };
-    impl::CoreContext context{ MOCK_CORE_CONFIG };
+    impl::Core core;
+    MockStorageDirectory& storage;
+    MockHttpClient& client;
 
-    // Subsystems created on init; in mock flavors
-    std::unique_ptr<MockStorageDirectory> storage_root;
-    std::unique_ptr<MockHttpClient> http_client;
-
-    // Registered features
-    std::vector<impl::RegisteredFeature> features;
-
-    // Storage and upload thread, tied to Start/Stop
-    std::unique_ptr<impl::Queue<impl::StorageMessage>> storage_queue;
-    std::optional<std::thread> storage_thread;
-    std::unique_ptr<impl::UploadScheduler> upload_scheduler;
-    std::optional<std::thread> upload_thread;
-
-    MockCore()
-    {
-        // Create mock versions of subsystems that the Core uses
-        storage_root = std::make_unique<MockStorageDirectory>();
-        http_client = std::make_unique<MockHttpClient>();
-    }
-
-    template<typename T = MockFeature>
-    void RegisterMockFeature(std::shared_ptr<T>& impl)
-    {
-        // Tests should only register Feature implementations
-        static_assert(std::is_base_of<impl::Feature, T>::value, "not a Feature");
-
-        // Tests should not call RegisterMockFeature() after calling Start()
-        if (state != impl::CoreState::Initialized)
-        {
-            assert(false && "RegisterMockFeature called after core start");
-            return;
-        }
-
-        // Create a subdirectory for this feature in the mock root storage dir
-        auto directory_result = storage_root->PrepareSubdirectory(impl->GetName());
-        assert(directory_result && "Failed to create mock feature storage directory");
-        std::unique_ptr<platform::IDirectory>& feature_subdir = *directory_result;
-
-        // Create directory interfaces for storage thread
-        const char* pending_name = impl::EventStorage::PENDING_SUBDIRECTORY_NAME;
-        auto pending_subdir = feature_subdir->PrepareSubdirectory(pending_name);
-        assert(pending_subdir && "Failed to create mock pending subdir");
-
-        const char* granted_name = impl::EventStorage::GRANTED_SUBDIRECTORY_NAME;
-        auto granted_subdir = feature_subdir->PrepareSubdirectory(granted_name);
-        assert(granted_subdir && "Failed to create mock granted subdir");
-
-        // Create BatchWriters and EventStorage interface for storage thread
-        auto event_storage = std::make_unique<impl::EventStorage>(
-            TrackingConsent::Granted,
-            std::make_unique<impl::BatchWriter>(std::move(*pending_subdir)),
-            std::make_unique<impl::BatchWriter>(std::move(*granted_subdir))
-        );
-
-        // Create second (reader) wrapper for granted dir, for upload thread
-        auto event_read_directory = feature_subdir->PrepareSubdirectory(granted_name);
-        assert(event_read_directory && "Failed to create mock event read directory");
-
-        // Create upload thread state for feature-specific timing etc.
-        // TODO: Don't pass UploadFrequency enum; pass actual timing parameters
-        auto upload_state = std::make_unique<impl::UploadThreadState>(upload_frequency);
-
-        // Register the feature
-        features.emplace_back(
-            impl->GetId(),
-            impl->GetName(),
-            impl,
-            std::move(feature_subdir),
-            std::move(event_storage),
-            std::move(*event_read_directory),
-            std::move(upload_state)
-        );
-    }
-
-    void Start()
-    {
-        // Tests should only call Start() while not running, after registering features
-        if (state != impl::CoreState::Initialized)
-        {
-            assert(false && "Start called while running");
-            return;
-        }
-        if (features.empty())
-        {
-            assert(false && "Start called with no features registered");
-            return;
-        }
-
-        // Spin up storage and upload thread
-        storage_queue = std::make_unique<impl::Queue<impl::StorageMessage>>();
-        storage_thread = std::thread(
-            impl::StorageThreadMain, std::ref(*storage_queue), std::ref(features)
-        );
-        upload_scheduler = std::make_unique<impl::UploadScheduler>();
-        upload_thread = std::thread(
-            impl::UploadThreadMain,
-            std::ref(context),
-            std::ref(*upload_scheduler),
-            std::ref(features),
-            std::ref(*http_client)
-        );
-
-        // Started!
-        state = impl::CoreState::Started;
-
-        // Route OnCoreStarted to all features, and install event-gen callback
-        for (const auto& feature : features)
-        {
-            const impl::FeatureId id = feature.id;
-            impl::EventGeneratedFunc event_callback =
-                [this, id](impl::Block event, impl::Block event_metadata) -> bool
-            {
-                return EnqueueStorageWrite(id, event, event_metadata);
-            };
-            feature.impl->OnCoreStarted(event_callback);
-        }
-    }
-
-    void Stop()
-    {
-        // Tests should only call Stop() while running
-        if (state != impl::CoreState::Started)
-        {
-            assert(false && "Stop called while not running");
-            return;
-        }
-
-        // Route OnCoreStopping to all features
-        for (const auto& feature : features)
-        {
-            feature.impl->OnCoreStopping();
-        }
-
-        // Shut down storage thread, then upload thread
-        storage_queue->Stop();
-        storage_thread->join();
-        storage_thread.reset();
-        storage_queue.reset();
-        upload_scheduler->Stop();
-        upload_thread->join();
-        upload_thread.reset();
-        upload_scheduler.reset();
-
-        // Stopped!
-        state = impl::CoreState::Initialized;
-    }
-
-    bool EnqueueStorageWrite(
-        impl::FeatureId feature_id,
-        impl::Block event,
-        impl::Block event_metadata
+    explicit CoreTestHarness(
+        impl::Core&& in_core,
+        MockStorageDirectory& in_storage,
+        MockHttpClient& in_client
     )
+        : core(std::move(in_core))
+        , storage(in_storage)
+        , client(in_client)
+    {}
+
+    static CoreTestHarness Init()
     {
-        if (state != impl::CoreState::Started)
-        {
-            return false;
-        }
-        return storage_queue->Push(
-            impl::StorageMessage::EventGenerated(feature_id, event, event_metadata)
+        // Create mock implementations of required core subsystems
+        auto _storage_root = std::make_unique<MockStorageDirectory>();
+        auto _http = std::make_unique<MockHttpSubsystem>();
+
+        // Capture references to the underlying objects before we transfer ownership out
+        // of these unique_ptrs
+        MockStorageDirectory& storage = *_storage_root;
+        MockHttpSubsystem& http = *_http;
+
+        // Create the core, giving the core ownership of injected subsystems
+        impl::Core core(
+            MOCK_CORE_CONFIG,
+            impl::CoreSubsystems(std::move(_storage_root), std::move(_http))
         );
+
+        // Initialize the core: this should always succeed in tests
+        if (!core.Init())
+        {
+            assert(false && "core init failed in test setup");
+        }
+
+        // The core should have created an HTTP client on init; get a reference to it
+        assert(http.clients.size() == 1 && "core did not create 1 mock HTTP client");
+        MockHttpClient* client_addr = http.clients[0];
+
+        // Return a struct that contains all the state we need in order to test - and
+        // examine the results of - code that interfaces with the core
+        return CoreTestHarness(std::move(core), storage, *client_addr);
     }
 };

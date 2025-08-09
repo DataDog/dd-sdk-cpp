@@ -13,10 +13,14 @@
 
 namespace datadog::impl {
 
-Core::Core(const datadog::CoreConfig& config)
+Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
     : _config(config)
     , _context(config)
+    , _subsystems(std::move(subsystems))
 {
+    assert(_subsystems.storage_root && "Core created with no root storage directory");
+    assert(_subsystems.http && "Core created with no HTTP subsystem");
+
     _features.reserve(16);
 }
 
@@ -90,121 +94,13 @@ bool Core::Init()
     // attempt initialization of the same core twice
     assert(_state == CoreState::Uninitialized && "Core::Init called multiple times");
 
-    // Initialize the filesystem interface, using a temporary directory for testing
-    _storage_root = platform::Filesystem::Init("temp-test/storage");
-    if (!_storage_root)
-    {
-        std::cout << "Failed to initialize filesystem\n";
-        return false;
-    }
-
-    std::vector<std::string> filenames;
-    filenames.reserve(64);
-    const auto list_files_result = _storage_root->ListFiles(filenames);
-    if (list_files_result)
-    {
-        std::cout << "Got " << filenames.size() << " files from root storage dir.\n";
-    }
-    else
-    {
-        const auto err = list_files_result.error();
-        std::cout << "Failed to list files in root storage dir: "
-                  << static_cast<int>(err) << "\n";
-    }
-
-    auto create_subdir_result = _storage_root->PrepareSubdirectory("logs");
-    if (create_subdir_result)
-    {
-        auto subdir = std::move(*create_subdir_result);
-
-        auto infile_result = subdir->OpenForRead("foo.dat");
-        if (infile_result)
-        {
-            uint32_t x = 0;
-            auto infile = std::move(*infile_result);
-            auto read_result =
-                infile->Read(reinterpret_cast<char*>(&x), sizeof(x)); // NOLINT
-            if (read_result)
-            {
-                std::cout << "Read int from file: " << x << "\n";
-            }
-            else
-            {
-                const auto err = read_result.error();
-                std::cout << "Failed to read from open file: " << static_cast<int>(err)
-                          << "\n";
-            }
-        }
-        else
-        {
-            const auto err = infile_result.error();
-            std::cout << "Failed to open file for read: " << static_cast<int>(err)
-                      << "\n";
-        }
-
-        uint32_t x = 8675309;
-        auto outfile_result = subdir->PrepareForWrite("foo.dat");
-        if (outfile_result)
-        {
-            auto outfile = std::move(*outfile_result);
-            auto write_result =
-                outfile->Write(reinterpret_cast<const char*>(&x), sizeof(x)); // NOLINT
-            if (write_result)
-            {
-                std::cout << "Wrote int to file: " << x << "\n";
-            }
-            else
-            {
-                const auto err = write_result.error();
-                std::cout << "Failed to write to open file: " << static_cast<int>(err)
-                          << "\n";
-            }
-        }
-        else
-        {
-            const auto err = outfile_result.error();
-            std::cout << "Failed to open file for write: " << static_cast<int>(err)
-                      << "\n";
-        }
-    }
-    else
-    {
-        const auto err = create_subdir_result.error();
-        std::cout << "Failed to create subdirectory: " << static_cast<int>(err) << "\n";
-    }
-
-    // Initialize the HTTP subsystem
-    _http = platform::Http::Init();
-    if (!_http)
-    {
-        std::cout << "Failed to initialize HTTP subsystem\n";
-        return false;
-    }
-
-    // Create a single HTTP client for testing
-    _http_client = _http->CreateClient();
+    // Create a single HTTP client
+    _http_client = _subsystems.http->CreateClient();
     if (!_http_client)
     {
         std::cout << "Failed to create HTTP client\n";
         return false;
     }
-
-    // Test chunked encoding
-    std::stringstream ss;
-    ss << "{\"objects\":[{\"value\":0}";
-    for (int i = 1; i < 65535; i++)
-    {
-        ss << "{\"value\":" << i << "}";
-    }
-    ss << "]";
-    std::string s = ss.str();
-
-    const platform::HttpResult result = _http_client->Post(
-        "http://192.168.0.135:5000/api/v2/something?foo=bar&message=hello%20world",
-        "Authorization: Bearer secret\nContent-Type: application/json\n",
-        platform::StringWriter{ s }
-    );
-    std::cout << "Test request got HTTP " << result.status_code << "\n";
 
     // Core is initialized; ready to register features and start
     _state = CoreState::Initialized;
@@ -245,7 +141,7 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl)
 
     // Initialize a subdirectory within our root storage directory that will contain
     // files written on behalf of this feature
-    auto feature_subdir = _storage_root->PrepareSubdirectory(name);
+    auto feature_subdir = _subsystems.storage_root->PrepareSubdirectory(name);
     if (!feature_subdir)
     {
         std::cout << "Failed to register feature " << name << " (id " << id

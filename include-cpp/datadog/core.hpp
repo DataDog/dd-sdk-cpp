@@ -119,7 +119,7 @@ public:
     static std::shared_ptr<Core> Create(const CoreConfig& config);
 
     bool Start();
-    void Shutdown();
+    void Stop();
 
 private:
     std::unique_ptr<impl::Core> _impl;

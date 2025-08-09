@@ -2,6 +2,7 @@
 
 #include <atomic>
 #include <cinttypes>
+#include <iostream>
 #include <memory>
 #include <optional>
 #include <thread>
@@ -122,6 +123,57 @@ struct RegisteredFeature
         , event_read_directory(std::move(in_event_read_directory))
         , upload_state(std::move(in_upload_state))
     {}
+};
+
+/**
+ * Platform-specific dependencies injected when the Core is constructed.
+ */
+struct CoreSubsystems
+{
+    std::unique_ptr<platform::IStorageDirectory> storage_root;
+    std::unique_ptr<platform::IHttpSubsystem> http;
+
+    explicit CoreSubsystems(
+        std::unique_ptr<platform::IStorageDirectory>&& in_storage_root,
+        std::unique_ptr<platform::IHttpSubsystem>&& in_http
+    )
+        : storage_root(std::move(in_storage_root))
+        , http(std::move(in_http))
+    {}
+
+    static std::optional<CoreSubsystems> Init(const CoreConfig& config)
+    {
+        // TODO: Allow configuration of storage path via core; use sensible default
+        // per-platform
+        (void)config;
+
+        // Store event data in "$(pwd)/.datadog/<feature>" by default
+        const std::string_view DEFAULT_STORAGE_DIR = ".datadog";
+
+        // Initialize the default implementations of platform subsystems: the
+        // appropriate implementation for the given platform will be conditionally
+        // included in the build, and those implementations are marked 'final'.
+        // In production builds, only a single 'final' implementation will be present
+        // in the binary for each subsystem, allowing LTO to devirtualize calls to those
+        // subsystems; while we can still inject mock implementations in test builds.
+        auto storage_root = platform::Filesystem::Init(DEFAULT_STORAGE_DIR);
+        if (!storage_root)
+        {
+            // TOOD: Proper configurable logging via telemetry logger, user-provided log
+            // callbacks, etc
+            std::cout << "Failed to initialize event storage subsystem\n";
+            return std::nullopt;
+        }
+        auto http = platform::Http::Init();
+        if (!http)
+        {
+            std::cout << "Failed to initialize HTTP subsystem\n";
+            return std::nullopt;
+        }
+
+        // Return our newly-created subsystems, to be transferred into the Core
+        return CoreSubsystems(std::move(storage_root), std::move(http));
+    }
 };
 
 /**
@@ -249,7 +301,7 @@ public:
     /**
      * Constructs a new core from the provided configuration.
      */
-    explicit Core(const CoreConfig& config);
+    explicit Core(const CoreConfig& config, CoreSubsystems&& subsystems);
 
     /**
      * Ensures that the core is stopped, if necessary, when it goes out of scope.
@@ -349,10 +401,9 @@ private:
     CoreState _state{ CoreState::Uninitialized };
     datadog::CoreConfig _config;
     CoreContext _context;
+    CoreSubsystems _subsystems;
 
     // Initialized on Init; entirely implementation-controlled
-    std::unique_ptr<platform::IStorageDirectory> _storage_root;
-    std::unique_ptr<platform::IHttpSubsystem> _http;
     std::unique_ptr<platform::IHttpClient> _http_client;
 
     // Initialized before Start in response to user-initiated feature registration

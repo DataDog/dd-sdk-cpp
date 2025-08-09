@@ -106,8 +106,15 @@ public:
 class MockHttpSubsystem : public platform::IHttpSubsystem
 {
 public:
+    // Non-owning pointers to any clients created via CreateClient(): pointers become
+    // invalid when clients are destroyed; this simply allows test code to grab a
+    // reference to the actual HTTP client(s) used by the core
+    std::vector<MockHttpClient*> clients;
+
     virtual std::unique_ptr<platform::IHttpClient> CreateClient() override
     {
-        return std::make_unique<MockHttpClient>();
+        auto client = std::make_unique<MockHttpClient>();
+        clients.push_back(client.get());
+        return std::move(client);
     }
 };

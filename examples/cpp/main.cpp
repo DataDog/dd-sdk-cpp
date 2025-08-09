@@ -41,8 +41,7 @@ int main()
     }
 
     std::cout << "Core started successfully. Shutting down...\n";
-    std::this_thread::sleep_for(std::chrono::seconds(60));
-    core->Shutdown();
+    core->Stop();
 
     std::cout << "Example completed successfully\n";
 

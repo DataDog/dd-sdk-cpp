@@ -38,7 +38,7 @@ int main(int argc, char *argv[]) {
   }
 
   printf("Core started successfully. Shutting down...\n");
-  dd_core_shutdown(core);
+  dd_core_stop(core);
 
   dd_core_destroy(core);
   printf("Example completed successfully\n");
