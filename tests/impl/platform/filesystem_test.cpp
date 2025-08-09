@@ -5,8 +5,8 @@
 #include <memory>
 #include <vector>
 
-#include "mock/tempdir.hpp"
 #include "platform/filesystem.hpp"
+#include "support/tempdir.hpp"
 
 using namespace datadog;
 

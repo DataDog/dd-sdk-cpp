@@ -7,9 +7,9 @@
 #include <iomanip>
 #include <sstream>
 
-#include "mock/http_server.hpp"
 #include "platform/http.hpp"
 #include "platform/http_writer.hpp"
+#include "support/http_server.hpp"
 
 using namespace datadog;
 

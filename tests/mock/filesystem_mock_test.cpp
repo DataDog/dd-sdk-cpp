@@ -9,7 +9,6 @@
 #include <vector>
 
 #include "mock/filesystem.hpp"
-#include "mock/tempdir.hpp"
 #include "platform/filesystem.hpp"
 
 using namespace datadog;

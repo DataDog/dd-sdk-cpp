@@ -1,6 +1,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "mock/feature.hpp"
+#include "support/core.hpp"
 
 // These tests exercise the mock feature implementation to sanity check that it (and
 // the mock filesystem/http code it depends on) works as intended

@@ -11,9 +11,6 @@
 #include "core/storage.hpp"
 #include "platform/http_writer.hpp" // TODO: Move StringWriter out of platform
 
-#include "mock/filesystem.hpp"
-#include "mock/http_client.hpp"
-
 using namespace datadog;
 
 /**
@@ -165,77 +162,5 @@ public:
     {
         (void)blocks;
         return "{}";
-    }
-};
-
-/**
- * Default SDK configuration used in tests.
- */
-static const CoreConfig MOCK_CORE_CONFIG{
-    TrackingConsent::Granted,
-    Site::us1,
-    "mock-client-token",
-    "mock-service",
-    "mock-env",
-    "mock-application-version",
-    BatchSize::Small,
-    UploadFrequency::Frequent,
-    BatchProcessingLevel::Low,
-};
-
-/**
- * Encapsulates test setup, initializing a working Core implementation with mock
- * implementations of platform subsystems.
- *
- * Allows you to register features (real or mock), start and stop the core, and examine
- * the resulting filesystem state and network requests, while exercising the actual
- * implementation of the Core and its storage and upload threads.
- */
-struct CoreTestHarness
-{
-    impl::Core core;
-    MockStorageDirectory& storage;
-    MockHttpClient& client;
-
-    explicit CoreTestHarness(
-        impl::Core&& in_core,
-        MockStorageDirectory& in_storage,
-        MockHttpClient& in_client
-    )
-        : core(std::move(in_core))
-        , storage(in_storage)
-        , client(in_client)
-    {}
-
-    static CoreTestHarness Init()
-    {
-        // Create mock implementations of required core subsystems
-        auto _storage_root = std::make_unique<MockStorageDirectory>();
-        auto _http = std::make_unique<MockHttpSubsystem>();
-
-        // Capture references to the underlying objects before we transfer ownership out
-        // of these unique_ptrs
-        MockStorageDirectory& storage = *_storage_root;
-        MockHttpSubsystem& http = *_http;
-
-        // Create the core, giving the core ownership of injected subsystems
-        impl::Core core(
-            MOCK_CORE_CONFIG,
-            impl::CoreSubsystems(std::move(_storage_root), std::move(_http))
-        );
-
-        // Initialize the core: this should always succeed in tests
-        if (!core.Init())
-        {
-            assert(false && "core init failed in test setup");
-        }
-
-        // The core should have created an HTTP client on init; get a reference to it
-        assert(http.clients.size() == 1 && "core did not create 1 mock HTTP client");
-        MockHttpClient* client_addr = http.clients[0];
-
-        // Return a struct that contains all the state we need in order to test - and
-        // examine the results of - code that interfaces with the core
-        return CoreTestHarness(std::move(core), storage, *client_addr);
     }
 };
