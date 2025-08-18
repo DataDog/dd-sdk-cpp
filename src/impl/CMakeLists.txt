@@ -1,6 +1,8 @@
 # Internal library implementation, used with both C and C++ APIs
 add_library(dd_native_impl STATIC
-    # TODO: src/impl TUs not in this PR
+    core/context.cpp
+    core/storage.cpp
+    core/tlv.cpp
 )
 target_enable_strict_warnings(dd_native_impl)
 target_enable_clang_tidy(dd_native_impl)

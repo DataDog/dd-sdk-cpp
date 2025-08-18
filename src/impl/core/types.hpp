@@ -1,7 +1,11 @@
 #pragma once
 
+#include <chrono>
+
 #include "datadog/core.h"
 #include "datadog/core.hpp"
+
+#include "platform/clock.hpp"
 
 namespace datadog {
 
@@ -90,6 +94,42 @@ inline const char* BatchSize_ToString(BatchSize value)
         default:
             return "";
     }
+}
+
+inline platform::Duration BatchSize_ToFileTimingCutoff(BatchSize value)
+{
+    switch (value)
+    {
+        case BatchSize::Small:
+            return std::chrono::duration_cast<platform::Duration>(
+                std::chrono::seconds(3)
+            );
+        case BatchSize::Medium:
+            return std::chrono::duration_cast<platform::Duration>(
+                std::chrono::seconds(10)
+            );
+        case BatchSize::Large:
+        default:
+            return std::chrono::duration_cast<platform::Duration>(
+                std::chrono::seconds(35)
+            );
+    }
+}
+
+inline platform::Duration BatchSize_ToMaxFileAgeForWrite(BatchSize value)
+{
+    const platform::Duration cutoff = BatchSize_ToFileTimingCutoff(value);
+    const int64_t five_percent =
+        static_cast<int64_t>(static_cast<double>(cutoff.count()) * 0.05);
+    return cutoff - platform::Duration{five_percent};
+}
+
+inline platform::Duration BatchSize_ToMinFileAgeForRead(BatchSize value)
+{
+    const platform::Duration cutoff = BatchSize_ToFileTimingCutoff(value);
+    const int64_t five_percent =
+        static_cast<int64_t>(static_cast<double>(cutoff.count()) * 0.05);
+    return cutoff + platform::Duration{five_percent};
 }
 
 inline UploadFrequency UploadFrequency_FromC(dd_upload_frequency_t value)
