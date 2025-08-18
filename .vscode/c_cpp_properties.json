@@ -7,14 +7,15 @@
             ],
             "defines": [],
             "macFrameworkPath": [
-                "/System/Library/Frameworks",
-                "/Library/Frameworks"
+                "/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk/System/Library/Frameworks"
             ],
-            "compilerPath": "/opt/local/libexec/llvm-15/bin/clang",
-            "cStandard": "c17",
+            "compilerPath": "/usr/bin/clang++",
+            "cStandard": "c99",
             "cppStandard": "c++17",
             "intelliSenseMode": "macos-clang-arm64",
-            "configurationProvider": "ms-vscode.cmake-tools"
+            "compileCommands": [
+                "${workspaceFolder}/build/compile_commands.json"
+            ]
         }
     ],
     "version": 4
