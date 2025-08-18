@@ -2,6 +2,11 @@ include(${CMAKE_SOURCE_DIR}/cmake/deps/catch2.cmake)
 
 # Create test executable
 add_executable(dd_native_tests
+    impl/core/block_test.cpp
+    impl/core/context_test.cpp
+    impl/core/queue_test.cpp
+    impl/core/site_test.cpp
+    impl/core/tlv_test.cpp
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
