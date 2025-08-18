@@ -19,6 +19,17 @@ target_link_libraries(dd_native_impl PUBLIC nonstd::expected-lite)
 get_target_property(EXPECTED_LITE_INCLUDE_DIRS nonstd::expected-lite INTERFACE_INCLUDE_DIRECTORIES)
 target_include_directories(dd_native_impl SYSTEM PUBLIC ${EXPECTED_LITE_INCLUDE_DIRS})
 
+# Platform-specific support for system clock functionality
+option(DD_CLOCK_USE_DEFAULT "Use default clock implementation. If disabled, you must supply an implementation of platform/clock.hpp in a file specified as DD_CLOCK_SRC" ON)
+if(DD_CLOCK_USE_DEFAULT)
+    target_sources(dd_native_impl PRIVATE platform/clock_std.cpp)
+else()
+    set(DD_CLOCK_SRC "" CACHE STRING "Path to custom implementation of platform/clock.hpp")
+    if(DD_CLOCK_SRC)
+        target_sources(dd_native_impl PRIVATE ${DD_CLOCK_SRC})
+    endif()
+endif()
+
 # Platform-specific support for file I/O
 option(DD_FILESYSTEM_USE_DEFAULT "Use default filesystem implementation. If disabled, you must supply an implementation of platform/filesystem.hpp in a file specified as DD_FILESYSTEM_SRC" ON)
 if(DD_FILESYSTEM_USE_DEFAULT)
