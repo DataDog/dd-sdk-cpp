@@ -176,6 +176,20 @@ inline BatchProcessingLevel BatchProcessingLevel_FromC(
     return static_cast<BatchProcessingLevel>(value);
 }
 
+inline size_t BatchProcessingLevel_ToMaxBatchesPerCycle(BatchProcessingLevel value)
+{
+    switch (value)
+    {
+        case BatchProcessingLevel::Low:
+            return 1;
+        case BatchProcessingLevel::Medium:
+        default:
+            return 20;
+        case BatchProcessingLevel::High:
+            return 100;
+    }
+}
+
 inline const char* BatchProcessingLevel_ToString(BatchProcessingLevel value)
 {
     switch (value)

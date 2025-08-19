@@ -22,6 +22,8 @@ using Timestamp = std::chrono::time_point<std::chrono::system_clock, Duration>;
  * Interface for the system clock.
  *
  * Timestamps sampled from IClock MUST have millisecond precision, at a minimum.
+ *
+ * Reading the system clock is assumed to be thread-safe.
  */
 class IClock
 {
