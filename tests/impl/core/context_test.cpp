@@ -107,14 +107,17 @@ TEST_CASE("CoreContext BuildRequestURL", "[unit]")
     SECTION("M concatenate origin and path W path has no query parameters")
     {
         context.BuildRequestURL("/api/v1/logs", false, result_url);
-        REQUIRE(result_url == "http://192.168.0.135:5000/api/v1/logs");
+        REQUIRE(result_url == "https://browser-intake-datadoghq.com/api/v1/logs");
     }
 
     SECTION("M append ddsource parameter W with_ddsource is true and path has no query")
     {
         context.BuildRequestURL("/api/v1/logs", true, result_url);
         // TODO: Update when cpp source exists
-        REQUIRE(result_url == "http://192.168.0.135:5000/api/v1/logs?ddsource=unity");
+        REQUIRE(
+            result_url ==
+            "https://browser-intake-datadoghq.com/api/v1/logs?ddsource=unity"
+        );
     }
 
     SECTION(
@@ -124,15 +127,18 @@ TEST_CASE("CoreContext BuildRequestURL", "[unit]")
         context.BuildRequestURL("/api/v1/logs?existing=param", true, result_url);
         // TODO: Update when cpp source exists
         REQUIRE(
-            result_url ==
-            "http://192.168.0.135:5000/api/v1/logs?existing=param&ddsource=unity"
+            result_url == "https://browser-intake-datadoghq.com/api/v1/"
+                          "logs?existing=param&ddsource=unity"
         );
     }
 
     SECTION("M not append ddsource W with_ddsource is false")
     {
         context.BuildRequestURL("/api/v1/logs?existing=param", false, result_url);
-        REQUIRE(result_url == "http://192.168.0.135:5000/api/v1/logs?existing=param");
+        REQUIRE(
+            result_url ==
+            "https://browser-intake-datadoghq.com/api/v1/logs?existing=param"
+        );
     }
 
     SECTION("M reuse string memory W out_url is reused")
@@ -145,7 +151,7 @@ TEST_CASE("CoreContext BuildRequestURL", "[unit]")
         context.BuildRequestURL("/short", false, result_url);
 
         // Then no second allocation should occur
-        REQUIRE(result_url == "http://192.168.0.135:5000/short");
+        REQUIRE(result_url == "https://browser-intake-datadoghq.com/short");
         REQUIRE(result_url.capacity() >= first_capacity); // Memory reused
     }
 }

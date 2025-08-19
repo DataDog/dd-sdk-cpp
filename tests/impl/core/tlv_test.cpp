@@ -221,12 +221,12 @@ TEST_CASE("ReadTLVBlock", "[unit]")
 
     SECTION("M return IOError W file read operation encounters I/O error")
     {
-        // Given a file that is corrupted (flagged bad)
+        // Given a file that suddenly becomes unreadable after being opened
         MockStorageDirectory storage;
-        MockTLVFile().AppendEvent("test").WriteTo(storage, "corrupted");
-        storage.Corrupt("corrupted");
-        auto infile = storage.OpenForRead("corrupted");
+        MockTLVFile().AppendEvent("test").WriteTo(storage, "corruptible");
+        auto infile = storage.OpenForRead("corruptible");
         REQUIRE(infile.has_value());
+        storage.Corrupt("corruptible");
 
         // When we try to read from the corrupted file
         std::vector<char> buffer;
@@ -239,12 +239,12 @@ TEST_CASE("ReadTLVBlock", "[unit]")
 
     SECTION("M return ReadFailed W file read operation fails")
     {
-        // Given a file that is set to fail
+        // Given a file we suddenly can't read from after it's open
         MockStorageDirectory storage;
         MockTLVFile().AppendEvent("test").WriteTo(storage, "failing");
-        storage.SetFail("failing", true);
         auto infile = storage.OpenForRead("failing");
         REQUIRE(infile.has_value());
+        storage.SetFail("failing", true);
 
         // When we try to read from the failing file
         std::vector<char> buffer;
