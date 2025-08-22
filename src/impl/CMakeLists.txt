@@ -3,6 +3,8 @@ add_library(dd_native_impl STATIC
     core/context.cpp
     core/storage.cpp
     core/tlv.cpp
+    core/upload.cpp
+    core/writer.cpp
 )
 target_enable_strict_warnings(dd_native_impl)
 target_enable_clang_tidy(dd_native_impl)
