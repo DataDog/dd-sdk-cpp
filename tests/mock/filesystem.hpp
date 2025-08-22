@@ -61,10 +61,6 @@ public:
         , fd(in_fd)
         , read_offset(0)
     {
-        // Constructor should only be called when exclusivity is already guaranteed
-        // by HandleOpenForRead, so we can safely claim the file handle
-        std::lock_guard lock(f->mutex);
-        f->reader_fd = fd;
     }
 
     ~MockFileReader()
@@ -374,19 +370,37 @@ struct MockFilesystem
             return nonstd::make_unexpected(platform::FilesystemError::DoesNotExist);
         }
 
-        // Check exclusivity before creating reader (Windows-style locking)
+        // Acquire mutex and check file state before initializing a MockFileReader
+        int fd = -1;
         {
             std::lock_guard file_lock(file->mutex);
+
+            // Ensure exclusivity (Windows-style locking)
             if (file->reader_fd != 0 || file->writer_fd != 0)
             {
                 return nonstd::make_unexpected(platform::FilesystemError::Failed);
             }
-            // Reserve the file handle for the reader we're about to create
-            // (MockFileReader constructor will claim it)
+
+            // If bad flag is set for file, return IOError
+            if (file->bad)
+            {
+                return nonstd::make_unexpected(platform::FilesystemError::IOError);
+            }
+
+            // If fail flag is set for file, return Failed
+            if (file->fail)
+            {
+                return nonstd::make_unexpected(platform::FilesystemError::Failed);
+            }
+
+            // Assign the file handle to the FileEntry while we have it locked;
+            // MockFileReader will take ownership when constructed below
+            fd = next_fd++;
+            file->reader_fd = fd;
         }
 
         // Create a reader and give it a shared_ptr to the FileEntry
-        return std::make_unique<MockFileReader>(file, next_fd++);
+        return std::make_unique<MockFileReader>(file, fd);
     }
 
     /**

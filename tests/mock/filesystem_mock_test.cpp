@@ -435,25 +435,16 @@ TEST_CASE("MockFilesystem Error Simulation", "[unit][mock-filesystem]")
 
     SECTION("M simulate I/O error W file marked as bad")
     {
-        // Given a file is marked as corrupted
+        // Given a file that's been preemptively marked corrupt
         storage.WithExistingFile("bad_file.txt", "test data");
         storage.Corrupt("bad_file.txt");
 
-        // When opening file (which succeeds - corruption detected on actual I/O)
+        // When we attempt to open the file
         auto reader_result = storage.OpenForRead("bad_file.txt");
-        REQUIRE(reader_result.has_value());
-        auto reader = std::move(reader_result.value());
 
-        // Then reading should fail with I/O error
-        char buffer[10];
-        auto read_result = reader->Read(buffer, sizeof(buffer));
-        REQUIRE_FALSE(read_result.has_value());
-        REQUIRE(read_result.error() == platform::FilesystemError::IOError);
-
-        // And seeking should also fail
-        auto seek_result = reader->Seek(5);
-        REQUIRE_FALSE(seek_result.has_value());
-        REQUIRE(seek_result.error() == platform::FilesystemError::IOError);
+        // Then we should get an IOError
+        REQUIRE(!reader_result.has_value());
+        REQUIRE(reader_result.error() == platform::FilesystemError::IOError);
     }
 
     SECTION("M simulate I/O error W bad file write")
