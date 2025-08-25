@@ -14,6 +14,7 @@ Checks: [
   -readability-simplify-boolean-expr,       # sometimes control flow can be more clearly documented w/ comments if branches are explicit
   -readability-uppercase-literal-suffix,    # permit `1.0f`
   -readability-redundant-access-specifiers, # public:/private: can delineate logical groupings of members; should be close to what they modify
+  -readability-named-parameter,             # allow parameter name to be omitted (conflicts with clang-diagnostic-unused-parameter)
 
   performance-*,
 
@@ -34,4 +35,4 @@ Checks: [
 
 WarningsAsErrors: '*'
 
-HeaderFilterRegex: '(src/|tests/).*'
+HeaderFilterRegex: '(include-cpp/|src/|tests/).*'

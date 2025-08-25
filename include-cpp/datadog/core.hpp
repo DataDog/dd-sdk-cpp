@@ -10,14 +10,14 @@ namespace impl {
 class Core;
 }
 
-enum class TrackingConsent
+enum class TrackingConsent : uint8_t
 {
     Granted,
     NotGranted,
     Pending,
 };
 
-enum class Site
+enum class Site : uint8_t
 {
     us1,
     us3,
@@ -53,7 +53,7 @@ enum class Site
  * a direct, hard limit on the size of files or requests. The SDK imposes such limits
  * internally.
  */
-enum class BatchSize
+enum class BatchSize : uint8_t
 {
     Small,
     Medium,
@@ -78,7 +78,7 @@ enum class BatchSize
  * process those batches sequentially, without delay, up to a limit determined by
  * BatchProcessingLevel.
  */
-enum class UploadFrequency
+enum class UploadFrequency : uint8_t
 {
     Frequent,
     Average,
@@ -93,7 +93,7 @@ enum class UploadFrequency
  * maximize throughput by processing more batches per cycle, potentially creating bursts
  * of HTTP requests.
  */
-enum class BatchProcessingLevel
+enum class BatchProcessingLevel : uint8_t
 {
     Low,
     Medium,
@@ -127,4 +127,4 @@ private:
     friend class Logging;
 };
 
-}
+} // namespace datadog
