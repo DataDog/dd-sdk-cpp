@@ -392,13 +392,22 @@ void Attribute::ArrayClear()
 
 void Attribute::ArrayPush(const Attribute& item)
 {
-    // We do NOT detect circular references
-    assert(&item != this && "array Attribute pushed into itself");
-
     if (type != ValueType::Array)
     {
         return;
     }
+
+    // If the caller wants to add an array as an item of itself, create a clone so as
+    // not as not to create an infinitely-recursive data structure
+    if (&item == this)
+    {
+        // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
+        const Attribute copy = item;
+        ArrayPush(copy);
+        return;
+    }
+
+    // Otherwise, push normally
     GetCowValueForWrite()->Push(item);
 }
 
@@ -454,14 +463,22 @@ Attribute Attribute::GetObjectProperty(std::string_view name) const
 
 void Attribute::SetObjectProperty(std::string_view name, const Attribute& attribute)
 {
-    // We do NOT detect circular references: we could create a copy here, but detecting
-    // cycles with arbitrary nesting depths would be complicated
-    assert(&attribute != this && "object Attribute assigned as a property of itself");
-
     if (type != ValueType::Object)
     {
         return;
     }
+
+    // If the caller wants to add an object as a property of itself, create a clone so
+    // as not to create an infinitely-recursive data structure
+    if (&attribute == this)
+    {
+        // NOLINTNEXTLINE(performance-unnecessary-copy-initialization)
+        const Attribute copy = attribute;
+        SetObjectProperty(name, copy);
+        return;
+    }
+
+    // Otherwise, set the property normally
     GetCowValueForWrite()->SetProperty(name, attribute);
 }
 

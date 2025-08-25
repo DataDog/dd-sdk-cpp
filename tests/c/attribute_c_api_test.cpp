@@ -933,6 +933,71 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]")
         }
     }
 
+    SECTION("M create a clone W array is pushed onto itself")
+    {
+        // Given an array `[1]`
+        dd_attribute_t array = dd_attribute_array(2);
+        dd_attribute_t one = dd_attribute_int(1);
+        dd_attribute_array_push(&array, &one);
+        dd_attribute_free(&one);
+
+        // When we attempt to create `[1,[1]]`, passing the same `array` pointer
+        dd_attribute_array_push(&array, &array);
+
+        // Then we end up with our desired value, rather than crashing, because the
+        // dd_attribute API implicitly clones the operand in order to convert it to a
+        // C++ Attribute value
+        REQUIRE(array.type == DD_VALUE_TYPE_ARRAY);
+        REQUIRE(dd_attribute_array_len(&array) == 2);
+
+        dd_attribute item_0 = dd_attribute_array_get(&array, 0);
+        REQUIRE(dd_attribute_get_int(&item_0) == 1);
+        dd_attribute_free(&item_0);
+
+        dd_attribute item_1 = dd_attribute_array_get(&array, 1);
+        REQUIRE(dd_attribute_array_len(&item_1) == 1);
+        dd_attribute item_1_item_0 = dd_attribute_array_get(&item_1, 0);
+        REQUIRE(dd_attribute_get_int(&item_1_item_0) == 1);
+        dd_attribute_free(&item_1_item_0);
+        dd_attribute_free(&item_1);
+
+        // Cleanup
+        dd_attribute_free(&array);
+    }
+
+    SECTION("M create a clone W object is set as property on itself")
+    {
+        // Given an object `{"foo":1}`
+        dd_attribute_t obj = dd_attribute_object(2);
+        dd_attribute_t one = dd_attribute_int(1);
+        dd_attribute_object_property_set(&obj, "foo", &one);
+        dd_attribute_free(&one);
+
+        // When we attempt to create `{"foo":1,"bar":{"foo":1}}`, passing the same `obj`
+        // pointer
+        dd_attribute_object_property_set(&obj, "bar", &obj);
+
+        // Then we end up with our desired value, rather than crashing, because the
+        // dd_attribute API implicitly clones the operand in order to convert it to a
+        // C++ Attribute value
+        REQUIRE(obj.type == DD_VALUE_TYPE_OBJECT);
+        REQUIRE(dd_attribute_object_property_count(&obj) == 2);
+
+        dd_attribute foo = dd_attribute_object_property_get(&obj, "foo");
+        REQUIRE(dd_attribute_get_int(&foo) == 1);
+        dd_attribute_free(&foo);
+
+        dd_attribute bar = dd_attribute_object_property_get(&obj, "bar");
+        REQUIRE(dd_attribute_object_property_count(&bar) == 1);
+        dd_attribute bar_foo = dd_attribute_object_property_get(&bar, "foo");
+        REQUIRE(dd_attribute_get_int(&bar_foo) == 1);
+        dd_attribute_free(&bar_foo);
+        dd_attribute_free(&bar);
+
+        // Cleanup
+        dd_attribute_free(&obj);
+    }
+
     SECTION("M not leak memory W primitive values are used without being freed")
     {
         // NOTE: This test documents an implementation detail: it essentially verifies

@@ -585,6 +585,46 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]")
         }
     }
 
+    SECTION("M create a clone W array is pushed onto itself")
+    {
+        // Given an array `[1]`
+        Attribute array = Attribute::Array(2);
+        array.ArrayPush(Attribute::Int(1));
+
+        // When we attempt to create `[1,[1]]`, passing `array` by reference
+        array.ArrayPush(array);
+
+        // Then we end up with our desired value, rather than crashing, because the
+        // Attribute API implicitly clones the operand if it's `this`
+        REQUIRE(array.GetType() == ValueType::Array);
+        REQUIRE(array.GetArrayLen() == 2);
+        REQUIRE(array.GetArrayItem(0).GetIntValue() == 1);
+        REQUIRE(array.GetArrayItem(1).GetArrayLen() == 1);
+        REQUIRE(array.GetArrayItem(1).GetArrayItem(0).GetIntValue() == 1);
+    }
+
+    SECTION("M create a clone W object is set as property on itself")
+    {
+        // Given an object `{"foo":1}`
+        Attribute obj = Attribute::Object(2);
+        obj.SetObjectProperty("foo", Attribute::Int(1));
+
+        // When we attempt to create `{"foo":1,"bar":{"foo":1}}`, passing `obj` by
+        // reference
+        obj.SetObjectProperty("bar", obj);
+
+        // Then we end up with that value, rather than crashing, because the Attribute
+        // API implicitly clones the operand if it's `this`
+        REQUIRE(obj.GetType() == ValueType::Object);
+        REQUIRE(obj.GetObjectPropertyCount() == 2);
+        REQUIRE(obj.GetObjectProperty("foo").GetIntValue() == 1);
+        REQUIRE(obj.GetObjectProperty("bar").GetType() == ValueType::Object);
+        REQUIRE(obj.GetObjectProperty("bar").GetObjectPropertyCount() == 1);
+        REQUIRE(
+            obj.GetObjectProperty("bar").GetObjectProperty("foo").GetIntValue() == 1
+        );
+    }
+
     SECTION("M guard against self-assignment W copy-assigned")
     {
         // When we assign an attribute to itself
