@@ -10,8 +10,8 @@
 
 #if WITH_DATADOG_ALLOCATION_TRACKING
 
-// State used while the allocation tracking is running: every allocation/free will
-// result in a new element being added to s_events, up to the max, at which point
+// State used while allocation tracking is running: every allocation/free will result in
+// a new element being added to s_events, up to the max, at which point
 // s_num_dropped_events will be incremented
 static const size_t MAX_ALLOCATION_TRACKING_EVENTS = 4096;
 static AllocEvent s_events[MAX_ALLOCATION_TRACKING_EVENTS];

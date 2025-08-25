@@ -30,8 +30,9 @@ using namespace datadog::impl;
 //    `support/allocation_tracker.hpp` to instrument all calls to `operator new` and
 //    `operator delete`, giving us stats on all allocations/frees that occur in the
 //    scope of a given test. These checks only run if WITH_DATADOG_ALLOCATION_TRACKING
-//    is enabled for the build. If these checks run, they are comprehensive on
-//    AppleClang
+//    is enabled for the build. If these checks run, they are comprehensive when
+//    WITH_DATADOG_STRICT_MEMORY_CHECKS is enabled; otherwise they simply assert that no
+//    memory was leaked and no double-frees occurred.
 
 /**
  * Computes the total heap usage of a given Attribute (across all allocations, including
