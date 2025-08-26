@@ -90,7 +90,7 @@ static datadog::impl::CowValue* get_cow_value_for_write(dd_attribute_t* attribut
 
 extern "C" {
 
-dd_attribute_t dd_attribute_null()
+dd_attribute_t dd_attribute_null(void)
 {
     dd_attribute_t attribute;
     attribute.type = DD_VALUE_TYPE_NULL;
@@ -317,7 +317,7 @@ void dd_attribute_init_object(dd_attribute_t* attribute, size_t initial_capacity
         datadog::impl::CowValue::Object(clamp_initial_capacity(initial_capacity));
 }
 
-dd_attribute_t dd_attribute_copy(dd_attribute_t* other)
+dd_attribute_t dd_attribute_copy(const dd_attribute_t* other)
 {
     if (!other)
     {

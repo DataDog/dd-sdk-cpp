@@ -23,7 +23,7 @@ using namespace datadog::impl;
 //    `Attribute` value to estimate the current number of heap bytes it occupies, across
 //    all allocations. These checks are performed unconditionally, although we don't
 //    presume to know the exact expected sizes on every compiler/platform, so checks are
-//    strict for environments where (where we author the tests) and a bit looser in
+//    strict for environments where we author the tests, and they're a bit looser in
 //    other build environments.
 
 // 2. `AllocationTracker` (and `require_allocation_tracker_stats`) uses the code in

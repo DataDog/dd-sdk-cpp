@@ -76,7 +76,7 @@ void dd_attribute_init_object(dd_attribute_t* attribute, size_t initial_capacity
 // - If the target attribute is NULL, has no effect, returning `dd_attribute_null()` in
 //   the case of copy.
 
-dd_attribute_t dd_attribute_copy(dd_attribute_t* other);
+dd_attribute_t dd_attribute_copy(const dd_attribute_t* other);
 void dd_attribute_free(dd_attribute_t* attribute);
 
 // === Value getter functions ===

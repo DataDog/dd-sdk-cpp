@@ -189,7 +189,7 @@ public:
      * array index, if that index is valid. If storing an object, returns the a copy of
      * the Attribute value associated with the property stored at that index, if valid.
      *
-     * If the provided index is out of range, or if this CowStorage storing neither an
+     * If the provided index is out of range, or if this CowValue is storing neither an
      * array nor an object, returns a new Attribute with a null value.
      */
     Attribute GetAt(int index) const;
