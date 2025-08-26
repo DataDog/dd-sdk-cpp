@@ -43,7 +43,7 @@ typedef struct dd_attribute
 // - Use `dd_attribute_<type>()` to initialize a new attribute value of the given type.
 // - You MUST call `dd_attribute_free()` on the resulting attribute value when finished.
 
-dd_attribute_t dd_attribute_null();
+dd_attribute_t dd_attribute_null(void);
 dd_attribute_t dd_attribute_bool(bool value);
 dd_attribute_t dd_attribute_int(int64_t value);
 dd_attribute_t dd_attribute_uint(uint64_t value);

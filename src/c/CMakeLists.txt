@@ -12,4 +12,4 @@ target_include_directories(dd_native_c_api
     PRIVATE ${CMAKE_SOURCE_DIR}/src/impl
 )
 
-target_link_libraries(dd_native_c_api PRIVATE dd_native_impl)
+target_link_libraries(dd_native_c_api PRIVATE dd_native_impl dd_native_cpp_api)
