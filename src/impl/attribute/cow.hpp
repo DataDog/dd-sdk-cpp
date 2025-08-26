@@ -12,16 +12,6 @@
 namespace datadog::impl {
 
 /**
- * Type of non-primitive value that can be stored using copy-on-write semantics.
- */
-enum class CowValueType : uint8_t
-{
-    String,
-    Array,
-    Object
-};
-
-/**
  * Encapsulates a single non-primitive value that may be referenced by multiple
  * attributes.
  *
@@ -36,9 +26,19 @@ enum class CowValueType : uint8_t
  * being stored, CowValue will use the appropriate STL container, which may allocate
  * more heap memory.
  */
-struct CowValue
+class CowValue
 {
 private:
+    /**
+     * Type of non-primitive value that can be stored using copy-on-write semantics.
+     */
+    enum class CowValueType : uint8_t
+    {
+        String,
+        Array,
+        Object
+    };
+
     /** Number of independent references to this value. */
     std::atomic<int> ref_count{1};
 

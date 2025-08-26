@@ -7,7 +7,7 @@ namespace datadog {
 
 // Forward declarations
 namespace impl {
-struct CowValue;
+class CowValue;
 struct AttributeConversion;
 struct AttributeSerialization;
 struct AttributeDebug;
