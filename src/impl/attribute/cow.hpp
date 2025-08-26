@@ -52,16 +52,17 @@ private:
         std::vector<Attribute> array;
         std::vector<std::pair<std::string, Attribute>> object;
 
-        // Define do-nothing constructors, destructor, and copy/move operators: `Data`
-        // can never be used outside of CowValue, which takes full responsibility for
-        // invoking special member functions on the appropriate union member
         // clang-format off
+        // Define do-nothing constructor, destructor, and copy constructor: `Data` can
+        // never be used outside of CowValue, which takes full responsibility for
+        // invoking special member functions on the appropriate union member
         Data() {}
         ~Data() {}
         Data(const Data&) {}
-        Data& operator=(const Data&) { return *this; }
-        Data(Data&&) noexcept {}
-        Data& operator=(Data&&) noexcept { return *this; }
+        // A CowValue can't be copy-assigned or moved; hence neither can its union
+        Data& operator=(const Data&) = delete;
+        Data(Data&&) = delete;
+        Data& operator=(Data&&) = delete;
         // clang-format on
     } value;
 
