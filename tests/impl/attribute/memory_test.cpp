@@ -257,7 +257,7 @@ TEST_CASE("Attribute memory", "[unit][attribute]")
             tracker,
             [](const AllocationTracker::Stats& stats)
             {
-                // Then we have our initial two allocation:
+                // Then we have our initial two allocations:
                 // - 32 bytes for the string CowValue
                 // - 40 bytes to initialize std::string from our literal
                 // Following by another allocation when the value is changed:
@@ -473,7 +473,7 @@ TEST_CASE("Attribute memory", "[unit][attribute]")
             tracker,
             [](const AllocationTracker::Stats& stats)
             {
-                // Then we make the same two allocation initially:
+                // Then we make the same two allocations initially:
                 // - 32 bytes for the array CowValue
                 // - 1024 bytes to reserve space for the initial 64 Attribute values
                 // And another on reserve:
@@ -873,7 +873,7 @@ TEST_CASE("Attribute memory", "[unit][attribute]")
             tracker,
             [](const AllocationTracker::Stats& stats)
             {
-                // Then we make the same two allocation initially:
+                // Then we make the same two allocations initially:
                 // - 32 bytes for the array CowValue
                 // - 2560 bytes to reserve space for the initial 64 properties
                 // And one more on reserve:
