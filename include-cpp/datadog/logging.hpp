@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cinttypes>
 #include <memory>
 #include <optional>
 #include <string>
@@ -13,7 +14,7 @@ class Logger;
 class Logging;
 }
 
-enum class LogLevel
+enum class LogLevel : uint8_t
 {
     Debug,
     Info,
@@ -79,4 +80,4 @@ private:
     std::shared_ptr<impl::Logging> _impl;
 };
 
-}
+} // namespace datadog

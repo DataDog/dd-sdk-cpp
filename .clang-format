@@ -50,9 +50,6 @@ BraceWrapping:
 # its own line
 AlignAfterOpenBracket: BlockIndent
 
-# Always break and indent lambda bodies, unless empty
-AllowShortLambdasOnASingleLine: Empty
-
 # All function bodies must be on their own line, even if empty
 AllowShortFunctionsOnASingleLine: None
 
