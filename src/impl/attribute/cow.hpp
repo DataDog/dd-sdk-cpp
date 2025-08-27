@@ -173,6 +173,21 @@ public:
     size_t Size() const;
 
     /**
+     * Returns the currently-reserved capacity of the underlying container, in terms of
+     * the number of characters, array items, or object properties.
+     *
+     * @note Reserve() is idempotent, but we still expose capacity here so that an
+     *  Attribute can avoid cloning its CowValue if no reallocation is actually needed.
+     */
+    size_t Capacity() const;
+
+    /**
+     * If storing an array or object, reserves space for up to new_capacity elements.
+     * If sufficient space is already available, has no effect.
+     */
+    void Reserve(size_t new_capacity);
+
+    /**
      * For all types, clears the underlying storage. If new_capacity is greater than
      * existing capacity, reallocates to ensure the given number of elements can be
      * stored. If new_capacity is 0, leaves capacity unchanged.

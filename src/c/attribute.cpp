@@ -438,6 +438,21 @@ void dd_attribute_array_push(dd_attribute_t* attribute, const dd_attribute_t* it
     get_cow_value_for_write(attribute)->Push(cpp_item);
 }
 
+void dd_attribute_array_reserve(dd_attribute_t* attribute, size_t capacity)
+{
+    if (!attribute || attribute->type != DD_VALUE_TYPE_ARRAY)
+    {
+        return;
+    }
+
+    if (get_cow_value(attribute)->Capacity() >= capacity)
+    {
+        return;
+    }
+
+    get_cow_value_for_write(attribute)->Reserve(capacity);
+}
+
 size_t dd_attribute_object_property_count(const dd_attribute_t* attribute)
 {
     if (!attribute || attribute->type != DD_VALUE_TYPE_OBJECT)
@@ -513,5 +528,20 @@ void dd_attribute_object_property_delete(dd_attribute_t* attribute, const char* 
         return;
     }
     get_cow_value_for_write(attribute)->DeleteProperty(name);
+}
+
+void dd_attribute_object_reserve(dd_attribute_t* attribute, size_t capacity)
+{
+    if (!attribute || attribute->type != DD_VALUE_TYPE_OBJECT)
+    {
+        return;
+    }
+
+    if (get_cow_value(attribute)->Capacity() >= capacity)
+    {
+        return;
+    }
+
+    get_cow_value_for_write(attribute)->Reserve(capacity);
 }
 }

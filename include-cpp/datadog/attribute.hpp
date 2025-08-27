@@ -145,6 +145,13 @@ public:
     Attribute GetArrayItem(int index) const;
     void ArrayClear();
     void ArrayPush(const Attribute& item);
+    /**
+     * Reserves space for up to `capacity` items, reallocating if necessary. If the
+     * array already has the enough space reserved to fit the given number of items, has
+     * no effect. Will not shrink previously-allocated space. If this attribute is not
+     * an array, has no effect.
+     */
+    void ArrayReserve(size_t capacity);
 
     /**
      * Returns the number of properties stored in this object attribute. If this
@@ -183,24 +190,13 @@ public:
      * not an object, or if no such property exists, this operation does nothing.
      */
     void DeleteObjectProperty(std::string_view name);
-
-public:
     /**
-     * Given any number of object attributes, returns a new object attribute that
-     * contains the union of all top-level properties found in the input objects.
-     *
-     * If two or more input objects contain properties with the same name, the value
-     * that appears last in the input list will take precedence. For example, merging
-     * `{"foo":1,"bar":1}` and `{"bar":"two"}` will result in `{"foo":1,"bar":"two"}`.
-     *
-     * No recursive merging or reconciliation on nested objects is performed: e.g
-     * merging `{"obj":{"foo":1,"bar":2}}` with `{"obj":{"bar":3,"baz":4}}` will result
-     * in `{"obj":{"bar":3,"baz":4}}`.
-     *
-     * If `attributes` contains any non-object values, they will be ignored. If
-     * `attributes` contains no object values, the result will be an empty object.
+     * Reserves space for up to `capacity` properties, reallocating if necessary. If the
+     * object already has the enough space reserved to fit the given number of
+     * properties, has no effect. Will not shrink previously-allocated space. If this
+     * attribute is not an object, has no effect.
      */
-    static Attribute MergeObjects(std::initializer_list<Attribute> attributes);
+    void ReserveObjectPropertyCapacity(size_t capacity);
 
 private:
     /**

@@ -2,6 +2,7 @@
 add_library(dd_native_impl STATIC
     attribute/cow.cpp
     attribute/json.cpp
+    attribute/merge.cpp
     core/context.cpp
     core/core.cpp
     core/feature.cpp

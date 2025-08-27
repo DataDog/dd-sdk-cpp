@@ -7,6 +7,7 @@ add_executable(dd_native_tests
     impl/attribute/cow_test.cpp
     impl/attribute/json_test.cpp
     impl/attribute/memory_test.cpp
+    impl/attribute/merge_test.cpp
     impl/attribute/refcount_test.cpp
     impl/core/block_test.cpp
     impl/core/context_test.cpp
