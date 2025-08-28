@@ -2,6 +2,7 @@
 
 #include <cinttypes>
 #include <functional>
+#include <limits>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -21,6 +22,8 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]")
         dd_attribute_free(&array_item);
 
         REQUIRE(dd_attribute_array_len(&attribute) == 0);
+
+        dd_attribute_array_reserve(&attribute, std::numeric_limits<size_t>::max());
 
         dd_attribute_t item_0 = dd_attribute_array_get(&attribute, 0);
         REQUIRE(item_0.type == DD_VALUE_TYPE_NULL);
@@ -45,6 +48,9 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]")
 
         dd_attribute_t value_foo = dd_attribute_object_property_get(&attribute, "foo");
         REQUIRE(value_foo.type == DD_VALUE_TYPE_NULL);
+
+        dd_attribute_object_reserve(&attribute, std::numeric_limits<size_t>::max());
+
         dd_attribute_free(&value_foo);
     };
 
@@ -285,6 +291,10 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]")
         REQUIRE(dd_attribute_array_len(&attribute) == 0);
         REQUIRE(dd_attribute_array_len(&copy) == 2);
 
+        // reserve() reserves more memory if needed but does not clear items
+        dd_attribute_array_reserve(&copy, 32);
+        REQUIRE(dd_attribute_array_len(&copy) == 2);
+
         // dd_attribute_init_array() also clears if called on an existing array
         dd_attribute_init_array(&copy, 16);
         REQUIRE(dd_attribute_array_len(&copy) == 0);
@@ -381,6 +391,10 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]")
         REQUIRE(dd_attribute_object_property_count(&attribute) == 0);
         REQUIRE(dd_attribute_object_property_count(&copy) == 2);
 
+        // reserve() reserves more memory if needed but does not clear items
+        dd_attribute_object_reserve(&copy, 32);
+        REQUIRE(dd_attribute_object_property_count(&copy) == 2);
+
         // dd_attribute_init_object() deletes all properties if called on an object
         dd_attribute_init_object(&copy, 16);
         REQUIRE(dd_attribute_object_property_count(&copy) == 0);
@@ -430,6 +444,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]")
         // Mutable dd_attribute_array operations are ignored
         dd_attribute_array_clear(nullptr);
         dd_attribute_array_push(nullptr, &valid);
+        dd_attribute_array_reserve(nullptr, std::numeric_limits<size_t>::max());
 
         // Const dd_attribute_object operations return 0/-1/null
         REQUIRE(dd_attribute_object_property_count(nullptr) == 0);
@@ -447,6 +462,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]")
         // Mutable dd_attribute_object operations are ignored
         dd_attribute_object_property_set(nullptr, "valid-name", &valid);
         dd_attribute_object_property_delete(nullptr, "valid-name");
+        dd_attribute_object_reserve(nullptr, std::numeric_limits<size_t>::max());
 
         // Cleanup
         dd_attribute_free(&valid);

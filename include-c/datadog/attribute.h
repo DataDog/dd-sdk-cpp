@@ -105,6 +105,7 @@ size_t dd_attribute_array_len(const dd_attribute_t* attribute);
 dd_attribute_t dd_attribute_array_get(const dd_attribute_t* attribute, int index);
 void dd_attribute_array_clear(dd_attribute_t* attribute);
 void dd_attribute_array_push(dd_attribute_t* attribute, const dd_attribute_t* item);
+void dd_attribute_array_reserve(dd_attribute_t* attribute, size_t capacity);
 
 // === Object functions ===
 // - Use `dd_attribute_object_<op>()` to manipulate the object held by an attribute.
@@ -130,6 +131,7 @@ void dd_attribute_object_property_set(
     const dd_attribute_t* value
 );
 void dd_attribute_object_property_delete(dd_attribute_t* attribute, const char* name);
+void dd_attribute_object_reserve(dd_attribute_t* attribute, size_t capacity);
 
 #ifdef __cplusplus
 }

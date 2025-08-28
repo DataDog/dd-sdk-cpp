@@ -215,6 +215,61 @@ TEST_CASE("Attribute memory", "[unit][attribute]")
         );
     }
 
+    SECTION("M not reallocate W updating string value with len <= existing")
+    {
+        AllocationTracker tracker;
+        {
+            // Given a string that's too long to fit in stack space
+            Attribute attribute = Attribute::String("string of thirty-two characters.");
+
+            // When we modify the string value
+            attribute.SetString("a different 32-character string.");
+        }
+        require_allocation_tracker_stats(
+            tracker,
+            [](const AllocationTracker::Stats& stats)
+            {
+                // Then we have no additional allocations for the update, just:
+                // - 32 bytes for the string CowValue
+                // - 40 bytes to initialize std::string from our literal
+                REQUIRE(stats.num_allocs == 2);
+                REQUIRE(stats.min_alloc_size == 32);
+                REQUIRE(stats.max_alloc_size == 40);
+                REQUIRE(stats.num_bytes_allocated == 72);
+            }
+        );
+    }
+
+    SECTION("M reallocate W updating string value with len > existing")
+    {
+        AllocationTracker tracker;
+        {
+            // Given a string that's too long to fit in stack space
+            Attribute attribute = Attribute::String("string of thirty-two characters.");
+
+            // When we modify the string value with a longer value
+            attribute.SetString(
+                "This string, I'm sorry to say, exceeds the thirty-two character "
+                "threshold quite easily, weighing in at a total of 128 characters"
+            );
+        }
+        require_allocation_tracker_stats(
+            tracker,
+            [](const AllocationTracker::Stats& stats)
+            {
+                // Then we have our initial two allocations:
+                // - 32 bytes for the string CowValue
+                // - 40 bytes to initialize std::string from our literal
+                // Following by another allocation when the value is changed:
+                // - 136 bytes from std::string operator=
+                REQUIRE(stats.num_allocs == 3);
+                REQUIRE(stats.min_alloc_size == 32);
+                REQUIRE(stats.max_alloc_size == 136);
+                REQUIRE(stats.num_bytes_allocated == 208);
+            }
+        );
+    }
+
     SECTION("M use heap memory W type is array")
     {
         AllocationTracker tracker;
@@ -364,6 +419,69 @@ TEST_CASE("Attribute memory", "[unit][attribute]")
                 REQUIRE(stats.mean_alloc_size == 42);
                 REQUIRE(stats.max_alloc_size == 64);
                 REQUIRE(stats.num_bytes_allocated == 168);
+            }
+        );
+    }
+
+    SECTION("M not reallocate W reserving array capacity <= existing")
+    {
+        AllocationTracker tracker;
+        {
+            // Given an array that's initialized with 64 primitive values
+            Attribute attribute = Attribute::Array(64);
+            for (int i = 0; i < 64; i++)
+            {
+                attribute.ArrayPush(Attribute::Int(i));
+            }
+
+            // When we attempt to reserve space for  32, 48, or 64 items
+            attribute.ArrayReserve(32);
+            attribute.ArrayReserve(48);
+            attribute.ArrayReserve(64);
+        }
+        require_allocation_tracker_stats(
+            tracker,
+            [](const AllocationTracker::Stats& stats)
+            {
+                // Then we make an initial couple of allocations:
+                // - 32 bytes for the array CowValue
+                // - 1024 bytes to reserve space for the initial 64 Attribute values
+                // And no allocations thereafter
+                REQUIRE(stats.num_allocs == 2);
+                REQUIRE(stats.min_alloc_size == 32);
+                REQUIRE(stats.max_alloc_size == 1024);
+                REQUIRE(stats.num_bytes_allocated == 1056);
+            }
+        );
+    }
+
+    SECTION("M reallocate W reserving array capacity > existing")
+    {
+        AllocationTracker tracker;
+        {
+            // Given an array that's initialized with 64 primitive values
+            Attribute attribute = Attribute::Array(64);
+            for (int i = 0; i < 64; i++)
+            {
+                attribute.ArrayPush(Attribute::Int(i));
+            }
+
+            // When we attempt to reserve space for 128 items
+            attribute.ArrayReserve(128);
+        }
+        require_allocation_tracker_stats(
+            tracker,
+            [](const AllocationTracker::Stats& stats)
+            {
+                // Then we make the same two allocations initially:
+                // - 32 bytes for the array CowValue
+                // - 1024 bytes to reserve space for the initial 64 Attribute values
+                // And another on reserve:
+                // - 2048 bytes to reserve a larger buffer to fit 128 Attribute values
+                REQUIRE(stats.num_allocs == 3);
+                REQUIRE(stats.min_alloc_size == 32);
+                REQUIRE(stats.max_alloc_size == 2048);
+                REQUIRE(stats.num_bytes_allocated == 3104);
             }
         );
     }
@@ -689,6 +807,85 @@ TEST_CASE("Attribute memory", "[unit][attribute]")
         );
     }
 
+    SECTION("M not reallocate W reserving object capacity <= existing")
+    {
+        AllocationTracker tracker;
+        {
+            // Given an object that's initialized with 64 properties with short names
+            // and primitive values
+            Attribute attribute = Attribute::Object(64);
+            for (int i = 0; i < 64; i++)
+            {
+                char buf[16] = {0};
+                auto res = std::to_chars(buf, buf + sizeof(buf), i);
+                REQUIRE(res.ec == std::errc{});
+                const size_t num_bytes_written = static_cast<size_t>(res.ptr - buf);
+                const std::string_view name{buf, num_bytes_written};
+                attribute.SetObjectProperty(name, Attribute::Int(i));
+            }
+            REQUIRE(attribute.GetObjectProperty("9").GetIntValue() == 9);
+            REQUIRE(attribute.GetObjectProperty("10").GetIntValue() == 10);
+
+            // When we attempt to reserve space for 32, 48, or 64 properties
+            attribute.ReserveObjectPropertyCapacity(32);
+            attribute.ReserveObjectPropertyCapacity(48);
+            attribute.ReserveObjectPropertyCapacity(64);
+        }
+        require_allocation_tracker_stats(
+            tracker,
+            [](const AllocationTracker::Stats& stats)
+            {
+                // Then we make an initial couple of allocations:
+                // - 32 bytes for the array CowValue
+                // - 2560 bytes to reserve space for the initial 64 properties
+                // And no allocations thereafter
+                REQUIRE(stats.num_allocs == 2);
+                REQUIRE(stats.min_alloc_size == 32);
+                REQUIRE(stats.max_alloc_size == 2560);
+                REQUIRE(stats.num_bytes_allocated == 2592);
+            }
+        );
+    }
+
+    SECTION("M reallocate W reserving object capacity > existing")
+    {
+        AllocationTracker tracker;
+        {
+            // Given an object that's initialized with 64 properties with short names
+            // and primitive values
+            Attribute attribute = Attribute::Object(64);
+            for (int i = 0; i < 64; i++)
+            {
+                char buf[16] = {0};
+                auto res = std::to_chars(buf, buf + sizeof(buf), i);
+                REQUIRE(res.ec == std::errc{});
+                const size_t num_bytes_written = static_cast<size_t>(res.ptr - buf);
+                const std::string_view name{buf, num_bytes_written};
+                attribute.SetObjectProperty(name, Attribute::Int(i));
+            }
+            REQUIRE(attribute.GetObjectProperty("9").GetIntValue() == 9);
+            REQUIRE(attribute.GetObjectProperty("10").GetIntValue() == 10);
+
+            // When we attempt to reserve space for 128 properties;
+            attribute.ReserveObjectPropertyCapacity(128);
+        }
+        require_allocation_tracker_stats(
+            tracker,
+            [](const AllocationTracker::Stats& stats)
+            {
+                // Then we make the same two allocations initially:
+                // - 32 bytes for the array CowValue
+                // - 2560 bytes to reserve space for the initial 64 properties
+                // And one more on reserve:
+                // - 5120 bytes to reserve a larger buffer to fit 128 properties
+                REQUIRE(stats.num_allocs == 3);
+                REQUIRE(stats.min_alloc_size == 32);
+                REQUIRE(stats.max_alloc_size == 5120);
+                REQUIRE(stats.num_bytes_allocated == 7712);
+            }
+        );
+    }
+
     SECTION("M not allocate W cow value is copied on access")
     {
         AllocationTracker tracker;
@@ -891,6 +1088,39 @@ TEST_CASE("Attribute memory", "[unit][attribute]")
                 // on the stack
                 REQUIRE(stats.num_allocs == 24);
                 REQUIRE(stats.num_bytes_allocated == 1072);
+            }
+        );
+    }
+
+    SECTION("M allocate additional CowValue W shared reference is cloned")
+    {
+        AllocationTracker tracker;
+        {
+            // Given a non-primitive value that's referenced by two different Attributes
+            Attribute attribute = Attribute::String("string of thirty-two characters.");
+            Attribute copy = attribute;
+
+            // When either Attribute updates its value
+            copy.SetString("a different 32-character string.");
+
+            // Then the value is cloned
+            REQUIRE(attribute.GetStringValue() == "string of thirty-two characters.");
+            REQUIRE(copy.GetStringValue() == "a different 32-character string.");
+        }
+        require_allocation_tracker_stats(
+            tracker,
+            [](const AllocationTracker::Stats& stats)
+            {
+                // And we see the results of initializing our value to begin with:
+                // - 32 bytes for the string CowValue
+                // - 40 bytes to initialize std::string from our literal
+                // Followed by the results of cloning a new value:
+                // - 32 bytes for the string CowValue
+                // - 40 bytes to initialize std::string from our literal
+                REQUIRE(stats.num_allocs == 4);
+                REQUIRE(stats.min_alloc_size == 32);
+                REQUIRE(stats.max_alloc_size == 40);
+                REQUIRE(stats.num_bytes_allocated == 144);
             }
         );
     }

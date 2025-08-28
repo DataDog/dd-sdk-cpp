@@ -411,6 +411,23 @@ void Attribute::ArrayPush(const Attribute& item)
     GetCowValueForWrite()->Push(item);
 }
 
+void Attribute::ArrayReserve(size_t capacity)
+{
+    if (type != ValueType::Array)
+    {
+        return;
+    }
+
+    // Even though Reserve() is idempotent, GetCowValueForWrite() is not: inspect
+    // current capacity so we don't clone needlessly
+    if (value.ptr->Capacity() >= capacity)
+    {
+        return;
+    }
+
+    GetCowValueForWrite()->Reserve(capacity);
+}
+
 size_t Attribute::GetObjectPropertyCount() const
 {
     if (type != ValueType::Object)
@@ -491,38 +508,20 @@ void Attribute::DeleteObjectProperty(std::string_view name)
     GetCowValueForWrite()->DeleteProperty(name);
 }
 
-Attribute Attribute::MergeObjects(std::initializer_list<Attribute> attributes)
+void Attribute::ReserveObjectPropertyCapacity(size_t capacity)
 {
-    // Determine the worst-case number of properties our result object will have, if
-    // there are no conflicts (each property requires ~32 bytes, so overestimating is
-    // fine)
-    size_t max_num_properties = 0;
-    for (const Attribute& attribute : attributes)
+    if (type != ValueType::Object)
     {
-        // Result will be 0 for non-object values
-        max_num_properties += attribute.GetObjectPropertyCount();
+        return;
     }
 
-    // Create a result object that will have exactly one property for each unique
-    // property name that appears in the set of input objects
-    Attribute merged = Attribute::Object(max_num_properties);
-
-    // Merge in all top-level properties from our input objects, with input objects that
-    // appear later in the list taking precedence in case of name conflicts
-    for (const Attribute& attribute : attributes)
+    // Inspect current capacity so we don't clone needlessly
+    if (value.ptr->Capacity() >= capacity)
     {
-        // For non-object values, num_properties will be 0
-        const size_t num_properties = attribute.GetObjectPropertyCount();
-        for (int i = 0, n = static_cast<int>(num_properties); i < n; i++)
-        {
-            merged.SetObjectProperty(
-                attribute.GetObjectPropertyNameAt(i),
-                attribute.GetObjectPropertyValueAt(i)
-            );
-        }
+        return;
     }
 
-    return merged;
+    GetCowValueForWrite()->Reserve(capacity);
 }
 
 impl::CowValue* Attribute::GetCowValueForWrite()

@@ -159,6 +159,36 @@ size_t CowValue::Size() const
     }
 }
 
+size_t CowValue::Capacity() const
+{
+    // Return the capacity of the underlying container that we're using
+    switch (type)
+    {
+        case CowValueType::String:
+            return value.string.capacity();
+        case CowValueType::Array:
+            return value.array.capacity();
+        case CowValueType::Object:
+            return value.object.capacity();
+    }
+}
+
+void CowValue::Reserve(size_t new_capacity)
+{
+    switch (type)
+    {
+        case CowValueType::String:
+            value.string.reserve(new_capacity);
+            break;
+        case CowValueType::Array:
+            value.array.reserve(new_capacity);
+            break;
+        case CowValueType::Object:
+            value.object.reserve(new_capacity);
+            break;
+    }
+}
+
 void CowValue::Clear(size_t new_capacity)
 {
     // Clear the underlying container: any CowValues held in arrays/objects will be

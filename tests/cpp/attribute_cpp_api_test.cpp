@@ -16,6 +16,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]")
         attribute.ArrayPush(Attribute::Int(100));
         REQUIRE(attribute.GetArrayLen() == 0);
         REQUIRE(attribute.GetArrayItem(0).GetType() == ValueType::Null);
+        attribute.ArrayReserve(std::numeric_limits<size_t>::max());
     };
 
     auto require_object_ops_are_noop = [](Attribute& attribute) -> void
@@ -27,6 +28,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]")
         REQUIRE(attribute.GetObjectPropertyNameAt(0) == "");
         REQUIRE(attribute.GetObjectPropertyValueAt(0).GetType() == ValueType::Null);
         REQUIRE(attribute.GetObjectProperty("foo").GetType() == ValueType::Null);
+        attribute.ReserveObjectPropertyCapacity(std::numeric_limits<size_t>::max());
     };
 
     SECTION("M allow all operations W type is null")
@@ -238,6 +240,10 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]")
         REQUIRE(attribute.GetArrayLen() == 0);
         REQUIRE(copy.GetArrayLen() == 2);
 
+        // ArrayReserve() reserves more memory if needed but does not clear items
+        copy.ArrayReserve(32);
+        REQUIRE(copy.GetArrayLen() == 2);
+
         // InitArray() also clears if called on existing array
         copy.InitArray(16);
         REQUIRE(copy.GetArrayLen() == 0);
@@ -308,6 +314,11 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]")
         // DeleteObjectProperty() on original doesn't affect copy
         attribute.DeleteObjectProperty("foo");
         REQUIRE(attribute.GetObjectPropertyCount() == 0);
+        REQUIRE(copy.GetObjectPropertyCount() == 2);
+
+        // ReserveObjectPropertyCapacity() reserves more memory if needed but does not
+        // clear properties
+        copy.ReserveObjectPropertyCapacity(32);
         REQUIRE(copy.GetObjectPropertyCount() == 2);
 
         // InitObject() deletes all properties if called on an existing object
@@ -647,159 +658,6 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]")
         // Then everything is still fine
         REQUIRE(attribute.GetType() == ValueType::String);
         REQUIRE(attribute.GetStringValue() == "hello");
-    }
-}
-
-TEST_CASE("Attribute::MergeObjects", "[unit][attribute][cpp-api]")
-{
-    SECTION("M produce new object with all properties W called with many objects")
-    {
-        // Given three object attributes, each with a unique property name
-        Attribute obj_with_foo = Attribute::Object(1);
-        Attribute obj_with_bar = Attribute::Object(1);
-        Attribute obj_with_baz = Attribute::Object(1);
-        obj_with_foo.SetObjectProperty("foo", Attribute::Int(100));
-        obj_with_bar.SetObjectProperty("bar", Attribute::Int(200));
-        obj_with_baz.SetObjectProperty("baz", Attribute::Int(300));
-
-        // When we create a new attribute merged from those three
-        Attribute merged =
-            Attribute::MergeObjects({obj_with_foo, obj_with_bar, obj_with_baz});
-
-        // Then we get a new object with all three properties
-        REQUIRE(merged.GetType() == ValueType::Object);
-        REQUIRE(merged.GetObjectPropertyCount() == 3);
-        REQUIRE(merged.GetObjectProperty("foo").GetIntValue() == 100);
-        REQUIRE(merged.GetObjectProperty("bar").GetIntValue() == 200);
-        REQUIRE(merged.GetObjectProperty("baz").GetIntValue() == 300);
-
-        // And the new object's properties are ordered deterministically
-        REQUIRE(merged.GetObjectPropertyNameAt(0) == "foo");
-        REQUIRE(merged.GetObjectPropertyNameAt(1) == "bar");
-        REQUIRE(merged.GetObjectPropertyNameAt(2) == "baz");
-    }
-
-    SECTION("M take value from later object W property names conflict")
-    {
-        // Given an object attribute, obj_a, with values 'foo' and 'bar'
-        Attribute obj_a = Attribute::Object(2);
-        obj_a.SetObjectProperty("foo", Attribute::String("hello"));
-        obj_a.SetObjectProperty("bar", Attribute::String("original"));
-
-        // And another object attribute, obj_b, with values 'bar' and 'baz'
-        Attribute obj_b = Attribute::Object(2);
-        obj_b.SetObjectProperty("bar", Attribute::String("updated"));
-        obj_a.SetObjectProperty("baz", Attribute::Int(-10));
-
-        // When we create a new attribute merged from obj_a and obj_b
-        Attribute merged = Attribute::MergeObjects({obj_a, obj_b});
-
-        // Then we get a new object with three properties
-        REQUIRE(merged.GetType() == ValueType::Object);
-        REQUIRE(merged.GetObjectPropertyCount() == 3);
-
-        // And the 'bar' value from obj_b prevails, since it appeared later in the list
-        REQUIRE(merged.GetObjectProperty("foo").GetStringValue() == "hello");
-        REQUIRE(merged.GetObjectProperty("bar").GetStringValue() == "updated");
-        REQUIRE(merged.GetObjectProperty("baz").GetIntValue() == -10);
-
-        // And the new object's properties are ordered deterministically
-        REQUIRE(merged.GetObjectPropertyNameAt(0) == "foo");
-        REQUIRE(merged.GetObjectPropertyNameAt(1) == "bar");
-        REQUIRE(merged.GetObjectPropertyNameAt(2) == "baz");
-    }
-
-    SECTION("M preserve nested objects as-is W nested objects have conflicting names")
-    {
-        // Given two objects, alice and bob
-        // alice: {"name":"Alice","age":35}
-        // bob:   {"name":"Bob","height":182.8}
-        Attribute alice = Attribute::Object(2);
-        alice.SetObjectProperty("name", Attribute::String("Alice"));
-        alice.SetObjectProperty("age", Attribute::Int(35));
-        Attribute bob = alice;
-        bob.DeleteObjectProperty("age");
-        bob.SetObjectProperty("name", Attribute::String("Bob"));
-        bob.SetObjectProperty("height", Attribute::Double(182.8));
-        REQUIRE(alice.GetObjectPropertyCount() == 2);
-        REQUIRE(alice.GetObjectProperty("name").GetStringValue() == "Alice");
-        REQUIRE(alice.GetObjectProperty("age").GetIntValue() == 35);
-        REQUIRE(alice.FindObjectProperty("height") == -1);
-        REQUIRE(bob.GetObjectPropertyCount() == 2);
-        REQUIRE(bob.GetObjectProperty("name").GetStringValue() == "Bob");
-        REQUIRE(bob.GetObjectProperty("height").GetDoubleValue() == 182.8);
-        REQUIRE(bob.FindObjectProperty("age") == -1);
-
-        // And two objects, obj_a and obj_b, into which alice and bob are respectively
-        // nested under the key 'subobject', i.e.:
-        // obj_a: {"foo": 100, "subobject": {"name":"Alice","age":35}}
-        // obj_b: {"bar": 200, "subobject": {"name":"Bob","height":182.8}}
-        Attribute obj_a = Attribute::Object(2);
-        obj_a.SetObjectProperty("foo", Attribute::Int(100));
-        obj_a.SetObjectProperty("subobject", alice);
-        Attribute obj_b = Attribute::Object(2);
-        obj_b.SetObjectProperty("bar", Attribute::Int(200));
-        obj_b.SetObjectProperty("subobject", bob);
-
-        // When we create a new attribute merged from obj_a and obj_b
-        Attribute merged = Attribute::MergeObjects({obj_a, obj_b});
-
-        // Then we get a new object with 'foo', 'bar' and 'subobject' values
-        REQUIRE(merged.GetObjectPropertyCount() == 3);
-        REQUIRE(merged.GetObjectProperty("foo").GetIntValue() == 100);
-        REQUIRE(merged.GetObjectProperty("bar").GetIntValue() == 200);
-        Attribute merged_subobject = merged.GetObjectProperty("subobject");
-        REQUIRE(merged_subobject.GetType() == ValueType::Object);
-
-        // And for 'subobject', we simply take the object value that appeared in obj_b;
-        // we don't attempt any recursive merging of nested objects
-        REQUIRE(merged_subobject.GetObjectProperty("name").GetStringValue() == "Bob");
-        REQUIRE(merged_subobject.GetObjectProperty("height").GetDoubleValue() == 182.8);
-        REQUIRE(merged_subobject.FindObjectProperty("age") == -1);
-
-        // And properties are ordered deterministically
-        REQUIRE(merged.FindObjectProperty("foo") == 0);
-        REQUIRE(merged.FindObjectProperty("subobject") == 1);
-        REQUIRE(merged.FindObjectProperty("bar") == 2);
-        REQUIRE(merged_subobject.FindObjectProperty("name") == 0);
-        REQUIRE(merged_subobject.FindObjectProperty("height") == 1);
-    }
-
-    SECTION("M produce empty object W input list is empty")
-    {
-        // When we call MergeObjects with a list of 0 attribute values
-        Attribute merged = Attribute::MergeObjects({});
-
-        // Then we get an object value with no properties
-        REQUIRE(merged.GetType() == ValueType::Object);
-        REQUIRE(merged.GetObjectPropertyCount() == 0);
-    }
-
-    SECTION("M ignore non-object values W input list has non-object values")
-    {
-        // Given obj_a: {"foo":100} and obj_b: {"foo":200}
-        Attribute obj_a = Attribute::Object(1);
-        Attribute obj_b = Attribute::Object(1);
-        obj_a.SetObjectProperty("foo", Attribute::Int(100));
-        obj_b.SetObjectProperty("foo", Attribute::Int(200));
-
-        // When we call MergeObjects with a list that includes obj_b and obj_a (in that
-        // order), but also a bunch of other non-object values
-        Attribute some_array = Attribute::Array();
-        Attribute merged = Attribute::MergeObjects(
-            {Attribute::Null(),
-             obj_b,
-             Attribute::String("foo"),
-             Attribute::Bool(true),
-             obj_a,
-             some_array}
-        );
-
-        // Then we get an object value with a single property: obj_a's "foo" value
-        // prevails since it appeared last; all non-object values were ignored
-        REQUIRE(merged.GetType() == ValueType::Object);
-        REQUIRE(merged.GetObjectPropertyCount() == 1);
-        REQUIRE(merged.GetObjectProperty("foo").GetIntValue() == 100);
     }
 }
 

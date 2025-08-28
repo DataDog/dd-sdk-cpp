@@ -173,6 +173,9 @@ TEST_CASE("CowValue", "[unit][attribute]")
         // Size returns the length of the string
         REQUIRE(value->Size() == 5);
 
+        // Capacity returns the capacity of the string
+        REQUIRE(value->Capacity() >= 5);
+
         // These non-string write operations are a harmless no-op
         value->Push(Attribute::Int(1));
         value->SetProperty("foo", Attribute::Int(2));
@@ -192,6 +195,16 @@ TEST_CASE("CowValue", "[unit][attribute]")
         REQUIRE(std::string(value->CStr()) == "ok, sure");
         REQUIRE(value->Size() == 8);
 
+        // Reserve() does nothing if desired capacity is already satisfied; reallocates
+        // to grow (retaining existing string value) if needed
+        const size_t old_capacity = value->Capacity();
+        REQUIRE(old_capacity < 32);
+        value->Reserve(old_capacity);
+        REQUIRE(value->Capacity() == old_capacity);
+        value->Reserve(32);
+        REQUIRE(value->Capacity() >= 32);
+        REQUIRE(std::string(value->CStr()) == "ok, sure");
+
         // Clear() reverts the value to an empty string
         value->Clear();
         value->Clear(16);
@@ -206,6 +219,9 @@ TEST_CASE("CowValue", "[unit][attribute]")
     {
         // Given an array CowValue
         CowValue* value = CowValue::Array(8);
+
+        // Capacity returns how many items we can fit without reallocating
+        REQUIRE(value->Capacity() >= 8);
 
         // Size returns the number of items in the array
         REQUIRE(value->Size() == 0);
@@ -238,6 +254,16 @@ TEST_CASE("CowValue", "[unit][attribute]")
         REQUIRE(value->GetAt(1).GetIntValue() == 200);
         REQUIRE(value->GetAt(2).GetType() == ValueType::Null);
 
+        // Reserve() does nothing if desired capacity is already satisfied; reallocates
+        // to grow (retaining existing item values) if needed
+        const size_t old_capacity = value->Capacity();
+        REQUIRE(old_capacity < 32);
+        value->Reserve(old_capacity);
+        REQUIRE(value->Capacity() == old_capacity);
+        value->Reserve(32);
+        REQUIRE(value->Capacity() >= 32);
+        REQUIRE(value->Size() == 2);
+
         // Clear() empties the array
         value->Clear();
         value->Clear(16);
@@ -252,6 +278,9 @@ TEST_CASE("CowValue", "[unit][attribute]")
     {
         // Given an object CowValue
         CowValue* value = CowValue::Object(8);
+
+        // Capacity returns how many properties we can fit without reallocating
+        REQUIRE(value->Capacity() >= 8);
 
         // Size returns the number of properties in the object
         REQUIRE(value->Size() == 0);
@@ -312,6 +341,16 @@ TEST_CASE("CowValue", "[unit][attribute]")
         REQUIRE(std::string(value->GetPropertyNameCStr(1)) == "");
         REQUIRE(value->GetAt(1).GetType() == ValueType::Null);
         value->DeleteProperty("scrambo");
+        REQUIRE(value->Size() == 1);
+
+        // Reserve() does nothing if desired capacity is already satisfied; reallocates
+        // to grow (retaining existing property values) if needed
+        const size_t old_capacity = value->Capacity();
+        REQUIRE(old_capacity < 32);
+        value->Reserve(old_capacity);
+        REQUIRE(value->Capacity() == old_capacity);
+        value->Reserve(32);
+        REQUIRE(value->Capacity() >= 32);
         REQUIRE(value->Size() == 1);
 
         // Clear() removes all properties from the object
