@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <cinttypes>
 #include <string_view>
 
@@ -22,6 +23,7 @@ enum class ValueType : uint8_t
     Bool,
     Int,
     UInt,
+    Timestamp,
     Double,
     String,
     Array,
@@ -96,6 +98,7 @@ public:
     static Attribute Bool(bool value);
     static Attribute Int(int64_t value);
     static Attribute UInt(uint64_t value);
+    static Attribute TimestampFromNanoseconds(uint64_t value);
     static Attribute Double(double value);
     static Attribute String(std::string_view value);
     /**
@@ -116,6 +119,7 @@ public:
     void SetBool(bool new_value);
     void SetInt(int64_t new_value);
     void SetUInt(uint64_t new_value);
+    void SetTimestampAsNanoseconds(uint64_t new_value);
     void SetDouble(double new_value);
     void SetString(std::string_view new_value);
     void InitArray(size_t initial_capacity = 0);
@@ -134,6 +138,7 @@ public:
     bool GetBoolValue() const;
     int64_t GetIntValue() const;
     uint64_t GetUIntValue() const;
+    uint64_t GetTimestampValueAsNanoseconds() const;
     double GetDoubleValue() const;
     std::string_view GetStringValue() const;
 
@@ -197,6 +202,38 @@ public:
      * attribute is not an object, has no effect.
      */
     void ReserveObjectPropertyCapacity(size_t capacity);
+
+public:
+    template<
+        typename Clock = std::chrono::system_clock,
+        typename Duration = std::chrono::nanoseconds>
+    static Attribute Timestamp(std::chrono::time_point<Clock, Duration> value)
+    {
+        auto count = value.time_since_epoch();
+        auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(count);
+        return TimestampFromNanoseconds(static_cast<uint64_t>(nanoseconds.count()));
+    }
+
+    template<
+        typename Clock = std::chrono::system_clock,
+        typename Duration = std::chrono::nanoseconds>
+    void SetTimestamp(std::chrono::time_point<Clock, Duration> value)
+    {
+        auto count = value.time_since_epoch();
+        auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(count);
+        SetTimestampAsNanoseconds(static_cast<uint64_t>(nanoseconds.count()));
+    }
+
+    template<
+        typename Clock = std::chrono::system_clock,
+        typename Duration = std::chrono::nanoseconds>
+    std::chrono::time_point<Clock, Duration> GetTimestampValue()
+    {
+        const uint64_t nanoseconds = GetTimestampValueAsNanoseconds();
+        auto duration_ns = std::chrono::nanoseconds(nanoseconds);
+        auto duration_target = std::chrono::duration_cast<Duration>(duration_ns);
+        return std::chrono::time_point<Clock, Duration>(duration_target);
+    }
 
 private:
     /**

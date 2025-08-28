@@ -28,6 +28,13 @@ target_link_libraries(dd_native_impl PUBLIC nonstd::expected-lite)
 get_target_property(EXPECTED_LITE_INCLUDE_DIRS nonstd::expected-lite INTERFACE_INCLUDE_DIRECTORIES)
 target_include_directories(dd_native_impl SYSTEM PUBLIC ${EXPECTED_LITE_INCLUDE_DIRS})
 
+# date provides std::chrono-compatible, C++20-compliant, datetime handling, which we use
+# primarily to format ISO timestamps
+include(${CMAKE_SOURCE_DIR}/cmake/deps/date.cmake)
+target_link_libraries(dd_native_impl PRIVATE date::date)
+get_target_property(DATE_INCLUDE_DIRS date::date INTERFACE_INCLUDE_DIRECTORIES)
+target_include_directories(dd_native_impl SYSTEM PRIVATE ${DATE_INCLUDE_DIRS})
+
 # Platform-specific support for system clock functionality
 option(DD_CLOCK_USE_DEFAULT "Use default clock implementation. If disabled, you must supply an implementation of platform/clock.hpp in a file specified as DD_CLOCK_SRC" ON)
 if(DD_CLOCK_USE_DEFAULT)

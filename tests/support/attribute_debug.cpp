@@ -55,6 +55,9 @@ void AttributeDebug::Dump(
         case ValueType::UInt:
             out << prefix << ". " << a.value.u64 << "ull\n";
             break;
+        case ValueType::Timestamp:
+            out << prefix << ". " << a.value.u64 << "t\n";
+            break;
         case ValueType::Double:
             out << prefix << ". " << a.value.f64 << "\n";
             break;
@@ -109,6 +112,7 @@ size_t AttributeDebug::ComputeHeapSizeImpl(
         case ValueType::Bool:
         case ValueType::Int:
         case ValueType::UInt:
+        case ValueType::Timestamp:
         case ValueType::Double:
             return 0;
 

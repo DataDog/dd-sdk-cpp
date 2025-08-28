@@ -21,6 +21,7 @@ typedef enum
     DD_VALUE_TYPE_BOOL,
     DD_VALUE_TYPE_INT,
     DD_VALUE_TYPE_UINT,
+    DD_VALUE_TYPE_TIMESTAMP,
     DD_VALUE_TYPE_DOUBLE,
     DD_VALUE_TYPE_STRING,
     DD_VALUE_TYPE_ARRAY,
@@ -47,6 +48,7 @@ dd_attribute_t dd_attribute_null(void);
 dd_attribute_t dd_attribute_bool(bool value);
 dd_attribute_t dd_attribute_int(int64_t value);
 dd_attribute_t dd_attribute_uint(uint64_t value);
+dd_attribute_t dd_attribute_timestamp_ns(uint64_t value);
 dd_attribute_t dd_attribute_double(double value);
 dd_attribute_t dd_attribute_string(const char* value);
 dd_attribute_t dd_attribute_array(size_t initial_capacity);
@@ -63,6 +65,7 @@ void dd_attribute_set_null(dd_attribute_t* attribute);
 void dd_attribute_set_bool(dd_attribute_t* attribute, bool value);
 void dd_attribute_set_int(dd_attribute_t* attribute, int64_t value);
 void dd_attribute_set_uint(dd_attribute_t* attribute, uint64_t value);
+void dd_attribute_set_timestamp_ns(dd_attribute_t* attribute, uint64_t value);
 void dd_attribute_set_double(dd_attribute_t* attribute, double value);
 void dd_attribute_set_string(dd_attribute_t* attribute, const char* value);
 void dd_attribute_init_array(dd_attribute_t* attribute, size_t initial_capacity);
@@ -90,6 +93,7 @@ void dd_attribute_free(dd_attribute_t* attribute);
 bool dd_attribute_get_bool(const dd_attribute_t* attribute);
 int64_t dd_attribute_get_int(const dd_attribute_t* attribute);
 uint64_t dd_attribute_get_uint(const dd_attribute_t* attribute);
+uint64_t dd_attribute_get_timestamp_ns(const dd_attribute_t* attribute);
 double dd_attribute_get_double(const dd_attribute_t* attribute);
 const char* dd_attribute_get_string(const dd_attribute_t* attribute);
 

@@ -24,6 +24,7 @@ static bool is_primitive_type(dd_value_type_t type)
         case DD_VALUE_TYPE_BOOL:
         case DD_VALUE_TYPE_INT:
         case DD_VALUE_TYPE_UINT:
+        case DD_VALUE_TYPE_TIMESTAMP:
         case DD_VALUE_TYPE_DOUBLE:
             return true;
 
@@ -118,6 +119,14 @@ dd_attribute_t dd_attribute_uint(uint64_t value)
 {
     dd_attribute_t attribute;
     attribute.type = DD_VALUE_TYPE_UINT;
+    attribute.value.u64 = value;
+    return attribute;
+}
+
+dd_attribute_t dd_attribute_timestamp_ns(uint64_t value)
+{
+    dd_attribute_t attribute;
+    attribute.type = DD_VALUE_TYPE_TIMESTAMP;
     attribute.value.u64 = value;
     return attribute;
 }
@@ -217,6 +226,22 @@ void dd_attribute_set_uint(dd_attribute_t* attribute, uint64_t value)
     }
 
     attribute->type = DD_VALUE_TYPE_UINT;
+    attribute->value.u64 = value;
+}
+
+void dd_attribute_set_timestamp_ns(dd_attribute_t* attribute, uint64_t value)
+{
+    if (!attribute)
+    {
+        return;
+    }
+
+    if (!is_primitive_type(attribute->type))
+    {
+        get_cow_value(attribute)->Release();
+    }
+
+    attribute->type = DD_VALUE_TYPE_TIMESTAMP;
     attribute->value.u64 = value;
 }
 
@@ -376,6 +401,15 @@ int64_t dd_attribute_get_int(const dd_attribute_t* attribute)
 uint64_t dd_attribute_get_uint(const dd_attribute_t* attribute)
 {
     if (!attribute || attribute->type != DD_VALUE_TYPE_UINT)
+    {
+        return 0;
+    }
+    return attribute->value.u64;
+}
+
+uint64_t dd_attribute_get_timestamp_ns(const dd_attribute_t* attribute)
+{
+    if (!attribute || attribute->type != DD_VALUE_TYPE_TIMESTAMP)
     {
         return 0;
     }
