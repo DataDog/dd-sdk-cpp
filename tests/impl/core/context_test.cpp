@@ -11,15 +11,17 @@ TEST_CASE("CoreContext constructor", "[unit]")
     SECTION("M initialize from CoreConfig W valid config provided")
     {
         // Given an ordinary config
-        CoreConfig config = { TrackingConsent::Granted,
-                              Site::us1,
-                              "test_token_123",
-                              "test_service",
-                              "test_env",
-                              "1.2.3",
-                              BatchSize::Medium,
-                              UploadFrequency::Average,
-                              BatchProcessingLevel::Medium };
+        CoreConfig config = {
+            TrackingConsent::Granted,
+            Site::us1,
+            "test_token_123",
+            "test_service",
+            "test_env",
+            "1.2.3",
+            BatchSize::Medium,
+            UploadFrequency::Average,
+            BatchProcessingLevel::Medium
+        };
 
         // When CoreContext is constructed from that config
         CoreContext context(config);
@@ -40,15 +42,17 @@ TEST_CASE("CoreContext SetService", "[unit]")
     SECTION("M update service and increment version W new value provided")
     {
         // Given a CoreContext at version id 1, with service 'original_service'
-        CoreConfig config = { TrackingConsent::Granted,
-                              Site::us1,
-                              "token",
-                              "original_service",
-                              "env",
-                              "1.0.0",
-                              BatchSize::Medium,
-                              UploadFrequency::Average,
-                              BatchProcessingLevel::Medium };
+        CoreConfig config = {
+            TrackingConsent::Granted,
+            Site::us1,
+            "token",
+            "original_service",
+            "env",
+            "1.0.0",
+            BatchSize::Medium,
+            UploadFrequency::Average,
+            BatchProcessingLevel::Medium
+        };
         CoreContext context(config);
         int original_version = context.version;
         REQUIRE(original_version == 1);
@@ -67,15 +71,17 @@ TEST_CASE("CoreContext SetEnv", "[unit]")
     SECTION("M update env and increment version W new value provided")
     {
         // Given a CoreContext at version id 1, with env 'original_env'
-        CoreConfig config = { TrackingConsent::Granted,
-                              Site::us1,
-                              "token",
-                              "service",
-                              "original_env",
-                              "1.0.0",
-                              BatchSize::Medium,
-                              UploadFrequency::Average,
-                              BatchProcessingLevel::Medium };
+        CoreConfig config = {
+            TrackingConsent::Granted,
+            Site::us1,
+            "token",
+            "service",
+            "original_env",
+            "1.0.0",
+            BatchSize::Medium,
+            UploadFrequency::Average,
+            BatchProcessingLevel::Medium
+        };
         CoreContext context(config);
         int original_version = context.version;
         REQUIRE(original_version == 1);
@@ -92,15 +98,17 @@ TEST_CASE("CoreContext SetEnv", "[unit]")
 TEST_CASE("CoreContext BuildRequestURL", "[unit]")
 {
     // Given an ordinary config
-    CoreConfig config = { TrackingConsent::Granted,
-                          Site::us1,
-                          "token",
-                          "test_service",
-                          "test_env",
-                          "1.0.0",
-                          BatchSize::Medium,
-                          UploadFrequency::Average,
-                          BatchProcessingLevel::Medium };
+    CoreConfig config = {
+        TrackingConsent::Granted,
+        Site::us1,
+        "token",
+        "test_service",
+        "test_env",
+        "1.0.0",
+        BatchSize::Medium,
+        UploadFrequency::Average,
+        BatchProcessingLevel::Medium
+    };
     CoreContext context(config);
     std::string result_url;
 
@@ -159,15 +167,17 @@ TEST_CASE("CoreContext BuildRequestURL", "[unit]")
 TEST_CASE("CoreContext BuildRequestHeaders", "[unit]")
 {
     // Given an ordinary config
-    CoreConfig config = { TrackingConsent::Granted,
-                          Site::us1,
-                          "test_client_token_456",
-                          "test_service",
-                          "production",
-                          "2.1.0",
-                          BatchSize::Medium,
-                          UploadFrequency::Average,
-                          BatchProcessingLevel::Medium };
+    CoreConfig config = {
+        TrackingConsent::Granted,
+        Site::us1,
+        "test_client_token_456",
+        "test_service",
+        "production",
+        "2.1.0",
+        BatchSize::Medium,
+        UploadFrequency::Average,
+        BatchProcessingLevel::Medium
+    };
     CoreContext context(config);
     std::string result_headers;
 

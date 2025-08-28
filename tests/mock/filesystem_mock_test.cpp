@@ -313,8 +313,13 @@ TEST_CASE("MockFilesystem File Writing", "[unit][mock-filesystem]")
 
         // When writing binary data (including null bytes)
         const char binary_data[] = {
-            0x00, 0x01, 0x02, static_cast<char>(0xFF), static_cast<char>(0xFE),
-            0x00, 0x03
+            0x00,
+            0x01,
+            0x02,
+            static_cast<char>(0xFF),
+            static_cast<char>(0xFE),
+            0x00,
+            0x03
         };
         size_t data_len = sizeof(binary_data);
         auto result = writer->Write(binary_data, data_len);
@@ -646,8 +651,8 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]")
         storage.WithExistingFile("contested.txt", "original content");
 
         std::vector<std::thread> threads;
-        std::atomic<int> successful_opens{ 0 };
-        std::atomic<int> failed_opens{ 0 };
+        std::atomic<int> successful_opens{0};
+        std::atomic<int> failed_opens{0};
 
         // When starting 5 threads trying to open the same file
         for (int i = 0; i < 5; ++i)

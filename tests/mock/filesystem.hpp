@@ -31,17 +31,18 @@ using namespace datadog;
  */
 struct MockFileEntry
 {
-    std::string data;   // Current file contents, mutated by writers
-    int reader_fd{ 0 }; // If nonzero, file is currently open for read with this fd
-    int writer_fd{ 0 }; // If nonzero, file is currently open for write with this fd
-    bool bad{ false };  // If set, any read or write will result in an I/O error
-    bool fail{ false }; // If set, any read or write will fail
+    std::string data; // Current file contents, mutated by writers
+    int reader_fd{0}; // If nonzero, file is currently open for read with this fd
+    int writer_fd{0}; // If nonzero, file is currently open for write with this fd
+    bool bad{false};  // If set, any read or write will result in an I/O error
+    bool fail{false}; // If set, any read or write will fail
 
     std::mutex mutex; // Synchronizes reads/writes to the same file across threads
 
     MockFileEntry(std::string_view in_data)
         : data(in_data)
-    {}
+    {
+    }
 };
 
 /**
@@ -139,7 +140,7 @@ public:
         // If already at EOF before read, read nothing and return
         if (read_ptr >= end)
         {
-            return platform::FileReadResult{ 0, true };
+            return platform::FileReadResult{0, true};
         }
 
         // Read up to N bytes, bounded by remaining size
@@ -152,7 +153,7 @@ public:
 
         // Check if we've hit EOF and return
         const bool eof = read_offset >= s.size();
-        return platform::FileReadResult{ num_bytes_read, eof };
+        return platform::FileReadResult{num_bytes_read, eof};
     }
 };
 
@@ -199,7 +200,7 @@ public:
         // Otherwise, open the file for exclusive write, simulating fopen with 'ab';
         // append all data; then simulate close() and immediate flush
         f->writer_fd = fd; // For clarity; mutex makes this irrelevant in mock impl
-        f->data += std::string_view{ src, n };
+        f->data += std::string_view{src, n};
         f->writer_fd = 0;
         return {};
     }
@@ -207,15 +208,15 @@ public:
 
 struct MockDirEntry
 {
-    bool bad{ false };  // If set, any directory operation will result in an I/O error
-    bool fail{ false }; // If set, any directory operation will fail
+    bool bad{false};  // If set, any directory operation will result in an I/O error
+    bool fail{false}; // If set, any directory operation will fail
 
     std::mutex mutex;
 };
 
 struct MockFilesystem
 {
-    int next_fd{ 1 };
+    int next_fd{1};
 
     // Keep underlying filesystem state in memory
     std::unordered_map<std::filesystem::path, std::shared_ptr<MockFileEntry>> files;
@@ -487,7 +488,8 @@ public:
     MockDirectory(MockFilesystem& in_fs, std::filesystem::path in_relpath)
         : fs(in_fs)
         , relpath(in_relpath)
-    {}
+    {
+    }
 
     virtual platform::FilesystemResult<void> ListFiles(
         std::vector<std::string>& out_names
@@ -530,7 +532,8 @@ public:
     MockFilesystem fs;
 
     MockStorageDirectory()
-    {}
+    {
+    }
 
     // IDirectory interface implementation - delegate to MockFilesystem
     virtual platform::FilesystemResult<void> ListFiles(
@@ -568,7 +571,7 @@ public:
      */
     void WithExistingFile(std::string_view relpath, std::string_view data)
     {
-        const std::filesystem::path path{ relpath };
+        const std::filesystem::path path{relpath};
         fs.Mkdirs(path.parent_path());
         fs.Touch(path, data);
     }
