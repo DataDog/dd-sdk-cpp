@@ -25,6 +25,7 @@ static bool _is_primitive_type(ValueType type)
         case ValueType::Bool:
         case ValueType::Int:
         case ValueType::UInt:
+        case ValueType::Timestamp:
         case ValueType::Double:
             return true;
 
@@ -172,6 +173,11 @@ Attribute Attribute::UInt(uint64_t value)
     return Attribute(ValueType::UInt, value);
 }
 
+Attribute Attribute::TimestampFromNanoseconds(uint64_t value)
+{
+    return Attribute(ValueType::Timestamp, value);
+}
+
 Attribute Attribute::Double(double value)
 {
     return Attribute(ValueType::Double, value);
@@ -239,6 +245,17 @@ void Attribute::SetUInt(uint64_t new_value)
     }
 
     type = ValueType::UInt;
+    value.u64 = new_value;
+}
+
+void Attribute::SetTimestampAsNanoseconds(uint64_t new_value)
+{
+    if (!_is_primitive_type(type))
+    {
+        value.ptr->Release();
+    }
+
+    type = ValueType::Timestamp;
     value.u64 = new_value;
 }
 
@@ -339,6 +356,15 @@ int64_t Attribute::GetIntValue() const
 uint64_t Attribute::GetUIntValue() const
 {
     if (type != ValueType::UInt)
+    {
+        return 0;
+    }
+    return value.u64;
+}
+
+uint64_t Attribute::GetTimestampValueAsNanoseconds() const
+{
+    if (type != ValueType::Timestamp)
     {
         return 0;
     }

@@ -1,19 +1,25 @@
 #include "attribute/json.hpp"
 
-#include "attribute/cow.hpp"
-
 #include <cassert>
 #include <charconv>
+#include <chrono>
 
 #if defined(_MSC_VER) && defined(_M_X64)
 #include <intrin.h>
 #endif
+
+#include "date/date.h"
+
+#include "attribute/cow.hpp"
 
 namespace datadog::impl {
 
 static constexpr std::string_view LITERAL_NULL = "null";
 static constexpr std::string_view LITERAL_TRUE = "true";
 static constexpr std::string_view LITERAL_FALSE = "false";
+
+// "YYYY-MM-DDTHH:MM:SS.sssZ": 24 chars + 2 for quotes
+static const size_t QUOTED_ISO8601_LEN = 26;
 
 // Writing to uint8_t* with std::to_chars etc. requires casts from uint8_t* to char*
 // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -186,6 +192,156 @@ static size_t _double_gfmt_write(uint8_t* dst, size_t n, double value)
     );
     assert(result.ec == std::errc{} && "insufficient buffer size on double encode");
     return result.ptr - reinterpret_cast<char*>(dst);
+}
+
+static void _write_timestamp_4d(uint8_t*& ptr, size_t n, uint64_t value)
+{
+    auto res = std::to_chars(
+        reinterpret_cast<char*>(ptr), reinterpret_cast<char*>(ptr + n), value
+    );
+    assert(res.ec == std::errc{} && "insufficient buffer space on timestamp write");
+    assert(
+        reinterpret_cast<uint8_t*>(res.ptr) == ptr + 4 &&
+        "unexpected write size on timestamp write"
+    );
+    ptr += 4;
+}
+
+static void _write_timestamp_02d(uint8_t*& ptr, size_t n, uint64_t value)
+{
+    assert(value <= 99 && "value out of range for 02d");
+    assert(n >= 2 && "insufficient buffer space for 02d");
+
+    static const char digits[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
+    if (value < 10)
+    {
+        *ptr++ = '0';
+        *ptr++ = digits[value]; // NOLINT
+    }
+    else
+    {
+        auto res = std::to_chars(
+            reinterpret_cast<char*>(ptr), reinterpret_cast<char*>(ptr + n), value
+        );
+        assert(res.ec == std::errc{} && "insufficient buffer space on timestamp write");
+        assert(
+            reinterpret_cast<uint8_t*>(res.ptr) == ptr + 2 &&
+            "unexpected write size on timestamp write"
+        );
+        ptr += 2;
+    }
+}
+
+static void _write_timestamp_03d(uint8_t*& ptr, size_t n, uint64_t value)
+{
+    assert(value <= 999 && "value out of range for 03d");
+    assert(n >= 3 && "insufficient buffer space for 03d");
+
+    if (value < 100)
+    {
+        *ptr++ = '0';
+        n--;
+    }
+
+    if (value < 10)
+    {
+        *ptr++ = '0';
+        n--;
+    }
+
+    auto res = std::to_chars(
+        reinterpret_cast<char*>(ptr), reinterpret_cast<char*>(ptr + n), value
+    );
+    assert(res.ec == std::errc{} && "insufficient buffer space on timestamp write");
+
+    const size_t num_written = reinterpret_cast<uint8_t*>(res.ptr) - ptr;
+    assert(
+        num_written == (value < 10 ? 1 : (value < 100 ? 2 : 3)) &&
+        "unexpected write size on timestamp write"
+    );
+    ptr += num_written;
+}
+
+static size_t
+_iso_timestamp_quoted_write(uint8_t* dst, size_t n, uint64_t nanoseconds_since_epoch)
+{
+    assert(n >= QUOTED_ISO8601_LEN && "insufficient buffer size for timestamp");
+
+    // Attribute stores timestamps internally as uint64_t in nanoseconds: construct an
+    // equivalent std::chrono::time_point for interoperability with HowardHinnant/date
+    using duration = std::chrono::duration<uint64_t, std::nano>;
+    using time_point = std::chrono::time_point<std::chrono::system_clock, duration>;
+    time_point tp = time_point{} + duration{nanoseconds_since_epoch};
+
+    // Use HowardHinnant/date to compute an accurate calendar date (YYYY-MM-DD) and
+    // time (HH:MM:SS) from that time_point
+    auto day_point = date::floor<date::days>(tp);
+    date::year_month_day ymd = date::year_month_day{day_point};
+    date::hh_mm_ss time = date::make_time(tp - day_point);
+
+    // Sanity check: a uint64 Unix timestamp in nanoseconds can only represent years
+    // within this range
+    const int year_value = static_cast<int>(ymd.year());
+    assert(year_value >= 1970 && "date::floor yielded year before 1970");
+    assert(year_value <= 2555 && "date::floor yielded year after 2555");
+
+    // Get unsigned values for our calendar date: [1970..2286], [1..12], [1..31]
+    const uint64_t year = year_value;
+    const uint64_t month = static_cast<unsigned>(ymd.month());
+    const uint64_t day = static_cast<unsigned>(ymd.day());
+
+    // Get unsigned values for our wall-clock time: [0..23], [0..59], [0..59]
+    const uint64_t hours = time.hours().count();
+    const uint64_t minutes = time.minutes().count();
+    const uint64_t seconds = time.seconds().count();
+
+    // Get subsecond milliseconds [0..999]
+    std::chrono::milliseconds subsec =
+        std::chrono::duration_cast<std::chrono::milliseconds>(time.subseconds());
+    const uint64_t millis = subsec.count();
+
+    // date::format() returns a std::string - to avoid the overhead of allocating every
+    // time we write a timestamp, we can instead handle the formatting ourselves with
+    // std::to_chars
+    uint8_t* ptr = dst;
+    uint8_t* const dst_end = dst + n;
+
+    // Write an opening quote to begin our JSON string literal
+    *ptr++ = '"';
+
+    // Write YYYY-MM-DD
+    _write_timestamp_4d(ptr, dst_end - ptr, year);
+    *ptr++ = '-';
+    _write_timestamp_02d(ptr, dst_end - ptr, month);
+    *ptr++ = '-';
+    _write_timestamp_02d(ptr, dst_end - ptr, day);
+
+    // Write T to delimit date from time
+    *ptr++ = 'T';
+
+    // Write HH:MM:SS.sss
+    _write_timestamp_02d(ptr, dst_end - ptr, hours);
+    *ptr++ = ':';
+    _write_timestamp_02d(ptr, dst_end - ptr, minutes);
+    *ptr++ = ':';
+    _write_timestamp_02d(ptr, dst_end - ptr, seconds);
+    *ptr++ = '.';
+    _write_timestamp_03d(ptr, dst_end - ptr, millis);
+
+    // Write trailing Z
+    *ptr++ = 'Z';
+
+    // Write closing quote
+    *ptr++ = '"';
+
+    // We should have ended up with a value that's exactly 26 bytes, representing a
+    // quoted JSON literal string in ISO-8601 format
+    const size_t num_bytes_written = ptr - dst;
+    assert(
+        num_bytes_written == QUOTED_ISO8601_LEN &&
+        "unexpected result size for JSON-encoded timestamp"
+    );
+    return num_bytes_written;
 }
 
 /**
@@ -459,6 +615,8 @@ size_t AttributeSerialization::ComputeValueLen(const Attribute& attribute)
             return _int64_decimal_len(attribute.value.i64);
         case ValueType::UInt:
             return _uint64_decimal_len(attribute.value.u64);
+        case ValueType::Timestamp:
+            return QUOTED_ISO8601_LEN;
         case ValueType::Double:
             // Non-finite values (NaN, -inf, +inf) can not be expressed as valid JSON
             // numbers; replace them with literal null
@@ -496,6 +654,10 @@ size_t AttributeSerialization::WriteValue(
             return _int64_decimal_write(buffer, buffer_size, attribute.value.i64);
         case ValueType::UInt:
             return _uint64_decimal_write(buffer, buffer_size, attribute.value.u64);
+        case ValueType::Timestamp:
+            return _iso_timestamp_quoted_write(
+                buffer, buffer_size, attribute.value.u64
+            );
         case ValueType::Double:
             if (!std::isfinite(attribute.value.f64))
             {
