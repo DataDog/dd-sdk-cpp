@@ -218,6 +218,7 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config)
         BatchSize_FromC(config.batch_size),
         UploadFrequency_FromC(config.upload_frequency),
         BatchProcessingLevel_FromC(config.batch_processing_level),
+        config.num_http_requests_per_feature_to_flush_on_stop
     };
 }
 

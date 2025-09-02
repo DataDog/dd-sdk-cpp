@@ -205,7 +205,8 @@ TEST_CASE("HandleUploadProc", "[unit]")
             "mock-application-version",
             batch_size,
             upload_frequency,
-            batch_processing_level
+            batch_processing_level,
+            0
         };
         return std::make_tuple(
             config,

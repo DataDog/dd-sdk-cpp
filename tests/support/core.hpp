@@ -1,5 +1,7 @@
 #pragma once
 
+#include <limits>
+
 #include "core/core.hpp"
 
 #include "mock/clock.hpp"
@@ -21,6 +23,7 @@ static const CoreConfig MOCK_CORE_CONFIG{
     BatchSize::Small,
     UploadFrequency::Frequent,
     BatchProcessingLevel::Low,
+    0,
 };
 
 /**
@@ -51,7 +54,7 @@ struct CoreTestHarness
     {
     }
 
-    static CoreTestHarness Init()
+    static CoreTestHarness Init(bool flush_http_requests = true)
     {
         // Create mock implementations of required core subsystems
         auto _clock = std::make_unique<MockClock>();
@@ -65,8 +68,11 @@ struct CoreTestHarness
         MockHttpSubsystem& http = *_http;
 
         // Create the core, giving the core ownership of injected subsystems
+        CoreConfig config = MOCK_CORE_CONFIG;
+        config.num_http_requests_per_feature_to_flush_on_stop =
+            flush_http_requests ? std::numeric_limits<size_t>::max() : 0;
         impl::Core core(
-            MOCK_CORE_CONFIG,
+            config,
             impl::CoreSubsystems(
                 std::move(_clock), std::move(_storage_root), std::move(_http)
             )

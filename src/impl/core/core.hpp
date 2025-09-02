@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -385,7 +386,7 @@ private:
 private:
     // Initialized in ctor
     CoreState _state{CoreState::Uninitialized};
-    datadog::CoreConfig _config;
+    CoreConfig _config;
     CoreContext _context;
     CoreSubsystems _subsystems;
 

@@ -530,6 +530,7 @@ class MockStorageDirectory : public platform::IStorageDirectory
 {
 public:
     MockFilesystem fs;
+    size_t num_files_deleted{0};
 
     MockStorageDirectory()
     {
@@ -545,7 +546,12 @@ public:
 
     virtual platform::FilesystemResult<void> DeleteFile(std::string_view name) override
     {
-        return fs.HandleDeleteFile(name);
+        auto result = fs.HandleDeleteFile(name);
+        if (result.has_value())
+        {
+            num_files_deleted++;
+        }
+        return result;
     }
 
     virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>
