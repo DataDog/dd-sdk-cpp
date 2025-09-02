@@ -7,9 +7,9 @@
 #include <iomanip>
 #include <sstream>
 
+#include "core/writer.hpp"
 #include "platform/http.hpp"
 #include "support/http_server.hpp"
-#include "util/writer.hpp"
 
 using namespace datadog;
 
@@ -54,7 +54,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]")
 
         // And a simple request payload
         const std::string test_body = "mock request";
-        impl::StringWriter body_writer{ test_body };
+        impl::StringWriter body_writer{test_body};
 
         // When the client sends that payload
         const std::string url = server.BuildURL("/api/v1/test?foo=hello&bar=42");
@@ -86,13 +86,13 @@ TEST_CASE("IHttpClient", "[unit][platform-http]")
         server.Start();
 
         // And a variety of status codes that the server can respond with
-        std::vector<int> status_codes{ 200, 400, 429, 451, 500, 503 };
+        std::vector<int> status_codes{200, 400, 429, 451, 500, 503};
         for (auto status_code : status_codes)
         {
             // When the client makes a request and gets a response
             server.SetResponseStatus(status_code);
             const std::string url = server.BuildURL("/test");
-            auto result = client->Post(url, "", impl::StringWriter{ "hi" });
+            auto result = client->Post(url, "", impl::StringWriter{"hi"});
 
             // Then it dutifully conveys that status code
             REQUIRE(result.type == platform::HttpResultType::GotResponse);
@@ -113,7 +113,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]")
         // When the client makes a request
         const std::string url = server.BuildURL("/test");
         auto start = std::chrono::high_resolution_clock::now();
-        auto result = client->Post(url, "", impl::StringWriter{ "hi" });
+        auto result = client->Post(url, "", impl::StringWriter{"hi"});
         auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
             std::chrono::high_resolution_clock::now() - start
         );
@@ -130,7 +130,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]")
     {
         // When the client makes a malformed request
         const std::string url = "!@#$%^&";
-        auto result = client->Post(url, "", impl::StringWriter{ "hi" });
+        auto result = client->Post(url, "", impl::StringWriter{"hi"});
 
         // Then the client will that it got no response, non-retryable
         REQUIRE(result.type == platform::HttpResultType::GotNoResponse_NonRetryable);
@@ -158,7 +158,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]")
         const std::string url = server.BuildURL("/test");
         const std::string headers = "Content-Type: application/json\n";
         server.SetResponseStatus(202);
-        auto result = client->Post(url, headers, impl::StringWriter{ s });
+        auto result = client->Post(url, headers, impl::StringWriter{s});
 
         // Then the client will get an OK response
         REQUIRE(result.type == platform::HttpResultType::GotResponse);
@@ -190,7 +190,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]")
             REQUIRE(next_crlf - read_ptr <= 8);
 
             // We should be able to read the chunk size from that hex string
-            int chunk_size{ 0 };
+            int chunk_size{0};
             auto result = std::from_chars(read_ptr, next_crlf, chunk_size, 16);
             REQUIRE(result.ec == std::errc());
             read_ptr = next_crlf + 2;
@@ -210,7 +210,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]")
             REQUIRE(next_crlf - read_ptr == chunk_size);
             REQUIRE(next_crlf + 2 < read_end);
             concatenated_chunks +=
-                std::string_view{ read_ptr, static_cast<size_t>(chunk_size) };
+                std::string_view{read_ptr, static_cast<size_t>(chunk_size)};
             read_ptr = next_crlf + 2;
         }
 

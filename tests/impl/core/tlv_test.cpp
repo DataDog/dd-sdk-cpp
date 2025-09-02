@@ -15,7 +15,7 @@ TEST_CASE("TLVBlockHeader", "[unit]")
 
         // When we encode a header
         uint32_t size = 131198; // 0x2007e
-        TLVBlockHeader{ TLVBlockType::Metadata, size }.Encode(buf);
+        TLVBlockHeader{TLVBlockType::Metadata, size}.Encode(buf);
 
         // Then the block type is encoded in the first two bytes, big-endian
         REQUIRE(buf[0] == 0x00);
@@ -32,7 +32,7 @@ TEST_CASE("TLVBlockHeader", "[unit]")
     {
         // Given a six-byte buffer with a uint16 type of Metadata (1) and uint32 size
         // 0x2007e, big-endian
-        char buf[6] = { 0x00, 0x01, 0x00, 0x02, 0x00, 0x7e };
+        char buf[6] = {0x00, 0x01, 0x00, 0x02, 0x00, 0x7e};
 
         // When we decode those bytes as a header
         auto header = TLVBlockHeader::Decode(buf);
@@ -53,7 +53,7 @@ TEST_CASE("EncodeTLVBlock", "[unit]")
         // Given a buffer large enough for header + data
         char buf[20];
         const std::string test_data = "hello";
-        Block block_data{ test_data };
+        Block block_data{test_data};
 
         // When we encode an Event TLV block
         size_t bytes_written =
@@ -84,7 +84,7 @@ TEST_CASE("EncodeTLVBlock", "[unit]")
         // Given a buffer and some metadata
         char buf[30];
         const std::string metadata = "metadata_content";
-        Block block_data{ metadata };
+        Block block_data{metadata};
 
         // When we encode a Metadata TLV block
         size_t bytes_written =
@@ -114,7 +114,7 @@ TEST_CASE("EncodeTLVBlock", "[unit]")
         // Given a buffer smaller than header + data
         char small_buf[5]; // Only 5 bytes, need at least 6 for header
         const std::string test_data = "test";
-        Block block_data{ test_data };
+        Block block_data{test_data};
 
         // When we try to encode with insufficient buffer space
         size_t bytes_written = EncodeTLVBlock(
@@ -129,7 +129,7 @@ TEST_CASE("EncodeTLVBlock", "[unit]")
     {
         // Given a buffer and empty data
         char buf[10];
-        Block empty_block{ "" };
+        Block empty_block{""};
 
         // When we encode an empty TLV block
         size_t bytes_written =
@@ -149,7 +149,7 @@ TEST_CASE("EncodeTLVBlock", "[unit]")
     {
         // Given a larger data block and exactly sized buffer
         std::string large_data(1000, 'x');
-        Block block_data{ large_data };
+        Block block_data{large_data};
         std::vector<char> buf(TLVBlockHeader::SIZE + large_data.size());
 
         // When we encode the large block
