@@ -335,7 +335,7 @@ _iso_timestamp_quoted_write(uint8_t* dst, size_t n, uint64_t nanoseconds_since_e
     *ptr++ = '"';
 
     // We should have ended up with a value that's exactly 26 bytes, representing a
-    // quoted JSON literal string in ISO-8601 format
+    // quoted JSON literal string in ISO-8601 format, with millisecond precision
     const size_t num_bytes_written = ptr - dst;
     assert(
         num_bytes_written == QUOTED_ISO8601_LEN &&

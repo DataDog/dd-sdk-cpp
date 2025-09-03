@@ -3,6 +3,9 @@
 #include <memory>
 #include <string>
 
+// Forward declarations
+struct CoreTestHarness;
+
 namespace datadog {
 
 // Forward declarations
@@ -126,6 +129,7 @@ private:
     std::unique_ptr<impl::Core> _impl;
 
     friend class Logging;
+    friend struct ::CoreTestHarness;
 };
 
 } // namespace datadog

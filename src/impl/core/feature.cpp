@@ -26,7 +26,7 @@ void Feature::OnCoreStopping()
     _event_callback = nullptr;
 }
 
-bool Feature::WriteEvent(Block event, Block event_metadata)
+bool Feature::WriteEvent(Block event, Block event_metadata) const
 {
     if (_event_callback)
     {

@@ -222,7 +222,10 @@ struct MockFilesystem
     std::unordered_map<std::filesystem::path, std::shared_ptr<MockFileEntry>> files;
     std::unordered_map<std::filesystem::path, std::shared_ptr<MockDirEntry>> dirs;
 
-    // Synchronize access to these maps (separate from file-level synchronization)
+    // Keep track of how many files we deleted
+    size_t num_files_deleted{0};
+
+    // Synchronize access to the above (separate from file-level synchronization)
     std::mutex mutex;
 
     /**
@@ -345,6 +348,7 @@ struct MockFilesystem
         // Remove the file entry and return success
         file_lock.release();
         files.erase(relpath);
+        num_files_deleted++;
         return {};
     }
 
@@ -530,7 +534,6 @@ class MockStorageDirectory : public platform::IStorageDirectory
 {
 public:
     MockFilesystem fs;
-    size_t num_files_deleted{0};
 
     MockStorageDirectory()
     {
@@ -546,12 +549,7 @@ public:
 
     virtual platform::FilesystemResult<void> DeleteFile(std::string_view name) override
     {
-        auto result = fs.HandleDeleteFile(name);
-        if (result.has_value())
-        {
-            num_files_deleted++;
-        }
-        return result;
+        return fs.HandleDeleteFile(name);
     }
 
     virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>
@@ -657,5 +655,13 @@ public:
             return file->second->data;
         }
         return std::nullopt;
+    }
+
+    /**
+     * Returns the total number of files that have been successfully deleted.
+     */
+    size_t GetNumFilesDeleted() const
+    {
+        return fs.num_files_deleted;
     }
 };

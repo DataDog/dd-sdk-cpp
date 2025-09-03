@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <mutex>
 #include <optional>
 #include <string_view>
 #include <utility>

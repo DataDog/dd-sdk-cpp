@@ -82,6 +82,10 @@
         "map": "cpp",
         "cerrno": "cpp",
         "unordered_set": "cpp",
-        "functional": "cpp"
+        "functional": "cpp",
+        "cstddef": "cpp",
+        "thread": "cpp",
+        "shared_mutex": "cpp",
+        "random": "cpp"
     }
 }

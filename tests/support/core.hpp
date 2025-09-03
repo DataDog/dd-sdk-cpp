@@ -1,6 +1,11 @@
 #pragma once
 
 #include <limits>
+#include <memory>
+
+#include "core_glue.hpp"
+#include "datadog/core.h"
+#include "datadog/core.hpp"
 
 #include "core/core.hpp"
 
@@ -36,18 +41,23 @@ static const CoreConfig MOCK_CORE_CONFIG{
  */
 struct CoreTestHarness
 {
-    impl::Core core;
+    // Owns the core initially: may be moved out for API tests, but the non-owning ref
+    // `Core& core` will still permit access
+    std::unique_ptr<impl::Core> _core;
+
+    impl::Core& core;
     MockClock& clock;
     MockStorageDirectory& storage;
     MockHttpClient& client;
 
     explicit CoreTestHarness(
-        impl::Core&& in_core,
+        std::unique_ptr<impl::Core>&& in_core,
         MockClock& in_clock,
         MockStorageDirectory& in_storage,
         MockHttpClient& in_client
     )
-        : core(std::move(in_core))
+        : _core(std::move(in_core))
+        , core(std::ref(*_core))
         , clock(in_clock)
         , storage(in_storage)
         , client(in_client)
@@ -71,7 +81,7 @@ struct CoreTestHarness
         CoreConfig config = MOCK_CORE_CONFIG;
         config.num_http_requests_per_feature_to_flush_on_stop =
             flush_http_requests ? std::numeric_limits<size_t>::max() : 0;
-        impl::Core core(
+        auto core = std::make_unique<impl::Core>(
             config,
             impl::CoreSubsystems(
                 std::move(_clock), std::move(_storage_root), std::move(_http)
@@ -79,7 +89,7 @@ struct CoreTestHarness
         );
 
         // Initialize the core: this should always succeed in tests
-        if (!core.Init())
+        if (!core->Init())
         {
             assert(false && "core init failed in test setup");
         }
@@ -91,5 +101,27 @@ struct CoreTestHarness
         // Return a struct that contains all the state we need in order to test - and
         // examine the results of - code that interfaces with the core
         return CoreTestHarness(std::move(core), clock, storage, *client_ptr);
+    }
+
+    /**
+     * Initializes a CoreTestHarness for use in C API tests.
+     */
+    static dd_core_t* WrapForC(CoreTestHarness& test)
+    {
+        // Steal the impl::Core from the CoreTestHarness so it can be owned by the C API
+        // interface
+        dd_core_t* c_core = new dd_core_t();
+        c_core->impl = std::move(test._core);
+        return c_core;
+    }
+
+    /**
+     * Initializes a CoreTestHarness for use in C++ API tests.
+     */
+    static std::shared_ptr<Core> WrapForCpp(CoreTestHarness& test)
+    {
+        auto core = std::make_shared<Core>();
+        core->_impl = std::move(test._core);
+        return core;
     }
 };
