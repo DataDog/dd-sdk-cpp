@@ -23,6 +23,7 @@ static impl::Core _make_core()
             BatchSize::Small,
             UploadFrequency::Frequent,
             BatchProcessingLevel::Low,
+            0
         },
         CoreSubsystems(
             std::make_unique<MockClock>(),
@@ -63,6 +64,7 @@ TEST_CASE("Core Lifecycle", "[unit]")
         BatchSize::Small,
         UploadFrequency::Frequent,
         BatchProcessingLevel::Low,
+        0,
     };
 
     SECTION("M create Core in Uninitialized state W constructor called")

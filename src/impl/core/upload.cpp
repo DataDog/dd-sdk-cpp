@@ -199,22 +199,28 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
             continue;
         }
 
-        // If we've encountered a valid file that is _newer_ than the current time,
-        // we're not going to find any more files ready to process: handle this
-        // explicitly to avoid underflow on age calculation
+        // Read the system clock so we can determine the relative age of the file
         const platform::Timestamp file_time{std::chrono::milliseconds(timestamp_ms)};
         const platform::Timestamp now = clock.Now();
-        if (file_time > now)
+
+        // Defensive: guard against integer underflow on file age calculation. If the
+        // file appears to be from the future, clamp its age to 0.
+        platform::Duration file_age = platform::Duration::zero();
+        if (file_time < now)
         {
-            break;
+            file_age = now - file_time;
         }
 
-        // Compute the age of the file, now that we know it'll be non-negative
-        const platform::Duration file_age = now - file_time;
-
-        // If we've encountered our first file that's too new to process, we're done
+        // Under normal circumstances, we have to respect a minimum file age threshold
+        // before we can read from files, as the storage thread may still be writing to
+        // them before they hit that age. If our threshold is 0, it means we're
+        // permitted to bypass these checks and read from all files, as long as they're
+        // not too _old_ to upload.
         if (file_age < config.min_file_age_for_read)
         {
+            // If we've encountered our first file that's too new to process, we're
+            // done. We process files in order, sorted lexically by timestamp, so every
+            // file that we'd encounter hereafter would be even newer than this one.
             break;
         }
 

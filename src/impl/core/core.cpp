@@ -368,6 +368,42 @@ void Core::Stop()
     _upload_thread.reset();
     _upload_scheduler.reset();
 
+    // If we're configured to flush at shutdown, run one final upload cycle for each
+    // registered feature, attempting to upload the next N batches, blocking the main
+    // thread until done: this is useful for ensuring immediate uploads in unit tests
+    if (_config.num_http_requests_per_feature_to_flush_on_stop > 0)
+    {
+        // Adjust our config to allow reading all files, regardless of age (since we've
+        // joined on the storage thread; we now have exclusive access to batch files),
+        // and to upload N batches up to our configured per-feature limit
+        platform::Duration min_file_age_for_read{0};
+        UploadThreadConfig flush_config(
+            min_file_age_for_read,
+            _config.num_http_requests_per_feature_to_flush_on_stop
+        );
+
+        // We can't reuse buffers from the upload thread (unless we factor them out and
+        // make them owned by the core)
+        std::vector<std::string> mut_filenames;
+        std::vector<char> mut_read_buffer;
+
+        // Run our upload cycle procedure on the main thread, synchronously: now that
+        // we've joined on both threads, all state is synchronized
+        for (const auto& feature : _features)
+        {
+            Internal_HandleUploadProc(
+                flush_config,
+                _context,
+                *_subsystems.clock,
+                feature.id,
+                _features,
+                *_http_client,
+                mut_filenames,
+                mut_read_buffer
+            );
+        }
+    }
+
     std::cout << "Datadog core stopped.\n";
     std::cout << "Time at shutdown: "
               << _subsystems.clock->Now().time_since_epoch().count() << "\n";
