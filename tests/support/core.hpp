@@ -27,6 +27,7 @@ static const CoreConfig MOCK_CORE_CONFIG{
     UploadFrequency::Frequent,
     BatchProcessingLevel::Low,
     0,
+    "",
 };
 
 /**

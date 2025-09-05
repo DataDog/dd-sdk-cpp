@@ -109,6 +109,7 @@ struct CoreConfig {
   UploadFrequency upload_frequency;
   BatchProcessingLevel batch_processing_level;
   size_t num_http_requests_per_feature_to_flush_on_stop;
+  std::string custom_endpoint_url;
 };
 
 class Core {

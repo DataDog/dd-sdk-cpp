@@ -16,7 +16,7 @@ static impl::Core _make_core() {
       CoreConfig{
           TrackingConsent::Granted, Site::us1, "test-client-token", "initial-service",
           "initial-env", "1.0.0", BatchSize::Small, UploadFrequency::Frequent,
-          BatchProcessingLevel::Low, 0
+          BatchProcessingLevel::Low, 0, ""
       },
       CoreSubsystems(
           std::make_unique<MockClock>(), std::make_unique<MockStorageDirectory>(),
@@ -50,6 +50,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
       UploadFrequency::Frequent,
       BatchProcessingLevel::Low,
       0,
+      ""
   };
 
   SECTION("M create Core in Uninitialized state W constructor called") {

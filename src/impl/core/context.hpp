@@ -26,7 +26,7 @@ struct CoreContext {
    * Initializes a new context from the user-supplied config.
    */
   explicit CoreContext(const datadog::CoreConfig& config)
-      : intake_origin(GetIntakeOrigin(config.datadog_site, "")),
+      : intake_origin(GetIntakeOrigin(config.datadog_site, config.custom_endpoint_url)),
         client_token(config.client_token),
         service(config.service),
         env(config.env),
