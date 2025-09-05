@@ -46,27 +46,21 @@
  * Custom header that will be positioned just before the user bytes in all allocations
  * made by our allocation tracker.
  */
-struct alignas(std::max_align_t) AllocHeader
-{
-    void* raw;   // Pointer we must pass to free, incl. header/padding before user bytes
-    size_t size; // Number of user bytes requested, not including header/padding
-    bool overaligned; // True if requested alignment exceeded max_align_t: on Windows,
-                      // we must match _aligned_malloc with _aligned_free if set
+struct alignas(std::max_align_t) AllocHeader {
+  void* raw;    // Pointer we must pass to free, incl. header/padding before user bytes
+  size_t size;  // Number of user bytes requested, not including header/padding
+  bool overaligned;  // True if requested alignment exceeded max_align_t: on Windows,
+                     // we must match _aligned_malloc with _aligned_free if set
 };
 
 static_assert(
-    sizeof(AllocHeader) % alignof(AllocHeader) == 0,
-    "AllocHeader misaligned"
+    sizeof(AllocHeader) % alignof(AllocHeader) == 0, "AllocHeader misaligned"
 );
 
 /**
  * Operation recorded in an append-only log of allocation-related events.
  */
-enum class AllocOp : uint8_t
-{
-    Alloc,
-    Free
-};
+enum class AllocOp : uint8_t { Alloc, Free };
 
 /**
  * Record of a single call to new or delete.
@@ -76,16 +70,15 @@ enum class AllocOp : uint8_t
  * like new, make_unique, etc.
  *
  * Allocations made via direct calls to cstdlib malloc (or custom malloc
- * implementations), direct system calls, etc. will not be recorded by our test
- * allocator.
+ * implementations), direct system calls, etc. will not be recorded by our allocation
+ * tracker.
  */
-struct AllocEvent
-{
-    uint64_t seq; // Monotonic sequence number
-    size_t tid;   // Hash of the thread ID from which the call originated
-    AllocOp op;   // Operation that was called; alloc or free
-    void* ptr;    // Address returned to user on alloc
-    size_t size;  // Number of user bytes reserved from ptr onward
+struct AllocEvent {
+  uint64_t seq;  // Monotonic sequence number
+  size_t tid;    // Hash of the thread ID from which the call originated
+  AllocOp op;    // Operation that was called; alloc or free
+  void* ptr;     // Address returned to user on alloc
+  size_t size;   // Number of user bytes reserved from ptr onward
 };
 
 // new/delete overloads
@@ -110,7 +103,7 @@ void operator delete[](void* ptr, const std::nothrow_t& tag) noexcept;
 void operator delete[](void* ptr, std::align_val_t al) noexcept;
 void operator delete[](void* ptr, size_t count, std::align_val_t al) noexcept;
 
-#endif // WITH_DATADOG_ALLOCATION_TRACKING
+#endif  // WITH_DATADOG_ALLOCATION_TRACKING
 
 /**
  * RAII wrapper used in unit tests to enable allocation tracking for the scope of the
@@ -121,49 +114,47 @@ void operator delete[](void* ptr, size_t count, std::align_val_t al) noexcept;
  * the stats collected during the test. If the code under test might allocate memory
  * from multiple threads, Stop() MUST be called AFTER joining on those threads.
  */
-struct AllocationTracker
-{
-    /**
-     * Summarized results of allocations and frees that occurred during the lifetime of
-     * this AllocationTracker, until the point where Stop() was called.
-     *
-     * If `enabled` is false, allocation tracking is not enabled in this build, and no
-     * checks may be performed.
-     *
-     * If `num_events_dropped` is nonzero, the tracker ran out of space and was unable
-     * to completely capture the details of all alloc and free events. In this case,
-     * the results should be discarded and tests that rely on these stats should fail.
-     */
-    struct Stats
-    {
-        bool enabled{false};
+struct AllocationTracker {
+  /**
+   * Summarized results of allocations and frees that occurred during the lifetime of
+   * this AllocationTracker, until the point where Stop() was called.
+   *
+   * If `enabled` is false, allocation tracking is not enabled in this build, and no
+   * checks may be performed.
+   *
+   * If `num_events_dropped` is nonzero, the tracker ran out of space and was unable to
+   * completely capture the details of all alloc and free events. In this case, the
+   * results should be discarded and tests that rely on these stats should fail.
+   */
+  struct Stats {
+    bool enabled{false};
 
-        size_t num_events_dropped{0};
+    size_t num_events_dropped{0};
 
-        size_t num_allocs{0};
-        size_t num_frees{0};
+    size_t num_allocs{0};
+    size_t num_frees{0};
 
-        size_t num_bytes_allocated{0};
-        size_t num_bytes_freed{0};
+    size_t num_bytes_allocated{0};
+    size_t num_bytes_freed{0};
 
-        size_t min_alloc_size{0};
-        size_t mean_alloc_size{0};
-        size_t max_alloc_size{0};
-    };
+    size_t min_alloc_size{0};
+    size_t mean_alloc_size{0};
+    size_t max_alloc_size{0};
+  };
 
-    AllocationTracker();
-    ~AllocationTracker();
+  AllocationTracker();
+  ~AllocationTracker();
 
-    AllocationTracker(const AllocationTracker&) = delete;
-    AllocationTracker& operator=(const AllocationTracker&) = delete;
-    AllocationTracker(AllocationTracker&&) = delete;
-    AllocationTracker& operator=(AllocationTracker&&) = delete;
+  AllocationTracker(const AllocationTracker&) = delete;
+  AllocationTracker& operator=(const AllocationTracker&) = delete;
+  AllocationTracker(AllocationTracker&&) = delete;
+  AllocationTracker& operator=(AllocationTracker&&) = delete;
 
-    Stats Stop();
+  Stats Stop();
 
-private:
+ private:
 #if WITH_DATADOG_ALLOCATION_TRACKING
-    bool _stopped{false};
+  bool _stopped{false};
 #endif
-    Stats _stats;
+  Stats _stats;
 };

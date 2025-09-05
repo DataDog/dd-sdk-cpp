@@ -18,7 +18,8 @@ int main(int argc, char *argv[]) {
       .batch_size = DD_BATCH_SIZE_MEDIUM,
       .upload_frequency = DD_UPLOAD_FREQUENCY_AVERAGE,
       .batch_processing_level = DD_BATCH_PROCESSING_LEVEL_MEDIUM,
-      .num_http_requests_per_feature_to_flush_on_stop = 1};
+      .num_http_requests_per_feature_to_flush_on_stop = 1
+  };
 
   dd_core_t *core = dd_core_create(&config);
   if (!core) {

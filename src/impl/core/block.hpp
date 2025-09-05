@@ -26,42 +26,39 @@ using Block = std::string_view;
  * @param n The number of bytes that need to be stored in a buffer.
  * @returns A number greater than or equal to N.
  */
-inline size_t QuantizeBufferSize(const size_t n)
-{
-    // For values under 64kb, round up to the nearest power of two
-    const size_t threshold_kb = 64;
-    const size_t threshold = threshold_kb * static_cast<size_t>(1024);
-    if (n <= threshold)
-    {
-        // Clamp the minimum buffer size to 256 bytes
-        size_t q = std::max(n, static_cast<size_t>(256));
+inline size_t QuantizeBufferSize(const size_t n) {
+  // For values under 64kb, round up to the nearest power of two
+  const size_t threshold_kb = 64;
+  const size_t threshold = threshold_kb * static_cast<size_t>(1024);
+  if (n <= threshold) {
+    // Clamp the minimum buffer size to 256 bytes
+    size_t q = std::max(n, static_cast<size_t>(256));
 
-        // Decrement to handle values that are already a power of two
-        q--;
+    // Decrement to handle values that are already a power of two
+    q--;
 
-        // Smear the highest set bit rightward, resulting in a value that contains all
-        // 1s starting from the most significant bit that was set in the original value;
-        // e.g. 01011001 -> 01111111; 00001101 -> 00001111
-        q |= q >> 1;
-        q |= q >> 2;
-        q |= q >> 4;
-        q |= q >> 8;
-        q |= q >> 16;
-        if constexpr (sizeof(size_t) > 4)
-        {
-            q |= q >> 32;
-        }
-
-        // Increment to arrive at the resulting power of two;
-        // e.g. 01111111 -> 10000000; 00001111 -> 00010000
-        q++;
-        return q;
+    // Smear the highest set bit rightward, resulting in a value that contains all 1s
+    // starting from the most significant bit that was set in the original value; e.g.
+    // 01011001 -> 01111111; 00001101 -> 00001111
+    q |= q >> 1;
+    q |= q >> 2;
+    q |= q >> 4;
+    q |= q >> 8;
+    q |= q >> 16;
+    if constexpr (sizeof(size_t) > 4) {
+      q |= q >> 32;
     }
 
-    // For values above that threshold, increase in 16kb increments
-    const size_t snap_increment_kb = 16;
-    const size_t snap_increment = snap_increment_kb * static_cast<size_t>(1024);
-    return ((n + snap_increment - 1) / snap_increment) * snap_increment;
+    // Increment to arrive at the resulting power of two;
+    // e.g. 01111111 -> 10000000; 00001111 -> 00010000
+    q++;
+    return q;
+  }
+
+  // For values above that threshold, increase in 16kb increments
+  const size_t snap_increment_kb = 16;
+  const size_t snap_increment = snap_increment_kb * static_cast<size_t>(1024);
+  return ((n + snap_increment - 1) / snap_increment) * snap_increment;
 }
 
-} // namespace datadog::impl
+}  // namespace datadog::impl

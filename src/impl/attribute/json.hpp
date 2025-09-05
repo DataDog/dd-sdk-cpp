@@ -12,14 +12,14 @@ namespace datadog::impl {
  *
  * Forward-declared as a friend of Attribute to permit direct access to members.
  */
-struct AttributeSerialization
-{
-    static size_t ComputeValueLen(const Attribute& attribute);
+struct AttributeSerialization {
+  static size_t ComputeValueLen(const Attribute& attribute);
 
-    static size_t
-    WriteValue(const Attribute& attribute, uint8_t* buffer, size_t buffer_size);
+  static size_t WriteValue(
+      const Attribute& attribute, uint8_t* buffer, size_t buffer_size
+  );
 
-    static void ToJSON(const Attribute& attribute, std::vector<uint8_t>& out_buffer);
+  static void ToJSON(const Attribute& attribute, std::vector<uint8_t>& out_buffer);
 };
 
-} // namespace datadog::impl
+}  // namespace datadog::impl

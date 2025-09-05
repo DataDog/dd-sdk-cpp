@@ -5,4 +5,4 @@
 #include "datadog/core.h"
 #include "datadog/logging.h"
 
-#endif // DATADOG_INCLUDE_DATADOG_H
+#endif  // DATADOG_INCLUDE_DATADOG_H

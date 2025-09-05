@@ -13,22 +13,20 @@ namespace impl {
 class Core;
 }
 
-enum class TrackingConsent : uint8_t
-{
-    Granted,
-    NotGranted,
-    Pending,
+enum class TrackingConsent : uint8_t {
+  Granted,
+  NotGranted,
+  Pending,
 };
 
-enum class Site : uint8_t
-{
-    us1,
-    us3,
-    us5,
-    eu1,
-    ap1,
-    ap2,
-    us1_fed,
+enum class Site : uint8_t {
+  us1,
+  us3,
+  us5,
+  eu1,
+  ap1,
+  ap2,
+  us1_fed,
 };
 
 /**
@@ -56,11 +54,10 @@ enum class Site : uint8_t
  * a direct, hard limit on the size of files or requests. The SDK imposes such limits
  * internally.
  */
-enum class BatchSize : uint8_t
-{
-    Small,
-    Medium,
-    Large,
+enum class BatchSize : uint8_t {
+  Small,
+  Medium,
+  Large,
 };
 
 /**
@@ -81,11 +78,10 @@ enum class BatchSize : uint8_t
  * process those batches sequentially, without delay, up to a limit determined by
  * BatchProcessingLevel.
  */
-enum class UploadFrequency : uint8_t
-{
-    Frequent,
-    Average,
-    Rare,
+enum class UploadFrequency : uint8_t {
+  Frequent,
+  Average,
+  Rare,
 };
 
 /**
@@ -96,40 +92,37 @@ enum class UploadFrequency : uint8_t
  * maximize throughput by processing more batches per cycle, potentially creating bursts
  * of HTTP requests.
  */
-enum class BatchProcessingLevel : uint8_t
-{
-    Low,
-    Medium,
-    High,
+enum class BatchProcessingLevel : uint8_t {
+  Low,
+  Medium,
+  High,
 };
 
-struct CoreConfig
-{
-    TrackingConsent tracking_consent;
-    Site datadog_site;
-    std::string client_token;
-    std::string service;
-    std::string env;
-    std::string application_version;
-    BatchSize batch_size;
-    UploadFrequency upload_frequency;
-    BatchProcessingLevel batch_processing_level;
-    size_t num_http_requests_per_feature_to_flush_on_stop;
+struct CoreConfig {
+  TrackingConsent tracking_consent;
+  Site datadog_site;
+  std::string client_token;
+  std::string service;
+  std::string env;
+  std::string application_version;
+  BatchSize batch_size;
+  UploadFrequency upload_frequency;
+  BatchProcessingLevel batch_processing_level;
+  size_t num_http_requests_per_feature_to_flush_on_stop;
 };
 
-class Core
-{
-public:
-    static std::shared_ptr<Core> Create(const CoreConfig& config);
+class Core {
+ public:
+  static std::shared_ptr<Core> Create(const CoreConfig& config);
 
-    bool Start();
-    void Stop();
+  bool Start();
+  void Stop();
 
-private:
-    std::unique_ptr<impl::Core> _impl;
+ private:
+  std::unique_ptr<impl::Core> _impl;
 
-    friend class Logging;
-    friend struct ::CoreTestHarness;
+  friend class Logging;
+  friend struct ::CoreTestHarness;
 };
 
-} // namespace datadog
+}  // namespace datadog

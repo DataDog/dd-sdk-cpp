@@ -1,32 +1,28 @@
 #pragma once
 
+#include <catch2/catch_test_macros.hpp>
 #include <initializer_list>
 #include <sstream>
 #include <string>
 #include <vector>
-
-#include <catch2/catch_test_macros.hpp>
 
 #include "mock/http_client.hpp"
 
 /**
  * Constructs a string representing the JSON array [<value-1>,<value-2>,...<value-N>].
  */
-inline std::string JsonArrayOf(std::initializer_list<std::string> values)
-{
-    std::ostringstream oss;
-    oss << "[";
-    int i = 0;
-    for (const std::string& value : values)
-    {
-        if (i++ > 0)
-        {
-            oss << ',';
-        }
-        oss << value;
+inline std::string JsonArrayOf(std::initializer_list<std::string> values) {
+  std::ostringstream oss;
+  oss << "[";
+  int i = 0;
+  for (const std::string& value : values) {
+    if (i++ > 0) {
+      oss << ',';
     }
-    oss << "]";
-    return oss.str();
+    oss << value;
+  }
+  oss << "]";
+  return oss.str();
 }
 
 /**
@@ -38,86 +34,77 @@ inline std::string JsonArrayOf(std::initializer_list<std::string> values)
  * can handle literal comma chars within quoted string values, but it doesn't handle
  * whitespace is otherwise very brittle.
  */
-inline std::vector<std::string> ParseJsonArrays(std::vector<MockHttpRequest>& requests)
-{
-    // Collect the raw text of every JSON value from the body of each request
-    std::vector<std::string> result;
-    for (const auto& request : requests)
-    {
-        // Request body MUST be a JSON array literal with no padding
-        const std::string& body = request.body;
-        REQUIRE(body.size() >= 2);
-        REQUIRE(body.front() == '[');
-        REQUIRE(body.back() == ']');
+inline std::vector<std::string> ParseJsonArrays(
+    std::vector<MockHttpRequest>& requests
+) {
+  // Collect the raw text of every JSON value from the body of each request
+  std::vector<std::string> result;
+  for (const auto& request : requests) {
+    // Request body MUST be a JSON array literal with no padding
+    const std::string& body = request.body;
+    REQUIRE(body.size() >= 2);
+    REQUIRE(body.front() == '[');
+    REQUIRE(body.back() == ']');
 
-        // Parse comma-separated values, handling quoted strings
-        size_t pos = 1;
-        const size_t end = body.size() - 1;
-        size_t value_start = 1;
-        std::string stack = "";
-        while (pos < end)
-        {
-            // If we're inside a string literal, just scan forward until we find a
-            // closing quote; don't do anything else
-            const bool in_string_literal = !stack.empty() && stack.back() == '"';
-            if (in_string_literal)
-            {
-                // Skip over escape sequences entirely
-                if (body[pos] == '\\')
-                {
-                    pos++;
-                    if (body[pos] == 'u')
-                    {
-                        pos++;
-                        pos++;
-                        pos++;
-                    }
-                    pos++;
-                    continue;
-                }
-
-                // If we see a non-escaped double-quote, it's the closing quote
-                if (body[pos] == '"')
-                {
-                    stack.pop_back();
-                }
-                pos++;
-                continue;
-            }
-
-            // We're not in a string literal: if we see square brackets or curly braces,
-            // update our stack to reflect current array/object nesting depth
-            if (body[pos] == '[' || body[pos] == '{')
-            {
-                stack.push_back(body[pos]);
-                pos++;
-                continue;
-            }
-
-            if (body[pos] == ']' || body[pos] == '}')
-            {
-                const char counterpart = body[pos] == ']' ? '[' : '{';
-                REQUIRE(stack.back() == counterpart);
-                stack.pop_back();
-                pos++;
-                continue;
-            }
-
-            // If we're not nested in any sub-arrays or sub-objects, and the current
-            // character is a comma, grab this value and chuck it into our result vector
-            if (stack == "" && body[pos] == ',')
-            {
-                result.push_back(body.substr(value_start, pos - value_start));
-                value_start = pos + 1;
-            }
+    // Parse comma-separated values, handling quoted strings
+    size_t pos = 1;
+    const size_t end = body.size() - 1;
+    size_t value_start = 1;
+    std::string stack = "";
+    while (pos < end) {
+      // If we're inside a string literal, just scan forward until we find a closing
+      // quote; don't do anything else
+      const bool in_string_literal = !stack.empty() && stack.back() == '"';
+      if (in_string_literal) {
+        // Skip over escape sequences entirely
+        if (body[pos] == '\\') {
+          pos++;
+          if (body[pos] == 'u') {
             pos++;
+            pos++;
+            pos++;
+          }
+          pos++;
+          continue;
         }
 
-        // Grab the final value in the array, if there is one
-        if (pos > value_start)
-        {
-            result.push_back(body.substr(value_start, pos - value_start));
+        // If we see a non-escaped double-quote, it's the closing quote
+        if (body[pos] == '"') {
+          stack.pop_back();
         }
+        pos++;
+        continue;
+      }
+
+      // We're not in a string literal: if we see square brackets or curly braces,
+      // update our stack to reflect current array/object nesting depth
+      if (body[pos] == '[' || body[pos] == '{') {
+        stack.push_back(body[pos]);
+        pos++;
+        continue;
+      }
+
+      if (body[pos] == ']' || body[pos] == '}') {
+        const char counterpart = body[pos] == ']' ? '[' : '{';
+        REQUIRE(stack.back() == counterpart);
+        stack.pop_back();
+        pos++;
+        continue;
+      }
+
+      // If we're not nested in any sub-arrays or sub-objects, and the current character
+      // is a comma, grab this value and chuck it into our result vector
+      if (stack == "" && body[pos] == ',') {
+        result.push_back(body.substr(value_start, pos - value_start));
+        value_start = pos + 1;
+      }
+      pos++;
     }
-    return result;
+
+    // Grab the final value in the array, if there is one
+    if (pos > value_start) {
+      result.push_back(body.substr(value_start, pos - value_start));
+    }
+  }
+  return result;
 }

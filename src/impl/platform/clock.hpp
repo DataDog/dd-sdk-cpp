@@ -25,33 +25,31 @@ using Timestamp = std::chrono::time_point<std::chrono::system_clock, Duration>;
  *
  * Reading the system clock is assumed to be thread-safe.
  */
-class IClock
-{
-protected:
-    IClock() = default;
+class IClock {
+ protected:
+  IClock() = default;
 
-public:
-    virtual ~IClock() = default;
+ public:
+  virtual ~IClock() = default;
 
-    // Copyable and movable: has no state
-    IClock(const IClock&) = default;
-    IClock& operator=(const IClock&) = default;
-    IClock(IClock&&) = default;
-    IClock& operator=(IClock&&) = default;
+  // Copyable and movable: has no state
+  IClock(const IClock&) = default;
+  IClock& operator=(const IClock&) = default;
+  IClock(IClock&&) = default;
+  IClock& operator=(IClock&&) = default;
 
-    /**
-     * Returns the elapsed wall-clock time since the Unix epoch, i.e. since midnight
-     * January 1, 1970, UTC, in nanoseconds.
-     */
-    virtual Timestamp Now() const = 0;
+  /**
+   * Returns the elapsed wall-clock time since the Unix epoch, i.e. since midnight
+   * January 1, 1970, UTC, in nanoseconds.
+   */
+  virtual Timestamp Now() const = 0;
 };
 
-struct Clock
-{
-    /**
-     * Creates an IClock interface used to read to the system clock.
-     */
-    static std::unique_ptr<IClock> Init();
+struct Clock {
+  /**
+   * Creates an IClock interface used to read to the system clock.
+   */
+  static std::unique_ptr<IClock> Init();
 };
 
-} // namespace datadog::platform
+}  // namespace datadog::platform
