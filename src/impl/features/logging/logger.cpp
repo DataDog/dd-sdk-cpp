@@ -2,6 +2,7 @@
 
 #include "datadog/attribute.hpp"
 
+#include "assert.hpp"
 #include "core/version.hpp"
 
 namespace datadog::impl {
@@ -46,7 +47,7 @@ void Logger::EmitLogEvent(
 {
     // _event_callback should always be safe to call: it's initialized on Logger
     // construction and never cleared
-    assert(_event_callback != nullptr && "null event callback on EmitLogEvent");
+    DATADOG_ASSERT(_event_callback != nullptr, "null event callback on EmitLogEvent");
 
     // Determine whether we should handle this message at all: if its severity level is
     // below the threshold for sampling, ignore it

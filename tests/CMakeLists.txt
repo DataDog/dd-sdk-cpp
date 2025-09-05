@@ -30,6 +30,7 @@ add_executable(dd_native_tests
     support/attribute_debug.cpp
 )
 target_enable_strict_warnings(dd_native_tests)
+target_enable_datadog_assert(dd_native_tests)
 target_enable_coverage(dd_native_tests)
 
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)

@@ -1,8 +1,9 @@
 cmake_minimum_required(VERSION 3.21)
 project(dd-native VERSION 0.1.0 LANGUAGES C CXX)
 
-# Run builds with -DDD_DEVELOPMENT=ON to build everything by default
-option(DD_DEVELOPMENT "Enable development mode (examples, tests, analysis)" OFF)
+# Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
+# development of the SDK implementation
+option(DD_DEVELOPMENT "Enable development mode (examples, tests, analysis, asserts)" OFF)
 
 # Library implementation uses C++17; C API expects C99
 set(CMAKE_C_STANDARD 99)
@@ -16,6 +17,15 @@ function(target_enable_strict_warnings target_name)
         target_compile_options(${target_name} PRIVATE /W4 /WX)
     else()
         target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic -Werror)
+    endif()
+endfunction()
+
+# If configured with asserts enabled, define WITH_DATADOG_ASSERTS for targets that call
+# DATADOG_ASSERT
+option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_DEVELOPMENT})
+function(target_enable_datadog_assert target_name)
+    if(DD_ENABLE_ASSERTS)
+        target_compile_definitions(${target_name} PRIVATE WITH_DATADOG_ASSERTS=1)
     endif()
 endfunction()
 

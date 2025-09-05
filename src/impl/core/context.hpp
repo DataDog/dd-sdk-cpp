@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cassert>
 #include <string>
 
 #include "core/site.hpp"

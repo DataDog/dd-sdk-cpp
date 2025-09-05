@@ -3,9 +3,9 @@
  */
 #include "platform/http.hpp"
 
-#include <cassert>
-
 #include "curl/curl.h"
+
+#include "assert.hpp"
 
 namespace datadog::platform {
 
@@ -27,7 +27,7 @@ namespace datadog::platform {
 static size_t read_callback(char* buffer, size_t size, size_t nitems, void* userdata)
 {
     // We should never be called without a valid userdata pointer
-    assert(userdata && "CURLOPT_READFUNCTION set without valid CURLOPT_READDATA");
+    DATADOG_ASSERT(userdata, "CURLOPT_READFUNCTION set without valid CURLOPT_READDATA");
 
     // userdata should always point to an HttpBodyWriter function
     // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -57,7 +57,7 @@ static curl_slist* build_slist(std::string_view headers)
     }
 
     // Headers must be given to us with a trailing newline
-    assert(headers.back() == '\n');
+    DATADOG_ASSERT(headers.back() == '\n', "HTTP headers missing trailing newline");
 
     // Create a copy of the string that contains our newline-delimited header values, so
     // we can mutate it in-place to make null-terminated strings to pass into curl
@@ -97,7 +97,7 @@ public:
     explicit CurlHttpClient(CURL* curl)
         : _curl(curl)
     {
-        assert(_curl && "CurlHttpClient constructed with null curl handle");
+        DATADOG_ASSERT(_curl, "CurlHttpClient constructed with null curl handle");
     }
 
     ~CurlHttpClient() override
@@ -138,31 +138,31 @@ public:
         // curl_slist* values, indexed by the string headers used to construct them.
         curl_slist* headers_slist = build_slist(headers);
         res = curl_easy_setopt(_curl, CURLOPT_HTTPHEADER, headers_slist);
-        assert(res == CURLE_OK && "Failed to set CURLOPT_HTTPHEADER");
+        DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_HTTPHEADER");
 
         // Point curl to our callback function that will read the next chunk of data
         // into the request body when ready
         res = curl_easy_setopt(_curl, CURLOPT_READFUNCTION, read_callback);
-        assert(res == CURLE_OK && "Failed to set CURLOPT_READFUNCTION");
+        DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_READFUNCTION");
         res = curl_easy_setopt(_curl, CURLOPT_READDATA, &body_writer);
-        assert(res == CURLE_OK && "Failed to set CURLOPT_READDATA");
+        DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_READDATA");
         res = curl_easy_setopt(_curl, CURLOPT_UPLOAD, 1L); // Needed with READFUNCTION
-        assert(res == CURLE_OK && "Failed to set CURLOPT_UPLOAD");
+        DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_UPLOAD");
         res = curl_easy_setopt(_curl, CURLOPT_POSTFIELDSIZE_LARGE, -1);
-        assert(res == CURLE_OK && "Failed to set CURLOPT_POSTFIELDSIZE_LARGE");
+        DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_POSTFIELDSIZE_LARGE");
 
         // Set the request method to POST: this must be done after CURLOPT_UPLOAD or
         // else the method will be overridden to PUT
         res = curl_easy_setopt(_curl, CURLOPT_POST, 1L);
-        assert(res == CURLE_OK && "Failed to set CURLOPT_POST");
+        DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_POST");
 
         // Configure timeouts to prevent hanging
         res = curl_easy_setopt(
             _curl, CURLOPT_CONNECTTIMEOUT, 10L
         ); // 10 second connection timeout
-        assert(res == CURLE_OK && "Failed to set CURLOPT_CONNECTTIMEOUT");
+        DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_CONNECTTIMEOUT");
         res = curl_easy_setopt(_curl, CURLOPT_TIMEOUT, 30L); // 30 second total timeout
-        assert(res == CURLE_OK && "Failed to set CURLOPT_TIMEOUT");
+        DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_TIMEOUT");
 
         // Initiate the request and block until it's finished
         const CURLcode perform_res = curl_easy_perform(_curl);
@@ -175,8 +175,8 @@ public:
             // If our request completed successfully, get the response code
             case CURLE_OK:
                 res = curl_easy_getinfo(_curl, CURLINFO_RESPONSE_CODE, &status_code);
-                assert(
-                    res == CURLE_OK &&
+                DATADOG_ASSERT(
+                    res == CURLE_OK,
                     "Failed to get CURLINFO_RESPONSE_CODE after curl_easy_perform "
                     "returned OK"
                 );

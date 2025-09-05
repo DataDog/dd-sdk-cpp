@@ -7,6 +7,7 @@
 
 #include "nonstd/expected.hpp"
 
+#include "assert.hpp"
 #include "core/block.hpp"
 #include "core/context.hpp"
 #include "core/tlv.hpp"
@@ -123,8 +124,8 @@ public:
         // Successful read; block is valid: construct a lightweight view of our member
         // vector, and return a TLVBlock object
         Block block_data{_block_data_buffer.data(), _block_data_buffer.size()};
-        assert(
-            block_data.size() == result.header.block_size &&
+        DATADOG_ASSERT(
+            block_data.size() == result.header.block_size,
             "After OK ReadTLVBlock, buffer size does not match block size in header"
         );
         return TLVBlock{result.header.type, block_data, result.eof};

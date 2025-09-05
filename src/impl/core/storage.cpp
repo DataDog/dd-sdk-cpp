@@ -2,7 +2,6 @@
 
 #include <algorithm>
 #include <array>
-#include <cassert>
 #include <charconv>
 #include <chrono>
 #include <iostream>
@@ -11,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "assert.hpp"
 #include "core/core.hpp"
 #include "core/tlv.hpp"
 #include "core/types.hpp"
@@ -46,7 +46,7 @@ static std::string_view _ms_to_string(
 
     // We require a fixed-size buffer large enough to fit any uint64_t, so conversion
     // should always succeed
-    assert(result.ec == std::errc{} && "uint64 to string conversion failed");
+    DATADOG_ASSERT(result.ec == std::errc{}, "uint64 to string conversion failed");
 
     // Return a std::string_view, which does NOT require a null terminator, constructed
     // from our buffer
@@ -111,7 +111,7 @@ bool BatchWriter::MigrateTo(BatchWriter& other) // NOLINT (TODO)
 
 bool BatchWriter::HandleWrite(Block event, Block event_metadata)
 {
-    assert(!event.empty() && "HandleWrite received empty event");
+    DATADOG_ASSERT(!event.empty(), "HandleWrite received empty event");
 
     // If we don't permit at least 1 write per file, reject all writes
     if (_config.max_writes_per_file <= 0)
@@ -164,7 +164,9 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata)
             TLVBlockType::Metadata,
             event_metadata
         );
-        assert(metadata_tlv_size > 0 && "Failed to write TLV metadata block to buffer");
+        DATADOG_ASSERT(
+            metadata_tlv_size > 0, "Failed to write TLV metadata block to buffer"
+        );
         write_addr += metadata_tlv_size;
     }
 
@@ -172,9 +174,11 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata)
     const size_t event_tlv_size = EncodeTLVBlock(
         write_addr, write_buffer_end - write_addr, TLVBlockType::Event, event
     );
-    assert(event_tlv_size > 0 && "Failed to write TLV event block to buffer");
-    write_addr += event_tlv_size;
-    assert(write_addr == write_buffer_end && "Unexpected number of bytes written");
+    DATADOG_ASSERT(event_tlv_size > 0, "Failed to write TLV event block to buffer");
+    write_addr += event_tlv_size; // NOLINT(clang-analyzer-deadcode.DeadStores)
+    DATADOG_ASSERT(
+        write_addr == write_buffer_end, "Unexpected number of bytes written"
+    );
 
     // Perform a single atomic write to ensure that header + data (and metadata + event,
     // if applicable) are written together, all-or-nothing
@@ -405,7 +409,7 @@ bool EventStorage::SetTrackingConsent(TrackingConsent value)
 
 bool EventStorage::HandleWrite(Block event, Block event_metadata)
 {
-    assert(!event.empty() && "HandleWrite received empty event");
+    DATADOG_ASSERT(!event.empty(), "HandleWrite received empty event");
 
     // Branch on tracking consent to determine the appropriate place for the new event
     switch (_consent)
@@ -457,13 +461,15 @@ static void _handle_event_generated(
     // Ignore the message if no such feature exists
     if (feature == features.end())
     {
-        assert(false && "feature_id on generated event matches no registered feature");
+        DATADOG_ASSERT(
+            false, "feature_id on generated event matches no registered feature"
+        );
         return;
     }
 
     // No RegisteredFeature should ever be initialized without a valid EventStorage
-    assert(
-        feature->event_storage &&
+    DATADOG_ASSERT(
+        feature->event_storage,
         "feature identified by generated event does not have a valid EventStorage"
     );
 

@@ -1,6 +1,6 @@
 #include "core/writer.hpp"
 
-#include <cassert>
+#include "assert.hpp"
 
 namespace datadog::impl {
 
@@ -8,8 +8,8 @@ static size_t
 _chunked_write(char* dst, size_t dst_size, const char* src, size_t src_size)
 {
     // Checks for zero size should occur before we're called
-    assert(dst_size > 0 && "Attempted write with zero-length dst buffer");
-    assert(src_size > 0 && "Attempted write with zero-length src buffer");
+    DATADOG_ASSERT(dst_size > 0, "Attempted write with zero-length dst buffer");
+    DATADOG_ASSERT(src_size > 0, "Attempted write with zero-length src buffer");
 
     // Copy from src as many bytes as will fit in dst
     const size_t num_bytes_to_copy = std::min(dst_size, src_size);
@@ -81,7 +81,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes)
     if (state.mode == Mode::Prefix)
     {
         // Write as much of the prefix as will fit
-        assert(num_bytes_written <= num_bytes && "uint wraparound");
+        DATADOG_ASSERT(num_bytes_written <= num_bytes, "uint wraparound");
         num_bytes_written += state.Write(write_ptr, num_bytes - num_bytes_written);
 
         // If we wrote the whole thing, exit the prefix state and prepare to write the
@@ -92,7 +92,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes)
         }
 
         // If we've filled the buffer, write no more
-        assert(num_bytes_written <= num_bytes && "buffer overrun");
+        DATADOG_ASSERT(num_bytes_written <= num_bytes, "buffer overrun");
         if (num_bytes_written >= num_bytes)
         {
             return num_bytes_written;
@@ -146,7 +146,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes)
             if (!state.Done())
             {
                 // Write as much of the event data into the buffer as will fit
-                assert(num_bytes_written <= num_bytes && "uint wraparound");
+                DATADOG_ASSERT(num_bytes_written <= num_bytes, "uint wraparound");
                 num_bytes_written +=
                     state.Write(write_ptr, num_bytes - num_bytes_written);
 
@@ -166,7 +166,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes)
                 }
 
                 // If we've filled the buffer, write no more
-                assert(num_bytes_written <= num_bytes && "buffer overrun");
+                DATADOG_ASSERT(num_bytes_written <= num_bytes, "buffer overrun");
                 if (num_bytes_written >= num_bytes)
                 {
                     return num_bytes_written;
@@ -176,7 +176,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes)
         else
         {
             // Handle writing the delimiter that precedes the next event
-            assert(num_bytes_written <= num_bytes && "uint wraparound");
+            DATADOG_ASSERT(num_bytes_written <= num_bytes, "uint wraparound");
             num_bytes_written += state.Write(write_ptr, num_bytes - num_bytes_written);
 
             // Delimiter always precedes event
@@ -186,7 +186,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes)
             }
 
             // If we've filled the buffer, write no more
-            assert(num_bytes_written <= num_bytes && "buffer overrun");
+            DATADOG_ASSERT(num_bytes_written <= num_bytes, "buffer overrun");
             if (num_bytes_written >= num_bytes)
             {
                 return num_bytes_written;
@@ -200,7 +200,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes)
         // If we have more suffix data to write, write it
         if (!state.Done())
         {
-            assert(num_bytes_written <= num_bytes && "uint wraparound");
+            DATADOG_ASSERT(num_bytes_written <= num_bytes, "uint wraparound");
             num_bytes_written += state.Write(write_ptr, num_bytes - num_bytes_written);
         }
 
@@ -211,7 +211,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes)
     }
 
     // Our state-machine logic shouldn't let us get here
-    assert(false && "Unexpected state in TLVBatchWriter");
+    DATADOG_ASSERT(false, "Unexpected state in TLVBatchWriter");
     return platform::HTTP_WRITE_RESULT_ABORT;
 }
 

@@ -1,9 +1,10 @@
 #include "platform/filesystem.hpp"
 
-#include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <limits>
+
+#include "assert.hpp"
 
 namespace datadog::platform {
 
@@ -98,7 +99,10 @@ public:
     FilesystemResult<FileReadResult> Read(char* dst, size_t n) override
     {
         // Read up to n bytes from the file into dst
-        assert(n <= std::numeric_limits<std::streamsize>::max());
+        DATADOG_ASSERT(
+            n <= std::numeric_limits<std::streamsize>::max(),
+            "unexpected truncation of file read size"
+        );
         _infile.read(dst, static_cast<std::streamsize>(n));
 
         // If bad bit is set, an I/O error occurred
@@ -171,7 +175,10 @@ public:
         }
 
         // File is open: attempt to write all n bytes to the file, then check error bits
-        assert(n <= std::numeric_limits<std::streamsize>::max());
+        DATADOG_ASSERT(
+            n <= std::numeric_limits<std::streamsize>::max(),
+            "unexpected truncation of file write size"
+        );
         outfile.write(src, static_cast<std::streamsize>(n));
         if (outfile.bad())
         {
@@ -209,7 +216,9 @@ public:
     FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) override
     {
         // Result vector should be cleared by the caller
-        assert(out_names.empty() && "ListFiles called with non-empty result vector");
+        DATADOG_ASSERT(
+            out_names.empty(), "ListFiles called with non-empty result vector"
+        );
 
         // Initialize a directory iterator, and check to see if it was successful
         std::error_code ec;
@@ -248,7 +257,7 @@ public:
     FilesystemResult<void> DeleteFile(std::string_view name) override
     {
         // Build the path to the target file
-        assert(_is_clean_basename(name));
+        DATADOG_ASSERT(_is_clean_basename(name), "invalid filename");
         const std::filesystem::path file_path = _path / name;
 
         // Attempt to delete the file
@@ -272,7 +281,7 @@ public:
     ) override
     {
         // Build the path to the target file
-        assert(_is_clean_basename(name));
+        DATADOG_ASSERT(_is_clean_basename(name), "invalid filename");
         const std::filesystem::path file_path = _path / name;
 
         // Open the file for read in binary mode, and wrap it in a StdFileReader
@@ -301,7 +310,7 @@ public:
     ) override
     {
         // Initialize a wrapper for a file at the target path
-        assert(_is_clean_basename(name));
+        DATADOG_ASSERT(_is_clean_basename(name), "invalid filename");
         return std::make_unique<StdFileWriter>(_path / name);
     }
 
@@ -310,7 +319,7 @@ public:
     ) override
     {
         // Build the path to the target directory
-        assert(_is_clean_basename(name));
+        DATADOG_ASSERT(_is_clean_basename(name), "invalid directory name");
         const std::filesystem::path subdir_path = _path / name;
 
         // Check to see if the target path is occupied

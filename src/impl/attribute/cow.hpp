@@ -1,7 +1,6 @@
 #pragma once
 
 #include <atomic>
-#include <cassert>
 #include <cinttypes>
 #include <limits>
 #include <string>

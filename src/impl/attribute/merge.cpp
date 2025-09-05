@@ -1,8 +1,7 @@
 #include "attribute/merge.hpp"
 
+#include "assert.hpp"
 #include "attribute/cow.hpp"
-
-#include <cassert>
 
 namespace datadog::impl {
 
@@ -15,7 +14,7 @@ void AttributeMerge::AssembleObject(
     // Require that the target attribute is already of type Object
     if (mut_obj.GetType() != ValueType::Object)
     {
-        assert(false && "non-object value passed to AssembleObject");
+        DATADOG_ASSERT(false, "non-object value passed to AssembleObject");
         return;
     }
 

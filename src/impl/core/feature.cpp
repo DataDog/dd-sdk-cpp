@@ -1,14 +1,18 @@
 #include "core/feature.hpp"
 
-#include <cassert>
+#include "assert.hpp"
 
 namespace datadog::impl {
 
 void Feature::OnCoreStarted(const EventGeneratedFunc& event_callback)
 {
     // We're now permitted to write events; store a reference to our writer callback
-    assert(!_event_callback && "Feature has non-null _event_callback in OnCoreStarted");
-    assert(event_callback && "Feature received null event_callback in OnCoreStarted");
+    DATADOG_ASSERT(
+        !_event_callback, "Feature has non-null _event_callback in OnCoreStarted"
+    );
+    DATADOG_ASSERT(
+        event_callback, "Feature received null event_callback in OnCoreStarted"
+    );
     _event_callback = event_callback;
 
     // Notify the feature that the core is started
@@ -22,7 +26,7 @@ void Feature::OnCoreStopping()
     Stop();
 
     // Clear the writer callback; we're no longer permitted to write anything
-    assert(_event_callback && "Feature has null _event_callback in OnCoreStop");
+    DATADOG_ASSERT(_event_callback, "Feature has null _event_callback in OnCoreStop");
     _event_callback = nullptr;
 }
 

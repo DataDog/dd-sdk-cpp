@@ -1,5 +1,6 @@
 #include "core/context.hpp"
 
+#include "assert.hpp"
 #include "core/version.hpp"
 
 namespace datadog::impl {
@@ -13,8 +14,14 @@ void CoreContext::BuildRequestURL(
     static const std::string_view ddsource_param = "ddsource=";
 
     // Origin should never end with '/'; path should always start with '/'
-    assert(!intake_origin.empty() && intake_origin.back() != '/');
-    assert(!path.empty() && path.front() == '/');
+    DATADOG_ASSERT(
+        !intake_origin.empty() && intake_origin.back() != '/',
+        "HTTP origin not normalized to strip trailing slash"
+    );
+    DATADOG_ASSERT(
+        !path.empty() && path.front() == '/',
+        "feature erroneously supplied URL path without leading slash"
+    );
 
     // Compute the size of our updated URL
     size_t url_len = intake_origin.size() + path.size();
@@ -57,20 +64,41 @@ void CoreContext::BuildRequestHeaders(
     static const std::string_view user_agent_header = "User-Agent: ";
 
     // If the feature supplies extra headers, they should always end with a newline
-    assert(feature_headers.empty() || feature_headers.back() == '\n');
+    DATADOG_ASSERT(
+        feature_headers.empty() || feature_headers.back() == '\n',
+        "feature-supplied headers must be empty or end with a newline"
+    );
 
     // Values for standard headers should not be supplied by the feature implementation
-    assert(feature_headers.find(content_type_header) == std::string_view::npos);
-    assert(feature_headers.find(dd_api_key) == std::string_view::npos);
-    assert(feature_headers.find(dd_evp_origin) == std::string_view::npos);
-    assert(feature_headers.find(dd_evp_origin_version) == std::string_view::npos);
-    assert(feature_headers.find(dd_request_id) == std::string_view::npos);
-    assert(feature_headers.find(user_agent_header) == std::string_view::npos);
+    DATADOG_ASSERT(
+        feature_headers.find(content_type_header) == std::string_view::npos,
+        "feature erroneously supplies Content-Type header"
+    );
+    DATADOG_ASSERT(
+        feature_headers.find(dd_api_key) == std::string_view::npos,
+        "feature erroneously supplies DD-API-KEY header"
+    );
+    DATADOG_ASSERT(
+        feature_headers.find(dd_evp_origin) == std::string_view::npos,
+        "feature erroneously supplies DD-EVP-ORIGIN header"
+    );
+    DATADOG_ASSERT(
+        feature_headers.find(dd_evp_origin_version) == std::string_view::npos,
+        "feature erroneously supplies DD-EVP-ORIGIN-VERSION header"
+    );
+    DATADOG_ASSERT(
+        feature_headers.find(dd_request_id) == std::string_view::npos,
+        "feature erroneously supplies DD-REQUEST-ID header"
+    );
+    DATADOG_ASSERT(
+        feature_headers.find(user_agent_header) == std::string_view::npos,
+        "feature erroneously supplies User-Agent header"
+    );
 
     // TODO: Generate Request ID
     static const size_t HYPHENATED_UUID_LEN = 36;
     static const std::string_view request_id = "00000000-0000-0000-0000-000000000000";
-    assert(request_id.size() == HYPHENATED_UUID_LEN);
+    DATADOG_ASSERT(request_id.size() == HYPHENATED_UUID_LEN, "unexpected UUID len");
 
     // TODO: Generate User-Agent
     static const std::string_view user_agent = "nobody";

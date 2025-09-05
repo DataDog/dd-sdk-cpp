@@ -1,8 +1,8 @@
 #include "datadog/attribute.hpp"
 
-#include <cassert>
 #include <iostream>
 
+#include "assert.hpp"
 #include "attribute/cow.hpp"
 
 namespace datadog {
@@ -554,8 +554,8 @@ impl::CowValue* Attribute::GetCowValueForWrite()
 {
     // This is a private helper function; it should only be called if we've already
     // checked that our value is a COW type
-    assert(
-        !_is_primitive_type(type) &&
+    DATADOG_ASSERT(
+        !_is_primitive_type(type),
         "GetCowValueForWrite called on attribute of primitive type"
     );
 

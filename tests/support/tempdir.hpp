@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cassert>
 #include <chrono>
 #include <filesystem>
 #include <fstream>
@@ -18,6 +17,8 @@
 #include <windows.h>
 #endif
 
+#include "assert.hpp"
+
 /**
  * Returns the path to a suitable system-wide temp file directory.
  */
@@ -30,7 +31,7 @@ static std::filesystem::path _get_temp_root()
     {
         return std::filesystem::path(buffer);
     }
-    assert(false && "Failed to get temp path");
+    DATADOG_ASSERT(false, "Failed to get temp path");
 #else
     const char* tmpdir = std::getenv("TMPDIR");
     if (tmpdir)
@@ -81,7 +82,7 @@ struct TempDirectory
     // Tests can override temporarily (or you can change this value here temporarily)
     // in order to examine files created on disk after the test (or just attach a
     // debugger and break before exit)
-    bool should_delete{ true };
+    bool should_delete{true};
 
     /**
      * Creates the directory a la `mkdir -p`.
@@ -91,7 +92,7 @@ struct TempDirectory
     {
         std::error_code ec;
         std::filesystem::create_directories(path, ec);
-        assert(ec == std::error_code{});
+        DATADOG_ASSERT(ec == std::error_code{}, "failed to create temp directory");
     }
 
     /**
@@ -137,7 +138,7 @@ struct TempDirectory
     {
         std::filesystem::path file_path = std::filesystem::path(path) / filename;
         std::ofstream file(file_path, std::ios::binary);
-        assert(file.is_open());
+        DATADOG_ASSERT(file.is_open(), "failed to open temp file for write");
         file.write(contents.data(), contents.size());
     }
 
