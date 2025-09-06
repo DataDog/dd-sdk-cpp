@@ -69,13 +69,31 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes) {
   // Write the prefix if we haven't already
   if (state.mode == Mode::Prefix) {
     // Write as much of the prefix as will fit
-    DATADOG_ASSERT(num_bytes_written <= num_bytes, "uint wraparound");
     num_bytes_written += state.Write(write_ptr, num_bytes - num_bytes_written);
 
     // If we wrote the whole thing, exit the prefix state and prepare to write the first
-    // event
-    if (state.Done()) {
-      state.Enter(Mode::Event, {});
+    // event, reading from the file until we find the first event block
+    while (state.Done()) {
+      // If we fail to read from the batch file, abort the request
+      auto first = reader.ReadNext();
+      if (!first.has_value()) {
+        return platform::HTTP_WRITE_RESULT_ABORT;
+      }
+
+      // If we reach the end of the file without finding a single event block, abort the
+      // request
+      std::optional<TLVBlock> block = *first;
+      if (!block) {
+        return platform::HTTP_WRITE_RESULT_ABORT;
+      }
+
+      // If we found a metadata block, ignore it
+      if (block->type != TLVBlockType::Event) {
+        continue;
+      }
+
+      // We've found our first event: transition to writing it
+      state.Enter(Mode::Event, block->data);
     }
 
     // If we've filled the buffer, write no more
@@ -88,70 +106,57 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes) {
   // Keep writing events, separated by the delimiter, until we run out of events or fill
   // the buffer
   while (state.mode == Mode::Event || state.mode == Mode::Delimiter) {
+    // If we currently have an event block, begin (or resume) writing it
     if (state.mode == Mode::Event) {
-      // Populate state.s with a view of the next event block to write: state.Done() is
-      // true when we haven't yet read a block, or when the block we last read has been
-      // fully written
-      while (state.Done() && !eof) {
-        // Read the next TLV block from the file
+      // Write as much of the event block as will fit
+      num_bytes_written += state.Write(write_ptr, num_bytes - num_bytes_written);
+
+      // If we've written the whole event, read from the file until we find another
+      // event: if we find one, transition to writing the delimiter, followed by that
+      // event; if we hit EOF, transition to writing the suffix
+      while (state.Done()) {
+        // Read the next TLV block from the file, aborting on any read failure
         auto next = reader.ReadNext();
         if (!next.has_value()) {
-          // Abort the request on any read failure
           return platform::HTTP_WRITE_RESULT_ABORT;
         }
 
-        // Set EOF when we've read the last block
-        eof = next->eof;
+        // Read OK: if we have no block, we're at EOF and we can wrap up
+        std::optional<TLVBlock> block = *next;
+        if (!block) {
+          state.Enter(Mode::Suffix, suffix);
+          break;
+        }
 
-        // We only care about event blocks; if we hit a metadata block, skip it and keep
-        // reading
-        if (next->type != TLVBlockType::Event) {
+        // Skip metadata blocks
+        if (block->type != TLVBlockType::Event) {
           continue;
         }
 
-        // We have an event block: accept it into our state struct, making state.Done()
-        // no longer true
-        state.Enter(Mode::Event, next->data);
+        // We have an event block: keep track of it so we can transition to writing it
+        // after the delimiter, but first write the delimiter
+        next_event = block->data;
+        state.Enter(Mode::Delimiter, delimiter);
+        break;
       }
 
-      // If we've read the entire file without finding any events, abort
-      if (state.Done() && eof) {
-        return platform::HTTP_WRITE_RESULT_ABORT;
+      // If we've filled the buffer, write no more
+      DATADOG_ASSERT(num_bytes_written <= num_bytes, "buffer overrun");
+      if (num_bytes_written >= num_bytes) {
+        return num_bytes_written;
       }
+    }
 
-      // Write event data if we have it: state.Done() will be false here if we just read
-      // a block and reset state.s, -or- if the previous callback invocation only had
-      // partial space for the last block and we're resuming from where we left off
-      if (!state.Done()) {
-        // Write as much of the event data into the buffer as will fit
-        DATADOG_ASSERT(num_bytes_written <= num_bytes, "uint wraparound");
-        num_bytes_written += state.Write(write_ptr, num_bytes - num_bytes_written);
-
-        // If we finished writing the whole event, exit the event state
-        if (state.Done()) {
-          if (eof) {
-            // If we've read the last block, we just finished writing it
-            state.Enter(Mode::Suffix, suffix);
-          } else {
-            // There are more events to read, so enter the delimiter state
-            state.Enter(Mode::Delimiter, delimiter);
-          }
-        }
-
-        // If we've filled the buffer, write no more
-        DATADOG_ASSERT(num_bytes_written <= num_bytes, "buffer overrun");
-        if (num_bytes_written >= num_bytes) {
-          return num_bytes_written;
-        }
-      }
-    } else {
-      // Handle writing the delimiter that precedes the next event
-      DATADOG_ASSERT(num_bytes_written <= num_bytes, "uint wraparound");
+    // If we're currently writing a delimiter, continue writing it, then transition to
+    // writing the subsequent event
+    if (state.mode == Mode::Delimiter) {
+      // Write as much of the delimiter as will fit
       num_bytes_written += state.Write(write_ptr, num_bytes - num_bytes_written);
 
-      // Delimiter always precedes event
+      // If we've written the whole delimiter, transition to writing the next event
+      // that we read previously
       if (state.Done()) {
-        state.Enter(Mode::Event, {});
+        state.Enter(Mode::Event, next_event);
       }
 
       // If we've filled the buffer, write no more

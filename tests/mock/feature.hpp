@@ -103,11 +103,13 @@ class MockFeature : public impl::Feature {
         break;
       }
 
-      // Block read OK; copy data to vector
-      report.blocks_read.emplace_back(result->type, result->data);
-
-      // If this was the last block, we're done
-      if (result->eof) {
+      // Block read OK; handle block if we have one
+      std::optional<impl::TLVBlock> block = *result;
+      if (block) {
+        // We successfully read a full block; copy its data to vector
+        report.blocks_read.emplace_back(block->type, block->data);
+      } else {
+        // There are no more blocks to read: we're done
         break;
       }
     }

@@ -33,14 +33,6 @@ template <typename T>
 using FilesystemResult = nonstd::expected<T, FilesystemError>;
 
 /**
- * Result of a successful file read operation.
- */
-struct FileReadResult {
-  size_t num_bytes_read;
-  bool eof;
-};
-
-/**
  * Handle to a binary file that's currently open for read.
  */
 class IFileReader {
@@ -75,11 +67,11 @@ class IFileReader {
   /**
    * Reads up to `n` bytes from the file into `dst`.
    *
-   * @returns On successful read, the number of bytes actually read from the file, and a
-   *  flag indicating whether the read operation encountered the end of the file. If the
-   *  read operation failed, returns a FilesystemError.
+   * @returns On successful read, the number of bytes actually read from the file. A
+   *  return value less than `n` indicates EOF. If the read operation fails, returns a
+   *  FilesystemError.
    */
-  virtual FilesystemResult<FileReadResult> Read(char* dst, size_t n) = 0;
+  virtual FilesystemResult<size_t> Read(char* dst, size_t n) = 0;
 };
 
 /**

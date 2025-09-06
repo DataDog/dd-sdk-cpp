@@ -93,9 +93,7 @@ class MockFileReader : public platform::IFileReader {
     return {};
   }
 
-  virtual platform::FilesystemResult<platform::FileReadResult> Read(
-      char* dst, size_t n
-  ) override {
+  virtual platform::FilesystemResult<size_t> Read(char* dst, size_t n) override {
     std::lock_guard lock(f->mutex);
 
     // If we don't have exclusive access to the file, fail
@@ -120,7 +118,7 @@ class MockFileReader : public platform::IFileReader {
 
     // If already at EOF before read, read nothing and return
     if (read_ptr >= end) {
-      return platform::FileReadResult{0, true};
+      return 0;
     }
 
     // Read up to N bytes, bounded by remaining size
@@ -131,9 +129,8 @@ class MockFileReader : public platform::IFileReader {
     // Increment our read offset
     read_offset += num_bytes_read;
 
-    // Check if we've hit EOF and return
-    const bool eof = read_offset >= s.size();
-    return platform::FileReadResult{num_bytes_read, eof};
+    // Return the number of bytes actually read
+    return num_bytes_read;
   }
 };
 

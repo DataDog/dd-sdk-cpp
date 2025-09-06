@@ -183,7 +183,6 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     REQUIRE(result.type == TLVBlockReadResultType::Success);
     REQUIRE(result.header.type == TLVBlockType::Metadata);
     REQUIRE(result.header.block_size == 10);
-    REQUIRE(result.eof == false);
 
     // And our buffer should contain the block data
     REQUIRE(buffer.size() == result.header.block_size);
@@ -196,7 +195,6 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     REQUIRE(result.type == TLVBlockReadResultType::Success);
     REQUIRE(result.header.type == TLVBlockType::Event);
     REQUIRE(result.header.block_size == 7);
-    REQUIRE(result.eof == true);
 
     // And our buffer should be reused for its data
     REQUIRE(buffer.size() == result.header.block_size);
@@ -204,6 +202,12 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
     // And our buffer's capacity should be unchanged
     REQUIRE(buffer.capacity() >= 10);
+
+    // Next: When we attempt to read once more
+    result = ReadTLVBlock(*infile->get(), buffer);
+
+    // Then we should get EndOfFile
+    REQUIRE(result.type == TLVBlockReadResultType::EndOfFile);
   }
 
   SECTION("M return IOError W file read operation encounters I/O error") {
@@ -220,7 +224,6 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
     // Then we should get an IOError result
     REQUIRE(result.type == TLVBlockReadResultType::IOError);
-    REQUIRE(result.eof == false);
   }
 
   SECTION("M return ReadFailed W file read operation fails") {
@@ -237,7 +240,6 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
     // Then we should get a ReadFailed result
     REQUIRE(result.type == TLVBlockReadResultType::ReadFailed);
-    REQUIRE(result.eof == false);
   }
 
   SECTION("M return Malformed W file contains invalid TLV header") {
@@ -245,7 +247,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     MockStorageDirectory storage;
     MockTLVFile malformed_file;
     // Manually create invalid header: type 0x9999 (unknown), size 4
-    malformed_file.AppendBytes("\x99\x99\x00\x00\x00\x04test");
+    malformed_file.AppendBytes(std::string_view{"\x99\x99\x00\x00\x00\x04test", 10});
     malformed_file.WriteTo(storage, "malformed");
     auto infile = storage.OpenForRead("malformed");
     REQUIRE(infile.has_value());
@@ -256,7 +258,6 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
     // Then we should get a Malformed result
     REQUIRE(result.type == TLVBlockReadResultType::Malformed);
-    REQUIRE(result.eof == false);
   }
 
   SECTION("M return Malformed W file contains zero-size block") {
@@ -264,7 +265,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     MockStorageDirectory storage;
     MockTLVFile zero_size_file;
     // Create header with Event type but zero size
-    zero_size_file.AppendBytes("\x00\x00\x00\x00\x00\x00");
+    zero_size_file.AppendBytes(std::string_view{"\x00\x00\x00\x00\x00\x00", 6});
     zero_size_file.WriteTo(storage, "zero_size");
     auto infile = storage.OpenForRead("zero_size");
     REQUIRE(infile.has_value());
@@ -275,13 +276,12 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
     // Then we should get a Malformed result (zero-size blocks are disallowed)
     REQUIRE(result.type == TLVBlockReadResultType::Malformed);
-    REQUIRE(result.eof == false);
   }
 
   SECTION("M return Malformed W file has incomplete header") {
     // Given a file with only partial header (less than 6 bytes)
     MockStorageDirectory storage;
-    storage.WithExistingFile("partial_header", "\x00\x01\x00");  // Only 3 bytes
+    storage.WithExistingFile("partial_header", std::string_view{"\x00\x01\x00", 3});
     auto infile = storage.OpenForRead("partial_header");
     REQUIRE(infile.has_value());
 
@@ -298,7 +298,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     MockStorageDirectory storage;
     MockTLVFile incomplete_file;
     // Header says size is 10 bytes, but we only provide 5
-    incomplete_file.AppendBytes("\x00\x01\x00\x00\x00\x0a");
+    incomplete_file.AppendBytes(std::string_view{"\x00\x01\x00\x00\x00\x0a", 6});
     incomplete_file.AppendBytes("12345");
     incomplete_file.WriteTo(storage, "incomplete");
     auto infile = storage.OpenForRead("incomplete");
@@ -310,10 +310,9 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
     // Then we should get a Malformed result
     REQUIRE(result.type == TLVBlockReadResultType::Malformed);
-    REQUIRE(result.eof == false);
   }
 
-  SECTION("M return Malformed W file is empty") {
+  SECTION("M return EndOfFile W file is empty") {
     // Given an empty file
     MockStorageDirectory storage;
     storage.WithExistingFile("empty", "");
@@ -324,8 +323,8 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     std::vector<char> buffer;
     auto result = ReadTLVBlock(*infile->get(), buffer);
 
-    // Then we should get a Malformed result (no header == not valid TLV)
-    REQUIRE(result.type == TLVBlockReadResultType::Malformed);
+    // Then we should get EndOfFile
+    REQUIRE(result.type == TLVBlockReadResultType::EndOfFile);
   }
 
   SECTION("M handle large block size properly W buffer needs reallocation") {
@@ -347,7 +346,6 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     REQUIRE(result.type == TLVBlockReadResultType::Success);
     REQUIRE(result.header.type == TLVBlockType::Metadata);
     REQUIRE(result.header.block_size == 5000);
-    REQUIRE(result.eof == true);
 
     // And the buffer should have been reallocated to fit the data
     REQUIRE(buffer.size() == 5000);
@@ -355,6 +353,10 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
     // And the data should be correct
     REQUIRE(std::string_view(buffer.data(), buffer.size()) == large_data);
+
+    // And a subsequent read should return EOF
+    result = ReadTLVBlock(*infile->get(), buffer);
+    REQUIRE(result.type == TLVBlockReadResultType::EndOfFile);
   }
 
   SECTION("M reuse buffer efficiently W multiple reads of different sizes") {
@@ -399,10 +401,13 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     REQUIRE(result.type == TLVBlockReadResultType::Success);
     REQUIRE(result.header.type == TLVBlockType::Event);
     REQUIRE(result.header.block_size == 3);
-    REQUIRE(result.eof == true);
     REQUIRE(buffer.size() == 3);
     REQUIRE(std::string_view(buffer.data(), buffer.size()) == "med");
     // Capacity should be unchanged since buffer was large enough
     REQUIRE(buffer.capacity() >= 19);
+
+    // And a subsequent read should return EOF
+    result = ReadTLVBlock(*infile->get(), buffer);
+    REQUIRE(result.type == TLVBlockReadResultType::EndOfFile);
   }
 }

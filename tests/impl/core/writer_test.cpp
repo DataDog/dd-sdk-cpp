@@ -79,7 +79,7 @@ TEST_CASE("StringWriter", "[unit]") {
   }
 }
 
-TEST_CASE("TLVBatchWriter", "[unit]") {
+TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   // Prepare a storage directory with mock batch files for testing
   MockStorageDirectory storage;
 
@@ -276,21 +276,6 @@ TEST_CASE("TLVBatchWriter", "[unit]") {
     const size_t num_bytes_written = writer(buffer, 256);
 
     // Then the lack of any event data makes the batch invalid
-    REQUIRE(num_bytes_written == platform::HTTP_WRITE_RESULT_ABORT);
-  }
-
-  SECTION("M abort request W file contains trailing metadata blocks") {
-    // Given a TLVBatchWriter initialized from a file with trailing metadata
-    auto infile = storage.OpenForRead("trailing-metadata.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader};
-
-    // When we demand the full contents
-    char buffer[256];
-    const size_t num_bytes_written = writer(buffer, 256);
-
-    // Then trailing metadata makes the batch invalid
     REQUIRE(num_bytes_written == platform::HTTP_WRITE_RESULT_ABORT);
   }
 
