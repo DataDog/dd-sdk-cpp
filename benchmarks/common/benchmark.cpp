@@ -1,9 +1,12 @@
-#include "support/args.hpp"
+#include "common/benchmark.hpp"
 
 #include <algorithm>
 #include <charconv>
 #include <cstring>
 #include <iostream>
+
+#include "common/arg.hpp"
+#include "common/exit.hpp"
 
 BenchmarkParam BenchmarkParam::Int(
     const char* name, int32_t default_value, const char* description
@@ -29,36 +32,10 @@ BenchmarkParam BenchmarkParam::String(
   return p;
 }
 
-ParsedArg ParseArg(char* arg) {
-  // If arg is not a string formatted '--foo', it's invalid
-  if (!arg) {
-    return ParsedArg{nullptr, nullptr};
-  }
-  const size_t n = std::strlen(arg);
-  if (n < 3 || arg[0] != '-' || arg[1] != '-' || arg[2] == '-') {
-    return ParsedArg{nullptr, nullptr};
-  }
-
-  // Take everything after '--' as the name, then check for '='
-  char* name = arg + 2;
-  char* equals_ptr = std::strchr(name, '=');
-
-  // If there's no '=', assume an implicit value of '1'
-  if (equals_ptr == nullptr) {
-    return ParsedArg{name, "1"};
-  }
-
-  // Otherwise, clobber the equals sign to null-terminate the name, then take everything
-  // after the equals sign as the value
-  *equals_ptr = '\0';
-  const char* value = equals_ptr + 1;
-  return ParsedArg{name, value};
-}
-
 void PrintBenchmarkUsage(const Benchmark& b, const char* argv_0) {
   std::cout << b.name << ": " << b.description << "\n";
   std::cout << "Usage:\n";
-  std::cout << "  " << argv_0 << " " << b.name << "[";
+  std::cout << "  " << argv_0 << " [global-opts] " << b.name << "[";
   for (const BenchmarkParam& p : b.params) {
     if (p.name) {
       std::cout << " --" << p.name << " ";
@@ -84,7 +61,7 @@ void PrintBenchmarkUsage(const Benchmark& b, const char* argv_0) {
   }
 }
 
-std::array<BenchmarkParamValue, MAX_ARGS> ParseBenchmarkArgs(
+std::array<BenchmarkParamValue, MAX_ARGS> ParseBenchmarkParams(
     const std::array<BenchmarkParam, MAX_ARGS>& params, int argc, char* argv[]
 ) {
   // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
@@ -107,10 +84,10 @@ std::array<BenchmarkParamValue, MAX_ARGS> ParseBenchmarkArgs(
 
   for (int i = 0; i < argc; i++) {
     // Parse the argument as '--foo' or '--foo=bar'
-    auto arg = ParseArg(argv[i]);
+    Arg arg = ReadArg(argv[i]);
     if (!arg.name || !arg.value) {
       std::cerr << "invalid argument format: " << argv[i] << "\n";
-      std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+      Exit(1);
     }
 
     // Find the BenchmarkParam identified by this argument
@@ -120,7 +97,7 @@ std::array<BenchmarkParamValue, MAX_ARGS> ParseBenchmarkArgs(
         });
     if (param_iter == params.end()) {
       std::cerr << "unrecognized argument: " << arg.name << "\n";
-      std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+      Exit(1);
     }
 
     // Store the user-supplied value in our array, overwriting the default
@@ -134,7 +111,7 @@ std::array<BenchmarkParamValue, MAX_ARGS> ParseBenchmarkArgs(
         if (res.ec != std::errc{}) {
           std::cerr << "invalid integer '" << arg.value << "' for arg: " << arg.name
                     << "\n";
-          std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+          Exit(1);
         }
         result[param_index].i = v;
       } break;
@@ -146,7 +123,7 @@ std::array<BenchmarkParamValue, MAX_ARGS> ParseBenchmarkArgs(
         } catch (const std::exception&) {
           std::cerr << "invalid double '" << arg.value << "' for arg: " << arg.name
                     << "\n";
-          std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+          Exit(1);
         }
       } break;
       case BenchmarkParamType::String: {

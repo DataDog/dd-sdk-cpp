@@ -1,4 +1,4 @@
-#include "support/server.h"
+#include "common/server.hpp"
 
 #include <filesystem>
 #include <fstream>
@@ -19,22 +19,24 @@ extern char** environ;  // NOLINT(cppcoreguidelines-avoid-non-const-global-varia
 typedef pid_t server_pid_t;
 #endif
 
+#include "common/exit.hpp"
+
 // Embedded contents of server.py, included in the build via CMake
 #include "embedded_server_py.h"
 
-std::string write_temp_server_py() {
+static std::string write_temp_server_py() {
   std::error_code ec;
   auto temp_dir = std::filesystem::temp_directory_path(ec);
   if (ec != std::errc{}) {
     std::cerr << "failed to resolve temp directory path\n";
-    std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+    Exit(1);
   }
 
   auto temp_path = temp_dir / "server.py";
   std::ofstream outfile(temp_path, std::ios::binary);
   if (!outfile.is_open()) {
     std::cerr << "failed to open temp file for write: " << temp_path << "\n";
-    std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+    Exit(1);
   }
   outfile.write(
       reinterpret_cast<const char*>(server_py_data),  // NOLINT
@@ -42,12 +44,12 @@ std::string write_temp_server_py() {
   );
   if (outfile.fail() || outfile.bad()) {
     std::cerr << "failed to write to temp file: " << temp_path << "\n";
-    std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+    Exit(1);
   }
   return temp_path.string();
 }
 
-std::string find_python_executable() {
+static std::string find_python_executable() {
   // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 #ifdef _WIN32
   const char* candidates[] = {"py", "python", "python3", nullptr};
@@ -97,9 +99,7 @@ static HANDLE s_server_process_handle = INVALID_HANDLE_VALUE;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static std::string s_temp_server_path;
 
-extern "C" {
-
-void server_start(const server_opts_t* opts) {
+void StartServer(const ServerOptions& opts) {
   if (s_server_pid != 0) {
     std::cerr << "Server already running with PID " << s_server_pid << "\n";
     return;
@@ -109,13 +109,13 @@ void server_start(const server_opts_t* opts) {
   const std::string python_exe = find_python_executable();
   if (python_exe.empty()) {
     std::cerr << "Python executable not found in PATH\n";
-    std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+    Exit(1);
   }
 
-  const std::string port = std::to_string(opts->port);
-  const std::string response_delay_ms = std::to_string(opts->response_delay_ms);
+  const std::string port = std::to_string(opts.port);
+  const std::string response_delay_ms = std::to_string(opts.response_delay_ms);
   const std::string response_delay_variability_ms =
-      std::to_string(opts->response_delay_variability_ms);
+      std::to_string(opts.response_delay_variability_ms);
 
 #ifdef _WIN32
   // Build command line for Windows
@@ -144,7 +144,7 @@ void server_start(const server_opts_t* opts) {
 
   if (!success) {
     std::cerr << "Failed to start server process: " << GetLastError() << "\n";
-    std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+    Exit(1);
   }
 
   s_server_pid = pi.dwProcessId;
@@ -175,7 +175,7 @@ void server_start(const server_opts_t* opts) {
   if (result != 0) {
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     std::cerr << "Failed to start server process: " << strerror(result) << "\n";
-    std::exit(1);  // NOLINT(concurrency-mt-unsafe)
+    Exit(1);
   }
 
   s_server_pid = pid;
@@ -184,7 +184,7 @@ void server_start(const server_opts_t* opts) {
   std::cout << "Started Python server with PID " << s_server_pid << "\n";
 }
 
-void server_stop(void) {
+void StopServer() {
   if (s_server_pid == 0) {
     return;  // No server running
   }
@@ -255,5 +255,4 @@ void server_stop(void) {
   }
 
   std::cout << "Server stopped\n";
-}
 }

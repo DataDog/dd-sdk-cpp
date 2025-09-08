@@ -65,38 +65,19 @@ const size_t @variable_name@_size = @byte_length@;
     add_dependencies(${target_name} ${target_name}_embedded_${variable_name})
 endfunction()
 
-# C benchmark program
-add_executable(dd_native_c_benchmark
-    c/config.c
-    c/logging.c
-    c/main.c
-    c/startup.c
-    support/args.cpp
-    support/benchmark_logging.cpp
-    support/benchmark_startup.cpp
-    support/entry.cpp
-    support/server.cpp
+# benchmark program
+add_executable(dd_native_benchmark
+    common/arg.cpp
+    common/benchmark.cpp
+    common/config.cpp
+    common/global.cpp
+    common/server.cpp
+    benchmark_logging.cpp
+    benchmark_startup.cpp
+    main.cpp
 )
-target_enable_strict_warnings(dd_native_c_benchmark)
-target_enable_clang_tidy(dd_native_c_benchmark)
-target_link_libraries(dd_native_c_benchmark PRIVATE dd_native_c_api)
-target_include_directories(dd_native_c_benchmark PRIVATE . c)
-target_embed_file(dd_native_c_benchmark support/server.py server_py)
-
-# C++ benchmark program
-add_executable(dd_native_cpp_benchmark
-    cpp/config.cpp
-    cpp/logging.cpp
-    cpp/main.cpp
-    cpp/startup.cpp
-    support/args.cpp
-    support/benchmark_logging.cpp
-    support/benchmark_startup.cpp
-    support/entry.cpp
-    support/server.cpp
-)
-target_enable_strict_warnings(dd_native_cpp_benchmark)
-target_enable_clang_tidy(dd_native_cpp_benchmark)
-target_link_libraries(dd_native_cpp_benchmark PRIVATE dd_native_cpp_api)
-target_include_directories(dd_native_cpp_benchmark PRIVATE . cpp)
-target_embed_file(dd_native_cpp_benchmark support/server.py server_py)
+target_enable_strict_warnings(dd_native_benchmark)
+target_enable_clang_tidy(dd_native_benchmark)
+target_link_libraries(dd_native_benchmark PRIVATE dd_native_c_api dd_native_cpp_api)
+target_include_directories(dd_native_benchmark PRIVATE .)
+target_embed_file(dd_native_benchmark common/server.py server_py)

@@ -2,13 +2,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "(lldb) Attach",
-            "type": "cppdbg",
-            "request": "attach",
-            "program": "${workspaceFolder}/build/benchmarks/dd_native_cpp_benchmark",
-            "MIMode": "lldb"
-        },
-        {
             "name": "Debug Tests",
             "type": "cppdbg",
             "request": "launch",
@@ -25,9 +18,10 @@
             "name": "Debug Benchmark",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/benchmarks/dd_native_cpp_benchmark",
+            "program": "${workspaceFolder}/build/benchmarks/dd_native_benchmark",
             "args": [
-                "logging"
+                "--repeat",
+                "startup"
             ],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
