@@ -5,6 +5,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <numeric>
 #include <thread>
 
 #include "assert.hpp"
@@ -109,6 +110,11 @@ static void* backend_alloc(size_t count, size_t req_align, bool nothrow) {
   if (user_align < alignof(std::max_align_t)) {
     user_align = alignof(std::max_align_t);
   }
+
+  // Validate we got a power-of-two alignment (required for posix_memalign, align_up)
+  DATADOG_ASSERT(
+      (user_align & (user_align - 1)) == 0, "alignment must be power of two"
+  );
 
   // We place a header immediately before the user bytes: the raw block that we get from
   // malloc will encompass: <padding> + <header> + <user bytes (count)>

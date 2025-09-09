@@ -17,6 +17,7 @@ target_enable_strict_warnings(dd_native_impl)
 target_enable_datadog_assert(dd_native_impl)
 target_enable_clang_tidy(dd_native_impl)
 target_enable_coverage(dd_native_impl)
+target_enable_sanitizers(dd_native_impl)
 
 target_include_directories(dd_native_impl
     PUBLIC ${CMAKE_SOURCE_DIR}/include-c
