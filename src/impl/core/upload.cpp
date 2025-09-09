@@ -81,6 +81,8 @@ static _process_and_upload_batch_result _interpret_http_result(
       // Treat all other responses as inherent flaws in the request payload itself
       return _process_and_upload_batch_result::bad_batch;
   }
+  DATADOG_ASSERT(false, "unhandled HttpResultType enum value");
+  return _process_and_upload_batch_result::bad_batch;
 }
 
 static _process_and_upload_batch_result _process_and_upload_batch(
@@ -115,8 +117,9 @@ static _process_and_upload_batch_result _process_and_upload_batch(
 
   // Initiate an HTTP request, blocking until it finishes
   std::cout << "<UPLOAD> POST " << report->url << "\n";
-  const platform::HttpResult res =
-      http_client.Post(report->url, report->headers, report->body_writer);
+  const platform::HttpResult res = http_client.Post(
+      report->url.c_str(), report->headers.c_str(), report->body_writer
+  );
   std::cout << "<UPLOAD> Result type " << static_cast<int>(res.type) << ", status "
             << res.status_code << "\n";
 

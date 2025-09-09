@@ -30,6 +30,8 @@ static bool is_primitive_type(dd_value_type_t type) {
     case DD_VALUE_TYPE_OBJECT:
       return false;
   }
+  DATADOG_ASSERT(false, "unhandled dd_value_type_t enum value");
+  return false;
 }
 
 static const datadog::impl::CowValue* get_cow_value(const dd_attribute_t* attribute) {

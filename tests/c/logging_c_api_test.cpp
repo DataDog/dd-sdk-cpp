@@ -159,7 +159,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     REQUIRE(
         req.url == "https://browser-intake-datadoghq.com/api/v2/logs?ddsource=unity"
     );
-    REQUIRE(req.headers.find("Content-Type: application/json") >= 0);
+    REQUIRE(req.headers.find("Content-Type: application/json") != std::string::npos);
     REQUIRE(
         req.body ==
         JsonArrayOf(

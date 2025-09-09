@@ -55,7 +55,7 @@ TEST_CASE("MockHttpClient Default Behavior", "[unit][mock-http-client]") {
       return to_copy;
     };
 
-    client.Post(test_url, test_headers, body_writer);
+    client.Post(test_url.c_str(), test_headers.c_str(), body_writer);
 
     // Then request details are recorded
     REQUIRE(client.requests.size() == 1);

@@ -60,8 +60,7 @@ class MockHttpClient : public platform::IHttpClient {
    * result value last configured, or HTTP 200 by default.
    */
   virtual platform::HttpResult Post(
-      std::string_view url, std::string_view headers,
-      platform::HttpBodyWriter body_writer
+      const char* url, const char* headers, platform::HttpBodyWriter body_writer
   ) override {
     // Record the details of this request
     MockHttpRequest request;
@@ -103,6 +102,6 @@ class MockHttpSubsystem : public platform::IHttpSubsystem {
   virtual std::unique_ptr<platform::IHttpClient> CreateClient() override {
     auto client = std::make_unique<MockHttpClient>();
     clients.push_back(client.get());
-    return std::move(client);
+    return client;
   }
 };

@@ -136,12 +136,12 @@ struct Report {
    * request. All requests are assumed to be POSTs. Underlying string data must persist
    * throughout the lifetime of the HTTP request.
    */
-  std::string_view url;
+  const std::string& url;
   /**
    * The set of headers to use with this request, in wire format (e.g. 'Foo: bar'),
    * newline-delimited, with a trailing newline.
    */
-  std::string_view headers;
+  const std::string& headers;
   /**
    * A function that will populate the body of the HTTP request on demand, allowing
    * large event payloads to be streamed directly to the HTTP layer without intermediate

@@ -1,5 +1,6 @@
 #include "common/server.hpp"
 
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -15,7 +16,9 @@ typedef DWORD server_pid_t;
 #include <spawn.h>
 #include <sys/wait.h>
 #include <unistd.h>
+#ifdef __APPLE__
 extern char** environ;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+#endif
 typedef pid_t server_pid_t;
 #endif
 

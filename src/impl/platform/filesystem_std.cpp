@@ -257,6 +257,8 @@ class StdDirectory : public virtual IDirectory {
       case _check_path_result::exists_as_file:
         return nonstd::make_unexpected(FilesystemError::Failed);
     }
+    DATADOG_ASSERT(false, "unhandled _check_path_result enum value");
+    return nonstd::make_unexpected(FilesystemError::Failed);
   }
 
   FilesystemResult<std::unique_ptr<IFileWriter>> PrepareForWrite(

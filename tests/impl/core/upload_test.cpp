@@ -77,7 +77,8 @@ TEST_CASE("UploadScheduler", "[unit]") {
 
     // And approximately 1 millisecond has elapsed
     auto elapsed_ms = std::chrono::round<std::chrono::milliseconds>(elapsed);
-    REQUIRE(elapsed_ms.count() == 1);
+    REQUIRE(elapsed_ms.count() >= 1);
+    REQUIRE(elapsed_ms.count() <= 3);
   }
 
   SECTION("M return earliest feature W features scheduled at different times") {

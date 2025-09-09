@@ -1,5 +1,7 @@
 #include "core/writer.hpp"
 
+#include <cstring>
+
 #include "assert.hpp"
 
 namespace datadog::impl {

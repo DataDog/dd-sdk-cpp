@@ -373,6 +373,8 @@ bool EventStorage::HandleWrite(Block event, Block event_metadata) {
     case TrackingConsent::NotGranted:
       return true;  // Event successfully handled as a no-op
   }
+  DATADOG_ASSERT(false, "unhandled TrackingConsent enum value");
+  return false;
 }
 
 static void _handle_tracking_consent_changed(

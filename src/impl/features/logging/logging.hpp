@@ -77,7 +77,7 @@ class Logging final : public Feature {
   ObjectAttribute _global_attributes;
   mutable std::shared_mutex _global_attributes_mutex;
 
-  // HTTP request details used on upload
+  // HTTP request details used on upload; owned by the upload thread
   int32_t _last_context_version{0};
   std::string _request_url;
   std::string _request_headers;
