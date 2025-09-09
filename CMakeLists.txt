@@ -15,6 +15,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 option(DD_BUILD_BENCHMARKS "Build benchmarks" ${DD_DEVELOPMENT})
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
+option(DD_ENABLE_CLANG_FORMAT "Enable clang-format for format validation and automatic formatting" ${DD_DEVELOPMENT})
 option(DD_ENABLE_CLANG_TIDY "Enable clang-tidy for static analysis" ${DD_DEVELOPMENT})
 option(DD_ENABLE_COVERAGE "Enable code coverage reporting" ${DD_DEVELOPMENT})
 option(DD_ENABLE_SANITIZERS "Enable ASan, UBSan, etc. on supported platforms" ${DD_DEVELOPMENT})
@@ -23,6 +24,7 @@ option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instr
 
 # Modules for project build configuration
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+include(clang-format)
 include(clang-tidy)
 include(compile)
 include(coverage)
