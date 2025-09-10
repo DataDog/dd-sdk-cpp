@@ -1,0 +1,147 @@
+stages:
+  - build-toolchain-images
+  - validate
+  - build
+  - package
+
+variables:
+  # Docker registries: we push to registry.ddbuild.io and it replicates to ECR, which CI
+  # runners have access to
+  DISTRIBUTION_REGISTRY: registry.ddbuild.io
+  BUILD_STABLE_REGISTRY: 486234852809.dkr.ecr.us-east-1.amazonaws.com
+
+  # In order to build toolchain images in CI, we use Docker-in-Docker: this is the image
+  # that lets us run Docker builds for that job
+  DIND_IMAGE: images/docker:24.0.4-jammy  # Based on a Golden Base Image (GBI) 
+
+  # Our toolchain images are tagged with this version, e.g. 'ci/dd-sdk-cpp:clang15-v2':
+  # bump and trigger the job to rebuild
+  TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
+  TOOLCHAIN_IMAGE_VERSION: v2
+
+  # clang-20 is our golden-path toolchain for development: use the clang-20 image to
+  # validate builds with full linting, format checks, etc.
+  VALIDATE_TOOLCHAIN_TARGET: clang20
+  VALIDATE_IMAGE: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${VALIDATE_TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}
+
+# Stage 'build-toolchain-images' is triggered manually whenever we need to build new
+# Docker images for use in our validation and Linux build stages: these "toolchain
+# images" furnish the Linux build environment necessary to build dd-sdk-cpp from source
+
+build-toolchain-image:
+  stage: build-toolchain-images
+  when: manual
+  except: [tags, schedules]
+  tags: [arch:amd64]
+  image: ${BUILD_STABLE_REGISTRY}/${DIND_IMAGE}
+  parallel:
+    matrix:
+      - TOOLCHAIN_TARGET: [gcc9, gcc13, clang15, clang20]
+  script:
+    - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}"
+    - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build -f Dockerfile.gitlab --push .
+
+# Stage 'validate' performs quick up-front validation, using clang-20 with full support
+# for clang-format and clang-tidy
+
+check-format:
+  stage: validate
+  tags: [arch:amd64]
+  image: ${VALIDATE_IMAGE}
+  script:
+    - cmake -DDD_ENABLE_CLANG_FORMAT=ON . -B build
+    - cmake --build build --target check-format
+
+unit-test:
+  stage: validate
+  tags: [arch:amd64]
+  image: ${VALIDATE_IMAGE}
+  parallel:
+    matrix:
+      - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_ENABLE_CLANG_TIDY=ON
+      -DDD_BUILD_BENCHMARKS=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      . -B build
+    - cmake --build build
+    - ctest --test-dir build --output-junit test-results/test-results.xml
+  artifacts:
+    when: always
+    expire_in: "30 days"
+    reports:
+      junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
+
+# Stage 'build' performs a more exhaustive set of library builds to validate that our
+# library still builds successfully on all supported compilers and in all supported
+# configurations
+
+build-linux:
+  stage: build
+  tags: [arch:amd64]
+  parallel:
+    # To avoid ballooning our build matrix, test multiple variations (compiler version,
+    # static vs. shared, release vs. debug, etc.) in each job. This stage primarily
+    # exercises compiler versions that we don't use when producing precompiled binaries.
+    matrix:
+      - name: build-linux:gcc9-debug-shared
+        TOOLCHAIN_TARGET: gcc9
+        BUILD_CONFIGURATION: Debug
+        BUILD_SHARED_LIBS: "ON"
+        USE_SYSTEM_LIBCURL: "ON"
+      
+      - name: build-linux:gcc13-release-static-curl
+        TOOLCHAIN_TARGET: gcc13
+        BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        USE_SYSTEM_LIBCURL: "OFF"
+
+      - name: build-linux:clang15-release-static
+        TOOLCHAIN_TARGET: clang15
+        BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        USE_SYSTEM_LIBCURL: "ON"
+      
+      - name: build-linux:clang15-debug-shared-curl
+        TOOLCHAIN_TARGET: clang15
+        BUILD_CONFIGURATION: Debug
+        BUILD_SHARED_LIBS: "ON"
+        USE_SYSTEM_LIBCURL: "OFF"
+
+  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
+      -DCMAKE_BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
+      -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
+      . -B build
+    - cmake --build build
+
+
+# Stage 'package' generates release artifacts for the toolchains/configurations that we
+# support with precompiled binaries
+
+package-linux:
+  stage: package
+  tags: [arch:amd64]
+  parallel:
+    matrix:
+      - TOOLCHAIN_TARGET: clang20
+        
+  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}
+  script:
+    - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo . -B build
+    - stat build/artifact_name.txt
+    - ARTIFACT_NAME=$(cat build/artifact_name.txt)
+    - cmake --build build --target package
+    - stat "build/$ARTIFACT_NAME.tar.gz"
+  artifacts:
+    expire_in: "1 week"
+    paths:
+      - build/ddsdkcpp-*.tar.gz    
