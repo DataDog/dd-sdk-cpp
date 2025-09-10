@@ -13,7 +13,9 @@
 #if WITH_DATADOG_STRICT_THREADING_CHECKS
 #define STRICT_THREADING_REQUIRE(...) REQUIRE(__VA_ARGS__)
 #else
-#define STRICT_THREADING_REQUIRE(...) ((void)0, ##__VA_ARGS__)
+// clang-format off
+#define STRICT_THREADING_REQUIRE(...) do { (void)(__VA_ARGS__); } while(0)
+// clang-format on
 #endif
 
 /**
