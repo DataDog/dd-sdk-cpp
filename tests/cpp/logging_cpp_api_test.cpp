@@ -594,14 +594,14 @@ TEST_CASE("Logger thread-safety", "[unit][logging][cpp-api][thread-safety]") {
       std::count_if(events.begin(), events.end(), [](const std::string& s) {
         return s.find(",\"xyz\":") == std::string::npos;
       });
-  REQUIRE(num_events_without_xyz > 0);
+  STRICT_THREADING_REQUIRE(num_events_without_xyz > 0);
 
   // And some events have a 'xyz' value 'loop-%d'
   size_t num_events_with_valid_xyz =
       std::count_if(events.begin(), events.end(), [](const std::string& s) {
         return s.find(",\"xyz\":\"loop-") != std::string::npos;
       });
-  REQUIRE(num_events_with_valid_xyz > 0);
+  STRICT_THREADING_REQUIRE(num_events_with_valid_xyz > 0);
 
   // And every single event fits one of those cases: either it has no 'xyz' value or
   // it has a well-formed 'loop-<i>' string
