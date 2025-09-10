@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stddef.h>
 
+#include "datadog/api.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -58,11 +60,11 @@ typedef struct dd_core_config {
 
 typedef struct dd_core dd_core_t;
 
-dd_core_t* dd_core_create(const dd_core_config_t* config);
-void dd_core_destroy(dd_core_t* core);
+DATADOG_API dd_core_t* dd_core_create(const dd_core_config_t* config);
+DATADOG_API void dd_core_destroy(dd_core_t* core);
 
-bool dd_core_start(dd_core_t* core);
-void dd_core_stop(dd_core_t* core);
+DATADOG_API bool dd_core_start(dd_core_t* core);
+DATADOG_API void dd_core_stop(dd_core_t* core);
 
 #ifdef __cplusplus
 }

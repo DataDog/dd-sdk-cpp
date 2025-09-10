@@ -1,5 +1,5 @@
 # Store downloaded tools in tools/bin/
-set(TOOLS_BIN_DIR "${CMAKE_SOURCE_DIR}/tools/bin")
+set(TOOLS_BIN_DIR "${DD_SDK_ROOT_DIR}/tools/bin")
 
 # If clang-format support is not enabled for the build, skip the rest of this file
 if(NOT DD_ENABLE_CLANG_FORMAT)
@@ -125,7 +125,7 @@ if(CLANG_FORMAT_BINARY)
     set(FORMAT_SOURCE_FILES "")
     foreach(DIR IN LISTS FORMAT_DIRECTORIES)
         foreach(EXT IN LISTS FORMAT_EXTENSIONS)
-            file(GLOB_RECURSE DIR_FILES "${CMAKE_SOURCE_DIR}/${DIR}/*.${EXT}")
+            file(GLOB_RECURSE DIR_FILES "${DD_SDK_ROOT_DIR}/${DIR}/*.${EXT}")
             list(APPEND FORMAT_SOURCE_FILES ${DIR_FILES})
         endforeach()
     endforeach()

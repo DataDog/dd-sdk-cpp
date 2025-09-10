@@ -3,6 +3,8 @@
 #include <memory>
 #include <string>
 
+#include "datadog/api.hpp"
+
 // Forward declarations
 struct CoreTestHarness;
 
@@ -114,7 +116,7 @@ struct CoreConfig {
   std::string custom_endpoint_url;
 };
 
-class Core {
+class DATADOG_API Core {
  public:
   static std::shared_ptr<Core> Create(const CoreConfig& config);
 

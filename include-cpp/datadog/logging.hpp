@@ -31,7 +31,7 @@ enum class LogLevel : uint8_t {
 /**
  * Configures the details of a logger upon creation.
  */
-struct LoggerConfig {
+struct DATADOG_API LoggerConfig {
   friend class Logging;
   friend class impl::Logger;
 
@@ -82,7 +82,7 @@ struct LoggerConfig {
 /**
  * Interface used to emit log messages.
  */
-class Logger {
+class DATADOG_API Logger {
   friend class Logging;
 
  public:
@@ -141,7 +141,7 @@ class Logger {
 /**
  * Interface to the Datadog SDK's logging feature.
  */
-class Logging {
+class DATADOG_API Logging {
  public:
   /**
    * Registers the logging feature with the core of the Datadog SDK.
