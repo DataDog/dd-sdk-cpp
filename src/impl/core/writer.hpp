@@ -106,10 +106,10 @@ struct TLVBatchWriter {
    */
   State state;
   /**
-   * Set to true once the BatchReader has signalled EOF. No further reads will occur
-   * once `eof` is set.
+   * View of the next event block that we should write once we're finished writing the
+   * delimiter.
    */
-  bool eof{false};
+  std::string_view next_event;
 
   explicit TLVBatchWriter(
       BatchReader& in_reader, std::string_view in_prefix = "[",

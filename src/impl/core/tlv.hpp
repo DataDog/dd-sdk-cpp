@@ -45,6 +45,8 @@ size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data);
 enum class TLVBlockReadResultType : uint8_t {
   /** A valid TLV-formatted block was read successfully. */
   Success,
+  /** We have reached EOF without partial reads; there are no more blocks to read. */
+  EndOfFile,
   /** A low-level I/O error occurred. */
   IOError,
   /** The filesystem read operation failed. */
@@ -62,16 +64,11 @@ struct TLVBlockReadResult {
    * Block header read from file, usable only if result type is success.
    */
   TLVBlockHeader header{TLVBlockType::Event, 0};
-  /**
-   * If true, the read operation reached or surpassed the end of the file, and no more
-   * blocks should be read.
-   */
-  bool eof{false};
 
   explicit TLVBlockReadResult(TLVBlockReadResultType in_type) : type(in_type) {}
 
-  explicit TLVBlockReadResult(const TLVBlockHeader& in_header, bool in_eof)
-      : type(TLVBlockReadResultType::Success), header(in_header), eof(in_eof) {}
+  explicit TLVBlockReadResult(const TLVBlockHeader& in_header)
+      : type(TLVBlockReadResultType::Success), header(in_header) {}
 };
 
 /**
@@ -84,8 +81,8 @@ struct TLVBlockReadResult {
  *  length encoded in the block header.
  *
  * @returns a struct indicating the result of the operation: if result.type is Success,
- *  other values may be read. If result.eof is set, no further reads should be
- *  attempted.
+ *  other values may be read. If result.type is EndOfFile, no further reads should be
+ *  attempted. Any other result type indicates a read failure.
  */
 TLVBlockReadResult ReadTLVBlock(
     platform::IFileReader& file, std::vector<char>& out_block_data

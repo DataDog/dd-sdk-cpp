@@ -123,12 +123,25 @@ TLVBlockReadResult ReadTLVBlock(
   if (!result) {
     return _propagate_filesystem_error(result.error());
   }
+  const size_t num_header_bytes_read = *result;
 
-  // Decode the header, failing if the block type or size isn't valid
+  // If we read exactly zero bytes, we've made it to the end of the file cleanly, and
+  // there are no more blocks to read
+  if (num_header_bytes_read == 0) {
+    return TLVBlockReadResult(TLVBlockReadResultType::EndOfFile);
+  }
+
+  // If we read something but it wasn't the six bytes we asked for, the file does not
+  // contain a complete TLV header
+  if (num_header_bytes_read != sizeof(header_buf)) {
+    return TLVBlockReadResult(TLVBlockReadResultType::Malformed);
+  }
+
+  // We've read a header: decode it, and if it doesn't have a valid block type or size,
+  // it's not a valid header
   std::optional<const TLVBlockHeader> header =
       TLVBlockHeader::Decode(static_cast<const char*>(header_buf));
   if (!header) {
-    // There was no filesystem error, but we did not read a valid block
     return TLVBlockReadResult(TLVBlockReadResultType::Malformed);
   }
 
@@ -141,18 +154,20 @@ TLVBlockReadResult ReadTLVBlock(
   if (!result) {
     return _propagate_filesystem_error(result.error());
   }
-  if (result->num_bytes_read != header->block_size) {
-    // We failed to read the number of bytes we needed
+  const size_t num_value_bytes_read = *result;
+
+  // If the advertised size in the header took us past the end of the file, we don't
+  // have a valid block
+  if (num_value_bytes_read != header->block_size) {
     return TLVBlockReadResult(TLVBlockReadResultType::Malformed);
   }
 
-  // We got the whole block; construct a view into our reusable buffer and return a
-  // successful result struct, propagating EOF
-  Block block_data{out_block_data.data(), out_block_data.size()};
+  // We got the whole block, and its data is now held in our reusable buffer: return
+  // success, along with the details from our header
   DATADOG_ASSERT(
       out_block_data.size() == header->block_size, "unexpected block size post-read"
   );
-  return TLVBlockReadResult{*header, result->eof};
+  return TLVBlockReadResult{*header};
 }
 
 }  // namespace datadog::impl

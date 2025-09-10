@@ -3,6 +3,7 @@
 #include <cinttypes>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "assert.hpp"
@@ -55,7 +56,6 @@ using EventGeneratedFunc = std::function<bool(Block event, Block event_metadata)
 struct TLVBlock {
   TLVBlockType type;
   Block data;
-  bool eof;
 };
 
 /**
@@ -92,7 +92,7 @@ class BatchReader {
   BatchReader(platform::IFileReader& file, std::vector<char>& buffer)
       : _file(file), _block_data_buffer(buffer) {}
 
-  nonstd::expected<TLVBlock, BatchReadError> ReadNext() {
+  nonstd::expected<std::optional<TLVBlock>, BatchReadError> ReadNext() {
     // Read and parse the TLV header at the current file position, then read the
     // adjacent block data into the buffer, returning a result that contains a
     // lightweight view of that buffer
@@ -101,6 +101,10 @@ class BatchReader {
       // Successful read; continue
       case TLVBlockReadResultType::Success:
         break;
+
+      // Read OK but there are no more blocks; return nullopt
+      case TLVBlockReadResultType::EndOfFile:
+        return std::nullopt;
 
       // On any failure, early-out with an appropriate error
       case TLVBlockReadResultType::IOError:
@@ -118,7 +122,7 @@ class BatchReader {
         block_data.size() == result.header.block_size,
         "After OK ReadTLVBlock, buffer size does not match block size in header"
     );
-    return TLVBlock{result.header.type, block_data, result.eof};
+    return TLVBlock{result.header.type, block_data};
   }
 };
 

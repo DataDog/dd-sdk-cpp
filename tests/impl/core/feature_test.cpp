@@ -48,11 +48,12 @@ TEST_CASE("BatchReader", "[unit]") {
     BatchReader reader(*infile.value(), buffer);
 
     // When we read the first block
-    auto block_0 = reader.ReadNext();
+    auto block_0_res = reader.ReadNext();
 
     // Then we should get the data for that block
+    REQUIRE(block_0_res.has_value());
+    std::optional<TLVBlock> block_0 = *block_0_res;
     REQUIRE(block_0.has_value());
-    REQUIRE(block_0->eof == false);
     REQUIRE(block_0->type == TLVBlockType::Event);
     REQUIRE(block_0->data == "Hello");
 
@@ -61,11 +62,11 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(std::string_view{buffer.data(), 5} == "Hello");
 
     // And: When we read the next block
-    auto block_1 = reader.ReadNext();
+    auto block_1_res = reader.ReadNext();
 
-    // Then we should get the data for that block, and we should be at EOF
-    REQUIRE(block_1.has_value());
-    REQUIRE(block_1->eof == true);
+    // Then we should get the data for that block
+    REQUIRE(block_1_res.has_value());
+    std::optional<TLVBlock> block_1 = *block_1_res;
     REQUIRE(block_1->type == TLVBlockType::Event);
     REQUIRE(block_1->data == "hi");
 
@@ -74,6 +75,14 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(buffer.capacity() >= 5);
     REQUIRE(std::string_view{buffer.data(), 2} == "hi");
     REQUIRE(std::string_view{buffer.data() + 2, 3} == "llo");
+
+    // And: When we attempt to read the next block
+    auto block_2_res = reader.ReadNext();
+
+    // Then we get nullopt instead of a block (with no error), since we're at EOF
+    REQUIRE(block_2_res.has_value());
+    std::optional<TLVBlock> block_2 = *block_2_res;
+    REQUIRE(!block_2.has_value());
   }
 
   SECTION("M read all blocks W file contains metadata + event blocks") {
@@ -96,16 +105,22 @@ TEST_CASE("BatchReader", "[unit]") {
     std::string s;
     s.reserve(128);
     for (int i = 0; i < 4; i++) {
-      auto block = reader.ReadNext();
+      auto block_res = reader.ReadNext();
 
       // Then we get the expected results from each read
+      REQUIRE(block_res.has_value());
+      auto block = *block_res;
       REQUIRE(block.has_value());
-      REQUIRE(block->eof == (i == 3));
       REQUIRE(
           block->type == (i % 2 == 0 ? TLVBlockType::Metadata : TLVBlockType::Event)
       );
       s += block->data;
     }
+
+    // And reading once more would give us nullopt to indicate EOF
+    auto res = reader.ReadNext();
+    REQUIRE(res.has_value());
+    REQUIRE(*res == std::nullopt);
 
     // And we have the expected data once we're done reading
     REQUIRE(s == "metadata-0event-0metadata-1event-1");
@@ -126,11 +141,11 @@ TEST_CASE("BatchReader", "[unit]") {
     BatchReader reader(*infile.value(), buffer);
 
     // When we read the first block under normal conditions
-    auto block_0 = reader.ReadNext();
+    auto block_0_res = reader.ReadNext();
 
     // Then we get the data for that block
-    REQUIRE(block_0.has_value());
-    REQUIRE(block_0->eof == false);
+    REQUIRE(block_0_res.has_value());
+    auto block_0 = *block_0_res;
     REQUIRE(block_0->type == TLVBlockType::Event);
     REQUIRE(block_0->data == "event-0");
 
@@ -138,11 +153,11 @@ TEST_CASE("BatchReader", "[unit]") {
     storage.Corrupt("foo");
 
     // When we attempt to read the next block
-    auto block_1 = reader.ReadNext();
+    auto block_1_res = reader.ReadNext();
 
     // Then we get an error indicating the file couldn't be read
-    REQUIRE(!block_1.has_value());
-    REQUIRE(block_1.error() == BatchReadError::IOError);
+    REQUIRE(!block_1_res.has_value());
+    REQUIRE(block_1_res.error() == BatchReadError::IOError);
   }
 
   SECTION("M return FailedRead W file read fails due to invalid file state") {
@@ -158,19 +173,19 @@ TEST_CASE("BatchReader", "[unit]") {
     BatchReader reader(*infile.value(), buffer);
 
     // And normal conditions that have allowed us to read the first block
-    auto block_0 = reader.ReadNext();
-    REQUIRE(block_0.has_value());
-    REQUIRE(block_0->eof == false);
+    auto block_0_res = reader.ReadNext();
+    REQUIRE(block_0_res.has_value());
+    auto block_0 = *block_0_res;
     REQUIRE(block_0->type == TLVBlockType::Event);
     REQUIRE(block_0->data == "event-0");
 
     // When we attempt a read operation that will fail due to issues with our handle
     storage.SetFail("foo", true);
-    auto block_1 = reader.ReadNext();
+    auto block_1_res = reader.ReadNext();
 
     // Then we get an error indicating the read operation failed
-    REQUIRE(!block_1.has_value());
-    REQUIRE(block_1.error() == BatchReadError::FailedRead);
+    REQUIRE(!block_1_res.has_value());
+    REQUIRE(block_1_res.error() == BatchReadError::FailedRead);
   }
 
   SECTION("M return InvalidBlockFormat W file contains a TLV header w/o data") {
@@ -186,11 +201,11 @@ TEST_CASE("BatchReader", "[unit]") {
     BatchReader reader(*infile.value(), buffer);
 
     // When we attempt to read the next block
-    auto block = reader.ReadNext();
+    auto block_res = reader.ReadNext();
 
     // Then we get an error indicating the file contents are not valid TLV
-    REQUIRE(!block.has_value());
-    REQUIRE(block.error() == BatchReadError::InvalidBlockFormat);
+    REQUIRE(!block_res.has_value());
+    REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
   }
 
   SECTION("M return InvalidBlockFormat W file has TLV header indicating zero size") {
@@ -207,11 +222,11 @@ TEST_CASE("BatchReader", "[unit]") {
     BatchReader reader(*infile.value(), buffer);
 
     // When we attempt to read from that file
-    auto block = reader.ReadNext();
+    auto block_res = reader.ReadNext();
 
     // Then we get an error indicating the file contents are not valid TLV
-    REQUIRE(!block.has_value());
-    REQUIRE(block.error() == BatchReadError::InvalidBlockFormat);
+    REQUIRE(!block_res.has_value());
+    REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
   }
 
   SECTION("M return InvalidBlockFormat W file has TLV header indicating zero size") {
@@ -228,11 +243,11 @@ TEST_CASE("BatchReader", "[unit]") {
     BatchReader reader(*infile.value(), buffer);
 
     // When we attempt to read from that file
-    auto block = reader.ReadNext();
+    auto block_res = reader.ReadNext();
 
     // Then we get an error indicating the file contents are not valid TLV
-    REQUIRE(!block.has_value());
-    REQUIRE(block.error() == BatchReadError::InvalidBlockFormat);
+    REQUIRE(!block_res.has_value());
+    REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
   }
 
   SECTION("M return InvalidBlockFormat W file contains non-TLV data") {
@@ -245,14 +260,14 @@ TEST_CASE("BatchReader", "[unit]") {
     BatchReader reader(*infile.value(), buffer);
 
     // When we attempt to read from that ifle
-    auto block = reader.ReadNext();
+    auto block_res = reader.ReadNext();
 
     // Then we get an error indicating the file contents are not valid TLV
-    REQUIRE(!block.has_value());
-    REQUIRE(block.error() == BatchReadError::InvalidBlockFormat);
+    REQUIRE(!block_res.has_value());
+    REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
   }
 
-  SECTION("M return InvalidBlockFormat W file is empty") {
+  SECTION("M return nullopt W file is empty") {
     // Given a mock file that is entirely empty
     MockStorageDirectory storage;
     storage.WithExistingFile("foo", "");
@@ -262,13 +277,12 @@ TEST_CASE("BatchReader", "[unit]") {
     BatchReader reader(*infile.value(), buffer);
 
     // When we attempt to read from that ifle
-    auto block = reader.ReadNext();
+    auto block_res = reader.ReadNext();
 
-    // Then we get an error indicating the file contents are not valid TLV:
-    // BatchReader is only in the business of reading batches, and a zero-length
-    // batch and should not be written to disk
-    REQUIRE(!block.has_value());
-    REQUIRE(block.error() == BatchReadError::InvalidBlockFormat);
+    // Then we get a successful read result with a nullopt value, indicating that we've
+    // reached EOF
+    REQUIRE(block_res.has_value());
+    REQUIRE(*block_res == std::nullopt);
   }
 
   SECTION("M reuse buffer W multiple reads") {
@@ -298,17 +312,17 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(buffer.capacity() == 256);
 
     // When we read the block with 'a' x 1024
-    auto block = reader.ReadNext();
-    REQUIRE(block.has_value());
-    REQUIRE(!block->eof);
+    auto block_res = reader.ReadNext();
+    REQUIRE(block_res.has_value());
+    auto block = *block_res;
     REQUIRE(block->type == TLVBlockType::Event);
     REQUIRE(block->data.size() == 1024);
     REQUIRE(std::count(block->data.begin(), block->data.end(), 'a') == 1024);
 
     // And we read the block with 'b' x 768
-    block = reader.ReadNext();
+    block_res = reader.ReadNext();
     REQUIRE(block.has_value());
-    REQUIRE(!block->eof);
+    block = *block_res;
     REQUIRE(block->type == TLVBlockType::Event);
     REQUIRE(block->data.size() == 768);
     REQUIRE(std::count(block->data.begin(), block->data.end(), 'b') == 768);
@@ -327,9 +341,9 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(buffer.capacity() < 16384);
 
     // Next: When we read the block with 'c' x 16380
-    block = reader.ReadNext();
+    block_res = reader.ReadNext();
     REQUIRE(block.has_value());
-    REQUIRE(!block->eof);
+    block = *block_res;
     REQUIRE(block->type == TLVBlockType::Event);
     REQUIRE(block->data.size() == 16380);
     REQUIRE(std::count(block->data.begin(), block->data.end(), 'c') == 16380);
@@ -341,9 +355,9 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(capacity_c >= 16384);
 
     // Next: When we read the block with 'd' x 16384
-    block = reader.ReadNext();
+    block_res = reader.ReadNext();
     REQUIRE(block.has_value());
-    REQUIRE(block->eof);
+    block = *block_res;
     REQUIRE(block->type == TLVBlockType::Event);
     REQUIRE(block->data.size() == 16384);
     REQUIRE(std::count(block->data.begin(), block->data.end(), 'd') == 16384);
@@ -351,6 +365,11 @@ TEST_CASE("BatchReader", "[unit]") {
     // Then the buffer should not have been reallocated due to the tiny difference
     // in size (another implementation detail)
     REQUIRE(buffer.capacity() == capacity_c);
+
+    // And one final read should hit EOF
+    block_res = reader.ReadNext();
+    REQUIRE(block_res.has_value());
+    REQUIRE(*block_res == std::nullopt);
   }
 }
 

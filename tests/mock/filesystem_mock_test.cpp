@@ -93,12 +93,11 @@ TEST_CASE("MockFilesystem File Reading", "[unit][mock-filesystem]") {
     auto reader = std::move(reader_result.value());
 
     char buffer[100];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
 
     // Then operation succeeds and reads expected content
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == test_content.size());
-    REQUIRE(read_result.value().eof == true);
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == test_content.size());
     REQUIRE(std::memcmp(buffer, test_content.data(), test_content.size()) == 0);
   }
 
@@ -113,12 +112,11 @@ TEST_CASE("MockFilesystem File Reading", "[unit][mock-filesystem]") {
     auto reader = std::move(reader_result.value());
 
     char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
 
     // Then operation succeeds and reads partial content
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == sizeof(buffer));
-    REQUIRE(read_result.value().eof == false);
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == sizeof(buffer));
     REQUIRE(std::memcmp(buffer, test_content.data(), sizeof(buffer)) == 0);
   }
 
@@ -132,12 +130,11 @@ TEST_CASE("MockFilesystem File Reading", "[unit][mock-filesystem]") {
     auto reader = std::move(reader_result.value());
 
     char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
 
-    // Then operation succeeds with zero bytes read and EOF
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == 0);
-    REQUIRE(read_result.value().eof == true);
+    // Then operation succeeds with zero bytes read
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 0);
   }
 
   SECTION("M seek forward and read W valid offset") {
@@ -155,9 +152,9 @@ TEST_CASE("MockFilesystem File Reading", "[unit][mock-filesystem]") {
 
     // Then subsequent read starts from seeked position
     char buffer[5];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == sizeof(buffer));
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == sizeof(buffer));
     REQUIRE(std::memcmp(buffer, "56789", sizeof(buffer)) == 0);
   }
 
@@ -213,12 +210,11 @@ TEST_CASE("MockFilesystem File Reading", "[unit][mock-filesystem]") {
     auto seek_result = reader->Seek(100);
     REQUIRE(seek_result.has_value());  // Should not error
 
-    // Then subsequent read returns EOF
+    // Then subsequent reads do nothing and return 0 bytes read
     char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == 0);
-    REQUIRE(read_result.value().eof == true);
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 0);
   }
 }
 
@@ -251,9 +247,9 @@ TEST_CASE("MockFilesystem File Writing", "[unit][mock-filesystem]") {
     auto reader = std::move(reader_result.value());
 
     char buffer[50];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == data_len);
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == data_len);
     REQUIRE(std::memcmp(buffer, test_data, data_len) == 0);
   }
 
@@ -278,9 +274,9 @@ TEST_CASE("MockFilesystem File Writing", "[unit][mock-filesystem]") {
     auto reader = std::move(reader_result.value());
 
     char buffer[50];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == 11);  // "FirstSecond"
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 11);  // "FirstSecond"
     REQUIRE(std::memcmp(buffer, "FirstSecond", 11) == 0);
   }
 
@@ -305,9 +301,9 @@ TEST_CASE("MockFilesystem File Writing", "[unit][mock-filesystem]") {
     auto reader = std::move(reader_result.value());
 
     char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == data_len);
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == data_len);
     REQUIRE(std::memcmp(buffer, binary_data, data_len) == 0);
   }
 }

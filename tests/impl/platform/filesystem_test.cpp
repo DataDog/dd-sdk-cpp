@@ -210,76 +210,78 @@ TEST_CASE("IFileReader", "[unit][platform-filesystem]") {
     REQUIRE(result.value() != nullptr);
   }
 
-  SECTION("M read full file content W Read is called with sufficient buffer") {
-    // Given a file with known content created via filesystem writer
-    const char* test_content = "Hello, File Reading!";
-    size_t content_len = std::strlen(test_content);
-    auto writer_result = storage->PrepareForWrite("read_test.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-    auto write_result = writer->Write(test_content, content_len);
+  SECTION("M read full contents W read size is equal to file size") {
+    // Given a file with 16 bytes of binary data
+    char test_content[16];
+    std::memset(test_content, 'A', sizeof(test_content));
+    auto writer = storage->PrepareForWrite("16a");
+    REQUIRE(writer.has_value());
+    auto write_result = (*writer)->Write(test_content, sizeof(test_content));
     REQUIRE(write_result.has_value());
 
-    // When opening and reading the file
-    auto reader_result = storage->OpenForRead("read_test.txt");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
+    // When we open the file and try to read 16 bytes exactly
+    auto reader = storage->OpenForRead("16a");
+    REQUIRE(reader.has_value());
+    char read_buffer[16];
+    auto num_bytes_read = (*reader)->Read(read_buffer, sizeof(read_buffer));
 
-    char buffer[100];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
+    // Then the read is successful
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 16);
+    REQUIRE(std::memcmp(read_buffer, test_content, 16) == 0);
 
-    // Then operation succeeds and reads expected content
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == content_len);
-    REQUIRE(read_result.value().eof == true);
-    REQUIRE(std::memcmp(buffer, test_content, content_len) == 0);
+    // And a subsequent read will do nothing and return 0 bytes read
+    std::memset(read_buffer, '_', sizeof(read_buffer));
+    num_bytes_read = (*reader)->Read(read_buffer, sizeof(read_buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 0);
+    REQUIRE(read_buffer[0] == '_');
   }
 
-  SECTION("M read partial content W Read is called with small buffer") {
-    // Given a file with content larger than buffer created via filesystem writer
-    const char* test_content =
-        "This is a longer test content that will require multiple reads";
-    auto writer_result = storage->PrepareForWrite("partial_read_test.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-    auto write_result = writer->Write(test_content, std::strlen(test_content));
+  SECTION("M read full contents W read size is greater than file size") {
+    // Given a file with 16 bytes of binary data
+    char test_content[16];
+    std::memset(test_content, 'B', sizeof(test_content));
+    auto writer = storage->PrepareForWrite("16b");
+    REQUIRE(writer.has_value());
+    auto write_result = (*writer)->Write(test_content, sizeof(test_content));
     REQUIRE(write_result.has_value());
 
-    // When opening and reading with small buffer
-    auto reader_result = storage->OpenForRead("partial_read_test.txt");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
+    // When we open the file and try to read 32 bytes
+    auto reader = storage->OpenForRead("16b");
+    REQUIRE(reader.has_value());
+    char read_buffer[32];
+    auto num_bytes_read = (*reader)->Read(read_buffer, sizeof(read_buffer));
 
-    char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
+    // Then the read is successful, with a size of 16
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 16);
+    REQUIRE(std::memcmp(read_buffer, test_content, 16) == 0);
 
-    // Then operation succeeds and reads partial content
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == sizeof(buffer));
-    REQUIRE(read_result.value().eof == false);
-    REQUIRE(std::memcmp(buffer, test_content, sizeof(buffer)) == 0);
+    // And a subsequent read will do nothing and return 0 bytes read
+    std::memset(read_buffer, '_', sizeof(read_buffer));
+    num_bytes_read = (*reader)->Read(read_buffer, sizeof(read_buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 0);
+    REQUIRE(read_buffer[0] == '_');
   }
 
-  SECTION("M handle EOF correctly W Read is called on empty file") {
-    // Given an empty file created via filesystem writer
-    auto writer_result = storage->PrepareForWrite("empty.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-    auto write_result = writer->Write("", 0);
+  SECTION("M read 0 bytes W read size is 0") {
+    // Given an empty file
+    auto writer = storage->PrepareForWrite("empty.txt");
+    REQUIRE(writer.has_value());
+    auto write_result = (*writer)->Write("", 0);
     REQUIRE(write_result.has_value());
 
-    // When opening and reading the empty file
-    auto reader_result = storage->OpenForRead("empty.txt");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
+    // When we open the file and try to read 16 bytes
+    auto reader = storage->OpenForRead("empty.txt");
+    REQUIRE(reader.has_value());
+    char read_buffer[16];
+    auto num_bytes_read = (*reader)->Read(read_buffer, sizeof(read_buffer));
 
-    char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-
-    // Then operation succeeds with zero bytes read and EOF
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == 0);
-    REQUIRE(read_result.value().eof == true);
+    // Then operation succeeds with zero bytes read
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 0);
   }
 
   SECTION("M seek forward in file W Seek is called with positive offset") {
@@ -301,9 +303,9 @@ TEST_CASE("IFileReader", "[unit][platform-filesystem]") {
 
     // Then subsequent read starts from seeked position
     char buffer[5];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == sizeof(buffer));
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == sizeof(buffer));
     REQUIRE(std::memcmp(buffer, "56789", sizeof(buffer)) == 0);
   }
 
@@ -332,9 +334,9 @@ TEST_CASE("IFileReader", "[unit][platform-filesystem]") {
 
     // Then subsequent read starts from new position
     char buffer[3];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == sizeof(buffer));
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == sizeof(buffer));
     REQUIRE(std::memcmp(buffer, "567", sizeof(buffer)) == 0);
   }
 
@@ -377,10 +379,9 @@ TEST_CASE("IFileReader", "[unit][platform-filesystem]") {
 
     // Then subsequent read returns EOF
     char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == 0);
-    REQUIRE(read_result.value().eof == true);
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == 0);
   }
 
   SECTION("M read binary data correctly W Read is called on file with binary content") {
@@ -403,12 +404,11 @@ TEST_CASE("IFileReader", "[unit][platform-filesystem]") {
     auto reader = std::move(reader_result.value());
 
     char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
+    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
 
     // Then operation succeeds and reads correct binary data
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value().num_bytes_read == data_len);
-    REQUIRE(read_result.value().eof == true);
+    REQUIRE(num_bytes_read.has_value());
+    REQUIRE(num_bytes_read.value() == data_len);
     REQUIRE(std::memcmp(buffer, binary_data, data_len) == 0);
   }
 }

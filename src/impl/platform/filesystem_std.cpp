@@ -81,7 +81,7 @@ class StdFileReader final : public IFileReader {
     return {};
   }
 
-  FilesystemResult<FileReadResult> Read(char* dst, size_t n) override {
+  FilesystemResult<size_t> Read(char* dst, size_t n) override {
     // Read up to n bytes from the file into dst
     DATADOG_ASSERT(
         n <= std::numeric_limits<std::streamsize>::max(),
@@ -97,16 +97,15 @@ class StdFileReader final : public IFileReader {
     // If we read anything, or if we've successfully reached the end of the file, the
     // operation succeeded (even if fail bit was set, as this happens on EOF)
     const size_t num_bytes_read = _infile.gcount();
-    const bool eof = _infile.eof();
-    const bool read_ok = num_bytes_read > 0 || eof;
+    const bool read_ok = num_bytes_read > 0 || _infile.eof();
 
     // If the read operation failed, return an error
     if (_infile.fail() && !read_ok) {
       return nonstd::make_unexpected(FilesystemError::Failed);
     }
 
-    // Read succeeded; return EOF bit and number of bytes actually read
-    return FileReadResult{num_bytes_read, eof};
+    // Read succeeded; return number of bytes actually read
+    return num_bytes_read;
   }
 };
 
