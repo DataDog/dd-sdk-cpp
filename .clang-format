@@ -1,60 +1,11 @@
-# Default style: braces on their own lines, no ifs/loops without braces, pointer/ref
-# specifiers aligned left with type name
-BasedOnStyle: Mozilla
+# Inherit sensible defaults to align with other C++ codebases at Datadog
+BasedOnStyle: Google
+Language: Cpp
 
-# Use a max line width of 88 columns
+# 88 is narrow enough for side-by-side review, with significant breathing room over 80
 ColumnLimit: 88
-
-# Each indent is 4 spaces
-IndentWidth: 4
-TabWidth: 4
-ConstructorInitializerIndentWidth: 4
-ContinuationIndentWidth: 4
-ObjCBlockIndentWidth: 4
-AccessModifierOffset: -4
-UseTab: Never
-
-# Don't indent code inside namespace declarations
-NamespaceIndentation: None
-
-# Keep function return type on the same line as function definition, as long as they fit
-# on a single line
-AlwaysBreakAfterReturnType: None
-AlwaysBreakAfterDefinitionReturnType: None
-
-# Explicitly specify brace wrapping: mostly Allman, except for namespace/extern
-Cpp11BracedListStyle: true
-BreakBeforeBraces: Custom
-BraceWrapping:
-    AfterCaseLabel: true
-    AfterClass: true
-    AfterControlStatement: Always
-    AfterEnum: true
-    AfterExternBlock: false
-    AfterFunction: true
-    AfterNamespace: false
-    AfterObjCDeclaration: true
-    AfterStruct: true
-    AfterUnion: true
-    BeforeCatch: true
-    BeforeElse: true
-    BeforeLambdaBody: true
-    BeforeWhile: true
-    IndentBraces: false
-    SplitEmptyFunction: true
-    SplitEmptyRecord: false
-    SplitEmptyNamespace: false
 
 # When an argument list is split across multiple lines, indent them all one level rather
 # than arbitrarily lining them up with the open paren, and place the closing paren on
 # its own line
 AlignAfterOpenBracket: BlockIndent
-
-# All function bodies must be on their own line, even if empty
-AllowShortFunctionsOnASingleLine: None
-
----
-
-# Override config for C to use more idiomatic conventions in public headers
-Language: C
-BasedOnStyle: LLVM

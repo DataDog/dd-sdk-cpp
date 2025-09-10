@@ -23,144 +23,136 @@ class IClock;
 class IStorageDirectory;
 class IHttpSubsystem;
 class IHttpClient;
-}
+}  // namespace datadog::platform
 
 namespace datadog::impl {
 
 /**
  * Describes the lifecycle of the Core.
  */
-enum class CoreState : uint8_t
-{
-    /**
-     * The Core has been constructed with its initial CoreConfig, but it has not yet
-     * been initialized.
-     * - No platform subsystem are initialized.
-     * - No features are registered, and no features may be registered.
-     * - No threads are running, and the Core may not be started.
-     * - Init() must be called (and must return true) to initialize the core.
-     */
-    Uninitialized,
-    /**
-     * Init() has been called, but the core is not running:
-     * - Platform subsystems (storage, HTTP client, etc.) are fully initialized.
-     * - Features may be registered.
-     * - No threads are running.
-     * - Start() may be called (and must return true) to start the core, once all
-     *   desired features are registered. (At least one feature must be registered.)
-     */
-    Initialized,
-    /**
-     * Start() has been called: the core is running.
-     * - Platform subsystems are fully initialized.
-     * - At least one feature is registered; no further features may be registered.
-     * - Storage and upload threads are running, and Core state used by those threads
-     *   will remain stable until Stop() is called.
-     * - Stop() may be called to stop the core, returning it to an Initialized state.
-     *   A call to Stop() blocks until the storage queue is drained, pending writes are
-     *   flushed to disk, and the storage and reporting threads are shut down cleanly.
-     */
-    Started,
+enum class CoreState : uint8_t {
+  /**
+   * The Core has been constructed with its initial CoreConfig, but it has not yet
+   * been initialized.
+   * - No platform subsystem are initialized.
+   * - No features are registered, and no features may be registered.
+   * - No threads are running, and the Core may not be started.
+   * - Init() must be called (and must return true) to initialize the core.
+   */
+  Uninitialized,
+  /**
+   * Init() has been called, but the core is not running:
+   * - Platform subsystems (storage, HTTP client, etc.) are fully initialized.
+   * - Features may be registered.
+   * - No threads are running.
+   * - Start() may be called (and must return true) to start the core, once all
+   *   desired features are registered. (At least one feature must be registered.)
+   */
+  Initialized,
+  /**
+   * Start() has been called: the core is running.
+   * - Platform subsystems are fully initialized.
+   * - At least one feature is registered; no further features may be registered.
+   * - Storage and upload threads are running, and Core state used by those threads
+   *   will remain stable until Stop() is called.
+   * - Stop() may be called to stop the core, returning it to an Initialized state.
+   *   A call to Stop() blocks until the storage queue is drained, pending writes are
+   *   flushed to disk, and the storage and reporting threads are shut down cleanly.
+   */
+  Started,
 };
 
 /**
  * Platform-specific dependencies injected when the Core is constructed.
  */
-struct CoreSubsystems
-{
-    std::unique_ptr<platform::IClock> clock;
-    std::unique_ptr<platform::IStorageDirectory> storage_root;
-    std::unique_ptr<platform::IHttpSubsystem> http;
+struct CoreSubsystems {
+  std::unique_ptr<platform::IClock> clock;
+  std::unique_ptr<platform::IStorageDirectory> storage_root;
+  std::unique_ptr<platform::IHttpSubsystem> http;
 
-    explicit CoreSubsystems(
-        std::unique_ptr<platform::IClock>&& in_clock,
-        std::unique_ptr<platform::IStorageDirectory>&& in_storage_root,
-        std::unique_ptr<platform::IHttpSubsystem>&& in_http
-    )
-        : clock(std::move(in_clock))
-        , storage_root(std::move(in_storage_root))
-        , http(std::move(in_http))
-    {
-    }
+  explicit CoreSubsystems(
+      std::unique_ptr<platform::IClock>&& in_clock,
+      std::unique_ptr<platform::IStorageDirectory>&& in_storage_root,
+      std::unique_ptr<platform::IHttpSubsystem>&& in_http
+  )
+      : clock(std::move(in_clock)),
+        storage_root(std::move(in_storage_root)),
+        http(std::move(in_http)) {}
 
-    /**
-     * Initializes the default implementations of platform subsystems, to be injected
-     * into the Core.
-     *
-     * A production build will only contain a single implementation of each subsystem
-     * (marked 'final'), each of which implements the static factory function used to
-     * create it.
-     *
-     * Test builds do not use this function; they instead initialize mock
-     * implementations.
-     */
-    static std::optional<CoreSubsystems> Init(const CoreConfig& config);
+  /**
+   * Initializes the default implementations of platform subsystems, to be injected
+   * into the Core.
+   *
+   * A production build will only contain a single implementation of each subsystem
+   * (marked 'final'), each of which implements the static factory function used to
+   * create it.
+   *
+   * Test builds do not use this function; they instead initialize mock
+   * implementations.
+   */
+  static std::optional<CoreSubsystems> Init(const CoreConfig& config);
 };
 
 /**
  * State maintained by the Core for a feature that's been registered with it.
  */
-struct RegisteredFeature
-{
-    /**
-     * FourCC ID that uniquely identifies this feature.
-     */
-    FeatureId id;
-    /**
-     * Unique name of this feature, used in log messages, directory names, etc.
-     */
-    std::string name;
-    /**
-     * Pointer to the feature-specific implementation. Uses shared ownership semantics
-     * so that the API layer can retain references via std::weak_ptr or std::shared_ptr.
-     *
-     * All calls to member functions are made by the Core, on the main thread, with one
-     * notable exception: the upload thread calls Feature::UploadThread_PrepareReport
-     * directly.
-     */
-    std::shared_ptr<Feature> impl;
-    /**
-     * Wrapper for the directory where the feature stores event data. Not used by any
-     * thread; this member simply keeps the IDirectory handle alive in case the platform
-     * filesystem implementation requires resource cleanup on exit.
-     */
-    std::unique_ptr<platform::IDirectory> directory;
+struct RegisteredFeature {
+  /**
+   * FourCC ID that uniquely identifies this feature.
+   */
+  FeatureId id;
+  /**
+   * Unique name of this feature, used in log messages, directory names, etc.
+   */
+  std::string name;
+  /**
+   * Pointer to the feature-specific implementation. Uses shared ownership semantics
+   * so that the API layer can retain references via std::weak_ptr or std::shared_ptr.
+   *
+   * All calls to member functions are made by the Core, on the main thread, with one
+   * notable exception: the upload thread calls Feature::UploadThread_PrepareReport
+   * directly.
+   */
+  std::shared_ptr<Feature> impl;
+  /**
+   * Wrapper for the directory where the feature stores event data. Not used by any
+   * thread; this member simply keeps the IDirectory handle alive in case the platform
+   * filesystem implementation requires resource cleanup on exit.
+   */
+  std::unique_ptr<platform::IDirectory> directory;
 
-    /**
-     * Interface used by the storage thread to write event data to persistent storage.
-     */
-    std::unique_ptr<EventStorage> event_storage;
+  /**
+   * Interface used by the storage thread to write event data to persistent storage.
+   */
+  std::unique_ptr<EventStorage> event_storage;
 
-    /**
-     * Wrapper for the directory that the upload thread will scan for batches of event
-     * data to upload: i.e. the subdirectory associated with TrackingConsent::Granted.
-     * This handle is exclusively used by the upload thread.
-     */
-    std::unique_ptr<platform::IDirectory> event_read_directory;
-    /**
-     * Stores feature-specific timing details and other state information, for use by
-     * the upload thread.
-     */
-    std::unique_ptr<UploadThreadState> upload_state;
+  /**
+   * Wrapper for the directory that the upload thread will scan for batches of event
+   * data to upload: i.e. the subdirectory associated with TrackingConsent::Granted.
+   * This handle is exclusively used by the upload thread.
+   */
+  std::unique_ptr<platform::IDirectory> event_read_directory;
+  /**
+   * Stores feature-specific timing details and other state information, for use by
+   * the upload thread.
+   */
+  std::unique_ptr<UploadThreadState> upload_state;
 
-    explicit RegisteredFeature(
-        FeatureId in_id,
-        std::string_view in_name,
-        const std::shared_ptr<Feature>& in_impl,
-        std::unique_ptr<platform::IDirectory>&& in_directory,
-        std::unique_ptr<EventStorage>&& in_event_storage,
-        std::unique_ptr<platform::IDirectory>&& in_event_read_directory,
-        std::unique_ptr<UploadThreadState>&& in_upload_state
-    )
-        : id(in_id)
-        , name(in_name)
-        , impl(in_impl)
-        , directory(std::move(in_directory))
-        , event_storage(std::move(in_event_storage))
-        , event_read_directory(std::move(in_event_read_directory))
-        , upload_state(std::move(in_upload_state))
-    {
-    }
+  explicit RegisteredFeature(
+      FeatureId in_id, std::string_view in_name,
+      const std::shared_ptr<Feature>& in_impl,
+      std::unique_ptr<platform::IDirectory>&& in_directory,
+      std::unique_ptr<EventStorage>&& in_event_storage,
+      std::unique_ptr<platform::IDirectory>&& in_event_read_directory,
+      std::unique_ptr<UploadThreadState>&& in_upload_state
+  )
+      : id(in_id),
+        name(in_name),
+        impl(in_impl),
+        directory(std::move(in_directory)),
+        event_storage(std::move(in_event_storage)),
+        event_read_directory(std::move(in_event_read_directory)),
+        upload_state(std::move(in_upload_state)) {}
 };
 
 /**
@@ -282,133 +274,132 @@ struct RegisteredFeature
  * thread has exclusive access to a feature's `UploadThreadState` and
  * `event_read_directory`.
  */
-class Core
-{
-public:
-    /**
-     * Constructs a new core from the provided configuration.
-     */
-    explicit Core(const CoreConfig& config, CoreSubsystems&& subsystems);
+class Core {
+ public:
+  /**
+   * Constructs a new core from the provided configuration.
+   */
+  explicit Core(const CoreConfig& config, CoreSubsystems&& subsystems);
 
-    /**
-     * Ensures that the core is stopped, if necessary, when it goes out of scope.
-     */
-    ~Core();
+  /**
+   * Ensures that the core is stopped, if necessary, when it goes out of scope.
+   */
+  ~Core();
 
-    // Core is noncopyable but movable
-    Core(const Core&) = delete;
-    Core& operator=(const Core&) = delete;
-    Core(Core&&) = default;
-    Core& operator=(Core&&) = default;
+  // Core is noncopyable but movable
+  Core(const Core&) = delete;
+  Core& operator=(const Core&) = delete;
+  Core(Core&&) = default;
+  Core& operator=(Core&&) = default;
 
-    /**
-     * Updates the configured tracking consent value.
-     *
-     * May be called at any time from the main thread. If the core is running, the state
-     * change will be pushed to the storage thread.
-     */
-    void SetTrackingConsent(TrackingConsent value);
+  /**
+   * Updates the configured tracking consent value.
+   *
+   * May be called at any time from the main thread. If the core is running, the state
+   * change will be pushed to the storage thread.
+   */
+  void SetTrackingConsent(TrackingConsent value);
 
-    /**
-     * Updates the configured 'service' value used in requests.
-     *
-     * May only be called when the core is not running. Calling this function while the
-     * core is running is undefined behavior.
-     *
-     * TODO: Clarify user-facing interface for setting service/env at runtime, as the
-     * most permissible approach would add considerable complexity to the sychronization
-     * boundary between the main thread and the upload thread.
-     */
-    void SetService(std::string_view value);
+  /**
+   * Updates the configured 'service' value used in requests.
+   *
+   * May only be called when the core is not running. Calling this function while the
+   * core is running is undefined behavior.
+   *
+   * TODO: Clarify user-facing interface for setting service/env at runtime, as the most
+   * permissible approach would add considerable complexity to the sychronization
+   * boundary between the main thread and the upload thread.
+   */
+  void SetService(std::string_view value);
 
-    /**
-     * Updates the configured 'env' value used in requests.
-     *
-     * May only be called when the core is not running. Calling this function while the
-     * core is running is undefined behavior.
-     *
-     * TODO: See note on SetService; we'd need the upload thread to read from a message
-     * queue, or acquire a mutex on every upload cycle, etc.
-     */
-    void SetEnv(std::string_view value);
+  /**
+   * Updates the configured 'env' value used in requests.
+   *
+   * May only be called when the core is not running. Calling this function while the
+   * core is running is undefined behavior.
+   *
+   * TODO: See note on SetService; we'd need the upload thread to read from a message
+   * queue, or acquire a mutex on every upload cycle, etc.
+   */
+  void SetEnv(std::string_view value);
 
-    /**
-     * Initializes the core.
-     *
-     * Must be called before RegisterFeature() or Start() may be called. May not be
-     * called more than once.
-     */
-    bool Init();
+  /**
+   * Initializes the core.
+   *
+   * Must be called before RegisterFeature() or Start() may be called. May not be called
+   * more than once.
+   */
+  bool Init();
 
-    /**
-     * Registers a feature implementation with the core.
-     *
-     * Must be called after Init() but before Start(): features may not be registered
-     * while the core is running. No feature can be registered more than once. Once
-     * registered, a feature can not be unregistered.
-     *
-     * @returns whether the feature was successfully registered. If the feature was
-     *  already registered, returns false nonetheless.
-     */
-    bool RegisterFeature(const std::shared_ptr<Feature>& impl);
+  /**
+   * Registers a feature implementation with the core.
+   *
+   * Must be called after Init() but before Start(): features may not be registered
+   * while the core is running. No feature can be registered more than once. Once
+   * registered, a feature can not be unregistered.
+   *
+   * @returns whether the feature was successfully registered. If the feature was
+   *  already registered, returns false nonetheless.
+   */
+  bool RegisterFeature(const std::shared_ptr<Feature>& impl);
 
-    /**
-     * Starts the core.
-     *
-     * Must be called after Init(), and after at least one feature has been successfully
-     * registered. The core must not already be running.
-     *
-     * If successful, starts the storage and upload threads, notifies all registered
-     * features, and begins normal SDK operation.
-     *
-     * @returns whether the core was successfully started. If the core was already
-     *  running, returns false nonetheless.
-     */
-    bool Start();
+  /**
+   * Starts the core.
+   *
+   * Must be called after Init(), and after at least one feature has been successfully
+   * registered. The core must not already be running.
+   *
+   * If successful, starts the storage and upload threads, notifies all registered
+   * features, and begins normal SDK operation.
+   *
+   * @returns whether the core was successfully started. If the core was already
+   *  running, returns false nonetheless.
+   */
+  bool Start();
 
-    /**
-     * Stops the core, ensuring that all background threads are stopped and all
-     * in-flight processing is completed cleanly.
-     *
-     * If the core is not actually running, including if the core is not initialized,
-     * has no effect.
-     *
-     * If the core is running: notifies all features; then signals the end of storage
-     * queue processing; waits for the storage thread to drain the queue and flush
-     * writes to disk; then signals the end of upload cycle scheduling and waits for the
-     * upload thread to complete any in-flight HTTP request and exit.
-     */
-    void Stop();
+  /**
+   * Stops the core, ensuring that all background threads are stopped and all in-flight
+   * processing is completed cleanly.
+   *
+   * If the core is not actually running, including if the core is not initialized, has
+   * no effect.
+   *
+   * If the core is running: notifies all features; then signals the end of storage
+   * queue processing; waits for the storage thread to drain the queue and flush writes
+   * to disk; then signals the end of upload cycle scheduling and waits for the upload
+   * thread to complete any in-flight HTTP request and exit.
+   */
+  void Stop();
 
-private:
-    bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
+ private:
+  bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
 
-private:
-    // Initialized in ctor
-    CoreState _state{CoreState::Uninitialized};
-    CoreConfig _config;
-    CoreContext _context;
-    CoreSubsystems _subsystems;
+ private:
+  // Initialized in ctor
+  CoreState _state{CoreState::Uninitialized};
+  CoreConfig _config;
+  CoreContext _context;
+  CoreSubsystems _subsystems;
 
-    // Initialized on Init; entirely implementation-controlled
-    std::unique_ptr<platform::IHttpClient> _http_client;
+  // Initialized on Init; entirely implementation-controlled
+  std::unique_ptr<platform::IHttpClient> _http_client;
 
-    // Initialized before Start in response to user-initiated feature registration
-    std::vector<RegisteredFeature> _features; // May not be modified while running
+  // Initialized before Start in response to user-initiated feature registration
+  std::vector<RegisteredFeature> _features;  // May not be modified while running
 
-    // Initialized on Start, cleaned up on Stop
-    std::unique_ptr<Queue<StorageMessage>> _storage_queue;
-    std::optional<std::thread> _storage_thread;
+  // Initialized on Start, cleaned up on Stop
+  std::unique_ptr<Queue<StorageMessage>> _storage_queue;
+  std::optional<std::thread> _storage_thread;
 
-    std::unique_ptr<UploadScheduler> _upload_scheduler;
-    std::optional<std::thread> _upload_thread;
+  std::unique_ptr<UploadScheduler> _upload_scheduler;
+  std::optional<std::thread> _upload_thread;
 
-public:
-    // Accessors for core-owned data and interfaces that need to be passed to feature
-    // implementation when they're constructed
-    const platform::IClock& GetClock() const;
-    std::string_view GetServiceName() const;
-    std::string_view GetApplicationVersion() const;
+ public:
+  // Accessors for core-owned data and interfaces that need to be passed to feature
+  // implementation when they're constructed
+  const platform::IClock& GetClock() const;
+  std::string_view GetServiceName() const;
+  std::string_view GetApplicationVersion() const;
 };
 
-} // namespace datadog::impl
+}  // namespace datadog::impl

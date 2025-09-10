@@ -15,29 +15,26 @@ extern "C" {
 // - Attributes with string, array, or object values are internally referenced-counted
 //   with copy-on-write semantics.
 
-typedef enum
-{
-    DD_VALUE_TYPE_NULL,
-    DD_VALUE_TYPE_BOOL,
-    DD_VALUE_TYPE_INT,
-    DD_VALUE_TYPE_UINT,
-    DD_VALUE_TYPE_TIMESTAMP,
-    DD_VALUE_TYPE_DOUBLE,
-    DD_VALUE_TYPE_STRING,
-    DD_VALUE_TYPE_ARRAY,
-    DD_VALUE_TYPE_OBJECT
+typedef enum {
+  DD_VALUE_TYPE_NULL,
+  DD_VALUE_TYPE_BOOL,
+  DD_VALUE_TYPE_INT,
+  DD_VALUE_TYPE_UINT,
+  DD_VALUE_TYPE_TIMESTAMP,
+  DD_VALUE_TYPE_DOUBLE,
+  DD_VALUE_TYPE_STRING,
+  DD_VALUE_TYPE_ARRAY,
+  DD_VALUE_TYPE_OBJECT
 } dd_value_type_t;
 
-typedef struct dd_attribute
-{
-    dd_value_type_t type;
-    union
-    {
-        int64_t i64;
-        uint64_t u64;
-        double f64;
-        void* ptr;
-    } value;
+typedef struct dd_attribute {
+  dd_value_type_t type;
+  union {
+    int64_t i64;
+    uint64_t u64;
+    double f64;
+    void* ptr;
+  } value;
 } dd_attribute_t;
 
 // === Attribute creation functions ===
@@ -122,17 +119,15 @@ void dd_attribute_array_reserve(dd_attribute_t* attribute, size_t capacity);
 
 size_t dd_attribute_object_property_count(const dd_attribute_t* attribute);
 int dd_attribute_object_property_find(
-    const dd_attribute_t* attribute,
-    const char* name
+    const dd_attribute_t* attribute, const char* name
 );
 const char* dd_attribute_object_name_at(const dd_attribute_t* attribute, int index);
 dd_attribute_t dd_attribute_object_value_at(const dd_attribute_t* attribute, int index);
-dd_attribute_t
-dd_attribute_object_property_get(const dd_attribute_t* attribute, const char* name);
+dd_attribute_t dd_attribute_object_property_get(
+    const dd_attribute_t* attribute, const char* name
+);
 void dd_attribute_object_property_set(
-    dd_attribute_t* attribute,
-    const char* name,
-    const dd_attribute_t* value
+    dd_attribute_t* attribute, const char* name, const dd_attribute_t* value
 );
 void dd_attribute_object_property_delete(dd_attribute_t* attribute, const char* name);
 void dd_attribute_object_reserve(dd_attribute_t* attribute, size_t capacity);
@@ -141,4 +136,4 @@ void dd_attribute_object_reserve(dd_attribute_t* attribute, size_t capacity);
 }
 #endif
 
-#endif // DATADOG_INCLUDE_ATTRIBUTE_H
+#endif  // DATADOG_INCLUDE_ATTRIBUTE_H

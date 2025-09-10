@@ -66,10 +66,10 @@
 // - Must target libc++, using Clang 17 or newer
 // - Must use libc++ ABI version 1
 // - Must have no STL iterator debugging and no sanitizers
-#define DATADOG_SMC_GOLDEN_PATH                                                        \
-    ((DATADOG_SMC_LP64 == 1) && (DATADOG_SMC_LIBCPP_MAJOR >= 22) &&                    \
-     (DATADOG_SMC_LIBCPP_ABI_VERSION == 1) && (DATADOG_SMC_STL_DEBUG == 0) &&          \
-     (DATADOG_SMC_ASAN == 0) && (DATADOG_SMC_MSAN == 0) && (DATADOG_SMC_TSAN == 0))
+#define DATADOG_SMC_GOLDEN_PATH                                             \
+  ((DATADOG_SMC_LP64 == 1) && (DATADOG_SMC_LIBCPP_MAJOR >= 22) &&           \
+   (DATADOG_SMC_LIBCPP_ABI_VERSION == 1) && (DATADOG_SMC_STL_DEBUG == 0) && \
+   (DATADOG_SMC_ASAN == 0) && (DATADOG_SMC_MSAN == 0) && (DATADOG_SMC_TSAN == 0))
 
 // If WITH_DATADOG_STRICT_MEMORY_CHECKS was not explicitly defined for the build, define
 // it as 1 if we're on the golden path; 0 otherwise
@@ -87,6 +87,6 @@
         DATADOG_SMC_LIBCPP_ABI_VERSION                                                                                                                                                                              \
     ) ", STL_DEBUG=" DATADOG_SMC_TOSTRING(DATADOG_SMC_STL_DEBUG) ", ASAN=" DATADOG_SMC_TOSTRING(DATADOG_SMC_ASAN) ", MSAN=" DATADOG_SMC_TOSTRING(DATADOG_SMC_MSAN) ", TSAN=" DATADOG_SMC_TOSTRING(DATADOG_SMC_TSAN) \
 )
-#error                                                                                 \
+#error \
     "WITH_DATADOG_STRICT_MEMORY_CHECKS is enabled, but build environment differs from golden path"
 #endif

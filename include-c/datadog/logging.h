@@ -15,14 +15,13 @@ extern "C" {
 /**
  * Severity at which log messages may be emitted.
  */
-typedef enum
-{
-    DD_LOG_LEVEL_DEBUG,
-    DD_LOG_LEVEL_INFO,
-    DD_LOG_LEVEL_NOTICE,
-    DD_LOG_LEVEL_WARN,
-    DD_LOG_LEVEL_ERROR,
-    DD_LOG_LEVEL_CRITICAL,
+typedef enum {
+  DD_LOG_LEVEL_DEBUG,
+  DD_LOG_LEVEL_INFO,
+  DD_LOG_LEVEL_NOTICE,
+  DD_LOG_LEVEL_WARN,
+  DD_LOG_LEVEL_ERROR,
+  DD_LOG_LEVEL_CRITICAL,
 } dd_log_level_t;
 
 /**
@@ -73,8 +72,7 @@ void dd_logger_config_set_name(dd_logger_config_t* config, const char* value);
  * intake.
  */
 void dd_logger_config_set_remote_log_threshold(
-    dd_logger_config_t* config,
-    dd_log_level_t value
+    dd_logger_config_t* config, dd_log_level_t value
 );
 
 /**
@@ -85,8 +83,7 @@ void dd_logger_config_set_remote_log_threshold(
  * is simply a means of optimizing memory allocations based on expected usage.
  */
 void dd_logger_config_set_initial_attribute_capacity(
-    dd_logger_config_t* config,
-    size_t value
+    dd_logger_config_t* config, size_t value
 );
 
 // === Logging feature interface ===
@@ -119,9 +116,7 @@ void dd_logging_destroy(dd_logging_t* logging);
  * emitted by all loggers.
  */
 void dd_logging_attribute_set(
-    dd_logging_t* logging,
-    const char* name,
-    const dd_attribute_t* value
+    dd_logging_t* logging, const char* name, const dd_attribute_t* value
 );
 
 /**
@@ -151,9 +146,7 @@ void dd_logger_destroy(dd_logger_t* logger);
  * global attribute, the logger-level attribute will take precedence.
  */
 void dd_logger_attribute_set(
-    dd_logger_t* logger,
-    const char* name,
-    const dd_attribute_t* value
+    dd_logger_t* logger, const char* name, const dd_attribute_t* value
 );
 
 /**
@@ -183,50 +176,36 @@ void dd_logger_critical(dd_logger_t* logger, const char* message);
  * will be ignored.
  */
 void dd_logger_log_obj(
-    dd_logger_t* logger,
-    dd_log_level_t level,
-    const char* message,
+    dd_logger_t* logger, dd_log_level_t level, const char* message,
     const dd_attribute_t* attributes
 );
 
 void dd_logger_info_obj(
-    dd_logger_t* logger,
-    const char* message,
-    const dd_attribute_t* attributes
+    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
 void dd_logger_debug_obj(
-    dd_logger_t* logger,
-    const char* message,
-    const dd_attribute_t* attributes
+    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
 void dd_logger_notice_obj(
-    dd_logger_t* logger,
-    const char* message,
-    const dd_attribute_t* attributes
+    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
 void dd_logger_warn_obj(
-    dd_logger_t* logger,
-    const char* message,
-    const dd_attribute_t* attributes
+    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
 void dd_logger_error_obj(
-    dd_logger_t* logger,
-    const char* message,
-    const dd_attribute_t* attributes
+    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
 void dd_logger_critical_obj(
-    dd_logger_t* logger,
-    const char* message,
-    const dd_attribute_t* attributes
+    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif // DATADOG_INCLUDE_LOGGING_H
+#endif  // DATADOG_INCLUDE_LOGGING_H
