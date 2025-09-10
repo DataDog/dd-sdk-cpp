@@ -504,7 +504,7 @@ TEST_CASE("Feature", "[unit]")
 
         // Then core should have successfully uploaded our feature
         REQUIRE(test.client.requests.size() == 1);
-        REQUIRE(test.storage.num_files_deleted == 1);
+        REQUIRE(test.storage.GetNumFilesDeleted() == 1);
         const MockHttpRequest& req = test.client.requests.front();
         REQUIRE(!req.aborted);
         REQUIRE(req.body == "hello,nice weather today,goodbye");
@@ -532,7 +532,7 @@ TEST_CASE("Feature", "[unit]")
         // Then core should have successfully uploaded 3 batches for our feature, since
         // the default limit is 500 events per batch
         REQUIRE(test.client.requests.size() == 3);
-        REQUIRE(test.storage.num_files_deleted == 3);
+        REQUIRE(test.storage.GetNumFilesDeleted() == 3);
 
         // And those requests should encode our first 500 events, the next 500 events,
         // and then the final 24

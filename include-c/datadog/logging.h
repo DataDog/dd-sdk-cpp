@@ -1,12 +1,20 @@
 #ifndef DATADOG_INCLUDE_LOGGING_H
 #define DATADOG_INCLUDE_LOGGING_H
 
+#include <stddef.h>
+
+#include "datadog/attribute.h"
 #include "datadog/core.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// === Logger configuration ===
+
+/**
+ * Severity at which log messages may be emitted.
+ */
 typedef enum
 {
     DD_LOG_LEVEL_DEBUG,
@@ -17,30 +25,205 @@ typedef enum
     DD_LOG_LEVEL_CRITICAL,
 } dd_log_level_t;
 
-typedef struct dd_logger_config
-{
-    float remote_sample_rate;
-    const char* service;
-    const char* name;
-    dd_log_level_t remote_log_threshold;
-} dd_logger_config_t;
+/**
+ * Logger configuration struct: passed to dd_logger_create() to configure the details of
+ * a logger on creation. Use dd_logger_config_create() to create a default-initialized
+ * config; you MUST call dd_logger_config_destroy() when finished.
+ */
+typedef struct dd_logger_config dd_logger_config_t;
 
+/**
+ * Initializes a new dd_logger_config_t with default settings. MUST be matched with a
+ * call to dd_logger_config_destroy().
+ */
+dd_logger_config_t* dd_logger_config_create(void);
+
+/**
+ * Frees all memory allocated for the given logger config.
+ */
+void dd_logger_config_destroy(dd_logger_config_t* config);
+
+/**
+ * Sets the remote sample rate to a value between 0.0 and 1.0, indicating what
+ * percentage of log events should be sampled. At 1.0, all messages are sent to intake;
+ * at 0.0, all messages are discarded. Default is 1.0.
+ */
+void dd_logger_config_set_remote_sample_rate(dd_logger_config_t* config, float value);
+
+/**
+ * Sets the service name to be used on messages emitted by a logger. If omitted, the
+ * logger will use the service name configured globally via dd_core_config_t.
+ *
+ * Config makes a copy of provided string value.
+ */
+void dd_logger_config_set_service(dd_logger_config_t* config, const char* value);
+
+/**
+ * Sets the name used to identify a logger in messages emitted by that logger. If
+ * omitted, no 'logger.name' property will be present on log events.
+ *
+ * Config makes a copy of provided string value.
+ */
+void dd_logger_config_set_name(dd_logger_config_t* config, const char* value);
+
+/**
+ * Sets the minimum log level at which messages will be sent to intake. Only messages at
+ * or above this level will be considered for sampling; all messages below that level
+ * will be dropped. Defaults to DD_LOG_LEVEL_DEBUG, meaning all messages will be sent to
+ * intake.
+ */
+void dd_logger_config_set_remote_log_threshold(
+    dd_logger_config_t* config,
+    dd_log_level_t value
+);
+
+/**
+ * Sets the initial number of custom attributes for which memory will be preallocated on
+ * logger creation. At the default of 0, does not reserve space for custom attributes.
+ *
+ * Custom attributes may be freely added beyond this limit. Setting an initial capacity
+ * is simply a means of optimizing memory allocations based on expected usage.
+ */
+void dd_logger_config_set_initial_attribute_capacity(
+    dd_logger_config_t* config,
+    size_t value
+);
+
+// === Logging feature interface ===
+
+/**
+ * Interface used to emit log messages.
+ */
 typedef struct dd_logger dd_logger_t;
+
+/**
+ * Interface to the Datadog SDK's logging feature. Use dd_logging_init() to register the
+ * logging feature with the core. You MUST call dd_logging_destroy() when done.
+ */
 typedef struct dd_logging dd_logging_t;
 
+/**
+ * Registers the logging feature with the core of the Datadog SDK. MUST be matched with
+ * a call to dd_logging_destroy().
+ */
 dd_logging_t* dd_logging_init(dd_core_t* core);
+
+/**
+ * Frees all memory allocated for for the logging feature reference, rendering it no
+ * longer usable. May be called at any time.
+ */
 void dd_logging_destroy(dd_logging_t* logging);
 
+/**
+ * Adds or updates a global attribute value that will be included with all log messages
+ * emitted by all loggers.
+ */
+void dd_logging_attribute_set(
+    dd_logging_t* logging,
+    const char* name,
+    const dd_attribute_t* value
+);
+
+/**
+ * Removes a global attribute value, if one has been previously added with the given
+ * name.
+ */
+void dd_logging_attribute_delete(dd_logging_t* logging, const char* name);
+
+// === Logger interface ===
+
+/**
+ * Creates and returns a new logger with the given configuration. You MUST call
+ * dd_logger_destroy() when finished with the logger.
+ *
+ * If config is NULL, the default configuration values will be used.
+ */
 dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* config);
+
+/**
+ * Frees all memory allocated for the given logger.
+ */
 void dd_logger_destroy(dd_logger_t* logger);
 
-void dd_logger_log(dd_logger_t* log, dd_log_level_t level, const char* message);
-void dd_logger_debug(dd_logger_t* log, const char* message);
-void dd_logger_info(dd_logger_t* log, const char* message);
-void dd_logger_notice(dd_logger_t* log, const char* message);
-void dd_logger_warn(dd_logger_t* log, const char* message);
-void dd_logger_error(dd_logger_t* log, const char* message);
-void dd_logger_critical(dd_logger_t* log, const char* message);
+/**
+ * Adds or updates a logger-level attribute value that will be included with all
+ * messages emitted by this logger. If a logger-level attribute shares its name with a
+ * global attribute, the logger-level attribute will take precedence.
+ */
+void dd_logger_attribute_set(
+    dd_logger_t* logger,
+    const char* name,
+    const dd_attribute_t* value
+);
+
+/**
+ * Removes a logger-level attribute value, if one has been previously added with the
+ * given name.
+ */
+void dd_logger_attribute_delete(dd_logger_t* logger, const char* name);
+
+/**
+ * Emits a log message at the given level.
+ */
+void dd_logger_log(dd_logger_t* logger, dd_log_level_t level, const char* message);
+void dd_logger_debug(dd_logger_t* logger, const char* message);
+void dd_logger_info(dd_logger_t* logger, const char* message);
+void dd_logger_notice(dd_logger_t* logger, const char* message);
+void dd_logger_warn(dd_logger_t* logger, const char* message);
+void dd_logger_error(dd_logger_t* logger, const char* message);
+void dd_logger_critical(dd_logger_t* logger, const char* message);
+
+/**
+ * Emits a log message at the given level, with the given set of message-level
+ * attributes included.
+ *
+ * If attributes has type DD_VALUE_TYPE_OBJECT, each of its named values will be
+ * included in the resulting log event, taking precedence over global and logger-level
+ * attributes in case of name conflict. If attributes is a value of any other type, it
+ * will be ignored.
+ */
+void dd_logger_log_obj(
+    dd_logger_t* logger,
+    dd_log_level_t level,
+    const char* message,
+    const dd_attribute_t* attributes
+);
+
+void dd_logger_info_obj(
+    dd_logger_t* logger,
+    const char* message,
+    const dd_attribute_t* attributes
+);
+
+void dd_logger_debug_obj(
+    dd_logger_t* logger,
+    const char* message,
+    const dd_attribute_t* attributes
+);
+
+void dd_logger_notice_obj(
+    dd_logger_t* logger,
+    const char* message,
+    const dd_attribute_t* attributes
+);
+
+void dd_logger_warn_obj(
+    dd_logger_t* logger,
+    const char* message,
+    const dd_attribute_t* attributes
+);
+
+void dd_logger_error_obj(
+    dd_logger_t* logger,
+    const char* message,
+    const dd_attribute_t* attributes
+);
+
+void dd_logger_critical_obj(
+    dd_logger_t* logger,
+    const char* message,
+    const dd_attribute_t* attributes
+);
 
 #ifdef __cplusplus
 }

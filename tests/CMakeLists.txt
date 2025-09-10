@@ -3,7 +3,9 @@ include(${CMAKE_SOURCE_DIR}/cmake/deps/catch2.cmake)
 # Create test executable
 add_executable(dd_native_tests
     c/attribute_c_api_test.cpp
+    c/logging_c_api_test.cpp
     cpp/attribute_cpp_api_test.cpp
+    cpp/logging_cpp_api_test.cpp
     impl/attribute/cow_test.cpp
     impl/attribute/json_test.cpp
     impl/attribute/memory_test.cpp
@@ -38,6 +40,8 @@ else()
 endif()
 
 target_include_directories(dd_native_tests
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/c
+    PRIVATE ${CMAKE_SOURCE_DIR}/src/cpp
     PRIVATE ${CMAKE_SOURCE_DIR}/src/impl
     PRIVATE .
 )

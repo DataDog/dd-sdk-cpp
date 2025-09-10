@@ -1067,7 +1067,7 @@ TEST_CASE("HandleUploadProc", "[unit]")
 
         // And both batches are deleted, as they were rejected by the server
         REQUIRE(storage.FindFiles("alpha/yes-upload").empty());
-        
+
         // And this feature's upload delay is increased due to failure
         REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
     }

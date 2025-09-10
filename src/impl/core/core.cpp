@@ -1,6 +1,7 @@
 #include "core/core.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <iostream>
 #include <sstream>
 
@@ -163,10 +164,7 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl)
     const auto existing = std::find_if(
         _features.begin(),
         _features.end(),
-        [&](const RegisteredFeature& f)
-        {
-            return f.id == id || f.name == name;
-        }
+        [&](const RegisteredFeature& f) { return f.id == id || f.name == name; }
     );
     if (existing != _features.end())
     {
@@ -320,9 +318,7 @@ bool Core::Start()
         const FeatureId id = feature.id;
         EventGeneratedFunc event_callback =
             [this, id](Block event, Block event_metadata) -> bool
-        {
-            return EnqueueStorageWrite(id, event, event_metadata);
-        };
+        { return EnqueueStorageWrite(id, event, event_metadata); };
         feature.impl->OnCoreStarted(event_callback);
     }
     return true;
@@ -425,6 +421,32 @@ bool Core::EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_me
     return _storage_queue->Push(
         StorageMessage::EventGenerated(feature_id, event, event_metadata)
     );
+}
+
+const platform::IClock& Core::GetClock() const
+{
+    assert(_state >= CoreState::Initialized && "GetClock called before Core init");
+    assert(_subsystems.clock && "Clock not present after Core init");
+    return *_subsystems.clock;
+}
+
+std::string_view Core::GetServiceName() const
+{
+    assert(
+        _state >= CoreState::Initialized && "GetServiceName called before Core init"
+    );
+
+    return _context.service;
+}
+
+std::string_view Core::GetApplicationVersion() const
+{
+    assert(
+        _state >= CoreState::Initialized &&
+        "GetApplicationVersion called before Core init"
+    );
+
+    return _context.application_version;
 }
 
 } // namespace datadog::impl

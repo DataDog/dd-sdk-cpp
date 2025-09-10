@@ -329,10 +329,7 @@ std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextW
         it = std::find_if(
             it,
             _last_known_filenames.cend(),
-            [=](const std::string& s)
-            {
-                return s == filename;
-            }
+            [=](const std::string& s) { return s == filename; }
         );
 
         // If we got no match, we're good to use the current filename
@@ -410,14 +407,6 @@ bool EventStorage::HandleWrite(Block event, Block event_metadata)
 {
     assert(!event.empty() && "HandleWrite received empty event");
 
-    // TEMP
-    std::ostringstream oss;
-    if (!event_metadata.empty())
-    {
-        oss << " <" << event_metadata << ">";
-    }
-    std::cout << "[STORAGE] Got write from feature: " << event << oss.str() << "\n";
-
     // Branch on tracking consent to determine the appropriate place for the new event
     switch (_consent)
     {
@@ -462,10 +451,7 @@ static void _handle_event_generated(
     const auto feature = std::find_if(
         features.begin(),
         features.end(),
-        [&](const RegisteredFeature& f)
-        {
-            return f.id == m.feature_id;
-        }
+        [&](const RegisteredFeature& f) { return f.id == m.feature_id; }
     );
 
     // Ignore the message if no such feature exists

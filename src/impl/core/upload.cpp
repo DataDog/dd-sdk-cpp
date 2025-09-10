@@ -351,10 +351,7 @@ platform::Duration Internal_HandleUploadProc(
     const auto feature = std::find_if(
         features.begin(),
         features.end(),
-        [feature_id](const RegisteredFeature& f)
-        {
-            return f.id == feature_id;
-        }
+        [feature_id](const RegisteredFeature& f) { return f.id == feature_id; }
     );
 
     // If we don't have a matching feature, something is wrong, since the set of

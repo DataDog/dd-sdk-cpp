@@ -10,6 +10,7 @@
 #include "core/block.hpp"
 #include "core/context.hpp"
 #include "core/tlv.hpp"
+#include "platform/clock.hpp"
 #include "platform/filesystem.hpp"
 #include "platform/http.hpp"
 
@@ -244,7 +245,7 @@ protected:
      * @returns whether the event was successfully enqueued for storage. If called
      *  before Start() or after Stop(), always returns false.
      */
-    bool WriteEvent(Block event, Block event_metadata = {});
+    bool WriteEvent(Block event, Block event_metadata = {}) const;
 
     /**
      * @returns whether the feature has received a call to Start() and has not yet
