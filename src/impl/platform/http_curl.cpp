@@ -80,6 +80,14 @@ static curl_slist* build_slist(std::string_view headers) {
   return slist;
 }
 
+// NOLINTNEXTLINE(readability-non-const-parameter)
+static size_t write_callback(char* data, size_t size, size_t nmemb, void* userdata) {
+  // Just consume the response and ignore it
+  (void)data;
+  (void)userdata;
+  return size * nmemb;
+}
+
 class CurlHttpClient final : public IHttpClient {
  private:
   CURL* _curl;
@@ -126,24 +134,38 @@ class CurlHttpClient final : public IHttpClient {
     // the request body when ready
     res = curl_easy_setopt(_curl, CURLOPT_READFUNCTION, read_callback);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_READFUNCTION");
+
+    // Supply the address of the body_writer function as the void* parameter to our read
+    // function: it's safe for our callback to reinterpret_cast and call the function
+    // because the request occurs synchronously within this stack frame
     res = curl_easy_setopt(_curl, CURLOPT_READDATA, &body_writer);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_READDATA");
-    res = curl_easy_setopt(_curl, CURLOPT_UPLOAD, 1L);  // Needed with READFUNCTION
+
+    // Set CURLOPT_UPLOAD, which tells curl to activate the read callback mechanism
+    res = curl_easy_setopt(_curl, CURLOPT_UPLOAD, 1L);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_UPLOAD");
-    res = curl_easy_setopt(_curl, CURLOPT_POSTFIELDSIZE_LARGE, -1);
+
+    // Specify -1 as the size of our uploaded data: this ensures that curl will not set
+    // a Content-Length header, allowing us to stream the request body with
+    // `Transfer-Encoding: chunked` without needing to precompute its size
+    const curl_off_t fieldsize_none = -1;
+    res = curl_easy_setopt(_curl, CURLOPT_POSTFIELDSIZE_LARGE, fieldsize_none);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_POSTFIELDSIZE_LARGE");
 
-    // Set the request method to POST: this must be done after CURLOPT_UPLOAD or else
-    // the method will be overridden to PUT
+    // Set the request method to POST: for historical reasons, CURLOPT_UPLOAD sets the
+    // method to PUT, so we need to explicitly override it to POST
     res = curl_easy_setopt(_curl, CURLOPT_POST, 1L);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_POST");
 
-    // Configure timeouts to prevent hanging
-    res = curl_easy_setopt(
-        _curl, CURLOPT_CONNECTTIMEOUT, 10L
-    );  // 10 second connection timeout
+    // Supply a read callback to ensure that curl will wait until it's read the response
+    // body to close the connection
+    res = curl_easy_setopt(_curl, CURLOPT_WRITEFUNCTION, write_callback);
+    DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_WRITEFUNCTION");
+
+    // Configure timeouts to prevent hanging: 10s to connect, 30s total
+    res = curl_easy_setopt(_curl, CURLOPT_CONNECTTIMEOUT, 10L);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_CONNECTTIMEOUT");
-    res = curl_easy_setopt(_curl, CURLOPT_TIMEOUT, 30L);  // 30 second total timeout
+    res = curl_easy_setopt(_curl, CURLOPT_TIMEOUT, 30L);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_TIMEOUT");
 
     // Initiate the request and block until it's finished
