@@ -26,14 +26,14 @@ RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https:
 
 # Define the various compiler toolchains we want to build with using Docker
 
-# Build `ci/dd-sdk-cpp/gcc9` with: --target gcc9
-FROM base AS gcc9
+# Build `ci/dd-sdk-cpp/gcc11` with: --target gcc11
+FROM base AS gcc11
 RUN apt-get update && apt-get install -y software-properties-common \
   && add-apt-repository ppa:ubuntu-toolchain-r/test \
   && apt-get update \
-  && apt-get -y install gcc-9 g++-9
-ENV CC=gcc-9
-ENV CXX=g++-9
+  && apt-get -y install gcc-11 g++-11
+ENV CC=gcc-11
+ENV CXX=g++-11
 
 # Build `ci/dd-sdk-cpp/gcc13` with: --target gcc13
 FROM base AS gcc13

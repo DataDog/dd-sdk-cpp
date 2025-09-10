@@ -36,7 +36,7 @@ build-toolchain-image:
   image: ${BUILD_STABLE_REGISTRY}/${DIND_IMAGE}
   parallel:
     matrix:
-      - TOOLCHAIN_TARGET: [gcc9, gcc13, clang15, clang20]
+      - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20]
   script:
     - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}"
     - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build -f Dockerfile.gitlab --push .
@@ -89,8 +89,8 @@ build-linux:
     # static vs. shared, release vs. debug, etc.) in each job. This stage primarily
     # exercises compiler versions that we don't use when producing precompiled binaries.
     matrix:
-      # gcc9: shared-debug, w/ runtime dependency on libcurl.so
-      - TOOLCHAIN_TARGET: gcc9
+      # gcc11: shared-debug, w/ runtime dependency on libcurl.so
+      - TOOLCHAIN_TARGET: gcc11
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
