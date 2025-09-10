@@ -50,7 +50,7 @@ static size_t require_exact_heap_size(const Attribute& attribute, size_t want) {
  * enough to it.
  */
 static size_t require_heap_size(const Attribute& attribute, size_t want) {
-#ifdef WITH_DATADOG_STRICT_MEMORY_CHECKS
+#if WITH_DATADOG_STRICT_MEMORY_CHECKS
   // If we're building in the same environment in which we observed the expected size,
   // require an exact match
   return require_exact_heap_size(attribute, want);
@@ -118,7 +118,7 @@ static void require_allocation_tracker_stats(
 
   // Assume that the provided callback validates precise compiler-specific behavior:
   // only run it on the platform where we're authoring tests
-#ifdef WITH_DATADOG_STRICT_MEMORY_CHECKS
+#if WITH_DATADOG_STRICT_MEMORY_CHECKS
   if (f) {
     f(stats);
   }
