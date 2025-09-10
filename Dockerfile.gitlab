@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
   ca-certificates \
   gpg \
   wget \
+  libcurl4-openssl-dev \
   libssl-dev \
   ninja-build
 

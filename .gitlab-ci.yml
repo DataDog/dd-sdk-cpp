@@ -17,7 +17,7 @@ variables:
   # Our toolchain images are tagged with this version, e.g. 'ci/dd-sdk-cpp:clang15-v2':
   # bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
-  TOOLCHAIN_IMAGE_VERSION: v2
+  TOOLCHAIN_IMAGE_VERSION: v3
 
   # clang-20 is our golden-path toolchain for development: use the clang-20 image to
   # validate builds with full linting, format checks, etc.
