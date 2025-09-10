@@ -136,9 +136,9 @@ package-linux:
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}
   script:
     - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo . -B build
+    - cmake --build build --target package
     - stat build/artifact_name.txt
     - ARTIFACT_NAME=$(cat build/artifact_name.txt)
-    - cmake --build build --target package
     - stat "build/$ARTIFACT_NAME.tar.gz"
   artifacts:
     expire_in: "1 week"
