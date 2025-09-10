@@ -89,26 +89,26 @@ build-linux:
     # static vs. shared, release vs. debug, etc.) in each job. This stage primarily
     # exercises compiler versions that we don't use when producing precompiled binaries.
     matrix:
-      - name: build-linux:gcc9-debug-shared
-        TOOLCHAIN_TARGET: gcc9
+      # gcc9: shared-debug, w/ runtime dependency on libcurl.so
+      - TOOLCHAIN_TARGET: gcc9
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
-      
-      - name: build-linux:gcc13-release-static-curl
-        TOOLCHAIN_TARGET: gcc13
+
+      # gcc13: static-release, w/ bundled libcurl
+      - TOOLCHAIN_TARGET: gcc13
         BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
 
-      - name: build-linux:clang15-release-static
-        TOOLCHAIN_TARGET: clang15
+      # clang15: static-release, w/ runtime dependency on libcurl.so
+      - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "ON"
-      
-      - name: build-linux:clang15-debug-shared-curl
-        TOOLCHAIN_TARGET: clang15
+
+      # clang15: shared-debug, w/ bundled libcurl
+      - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "OFF"
