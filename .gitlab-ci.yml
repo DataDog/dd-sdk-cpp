@@ -118,7 +118,7 @@ build-linux:
     - >
       cmake
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
-      -DCMAKE_BUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
+      -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
       . -B build
     - cmake --build build
