@@ -21,6 +21,7 @@ endif()
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
 option(DD_DEVELOPMENT "Enable development mode (examples, tests, analysis, asserts)" OFF)
+option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools (e.g. clang-format) may be automatically downloaded and installed to toos/bin/" OFF)
 
 # Top-level options for the build
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
