@@ -4,6 +4,7 @@ add_library(dd_native_c_api STATIC
     logging.cpp
 )
 target_enable_strict_warnings(dd_native_c_api)
+target_enable_datadog_assert(dd_native_c_api)
 target_enable_clang_tidy(dd_native_c_api)
 target_enable_coverage(dd_native_c_api)
 

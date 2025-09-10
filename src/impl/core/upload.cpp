@@ -9,6 +9,7 @@
 #include <string>
 #include <thread>
 
+#include "assert.hpp"
 #include "core/block.hpp"
 #include "core/core.hpp"
 #include "platform/filesystem.hpp"
@@ -149,7 +150,9 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
     // The feature should have its own state related to upload attempt timing etc.
     if (!feature.upload_state)
     {
-        assert(false && "registered feature has no upload state in upload thread");
+        DATADOG_ASSERT(
+            false, "registered feature has no upload state in upload thread"
+        );
         return ASSERTION_FAILURE_BACKOFF;
     }
 
@@ -158,7 +161,9 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
     // initialized when the feature was registered
     if (!feature.event_read_directory)
     {
-        assert(false && "registered feature has no read directory in upload thread");
+        DATADOG_ASSERT(
+            false, "registered feature has no read directory in upload thread"
+        );
         return ASSERTION_FAILURE_BACKOFF;
     }
     platform::IDirectory& directory = *feature.event_read_directory;
@@ -359,7 +364,9 @@ platform::Duration Internal_HandleUploadProc(
     // and the upload thread should be the only thing scheduling uploads
     if (feature == features.end())
     {
-        assert(false && "feature_id on scheduled upload matches no registered feature");
+        DATADOG_ASSERT(
+            false, "feature_id on scheduled upload matches no registered feature"
+        );
         return ASSERTION_FAILURE_BACKOFF;
     }
 

@@ -1,8 +1,8 @@
 #include "datadog/attribute.h"
 
-#include <cassert>
 #include <memory>
 
+#include "assert.hpp"
 #include "attribute/cow.hpp"
 #include "attribute/types.hpp"
 
@@ -37,12 +37,12 @@ static bool is_primitive_type(dd_value_type_t type)
 
 static const datadog::impl::CowValue* get_cow_value(const dd_attribute_t* attribute)
 {
-    assert(
-        !is_primitive_type(attribute->type) &&
+    DATADOG_ASSERT(
+        !is_primitive_type(attribute->type),
         "get_cow_value called on dd_attribute_t with primitive type"
     );
-    assert(
-        attribute->value.ptr &&
+    DATADOG_ASSERT(
+        attribute->value.ptr,
         "dd_attribute_t with non-primitive value type has null storage ptr"
     );
 
@@ -52,12 +52,12 @@ static const datadog::impl::CowValue* get_cow_value(const dd_attribute_t* attrib
 
 static datadog::impl::CowValue* get_cow_value(dd_attribute_t* attribute)
 {
-    assert(
-        !is_primitive_type(attribute->type) &&
+    DATADOG_ASSERT(
+        !is_primitive_type(attribute->type),
         "get_cow_value called on dd_attribute_t with primitive type"
     );
-    assert(
-        attribute->value.ptr &&
+    DATADOG_ASSERT(
+        attribute->value.ptr,
         "dd_attribute_t with non-primitive value type has null storage ptr"
     );
 
@@ -67,12 +67,12 @@ static datadog::impl::CowValue* get_cow_value(dd_attribute_t* attribute)
 
 static datadog::impl::CowValue* get_cow_value_for_write(dd_attribute_t* attribute)
 {
-    assert(
-        !is_primitive_type(attribute->type) &&
+    DATADOG_ASSERT(
+        !is_primitive_type(attribute->type),
         "get_cow_value_for_write called on dd_attribute_t with primitive type"
     );
-    assert(
-        attribute->value.ptr &&
+    DATADOG_ASSERT(
+        attribute->value.ptr,
         "dd_attribute_t with non-primitive value type has null storage ptr"
     );
 

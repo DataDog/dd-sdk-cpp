@@ -1,6 +1,5 @@
 #include "attribute/json.hpp"
 
-#include <cassert>
 #include <charconv>
 #include <chrono>
 
@@ -10,6 +9,7 @@
 
 #include "date/date.h"
 
+#include "assert.hpp"
 #include "attribute/cow.hpp"
 
 namespace datadog::impl {
@@ -26,7 +26,7 @@ static const size_t QUOTED_ISO8601_LEN = 26;
 
 static size_t _literal_write(uint8_t* dst, size_t n, std::string_view value)
 {
-    assert(n >= value.size() && "insufficient buffer size on _literal_write");
+    DATADOG_ASSERT(n >= value.size(), "insufficient buffer size on _literal_write");
     std::memcpy(dst, value.data(), value.size());
     return value.size();
 }
@@ -94,7 +94,7 @@ static size_t _uint64_decimal_len(uint64_t value)
     }
 #endif
     // Bit count of a 64-bit value never exceeds 64
-    assert(num_bits <= 64);
+    DATADOG_ASSERT(num_bits <= 64, "computed bit width >64 for uint64");
 
     // Now that we have the bit length, we can approximate `floor(log10(value))` as
     // `floor(num_bits * log10(2))`. Right-shifting by 12 is an integer division by
@@ -110,7 +110,9 @@ static size_t _uint64_decimal_len(uint64_t value)
     // never exceed 64, and 64 * (1233/4096) ~= 19.265625
     static_assert((1u * 1233u) >> 12 == 0, "lower bound must be 0");
     static_assert((64u * 1233u) >> 12 == 19, "upper bound must be 19");
-    assert(estimated_num_digits < 20);
+    DATADOG_ASSERT(
+        estimated_num_digits < 20, "computed num decimal digits >19 for uint64"
+    );
 
     // Given max error < 0.000005, estimated_num_digits is either exactly
     // `floor(log10(value))` or it's off by one: if `value` is greater than or equal to
@@ -128,7 +130,9 @@ static size_t _uint64_decimal_write(uint8_t* dst, size_t n, uint64_t value)
     auto result = std::to_chars(
         reinterpret_cast<char*>(dst), reinterpret_cast<char*>(dst + n), value
     );
-    assert(result.ec == std::errc{} && "insufficient buffer size on uint64 encode");
+    DATADOG_ASSERT(
+        result.ec == std::errc{}, "insufficient buffer size on uint64 encode"
+    );
     return result.ptr - reinterpret_cast<char*>(dst);
 }
 
@@ -159,7 +163,9 @@ static size_t _int64_decimal_write(uint8_t* dst, size_t n, int64_t value)
     auto result = std::to_chars(
         reinterpret_cast<char*>(dst), reinterpret_cast<char*>(dst + n), value
     );
-    assert(result.ec == std::errc{} && "insufficient buffer size on int64 encode");
+    DATADOG_ASSERT(
+        result.ec == std::errc{}, "insufficient buffer size on int64 encode"
+    );
     return result.ptr - reinterpret_cast<char*>(dst);
 }
 
@@ -190,7 +196,9 @@ static size_t _double_gfmt_write(uint8_t* dst, size_t n, double value)
         value,
         std::chars_format::general
     );
-    assert(result.ec == std::errc{} && "insufficient buffer size on double encode");
+    DATADOG_ASSERT(
+        result.ec == std::errc{}, "insufficient buffer size on double encode"
+    );
     return result.ptr - reinterpret_cast<char*>(dst);
 }
 
@@ -199,9 +207,11 @@ static void _write_timestamp_4d(uint8_t*& ptr, size_t n, uint64_t value)
     auto res = std::to_chars(
         reinterpret_cast<char*>(ptr), reinterpret_cast<char*>(ptr + n), value
     );
-    assert(res.ec == std::errc{} && "insufficient buffer space on timestamp write");
-    assert(
-        reinterpret_cast<uint8_t*>(res.ptr) == ptr + 4 &&
+    DATADOG_ASSERT(
+        res.ec == std::errc{}, "insufficient buffer space on timestamp write"
+    );
+    DATADOG_ASSERT(
+        reinterpret_cast<uint8_t*>(res.ptr) == ptr + 4,
         "unexpected write size on timestamp write"
     );
     ptr += 4;
@@ -209,8 +219,8 @@ static void _write_timestamp_4d(uint8_t*& ptr, size_t n, uint64_t value)
 
 static void _write_timestamp_02d(uint8_t*& ptr, size_t n, uint64_t value)
 {
-    assert(value <= 99 && "value out of range for 02d");
-    assert(n >= 2 && "insufficient buffer space for 02d");
+    DATADOG_ASSERT(value <= 99, "value out of range for 02d");
+    DATADOG_ASSERT(n >= 2, "insufficient buffer space for 02d");
 
     static const char digits[10] = {'0', '1', '2', '3', '4', '5', '6', '7', '8', '9'};
     if (value < 10)
@@ -223,9 +233,11 @@ static void _write_timestamp_02d(uint8_t*& ptr, size_t n, uint64_t value)
         auto res = std::to_chars(
             reinterpret_cast<char*>(ptr), reinterpret_cast<char*>(ptr + n), value
         );
-        assert(res.ec == std::errc{} && "insufficient buffer space on timestamp write");
-        assert(
-            reinterpret_cast<uint8_t*>(res.ptr) == ptr + 2 &&
+        DATADOG_ASSERT(
+            res.ec == std::errc{}, "insufficient buffer space on timestamp write"
+        );
+        DATADOG_ASSERT(
+            reinterpret_cast<uint8_t*>(res.ptr) == ptr + 2,
             "unexpected write size on timestamp write"
         );
         ptr += 2;
@@ -234,8 +246,8 @@ static void _write_timestamp_02d(uint8_t*& ptr, size_t n, uint64_t value)
 
 static void _write_timestamp_03d(uint8_t*& ptr, size_t n, uint64_t value)
 {
-    assert(value <= 999 && "value out of range for 03d");
-    assert(n >= 3 && "insufficient buffer space for 03d");
+    DATADOG_ASSERT(value <= 999, "value out of range for 03d");
+    DATADOG_ASSERT(n >= 3, "insufficient buffer space for 03d");
 
     if (value < 100)
     {
@@ -252,11 +264,13 @@ static void _write_timestamp_03d(uint8_t*& ptr, size_t n, uint64_t value)
     auto res = std::to_chars(
         reinterpret_cast<char*>(ptr), reinterpret_cast<char*>(ptr + n), value
     );
-    assert(res.ec == std::errc{} && "insufficient buffer space on timestamp write");
+    DATADOG_ASSERT(
+        res.ec == std::errc{}, "insufficient buffer space on timestamp write"
+    );
 
     const size_t num_written = reinterpret_cast<uint8_t*>(res.ptr) - ptr;
-    assert(
-        num_written == (value < 10 ? 1 : (value < 100 ? 2 : 3)) &&
+    DATADOG_ASSERT(
+        num_written == (value < 10 ? 1 : (value < 100 ? 2 : 3)),
         "unexpected write size on timestamp write"
     );
     ptr += num_written;
@@ -265,7 +279,7 @@ static void _write_timestamp_03d(uint8_t*& ptr, size_t n, uint64_t value)
 static size_t
 _iso_timestamp_quoted_write(uint8_t* dst, size_t n, uint64_t nanoseconds_since_epoch)
 {
-    assert(n >= QUOTED_ISO8601_LEN && "insufficient buffer size for timestamp");
+    DATADOG_ASSERT(n >= QUOTED_ISO8601_LEN, "insufficient buffer size for timestamp");
 
     // Attribute stores timestamps internally as uint64_t in nanoseconds: construct an
     // equivalent std::chrono::time_point for interoperability with HowardHinnant/date
@@ -282,8 +296,8 @@ _iso_timestamp_quoted_write(uint8_t* dst, size_t n, uint64_t nanoseconds_since_e
     // Sanity check: a uint64 Unix timestamp in nanoseconds can only represent years
     // within this range
     const int year_value = static_cast<int>(ymd.year());
-    assert(year_value >= 1970 && "date::floor yielded year before 1970");
-    assert(year_value <= 2555 && "date::floor yielded year after 2555");
+    DATADOG_ASSERT(year_value >= 1970, "date::floor yielded year before 1970");
+    DATADOG_ASSERT(year_value <= 2555, "date::floor yielded year after 2555");
 
     // Get unsigned values for our calendar date: [1970..2286], [1..12], [1..31]
     const uint64_t year = year_value;
@@ -337,8 +351,8 @@ _iso_timestamp_quoted_write(uint8_t* dst, size_t n, uint64_t nanoseconds_since_e
     // We should have ended up with a value that's exactly 26 bytes, representing a
     // quoted JSON literal string in ISO-8601 format, with millisecond precision
     const size_t num_bytes_written = ptr - dst;
-    assert(
-        num_bytes_written == QUOTED_ISO8601_LEN &&
+    DATADOG_ASSERT(
+        num_bytes_written == QUOTED_ISO8601_LEN,
         "unexpected result size for JSON-encoded timestamp"
     );
     return num_bytes_written;
@@ -462,7 +476,7 @@ _string_quoted_escaped_write(uint8_t* dst, size_t n, std::string_view value)
     // Return total number of bytes written, which should have been less than or equal
     // to the available space in the buffer
     const size_t num_bytes_written = ptr - dst;
-    assert(num_bytes_written <= n && "buffer overflow on string encode");
+    DATADOG_ASSERT(num_bytes_written <= n, "buffer overflow on string encode");
     return num_bytes_written;
 }
 
@@ -521,7 +535,7 @@ static size_t _array_write(uint8_t* dst, size_t n, const impl::CowValue& value)
     // Return total number of bytes written, which should have been less than or equal
     // to the available space in the buffer
     const size_t num_bytes_written = ptr - dst;
-    assert(num_bytes_written <= n && "buffer overflow on array encode");
+    DATADOG_ASSERT(num_bytes_written <= n, "buffer overflow on array encode");
     return num_bytes_written;
 }
 
@@ -593,7 +607,7 @@ static size_t _object_write(uint8_t* dst, size_t n, const impl::CowValue& value)
     // Return total number of bytes written, which should have been less than or equal
     // to the available space in the buffer
     const size_t num_bytes_written = ptr - dst;
-    assert(num_bytes_written <= n && "buffer overflow on object encode");
+    DATADOG_ASSERT(num_bytes_written <= n, "buffer overflow on object encode");
     return num_bytes_written;
 }
 
@@ -690,7 +704,10 @@ void AttributeSerialization::ToJSON(
 
     // Debug: verify that WriteValue never writes more data than ComputeValueLen
     // indicates we need
-    assert(num_bytes_written <= precomputed_size);
+    DATADOG_ASSERT(
+        num_bytes_written <= precomputed_size,
+        "unexpected overflow of JSON serialization buffer"
+    );
 
     // Ensure that out_buffer is bounded to include only the data we've written, in case
     // we overestimated buffer size

@@ -1,5 +1,7 @@
 #include "core/tlv.hpp"
 
+#include "assert.hpp"
+
 namespace datadog::impl {
 
 static uint16_t _read_big_endian_16(const char* src)
@@ -76,7 +78,7 @@ void TLVBlockHeader::Encode(char buf[TLVBlockHeader::SIZE]) const
 size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data)
 {
     // We should not attempt to write empty blocks
-    assert(n > 0 && "EncodeTLVBlock called with size 0");
+    DATADOG_ASSERT(n > 0, "EncodeTLVBlock called with size 0");
 
     // Construct the header and validate that the buffer is large enough
     const TLVBlockHeader header{type, static_cast<uint32_t>(data.size())};
@@ -98,7 +100,7 @@ platform::FilesystemResult<void>
 EncodeTLVBlock(platform::IFileWriter& file, TLVBlockType type, Block block)
 {
     // We should not attempt to write empty blocks
-    assert(!block.empty());
+    DATADOG_ASSERT(!block.empty(), "attempted to encode empty TLV block");
 
     // Encode the header, representing type and size in big-endian byte order
     char header_buf[TLVBlockHeader::SIZE];
@@ -164,7 +166,9 @@ ReadTLVBlock(platform::IFileReader& file, std::vector<char>& out_block_data)
     // We got the whole block; construct a view into our reusable buffer and return a
     // successful result struct, propagating EOF
     Block block_data{out_block_data.data(), out_block_data.size()};
-    assert(out_block_data.size() == header->block_size);
+    DATADOG_ASSERT(
+        out_block_data.size() == header->block_size, "unexpected block size post-read"
+    );
     return TLVBlockReadResult{*header, result->eof};
 }
 

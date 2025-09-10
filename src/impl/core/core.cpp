@@ -1,10 +1,10 @@
 #include "core/core.hpp"
 
 #include <algorithm>
-#include <cassert>
 #include <iostream>
 #include <sstream>
 
+#include "assert.hpp"
 #include "core/types.hpp"
 #include "core/upload.hpp"
 #include "platform/clock.hpp"
@@ -55,8 +55,10 @@ Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
     , _context(config)
     , _subsystems(std::move(subsystems))
 {
-    assert(_subsystems.storage_root && "Core created with no root storage directory");
-    assert(_subsystems.http && "Core created with no HTTP subsystem");
+    DATADOG_ASSERT(
+        _subsystems.storage_root, "Core created with no root storage directory"
+    );
+    DATADOG_ASSERT(_subsystems.http, "Core created with no HTTP subsystem");
 
     _features.reserve(16);
 }
@@ -79,8 +81,8 @@ void Core::SetTrackingConsent(TrackingConsent value)
         if (_state == CoreState::Started)
         {
             // If the core is running, send a message using the storage queue
-            assert(
-                _storage_queue &&
+            DATADOG_ASSERT(
+                _storage_queue,
                 "_storage_queue is invalid with CoreState::Started on "
                 "SetTrackingConsent"
             );
@@ -129,7 +131,9 @@ bool Core::Init()
 {
     // We call Init() internally at the API binding layer; users should not be able to
     // attempt initialization of the same core twice
-    assert(_state == CoreState::Uninitialized && "Core::Init called multiple times");
+    DATADOG_ASSERT(
+        _state == CoreState::Uninitialized, "Core::Init called multiple times"
+    );
 
     // Create a single HTTP client
     _http_client = _subsystems.http->CreateClient();
@@ -266,24 +270,24 @@ bool Core::Start()
 
     // Initialize a thread-safe queue that features can write to whenever they produce
     // events that need to be written to disk
-    assert(!_storage_queue && "_storage_queue already exists on Start()");
+    DATADOG_ASSERT(!_storage_queue, "_storage_queue already exists on Start()");
     _storage_queue = std::make_unique<Queue<StorageMessage>>();
 
     // Start a thread that will read those events from the queue and write them to
     // persistent storage: the thread accepts non-owning references to the queue and the
     // vector of features, as both are stable for the lifetime of the thread
-    assert(!_storage_thread && "_storage_thread already exists on Start()");
+    DATADOG_ASSERT(!_storage_thread, "_storage_thread already exists on Start()");
     _storage_thread =
         std::thread(StorageThreadMain, std::ref(*_storage_queue), std::ref(_features));
 
-    assert(!_upload_scheduler && "_upload_scheduler already exists on Start()");
+    DATADOG_ASSERT(!_upload_scheduler, "_upload_scheduler already exists on Start()");
     _upload_scheduler = std::make_unique<UploadScheduler>(*_subsystems.clock);
 
     // Start another thread that will schedule periodic upload cycles on a per-feature
     // basis: each time an upload cycle runs, the thread will check the relevant storage
     // directory for batches of events that are ready for read, processing them via the
     // feature implementation and sending them to intake over HTTP
-    assert(!_upload_thread && "_upload_thread already exists on Start()");
+    DATADOG_ASSERT(!_upload_thread, "_upload_thread already exists on Start()");
     _upload_thread = std::thread(
         UploadThreadMain,
         UploadThreadConfig::FromCoreConfig(
@@ -339,28 +343,34 @@ void Core::Stop()
     }
 
     // If we were previously started, the storage and upload threads should be running
-    assert(_storage_queue && "_storage_queue is invalid on Stop");
-    assert(
-        _storage_thread && _storage_thread->joinable() &&
+    DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid on Stop");
+    DATADOG_ASSERT(
+        _storage_thread && _storage_thread->joinable(),
         "_storage_thread is non-joinable on Stop"
     );
-    assert(_upload_scheduler && "_upload_scheduler is invalid on Stop");
-    assert(
-        _upload_thread && _upload_thread->joinable() &&
+    DATADOG_ASSERT(_upload_scheduler, "_upload_scheduler is invalid on Stop");
+    DATADOG_ASSERT(
+        _upload_thread && _upload_thread->joinable(),
         "_upload_thread is non-joinable on Stop"
     );
 
     // Stop all queue processing, then block until the consumer thread drains the queue
     // and exits, at which point it's safe to release the queue
     _storage_queue->Stop();
-    _storage_thread->join();
+    if (_storage_thread)
+    {
+        _storage_thread->join();
+    }
     _storage_thread.reset();
     _storage_queue.reset();
 
     // Once the storage thread is fully shut down, signal to the upload thread (with
     // synchronization) that it should exit, then wait for it to do so
     _upload_scheduler->Stop();
-    _upload_thread->join();
+    if (_upload_thread)
+    {
+        _upload_thread->join();
+    }
     _upload_thread.reset();
     _upload_scheduler.reset();
 
@@ -417,7 +427,7 @@ bool Core::EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_me
         return false;
     }
 
-    assert(_storage_queue && "_storage_queue is invalid while core is running");
+    DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid while core is running");
     return _storage_queue->Push(
         StorageMessage::EventGenerated(feature_id, event, event_metadata)
     );
@@ -425,15 +435,17 @@ bool Core::EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_me
 
 const platform::IClock& Core::GetClock() const
 {
-    assert(_state >= CoreState::Initialized && "GetClock called before Core init");
-    assert(_subsystems.clock && "Clock not present after Core init");
+    DATADOG_ASSERT(
+        _state >= CoreState::Initialized, "GetClock called before Core init"
+    );
+    DATADOG_ASSERT(_subsystems.clock, "Clock not present after Core init");
     return *_subsystems.clock;
 }
 
 std::string_view Core::GetServiceName() const
 {
-    assert(
-        _state >= CoreState::Initialized && "GetServiceName called before Core init"
+    DATADOG_ASSERT(
+        _state >= CoreState::Initialized, "GetServiceName called before Core init"
     );
 
     return _context.service;
@@ -441,8 +453,8 @@ std::string_view Core::GetServiceName() const
 
 std::string_view Core::GetApplicationVersion() const
 {
-    assert(
-        _state >= CoreState::Initialized &&
+    DATADOG_ASSERT(
+        _state >= CoreState::Initialized,
         "GetApplicationVersion called before Core init"
     );
 

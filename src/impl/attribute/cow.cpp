@@ -1,5 +1,7 @@
 #include "attribute/cow.hpp"
 
+#include "assert.hpp"
+
 namespace datadog::impl {
 
 CowValue::CowValue(CowValueType in_type, size_t initial_capacity)
@@ -281,12 +283,12 @@ int CowValue::FindPropertyIndex(std::string_view name) const
         {
             // Invariant: we should never allow an object to have more than one
             // value registered for any given key
-            assert(
+            DATADOG_ASSERT(
                 std::find_if(
                     std::next(found),
                     value.object.end(),
                     [name](const auto& kvp) { return kvp.first == name; }
-                ) == value.object.end() &&
+                ) == value.object.end(),
                 "Multiple object properties with the same name on find"
             );
 
@@ -325,12 +327,12 @@ void CowValue::SetProperty(std::string_view name, const Attribute& attribute)
 
             // Invariant: we should never allow an object to have more than one
             // value registered for any given key
-            assert(
+            DATADOG_ASSERT(
                 std::find_if(
                     std::next(found),
                     value.object.end(),
                     [name](const auto& kvp) { return kvp.first == name; }
-                ) == value.object.end() &&
+                ) == value.object.end(),
                 "Multiple object properties with the same name on set"
             );
         }
@@ -356,8 +358,8 @@ void CowValue::DeleteProperty(std::string_view name)
 
         // Invariant: we should never allow an object to have more than one value
         // registered for any given key
-        assert(
-            std::distance(new_end, value.object.end()) <= 1 &&
+        DATADOG_ASSERT(
+            std::distance(new_end, value.object.end()) <= 1,
             "Multiple object properties with the same name on delete"
         );
 

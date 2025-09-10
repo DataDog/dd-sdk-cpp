@@ -1,12 +1,13 @@
 #include "support/allocation_tracker.hpp"
 
 #include <atomic>
-#include <cassert>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <limits>
 #include <thread>
+
+#include "assert.hpp"
 
 #if WITH_DATADOG_ALLOCATION_TRACKING
 
@@ -23,7 +24,7 @@ static std::atomic<uint64_t> s_seq{0};
 static void start_allocation_tracking()
 {
     const int prev = s_started.load(std::memory_order_acquire);
-    assert(prev == 0 && "start_allocation_tracking called twice");
+    DATADOG_ASSERT(prev == 0, "start_allocation_tracking called twice");
 
     std::memset(s_events, 0, sizeof(s_events));
     s_num_events.store(0, std::memory_order_relaxed);
@@ -76,7 +77,10 @@ static size_t align_up(size_t x, size_t a)
 
 static void* overaligned_alloc(size_t raw_size, size_t user_align)
 {
-    assert(user_align > alignof(std::max_align_t));
+    DATADOG_ASSERT(
+        user_align > alignof(std::max_align_t),
+        "overaligned_alloc called with alignment <= max align"
+    );
 #ifdef _MSC_VER
     // MSVC: Use _aligned_malloc, which will require _aligned_free
     return _aligned_malloc(raw_size, user_align);
@@ -163,8 +167,8 @@ static void* backend_alloc(size_t count, size_t req_align, bool nothrow)
     // Verify that the header fits within our raw allocation
     uintptr_t header_addr = reinterpret_cast<uintptr_t>(header);
     uintptr_t raw_end = base + raw_size;
-    assert(
-        header_addr >= base && header_addr + header_size <= raw_end &&
+    DATADOG_ASSERT(
+        header_addr >= base && header_addr + header_size <= raw_end,
         "Header placement outside allocated bounds"
     );
 

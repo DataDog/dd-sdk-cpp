@@ -31,7 +31,11 @@ Checks: [
   -cppcoreguidelines-avoid-const-or-ref-data-members, # member references are fragile, but OK if lifetime guarantees are assured
   -cppcoreguidelines-avoid-c-arrays,                  # quite often unavoidable w/o std::span; reevaluate for C++20
   -cppcoreguidelines-pro-bounds-pointer-arithmetic,   # ditto; no good alternative w/o std::span
+  -cppcoreguidelines-macro-usage,                     # needed for asserts; we don't make use of macros otherwise
 ]
+
+CheckOptions:
+  readability-function-cognitive-complexity.IgnoreMacros: true
 
 WarningsAsErrors: '*'
 
