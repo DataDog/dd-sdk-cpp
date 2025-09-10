@@ -51,7 +51,7 @@ static _check_path_result _check_path(const std::filesystem::path& path) {
     return _check_path_result::exists_as_directory;
   }
   return _check_path_result::exists_as_file;
-};
+}
 
 /**
  * Wraps a std::ifstream in the IFileReader interface.
@@ -84,7 +84,7 @@ class StdFileReader final : public IFileReader {
   FilesystemResult<size_t> Read(char* dst, size_t n) override {
     // Read up to n bytes from the file into dst
     DATADOG_ASSERT(
-        n <= std::numeric_limits<std::streamsize>::max(),
+        static_cast<std::streamsize>(n) <= std::numeric_limits<std::streamsize>::max(),
         "unexpected truncation of file read size"
     );
     _infile.read(dst, static_cast<std::streamsize>(n));
@@ -149,7 +149,7 @@ class StdFileWriter final : public IFileWriter {
 
     // File is open: attempt to write all n bytes to the file, then check error bits
     DATADOG_ASSERT(
-        n <= std::numeric_limits<std::streamsize>::max(),
+        static_cast<std::streamsize>(n) <= std::numeric_limits<std::streamsize>::max(),
         "unexpected truncation of file write size"
     );
     outfile.write(src, static_cast<std::streamsize>(n));
@@ -207,7 +207,7 @@ class StdDirectory : public virtual IDirectory {
       }
 
       // Add basename only
-      out_names.emplace_back(entry.path().filename());
+      out_names.emplace_back(entry.path().filename().string());
     }
 
     // No error; return default expected<void>
