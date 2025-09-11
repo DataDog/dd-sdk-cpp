@@ -77,6 +77,18 @@ unit-test:
     reports:
       junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
 
+windows-test:
+  stage: validate
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+  script:
+    - $ErrorActionPreference = "Stop"
+    - echo "Hello? I am... Windows?"
+    - dir
+    - docker --version
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+
 # Stage 'build' performs a more exhaustive set of library builds to validate that our
 # library still builds successfully on all supported compilers and in all supported
 # configurations
