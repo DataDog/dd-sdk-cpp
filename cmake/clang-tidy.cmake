@@ -1,9 +1,9 @@
-# If configured to use clang-tidy, find it in the PATH
+# Must be included after llvm-tools.cmake
+
+# If we're building with clang-tidy support, ensure that we resolved a supported
+# clang-tidy binary
 if(DD_ENABLE_CLANG_TIDY)
-    find_program(CLANG_TIDY_BINARY NAMES "clang-tidy")
-    if(CLANG_TIDY_BINARY)
-        message(STATUS "clang-tidy found: ${CLANG_TIDY_BINARY}")
-    else()
+    if(NOT CLANG_TIDY_BINARY)
         message(FATAL_ERROR "clang-tidy not found! Install clang-tidy or set DD_ENABLE_CLANG_TIDY=OFF")
     endif()
 endif()
