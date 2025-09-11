@@ -102,6 +102,7 @@ datadog::CoreConfig InitConfigForCpp(const GlobalOptions& opts) {
   dd_site_t site = DD_SITE_US1;
   const char* custom_endpoint = nullptr;
   parse_intake(opts, site, custom_endpoint);
+  // NOLINTBEGIN(clang-analyzer-cplusplus.StringChecker)
   return datadog::CoreConfig{
       datadog::TrackingConsent::Granted,
       static_cast<datadog::Site>(site),
@@ -115,6 +116,7 @@ datadog::CoreConfig InitConfigForCpp(const GlobalOptions& opts) {
       1,
       custom_endpoint
   };
+  // NOLINTEND(clang-analyzer-cplusplus.StringChecker)
 }
 
 const dd_core_config_t& ParseConfigForC(const void* config) {

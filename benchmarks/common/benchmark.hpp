@@ -2,6 +2,7 @@
 
 #include <array>
 #include <cinttypes>
+#include <cstddef>
 
 /**
  * Hardcoded limit on number of command-line options that can be supplied for a

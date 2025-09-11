@@ -44,12 +44,6 @@ static int RunCpp(const void* config_, const void*) {
   return 0;
 }
 
-static void Announce(const GlobalOptions& opts) {
-  std::cout << "Benchmark: " << BENCHMARK.name << "\n";
-  std::cout << "  " << BENCHMARK.description << "\n";
-  AnnounceGlobalOptions(opts);
-}
-
 int benchmark_startup_main(const char* argv_0, const GlobalOptions& opts) {
   dd_core_config_t c_config;
   datadog::CoreConfig cpp_config;
@@ -61,7 +55,9 @@ int benchmark_startup_main(const char* argv_0, const GlobalOptions& opts) {
   }
 
   // Print a summary of the configured benchmark to stdout
-  Announce(opts);
+  std::cout << "Benchmark: " << BENCHMARK.name << "\n";
+  std::cout << "  " << BENCHMARK.description << "\n";
+  opts.Announce();
 
   // Determine which entrypoint to use based on configured API, and create SDK config
   void* config = nullptr;

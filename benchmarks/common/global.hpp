@@ -13,7 +13,7 @@ enum class Api : uint8_t { C = 0x01, Cpp = 0x02, Both = C | Cpp };
  * Global options parsed from command-line args, used to run benchmark commands.
  */
 struct GlobalOptions {
-  // Global
+  // Selected command, plus args to be parsed by a benchmark-specific function
   const char* command;
   int command_argc;
   char** command_argv;
@@ -37,18 +37,42 @@ struct GlobalOptions {
 
   // If true, repeat the benchmark indefinitely until SIGTERM
   bool repeat;
+
+  /**
+   * Parses global options from a subset of command-line argument values.
+   */
+  static GlobalOptions Parse(int argc, char* argv[]);
+
+  /**
+   * Dumps configured global options to stdout in a human-readable format.
+   */
+  void Announce() const;
 };
 
+/**
+ * Prints basic command usage information to stdout.
+ */
 void PrintGlobalUsage(const char* argv_0);
 
-GlobalOptions ParseGlobalOptions(int argc, char* argv[]);
-
-void AnnounceGlobalOptions(const GlobalOptions& opts);
-
+/**
+ * Function that defines the entry point of a benchmark, running it for a single
+ * iteration. First parameter is a const pointer to either dd_core_config_t or
+ * datadog::CoreConfig; second parameter is a const pointer to a benchmark-defined
+ * options type (e.g. BenchmarkOptions).
+ */
 typedef int (*BenchmarkMainFunc)(const void*, const void*);
 
+/**
+ * Runs the given benchmark one or more times as configured by `opts`. For config and
+ * benchmark options params, caller must pass pointers to values of the types expected
+ * by `f`.
+ */
 int BenchmarkMain(
     const GlobalOptions& opts, BenchmarkMainFunc f, const void* config, const void* b
 );
 
+/**
+ * Returns true if SIGINT etc. has been received, indicating to a benchmark function
+ * that it should exit ASAP.
+ */
 bool BenchmarkInterrupted();

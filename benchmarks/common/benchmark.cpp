@@ -4,6 +4,7 @@
 #include <charconv>
 #include <cstring>
 #include <iostream>
+#include <string>
 
 #include "common/arg.hpp"
 #include "common/exit.hpp"
@@ -91,7 +92,7 @@ std::array<BenchmarkParamValue, MAX_ARGS> ParseBenchmarkParams(
     }
 
     // Find the BenchmarkParam identified by this argument
-    const BenchmarkParam* const param_iter =
+    std::array<BenchmarkParam, MAX_ARGS>::const_iterator param_iter =
         std::find_if(params.begin(), params.end(), [&](const BenchmarkParam& p) {
           return p.name != nullptr && std::strcmp(p.name, arg.name) == 0;
         });
