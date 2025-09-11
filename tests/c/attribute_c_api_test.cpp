@@ -30,7 +30,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
   auto require_object_ops_are_noop = [](dd_attribute_t& attribute) -> void {
     dd_attribute_object_property_delete(&attribute, "foo");
 
-    dd_attribute property_value = dd_attribute_int(100);
+    dd_attribute_t property_value = dd_attribute_int(100);
     dd_attribute_object_property_set(&attribute, "foo", &property_value);
     dd_attribute_free(&property_value);
 
@@ -633,7 +633,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_array_len(&attribute) == 0);
 
     // And also when we change an existing value's type to array
-    dd_attribute other = dd_attribute_string("so long, it's been good to know you");
+    dd_attribute_t other = dd_attribute_string("so long, it's been good to know you");
     dd_attribute_init_array(&other, initial_capacity);
     REQUIRE(dd_attribute_array_len(&other) == 0);
 
@@ -659,7 +659,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_object_property_count(&attribute) == 0);
 
     // And also when we change an existing value's type to object
-    dd_attribute other = dd_attribute_string("so long, it's been good to know you");
+    dd_attribute_t other = dd_attribute_string("so long, it's been good to know you");
     dd_attribute_init_object(&other, initial_capacity);
     REQUIRE(dd_attribute_object_property_count(&other) == 0);
 
@@ -931,7 +931,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
       for (const auto& dst_type : types) {
         DYNAMIC_SECTION(" {" << src_type.name << " -> " << dst_type.name << "}") {
           // Given a attribute created as the source type
-          dd_attribute attribute = src_type.init_func();
+          dd_attribute_t attribute = src_type.init_func();
           src_type.check_func(&attribute);
 
           // When we change it to a value of the destination type
@@ -963,13 +963,13 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(array.type == DD_VALUE_TYPE_ARRAY);
     REQUIRE(dd_attribute_array_len(&array) == 2);
 
-    dd_attribute item_0 = dd_attribute_array_get(&array, 0);
+    dd_attribute_t item_0 = dd_attribute_array_get(&array, 0);
     REQUIRE(dd_attribute_get_int(&item_0) == 1);
     dd_attribute_free(&item_0);
 
-    dd_attribute item_1 = dd_attribute_array_get(&array, 1);
+    dd_attribute_t item_1 = dd_attribute_array_get(&array, 1);
     REQUIRE(dd_attribute_array_len(&item_1) == 1);
-    dd_attribute item_1_item_0 = dd_attribute_array_get(&item_1, 0);
+    dd_attribute_t item_1_item_0 = dd_attribute_array_get(&item_1, 0);
     REQUIRE(dd_attribute_get_int(&item_1_item_0) == 1);
     dd_attribute_free(&item_1_item_0);
     dd_attribute_free(&item_1);
@@ -995,13 +995,13 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(obj.type == DD_VALUE_TYPE_OBJECT);
     REQUIRE(dd_attribute_object_property_count(&obj) == 2);
 
-    dd_attribute foo = dd_attribute_object_property_get(&obj, "foo");
+    dd_attribute_t foo = dd_attribute_object_property_get(&obj, "foo");
     REQUIRE(dd_attribute_get_int(&foo) == 1);
     dd_attribute_free(&foo);
 
-    dd_attribute bar = dd_attribute_object_property_get(&obj, "bar");
+    dd_attribute_t bar = dd_attribute_object_property_get(&obj, "bar");
     REQUIRE(dd_attribute_object_property_count(&bar) == 1);
-    dd_attribute bar_foo = dd_attribute_object_property_get(&bar, "foo");
+    dd_attribute_t bar_foo = dd_attribute_object_property_get(&bar, "foo");
     REQUIRE(dd_attribute_get_int(&bar_foo) == 1);
     dd_attribute_free(&bar_foo);
     dd_attribute_free(&bar);
