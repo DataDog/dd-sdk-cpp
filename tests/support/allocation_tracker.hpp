@@ -50,13 +50,15 @@
 struct alignas(16) AllocHeader {
   void* raw;    // Pointer we must pass to free, incl. header/padding before user bytes
   size_t size;  // Number of user bytes requested, not including header/padding
-  bool overaligned;  // True if requested alignment exceeded max_align_t: on Windows,
-                     // we must match _aligned_malloc with _aligned_free if set
+  uint8_t overaligned;  // True if requested alignment exceeded max_align_t: on Windows,
+                        // we must match _aligned_malloc with _aligned_free if set
+  uint8_t pad[15];      // Explicit padding to make MSVC happy
 };
 
 static_assert(
     sizeof(AllocHeader) % alignof(AllocHeader) == 0, "AllocHeader misaligned"
 );
+static_assert(sizeof(AllocHeader) == 32, "unexpected AllocHeader size");
 
 /**
  * Operation recorded in an append-only log of allocation-related events.

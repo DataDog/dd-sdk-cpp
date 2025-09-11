@@ -159,7 +159,9 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
     REQUIRE(req.find("Transfer-Encoding: chunked\r\n") != std::string::npos);
 
     // And the request will have a body with length > what we sent
-    const int body_start = req.find("\r\n\r\n") + 4;
+    const size_t blank_line_pos = req.find("\r\n\r\n");
+    REQUIRE(blank_line_pos != std::string::npos);
+    const size_t body_start = blank_line_pos + 4;
     REQUIRE(body_start > 4);
     const std::string req_body = req.substr(body_start);
     REQUIRE(req_body.size() > s.size());
@@ -177,8 +179,8 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
 
       // We should be able to read the chunk size from that hex string
       int chunk_size{0};
-      auto result = std::from_chars(read_ptr, next_crlf, chunk_size, 16);
-      REQUIRE(result.ec == std::errc());
+      auto from_chars_result = std::from_chars(read_ptr, next_crlf, chunk_size, 16);
+      REQUIRE(from_chars_result.ec == std::errc());
       read_ptr = next_crlf + 2;
 
       // If chunk size is encoded at 0, final CRLF should signal end of body

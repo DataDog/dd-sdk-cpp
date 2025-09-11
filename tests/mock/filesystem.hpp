@@ -253,16 +253,16 @@ struct MockFilesystem {
     // directory
     for (const auto& [file_path, file] : files) {
       if (file_path.parent_path() == relpath) {
-        out_names.push_back(file_path.filename().string());
+        out_names.push_back(file_path.filename().generic_string());
       }
     }
     return {};
   }
 
   /**
-   * Handles IDirectory::DeleteFile given the relevant directory path.
+   * Handles IDirectory::RemoveFile given the relevant directory path.
    */
-  platform::FilesystemResult<void> HandleDeleteFile(std::filesystem::path relpath) {
+  platform::FilesystemResult<void> HandleRemoveFile(std::filesystem::path relpath) {
     // Acquire filesystem mutex
     std::scoped_lock lock(mutex);
 
@@ -435,8 +435,8 @@ class MockDirectory : public platform::IDirectory {
     return fs.HandleListFiles(relpath, out_names);
   }
 
-  virtual platform::FilesystemResult<void> DeleteFile(std::string_view name) override {
-    return fs.HandleDeleteFile(relpath / name);
+  virtual platform::FilesystemResult<void> RemoveFile(std::string_view name) override {
+    return fs.HandleRemoveFile(relpath / name);
   }
 
   virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>
@@ -472,8 +472,8 @@ class MockStorageDirectory : public platform::IStorageDirectory {
     return fs.HandleListFiles("", out_names);
   }
 
-  virtual platform::FilesystemResult<void> DeleteFile(std::string_view name) override {
-    return fs.HandleDeleteFile(name);
+  virtual platform::FilesystemResult<void> RemoveFile(std::string_view name) override {
+    return fs.HandleRemoveFile(name);
   }
 
   virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>
@@ -546,7 +546,7 @@ class MockStorageDirectory : public platform::IStorageDirectory {
     std::vector<std::string> result;
     for (const auto& file : fs.files) {
       if (file.first.parent_path() == relpath) {
-        result.push_back(file.first);
+        result.push_back(file.first.generic_string());
       }
     }
     return result;

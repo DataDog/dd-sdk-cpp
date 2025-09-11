@@ -132,11 +132,12 @@ TEST_CASE("Attribute memory", "[unit][attribute]") {
     AllocationTracker tracker;
     {
       // Primitives require no heap memory
-      require_exact_heap_size(Attribute::Null(), 0);
-      require_exact_heap_size(Attribute::Bool(true), 0);
-      require_exact_heap_size(Attribute::Int(-1), 0);
-      require_exact_heap_size(Attribute::UInt(1), 0);
-      require_exact_heap_size(Attribute::Double(1.01), 0);
+      Attribute attribute_null = Attribute::Null();
+      Attribute attribute_bool = Attribute::Bool(true);
+      Attribute attribute_int = Attribute::Int(-1);
+      Attribute attribute_uint = Attribute::UInt(1);
+      Attribute attribute_timestamp = Attribute::TimestampFromNanoseconds(100000);
+      Attribute attribute_double = Attribute::Double(1.01);
     }
     const AllocationTracker::Stats stats = tracker.Stop();
     REQUIRE(stats.num_allocs == 0);

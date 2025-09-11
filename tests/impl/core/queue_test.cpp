@@ -137,12 +137,19 @@ TEST_CASE("Queue threading", "[unit]") {
     // Given a queue
     Queue<int> queue;
 
+    // MSVC *requires* compile-time constants to be captured in the lambdas below; Clang
+    // considers them unused and will complain if they're present (and GCC doesn't care)
+#ifdef __clang__
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wunused-lambda-capture"
+#endif
+
     // And multiple producer threads that all push lots of items into the queue
     const int num_threads = 4;
     const int items_per_thread = 100;
     std::vector<std::thread> producers;
     for (int t = 0; t < num_threads; ++t) {
-      producers.emplace_back([&queue, t]() {
+      producers.emplace_back([&queue, t, items_per_thread]() {
         for (int i = 0; i < items_per_thread; ++i) {
           int value = t * items_per_thread + i;
           queue.Push(std::move(value));
@@ -152,7 +159,7 @@ TEST_CASE("Queue threading", "[unit]") {
 
     // And a single consumer thread that pops items and adds them to this vector
     std::vector<int> consumed;
-    std::thread consumer([&queue, &consumed]() {
+    std::thread consumer([&queue, &consumed, num_threads, items_per_thread]() {
       for (int expected = 0; expected < num_threads * items_per_thread; ++expected) {
         auto item = queue.Pop();
         if (item.has_value()) {
@@ -162,6 +169,10 @@ TEST_CASE("Queue threading", "[unit]") {
         }
       }
     });
+
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
 
     // When all producers have finished
     for (auto& producer : producers) {

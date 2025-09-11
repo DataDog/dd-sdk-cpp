@@ -135,7 +135,7 @@ class IDirectory {
    * Deletes the file with the given name. If the file does not exist, returns
    * FilesystemError::DoesNotExist.
    */
-  virtual FilesystemResult<void> DeleteFile(std::string_view name) = 0;
+  virtual FilesystemResult<void> RemoveFile(std::string_view name) = 0;
 
   /**
    * Opens an existing file for read, in binary mode, a la `fopen(name, "rb")`. If the
