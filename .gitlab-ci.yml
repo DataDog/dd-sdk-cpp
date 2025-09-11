@@ -85,8 +85,8 @@ windows-test:
   script:
     - $ErrorActionPreference = "Stop"
     - echo "Hello? I am... Windows?"
-    - dir
-    - docker --version
+    - dir "C:\Program Files (x86)\Microsoft Visual Studio"
+    - cmake --help
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 # Stage 'build' performs a more exhaustive set of library builds to validate that our
