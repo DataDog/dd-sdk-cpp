@@ -80,7 +80,7 @@
 #endif
 
 // linkage: e.g. 'static', 'shared'
-#ifdef DATADOG_SHARED
+#ifdef DATADOG_SHARED_LIB
 #define DATADOG_BUILD_LINKAGE "shared"
 #else
 #define DATADOG_BUILD_LINKAGE "static"
