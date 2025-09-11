@@ -131,16 +131,35 @@ package-linux:
   tags: [arch:amd64]
   parallel:
     matrix:
+      # linux-{arch}-clang-libstdc++-shared-release
       - TOOLCHAIN_TARGET: clang20
-        
+        BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "ON"
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}
   script:
-    - cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo . -B build
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} . -B build
     - cmake --build build --target package
     - stat build/artifact_name.txt
-    - ARTIFACT_NAME=$(cat build/artifact_name.txt)
-    - stat "build/$ARTIFACT_NAME.tar.gz"
+    - stat "build/$(cat build/artifact_name.txt).tar.gz"
   artifacts:
     expire_in: "1 week"
     paths:
-      - build/ddsdkcpp-*.tar.gz    
+      - build/ddsdkcpp-*.tar.gz
+
+package-macos:
+  stage: package
+  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ AppleClang 17
+  parallel:
+    matrix:
+      # macos-{arch}-clang-libc++-shared-release
+      - BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "ON"
+  script:
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} . -B build
+    - cmake --build build --target package
+    - stat build/artifact_name.txt
+    - stat "build/$(cat build/artifact_name.txt).tar.gz"
+  artifacts:
+    expire_in: "1 week"
+    paths:
+      - build/ddsdkcpp-*.tar.gz
