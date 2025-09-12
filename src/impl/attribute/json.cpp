@@ -2,6 +2,7 @@
 
 #include <charconv>
 #include <chrono>
+#include <cstring>
 
 #if defined(_MSC_VER) && defined(_M_X64)
 #include <intrin.h>
@@ -587,6 +588,8 @@ size_t AttributeSerialization::ComputeValueLen(const Attribute& attribute) {
     case ValueType::Object:
       return _object_len(*attribute.value.ptr);
   }
+  DATADOG_ASSERT(false, "unhandled ValueType enum value");
+  return 0;
 }
 
 size_t AttributeSerialization::WriteValue(
@@ -620,6 +623,8 @@ size_t AttributeSerialization::WriteValue(
     case ValueType::Object:
       return _object_write(buffer, buffer_size, *attribute.value.ptr);
   }
+  DATADOG_ASSERT(false, "unhandled ValueType enum value");
+  return 0;
 }
 
 void AttributeSerialization::ToJSON(

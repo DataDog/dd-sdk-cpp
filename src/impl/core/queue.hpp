@@ -100,12 +100,22 @@ class Queue {
 
     // Queue is not empty: move the first item out of the queue, transferring ownership
     // to this local variable
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
+    // StorageMessage contains a union with a std::vector<uint8_t> member, and GCC has
+    // trouble understanding the initialization of the vector's internal pointers during
+    // move operations, so it erroneously flags this as use of an uninitialized variable
     T item = std::move(_items.front());
     _items.pop_front();
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
-    // Finally, transfer ownership of the item to the caller. Don't rely on RVO; ensure
-    // that an attempt to copy a noncopyable item type here would fail to compile
-    return std::move(item);
+    // Finally, transfer ownership of the item to the caller: NRVO will elide the copy
+    return item;
   }
 
   /**

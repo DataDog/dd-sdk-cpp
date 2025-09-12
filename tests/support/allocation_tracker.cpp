@@ -1,5 +1,6 @@
 #include "support/allocation_tracker.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <cstdint>
 #include <cstdlib>

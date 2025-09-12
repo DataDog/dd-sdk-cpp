@@ -97,7 +97,7 @@ class IHttpClient {
    *  values available from the stack frame where `Post()` is called.
    */
   virtual HttpResult Post(
-      std::string_view url, std::string_view headers, HttpBodyWriter body_writer
+      const char* url, const char* headers, HttpBodyWriter body_writer
   ) = 0;
 };
 

@@ -53,7 +53,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
     // When the client sends that payload
     const std::string url = server.BuildURL("/api/v1/test?foo=hello&bar=42");
     const std::string headers = "Content-Type: text/plain\n";
-    auto result = client->Post(url, headers, body_writer);
+    auto result = client->Post(url.c_str(), headers.c_str(), body_writer);
 
     // Then it gets a valid response
     REQUIRE(result.type == platform::HttpResultType::GotResponse);
@@ -84,7 +84,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
       // When the client makes a request and gets a response
       server.SetResponseStatus(status_code);
       const std::string url = server.BuildURL("/test");
-      auto result = client->Post(url, "", impl::StringWriter{"hi"});
+      auto result = client->Post(url.c_str(), "", impl::StringWriter{"hi"});
 
       // Then it dutifully conveys that status code
       REQUIRE(result.type == platform::HttpResultType::GotResponse);
@@ -104,7 +104,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
     // When the client makes a request
     const std::string url = server.BuildURL("/test");
     auto start = std::chrono::high_resolution_clock::now();
-    auto result = client->Post(url, "", impl::StringWriter{"hi"});
+    auto result = client->Post(url.c_str(), "", impl::StringWriter{"hi"});
     auto elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
         std::chrono::high_resolution_clock::now() - start
     );
@@ -119,8 +119,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
 
   SECTION("M signal non-retryable failure W request URL is invalid") {
     // When the client makes a malformed request
-    const std::string url = "!@#$%^&";
-    auto result = client->Post(url, "", impl::StringWriter{"hi"});
+    auto result = client->Post("!@#$%^&", "", impl::StringWriter{"hi"});
 
     // Then the client will that it got no response, non-retryable
     REQUIRE(result.type == platform::HttpResultType::GotNoResponse_NonRetryable);
@@ -146,7 +145,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
     const std::string url = server.BuildURL("/test");
     const std::string headers = "Content-Type: application/json\n";
     server.SetResponseStatus(202);
-    auto result = client->Post(url, headers, impl::StringWriter{s});
+    auto result = client->Post(url.c_str(), headers.c_str(), impl::StringWriter{s});
 
     // Then the client will get an OK response
     REQUIRE(result.type == platform::HttpResultType::GotResponse);

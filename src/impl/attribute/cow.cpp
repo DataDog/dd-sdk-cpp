@@ -1,5 +1,7 @@
 #include "attribute/cow.hpp"
 
+#include <algorithm>
+
 #include "assert.hpp"
 
 namespace datadog::impl {
@@ -131,6 +133,8 @@ size_t CowValue::Size() const {
     case CowValueType::Object:
       return value.object.size();
   }
+  DATADOG_ASSERT(false, "unhandled CowValueType enum value");
+  return 0;
 }
 
 size_t CowValue::Capacity() const {
@@ -143,6 +147,8 @@ size_t CowValue::Capacity() const {
     case CowValueType::Object:
       return value.object.capacity();
   }
+  DATADOG_ASSERT(false, "unhandled CowValueType enum value");
+  return 0;
 }
 
 void CowValue::Reserve(size_t new_capacity) {

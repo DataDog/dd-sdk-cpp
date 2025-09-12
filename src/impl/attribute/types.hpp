@@ -1,3 +1,4 @@
+#include "assert.hpp"
 #include "attribute/cow.hpp"
 #include "datadog/attribute.h"
 #include "datadog/attribute.hpp"
@@ -58,6 +59,8 @@ struct AttributeConversion {
         return Attribute(ValueType_FromC(attribute.type), value);
       }
     }
+    DATADOG_ASSERT(false, "unhandled dd_value_type_t enum value");
+    return Attribute(ValueType::Null, static_cast<int64_t>(0));
   }
 
   static dd_attribute_t CopyToC(const Attribute& cpp_attribute) {

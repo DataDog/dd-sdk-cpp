@@ -106,7 +106,7 @@ class CurlHttpClient final : public IHttpClient {
   CurlHttpClient& operator=(CurlHttpClient&&) = delete;
 
   HttpResult Post(
-      std::string_view url, std::string_view headers, HttpBodyWriter body_writer
+      const char* url, const char* headers, HttpBodyWriter body_writer
   ) override {
     // Store the error code from our most recent curl API call
     CURLcode res{CURL_LAST};

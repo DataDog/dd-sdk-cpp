@@ -31,6 +31,8 @@ static bool _is_primitive_type(ValueType type) {
     case ValueType::Object:
       return false;
   }
+  DATADOG_ASSERT(false, "unhandled ValueType enum value");
+  return false;
 }
 
 Attribute::Attribute(ValueType in_type, int64_t in_i64) : type(in_type), value() {

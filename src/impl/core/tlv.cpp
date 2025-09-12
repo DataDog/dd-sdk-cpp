@@ -1,5 +1,7 @@
 #include "core/tlv.hpp"
 
+#include <cstring>
+
 #include "assert.hpp"
 
 namespace datadog::impl {

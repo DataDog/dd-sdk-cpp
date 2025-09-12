@@ -3,7 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-#ifdef __unix__
+#if defined(__unix__) || defined(__APPLE__)
 #include <execinfo.h>
 #endif
 
@@ -18,16 +18,21 @@
 
 namespace datadog::impl {
 inline void print_stack_trace() {
-#ifdef __unix__
+#if defined(__unix__) || defined(__APPLE__)
+  // This POSIX API inevitably requires C-style array-as-pointer semantics
+  // NOLINTBEGIN(cppcoreguidelines-*)
+  // NOLINTBEGIN(bugprone-multi-level-implicit-pointer-conversion)
   void* array[16];
   size_t size = backtrace(array, 16);
-  char** strings = backtrace_symbols(array, size);
+  char** strings = backtrace_symbols(array, static_cast<int>(size));
 
   std::fprintf(stderr, "Stack trace:\n");
   for (size_t i = 0; i < size; i++) {
     std::fprintf(stderr, "  [%zu] %s\n", i, strings[i]);
   }
   free(strings);
+  // NOLINTEND(bugprone-multi-level-implicit-pointer-conversion)
+  // NOLINTEND(cppcoreguidelines-*)
 #endif
 }
 }  // namespace datadog::impl
