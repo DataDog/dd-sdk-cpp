@@ -85,7 +85,8 @@ windows-test:
   # TEMP: Test building the Windows toolchain image here; don't try pushing it yet
   script:
     - $ErrorActionPreference = "Stop"
-    - docker buildx build --tag dd-sdk-cpp:windows-toolchain-temp1 --label target=build ./ci/windows
+    - $env:DOCKER_BUILDKIT=1
+    - docker build --tag dd-sdk-cpp:windows-toolchain-temp1 --label target=build ./ci/windows
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
     - remove-item -recurse -force build-out\${CI_JOB_ID}
 
