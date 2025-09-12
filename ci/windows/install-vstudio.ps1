@@ -33,7 +33,7 @@ $VSPackages = @(
 $filename = Split-Path $Url -Leaf
 $exePath = Join-Path ([IO.Path]::GetTempPath()) 'vs_buildtools.exe'
 
-Write-Host "Downloading Visual Studio installer from: {0}" -f $Url
+Write-Host "Downloading Visual Studio installer from: $Url"
 Get-RemoteFile -RemoteFile $Url -LocalFile $exePath -VerifyHash $Sha256
 
 Write-Host "File size is $((get-item $exePath).length)"
@@ -47,7 +47,7 @@ $processparams = @{
     PassThru = $true
 }
 $st = get-date
-Write-Host "Installing Visual Studio {0}..." -f $Version
+Write-Host "Installing Visual Studio $Version..."
 $process = Start-Process @processparams
 Write-Host "Installer finished."
 
@@ -68,4 +68,4 @@ Add-ToPath -NewPath "${env:ProgramFiles(x86)}\Windows Kits\10\bin\10.0.26100.0\x
 
 Remove-Item $exePath
 Reload-Path
-Write-Host -ForegroundColor Green "{0} {1} installed." -f $filename, $Version
+Write-Host -ForegroundColor Green "$filename $Version installed."
