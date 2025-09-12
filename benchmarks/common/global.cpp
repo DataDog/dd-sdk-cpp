@@ -66,37 +66,7 @@ static void populate_global_opts(
   opts.repeat = values[7].i != 0;
 }
 
-void PrintGlobalUsage(const char* argv_0) {
-  std::cout << "Datadog SDK | Benchmark Runner\n";
-  std::cout << "Usage:\n";
-  std::cout << "  " << argv_0 << " [global-opts] <benchmark> [benchmark-opts]\n";
-  std::cout << "Global options:\n";
-  for (const BenchmarkParam& p : GLOBAL_OPTS) {
-    if (!p.name) {
-      continue;
-    }
-    std::cout << "  --" << p.name << "=";
-    switch (p.type) {
-      case BenchmarkParamType::Int:
-        std::cout << p.default_value.i;
-        break;
-      case BenchmarkParamType::Double:
-        std::cout << p.default_value.d;
-        break;
-      case BenchmarkParamType::String:
-        std::cout << p.default_value.s;
-        break;
-    }
-    std::cout << ": " << p.description << "\n";
-  }
-  std::cout << "Available benchmarks:\n";
-  std::cout << "  startup\n";
-  std::cout << "  logging\n";
-  std::cout << "For more information, supply -h with a benchmark, e.g.:\n";
-  std::cout << "  " << argv_0 << " logging -h\n";
-}
-
-GlobalOptions ParseGlobalOptions(int argc, char* argv[]) {
+GlobalOptions GlobalOptions::Parse(int argc, char* argv[]) {
   // Find the first positional arg,
   int positional_arg = -1;
   for (int i = 1; i < argc; i++) {
@@ -135,29 +105,59 @@ GlobalOptions ParseGlobalOptions(int argc, char* argv[]) {
   return opts;
 }
 
-void AnnounceGlobalOptions(const GlobalOptions& opts) {
+void GlobalOptions::Announce() const {
   std::cout << "Global options:\n";
-  std::cout << "  intake: " << opts.intake << "\n";
-  if (opts.server.enabled) {
-    std::cout << "  mock-port: " << opts.server.port << "\n";
-    std::cout << "  mock-response-delay-ms: " << opts.server.response_delay_ms << "\n";
+  std::cout << "  intake: " << intake << "\n";
+  if (server.enabled) {
+    std::cout << "  mock-port: " << server.port << "\n";
+    std::cout << "  mock-response-delay-ms: " << server.response_delay_ms << "\n";
     std::cout << "  mock-response-delay-variability-ms: "
-              << opts.server.response_delay_variability_ms << "\n";
+              << server.response_delay_variability_ms << "\n";
   }
   std::cout << "  client-token: ";
-  if (std::strstr(opts.client_token, "fake-") == opts.client_token) {
-    std::cout << opts.client_token;
+  if (std::strstr(client_token, "fake-") == client_token) {
+    std::cout << client_token;
   } else {
     std::cout << "<redacted>";
   }
   std::cout << "\n";
-  std::cout << "  version: " << opts.version << "\n";
-  if (opts.api == Api::C) {
+  std::cout << "  version: " << version << "\n";
+  if (api == Api::C) {
     std::cout << "  api: c\n";
   } else {
     std::cout << "  api: c++\n";
   }
-  std::cout << "  repeat: " << (opts.repeat ? "true" : "false") << "\n";
+  std::cout << "  repeat: " << (repeat ? "true" : "false") << "\n";
+}
+
+void PrintGlobalUsage(const char* argv_0) {
+  std::cout << "Datadog SDK | Benchmark Runner\n";
+  std::cout << "Usage:\n";
+  std::cout << "  " << argv_0 << " [global-opts] <benchmark> [benchmark-opts]\n";
+  std::cout << "Global options:\n";
+  for (const BenchmarkParam& p : GLOBAL_OPTS) {
+    if (!p.name) {
+      continue;
+    }
+    std::cout << "  --" << p.name << "=";
+    switch (p.type) {
+      case BenchmarkParamType::Int:
+        std::cout << p.default_value.i;
+        break;
+      case BenchmarkParamType::Double:
+        std::cout << p.default_value.d;
+        break;
+      case BenchmarkParamType::String:
+        std::cout << p.default_value.s;
+        break;
+    }
+    std::cout << ": " << p.description << "\n";
+  }
+  std::cout << "Available benchmarks:\n";
+  std::cout << "  startup\n";
+  std::cout << "  logging\n";
+  std::cout << "For more information, supply -h with a benchmark, e.g.:\n";
+  std::cout << "  " << argv_0 << " logging -h\n";
 }
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

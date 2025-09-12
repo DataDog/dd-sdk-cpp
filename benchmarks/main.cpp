@@ -19,7 +19,7 @@ static const RegisteredBenchmark REGISTERED_BENCHMARKS[] = {
 
 int main(int argc, char* argv[]) {
   // Parse command-line args
-  GlobalOptions opts = ParseGlobalOptions(argc, argv);
+  GlobalOptions opts = GlobalOptions::Parse(argc, argv);
   if (!opts.command) {
     PrintGlobalUsage(argv[0]);
     return 1;

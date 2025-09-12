@@ -113,13 +113,6 @@ static int RunCpp(const void* config_, const void* b_) {
   return 0;
 }
 
-static void Announce(const GlobalOptions& opts, const BenchmarkOptions& b) {
-  std::cout << "Benchmark: " << BENCHMARK.name << "\n";
-  std::cout << "  " << BENCHMARK.description << "\n";
-  AnnounceGlobalOptions(opts);
-  b.Announce();
-}
-
 int benchmark_logging_main(const char* argv_0, const GlobalOptions& opts) {
   // If called with --help/-h, print usage and return
   if (opts.help) {
@@ -127,11 +120,12 @@ int benchmark_logging_main(const char* argv_0, const GlobalOptions& opts) {
     return 1;
   }
 
-  // Parse benchmark command options
+  // Parse benchmark command options and print a summary to stdout
   const auto b = BenchmarkOptions::Parse(opts.command_argc, opts.command_argv);
-
-  // Print a summary of the configured benchmark to stdout
-  Announce(opts, b);
+  std::cout << "Benchmark: " << BENCHMARK.name << "\n";
+  std::cout << "  " << BENCHMARK.description << "\n";
+  opts.Announce();
+  b.Announce();
 
   // Require C++ API for this benchmark
   if (opts.api != Api::Cpp) {

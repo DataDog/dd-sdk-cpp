@@ -80,7 +80,7 @@ class DelayedHandler(socketserver.BaseRequestHandler):
         try:
             sock.sendall(response)
             self._log('202 %s' % request_summary)
-        except:
+        except (OSError, socket.timeout):
             self._log('RESPONSE NOT SENT %s' % request_summary)
         finally:
             sock.close()
