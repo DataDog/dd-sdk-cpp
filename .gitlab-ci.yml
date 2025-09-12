@@ -17,12 +17,13 @@ variables:
   # Our toolchain images are tagged with this version, e.g. 'ci/dd-sdk-cpp:clang15-v2':
   # bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
-  TOOLCHAIN_IMAGE_VERSION: v3
+  LINUX_TOOLCHAIN_IMAGE_VERSION: v3
+  WINDOWS_TOOLCHAIN_IMAGE_VERSION: v1
 
   # clang-20 is our golden-path toolchain for development: use the clang-20 image to
   # validate builds with full linting, format checks, etc.
-  VALIDATE_TOOLCHAIN_TARGET: clang20
-  VALIDATE_IMAGE: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${VALIDATE_TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}
+  VALIDATE_LINUX_TOOLCHAIN_TARGET: clang20
+  VALIDATE_IMAGE: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${VALIDATE_TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
 
 # Stage 'build-toolchain-images' is triggered manually whenever we need to build new
 # Docker images for use in our validation and Linux build stages: these "toolchain
@@ -38,8 +39,25 @@ build-toolchain-image-linux:
     matrix:
       - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20]
   script:
-    - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}"
+    - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}"
     - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build --push ./ci/linux
+
+build-toolchain-image-windows:
+  stage: build-toolchain-images
+  when: manual
+  except: [tags, schedules]
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022  # Visual Studio 2022 17.14; MSVC v143
+  # TEMP: Test building the Windows toolchain image here; don't try pushing it yet
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - docker build --tag ${env:TOOLCHAIN_IMAGE} --label target=build ./ci/windows
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - docker push ${env:TOOLCHAIN_IMAGE}
+    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
 
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support
 # for clang-format and clang-tidy
@@ -77,18 +95,6 @@ unit-test:
     reports:
       junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
 
-windows-test:
-  stage: validate
-  tags: [windows-v2:2022]
-  variables:
-    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-  # TEMP: Test building the Windows toolchain image here; don't try pushing it yet
-  script:
-    - $ErrorActionPreference = "Stop"
-    - docker build --tag dd-sdk-cpp:windows-toolchain-temp1 --label target=build ./ci/windows
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
-    - remove-item -recurse -force build-out\${CI_JOB_ID}
-
 # Stage 'build' performs a more exhaustive set of library builds to validate that our
 # library still builds successfully on all supported compilers and in all supported
 # configurations
@@ -125,7 +131,7 @@ build-linux:
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "OFF"
 
-  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}
+  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
     - >
       cmake
@@ -147,7 +153,7 @@ package-linux:
       - TOOLCHAIN_TARGET: clang20
         BUILD_CONFIGURATION: RelWithDebInfo
         BUILD_SHARED_LIBS: "ON"
-  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}
+  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
     - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} . -B build
     - cmake --build build --target package
