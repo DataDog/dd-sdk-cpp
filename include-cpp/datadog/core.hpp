@@ -276,6 +276,7 @@ class Core {
   std::unique_ptr<impl::Core> _impl;
 
   friend class Logging;
+  friend class Rum;
   friend struct ::CoreTestHarness;
 };
 

@@ -14,6 +14,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     cpp/attribute.cpp
     cpp/core.cpp
     cpp/logging.cpp
+    cpp/rum.cpp
     impl/attribute/cow.cpp
     impl/attribute/json.cpp
     impl/attribute/merge.cpp
