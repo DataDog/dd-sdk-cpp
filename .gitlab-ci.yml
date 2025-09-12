@@ -23,8 +23,8 @@ variables:
 
   # clang-20 is our golden-path toolchain for development: use the clang-20 image to
   # validate builds with full linting, format checks, etc.
-  VALIDATE_LINUX_TOOLCHAIN_TARGET: clang20
-  VALIDATE_IMAGE: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${VALIDATE_TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
+  GOLDEN_LINUX_TOOLCHAIN_TARGET: clang20
+  GOLDEN_LINUX_IMAGE: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${GOLDEN_LINUX_TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
 
 # Stage 'build-toolchain-images' is triggered manually whenever we need to build new
 # Docker images for use in later stages of the pipeline to run Linux and Windows builds.
@@ -71,7 +71,7 @@ build-toolchain-image-windows:
 check-format:
   stage: validate
   tags: [arch:amd64]
-  image: ${VALIDATE_IMAGE}
+  image: ${GOLDEN_LINUX_IMAGE}
   script:
     - cmake -DDD_ENABLE_CLANG_FORMAT=ON . -B build
     - cmake --build build --target check-format
@@ -79,7 +79,7 @@ check-format:
 unit-test:
   stage: validate
   tags: [arch:amd64]
-  image: ${VALIDATE_IMAGE}
+  image: ${GOLDEN_LINUX_IMAGE}
   parallel:
     matrix:
       - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
@@ -248,7 +248,7 @@ create-release:
     - package-macos
     # - package-windows
   tags: [arch:amd64]
-  image: ${VALIDATE_IMAGE}
+  image: ${GOLDEN_LINUX_IMAGE}
   script:
     - RELEASE_VERSION=$(grep -E '^project\(ddsdkcpp VERSION (\d+\.\d+\.\d+[^ ]*)' CMakeLists.txt | cut -d' ' -f3)
     - "[ -n \"$RELEASE_VERSION\" ] || { echo \"ERROR: Failed to parse version from CMakeLists.txt\" >&2; exit 1 }"
