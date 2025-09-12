@@ -276,14 +276,7 @@ create-release:
   script:
     # TODO: Verify whether release actually needs to happen; get GitHub App Token;
     # create draft release; upload artifacts
-    - echo "==="
-    - ls
-    - head -n 10 CMakeLists.txt
-    - echo 'hello world' | grep -E '^\w+ [a-w][a-o][a-r][a-l][a-d]'
-    - echo 'project(ddsdkcpp VERSION 0.2.0 LANGUAGES whatever)' | grep -E '^project\(ddsdkcpp VERSION (\d+\.\d+\.\d+[^ ]*)'
-    - echo 'project(ddsdkcpp VERSION 0.2.0 LANGUAGES whatever)' | cut -d' ' -f3
-    - echo "==="
-    - RELEASE_VERSION=$(grep -E '^project\(ddsdkcpp VERSION (\d+\.\d+\.\d+[^ ]*)' CMakeLists.txt | cut -d' ' -f3)
+    - RELEASE_VERSION=$(grep -E '^project\(ddsdkcpp VERSION ([0-9]+\.[0-9]+\.[0-9]+[^ ]*)' CMakeLists.txt | cut -d' ' -f3)
     - "[ -n \"$RELEASE_VERSION\" ] || { echo \"ERROR: Failed to parse version from CMakeLists.txt\" >&2; exit 1 }"
     - ARCHIVE_FILES=$(find build -maxdepth 1 -type f \( -name 'ddsdkcpp-*.tar.gz' -o -name 'ddsdkcpp-*.zip' \))
     - "[ -n \"$ARCHIVE_FILES\" ] || { echo \"ERROR: No archive files found in previous jobs' artifacts\" >&2; exit 1 }"
