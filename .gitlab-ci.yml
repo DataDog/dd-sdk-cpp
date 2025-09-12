@@ -102,8 +102,7 @@ unit-test:
       junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
 
 # Stage 'build' performs a more exhaustive set of library builds to validate that our
-# library still builds successfully on all supported compilers and in all supported
-# configurations
+# library builds successfully on all supported compilers in all configurations.
 
 build-linux:
   stage: build
@@ -111,8 +110,8 @@ build-linux:
   tags: [arch:amd64]
   parallel:
     # To avoid ballooning our build matrix, test multiple variations (compiler version,
-    # static vs. shared, release vs. debug, etc.) in each job. This stage primarily
-    # exercises compiler versions that we don't use when producing precompiled binaries.
+    # static vs. shared, release vs. debug, etc.) in each job. clang20 builds all
+    # targets in the unit-test job, so we don't need to exercise it here.
     matrix:
       # gcc11: shared-debug, w/ runtime dependency on libcurl.so
       - TOOLCHAIN_TARGET: gcc11
@@ -139,6 +138,31 @@ build-linux:
         USE_SYSTEM_LIBCURL: "OFF"
 
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
+      -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
+      -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
+      . -B build
+    - cmake --build build
+
+build-macos:
+  stage: build
+  dependencies: []
+  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ AppleClang 17
+  parallel:
+    # Ensure that all targets build on macOS
+    matrix:
+      # clang17 (Apple): shared-debug, w/ runtime dependency on libcurl.so
+      - BUILD_CONFIGURATION: Debug
+        BUILD_SHARED_LIBS: "ON"
+        USE_SYSTEM_LIBCURL: "ON"
+
+      # clang17 (Apple): static-release, w/ bundled libcurl
+      - BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        USE_SYSTEM_LIBCURL: "OFF"
   script:
     - >
       cmake
@@ -191,7 +215,7 @@ package-macos:
     paths:
       - build/ddsdkcpp-*.tar.gz
 
-# Disable pending successful push of vs2022 toolchain image:
+### <Disabled pending successful push of vs2022 toolchain image> ###
 # package-windows:
 #   stage: package
 #   dependencies: []
