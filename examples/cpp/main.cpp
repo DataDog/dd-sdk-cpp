@@ -41,6 +41,14 @@ int main()  // NOLINT(bugprone-exception-escape)
     return 1;
   }
 
+  // Register the RUM feature
+  auto rum = datadog::Rum::Register(core);
+  if (!rum) {
+    // TODO: null checks are unnecessary
+    std::cout << "Failed to register RUM\n";
+    return 1;
+  }
+
   // Start the core to begin processing events
   std::cout << "Starting Datadog core...\n";
   if (!core->Start()) {
