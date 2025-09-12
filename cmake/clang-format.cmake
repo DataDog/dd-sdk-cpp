@@ -24,13 +24,17 @@ set(CLANG_FORMAT_LLVM_ARCHIVE_NAME "")
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64|arm64")
         set(CLANG_FORMAT_LLVM_ARCHIVE_NAME "LLVM-${CLANG_FORMAT_VERSION}-Linux-ARM64")
+        set(CLANG_FORMAT_LLVM_ARCHIVE_SHA256 "b855cc17d935fdd83da82206b7a7cfc680095efd1e9e8182c4a05e761958bef8")
     else()
         set(CLANG_FORMAT_LLVM_ARCHIVE_NAME "LLVM-${CLANG_FORMAT_VERSION}-Linux-X64")
+        set(CLANG_FORMAT_LLVM_ARCHIVE_SHA256 "1ead36b3dfcb774b57be530df42bec70ab2d239fbce9889447c7a29a4ddc1ae6")
     endif()
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
     set(CLANG_FORMAT_LLVM_ARCHIVE_NAME "LLVM-${CLANG_FORMAT_VERSION}-macOS-ARM64")
+    set(CLANG_FORMAT_LLVM_ARCHIVE_SHA256 "a9a22f450d35f1f73cd61ab6a17c6f27d8f6051d56197395c1eb397f0c9bbec4")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(CLANG_FORMAT_LLVM_ARCHIVE_NAME "clang+llvm-${CLANG_FORMAT_VERSION}-x86_64-pc-windows-msvc")
+    set(CLANG_FORMAT_LLVM_ARCHIVE_SHA256 "f229769f11d6a6edc8ada599c0cda964b7dee6ab1a08c6cf9dd7f513e85b107f")
 endif()
 
 if(CLANG_FORMAT_LLVM_ARCHIVE_NAME)
@@ -70,6 +74,13 @@ endif()
 # been downloaded to tools/bin/, download the LLVM release archive and extract
 # clang-format
 if(NOT USE_SYSTEM_CLANG_FORMAT AND CLANG_FORMAT_URL AND NOT EXISTS "${CLANG_FORMAT_BINARY}")
+    # Require an explicitly-set option before automatically downloading tools, as it
+    # requires significant time, disk space, and security considerations
+    if(NOT DD_DEVELOPMENT_ALLOW_AUTO_INSTALL)
+        message(WARNING "Configuring with DD_ENABLE_CLANG_FORMAT, but clang-format ${CLANG_FORMAT_VERSION} is not in the PATH. Install it, or re-run with DD_DEVELOPMENT_ALLOW_AUTO_INSTALL.")
+        return()
+    endif()
+
     # Ensure that tools/bin/ exists
     file(MAKE_DIRECTORY "${TOOLS_BIN_DIR}")
     set(CLANG_FORMAT_ARCHIVE "${TOOLS_BIN_DIR}/${CLANG_FORMAT_LLVM_ARCHIVE_NAME}.tar.xz")
@@ -77,7 +88,13 @@ if(NOT USE_SYSTEM_CLANG_FORMAT AND CLANG_FORMAT_URL AND NOT EXISTS "${CLANG_FORM
 
     # Fetch the LLVM release archive from GitHub
     message(STATUS "Downloading ${CLANG_FORMAT_LLVM_ARCHIVE_NAME} to ${TOOLS_BIN_DIR}...")
-    file(DOWNLOAD "${CLANG_FORMAT_URL}" "${CLANG_FORMAT_ARCHIVE}" STATUS DOWNLOAD_STATUS)
+    file(DOWNLOAD
+        "${CLANG_FORMAT_URL}"
+        "${CLANG_FORMAT_ARCHIVE}"
+        TLS_VERIFY ON
+        EXPECTED_HASH "SHA256=${CLANG_FORMAT_LLVM_ARCHIVE_SHA256}"
+        STATUS DOWNLOAD_STATUS
+    )
     list(GET DOWNLOAD_STATUS 0 DOWNLOAD_RESULT)
     if(NOT DOWNLOAD_RESULT EQUAL 0)
         list(GET DOWNLOAD_STATUS 1 DOWNLOAD_ERROR)
