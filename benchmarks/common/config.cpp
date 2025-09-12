@@ -102,6 +102,7 @@ datadog::CoreConfig InitConfigForCpp(const GlobalOptions& opts) {
   dd_site_t site = DD_SITE_US1;
   const char* custom_endpoint = nullptr;
   parse_intake(opts, site, custom_endpoint);
+  // Temporary: string warnings should be avoided w/ updated C++ CoreConfig API
   // NOLINTBEGIN(clang-analyzer-cplusplus.StringChecker)
   return datadog::CoreConfig{
       datadog::TrackingConsent::Granted,
