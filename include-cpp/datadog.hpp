@@ -10,3 +10,4 @@
 #include "datadog/attribute.hpp"
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
+#include "datadog/rum.hpp"
