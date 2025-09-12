@@ -2,8 +2,18 @@
 
 namespace datadog::impl {
 
-Rum::Rum() {
-  // No-op constructor - this is a "do-nothing" API implementation
+Rum::Rum(
+    const platform::IClock& clock, std::string_view service_name,
+    std::string_view application_version
+)
+    : _clock(clock),
+      _service_name(service_name),
+      _application_version(application_version) {
+  // Constructor accepts config parameters but doesn't use them yet
+  // This is a "do-nothing" API implementation
+  (void)_clock;  // Suppress unused field warning for future expansion
+  (void)_service_name;
+  (void)_application_version;
 }
 
 std::optional<Report> Rum::UploadThread_PrepareReport(

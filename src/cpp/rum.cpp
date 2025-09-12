@@ -10,8 +10,13 @@ namespace datadog {
 std::shared_ptr<Rum> Rum::Register(Core& core, const RumConfig& config) {
   (void)config;  // Unused for now - this is a "do-nothing" API
 
+  // Get essential state from the Core
+  const platform::IClock& clock = core._impl->GetClock();
+  std::string_view service_name = core._impl->GetServiceName();
+  std::string_view application_version = core._impl->GetApplicationVersion();
+
   // Initialize our RUM feature implementation
-  auto rum_impl = std::make_shared<impl::Rum>();
+  auto rum_impl = std::make_shared<impl::Rum>(clock, service_name, application_version);
 
   // Register the feature with the core, aborting on failure
   if (!core._impl->RegisterFeature(rum_impl)) {
