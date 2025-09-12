@@ -46,7 +46,7 @@
  * Custom header that will be positioned just before the user bytes in all allocations
  * made by our allocation tracker.
  */
-struct alignas(std::max_align_t) AllocHeader {
+struct alignas(16) AllocHeader {
   void* raw;    // Pointer we must pass to free, incl. header/padding before user bytes
   size_t size;  // Number of user bytes requested, not including header/padding
   bool overaligned;  // True if requested alignment exceeded max_align_t: on Windows,

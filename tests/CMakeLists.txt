@@ -32,6 +32,7 @@ add_executable(dd_native_tests
 target_enable_strict_warnings(dd_native_tests)
 target_enable_datadog_assert(dd_native_tests)
 target_enable_coverage(dd_native_tests)
+target_enable_sanitizers(dd_native_tests)
 
 if(DD_ENABLE_TEST_ALLOCATION_TRACKING)
     target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=1)

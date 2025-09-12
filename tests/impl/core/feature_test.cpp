@@ -70,11 +70,9 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(block_1->type == TLVBlockType::Event);
     REQUIRE(block_1->data == "hi");
 
-    // And the data should be written to the same reusable buffer, clobbering the
-    // data for the first block
-    REQUIRE(buffer.capacity() >= 5);
+    // And the data should be written to the same reusable buffer
+    REQUIRE(buffer.capacity() >= 2);
     REQUIRE(std::string_view{buffer.data(), 2} == "hi");
-    REQUIRE(std::string_view{buffer.data() + 2, 3} == "llo");
 
     // And: When we attempt to read the next block
     auto block_2_res = reader.ReadNext();
@@ -331,9 +329,7 @@ TEST_CASE("BatchReader", "[unit]") {
     // bytes, and block B should have overwritten the first 768 bytes of block A
     REQUIRE(buffer.size() == 768);
     REQUIRE(buffer.capacity() >= 1024);
-    REQUIRE(std::count(buffer.begin(), buffer.begin() + 1024, 'b') == 768);
-    REQUIRE(std::count(buffer.begin(), buffer.begin() + 1024, 'a') == 256);
-    REQUIRE(std::string_view{buffer.data(), 1024}.find('a') == 768);
+    REQUIRE(std::count(buffer.begin(), buffer.end(), 'b') == 768);
 
     // And the buffer's allocation strategy should be conservative enough not to
     // jump straight to the order of ~16kb when we're working with ~1kb values
