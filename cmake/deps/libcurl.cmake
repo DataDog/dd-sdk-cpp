@@ -15,7 +15,8 @@ set(CURL_DISABLE_SRP ON)
 set(CURL_DISABLE_LDAP ON)
 set(USE_LIBIDN2 OFF)
 
-# Force static library build
+# Force static library build - save original value and restore after
+set(_original_build_shared_libs ${BUILD_SHARED_LIBS})
 set(BUILD_SHARED_LIBS OFF)
 set(CURL_STATICLIB ON)
 
@@ -29,3 +30,16 @@ FetchContent_Declare(
     DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 FetchContent_MakeAvailable(curl)
+
+# Restore original BUILD_SHARED_LIBS setting
+set(BUILD_SHARED_LIBS ${_original_build_shared_libs})
+
+# Make libcurl exportable by adding it to the export set (only when installing)
+if(DD_BUILD_INSTALL)
+    install(TARGETS libcurl_static
+        EXPORT DatadogTargets
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        RUNTIME DESTINATION bin
+    )
+endif()

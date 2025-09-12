@@ -1,0 +1,27 @@
+# This template file is used to generate a custom build/CPackConfig.cmake so that we can
+# dynamically resolve the package name for an SDK release based on the build information
+# that's been baked into the binary.
+
+# When we configure the project with package targets, we compile `src/version/main.cpp`,
+# then use it to write `build/artifact_name.txt`. This script reads the contents of this
+# file to set a default value for CPACK_PACKAGE_FILE_NAME.
+
+# Original contents of CMake/Templates/CPackConfig.cmake.in:
+@_CPACK_OTHER_VARIABLES_@
+
+if(NOT CPACK_PROPERTIES_FILE)
+  set(CPACK_PROPERTIES_FILE "@CMAKE_BINARY_DIR@/CPackProperties.cmake")
+endif()
+
+if(EXISTS ${CPACK_PROPERTIES_FILE})
+  include(${CPACK_PROPERTIES_FILE})
+endif()
+
+# If the build directory contains an artifact_name.txt file (see package.cmake),
+# use its contents as the value for CPACK_PACKAGE_FILE_NAME
+if(EXISTS "@CMAKE_BINARY_DIR@/artifact_name.txt")
+    file(READ "@CMAKE_BINARY_DIR@/artifact_name.txt" CPACK_PACKAGE_FILE_NAME)
+    message(STATUS "Resolved package name from artifact_name.txt: ${CPACK_PACKAGE_FILE_NAME}")
+else()
+    message(WARNING "artifact_name.txt not found; using default package name: ${CPACK_PACKAGE_FILE_NAME}")
+endif()

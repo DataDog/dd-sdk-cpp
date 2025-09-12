@@ -1,4 +1,4 @@
-include(${CMAKE_SOURCE_DIR}/cmake/deps/catch2.cmake)
+include(${DD_SDK_ROOT_DIR}/cmake/deps/catch2.cmake)
 
 # Create test executable
 add_executable(dd_native_tests
@@ -29,6 +29,7 @@ add_executable(dd_native_tests
     support/allocation_tracker.cpp
     support/attribute_debug.cpp
 )
+target_include_external_deps(dd_native_tests)
 target_enable_strict_warnings(dd_native_tests)
 target_enable_datadog_assert(dd_native_tests)
 target_enable_coverage(dd_native_tests)
@@ -41,17 +42,15 @@ else()
 endif()
 
 target_include_directories(dd_native_tests
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/c
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/cpp
-    PRIVATE ${CMAKE_SOURCE_DIR}/src/impl
+    PRIVATE ${DD_SDK_ROOT_DIR}/src/c
+    PRIVATE ${DD_SDK_ROOT_DIR}/src/cpp
+    PRIVATE ${DD_SDK_ROOT_DIR}/src/impl
     PRIVATE .
 )
 
 target_link_libraries(dd_native_tests
     PRIVATE
-    dd_native_impl
-    dd_native_c_api
-    dd_native_cpp_api
+    dd_native
     Catch2::Catch2WithMain
 )
 

@@ -1,0 +1,14 @@
+@PACKAGE_INIT@
+
+include(CMakeFindDependencyMacro)
+
+# Find required dependencies based on how the library was built
+set(DATADOG_USE_SYSTEM_CURL @DD_HTTP_USE_SYSTEM_LIBCURL@)
+if(DATADOG_USE_SYSTEM_CURL)
+    find_dependency(CURL REQUIRED)
+endif()
+
+# Include the exported targets
+include("${CMAKE_CURRENT_LIST_DIR}/DatadogTargets.cmake")
+
+check_required_components(Datadog)

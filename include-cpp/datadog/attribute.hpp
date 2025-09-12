@@ -4,6 +4,8 @@
 #include <cinttypes>
 #include <string_view>
 
+#include "datadog/api.hpp"
+
 namespace datadog {
 
 // Forward declarations
@@ -51,7 +53,7 @@ enum class ValueType : uint8_t {
  * Attributes are not guaranteed to be thread-safe. An Attribute must not be accessed or
  * modified from multiple threads concurrently.
  */
-class Attribute {
+class DATADOG_API Attribute {
   ValueType type;
   union {
     int64_t i64;
