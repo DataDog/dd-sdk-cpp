@@ -6,21 +6,6 @@
 #include <iostream>
 #include <string>
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-typedef DWORD server_pid_t;
-#else
-#include <signal.h>
-#include <spawn.h>
-#include <sys/wait.h>
-#include <unistd.h>
-#ifdef __APPLE__
-extern char** environ;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-#endif
-typedef pid_t server_pid_t;
-#endif
-
 #include "common/exit.hpp"
 #include "common/os.hpp"
 
