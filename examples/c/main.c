@@ -39,6 +39,13 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // Register the RUM feature
+  dd_rum_t *rum = dd_rum_init(core, NULL);
+  if (!rum) {
+    printf("Failed to register RUM\n");
+    return 1;
+  }
+
   // Start the core to begin processing events
   printf("Starting Datadog core...\n");
   if (!dd_core_start(core)) {
@@ -57,6 +64,7 @@ int main(int argc, char *argv[]) {
   dd_core_stop(core);
 
   // Clean up SDK resources
+  dd_rum_destroy(rum);
   dd_logger_destroy(logger);
   dd_logging_destroy(logging);
   dd_core_destroy(core);
