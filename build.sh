@@ -83,8 +83,6 @@ GENERATOR=""
 COMPILER=""
 CONFIG="debug"
 REQUIRED_CLANG_VERSION=""
-FORMAT_SOURCE=""
-VALIDATE_FORMAT=""
 RUN_TESTS=""
 REPORT_COVERAGE=""
 while [[ $# -gt 0 ]]; do
@@ -113,14 +111,6 @@ while [[ $# -gt 0 ]]; do
             REQUIRED_CLANG_VERSION="$2"
             shift 2
             ;;
-        --format)
-            FORMAT_SOURCE="1"
-            shift
-            ;;
-        --validate-format)
-            VALIDATE_FORMAT="1"
-            shift
-            ;;
         --test)
             RUN_TESTS="1"
             shift
@@ -135,36 +125,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# Handle formatting in this all-in-one script for convenience: if invoked with --format,
-# run clang-format on all relevant source files, then exit; if invoked with
-# --validate-format, ensure no clang-format warnings, then continue the build
-if [ "$FORMAT_SOURCE" != "" ] || [ "$VALIDATE_FORMAT" != "" ]; then
-    # Require clang-format: just use whatever version is in the PATH; don't bother
-    # trying to line it up with the Clang version we're compiling with (if we're even
-    # compiling with Clang)
-    if [ -z "$(resolve_binary clang-format)" ]; then
-        echo "ERROR: clang-format is not installed or not in the PATH" >&2
-        exit 1
-    fi
-    
-    # Collect all source files into an array
-    mapfile -t SOURCE_FILES < <(find src -iname '*.cpp' -o -iname '*.hpp' -o -iname '*.c' -o -iname '*.h')
-
-    # Using '--format' makes the command a one-shot: exit if we're done formatting
-    if [ "$FORMAT_SOURCE" != "" ]; then
-        clang-format -i "${SOURCE_FILES[@]}"
-        exit 0;
-    fi
-    
-    # Using '--validate-format' checks formatting without modifying files
-    if [ "$VALIDATE_FORMAT" != "" ]; then
-        if ! clang-format --dry-run --Werror "${SOURCE_FILES[@]}"; then
-            echo "ERROR: Code formatting validation failed. Run './build.sh --format' to fix." >&2
-            exit 1
-        fi
-    fi
-fi
 
 # Validate --config argument
 if [ "$CONFIG" != "debug" ] && [ "$CONFIG" != "release" ]; then
