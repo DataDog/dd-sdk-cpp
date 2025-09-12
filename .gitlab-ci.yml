@@ -82,6 +82,7 @@ windows-test:
   tags: [windows-v2:2022]
   variables:
     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    FF_USE_WINDOWS_JOB_OBJECT: true  # Suggested in #incident-42947
   # TEMP: Test building the Windows toolchain image here; don't try pushing it yet
   script:
     - $ErrorActionPreference = "Stop"
