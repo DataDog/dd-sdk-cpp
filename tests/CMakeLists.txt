@@ -33,7 +33,6 @@ target_enable_strict_warnings(dd_native_tests)
 target_enable_datadog_assert(dd_native_tests)
 target_enable_coverage(dd_native_tests)
 
-option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
 if(DD_ENABLE_TEST_ALLOCATION_TRACKING)
     target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=1)
 else()
