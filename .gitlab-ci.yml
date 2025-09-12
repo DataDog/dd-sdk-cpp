@@ -26,8 +26,10 @@ variables:
   VALIDATE_IMAGE: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${VALIDATE_TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
 
 # Stage 'build-toolchain-images' is triggered manually whenever we need to build new
-# Docker images for use in our validation and Linux build stages: these "toolchain
-# images" furnish the Linux build environment necessary to build dd-sdk-cpp from source
+# Docker images for use in later stages of the pipeline to run Linux and Windows builds.
+# A Linux toolchain image has CMake, Ninja, and a specific version of GCC or Clang.
+# A Windows toolchain image has CMake and a specific version of Visual Studio + MSVC.
+# macOS runners use a specific dd-sdk-cpp-sonoma AMI in lieu of Docker.
 
 build-toolchain-image-linux:
   stage: build-toolchain-images
@@ -47,17 +49,20 @@ build-toolchain-image-windows:
   when: manual
   except: [tags, schedules]
   tags: [windows-v2:2022]
+  id_tokens:
+    CI_IDENTITY_GITLAB_JWT:
+      aud: https://vault.us1.ddbuild.io  # Required for docker push
   variables:
+    CI_IDENTITY_ROLE_NAME_OVERRIDE: windows-ci-tmp-gitlab-id-token-dd-sdk-cpp-all-refs  # Required for docker push
     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
     TOOLCHAIN_TARGET: vs2022  # Visual Studio 2022 17.14; MSVC v143
-  # TEMP: Test building the Windows toolchain image here; don't try pushing it yet
   script:
     - $ErrorActionPreference = "Stop"
     - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
     - docker build --tag ${env:TOOLCHAIN_IMAGE} --label target=build ./ci/windows
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - If ($LASTEXITCODE -ne "0") { throw "docker build returned $LASTEXITCODE" }
     - docker push ${env:TOOLCHAIN_IMAGE}
-    - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
 
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support
 # for clang-format and clang-tidy
@@ -181,3 +186,43 @@ package-macos:
     expire_in: "1 week"
     paths:
       - build/ddsdkcpp-*.tar.gz
+
+# Disable pending successful push of vs2022 toolchain image:
+# package-windows:
+#   stage: package
+#   tags: [windows-v2:2022]
+#   variables:
+#     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+#     TOOLCHAIN_TARGET: vs2022
+#   parallel:
+#     matrix:
+#       # windows-x64-msvc143-md-shared-release
+#       - BUILD_CONFIGURATION: RelWithDebInfo
+#         BUILD_SHARED_LIBS: "ON"
+#         DD_HTTP_USE_SYSTEM_LIBCURL: "OFF"  # Build static libcurl from source
+#         MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
+#   script:
+#     - $ErrorActionPreference = "Stop"
+#     - if (Test-Path build) { remove-item -recurse -force build }
+#     - $env:TOOLCHAIN_IMAGE = "${env:BUILD_STABLE_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+#     - >
+#       docker run --rm
+#       -m 8192M
+#       -v "$(Get-Location):C:\mnt"
+#       -w C:\mnt
+#       ${env:TOOLCHAIN_IMAGE}
+#       cmd /S /C
+#       "
+#       cmake
+#         -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION}
+#         -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS}
+#         -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:DD_HTTP_USE_SYSTEM_LIBCURL}
+#         -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY}
+#         . -B build &&
+#       cmake --build build --config ${env:BUILD_CONFIGURATION} --target package
+#       "
+#     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
+#   artifacts:
+#     expire_in: 1 week
+#     paths:
+#       - build/ddsdkcpp-*.zip
