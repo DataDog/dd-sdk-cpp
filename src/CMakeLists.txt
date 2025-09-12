@@ -10,6 +10,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     c/attribute.cpp
     c/core.cpp
     c/logging.cpp
+    c/rum.cpp
     cpp/attribute.cpp
     cpp/core.cpp
     cpp/logging.cpp
