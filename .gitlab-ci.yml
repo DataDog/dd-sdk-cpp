@@ -3,6 +3,7 @@ stages:
   - validate
   - build
   - package
+  - release
 
 variables:
   # Docker registries: we push to registry.ddbuild.io and it replicates to ECR, which CI
@@ -106,6 +107,7 @@ unit-test:
 
 build-linux:
   stage: build
+  dependencies: []
   tags: [arch:amd64]
   parallel:
     # To avoid ballooning our build matrix, test multiple variations (compiler version,
@@ -151,6 +153,7 @@ build-linux:
 
 package-linux:
   stage: package
+  dependencies: []
   tags: [arch:amd64]
   parallel:
     matrix:
@@ -171,6 +174,7 @@ package-linux:
 
 package-macos:
   stage: package
+  dependencies: []
   tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ AppleClang 17
   parallel:
     matrix:
@@ -190,6 +194,7 @@ package-macos:
 # Disable pending successful push of vs2022 toolchain image:
 # package-windows:
 #   stage: package
+#   dependencies: []
 #   tags: [windows-v2:2022]
 #   variables:
 #     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
@@ -226,3 +231,33 @@ package-macos:
 #     expire_in: 1 week
 #     paths:
 #       - build/ddsdkcpp-*.zip
+
+# Stage 'release' gathers all the artifacts from the 'package' stage and... prints their
+# names.
+
+create-release:
+  stage: release
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      changes: [CMakeLists.txt]  # Contains canonical project version number
+    - if: '$CI_COMMIT_BRANCH == "aforsythe/RUM-11498/enable-ci"'  # TEMP
+      changes: [.gitlab-ci.yml]
+    - when: never
+  dependencies:
+    - package-linux
+    - package-macos
+    # - package-windows
+  tags: [arch:amd64]
+  image: ${VALIDATE_IMAGE}
+  script:
+    - RELEASE_VERSION=$(grep -E '^project\(ddsdkcpp VERSION (\d+\.\d+\.\d+[^ ]*)' CMakeLists.txt | cut -d' ' -f3)
+    - "[ -n \"$RELEASE_VERSION\" ] || { echo \"ERROR: Failed to parse version from CMakeLists.txt\" >&2; exit 1 }"
+    - ARCHIVE_FILES=$(find build -maxdepth 1 -type f \( -name 'ddsdkcpp-*.tar.gz' -o -name 'ddsdkcpp-*.zip' \))
+    - "[ -n \"$ARCHIVE_FILES\" ] || { echo \"ERROR: No archive files found in previous jobs' artifacts\" >&2; exit 1 }"
+    - |
+      echo "Preparing release of dd-sdk-cpp $RELEASE_VERSION."
+      echo "Artifacts found:"
+      for ARCHIVE_PATH in $ARCHIVE_FILES; do
+        ARCHIVE_FILENAME=$(basename "$ARCHIVE_PATH")
+        echo "- $ARCHIVE_FILENAME"
+      done
