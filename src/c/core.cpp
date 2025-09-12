@@ -12,7 +12,7 @@
 
 extern "C" {
 
-dd_core_t* dd_core_create(dd_core_config_t* config) {
+dd_core_t* dd_core_create(const dd_core_config_t* config) {
   // Initialize a C++ config struct, which is used at the implementation layer
   if (!config) {
     return nullptr;

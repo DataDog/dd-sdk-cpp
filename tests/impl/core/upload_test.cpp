@@ -192,7 +192,8 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         batch_size,
         upload_frequency,
         batch_processing_level,
-        0
+        0,
+        ""
     };
     return std::make_tuple(
         config,

@@ -98,6 +98,8 @@ enum class BatchProcessingLevel : uint8_t {
   High,
 };
 
+// TODO: Provide safer interface for initializing CoreConfig
+// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 struct CoreConfig {
   TrackingConsent tracking_consent;
   Site datadog_site;
@@ -109,6 +111,7 @@ struct CoreConfig {
   UploadFrequency upload_frequency;
   BatchProcessingLevel batch_processing_level;
   size_t num_http_requests_per_feature_to_flush_on_stop;
+  std::string custom_endpoint_url;
 };
 
 class Core {

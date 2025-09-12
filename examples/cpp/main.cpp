@@ -21,7 +21,8 @@ int main()  // NOLINT(bugprone-exception-escape)
       datadog::BatchSize::Medium,
       datadog::UploadFrequency::Average,
       datadog::BatchProcessingLevel::Medium,
-      1
+      1,
+      ""
   };
 
   auto core = datadog::Core::Create(config);

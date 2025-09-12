@@ -13,6 +13,21 @@
             "externalConsole": false,
             "MIMode": "lldb",
             "preLaunchTask": "build-tests"
+        },
+        {
+            "name": "Debug Benchmark",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/benchmarks/dd_native_benchmark",
+            "args": [
+                "--repeat",
+                "startup"
+            ],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "lldb"
         }
     ]
 }

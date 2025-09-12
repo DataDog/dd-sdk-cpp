@@ -53,11 +53,12 @@ typedef struct dd_core_config {
   dd_upload_frequency_t upload_frequency;
   dd_batch_processing_level_t batch_processing_level;
   size_t num_http_requests_per_feature_to_flush_on_stop;
+  const char* custom_endpoint_url;
 } dd_core_config_t;
 
 typedef struct dd_core dd_core_t;
 
-dd_core_t* dd_core_create(dd_core_config_t* config);
+dd_core_t* dd_core_create(const dd_core_config_t* config);
 void dd_core_destroy(dd_core_t* core);
 
 bool dd_core_start(dd_core_t* core);

@@ -20,7 +20,8 @@ TEST_CASE("CoreContext constructor", "[unit]") {
         BatchSize::Medium,
         UploadFrequency::Average,
         BatchProcessingLevel::Medium,
-        0
+        0,
+        ""
     };
 
     // When CoreContext is constructed from that config
@@ -50,7 +51,8 @@ TEST_CASE("CoreContext SetService", "[unit]") {
         BatchSize::Medium,
         UploadFrequency::Average,
         BatchProcessingLevel::Medium,
-        0
+        0,
+        ""
     };
     CoreContext context(config);
     int original_version = context.version;
@@ -78,7 +80,8 @@ TEST_CASE("CoreContext SetEnv", "[unit]") {
         BatchSize::Medium,
         UploadFrequency::Average,
         BatchProcessingLevel::Medium,
-        0
+        0,
+        ""
     };
     CoreContext context(config);
     int original_version = context.version;
@@ -105,7 +108,8 @@ TEST_CASE("CoreContext BuildRequestURL", "[unit]") {
       BatchSize::Medium,
       UploadFrequency::Average,
       BatchProcessingLevel::Medium,
-      0
+      0,
+      ""
   };
   CoreContext context(config);
   std::string result_url;
@@ -168,7 +172,8 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]") {
       BatchSize::Medium,
       UploadFrequency::Average,
       BatchProcessingLevel::Medium,
-      0
+      0,
+      ""
   };
   CoreContext context(config);
   std::string result_headers;

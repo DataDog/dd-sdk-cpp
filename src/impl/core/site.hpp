@@ -9,7 +9,10 @@
 namespace datadog::impl {
 
 static bool _is_valid_custom_endpoint_url(std::string_view s) {
-  return s.find("http:") == 0 || s.find("https:") == 0;
+  if (s.find("http:") == 0 || s.find("https:") == 0) {
+    return s.back() != '/';
+  }
+  return false;
 }
 
 /**

@@ -70,6 +70,12 @@ add_subdirectory(src/impl)
 add_subdirectory(src/c)
 add_subdirectory(src/cpp)
 
+# If configured to build benchmarks, include benchmarks/ in the build
+option(DD_BUILD_BENCHMARKS "Build benchmarks" ${DD_DEVELOPMENT})
+if(DD_BUILD_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
+
 # If configured to build examples, include examples/ in the build
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 if(DD_BUILD_EXAMPLES)
