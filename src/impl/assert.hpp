@@ -19,6 +19,7 @@
 namespace datadog::impl {
 inline void print_stack_trace() {
 #if defined(__unix__) || defined(__APPLE__)
+  // This POSIX API inevitably requires C-style array-as-pointer semantics
   // NOLINTBEGIN(cppcoreguidelines-*)
   // NOLINTBEGIN(bugprone-multi-level-implicit-pointer-conversion)
   void* array[16];
