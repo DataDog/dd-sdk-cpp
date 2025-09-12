@@ -25,6 +25,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/core/writer.cpp
     impl/features/logging/logger.cpp
     impl/features/logging/logging.cpp
+    impl/features/rum/rum.cpp
 )
 
 # Inject version number from CMake project config
