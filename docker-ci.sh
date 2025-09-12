@@ -14,7 +14,7 @@
 #  ./docker-ci.sh list
 #
 # Options:
-#  --toolchain <toolchain>: Specifies which compiler to use; see Dockerfile.gitlab.
+#  --toolchain <toolchain>: Specifies which compiler to use; see ci/linux/Dockerfile.
 #  --skip-build: If set, don't run a docker build before running containers.
 #  --clean: If set, your build directory will be deleted prior to running containers.
 #  --exit: If set, the container will exit after completing the 'run' command.
@@ -38,15 +38,14 @@ image_tag() {
     echo "ci/dd-sdk-cpp/$TARGET"
 }
 
-# Builds a local Docker image from Dockerfile.gitlab for the chosen target
+# Builds a local Docker image from ci/linux/Dockerfile for the chosen target
 build_image() {
     TARGET="$1"
     docker buildx build \
         --target "$TARGET" \
         --tag $(image_tag "$TARGET") \
         --label target=build \
-        -f Dockerfile.gitlab \
-        .
+        ./ci/linux
 }
 
 # Runs a Docker container from a locally-build image, executing the given command

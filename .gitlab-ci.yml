@@ -28,7 +28,7 @@ variables:
 # Docker images for use in our validation and Linux build stages: these "toolchain
 # images" furnish the Linux build environment necessary to build dd-sdk-cpp from source
 
-build-toolchain-image:
+build-toolchain-image-linux:
   stage: build-toolchain-images
   when: manual
   except: [tags, schedules]
@@ -39,7 +39,7 @@ build-toolchain-image:
       - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20]
   script:
     - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${TOOLCHAIN_IMAGE_VERSION}"
-    - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build -f Dockerfile.gitlab --push .
+    - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build --push ./ci/linux
 
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support
 # for clang-format and clang-tidy
@@ -82,12 +82,12 @@ windows-test:
   tags: [windows-v2:2022]
   variables:
     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+  # TEMP: Test building the Windows toolchain image here; don't try pushing it yet
   script:
     - $ErrorActionPreference = "Stop"
-    - echo "Hello? I am... Windows?"
-    - dir "C:\Program Files (x86)\Microsoft Visual Studio"
-    - cmake --help
+    - docker buildx build --tag dd-sdk-cpp:windows-toolchain-temp1 --label target=build ./ci/windows
     - If ($lastExitCode -ne "0") { throw "Previous command returned $lastExitCode" }
+    - remove-item -recurse -force build-out\${CI_JOB_ID}
 
 # Stage 'build' performs a more exhaustive set of library builds to validate that our
 # library still builds successfully on all supported compilers and in all supported
