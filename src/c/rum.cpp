@@ -29,10 +29,16 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
     config = &DEFAULT_RUM_CONFIG;
   }
 
+  // Get essential state from the Core
+  const datadog::platform::IClock& clock = core->impl->GetClock();
+  std::string_view service_name = core->impl->GetServiceName();
+  std::string_view application_version = core->impl->GetApplicationVersion();
+
   // Initialize our RUM feature implementation
   // Note: config->cpp_config will be used in future RUM work items
   (void)config;  // Suppress unused variable warning for now
-  auto rum_impl = std::make_shared<datadog::impl::Rum>();
+  auto rum_impl =
+      std::make_shared<datadog::impl::Rum>(clock, service_name, application_version);
 
   // Register the feature with the core, aborting on failure
   if (!core->impl->RegisterFeature(rum_impl)) {

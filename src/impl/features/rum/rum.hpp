@@ -1,9 +1,11 @@
 #pragma once
 
+#include <shared_mutex>
 #include <string>
 #include <string_view>
 
 #include "core/feature.hpp"
+#include "platform/clock.hpp"
 
 namespace datadog::impl {
 
@@ -13,7 +15,10 @@ namespace datadog::impl {
  */
 class Rum final : public Feature {
  public:
-  explicit Rum();
+  explicit Rum(
+      const platform::IClock& clock, std::string_view service_name,
+      std::string_view application_version
+  );
 
   FeatureId GetId() const override { return CreateFeatureId("RUMS"); }
 
@@ -24,7 +29,13 @@ class Rum final : public Feature {
   ) override;
 
  private:
-  // No functionality implemented yet - this is a "do-nothing" API
+  // Basic config parameters for future expansion (currently unused)
+  const platform::IClock& _clock;
+  const std::string _service_name;
+  const std::string _application_version;
+
+  // Thread-safe member variables for future state
+  mutable std::shared_mutex _state_mutex;
 };
 
 }  // namespace datadog::impl
