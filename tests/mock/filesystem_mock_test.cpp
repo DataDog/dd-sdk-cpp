@@ -546,7 +546,7 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]") {
     storage.WithExistingFile("file3.txt", "content3");
 
     std::vector<std::thread> threads;
-    std::vector<bool> thread_results(3, false);
+    std::vector<int> thread_results(3, false);
 
     // When running concurrent operations on different files
     // Thread 1: Read file1
@@ -555,7 +555,7 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]") {
       if (reader.has_value()) {
         char buffer[10];
         auto result = reader.value()->Read(buffer, sizeof(buffer));
-        thread_results[0] = result.has_value();
+        thread_results[0] = result.has_value() ? 1 : 0;
       }
     });
 
@@ -564,7 +564,7 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]") {
       auto writer = storage.PrepareForWrite("file2.txt");
       if (writer.has_value()) {
         auto result = writer.value()->Write("new", 3);
-        thread_results[1] = result.has_value();
+        thread_results[1] = result.has_value() ? 1 : 0;
       }
     });
 
@@ -572,7 +572,7 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]") {
     threads.emplace_back([&storage, &thread_results]() {
       std::vector<std::string> files;
       auto result = storage.ListFiles(files);
-      thread_results[2] = result.has_value() && files.size() >= 3;
+      thread_results[2] = (result.has_value() && files.size() >= 3) ? 1 : 0;
     });
 
     // Wait for all threads to complete
@@ -581,9 +581,9 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]") {
     }
 
     // Then all operations should succeed (different files)
-    REQUIRE(thread_results[0]);
-    REQUIRE(thread_results[1]);
-    REQUIRE(thread_results[2]);
+    REQUIRE(thread_results[0] == 1);
+    REQUIRE(thread_results[1] == 1);
+    REQUIRE(thread_results[2] == 1);
   }
 
   SECTION("M enforce exclusivity W concurrent access to same file") {
