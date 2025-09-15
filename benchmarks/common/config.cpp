@@ -7,41 +7,39 @@
 #include "common/global.hpp"
 
 static bool parse_dd_site(const char* intake, dd_site_t& out_site) {
-  if (std::strstr(intake, "dd:") != intake) {
-    return false;
+  if (std::strstr(intake, "dd:") == intake) {
+    const char* site_name = intake + 3;
+    if (std::strcmp(site_name, "us1") == 0) {
+      out_site = DD_SITE_US1;
+      return true;
+    }
+    if (std::strcmp(site_name, "us3") == 0) {
+      out_site = DD_SITE_US3;
+      return true;
+    }
+    if (std::strcmp(site_name, "us5") == 0) {
+      out_site = DD_SITE_US5;
+      return true;
+    }
+    if (std::strcmp(site_name, "eu1") == 0) {
+      out_site = DD_SITE_EU1;
+      return true;
+    }
+    if (std::strcmp(site_name, "ap1") == 0) {
+      out_site = DD_SITE_AP1;
+      return true;
+    }
+    if (std::strcmp(site_name, "ap2") == 0) {
+      out_site = DD_SITE_AP2;
+      return true;
+    }
+    if (std::strcmp(site_name, "us1-fed") == 0) {
+      out_site = DD_SITE_US1_FED;
+      return true;
+    }
+    std::cerr << "invalid site name '" << site_name << "'\n";
+    Exit(1);
   }
-
-  const char* site_name = intake + 3;
-  if (std::strcmp(site_name, "us1") == 0) {
-    out_site = DD_SITE_US1;
-    return true;
-  }
-  if (std::strcmp(site_name, "us3") == 0) {
-    out_site = DD_SITE_US3;
-    return true;
-  }
-  if (std::strcmp(site_name, "us5") == 0) {
-    out_site = DD_SITE_US5;
-    return true;
-  }
-  if (std::strcmp(site_name, "eu1") == 0) {
-    out_site = DD_SITE_EU1;
-    return true;
-  }
-  if (std::strcmp(site_name, "ap1") == 0) {
-    out_site = DD_SITE_AP1;
-    return true;
-  }
-  if (std::strcmp(site_name, "ap2") == 0) {
-    out_site = DD_SITE_AP2;
-    return true;
-  }
-  if (std::strcmp(site_name, "us1-fed") == 0) {
-    out_site = DD_SITE_US1_FED;
-    return true;
-  }
-  std::cerr << "invalid site name '" << site_name << "'\n";
-  Exit(1);
   return false;
 }
 

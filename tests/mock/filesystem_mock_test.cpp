@@ -51,7 +51,7 @@ TEST_CASE("MockFilesystem Basic Operations", "[unit][mock-filesystem]") {
     storage.WithExistingFile("to_delete.txt", "delete me");
 
     // When deleting the file
-    auto result = storage.DeleteFile("to_delete.txt");
+    auto result = storage.RemoveFile("to_delete.txt");
 
     // Then operation succeeds and file is gone from listing
     REQUIRE(result.has_value());
@@ -62,7 +62,7 @@ TEST_CASE("MockFilesystem Basic Operations", "[unit][mock-filesystem]") {
 
   SECTION("M return DoesNotExist W delete non-existent file") {
     // When deleting non-existent file
-    auto result = storage.DeleteFile("nonexistent.txt");
+    auto result = storage.RemoveFile("nonexistent.txt");
 
     // Then operation fails with DoesNotExist error
     REQUIRE_FALSE(result.has_value());

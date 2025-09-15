@@ -214,7 +214,7 @@ class StdDirectory : public virtual IDirectory {
     return {};
   }
 
-  FilesystemResult<void> DeleteFile(std::string_view name) override {
+  FilesystemResult<void> RemoveFile(std::string_view name) override {
     // Build the path to the target file
     DATADOG_ASSERT(_is_clean_basename(name), "invalid filename");
     const std::filesystem::path file_path = _path / name;
@@ -296,11 +296,23 @@ class StdDirectory : public virtual IDirectory {
   }
 };
 
+// IStorageDirectory extends IDirectory, so we derived from the concrete Directory class
+// when implementing IStorageDirectory. We don't invite the multiple-inheritance diamond
+// problem, because there's still only one concrete base class, and the compiler
+// resolves the ambiguity by preferring the concrete base class over the pure-virtual
+// one ("via dominance"). MSVC emits a warning for this case; Clang and GCC don't.
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4250)  // 'class' : inherits 'member' via dominance
+#endif
 class StdStorageDirectory final : public StdDirectory, public IStorageDirectory {
  public:
   explicit StdStorageDirectory(const std::filesystem::path& path)
       : StdDirectory(path) {}
 };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
 std::unique_ptr<IStorageDirectory> Filesystem::Init(std::string_view path) {
   // Resolve the configured path for our root storage directory

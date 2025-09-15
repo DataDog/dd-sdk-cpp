@@ -1,19 +1,26 @@
+# Coverage is supported when compiling with Clang, and we use the versions of
+# llvm-profdata and llvm-cov distributed with our build toolchain
+set(COVERAGE_SUPPORTED FALSE)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang$")
+	set(COVERAGE_SUPPORTED TRUE)
+endif()
+
 # Enable code coverage flags on a per-target basis: note that we need to configure all
 # targets with this function (even examples/benchmarks), to ensure that they link
 # properly with the SDK library when compiled with coverage enabled
 function(target_enable_coverage target_name)
     if(DD_ENABLE_COVERAGE)
-        if(CMAKE_CXX_COMPILER_ID MATCHES "Clang$")
+        if(COVERAGE_SUPPORTED)
             target_compile_options(${target_name} PRIVATE -fprofile-instr-generate -fcoverage-mapping -O0)
             target_link_options(${target_name} PRIVATE -fprofile-instr-generate -fcoverage-mapping)
         else()
-            message(FATAL_ERROR "Code coverage is only supported with Clang; configure with DD_ENABLE_COVERAGE=OFF or use Clang")
+            message(WARNING "Code coverage is only supported with Clang; binaries will not be instrumented for coverage (suppress with DD_ENABLE_COVERAGE=OFF)")
         endif()
     endif()
 endfunction()
 
 # Add custom targets for code coverage if enabled
-if(DD_BUILD_TESTING AND DD_ENABLE_COVERAGE)
+if(DD_BUILD_TESTING AND DD_ENABLE_COVERAGE AND COVERAGE_SUPPORTED)
     # When coverage is enabled for a given target (via target_enable_coverage), the
     # Clang compiler injects instrumentation code into the binaries that writes
     # execution data to .profraw files at runtime. llvm-profdata merges these raw

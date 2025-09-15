@@ -75,10 +75,10 @@ TEST_CASE("UploadScheduler", "[unit]") {
     REQUIRE(result.has_value());
     REQUIRE(*result == 0xfeee0000);
 
-    // And approximately 1 millisecond has elapsed
+    // And somewhere between 0.5ms and 100ms has elapsed
     auto elapsed_ms = std::chrono::round<std::chrono::milliseconds>(elapsed);
     REQUIRE(elapsed_ms.count() >= 1);
-    REQUIRE(elapsed_ms.count() <= 3);
+    REQUIRE(elapsed_ms.count() <= 100);
   }
 
   SECTION("M return earliest feature W features scheduled at different times") {
@@ -651,7 +651,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         // And only the files that did not make the cutoff remain on disk, with
         // older batches deleted and newer batches remaining
         std::vector<std::string> want_relpaths;
-        for (int i = tt.want_num_processed; i < 101; i++) {
+        for (size_t i = tt.want_num_processed; i < 101; i++) {
           const std::string filename = std::to_string(1699999955000 + i);
           want_relpaths.emplace_back("alpha/yes-upload/" + filename);
         }

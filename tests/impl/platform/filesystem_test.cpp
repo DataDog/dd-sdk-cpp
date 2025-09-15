@@ -54,22 +54,22 @@ TEST_CASE("IStorageDirectory", "[unit][platform-filesystem]") {
     REQUIRE(std::find(files.begin(), files.end(), "test2.txt") != files.end());
   }
 
-  SECTION("M successfully delete file W DeleteFile is called on existing file") {
+  SECTION("M successfully delete file W RemoveFile is called on existing file") {
     // Given a file exists
     tempdir.WriteFile("to_delete.txt", "delete me");
     REQUIRE(tempdir.FileExists("to_delete.txt"));
 
     // When deleting the file
-    auto result = storage->DeleteFile("to_delete.txt");
+    auto result = storage->RemoveFile("to_delete.txt");
 
     // Then operation succeeds and file is gone
     REQUIRE(result.has_value());
     REQUIRE_FALSE(tempdir.FileExists("to_delete.txt"));
   }
 
-  SECTION("M return DoesNotExist error W DeleteFile is called on non-existent file") {
+  SECTION("M return DoesNotExist error W RemoveFile is called on non-existent file") {
     // When deleting non-existent file
-    auto result = storage->DeleteFile("nonexistent.txt");
+    auto result = storage->RemoveFile("nonexistent.txt");
 
     // Then operation fails with DoesNotExist error
     REQUIRE_FALSE(result.has_value());

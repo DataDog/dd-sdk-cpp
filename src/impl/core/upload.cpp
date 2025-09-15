@@ -211,7 +211,7 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
 
     // If this file is too old to process, delete it and continue
     if (file_age >= config.max_file_age_for_read) {
-      if (!directory.DeleteFile(filename)) {
+      if (!directory.RemoveFile(filename)) {
         // TODO: Keep track of the files we've processed, so that even if we fail to
         // delete a batch, we won't continually reupload it
         std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
@@ -253,7 +253,7 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
     // If we need to delete the batch file, either because we processed it successfully
     // or because it's somehow malformed, delete it
     if (should_delete_batch) {
-      if (!directory.DeleteFile(filename)) {
+      if (!directory.RemoveFile(filename)) {
         // TODO: Keep track of the files we've processed, so that even if we fail to
         // delete a batch, we won't continually reupload it
         std::cout << "<UPLOAD> " << feature.name << " (batch" << filename

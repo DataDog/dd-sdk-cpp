@@ -124,10 +124,10 @@ static void* backend_alloc(size_t count, size_t req_align, bool nothrow) {
 
   // Call malloc to get our raw bytes, handling per-platform differences re: alignment
   void* raw = nullptr;
-  bool overaligned = false;
+  uint8_t overaligned = 0;
   if (user_align > alignof(std::max_align_t)) {
     raw = overaligned_alloc(raw_size, user_align);
-    overaligned = true;
+    overaligned = 1;
   } else {
     raw = std::malloc(raw_size);
   }
@@ -183,7 +183,7 @@ static void backend_free(void* user) noexcept {
   log_alloc_event(AllocOp::Free, user, header->size);
 
   // Call the appropriate system function to free our raw bytes
-  if (header->overaligned) {
+  if (header->overaligned != 0) {
     overaligned_free(header->raw);
   } else {
     std::free(header->raw);

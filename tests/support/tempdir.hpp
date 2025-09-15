@@ -11,9 +11,7 @@
 #include <string_view>
 
 #ifdef _WIN32
-#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
-#endif
 #include <windows.h>
 #endif
 
@@ -30,6 +28,7 @@ static std::filesystem::path _get_temp_root() {
     return std::filesystem::path(buffer);
   }
   DATADOG_ASSERT(false, "Failed to get temp path");
+  return std::filesystem::path("??*INVALID:PATH*??");
 #else
   const char* tmpdir = std::getenv("TMPDIR");
   if (tmpdir) {
@@ -79,7 +78,7 @@ struct TempDirectory {
   /**
    * Creates the directory a la `mkdir -p`.
    */
-  TempDirectory() : path(_build_temp_dir_path()) {
+  TempDirectory() : path(_build_temp_dir_path().string()) {
     std::error_code ec;
     std::filesystem::create_directories(path, ec);
     DATADOG_ASSERT(ec == std::error_code{}, "failed to create temp directory");
