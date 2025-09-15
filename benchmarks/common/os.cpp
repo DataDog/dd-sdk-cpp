@@ -13,6 +13,7 @@
 #include <unistd.h>
 #ifdef __APPLE__
 #include <mach-o/dyld.h>
+#include <sys/syslimits.h>
 extern char** environ;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 #endif
 #endif
@@ -42,12 +43,12 @@ std::optional<std::filesystem::path> os::GetExecutablePath() {
   return std::filesystem::path(resolved_path);
 #else
   // Linux: Read /proc/self/exe
-  char exe_path[PATH_MAX];
+  char exe_path[4096];
   ssize_t len = readlink("/proc/self/exe", exe_path, sizeof(exe_path) - 1);
   if (len == -1) {
     return std::nullopt;
   }
-  exe_path[len] = '\0';
+  exe_path[len] = '\0';  // NOLINT(cppcoreguidelines-pro-bounds-constant-array-index)
   return std::filesystem::path(exe_path);
 #endif
 }
