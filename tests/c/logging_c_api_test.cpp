@@ -379,7 +379,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
   SECTION("M emit only a subset of messages W sampling rate is <1") {
     // Given a logger config that sets a remote sampling rate of 50%
     dd_logger_config_t* config = dd_logger_config_create();
-    dd_logger_config_set_remote_sample_rate(config, 0.5f);
+    dd_logger_config_set_remote_sample_rate(config, 50.0f);
 
     // And a started core running a logger initialized from that config
     auto test = CoreTestHarness::Init();
@@ -441,7 +441,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     // Given a logger config that sets a remote sampling rate of 50% and a remote
     // log threshold at 'info' and above
     dd_logger_config_t* config = dd_logger_config_create();
-    dd_logger_config_set_remote_sample_rate(config, 0.5f);
+    dd_logger_config_set_remote_sample_rate(config, 50.0f);
     dd_logger_config_set_remote_log_threshold(config, DD_LOG_LEVEL_INFO);
 
     // And a started core running a logger initialized from that config

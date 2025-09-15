@@ -296,7 +296,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
   SECTION("M emit only a subset of messages W sampling rate is <1") {
     // Given a logger config that sets a remote sampling rate of 50%
     LoggerConfig config;
-    config.SetRemoteSampleRate(0.5f);
+    config.SetRemoteSampleRate(50.0f);
 
     // And a started core running a logger initialized from that config
     auto test = CoreTestHarness::Init();
@@ -346,7 +346,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     // Given a logger config that sets a remote sampling rate of 50% and a remote
     // log threshold at 'info' and above
     LoggerConfig config;
-    config.SetRemoteSampleRate(0.5f);
+    config.SetRemoteSampleRate(50.0f);
     config.SetRemoteLogThreshold(LogLevel::Info);
 
     // And a started core running a logger initialized from that config
