@@ -120,8 +120,8 @@ class IHttpSubsystem {
   virtual std::unique_ptr<IHttpClient> CreateClient() = 0;
 };
 
-struct Http {
-  static std::unique_ptr<IHttpSubsystem> Init();
+namespace Http {
+std::unique_ptr<IHttpSubsystem> Init();
 };
 
 }  // namespace datadog::platform
