@@ -116,14 +116,27 @@ struct CoreConfig {
   std::string custom_endpoint_url;
 };
 
-class DATADOG_API Core {
- public:
-  static std::shared_ptr<Core> Create(const CoreConfig& config);
+class Core {
+ private:
+  struct PrivateCtorTag {};
 
-  bool Start();
-  void Stop();
+ public:
+  // Callers should use Core::Create
+  explicit Core(std::unique_ptr<impl::Core>&& impl, PrivateCtorTag);
+  DATADOG_API ~Core();
+
+  DATADOG_API static std::shared_ptr<Core> Create(const CoreConfig& config);
+
+  DATADOG_API bool Start();
+  DATADOG_API void Stop();
 
  private:
+  // Forbid copying/moving: we use std::shared_ptr<Core> at the API boundary
+  Core(const Core&) = delete;
+  Core& operator=(const Core&) = delete;
+  Core(Core&&) = delete;
+  Core& operator=(Core&&) = delete;
+
   std::unique_ptr<impl::Core> _impl;
 
   friend class Logging;

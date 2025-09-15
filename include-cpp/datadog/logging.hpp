@@ -31,7 +31,7 @@ enum class LogLevel : uint8_t {
 /**
  * Configures the details of a logger upon creation.
  */
-struct DATADOG_API LoggerConfig {
+struct LoggerConfig {
   friend class Logging;
   friend class impl::Logger;
 
@@ -43,7 +43,12 @@ struct DATADOG_API LoggerConfig {
   size_t initial_attribute_capacity{0};
 
  public:
-  LoggerConfig() = default;
+  DATADOG_API LoggerConfig();
+  DATADOG_API ~LoggerConfig();
+  DATADOG_API LoggerConfig(const LoggerConfig&);
+  DATADOG_API LoggerConfig& operator=(const LoggerConfig&);
+  DATADOG_API LoggerConfig(LoggerConfig&&);
+  DATADOG_API LoggerConfig& operator=(LoggerConfig&&);
 
   /**
    * Sets the remote sample rate to a value between 0.0 and 1.0, indicating what
@@ -82,22 +87,29 @@ struct DATADOG_API LoggerConfig {
 /**
  * Interface used to emit log messages.
  */
-class DATADOG_API Logger {
+class Logger {
   friend class Logging;
 
+ private:
+  struct PrivateCtorTag {};
+
  public:
+  // Callers should use Logging::CreateLogger
+  explicit Logger(std::unique_ptr<impl::Logger>&& impl, PrivateCtorTag);
+  DATADOG_API ~Logger();
+
   /**
    * Adds or updates a logger-level attribute value that will be included with all
    * messages emitted by this logger. If a logger-level attribute shares its name with a
    * global attribute, the logger-level attribute will take precedence.
    */
-  void SetAttribute(std::string_view name, const Attribute& value);
+  DATADOG_API void SetAttribute(std::string_view name, const Attribute& value);
 
   /**
    * Removes a logger-level attribute value, if one has been previously added with the
    * given name.
    */
-  void DeleteAttribute(std::string_view name);
+  DATADOG_API void DeleteAttribute(std::string_view name);
 
   /**
    * Emits a log message at the given level. If attributes has type ValueType::Object,
@@ -105,67 +117,101 @@ class DATADOG_API Logger {
    * precedence over global and logger-level attributes in case of name conflict. If
    * attributes is a value of any other type, it will be ignored.
    */
-  void Log(
+  DATADOG_API void Log(
       LogLevel level, std::string_view message,
       const Attribute& attributes = Attribute()
   );
 
-  void Debug(std::string_view message, const Attribute& attributes = Attribute()) {
+  DATADOG_API void Debug(
+      std::string_view message, const Attribute& attributes = Attribute()
+  ) {
     Log(LogLevel::Debug, message, attributes);
   }
 
-  void Info(std::string_view message, const Attribute& attributes = Attribute()) {
+  DATADOG_API void Info(
+      std::string_view message, const Attribute& attributes = Attribute()
+  ) {
     Log(LogLevel::Info, message, attributes);
   }
 
-  void Notice(std::string_view message, const Attribute& attributes = Attribute()) {
+  DATADOG_API void Notice(
+      std::string_view message, const Attribute& attributes = Attribute()
+  ) {
     Log(LogLevel::Notice, message, attributes);
   }
 
-  void Warn(std::string_view message, const Attribute& attributes = Attribute()) {
+  DATADOG_API void Warn(
+      std::string_view message, const Attribute& attributes = Attribute()
+  ) {
     Log(LogLevel::Warn, message, attributes);
   }
 
-  void Error(std::string_view message, const Attribute& attributes = Attribute()) {
+  DATADOG_API void Error(
+      std::string_view message, const Attribute& attributes = Attribute()
+  ) {
     Log(LogLevel::Error, message, attributes);
   }
 
-  void Critical(std::string_view message, const Attribute& attributes = Attribute()) {
+  DATADOG_API void Critical(
+      std::string_view message, const Attribute& attributes = Attribute()
+  ) {
     Log(LogLevel::Critical, message, attributes);
   }
 
  private:
+  // Forbid copying/moving: we use std::shared_ptr<Logger> at the API boundary
+  Logger(const Logger&) = delete;
+  Logger& operator=(const Logger&) = delete;
+  Logger(Logger&&) = delete;
+  Logger& operator=(Logger&&) = delete;
+
   std::unique_ptr<impl::Logger> _impl;
 };
 
 /**
  * Interface to the Datadog SDK's logging feature.
  */
-class DATADOG_API Logging {
+class Logging {
+ private:
+  struct PrivateCtorTag {};
+
+ public:
+  // Callers should use Logging::Register
+  explicit Logging(std::shared_ptr<impl::Logging>&& impl, PrivateCtorTag);
+  DATADOG_API ~Logging();
+
  public:
   /**
    * Registers the logging feature with the core of the Datadog SDK.
    */
-  static std::shared_ptr<Logging> Register(class Core& core);
+  DATADOG_API static std::shared_ptr<Logging> Register(class Core& core);
 
   /**
    * Adds or updates a global attribute value that will be included with all log
    * messages emitted by all loggers.
    */
-  void SetAttribute(std::string_view name, const Attribute& value);
+  DATADOG_API void SetAttribute(std::string_view name, const Attribute& value);
 
   /**
    * Removes a global attribute value, if one has been previously added with the given
    * name.
    */
-  void DeleteAttribute(std::string_view name);
+  DATADOG_API void DeleteAttribute(std::string_view name);
 
   /**
    * Creates and returns a new logger with the given configuration.
    */
-  std::shared_ptr<Logger> CreateLogger(const LoggerConfig& config = LoggerConfig());
+  DATADOG_API std::shared_ptr<Logger> CreateLogger(
+      const LoggerConfig& config = LoggerConfig()
+  );
 
  private:
+  // Forbid copying/moving: we use std::shared_ptr<Logging> at the API boundary
+  Logging(const Logging&) = delete;
+  Logging& operator=(const Logging&) = delete;
+  Logging(Logging&&) = delete;
+  Logging& operator=(Logging&&) = delete;
+
   std::shared_ptr<impl::Logging> _impl;
 };
 
