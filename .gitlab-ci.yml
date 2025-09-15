@@ -189,7 +189,7 @@ build-windows:
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
-    - $env:TOOLCHAIN_IMAGE = "${env:BUILD_STABLE_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
     - >
       docker run --rm
       -m 8192M
@@ -269,7 +269,7 @@ package-windows:
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
-    - $env:TOOLCHAIN_IMAGE = "${env:BUILD_STABLE_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
     - >
       docker run --rm
       -m 8192M
