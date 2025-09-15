@@ -14,6 +14,7 @@ int main(int argc, char *argv[]) {
 
   printf("Datadog Native SDK C Example\n");
 
+  // Prepare our configuration and create the Datadog SDK Core
   dd_core_config_t config = {
       .tracking_consent = DD_TRACKING_CONSENT_GRANTED,
       .datadog_site = DD_SITE_US1,
@@ -34,21 +35,37 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // Register the logging feature
   dd_logging_t *logging = dd_logging_init(core);
   if (!logging) {
     printf("Failed to register logging\n");
     return 1;
   }
 
+  // Create a logger (this can be done before or after Core start)
+  dd_logger_t *logger = dd_logger_create(logging, NULL);
+  if (!logger) {
+    printf("Failed to create logger\n");
+    return 1;
+  }
+
+  // Start the core to begin processing events
   printf("Starting Datadog core...\n");
   if (!dd_core_start(core)) {
     printf("Failed to start core\n");
     return 1;
   }
 
+  // Use our logger to send a message
+  dd_logger_info(logger, "Hello world!");
+
+  // Stop the core on application shutdown
   printf("Core started successfully. Shutting down...\n");
   dd_core_stop(core);
 
+  // Clean up SDK resources
+  dd_logger_destroy(logger);
+  dd_logging_destroy(logging);
   dd_core_destroy(core);
   printf("Example completed successfully\n");
 
