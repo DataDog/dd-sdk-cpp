@@ -50,9 +50,9 @@ DATADOG_API dd_logger_config_t* dd_logger_config_create(void);
 DATADOG_API void dd_logger_config_destroy(dd_logger_config_t* config);
 
 /**
- * Sets the remote sample rate to a value between 0.0 and 1.0, indicating what
- * percentage of log events should be sampled. At 1.0, all messages are sent to intake;
- * at 0.0, all messages are discarded. Default is 1.0.
+ * Sets the remote sample rate to a value between 0.0 and 100.0, indicating what
+ * percentage of log events should be sampled. At 100.0, all messages are sent to
+ * intake; at 0.0, all messages are discarded. Default is 100.0.
  */
 DATADOG_API void dd_logger_config_set_remote_sample_rate(
     dd_logger_config_t* config, float value

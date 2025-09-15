@@ -42,7 +42,7 @@ struct LoggerConfig {
   friend class impl::Logger;
 
  private:
-  float remote_sample_rate{1.0f};
+  float remote_sample_rate{100.0f};
   std::optional<std::string> service;
   std::optional<std::string> name;
   LogLevel remote_log_threshold{LogLevel::Debug};
@@ -57,7 +57,7 @@ struct LoggerConfig {
   DATADOG_API LoggerConfig& operator=(LoggerConfig&&);
 
   /**
-   * Sets the remote sample rate to a value between 0.0 and 1.0, indicating what
+   * Sets the remote sample rate to a value between 0.0 and 100.0, indicating what
    * percentage of log events should be sampled.
    */
   LoggerConfig& SetRemoteSampleRate(float value);
