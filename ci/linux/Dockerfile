@@ -10,6 +10,7 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   gpg \
+  gpg-agent \
   wget \
   libcurl4-openssl-dev \
   libssl-dev \
