@@ -73,8 +73,10 @@ build-toolchain-image-windows:
     - docker build --tag ${env:TOOLCHAIN_IMAGE} --label target=build ./ci/windows
     - If ($LASTEXITCODE -ne "0") { throw "docker build returned $LASTEXITCODE" }
     - docker tag ${env:TOOLCHAIN_IMAGE} ${env:TOOLCHAIN_IMAGE_LATEST}
-    - If ($LASTEXITCODE -ne "0") { throw "docker build returned $LASTEXITCODE" }
-    - docker push --all-tags ${env:TOOLCHAIN_IMAGE}
+    - If ($LASTEXITCODE -ne "0") { throw "docker tag returned $LASTEXITCODE" }
+    - docker push ${env:TOOLCHAIN_IMAGE}
+    - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
+    - docker push ${env:TOOLCHAIN_IMAGE_LATEST}
     - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
 
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support
