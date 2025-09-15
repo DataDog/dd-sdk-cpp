@@ -39,7 +39,7 @@ int main()  // NOLINT(bugprone-exception-escape)
   }
 
   // Register the logging feature
-  auto logging = datadog::Logging::Register(*core);
+  auto logging = datadog::Logging::Register(core);
   if (!logging) {
     std::cout << "Failed to register logging\n";
     return 1;
