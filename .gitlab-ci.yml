@@ -302,7 +302,7 @@ create-release:
   dependencies:
     - package-linux
     - package-macos
-    # - package-windows
+    - package-windows
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
   script:
