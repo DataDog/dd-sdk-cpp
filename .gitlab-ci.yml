@@ -172,42 +172,41 @@ build-macos:
       . -B build
     - cmake --build build
 
-### <Disabled pending successful push of vs2022 toolchain image> ###
-# build-windows:
-#   stage: build
-#   dependencies: []
-#   tags: [windows-v2:2022]
-#   variables:
-#     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-#     TOOLCHAIN_TARGET: vs2022
-#   parallel:
-#     matrix:
-#       # Visual Studio 2022 (17.14, vc143): md-static-debug, w/ bundled libcurl
-#       - BUILD_CONFIGURATION: Release
-#         BUILD_SHARED_LIBS: "OFF"
-#         USE_SYSTEM_LIBCURL: "OFF"
-#         MSVC_RUNTIME_LIBRARY: MultiThreadedDebugDLL
-#   script:
-#     - $ErrorActionPreference = "Stop"
-#     - if (Test-Path build) { remove-item -recurse -force build }
-#     - $env:TOOLCHAIN_IMAGE = "${env:BUILD_STABLE_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-#     - >
-#       docker run --rm
-#       -m 8192M
-#       -v "$(Get-Location):C:\mnt"
-#       -w C:\mnt
-#       ${env:TOOLCHAIN_IMAGE}
-#       cmd /S /C
-#       "
-#       cmake
-#         -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION}
-#         -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS}
-#         -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL}
-#         -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY}
-#         . -B build &&
-#       cmake --build build --config ${env:BUILD_CONFIGURATION}
-#       "
-#     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
+build-windows:
+  stage: build
+  dependencies: []
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022
+  parallel:
+    matrix:
+      # Visual Studio 2022 (17.14, vc143): md-static-debug, w/ bundled libcurl
+      - BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        USE_SYSTEM_LIBCURL: "OFF"
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDebugDLL
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path build) { remove-item -recurse -force build }
+    - $env:TOOLCHAIN_IMAGE = "${env:BUILD_STABLE_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - >
+      docker run --rm
+      -m 8192M
+      -v "$(Get-Location):C:\mnt"
+      -w C:\mnt
+      ${env:TOOLCHAIN_IMAGE}
+      cmd /S /C
+      "
+      cmake
+        -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION}
+        -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS}
+        -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL}
+        -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY}
+        . -B build &&
+      cmake --build build --config ${env:BUILD_CONFIGURATION}
+      "
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
@@ -253,46 +252,45 @@ package-macos:
     paths:
       - build/ddsdkcpp-*.tar.gz
 
-### <Disabled pending successful push of vs2022 toolchain image> ###
-# package-windows:
-#   stage: package
-#   dependencies: []
-#   tags: [windows-v2:2022]
-#   variables:
-#     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-#     TOOLCHAIN_TARGET: vs2022
-#   parallel:
-#     matrix:
-#       # windows-x64-msvc143-md-shared-release
-#       - BUILD_CONFIGURATION: RelWithDebInfo
-#         BUILD_SHARED_LIBS: "ON"
-#         USE_SYSTEM_LIBCURL: "OFF"  # Build static libcurl from source
-#         MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
-#   script:
-#     - $ErrorActionPreference = "Stop"
-#     - if (Test-Path build) { remove-item -recurse -force build }
-#     - $env:TOOLCHAIN_IMAGE = "${env:BUILD_STABLE_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-#     - >
-#       docker run --rm
-#       -m 8192M
-#       -v "$(Get-Location):C:\mnt"
-#       -w C:\mnt
-#       ${env:TOOLCHAIN_IMAGE}
-#       cmd /S /C
-#       "
-#       cmake
-#         -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION}
-#         -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS}
-#         -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL}
-#         -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY}
-#         . -B build &&
-#       cmake --build build --config ${env:BUILD_CONFIGURATION} --target package
-#       "
-#     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
-#   artifacts:
-#     expire_in: 1 week
-#     paths:
-#       - build/ddsdkcpp-*.zip
+package-windows:
+  stage: package
+  dependencies: []
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022
+  parallel:
+    matrix:
+      # windows-x64-msvc143-md-shared-release
+      - BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "ON"
+        USE_SYSTEM_LIBCURL: "OFF"  # Build static libcurl from source
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path build) { remove-item -recurse -force build }
+    - $env:TOOLCHAIN_IMAGE = "${env:BUILD_STABLE_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - >
+      docker run --rm
+      -m 8192M
+      -v "$(Get-Location):C:\mnt"
+      -w C:\mnt
+      ${env:TOOLCHAIN_IMAGE}
+      cmd /S /C
+      "
+      cmake
+        -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION}
+        -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS}
+        -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL}
+        -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY}
+        . -B build &&
+      cmake --build build --config ${env:BUILD_CONFIGURATION} --target package
+      "
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - build/ddsdkcpp-*.zip
 
 # Stage 'release' gathers all the artifacts from the 'package' stage and... prints their
 # names.
