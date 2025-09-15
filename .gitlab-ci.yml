@@ -73,7 +73,7 @@ check-format:
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
   script:
-    - cmake -DDD_ENABLE_CLANG_FORMAT=ON . -B build
+    - cmake -DDD_ENABLE_CLANG_FORMAT=ON -S . -B build
     - cmake --build build --target check-format
 
 unit-test:
@@ -92,7 +92,7 @@ unit-test:
       -DDD_BUILD_BENCHMARKS=ON
       -DDD_BUILD_EXAMPLES=ON
       -DDD_BUILD_TESTING=ON
-      . -B build
+      -S . -B build
     - cmake --build build
     - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
   artifacts:
@@ -144,7 +144,7 @@ build-linux:
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
-      . -B build
+      -S . -B build
     - cmake --build build
 
 build-macos:
@@ -169,7 +169,7 @@ build-macos:
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
-      . -B build
+      -S . -B build
     - cmake --build build
 
 build-windows:
@@ -203,7 +203,7 @@ build-windows:
         -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS}
         -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL}
         -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY}
-        . -B build &&
+        -S . -B build &&
       cmake --build build --config ${env:BUILD_CONFIGURATION}
       "
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
@@ -224,7 +224,7 @@ package-linux:
         BUILD_SHARED_LIBS: "ON"
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
-    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} . -B build
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -S . -B build
     - cmake --build build --target package
     - stat build/artifact_name.txt
     - stat "build/$(cat build/artifact_name.txt).tar.gz"
@@ -243,7 +243,7 @@ package-macos:
       - BUILD_CONFIGURATION: RelWithDebInfo
         BUILD_SHARED_LIBS: "ON"
   script:
-    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} . -B build
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -S . -B build
     - cmake --build build --target package
     - stat build/artifact_name.txt
     - stat "build/$(cat build/artifact_name.txt).tar.gz"
@@ -283,7 +283,7 @@ package-windows:
         -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS}
         -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL}
         -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY}
-        . -B build &&
+        -S . -B build &&
       cmake --build build --config ${env:BUILD_CONFIGURATION} --target package
       "
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
