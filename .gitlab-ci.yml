@@ -19,6 +19,10 @@ variables:
   # bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
   LINUX_TOOLCHAIN_IMAGE_VERSION: v3
+
+  # The Windows (MSVC) toolchain image is built separately: since Windows images tend to
+  # be large, they can be pre-pulled in the Windows runners' AMI build. If you bump this
+  # version, submit a PR to `pre-pull-docker-images.ps1` in ci-platform-machine-images.
   WINDOWS_TOOLCHAIN_IMAGE_VERSION: v1
 
   # clang-20 is our golden-path toolchain for development: use the clang-20 image to
@@ -276,16 +280,7 @@ package-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C
-      "
-      cmake
-        -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION}
-        -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS}
-        -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL}
-        -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY}
-        -S . -B build &&
-      cmake --build build --config ${env:BUILD_CONFIGURATION} --target package
-      "
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
   artifacts:
     expire_in: 1 week
