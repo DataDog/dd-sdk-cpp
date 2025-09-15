@@ -5,10 +5,10 @@ ENV WINDOWS_VERSION=2022
 ENV TARGET_ARCH=x64
 
 # Copy PowerShell scripts from build context into the image
-COPY . /scripts
-WORKDIR /scripts
+COPY . C:/TEMP/scripts
+WORKDIR C:/TEMP/scripts
 
 SHELL ["powershell", "-Command"]
 RUN .\build-toolchain-image.ps1
 
-WORKDIR c:/
+WORKDIR C:/
