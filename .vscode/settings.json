@@ -86,6 +86,7 @@
         "cstddef": "cpp",
         "thread": "cpp",
         "shared_mutex": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "atomic": "cpp"
     }
 }
