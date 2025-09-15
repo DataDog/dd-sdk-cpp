@@ -48,6 +48,7 @@ option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instr
 set(DD_SDK_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
 # Modules for project build configuration
+include(${DD_SDK_ROOT_DIR}/cmake/llvm-tools.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/clang-format.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/clang-tidy.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/compile.cmake)

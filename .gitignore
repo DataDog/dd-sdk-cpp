@@ -1,6 +1,6 @@
 build/
 install/
-tools/bin/
+llvm-bin/
 Testing/
 *.profraw
 .DS_Store
