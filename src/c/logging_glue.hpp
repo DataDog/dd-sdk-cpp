@@ -16,10 +16,6 @@ class Logger;
 class Logging;
 }  // namespace datadog::impl
 
-struct dd_logger_config {
-  datadog::LoggerConfig cpp_config;
-};
-
 struct dd_logger {
   std::unique_ptr<datadog::impl::Logger> impl;
 };

@@ -12,6 +12,10 @@
 
 #include "datadog/api.h"
 
+// These values establish the size of string buffers in the C API; they do not imply
+// that the Datadog platform imposes any such limits
+#define DATADOG_MAX_SERVICE_NAME_LEN 127
+
 #ifdef __cplusplus
 extern "C" {
 #endif
