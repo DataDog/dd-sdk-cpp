@@ -16,16 +16,23 @@ Core::Core(std::unique_ptr<impl::Core>&& impl, Core::PrivateCtorTag)
 Core::~Core() = default;
 
 std::shared_ptr<Core> Core::Create(const CoreConfig& config) {
+  // Validate the config: if we don't have the required parameters, return a no-op Core
+  if (config.client_token.empty()) {
+    return std::make_shared<Core>(nullptr, Core::PrivateCtorTag{});
+  }
+
   // Create core subsystems using default implementations
   auto subsystems = impl::CoreSubsystems::Init(config);
   if (!subsystems) {
-    return nullptr;
+    // If we fail to create subsystems, return a no-op Core
+    return std::make_shared<Core>(nullptr, Core::PrivateCtorTag{});
   }
 
   // Create the core implementation
   auto impl = std::make_unique<impl::Core>(config, std::move(*subsystems));
   if (!impl->Init()) {
-    return nullptr;
+    // If subsystem initialization fails, return a no-op core
+    return std::make_shared<Core>(nullptr, Core::PrivateCtorTag{});
   }
 
   // Wrap the implementation in a C++ struct that exposes the public API for the core,
@@ -33,8 +40,17 @@ std::shared_ptr<Core> Core::Create(const CoreConfig& config) {
   return std::make_shared<Core>(std::move(impl), PrivateCtorTag{});
 }
 
-bool Core::Start() { return _impl->Start(); }
+bool Core::Start() {
+  if (_impl) {
+    return _impl->Start();
+  }
+  return false;
+}
 
-void Core::Stop() { _impl->Stop(); }
+void Core::Stop() {
+  if (_impl) {
+    _impl->Stop();
+  }
+}
 
 }  // namespace datadog

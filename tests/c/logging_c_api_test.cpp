@@ -19,8 +19,8 @@
 
 using namespace datadog;
 
-TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
-  SECTION("M abort gracefully W target object is null") {
+TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
+  SECTION("M safely do nothing W target object is null") {
     dd_attribute_t int_100 = dd_attribute_int(100);
     dd_attribute_t obj = dd_attribute_object(0);
 
