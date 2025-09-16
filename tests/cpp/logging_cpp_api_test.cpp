@@ -248,6 +248,39 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     );
   }
 
+  SECTION("M use default name and service W explicitly set to empty string") {
+    // Given a logger config that sets 'name' and 'service' to valid strings, then sets
+    // them to empty string
+    LoggerConfig config;
+    config.SetService("unused-service-name");
+    config.SetName("unused-logger-name");
+    config.SetService("");
+    config.SetName("");
+
+    // And a started core running a logger initialized from that config
+    auto test = CoreTestHarness::Init();
+    test.clock.FreezeAtMilliseconds(1700000000000);
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    auto logger = logging->CreateLogger(config);
+    core->Start();
+
+    // When we emit a log message and stop the core
+    logger->Info("hello");
+    core->Stop();
+
+    // Then the resulting log event contains our default service and logger names, just
+    // as if we hadn't overridden them
+    REQUIRE(test.client.requests.size() == 1);
+    const MockHttpRequest& req = test.client.requests.front();
+    REQUIRE(
+        req.body ==
+        JsonArrayOf({
+            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"}})",
+        })
+    );
+  }
+
   SECTION("M emit only messages at or above threshold W log threshold is set") {
     // Given a logger config that sets a remote log threshold at 'error'
     LoggerConfig config;
