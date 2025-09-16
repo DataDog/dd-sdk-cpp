@@ -6,8 +6,9 @@
 
 #include "datadog/logging.h"
 
-#include <cstring>
+#include <cstdio>
 #include <memory>
+#include <string_view>
 
 #include "attribute/types.hpp"
 #include "core/core.hpp"
@@ -32,6 +33,8 @@ static const dd_logger_config_t DEFAULT_LOGGER_CONFIG = {
 
 // This C API necessarily uses C-style idioms for memory management and strings.
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
 
 extern "C" {
@@ -53,9 +56,7 @@ void dd_logger_config_set_remote_sample_rate(dd_logger_config_t* config, float v
 void dd_logger_config_set_service(dd_logger_config_t* config, const char* value) {
   if (config) {
     if (value) {
-      const size_t len = DATADOG_MAX_SERVICE_NAME_LEN;
-      std::strncpy(static_cast<char*>(config->service), value, len);
-      config->service[len] = '\0';
+      std::snprintf(config->service, sizeof(config->service), "%s", value);
     } else {
       config->service[0] = '\0';
     }
@@ -65,9 +66,7 @@ void dd_logger_config_set_service(dd_logger_config_t* config, const char* value)
 void dd_logger_config_set_name(dd_logger_config_t* config, const char* value) {
   if (config) {
     if (value) {
-      const size_t len = DATADOG_MAX_LOGGER_NAME_LEN;
-      std::strncpy(static_cast<char*>(config->name), value, len);
-      config->name[len] = '\0';
+      std::snprintf(config->name, sizeof(config->name), "%s", value);
     } else {
       config->name[0] = '\0';
     }
@@ -282,4 +281,6 @@ void dd_logger_critical_obj(
 }
 
 // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
+// NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+// NOLINTEND(cppcoreguidelines-pro-type-vararg)
 // NOLINTEND(cppcoreguidelines-owning-memory)
