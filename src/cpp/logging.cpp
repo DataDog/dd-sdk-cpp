@@ -76,7 +76,7 @@ Logging::Logging(std::shared_ptr<impl::Logging>&& impl, PrivateCtorTag)
 
 Logging::~Logging() = default;
 
-std::shared_ptr<Logging> Logging::Register(std::shared_ptr<Core>& core) {
+std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
   // Get essential state from the Core
   const platform::IClock& clock = core->_impl->GetClock();
   std::string_view service_name = core->_impl->GetServiceName();

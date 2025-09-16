@@ -191,7 +191,7 @@ class Logging {
    * Registers the logging feature with the core of the Datadog SDK.
    */
   DATADOG_API static std::shared_ptr<Logging> Register(
-      std::shared_ptr<class Core>& core
+      const std::shared_ptr<class Core>& core
   );
 
   /**
