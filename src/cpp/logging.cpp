@@ -8,6 +8,13 @@
 
 namespace datadog {
 
+LoggerConfig::LoggerConfig() = default;
+LoggerConfig::~LoggerConfig() = default;
+LoggerConfig::LoggerConfig(const LoggerConfig&) = default;
+LoggerConfig& LoggerConfig::operator=(const LoggerConfig&) = default;
+LoggerConfig::LoggerConfig(LoggerConfig&&) = default;
+LoggerConfig& LoggerConfig::operator=(LoggerConfig&&) = default;
+
 LoggerConfig& LoggerConfig::SetRemoteSampleRate(float value) {
   remote_sample_rate = value;
   return *this;
@@ -41,6 +48,11 @@ LoggerConfig& LoggerConfig::SetInitialAttributeCapacity(size_t value) {
   return *this;
 }
 
+Logger::Logger(std::unique_ptr<impl::Logger>&& impl, PrivateCtorTag)
+    : _impl(std::move(impl)) {}
+
+Logger::~Logger() = default;
+
 void Logger::SetAttribute(std::string_view name, const Attribute& value) {
   _impl->SetAttribute(name, value);
 }
@@ -52,6 +64,11 @@ void Logger::Log(
 ) {
   _impl->EmitLogEvent(level, message, attributes);
 }
+
+Logging::Logging(std::shared_ptr<impl::Logging>&& impl, PrivateCtorTag)
+    : _impl(std::move(impl)) {}
+
+Logging::~Logging() = default;
 
 std::shared_ptr<Logging> Logging::Register(Core& core) {
   // Get essential state from the Core
@@ -71,9 +88,7 @@ std::shared_ptr<Logging> Logging::Register(Core& core) {
 
   // Initialize and return the API object that represents our user-facing interface for
   // the logging feature
-  const std::shared_ptr<Logging> logging = std::make_shared<Logging>();
-  logging->_impl = std::move(logging_impl);
-  return logging;
+  return std::make_shared<Logging>(std::move(logging_impl), Logging::PrivateCtorTag{});
 }
 
 void Logging::SetAttribute(std::string_view name, const Attribute& value) {
@@ -83,9 +98,9 @@ void Logging::SetAttribute(std::string_view name, const Attribute& value) {
 void Logging::DeleteAttribute(std::string_view name) { _impl->DeleteAttribute(name); }
 
 std::shared_ptr<Logger> Logging::CreateLogger(const LoggerConfig& config) {
-  auto logger = std::make_shared<Logger>();
-  logger->_impl = _impl->CreateLogger(config);
-  return logger;
+  return std::make_shared<Logger>(
+      _impl->CreateLogger(config), Logger::PrivateCtorTag{}
+  );
 }
 
 }  // namespace datadog

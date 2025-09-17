@@ -4,6 +4,11 @@
 
 namespace datadog {
 
+Core::Core(std::unique_ptr<impl::Core>&& impl, Core::PrivateCtorTag)
+    : _impl(std::move(impl)) {}
+
+Core::~Core() = default;
+
 std::shared_ptr<Core> Core::Create(const CoreConfig& config) {
   // Create core subsystems using default implementations
   auto subsystems = impl::CoreSubsystems::Init(config);
@@ -19,9 +24,7 @@ std::shared_ptr<Core> Core::Create(const CoreConfig& config) {
 
   // Wrap the implementation in a C++ struct that exposes the public API for the core,
   // using the pimpl idiom, with automatic cleanup
-  const std::shared_ptr<Core> core = std::make_shared<Core>();
-  core->_impl = std::move(impl);
-  return core;
+  return std::make_shared<Core>(std::move(impl), PrivateCtorTag{});
 }
 
 bool Core::Start() { return _impl->Start(); }

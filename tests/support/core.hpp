@@ -109,8 +109,6 @@ struct CoreTestHarness {
    * Initializes a CoreTestHarness for use in C++ API tests.
    */
   static std::shared_ptr<Core> WrapForCpp(CoreTestHarness& test) {
-    auto core = std::make_shared<Core>();
-    core->_impl = std::move(test._core);
-    return core;
+    return std::make_shared<Core>(std::move(test._core), Core::PrivateCtorTag{});
   }
 };
