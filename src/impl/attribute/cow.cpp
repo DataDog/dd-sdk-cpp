@@ -252,7 +252,7 @@ int CowValue::FindPropertyIndex(std::string_view name) const {
       // If we have an object with more than INT_MAX values, something's wrong, but fall
       // out to return -1 in that case rather than truncating
       const size_t index = std::distance(value.object.begin(), found);
-      if (index <= std::numeric_limits<int>::max()) {
+      if (static_cast<int>(index) <= std::numeric_limits<int>::max()) {
         return static_cast<int>(index);
       }
     }

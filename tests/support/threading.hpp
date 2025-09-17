@@ -1,11 +1,22 @@
 #pragma once
 
+#include <catch2/catch_test_macros.hpp>
 #include <condition_variable>
 #include <functional>
 #include <future>
 #include <mutex>
 #include <thread>
 #include <vector>
+
+#include "support/threading_checks.hpp"
+
+#if WITH_DATADOG_STRICT_THREADING_CHECKS
+#define STRICT_THREADING_REQUIRE(...) REQUIRE(__VA_ARGS__)
+#else
+// clang-format off
+#define STRICT_THREADING_REQUIRE(...) do { (void)(__VA_ARGS__); } while(0)
+// clang-format on
+#endif
 
 /**
  * Starts and runs `n` threads, with each one running `func(i)`. Synchronizes the

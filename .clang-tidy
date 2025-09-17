@@ -39,4 +39,4 @@ CheckOptions:
 
 WarningsAsErrors: '*'
 
-HeaderFilterRegex: '(include-cpp/|src/|benchmarks/|tests/).*'
+ExcludeHeaderFilterRegex: '.*(include-c/).*'

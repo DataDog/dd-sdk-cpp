@@ -50,7 +50,7 @@ static std::string_view _ms_to_string(
   // from our buffer
   const size_t len = result.ptr - begin;
   return std::string_view{begin, len};
-};
+}
 
 static platform::Timestamp _ms_to_timestamp(uint64_t timestamp_ms) {
   const int64_t count = static_cast<int64_t>(timestamp_ms);

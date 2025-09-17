@@ -72,6 +72,14 @@ class Queue {
     return true;
   }
 
+// StorageMessage contains a union with a std::vector<uint8_t> member, and GCC has
+// trouble understanding the initialization of the vector's internal pointers during
+// move operations, so it erroneously flags it as usage of an uninitialized variable.
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wuninitialized"
+#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
+#endif
   /**
    * Retrieves an item from the front of the queue, blocking until either an item is
    * available or queue processing has stopped.
@@ -100,23 +108,15 @@ class Queue {
 
     // Queue is not empty: move the first item out of the queue, transferring ownership
     // to this local variable
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wuninitialized"
-#pragma GCC diagnostic ignored "-Wmaybe-uninitialized"
-#endif
-    // StorageMessage contains a union with a std::vector<uint8_t> member, and GCC has
-    // trouble understanding the initialization of the vector's internal pointers during
-    // move operations, so it erroneously flags this as use of an uninitialized variable
     T item = std::move(_items.front());
     _items.pop_front();
-#if defined(__GNUC__) && !defined(__clang__)
-#pragma GCC diagnostic pop
-#endif
 
     // Finally, transfer ownership of the item to the caller: NRVO will elide the copy
     return item;
   }
+#if defined(__GNUC__) && !defined(__clang__)
+#pragma GCC diagnostic pop
+#endif
 
   /**
    * Stops all queue processing. Subsequent calls to `Push()` will reject the operation

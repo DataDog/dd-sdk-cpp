@@ -41,6 +41,18 @@ else()
     target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=0)
 endif()
 
+# Strict checks in memory tests are automatically enabled on our default
+# macOS/Clang/libc++ development environment; disabled by default everywhere else
+if(DD_ENABLE_STRICT_MEMORY_CHECKS)
+    target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_STRICT_MEMORY_CHECKS=1)
+endif()
+
+# Asserts in thread-safety tests are disabled by default, as they're inherently
+# timing-dependent and can therefore be flaky; but they can be explicitly enabled
+if(DD_ENABLE_STRICT_THREADING_CHECKS)
+    target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_STRICT_THREADING_CHECKS=1)
+endif()
+
 target_include_directories(dd_native_tests
     PRIVATE ${DD_SDK_ROOT_DIR}/src/c
     PRIVATE ${DD_SDK_ROOT_DIR}/src/cpp

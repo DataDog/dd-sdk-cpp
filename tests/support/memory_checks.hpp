@@ -63,11 +63,11 @@
 
 // Define the golden-path build environment in which we author tests
 // - Must be a 64-bit build
-// - Must target libc++, using Clang 17 or newer
+// - Must target libc++ 19 or newer
 // - Must use libc++ ABI version 1
 // - Must have no STL iterator debugging and no sanitizers
 #define DATADOG_SMC_GOLDEN_PATH                                             \
-  ((DATADOG_SMC_LP64 == 1) && (DATADOG_SMC_LIBCPP_MAJOR >= 22) &&           \
+  ((DATADOG_SMC_LP64 == 1) && (DATADOG_SMC_LIBCPP_MAJOR >= 19) &&           \
    (DATADOG_SMC_LIBCPP_ABI_VERSION == 1) && (DATADOG_SMC_STL_DEBUG == 0) && \
    (DATADOG_SMC_ASAN == 0) && (DATADOG_SMC_MSAN == 0) && (DATADOG_SMC_TSAN == 0))
 
