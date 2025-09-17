@@ -60,24 +60,24 @@ struct LoggerConfig {
    * Sets the remote sample rate to a value between 0.0 and 100.0, indicating what
    * percentage of log events should be sampled.
    */
-  LoggerConfig& SetRemoteSampleRate(float value);
+  DATADOG_API LoggerConfig& SetRemoteSampleRate(float value);
   /**
    * Sets the service name to be used on messages emitted by a logger. If omitted, the
    * logger will use the service name configured globally via CoreConfig.
    */
-  LoggerConfig& SetService(std::string_view value);
+  DATADOG_API LoggerConfig& SetService(std::string_view value);
   /**
    * Sets the name used to identify a logger in messages emitted by that logger. If
    * omitted, no 'logger.name' property will be present on log events.
    */
-  LoggerConfig& SetName(std::string_view value);
+  DATADOG_API LoggerConfig& SetName(std::string_view value);
   /**
    * Sets the minimum log level at which messages will be sent to intake. Only messages
    * at or above this level will be considered for sampling; all messages below that
    * level will be dropped. Defaults to LogLevel::Debug, meaning all messages will be
    * sent to intake.
    */
-  LoggerConfig& SetRemoteLogThreshold(LogLevel value);
+  DATADOG_API LoggerConfig& SetRemoteLogThreshold(LogLevel value);
   /**
    * Sets the initial number of custom attributes for which memory will be preallocated
    * on logger creation. At the default of 0, does not reserve space for custom
@@ -87,7 +87,7 @@ struct LoggerConfig {
    * capacity is simply a means of optimizing memory allocations based on expected
    * usage.
    */
-  LoggerConfig& SetInitialAttributeCapacity(size_t value);
+  DATADOG_API LoggerConfig& SetInitialAttributeCapacity(size_t value);
 };
 
 /**
