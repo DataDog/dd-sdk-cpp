@@ -69,9 +69,9 @@ For more detailed usage examples, see [the C++ example program](./examples/cpp/m
 
 The SDK also provides a C99-compliant API for use in C codebases, and for interoperability with languages and runtimes that expect a Foreign Function Interface with C linkage.
 
-You can peruse the public C headers [here](./include-cpp/datadog/).
+You can peruse the public C headers [here](./include-c/datadog/).
 
-```cpp
+```c
 #include "datadog.h"
 
 void your_application_code() {
