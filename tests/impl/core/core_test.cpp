@@ -19,11 +19,12 @@ using namespace datadog::impl;
 
 static impl::Core _make_core() {
   return impl::Core(
-      CoreConfig{
-          TrackingConsent::Granted, Site::us1, "test-client-token", "initial-service",
-          "initial-env", "1.0.0", BatchSize::Small, UploadFrequency::Frequent,
-          BatchProcessingLevel::Low, 0, ""
-      },
+      CoreConfig("test-client-token", "initial-service", "initial-env")
+          .SetInitialTrackingConsent(TrackingConsent::Granted)
+          .SetApplicationVersion("1.0.0")
+          .SetBatchSize(BatchSize::Small)
+          .SetUploadFrequency(UploadFrequency::Frequent)
+          .SetBatchProcessingLevel(BatchProcessingLevel::Low),
       CoreSubsystems(
           std::make_unique<MockClock>(), std::make_unique<MockStorageDirectory>(),
           std::make_unique<MockHttpSubsystem>()

@@ -52,7 +52,7 @@ static int RunCpp(const void* config_, const void*) {
 
 int benchmark_startup_main(const char* argv_0, const GlobalOptions& opts) {
   dd_core_config_t c_config;
-  datadog::CoreConfig cpp_config;
+  datadog::CoreConfig cpp_config("", "", "");
 
   // If called with --help/-h, print usage and return
   if (opts.help) {

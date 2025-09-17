@@ -22,19 +22,13 @@ using namespace datadog;
 /**
  * Default SDK configuration used in tests.
  */
-static const CoreConfig MOCK_CORE_CONFIG{
-    TrackingConsent::Granted,
-    Site::us1,
-    "mock-client-token",
-    "mock-service",
-    "mock-env",
-    "mock-application-version",
-    BatchSize::Small,
-    UploadFrequency::Frequent,
-    BatchProcessingLevel::Low,
-    0,
-    "",
-};
+static const CoreConfig MOCK_CORE_CONFIG =
+    CoreConfig("mock-client-token", "mock-service", "mock-env")
+        .SetInitialTrackingConsent(TrackingConsent::Granted)
+        .SetApplicationVersion("mock-application-version")
+        .SetBatchSize(BatchSize::Small)
+        .SetUploadFrequency(UploadFrequency::Frequent)
+        .SetBatchProcessingLevel(BatchProcessingLevel::Low);
 
 /**
  * Encapsulates test setup, initializing a working Core implementation with mock
@@ -78,8 +72,9 @@ struct CoreTestHarness {
 
     // Create the core, giving the core ownership of injected subsystems
     CoreConfig config = MOCK_CORE_CONFIG;
-    config.num_http_requests_per_feature_to_flush_on_stop =
-        flush_http_requests ? std::numeric_limits<size_t>::max() : 0;
+    if (flush_http_requests) {
+      config.Internal_FlushHttpRequestsOnStop();
+    }
     auto core = std::make_unique<impl::Core>(
         config, impl::CoreSubsystems(
                     std::move(_clock), std::move(_storage_root), std::move(_http)
