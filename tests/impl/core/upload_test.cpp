@@ -189,29 +189,19 @@ TEST_CASE("HandleUploadProc", "[unit]") {
                          BatchSize batch_size, UploadFrequency upload_frequency,
                          BatchProcessingLevel batch_processing_level
                      ) -> std::tuple<CoreConfig, UploadThreadConfig, CoreContext> {
-    CoreConfig config{
-        TrackingConsent::Granted,
-        Site::us1,
-        "mock-client-token",
-        "mock-service",
-        "mock-env",
-        "mock-application-version",
-        batch_size,
-        upload_frequency,
-        batch_processing_level,
-        0,
-        ""
-    };
+    CoreConfig config = CoreConfig("mock-client-token", "mock-service", "mock-env")
+                            .SetInitialTrackingConsent(TrackingConsent::Granted)
+                            .SetApplicationVersion("mock-application-version")
+                            .SetBatchSize(batch_size)
+                            .SetUploadFrequency(upload_frequency)
+                            .SetBatchProcessingLevel(batch_processing_level);
     return std::make_tuple(
-        config,
-        UploadThreadConfig::FromCoreConfig(
-            config.batch_size, config.batch_processing_level
-        ),
+        config, UploadThreadConfig::FromCoreConfig(batch_size, batch_processing_level),
         CoreContext(config)
     );
   };
 
-  auto register_feature = [](const CoreConfig& config,
+  auto register_feature = [](UploadFrequency upload_frequency,
                              MockStorageDirectory& mock_storage,
                              const std::shared_ptr<Feature>& feature,
                              std::vector<RegisteredFeature>& out_features) -> void {
@@ -227,7 +217,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         feature->GetId(), feature->GetName(), feature, std::move(*directory),
         nullptr,  // event_storage is exclusive to storage thread
         std::move(*granted_subdir),
-        std::make_unique<UploadThreadState>(config.upload_frequency)
+        std::make_unique<UploadThreadState>(upload_frequency)
     );
   };
 
@@ -241,7 +231,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // When we process uploads for that feature
     std::vector<std::string> filenames;
@@ -275,7 +265,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // And a batch of event data that was written a minute ago
     storage.WithExistingFile(
@@ -389,7 +379,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         );
         auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
         std::vector<RegisteredFeature> features;
-        register_feature(core_config, storage, alpha, features);
+        register_feature(UploadFrequency::Average, storage, alpha, features);
 
         // And our set of four batch files
         init_files(storage);
@@ -437,7 +427,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // And a set of three batch files: one older than 18 hours, one eligible for
     // upload, and one too new to upload
@@ -509,7 +499,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         );
         auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
         std::vector<RegisteredFeature> features;
-        register_feature(core_config, storage, alpha, features);
+        register_feature(tt.upload_frequency, storage, alpha, features);
 
         // When we process uploads for that feature
         std::vector<std::string> filenames;
@@ -566,7 +556,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         );
         auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
         std::vector<RegisteredFeature> features;
-        register_feature(core_config, storage, alpha, features);
+        register_feature(tt.upload_frequency, storage, alpha, features);
 
         // And an HTTP client that is unable to complete requests
         client.SimulateTransientNetworkError();
@@ -635,7 +625,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         );
         auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
         std::vector<RegisteredFeature> features;
-        register_feature(core_config, storage, alpha, features);
+        register_feature(UploadFrequency::Average, storage, alpha, features);
 
         // And our set of 101 batch files
         init_files(storage);
@@ -684,7 +674,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // And a filesystem that will not permit the SDK to read directory contents
     storage.SetFail("alpha/yes-upload", true);
@@ -733,7 +723,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // And a filesystem that will prevent the second file from being read
     storage.SetFail("alpha/yes-upload/1699999956000", true);
@@ -783,7 +773,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // When we process uploads for that feature
     std::vector<std::string> filenames;
@@ -823,7 +813,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // And an HTTP client that will fail to complete requests
     client.SimulateTransientNetworkError();
@@ -865,7 +855,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // And an HTTP client that will get a 502 response
     client.SimulateResponse(502);
@@ -912,7 +902,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
     auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
     std::vector<RegisteredFeature> features;
-    register_feature(core_config, storage, alpha, features);
+    register_feature(UploadFrequency::Average, storage, alpha, features);
 
     // And an HTTP client that will get a 400 response
     client.SimulateResponse(400);

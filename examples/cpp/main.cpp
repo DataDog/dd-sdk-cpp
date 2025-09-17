@@ -18,19 +18,8 @@ int main()  // NOLINT(bugprone-exception-escape)
   std::cout << "Datadog Native SDK C++ Example\n";
 
   // Prepare our configuration and create the Datadog SDK Core
-  datadog::CoreConfig config{
-      datadog::TrackingConsent::Granted,
-      datadog::Site::us1,
-      "fake-client-token",
-      "example-service",
-      "development",
-      "1.0.0",
-      datadog::BatchSize::Medium,
-      datadog::UploadFrequency::Average,
-      datadog::BatchProcessingLevel::Medium,
-      1,
-      ""
-  };
+  datadog::CoreConfig config("fake-client-token", "example-service", "development");
+  config.SetApplicationVersion("1.0.0");
 
   auto core = datadog::Core::Create(config);
   if (!core) {
@@ -58,6 +47,9 @@ int main()  // NOLINT(bugprone-exception-escape)
     std::cout << "Failed to start core\n";
     return 1;
   }
+
+  // Whenever the user's tracking consent changes, convey it to the SDK
+  core->SetTrackingConsent(datadog::TrackingConsent::Granted);
 
   // Use our logger to send a message
   logger->Info("Hello world!");
