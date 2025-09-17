@@ -76,18 +76,18 @@ Logging::Logging(std::shared_ptr<impl::Logging>&& impl, PrivateCtorTag)
 
 Logging::~Logging() = default;
 
-std::shared_ptr<Logging> Logging::Register(Core& core) {
+std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
   // Get essential state from the Core
-  const platform::IClock& clock = core._impl->GetClock();
-  std::string_view service_name = core._impl->GetServiceName();
-  std::string_view application_version = core._impl->GetApplicationVersion();
+  const platform::IClock& clock = core->_impl->GetClock();
+  std::string_view service_name = core->_impl->GetServiceName();
+  std::string_view application_version = core->_impl->GetApplicationVersion();
 
   // Initialize our Logging feature implementation
   auto logging_impl =
       std::make_shared<impl::Logging>(clock, service_name, application_version);
 
   // Register the feature with the core, aborting on failure
-  if (!core._impl->RegisterFeature(logging_impl)) {
+  if (!core->_impl->RegisterFeature(logging_impl)) {
     // TODO: Return a no-op interface
     return nullptr;
   }

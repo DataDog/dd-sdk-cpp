@@ -69,7 +69,7 @@ static int RunCpp(const void* config_, const void* b_) {
   if (!core) {
     return 1;
   }
-  auto logging = datadog::Logging::Register(*core);
+  auto logging = datadog::Logging::Register(core);
   if (!logging) {
     return 1;
   }

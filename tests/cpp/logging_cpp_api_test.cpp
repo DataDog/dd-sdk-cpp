@@ -23,7 +23,7 @@ TEST_CASE("Logging::Register", "[unit][logging][cpp-api]") {
     auto core = CoreTestHarness::WrapForCpp(test);
 
     // When we register the logging feature
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
 
     // Then we get a valid Logging interface
     REQUIRE(logging != nullptr);
@@ -35,7 +35,7 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
     // Given a valid Logging feature and a Core that's already started
     auto test = CoreTestHarness::Init();
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     REQUIRE(core->Start());
 
     // When we call CreateLogger
@@ -51,7 +51,7 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
     // Given a valid Logging feature and Core that's not yet started
     auto test = CoreTestHarness::Init();
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
 
     // When we call CreateLogger
     auto logger = logging->CreateLogger(
@@ -66,7 +66,7 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
     // Given a valid Logging feature and Core
     auto test = CoreTestHarness::Init();
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
 
     // When we call CreateLogger with an implicit default config
     auto logger = logging->CreateLogger();
@@ -82,7 +82,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     auto logger = logging->CreateLogger();
     core->Start();
 
@@ -122,7 +122,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     auto logger = logging->CreateLogger();
 
     // When we emit a log message prior to starting the core
@@ -144,7 +144,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     auto logger = logging->CreateLogger();
     core->Start();
 
@@ -168,7 +168,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
       auto test = CoreTestHarness::Init();
       test.clock.FreezeAtMilliseconds(1700000000000);
       auto core = CoreTestHarness::WrapForCpp(test);
-      auto logging = Logging::Register(*core);
+      auto logging = Logging::Register(core);
       logger = logging->CreateLogger();
       core->Start();
 
@@ -193,7 +193,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     {
       // When we create a logger that will outlive our reference to the logging
       // feature
-      auto logging = Logging::Register(*core);
+      auto logging = Logging::Register(core);
       logger = logging->CreateLogger();
 
       // And we start the core
@@ -228,7 +228,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     auto logger = logging->CreateLogger(config);
     core->Start();
 
@@ -257,7 +257,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     auto logger = logging->CreateLogger(config);
     core->Start();
 
@@ -302,7 +302,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     auto logger = logging->CreateLogger(config);
     core->Start();
 
@@ -328,7 +328,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     auto logger = logging->CreateLogger(config);
     core->Start();
 
@@ -353,7 +353,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     auto core = CoreTestHarness::WrapForCpp(test);
-    auto logging = Logging::Register(*core);
+    auto logging = Logging::Register(core);
     auto logger = logging->CreateLogger(config);
     core->Start();
 
@@ -535,7 +535,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       auto core = CoreTestHarness::WrapForCpp(test);
 
       // And a registered logging feature that our test has configured
-      auto logging = Logging::Register(*core);
+      auto logging = Logging::Register(core);
       tt.pre_logger_init(*logging);
 
       // And a logger that our test has configured
@@ -559,7 +559,7 @@ TEST_CASE("Logger thread-safety", "[unit][logging][cpp-api][thread-safety]") {
   auto test = CoreTestHarness::Init();
   test.clock.FreezeAtMilliseconds(1700000000000);
   auto core = CoreTestHarness::WrapForCpp(test);
-  auto logging = Logging::Register(*core);
+  auto logging = Logging::Register(core);
   core->Start();
 
   // And 20 threads that each create their own loggers and emit 100 messages each
