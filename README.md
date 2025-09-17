@@ -6,7 +6,7 @@ The Datadog C++ SDK provides client-side monitoring functionality for your C or 
 
 By integrating the SDK into your application and using features like Logging and [Real User Monitoring (RUM)](https://docs.datadoghq.com/real_user_monitoring/), you can visualize and analyze the real-time performance and user journeys of your application's individual users.
 
-In addition to adding SDK functionality to native applications, the Datadog C++ SDK also makes it possible to create FFI bindings to other languages [via its C API](#using-the-c-api-1).
+In addition to adding SDK functionality to native applications, the Datadog C++ SDK also makes it possible to create Foreign Function Interface (FFI) bindings to other languages [through its C API](#using-the-c-api-1).
 
 ## Building and Installation
 
@@ -22,7 +22,7 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Datadog)
 ```
 
-This will pull the SDK into your CMake build tree and build it from source. In your own CMake configuration, you can configure the SDK's build using any of the options defined in [`CMakeLists.txt`](./CMakeLists.txt).
+This pulls the SDK into your CMake build tree and builds it from source. In your own CMake configuration, you can configure the SDK's build using any of the options defined in [`CMakeLists.txt`](./CMakeLists.txt).
 
 For example, to build as a static library, with `libcurl` built from source and linked into the `dd-sdk-cpp` library:
 
@@ -31,7 +31,7 @@ set(DD_BUILD_SHARED OFF)
 set(DD_HTTP_USE_SYSTEM_LIBCURL OFF)
 ```
 
-To use the SDK within your own projects, simply add `Datadog::dd_native` as a dependency for the relevant targets:
+To use the SDK within your own projects, add `Datadog::dd_native` as a dependency for the relevant targets:
 
 ```
 target_link_libraries(your_library_or_program Datadog::dd_native)
@@ -48,7 +48,7 @@ You can peruse the public C++ headers [here](./include-cpp/datadog/).
 
 void your_application_code() {
   // Create the core, set tracking consent based on user input
-  auto config = datadog::CoreConfig("your-client-id", "your-service", "your-env");
+  auto config = datadog::CoreConfig("<your-client-id>", "<your-service>", "<your-env>");
   auto core = datadog::Core::Create(config);
   core->SetTrackingConsent(datadog::TrackingConsent::Granted);
 
@@ -67,7 +67,7 @@ For more detailed usage examples, see [the C++ example program](./examples/cpp/m
 
 ## Using the C API
 
-The SDK also provides a C99-compliant API for use in C codebases, and for interoperability with languages and runtimes that expect a Foreign Function Interface with C linkage.
+The SDK also provides a C99-compliant API for use in C codebases, and for interoperability with languages and runtimes that expect an FFI with C linkage.
 
 You can peruse the public C headers [here](./include-c/datadog/).
 
