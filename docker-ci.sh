@@ -2,7 +2,7 @@
 # Unless explicitly stated otherwise all files in this repository are licensed under the
 # Apache License Version 2.0. This product includes software developed at Datadog
 # (https://www.datadoghq.com/). Copyright 2025-Present Datadog, Inc.  
-
+#
 # Helper script for running build tasks locally in a way that mirrors CI.
 #
 # To build and run a Linux clang20 container, in an interactive shell:
@@ -191,7 +191,7 @@ case "$COMMAND" in
         echo ""
         echo "docker-ci.sh:"
         NUM_COMMENT_LINES=$(awk '/^#/{count++; next} {exit} END{print count}' "$0")
-        TAIL_LINES=$((NUM_COMMENT_LINES-1))
+        TAIL_LINES=$((NUM_COMMENT_LINES-5))
         head -n "$NUM_COMMENT_LINES" "$0" | tail -n "$TAIL_LINES" | sed 's/^#//g'
         ;;
     *)
