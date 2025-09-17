@@ -45,11 +45,11 @@ class IClock {
   virtual Timestamp Now() const = 0;
 };
 
-struct Clock {
-  /**
-   * Creates an IClock interface used to read to the system clock.
-   */
-  static std::unique_ptr<IClock> Init();
-};
+namespace Clock {
+/**
+ * Creates an IClock interface used to read to the system clock.
+ */
+std::unique_ptr<IClock> Init();
+};  // namespace Clock
 
 }  // namespace datadog::platform

@@ -38,32 +38,9 @@ class NameConflictFeature : public MockFeature {
 };
 
 TEST_CASE("Core Lifecycle", "[unit]") {
-  // CoreConfig struct to be used in tests
-  const CoreConfig config{
-      TrackingConsent::Granted,
-      Site::us1,
-      "test-client-token",
-      "test-service",
-      "test-env",
-      "1.0.0",
-      BatchSize::Small,
-      UploadFrequency::Frequent,
-      BatchProcessingLevel::Low,
-      0,
-      ""
-  };
-
   SECTION("M create Core in Uninitialized state W constructor called") {
-    // Given CoreSubsystems
-    auto clock = std::make_unique<MockClock>();
-    auto storage_root = std::make_unique<MockStorageDirectory>();
-    auto http = std::make_unique<MockHttpSubsystem>();
-    CoreSubsystems subsystems(
-        std::move(clock), std::move(storage_root), std::move(http)
-    );
-
     // When Core is constructed
-    impl::Core core(config, std::move(subsystems));
+    impl::Core core = _make_core();
 
     // Then the core should be in Uninitialized state
     // Note: We can't directly access _state, but we can infer state from behavior

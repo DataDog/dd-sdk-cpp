@@ -91,9 +91,9 @@ inline platform::Duration BatchSize_ToFileTimingCutoff(BatchSize value) {
     case BatchSize::Small:
       return std::chrono::duration_cast<platform::Duration>(std::chrono::seconds(3));
     case BatchSize::Medium:
+    default:
       return std::chrono::duration_cast<platform::Duration>(std::chrono::seconds(10));
     case BatchSize::Large:
-    default:
       return std::chrono::duration_cast<platform::Duration>(std::chrono::seconds(35));
   }
 }

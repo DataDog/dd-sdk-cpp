@@ -6,6 +6,8 @@
 #include <mutex>
 #include <optional>
 
+#include "assert.hpp"
+
 namespace datadog::impl {
 
 /**
@@ -38,6 +40,9 @@ class Queue {
     // processing involves synchronization with threads that the queue itself does not
     // own. The owner of the Queue MUST call Queue::Stop() explicitly, and join on all
     // threads that use it, before the Queue goes out of scope.
+    DATADOG_ASSERT(
+        _is_stopped.load(), "Queue destructor called while _is_stopped true"
+    );
   }
 
   Queue(const Queue&) = delete;

@@ -181,8 +181,8 @@ class IStorageDirectory : public virtual IDirectory {
   IStorageDirectory& operator=(IStorageDirectory&&) = default;
 };
 
-struct Filesystem {
-  static std::unique_ptr<IStorageDirectory> Init(std::string_view path);
+namespace Filesystem {
+std::unique_ptr<IStorageDirectory> Init(std::string_view path);
 };
 
 }  // namespace datadog::platform
