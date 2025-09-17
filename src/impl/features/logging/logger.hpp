@@ -55,7 +55,7 @@ class Logger {
  private:
   // Internal state used to make sampling decisions
   LogLevel _min_level;
-  float _sampling_rate;
+  float _sampling_rate_unit;
   std::mt19937 _sampling_rng;
   std::uniform_real_distribution<float> _sampling_distribution;
 

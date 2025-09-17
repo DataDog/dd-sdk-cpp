@@ -14,7 +14,7 @@ namespace datadog::impl {
 
 Logger::Logger(const LoggerConfig& config, const LogEventCallback& event_callback)
     : _min_level(config.remote_log_threshold),
-      _sampling_rate(config.remote_sample_rate),
+      _sampling_rate_unit(config.remote_sample_rate / 100.0f),
       _sampling_rng(std::random_device{}()),
       _sampling_distribution(0.0f, 1.0f),
       _service_name(config.service),
@@ -50,17 +50,17 @@ void Logger::EmitLogEvent(
   }
 
   // Similarly: if our sampling rate is zero, we ignore all messages
-  if (_sampling_rate <= 0.0f) {
+  if (_sampling_rate_unit <= 0.0f) {
     return;
   }
 
   // If we have a sampling rate below one, roll the dice to see if this message should
   // be excluded
-  if (_sampling_rate < 1.0f) {
+  if (_sampling_rate_unit < 1.0f) {
     // Sampling rate defines percentage of messages to _keep_ (e.g. 0.9f => 90%
     // sampled), so discard if our roll is _above_ the threshold
     const float random_unit_value = _sampling_distribution(_sampling_rng);
-    if (random_unit_value > _sampling_rate) {
+    if (random_unit_value > _sampling_rate_unit) {
       return;
     }
   }
