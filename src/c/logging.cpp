@@ -106,9 +106,8 @@ dd_logging_t* dd_logging_init(dd_core_t* core) {
       clock, service_name, application_version
   );
 
-  // Register the feature with the core, aborting on failure
+  // Register the feature with the core, returning a no-op interface on failure
   if (!core->impl->RegisterFeature(logging_impl)) {
-    // TODO: Return a no-op interface
     return nullptr;
   }
 

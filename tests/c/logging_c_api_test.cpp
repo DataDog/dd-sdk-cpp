@@ -69,6 +69,24 @@ TEST_CASE("dd_logging_init", "[unit][logging][c-api]") {
     dd_logging_destroy(logging);
     dd_core_destroy(core);
   }
+
+  SECTION("M return null W feature registered multiple times") {
+    // Given a valid dd_core_t that already has logging enabled
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    REQUIRE(logging);
+
+    // When we attempt to call dd_logging_init a second time
+    dd_logging_t* other_logging = dd_logging_init(core);
+
+    // Then we get null
+    REQUIRE(other_logging == nullptr);
+
+    // Cleanup
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
 }
 
 TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {

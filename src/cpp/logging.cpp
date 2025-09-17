@@ -99,10 +99,9 @@ std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
   auto logging_impl =
       std::make_shared<impl::Logging>(clock, service_name, application_version);
 
-  // Register the feature with the core, aborting on failure
+  // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(logging_impl)) {
-    // TODO: Return a no-op interface
-    return nullptr;
+    return std::make_shared<Logging>(nullptr, Logging::PrivateCtorTag{});
   }
 
   // Initialize and return the API object that represents our user-facing interface for

@@ -57,6 +57,23 @@ TEST_CASE("Logging::Register", "[unit][logging][cpp-api]") {
     // Then we get a valid Logging interface
     REQUIRE(logging != nullptr);
   }
+
+  SECTION("M return no-op interface W feature registered multiple times") {
+    // Given a valid core that already has logging enabled
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    REQUIRE(logging != nullptr);
+
+    // When we attempt register the logging feature a second time
+    auto other_logging = Logging::Register(core);
+
+    // Then we get a valid pointer to a no-op logging interface
+    // TODO: Surface some indication of whether a call to the C++ API succeeded (and
+    // gave you a valid, functional object) or failed (and gave you a no-op interface)
+    REQUIRE(other_logging != nullptr);
+    other_logging->CreateLogger()->Debug("no-op");
+  }
 }
 
 TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
