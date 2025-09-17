@@ -266,7 +266,7 @@ bool Core::Start() {
   std::cout << "Datadog core started.\n";
   std::cout << "- Tracking Consent: "
             << TrackingConsent_ToString(_config.tracking_consent) << "\n";
-  std::cout << "- Site: " << Site_ToString(_config.datadog_site) << "\n";
+  std::cout << "- Site: " << Site_ToString(_config.site) << "\n";
   std::cout << "- Client Token: " << _config.client_token << "\n";
   std::cout << "- Env: " << _config.env << "\n";
   std::cout << "- Application Version: " << _config.application_version << "\n";
@@ -335,13 +335,14 @@ void Core::Stop() {
   // If we're configured to flush at shutdown, run one final upload cycle for each
   // registered feature, attempting to upload the next N batches, blocking the main
   // thread until done: this is useful for ensuring immediate uploads in unit tests
-  if (_config.num_http_requests_per_feature_to_flush_on_stop > 0) {
+  if (_config.internal_options.num_http_requests_per_feature_to_flush_on_stop > 0) {
     // Adjust our config to allow reading all files, regardless of age (since we've
     // joined on the storage thread; we now have exclusive access to batch files), and
     // to upload N batches up to our configured per-feature limit
     platform::Duration min_file_age_for_read{0};
     UploadThreadConfig flush_config(
-        min_file_age_for_read, _config.num_http_requests_per_feature_to_flush_on_stop
+        min_file_age_for_read,
+        _config.internal_options.num_http_requests_per_feature_to_flush_on_stop
     );
 
     // We can't reuse buffers from the upload thread (unless we factor them out and make

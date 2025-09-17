@@ -87,41 +87,38 @@ dd_core_config_t InitConfigForC(const GlobalOptions& opts) {
   dd_site_t site = DD_SITE_US1;
   const char* custom_endpoint = nullptr;
   parse_intake(opts, site, custom_endpoint);
-  return dd_core_config_t{
-      DD_TRACKING_CONSENT_GRANTED,
-      site,
-      opts.client_token,
-      "dd-sdk-cpp",
-      "benchmark-c",
-      opts.version,
-      DD_BATCH_SIZE_SMALL,
-      DD_UPLOAD_FREQUENCY_FREQUENT,
-      DD_BATCH_PROCESSING_LEVEL_HIGH,
-      1,
-      custom_endpoint
-  };
+
+  dd_core_config_t config;
+  dd_core_config_init(&config, opts.client_token, "dd-sdk-cpp", "benchmark-c");
+  dd_core_config_set_initial_tracking_consent(&config, DD_TRACKING_CONSENT_GRANTED);
+  dd_core_config_set_site(&config, site);
+  dd_core_config_set_application_version(&config, opts.version);
+  dd_core_config_set_batch_size(&config, DD_BATCH_SIZE_SMALL);
+  dd_core_config_set_upload_frequency(&config, DD_UPLOAD_FREQUENCY_FREQUENT);
+  dd_core_config_set_batch_processing_level(&config, DD_BATCH_PROCESSING_LEVEL_HIGH);
+  config.internal_options.flush_http_requests_on_stop = true;
+  config.internal_options.custom_endpoint_url = custom_endpoint;
+  return config;
 }
 
 datadog::CoreConfig InitConfigForCpp(const GlobalOptions& opts) {
   dd_site_t site = DD_SITE_US1;
   const char* custom_endpoint = nullptr;
   parse_intake(opts, site, custom_endpoint);
-  // Temporary: string warnings should be avoided w/ updated C++ CoreConfig API
-  // NOLINTBEGIN(clang-analyzer-cplusplus.StringChecker)
-  return datadog::CoreConfig{
-      datadog::TrackingConsent::Granted,
-      static_cast<datadog::Site>(site),
-      opts.client_token,
-      "dd-sdk-cpp",
-      "benchmark-cpp",
-      opts.version,
-      datadog::BatchSize::Small,
-      datadog::UploadFrequency::Frequent,
-      datadog::BatchProcessingLevel::High,
-      1,
-      custom_endpoint
-  };
-  // NOLINTEND(clang-analyzer-cplusplus.StringChecker)
+
+  std::string_view client_token = opts.client_token ? opts.client_token : "";
+  std::string_view application_version = opts.version ? opts.version : "";
+  std::string_view custom_endpoint_url = custom_endpoint ? custom_endpoint : "";
+
+  return datadog::CoreConfig(client_token, "dd-sdk-cpp", "benchmark-cpp")
+      .SetInitialTrackingConsent(datadog::TrackingConsent::Granted)
+      .SetSite(static_cast<datadog::Site>(site))
+      .SetApplicationVersion(application_version)
+      .SetBatchSize(datadog::BatchSize::Small)
+      .SetUploadFrequency(datadog::UploadFrequency::Frequent)
+      .SetBatchProcessingLevel(datadog::BatchProcessingLevel::High)
+      .Internal_FlushHttpRequestsOnStop()
+      .Internal_UseCustomEndpoint(custom_endpoint_url);
 }
 
 const dd_core_config_t& ParseConfigForC(const void* config) {

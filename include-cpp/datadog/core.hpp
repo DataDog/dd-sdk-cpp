@@ -19,14 +19,28 @@ namespace datadog {
 // Forward declarations
 namespace impl {
 class Core;
-}
+struct CoreContext;
+}  // namespace impl
 
+/**
+ * Indicates whether the end user has consented to tracking, as determined by your
+ * application.
+ *
+ * If consent is pending (the default state), the SDK will store data locally but will
+ * not upload it until consent is granted. If consent is explicitly revoked (i.e. set to
+ * 'not granted'), the SDK will cease storing data locally.
+ */
 enum class TrackingConsent : uint8_t {
   Granted,
   NotGranted,
   Pending,
 };
 
+/**
+ * The Datadog datacenter in which your organization's data is stored.
+ *
+ * See: https://docs.datadoghq.com/getting_started/site/#access-the-datadog-site
+ */
 enum class Site : uint8_t {
   us1,
   us3,
@@ -106,22 +120,136 @@ enum class BatchProcessingLevel : uint8_t {
   High,
 };
 
-// TODO: Provide safer interface for initializing CoreConfig
-// NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
+/**
+ * Top-level configuration options for the Datadog SDK.
+ */
 struct CoreConfig {
-  TrackingConsent tracking_consent;
-  Site datadog_site;
+  friend class Core;
+  friend class impl::Core;
+  friend struct impl::CoreContext;
+
+ private:
+  TrackingConsent tracking_consent{TrackingConsent::Pending};
+  Site site{Site::us1};
   std::string client_token;
   std::string service;
   std::string env;
   std::string application_version;
-  BatchSize batch_size;
-  UploadFrequency upload_frequency;
-  BatchProcessingLevel batch_processing_level;
-  size_t num_http_requests_per_feature_to_flush_on_stop;
-  std::string custom_endpoint_url;
+  BatchSize batch_size{BatchSize::Medium};
+  UploadFrequency upload_frequency{UploadFrequency::Average};
+  BatchProcessingLevel batch_processing_level{BatchProcessingLevel::Medium};
+
+  struct InternalOptions {
+    size_t num_http_requests_per_feature_to_flush_on_stop{0};
+    std::string custom_endpoint_url;
+  } internal_options;
+
+ public:
+  /**
+   * Initializes a new CoreConfig with the set of values that are required for the SDK
+   * to function. Use setter functions to configure optional values.
+   *
+   * @param in_client_token The client token associated with your application. This
+   *  value can be found under RUM Applications (https://app.datadoghq.com/rum/list), in
+   *  the "SDK Configuration" settings for your Application, or in your Organization
+   *  Settings, under "Client Tokens"
+   *  (https://app.datadoghq.com/organization-settings/client-tokens).
+   * @param in_service The name of the application, service, or component being
+   *  monitored.
+   * @param in_env The environment in which this application is running, e.g. 'prod',
+   *  'dev', 'staging', 'testing', etc.
+   */
+  DATADOG_API CoreConfig(
+      std::string_view in_client_token, std::string_view in_service,
+      std::string_view in_env
+  );
+
+  // CoreConfig is copyable and movable
+  DATADOG_API ~CoreConfig();
+  DATADOG_API CoreConfig(const CoreConfig&);
+  DATADOG_API CoreConfig& operator=(const CoreConfig&);
+  DATADOG_API CoreConfig(CoreConfig&&);
+  DATADOG_API CoreConfig& operator=(CoreConfig&&);
+
+  /**
+   * Sets the tracking consent value used on SDK startup. Defaults to Pending.
+   *
+   * If the user's tracking consent changes after the SDK is initialized, call
+   * @ref datadog::Core::SetTrackingConsent() to update it at runtime.
+   */
+  DATADOG_API CoreConfig& SetInitialTrackingConsent(TrackingConsent value);
+
+  /**
+   * Sets the site (i.e. Datadog datacenter) where data for your organization is stored.
+   * Defaults to us1.
+   */
+  DATADOG_API CoreConfig& SetSite(Site value);
+
+  /**
+   * Sets the client token value, overriding the value passed in the constructor.
+   */
+  DATADOG_API CoreConfig& SetClientToken(std::string_view value);
+
+  /**
+   * Sets the 'service' value, overriding the value passed in the constructor.
+   */
+  DATADOG_API CoreConfig& SetService(std::string_view value);
+
+  /**
+   * Sets the 'env' value, overriding the value passed in the constructor.
+   */
+  DATADOG_API CoreConfig& SetEnv(std::string_view value);
+
+  /**
+   * Set the 'version' value, identifying the version of your applicating that's being
+   * monitored.
+   */
+  DATADOG_API CoreConfig& SetApplicationVersion(std::string_view value);
+
+  /**
+   * Configures the SDK's batch size, which informs how quickly it will consider a batch
+   * of event data ready for upload.
+   *
+   * @see @ref datadog::BatchSize
+   */
+  DATADOG_API CoreConfig& SetBatchSize(BatchSize value);
+
+  /**
+   * Configures the SDK's upload frequency, which informs how frequently it will check
+   * for new batches of events to upload.
+   *
+   * @see @ref datadog::UploadFrequency
+   */
+  DATADOG_API CoreConfig& SetUploadFrequency(UploadFrequency value);
+
+  /**
+   * Configures the SDK's batch processing level, which limits the number of batches
+   * that will be uploaded in a given upload cycle.
+   *
+   * @see @ref datadog::BatchProcessingLevel
+   */
+  DATADOG_API CoreConfig& SetBatchProcessingLevel(BatchProcessingLevel value);
+
+  /**
+   * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+   * without notice. Do not use in production code.
+   */
+  DATADOG_API CoreConfig& Internal_FlushHttpRequestsOnStop();
+
+  /**
+   * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+   * without notice. Do not use in production code.
+   */
+  DATADOG_API CoreConfig& Internal_UseCustomEndpoint(std::string_view value);
 };
 
+/**
+ * Top-level interface to the Datadog SDK.
+ *
+ * Call Core::Create() to create a new core, register your desired set of features on
+ * that core (e.g. Logging::Register(core)), and then call Start() to begin the SDK's
+ * background processing.
+ */
 class Core {
  private:
   struct PrivateCtorTag {};
@@ -132,6 +260,8 @@ class Core {
   DATADOG_API ~Core();
 
   DATADOG_API static std::shared_ptr<Core> Create(const CoreConfig& config);
+
+  DATADOG_API void SetTrackingConsent(TrackingConsent value);
 
   DATADOG_API bool Start();
   DATADOG_API void Stop();

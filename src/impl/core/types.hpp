@@ -183,20 +183,36 @@ inline const char* BatchProcessingLevel_ToString(BatchProcessingLevel value) {
 }
 
 inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
-  // TODO: Avoid positional args; mandate first 5 parameters
-  return CoreConfig{
-      TrackingConsent_FromC(config.tracking_consent),
-      Site_FromC(config.datadog_site),
-      config.client_token ? std::string(config.client_token) : "",
-      config.service ? std::string(config.service) : "",
-      config.env ? std::string(config.env) : "",
-      config.application_version ? std::string(config.application_version) : "",
-      BatchSize_FromC(config.batch_size),
-      UploadFrequency_FromC(config.upload_frequency),
-      BatchProcessingLevel_FromC(config.batch_processing_level),
-      config.num_http_requests_per_feature_to_flush_on_stop,
-      config.custom_endpoint_url
-  };
+  // Convert all of the C struct's string values to std::string_view safely
+  std::string_view client_token =
+      config.client_token != nullptr ? config.client_token : "";
+  std::string_view service = config.service != nullptr ? config.service : "";
+  std::string_view env = config.env != nullptr ? config.env : "";
+  std::string_view application_version =
+      config.application_version ? config.application_version : "";
+
+  // Initialize a C++ config struct from our input values
+  auto cpp_config =
+      CoreConfig(client_token, service, env)
+          .SetInitialTrackingConsent(TrackingConsent_FromC(config.tracking_consent))
+          .SetSite(Site_FromC(config.site))
+          .SetApplicationVersion(application_version)
+          .SetBatchSize(BatchSize_FromC(config.batch_size))
+          .SetUploadFrequency(UploadFrequency_FromC(config.upload_frequency))
+          .SetBatchProcessingLevel(
+              BatchProcessingLevel_FromC(config.batch_processing_level)
+          );
+
+  // Handle internal options
+  if (config.internal_options.flush_http_requests_on_stop) {
+    cpp_config.Internal_FlushHttpRequestsOnStop();
+  }
+  if (config.internal_options.custom_endpoint_url &&
+      config.internal_options.custom_endpoint_url[0]) {
+    cpp_config.Internal_UseCustomEndpoint(config.internal_options.custom_endpoint_url);
+  }
+
+  return cpp_config;
 }
 
 }  // namespace datadog
