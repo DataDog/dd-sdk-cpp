@@ -40,4 +40,13 @@ inline const char* LogLevel_ToString(LogLevel value) {
   }
 }
 
+inline datadog::LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config) {
+  return datadog::LoggerConfig()
+      .SetRemoteSampleRate(config.remote_sample_rate)
+      .SetService(config.service)
+      .SetName(config.name)
+      .SetRemoteLogThreshold(LogLevel_FromC(config.remote_log_threshold))
+      .SetInitialAttributeCapacity(config.initial_attribute_capacity);
+}
+
 }  // namespace datadog
