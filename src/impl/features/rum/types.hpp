@@ -6,12 +6,19 @@
 
 #pragma once
 
-// This file contains RUM-specific types and data structures.
-// Initially empty for the "do-nothing" API implementation.
-// Will be populated in future work items with session, view, and action types.
+#include <string_view>
 
-namespace datadog::impl {
+#include "datadog/rum.h"
+#include "datadog/rum.hpp"
 
-// RUM types will be defined here in future implementations
+namespace datadog {
 
-}  // namespace datadog::impl
+inline RumConfig RumConfig_FromC(const dd_rum_config_t& config) {
+  // Convert all of the C struct's string values to std::string_view safely
+  std::string_view application_id = config.application_id ? config.application_id : "";
+
+  // Initialize a C++ config struct from our input values
+  return RumConfig(application_id);
+}
+
+}  // namespace datadog

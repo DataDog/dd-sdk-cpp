@@ -11,22 +11,19 @@
 #include <string_view>
 
 #include "core/feature.hpp"
+#include "datadog/rum.hpp"
 #include "platform/clock.hpp"
 
 namespace datadog::impl {
 
 /**
- * RUM feature implementation. Provides Real User Monitoring functionality
- * for tracking sessions, views, and actions in C++ applications.
+ * RUM feature implementation.
  */
 class Rum final : public Feature {
  public:
-  explicit Rum(
-      const platform::IClock& clock, std::string_view service_name,
-      std::string_view application_version
-  );
+  explicit Rum(const RumConfig& config, const platform::IClock& clock);
 
-  FeatureId GetId() const override { return CreateFeatureId("RUMS"); }
+  FeatureId GetId() const override { return CreateFeatureId("RUMM"); }
 
   std::string_view GetName() const override { return "rum"; }
 
@@ -35,13 +32,8 @@ class Rum final : public Feature {
   ) override;
 
  private:
-  // Basic config parameters for future expansion (currently unused)
+  const RumConfig _config;
   const platform::IClock& _clock;
-  const std::string _service_name;
-  const std::string _application_version;
-
-  // Thread-safe member variables for future state
-  mutable std::shared_mutex _state_mutex;
 };
 
 }  // namespace datadog::impl

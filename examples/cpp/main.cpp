@@ -42,7 +42,7 @@ int main()  // NOLINT(bugprone-exception-escape)
   }
 
   // Register the RUM feature
-  auto rum = datadog::Rum::Register(core);
+  auto rum = datadog::Rum::Register(core, datadog::RumConfig("fake-application-id"));
   if (!rum) {
     // TODO: null checks are unnecessary
     std::cout << "Failed to register RUM\n";

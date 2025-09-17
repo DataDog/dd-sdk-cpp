@@ -8,26 +8,19 @@
 
 namespace datadog::impl {
 
-Rum::Rum(
-    const platform::IClock& clock, std::string_view service_name,
-    std::string_view application_version
-)
-    : _clock(clock),
-      _service_name(service_name),
-      _application_version(application_version) {
-  // Constructor accepts config parameters but doesn't use them yet
-  // This is a "do-nothing" API implementation
-  (void)_clock;  // Suppress unused field warning for future expansion
-  (void)_service_name;
-  (void)_application_version;
+Rum::Rum(const RumConfig& config, const platform::IClock& clock)
+    : _config(config), _clock(clock) {
+  // TODO(RUM-11368): Use these values when generating view events
+  (void)_config;
+  (void)_clock;
 }
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
     const CoreContext& context, BatchReader& reader
 ) {
+  // TODO(RUM-11368): Implement processing and upload of events once views exist
   (void)context;
   (void)reader;
-  // No events to process yet - return nullopt to indicate no report
   return std::nullopt;
 }
 

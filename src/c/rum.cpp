@@ -12,41 +12,69 @@
 #include "core_glue.hpp"
 #include "datadog/core.h"
 #include "features/rum/rum.hpp"
+#include "features/rum/types.hpp"
 #include "rum_glue.hpp"
 
-static const dd_rum_config_t DEFAULT_RUM_CONFIG;
+static const uint32_t RUM_CONFIG_VERSION = 1;
+
+static const dd_rum_config_t DEFAULT_RUM_CONFIG = {
+    RUM_CONFIG_VERSION,  // version
+    nullptr              // application_id
+};
 
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
 
 extern "C" {
 
-dd_rum_config_t* dd_rum_config_create(void) { return new dd_rum_config_t(); }
+void dd_rum_config_init(dd_rum_config_t* config, const char* application_id) {
+  if (!config) {
+    return;
+  }
+  *config = DEFAULT_RUM_CONFIG;
+  config->application_id = application_id;
+}
 
-void dd_rum_config_destroy(dd_rum_config_t* config) { delete config; }
+void dd_rum_config_set_application_id(dd_rum_config_t* config, const char* value) {
+  if (config) {
+    config->application_id = value;
+  }
+}
 
 dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
-  // Don't crash if user fails to give us a valid core, but don't give them a no-op
-  // implementation either
+  // Require a valid core: note that in the C API, where we tolerate null arguments to
+  // all API functions, returning NULL is effectively returning a no-op implementation
   if (!core || !core->impl) {
     return nullptr;
   }
 
+  // Require a valid config: RUM requires an application ID at the very least, so we
+  // can't fall back to defaults
   if (!config) {
-    config = &DEFAULT_RUM_CONFIG;
+    return nullptr;
   }
+
+  // If the config has an unrecognized version, it's not properly initialized in a form
+  // that we can safely read
+  if (config->version <= 0 || config->version > RUM_CONFIG_VERSION) {
+    return nullptr;
+  }
+
+  // If the config doesn't specify an application ID, reject it
+  const bool has_application_id = config->application_id && config->application_id[0];
+  if (!has_application_id) {
+    return nullptr;
+  }
+
+  // Convert from dd_rum_config_t to datadog::RumConfig
+  datadog::RumConfig cpp_config = datadog::RumConfig_FromC(*config);
 
   // Get essential state from the Core
   const datadog::platform::IClock& clock = core->impl->GetClock();
-  std::string_view service_name = core->impl->GetServiceName();
-  std::string_view application_version = core->impl->GetApplicationVersion();
 
   // Initialize our RUM feature implementation
-  // Note: config->cpp_config will be used in future RUM work items
-  (void)config;  // Suppress unused variable warning for now
-  auto rum_impl =
-      std::make_shared<datadog::impl::Rum>(clock, service_name, application_version);
+  auto rum_impl = std::make_shared<datadog::impl::Rum>(cpp_config, clock);
 
-  // Register the feature with the core, aborting on failure
+  // Register the feature with the core, returning a no-op interface on failure
   if (!core->impl->RegisterFeature(rum_impl)) {
     // TODO: Return a no-op interface
     return nullptr;

@@ -7,6 +7,8 @@
 #pragma once
 
 #include <memory>
+#include <string>
+#include <string_view>
 
 #include "datadog/api.hpp"
 
@@ -20,27 +22,63 @@ class Rum;
 /**
  * Configures the details of the RUM feature upon initialization.
  */
-struct DATADOG_API RumConfig {
+struct RumConfig {
   friend class Rum;
   friend class impl::Rum;
 
+ private:
+  std::string application_id;
+
  public:
-  RumConfig() = default;
+  /**
+   * Initializes a new RUM configuration object with all required values.
+   *
+   * @param in_application_id The ID of your RUM Application. This value can be found
+   *  under RUM Applications (https://app.datadoghq.com/rum/list), in the
+   *  "SDK Configuration" settings for your Application
+   */
+  DATADOG_API explicit RumConfig(std::string_view in_application_id);
+
+  // RumConfig is copyable and movable
+  DATADOG_API ~RumConfig();
+  DATADOG_API RumConfig(const RumConfig&);
+  DATADOG_API RumConfig& operator=(const RumConfig&);
+  DATADOG_API RumConfig(RumConfig&&);
+  DATADOG_API RumConfig& operator=(RumConfig&&);
+
+  /**
+   * Sets the RUM Application ID, overriding the value passed to the constructor.
+   */
+  DATADOG_API RumConfig& SetApplicationId(std::string_view value);
 };
 
 /**
  * Interface to the Datadog SDK's RUM feature.
  */
-class DATADOG_API Rum {
+class Rum {
+ private:
+  struct PrivateCtorTag {};
+
+ public:
+  // Callers should use Rum::Register
+  explicit Rum(std::shared_ptr<impl::Rum>&& impl, PrivateCtorTag);
+  DATADOG_API ~Rum();
+
  public:
   /**
    * Registers the RUM feature with the core of the Datadog SDK.
    */
-  static std::shared_ptr<Rum> Register(
-      class Core& core, const RumConfig& config = RumConfig()
+  DATADOG_API static std::shared_ptr<Rum> Register(
+      const std::shared_ptr<class Core>& core, const RumConfig& config
   );
 
  private:
+  // Forbid copying/moving: we use std::shared_ptr<Rum> at the API boundary
+  Rum(const Rum&) = delete;
+  Rum& operator=(const Rum&) = delete;
+  Rum(Rum&&) = delete;
+  Rum& operator=(Rum&&) = delete;
+
   std::shared_ptr<impl::Rum> _impl;
 };
 

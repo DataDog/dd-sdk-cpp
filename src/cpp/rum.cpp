@@ -13,28 +13,51 @@
 
 namespace datadog {
 
-std::shared_ptr<Rum> Rum::Register(Core& core, const RumConfig& config) {
-  (void)config;  // Unused for now - this is a "do-nothing" API
+RumConfig::RumConfig(std::string_view in_application_id)
+    : application_id(in_application_id) {}
+
+RumConfig::~RumConfig() = default;
+RumConfig::RumConfig(const RumConfig&) = default;
+RumConfig& RumConfig::operator=(const RumConfig&) = default;
+RumConfig::RumConfig(RumConfig&&) = default;
+RumConfig& RumConfig::operator=(RumConfig&&) = default;
+
+RumConfig& RumConfig::SetApplicationId(std::string_view value) {
+  application_id = value;
+  return *this;
+}
+
+Rum::Rum(std::shared_ptr<impl::Rum>&& impl, PrivateCtorTag) : _impl(std::move(impl)) {}
+
+Rum::~Rum() = default;
+
+std::shared_ptr<Rum> Rum::Register(
+    const std::shared_ptr<Core>& core, const RumConfig& config
+) {
+  // Return a no-op Rum interface if called without a valid core
+  if (!core || !core->_impl) {
+    return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
+  }
+
+  // If we don't have all required config values, return a no-op Rum interface
+  if (config.application_id.empty()) {
+    return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
+  }
 
   // Get essential state from the Core
-  const platform::IClock& clock = core._impl->GetClock();
-  std::string_view service_name = core._impl->GetServiceName();
-  std::string_view application_version = core._impl->GetApplicationVersion();
+  const platform::IClock& clock = core->_impl->GetClock();
 
   // Initialize our RUM feature implementation
-  auto rum_impl = std::make_shared<impl::Rum>(clock, service_name, application_version);
+  auto rum_impl = std::make_shared<impl::Rum>(config, clock);
 
-  // Register the feature with the core, aborting on failure
-  if (!core._impl->RegisterFeature(rum_impl)) {
-    // TODO: Return a no-op interface
-    return nullptr;
+  // Register the feature with the core, returning a no-op interface on failure
+  if (!core->_impl->RegisterFeature(rum_impl)) {
+    return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
   }
 
   // Initialize and return the API object that represents our user-facing interface for
   // the RUM feature
-  const std::shared_ptr<Rum> rum = std::make_shared<Rum>();
-  rum->_impl = std::move(rum_impl);
-  return rum;
+  return std::make_shared<Rum>(std::move(rum_impl), Rum::PrivateCtorTag{});
 }
 
 }  // namespace datadog

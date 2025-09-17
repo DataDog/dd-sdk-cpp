@@ -5,158 +5,112 @@
 // Copyright 2025-Present Datadog, Inc.
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstring>
 
 #include "datadog/rum.h"
 #include "support/core.hpp"
 
 using namespace datadog;
 
-TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
-  SECTION("M abort gracefully W target object is null") {
+TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
+  SECTION("M safely do nothing W target object is null") {
     REQUIRE(dd_rum_init(nullptr, nullptr) == nullptr);
     dd_rum_destroy(nullptr);
-  }
-}
 
-TEST_CASE("dd_rum_config", "[unit][rum][c-api]") {
-  SECTION("M create and destroy config W called") {
-    // Given we call dd_rum_config_create
-    dd_rum_config_t* config = dd_rum_config_create();
-
-    // Then we get a valid config
-    REQUIRE(config != nullptr);
-
-    // When we destroy it
-    dd_rum_config_destroy(config);
-
-    // Then no crash occurs
-  }
-
-  SECTION("M handle null config W destroy called with null") {
-    // When we call destroy with null
-    dd_rum_config_destroy(nullptr);
-
-    // Then no crash occurs
+    // TODO(RUM-11367): Validate session functions
+    // TODO(RUM-11368): Validate view functions
+    // TODO(RUM-11369): Validate action functions
   }
 }
 
 TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
-  SECTION("M return valid feature W initialized with valid core") {
-    // Given a valid dd_core_t
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
+  SECTION("M accept config W dd_rum_config_init was called") {
+    // Given a valid core
+    dd_core_config_t core_config;
+    dd_core_config_init(&core_config, "my-client-token", "my-service", "my-env");
+    dd_core_t* core = dd_core_create(&core_config);
 
-    // When we call dd_rum_init()
-    dd_rum_t* rum = dd_rum_init(core, nullptr);
+    // And a config struct that's been initialized with the bare-minimum set of values
+    dd_rum_config config;
+    dd_rum_config_init(&config, "my-application-id");
 
-    // Then we get a valid dd_rum_t instance
-    REQUIRE(rum);
+    // When we attempt to register RUM with that config
+    dd_rum_t* rum = dd_rum_init(core, &config);
+
+    // Then we get a valid dd_rum_t
+    REQUIRE(rum != nullptr);
 
     // Cleanup
     dd_rum_destroy(rum);
     dd_core_destroy(core);
   }
 
-  SECTION("M return valid feature W initialized with custom config") {
-    // Given a valid dd_core_t and a custom config
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_config_t* config = dd_rum_config_create();
+  SECTION("M accept config W version is 1") {
+    // Given a valid core
+    dd_core_config_t core_config;
+    dd_core_config_init(&core_config, "my-client-token", "my-service", "my-env");
+    dd_core_t* core = dd_core_create(&core_config);
 
-    // When we call dd_rum_init() with custom config
-    dd_rum_t* rum = dd_rum_init(core, config);
+    // And a config struct that's been initialized with the bare-minimum set of values
+    dd_rum_config config;
+    dd_rum_config_init(&config, "my-application-id");
 
-    // Then we get a valid dd_rum_t instance
-    REQUIRE(rum);
+    // When we explicitly set the struct version to 1
+    config.version = 1;
+
+    // When we attempt to register RUM with that config
+    dd_rum_t* rum = dd_rum_init(core, &config);
+
+    // Then we get a valid dd_rum_t, even in a future where RUM_CONFIG_VERSION has been
+    // bumped and is no longer 1
+    REQUIRE(rum != nullptr);
 
     // Cleanup
-    dd_rum_config_destroy(config);
     dd_rum_destroy(rum);
     dd_core_destroy(core);
   }
 
-  SECTION("M return null W core is null") {
-    // Given a null core
-    dd_core_t* core = nullptr;
+  SECTION("M reject config W version not set") {
+    // Given a valid core
+    dd_core_config_t core_config;
+    dd_core_config_init(&core_config, "my-client-token", "my-service", "my-env");
+    dd_core_t* core = dd_core_create(&core_config);
 
-    // When we call dd_rum_init()
-    dd_rum_t* rum = dd_rum_init(core, nullptr);
+    // And a config struct that's just zero-filled
+    dd_rum_config config;
+    std::memset(&config, 0, sizeof(config));
+
+    // When we attempt to register RUM with that config
+    dd_rum_t* rum = dd_rum_init(core, &config);
 
     // Then we get null
     REQUIRE(rum == nullptr);
-  }
-}
-
-TEST_CASE("dd_rum feature lifecycle", "[unit][rum][c-api]") {
-  SECTION("M work properly W feature is registered before core start") {
-    // Given a valid dd_core_t and dd_rum_t
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_t* rum = dd_rum_init(core, nullptr);
-
-    // When we start the core
-    REQUIRE(dd_core_start(core));
-
-    // Then no errors occur and the core starts successfully
-    // (No actual RUM events are generated in this do-nothing implementation)
-
-    // Cleanup
-    dd_core_stop(core);
-    dd_rum_destroy(rum);
-    dd_core_destroy(core);
-  }
-
-  SECTION("M handle gracefully W feature registration attempted after core start") {
-    // Given a core with a feature already registered
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-
-    // Register a feature first so core can start
-    dd_rum_t* rum1 = dd_rum_init(core, nullptr);
-    REQUIRE(dd_core_start(core));
-
-    // When we try to register another RUM feature after start
-    dd_rum_t* rum2 = dd_rum_init(core, nullptr);
-
-    // Then it should fail gracefully (return null) due to improper state
-    REQUIRE(rum2 == nullptr);
-
-    // Cleanup
-    dd_core_stop(core);
-    dd_rum_destroy(rum1);
-    dd_core_destroy(core);
-  }
-
-  SECTION("M continue normally W rum feature is destroyed prior to core stop") {
-    // Given a started core with a RUM feature
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_t* rum = dd_rum_init(core, nullptr);
-    dd_core_start(core);
-
-    // When we destroy the dd_rum_t
-    dd_rum_destroy(rum);
-
-    // And we stop the core
-    dd_core_stop(core);
-
-    // Then this is safe, as the API's references to features are shared: the API
-    // can no longer access the feature, but the Core's shared_ptr keeps it alive
 
     // Cleanup
     dd_core_destroy(core);
   }
 
-  SECTION("M handle gracefully W feature destroyed before core") {
-    // Given a valid core and RUM feature
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_t* rum = dd_rum_init(core, nullptr);
+  SECTION("M reject config W required value not set") {
+    // Given either "" or null as our input value for application_id
+    const char* application_ids[2] = {"", nullptr};
+    for (const char* application_id : application_ids) {
+      // Given a valid core
+      dd_core_config_t core_config;
+      dd_core_config_init(&core_config, "my-client-token", "my-service", "my-env");
+      dd_core_t* core = dd_core_create(&core_config);
 
-    // When we destroy the RUM feature before the core
-    dd_rum_destroy(rum);
-    dd_core_destroy(core);
+      // And a config struct that's initialized with our empty/zero application ID
+      dd_rum_config config;
+      dd_rum_config_init(&config, application_id);
 
-    // Then no crashes occur
+      // When we attempt to register RUM with that config
+      dd_rum_t* rum = dd_rum_init(core, &config);
+
+      // Then we get null
+      REQUIRE(rum == nullptr);
+
+      // Cleanup
+      dd_core_destroy(core);
+    }
   }
 }
