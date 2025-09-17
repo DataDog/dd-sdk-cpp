@@ -16,6 +16,35 @@
 
 using namespace datadog;
 
+TEST_CASE("Logging null safety", "[unit][logging][cpp-api]") {
+  SECTION("M safely do nothing W this wraps nullptr") {
+    // Given both a valid Core interface that has no valid implementation pointer, as
+    // well as a straight-up null pointer to a Core interface
+    const datadog::CoreConfig invalid_config{};
+    std::shared_ptr<Core> noop_core = Core::Create(invalid_config);
+    std::shared_ptr<Core> null_core;
+    std::vector<std::shared_ptr<Core>> cores = {noop_core, null_core};
+    for (std::shared_ptr<Core>& core : cores) {
+      // When we register the logging feature on an invalid core
+      auto logging = Logging::Register(core);
+
+      // Then we get a valid object that handles all member function calls as a no-op
+      REQUIRE(logging != nullptr);
+      logging->SetAttribute("foo", Attribute::Int(1));
+      logging->DeleteAttribute("bar");
+
+      // And: When we try to create a logger from a no-op logging interface
+      auto logger = logging->CreateLogger();
+
+      // Then we get a valid no-op logger
+      REQUIRE(logger != nullptr);
+      logger->SetAttribute("foo", Attribute::Int(2));
+      logger->DeleteAttribute("bar");
+      logger->Info("hello");
+    }
+  }
+}
+
 TEST_CASE("Logging::Register", "[unit][logging][cpp-api]") {
   SECTION("M return valid feature W registered with core") {
     // Given a valid core
@@ -27,6 +56,23 @@ TEST_CASE("Logging::Register", "[unit][logging][cpp-api]") {
 
     // Then we get a valid Logging interface
     REQUIRE(logging != nullptr);
+  }
+
+  SECTION("M return no-op interface W feature registered multiple times") {
+    // Given a valid core that already has logging enabled
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    REQUIRE(logging != nullptr);
+
+    // When we attempt register the logging feature a second time
+    auto other_logging = Logging::Register(core);
+
+    // Then we get a valid pointer to a no-op logging interface
+    // TODO: Surface some indication of whether a call to the C++ API succeeded (and
+    // gave you a valid, functional object) or failed (and gave you a no-op interface)
+    REQUIRE(other_logging != nullptr);
+    other_logging->CreateLogger()->Debug("no-op");
   }
 }
 

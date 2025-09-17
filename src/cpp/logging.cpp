@@ -60,15 +60,23 @@ Logger::Logger(std::unique_ptr<impl::Logger>&& impl, PrivateCtorTag)
 Logger::~Logger() = default;
 
 void Logger::SetAttribute(std::string_view name, const Attribute& value) {
-  _impl->SetAttribute(name, value);
+  if (_impl) {
+    _impl->SetAttribute(name, value);
+  }
 }
 
-void Logger::DeleteAttribute(std::string_view name) { _impl->DeleteAttribute(name); }
+void Logger::DeleteAttribute(std::string_view name) {
+  if (_impl) {
+    _impl->DeleteAttribute(name);
+  }
+}
 
 void Logger::Log(
     LogLevel level, std::string_view message, const Attribute& attributes
 ) {
-  _impl->EmitLogEvent(level, message, attributes);
+  if (_impl) {
+    _impl->EmitLogEvent(level, message, attributes);
+  }
 }
 
 Logging::Logging(std::shared_ptr<impl::Logging>&& impl, PrivateCtorTag)
@@ -77,6 +85,11 @@ Logging::Logging(std::shared_ptr<impl::Logging>&& impl, PrivateCtorTag)
 Logging::~Logging() = default;
 
 std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
+  // Return a no-op Logging interface if called without a valid core
+  if (!core || !core->_impl) {
+    return std::make_shared<Logging>(nullptr, Logging::PrivateCtorTag{});
+  }
+
   // Get essential state from the Core
   const platform::IClock& clock = core->_impl->GetClock();
   std::string_view service_name = core->_impl->GetServiceName();
@@ -86,10 +99,9 @@ std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
   auto logging_impl =
       std::make_shared<impl::Logging>(clock, service_name, application_version);
 
-  // Register the feature with the core, aborting on failure
+  // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(logging_impl)) {
-    // TODO: Return a no-op interface
-    return nullptr;
+    return std::make_shared<Logging>(nullptr, Logging::PrivateCtorTag{});
   }
 
   // Initialize and return the API object that represents our user-facing interface for
@@ -98,12 +110,21 @@ std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
 }
 
 void Logging::SetAttribute(std::string_view name, const Attribute& value) {
-  _impl->SetAttribute(name, value);
+  if (_impl) {
+    _impl->SetAttribute(name, value);
+  }
 }
 
-void Logging::DeleteAttribute(std::string_view name) { _impl->DeleteAttribute(name); }
+void Logging::DeleteAttribute(std::string_view name) {
+  if (_impl) {
+    _impl->DeleteAttribute(name);
+  }
+}
 
 std::shared_ptr<Logger> Logging::CreateLogger(const LoggerConfig& config) {
+  if (!_impl) {
+    return std::make_shared<Logger>(nullptr, Logger::PrivateCtorTag{});
+  }
   return std::make_shared<Logger>(
       _impl->CreateLogger(config), Logger::PrivateCtorTag{}
   );

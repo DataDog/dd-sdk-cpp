@@ -19,8 +19,8 @@
 
 using namespace datadog;
 
-TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
-  SECTION("M abort gracefully W target object is null") {
+TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
+  SECTION("M safely do nothing W target object is null") {
     dd_attribute_t int_100 = dd_attribute_int(100);
     dd_attribute_t obj = dd_attribute_object(0);
 
@@ -64,6 +64,24 @@ TEST_CASE("dd_logging_init", "[unit][logging][c-api]") {
 
     // Then we get a valid dd_logging_t instance
     REQUIRE(logging);
+
+    // Cleanup
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M return null W feature registered multiple times") {
+    // Given a valid dd_core_t that already has logging enabled
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    REQUIRE(logging);
+
+    // When we attempt to call dd_logging_init a second time
+    dd_logging_t* other_logging = dd_logging_init(core);
+
+    // Then we get null
+    REQUIRE(other_logging == nullptr);
 
     // Cleanup
     dd_logging_destroy(logging);
