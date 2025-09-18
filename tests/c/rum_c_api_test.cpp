@@ -14,7 +14,7 @@ using namespace datadog;
 
 TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
   SECTION("M safely do nothing W target object is null") {
-    dd_rum_config_init(nullptr);
+    dd_rum_config_init(nullptr, "my-application-id");
     dd_rum_config_set_application_id(nullptr, "my-application-id");
 
     REQUIRE(dd_rum_init(nullptr, nullptr) == nullptr);
