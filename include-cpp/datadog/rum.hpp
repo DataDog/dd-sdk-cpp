@@ -35,7 +35,7 @@ struct RumConfig {
    *
    * @param in_application_id The ID of your RUM Application. This value can be found
    *  under RUM Applications (https://app.datadoghq.com/rum/list), in the
-   *  "SDK Configuration" settings for your Application
+   *  "SDK Configuration" settings for your Application.
    */
   DATADOG_API explicit RumConfig(std::string_view in_application_id);
 

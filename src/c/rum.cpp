@@ -56,6 +56,8 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
   // If the config has an unrecognized version, it's not properly initialized in a form
   // that we can safely read
   if (config->version <= 0 || config->version > RUM_CONFIG_VERSION) {
+    // TODO(RUM-11363): Ensure that all invalid-argument cases at the API layer are
+    // signalled to the user via local telemetry logging
     return nullptr;
   }
 
@@ -76,7 +78,6 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->impl->RegisterFeature(rum_impl)) {
-    // TODO: Return a no-op interface
     return nullptr;
   }
 

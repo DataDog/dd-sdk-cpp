@@ -61,6 +61,9 @@ int main(int argc, char *argv[]) {
   // Use our logger to send a message
   dd_logger_info(logger, "Hello world!");
 
+  // TODO(RUM-11368): Start a RUM View
+  // TODO(RUM-11369): Record a RUM Action
+
   // Stop the core on application shutdown
   printf("Core started successfully. Shutting down...\n");
   dd_core_stop(core);
