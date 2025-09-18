@@ -1,9 +1,11 @@
-# Defines the Chromium style for automatic reformatting.
-# http://clang.llvm.org/docs/ClangFormatStyleOptions.html
-BasedOnStyle: Chromium
+# Inherit sensible defaults to align with other C++ codebases at Datadog
+BasedOnStyle: Google
+Language: Cpp
 
-# Put escaped newlines into the rightmost column.
-AlignEscapedNewlinesLeft: false
+# 88 is narrow enough for side-by-side review, with significant breathing room over 80
+ColumnLimit: 88
 
-# Insert brackets on all if statements
-InsertBraces: true
+# When an argument list is split across multiple lines, indent them all one level rather
+# than arbitrarily lining them up with the open paren, and place the closing paren on
+# its own line
+AlignAfterOpenBracket: BlockIndent

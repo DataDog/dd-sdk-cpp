@@ -1,17 +1,29 @@
 {
-  "version": "2.0.0",
-  "tasks": [
-    {
-      "type": "cmake",
-      "label": "CMake: build",
-      "command": "build",
-      "targets": ["all"],
-      "group": {
-        "kind": "build",
-        "isDefault": true
-      },
-      "problemMatcher": ["$gcc"],
-      "detail": "CMake template build task"
-    }
-  ]
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build-tests",
+            "type": "shell",
+            "command": "cmake",
+            "args": [
+                "--build",
+                "${workspaceFolder}/build",
+                "--target",
+                "dd_native_tests"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "silent",
+                "focus": false,
+                "panel": "shared"
+            },
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+        }
+    ]
 }
