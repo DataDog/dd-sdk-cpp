@@ -5,9 +5,11 @@ add_executable(dd_native_tests
     c/attribute_c_api_test.cpp
     c/core_c_api_test.cpp
     c/logging_c_api_test.cpp
+    c/rum_c_api_test.cpp
     cpp/attribute_cpp_api_test.cpp
     cpp/core_cpp_api_test.cpp
     cpp/logging_cpp_api_test.cpp
+    cpp/rum_cpp_api_test.cpp
     impl/attribute/cow_test.cpp
     impl/attribute/json_test.cpp
     impl/attribute/memory_test.cpp

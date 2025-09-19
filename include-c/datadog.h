@@ -11,5 +11,6 @@
 #include "datadog/attribute.h"
 #include "datadog/core.h"
 #include "datadog/logging.h"
+#include "datadog/rum.h"
 
 #endif  // DATADOG_INCLUDE_DATADOG_H

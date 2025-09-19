@@ -41,6 +41,14 @@ int main()  // NOLINT(bugprone-exception-escape)
     return 1;
   }
 
+  // Register the RUM feature
+  auto rum = datadog::Rum::Register(core, datadog::RumConfig("fake-application-id"));
+  if (!rum) {
+    // TODO: null checks are unnecessary
+    std::cout << "Failed to register RUM\n";
+    return 1;
+  }
+
   // Start the core to begin processing events
   std::cout << "Starting Datadog core...\n";
   if (!core->Start()) {
@@ -53,6 +61,9 @@ int main()  // NOLINT(bugprone-exception-escape)
 
   // Use our logger to send a message
   logger->Info("Hello world!");
+
+  // TODO(RUM-11368): Start a RUM View
+  // TODO(RUM-11369): Record a RUM Action
 
   // Stop the core on application shutdown
   std::cout << "Core started successfully. Shutting down...\n";

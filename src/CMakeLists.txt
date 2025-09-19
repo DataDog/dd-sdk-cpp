@@ -10,9 +10,11 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     c/attribute.cpp
     c/core.cpp
     c/logging.cpp
+    c/rum.cpp
     cpp/attribute.cpp
     cpp/core.cpp
     cpp/logging.cpp
+    cpp/rum.cpp
     impl/attribute/cow.cpp
     impl/attribute/json.cpp
     impl/attribute/merge.cpp
@@ -25,6 +27,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/core/writer.cpp
     impl/features/logging/logger.cpp
     impl/features/logging/logging.cpp
+    impl/features/rum/rum.cpp
 )
 
 # Inject version number from CMake project config

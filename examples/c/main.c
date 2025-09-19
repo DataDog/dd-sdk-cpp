@@ -39,6 +39,15 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
+  // Register the RUM feature
+  dd_rum_config_t rum_config;
+  dd_rum_config_init(&rum_config, "fake-application-id");
+  dd_rum_t *rum = dd_rum_init(core, &rum_config);
+  if (!rum) {
+    printf("Failed to register RUM\n");
+    return 1;
+  }
+
   // Start the core to begin processing events
   printf("Starting Datadog core...\n");
   if (!dd_core_start(core)) {
@@ -52,11 +61,15 @@ int main(int argc, char *argv[]) {
   // Use our logger to send a message
   dd_logger_info(logger, "Hello world!");
 
+  // TODO(RUM-11368): Start a RUM View
+  // TODO(RUM-11369): Record a RUM Action
+
   // Stop the core on application shutdown
   printf("Core started successfully. Shutting down...\n");
   dd_core_stop(core);
 
   // Clean up SDK resources
+  dd_rum_destroy(rum);
   dd_logger_destroy(logger);
   dd_logging_destroy(logging);
   dd_core_destroy(core);
