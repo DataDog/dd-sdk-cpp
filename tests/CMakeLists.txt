@@ -21,7 +21,9 @@ add_executable(dd_native_tests
     impl/core/feature_test.cpp
     impl/core/queue_test.cpp
     impl/core/site_test.cpp
-    impl/core/storage_test.cpp
+    impl/core/storage_queue_test.cpp
+    impl/core/storage_thread_test.cpp
+    impl/core/storage_write_test.cpp
     impl/core/tlv_test.cpp
     impl/core/upload_test.cpp
     impl/core/writer_test.cpp

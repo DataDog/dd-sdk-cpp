@@ -11,6 +11,7 @@
 #include <sstream>
 
 #include "assert.hpp"
+#include "core/storage_thread.hpp"
 #include "core/types.hpp"
 #include "core/upload.hpp"
 #include "platform/clock.hpp"
@@ -237,7 +238,7 @@ bool Core::Start() {
   // Initialize a thread-safe queue that features can write to whenever they produce
   // events that need to be written to disk
   DATADOG_ASSERT(!_storage_queue, "_storage_queue already exists on Start()");
-  _storage_queue = std::make_unique<Queue<StorageMessage>>();
+  _storage_queue = std::make_unique<StorageQueue>();
 
   // Start a thread that will read those events from the queue and write them to
   // persistent storage: the thread accepts non-owning references to the queue and the

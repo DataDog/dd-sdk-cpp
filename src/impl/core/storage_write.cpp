@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/storage.hpp"
+#include "core/storage_write.hpp"
 
 #include <algorithm>
 #include <array>
@@ -18,6 +18,7 @@
 
 #include "assert.hpp"
 #include "core/core.hpp"
+#include "core/storage_queue.hpp"
 #include "core/tlv.hpp"
 #include "core/types.hpp"
 #include "platform/filesystem.hpp"
@@ -435,9 +436,7 @@ static void _handle_event_generated(
   }
 }
 
-void StorageThreadMain(
-    Queue<StorageMessage>& queue, std::vector<RegisteredFeature>& features
-) {
+void StorageThreadMain(StorageQueue& queue, std::vector<RegisteredFeature>& features) {
   std::cout << "[STORAGE] Started\n";
 
   // Perform continual blocking reads until we get std::nullopt, indicating that the

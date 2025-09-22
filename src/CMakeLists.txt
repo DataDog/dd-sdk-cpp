@@ -21,7 +21,9 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/core/context.cpp
     impl/core/core.cpp
     impl/core/feature.cpp
-    impl/core/storage.cpp
+    impl/core/storage_write.cpp
+    impl/core/storage_queue.cpp
+    impl/core/storage_thread.cpp
     impl/core/tlv.cpp
     impl/core/upload.cpp
     impl/core/writer.cpp

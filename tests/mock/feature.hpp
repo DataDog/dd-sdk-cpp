@@ -14,7 +14,6 @@
 
 #include "core/core.hpp"
 #include "core/feature.hpp"
-#include "core/storage.hpp"
 #include "core/writer.hpp"
 
 using namespace datadog;
