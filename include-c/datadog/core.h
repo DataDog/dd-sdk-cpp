@@ -112,7 +112,9 @@ typedef struct dd_core_config {
  *  'dev', 'staging', 'testing', etc.
  */
 void dd_core_config_init(
-    dd_core_config_t* config, const char* client_token, const char* service,
+    dd_core_config_t* config,
+    const char* client_token,
+    const char* service,
     const char* env
 );
 

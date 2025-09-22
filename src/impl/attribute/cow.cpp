@@ -249,7 +249,8 @@ int CowValue::FindPropertyIndex(std::string_view name) const {
       // registered for any given key
       DATADOG_ASSERT(
           std::find_if(
-              std::next(found), value.object.end(),
+              std::next(found),
+              value.object.end(),
               [name](const auto& kvp) { return kvp.first == name; }
           ) == value.object.end(),
           "Multiple object properties with the same name on find"
@@ -286,7 +287,8 @@ void CowValue::SetProperty(std::string_view name, const Attribute& attribute) {
       // registered for any given key
       DATADOG_ASSERT(
           std::find_if(
-              std::next(found), value.object.end(),
+              std::next(found),
+              value.object.end(),
               [name](const auto& kvp) { return kvp.first == name; }
           ) == value.object.end(),
           "Multiple object properties with the same name on set"
@@ -303,8 +305,9 @@ void CowValue::DeleteProperty(std::string_view name) {
   if (type == CowValueType::Object) {
     // Move all elements matching the given name to the end of the vector
     auto new_end = std::remove_if(
-        value.object.begin(), value.object.end(),
-        [name](const auto& kvp) { return kvp.first == name; }
+        value.object.begin(), value.object.end(), [name](const auto& kvp) {
+          return kvp.first == name;
+        }
     );
 
     // Invariant: we should never allow an object to have more than one value registered

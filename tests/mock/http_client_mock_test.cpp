@@ -33,7 +33,8 @@ TEST_CASE("MockHttpClient Default Behavior", "[unit][mock-http-client]") {
     };
 
     auto result = client.Post(
-        "https://api.datadoghq.com/test", "Content-Type: application/json\n",
+        "https://api.datadoghq.com/test",
+        "Content-Type: application/json\n",
         body_writer
     );
 
@@ -185,8 +186,8 @@ TEST_CASE("MockHttpClient Body Streaming", "[unit][mock-http-client]") {
     size_t chunk_size = 10;
     size_t body_pos = 0;
 
-    auto chunked_writer = [&full_body, &body_pos,
-                           chunk_size](char* buffer, size_t num_bytes) -> size_t {
+    auto chunked_writer =
+        [&full_body, &body_pos, chunk_size](char* buffer, size_t num_bytes) -> size_t {
       if (body_pos >= full_body.length()) {
         return HTTP_WRITE_RESULT_EOF;
       }

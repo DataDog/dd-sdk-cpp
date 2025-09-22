@@ -214,8 +214,13 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   auto upload_state = std::make_unique<UploadThreadState>(_config.upload_frequency);
 
   _features.emplace_back(
-      id, name, impl, std::move(*feature_subdir), std::move(event_storage),
-      std::move(*event_read_directory), std::move(upload_state)
+      id,
+      name,
+      impl,
+      std::move(*feature_subdir),
+      std::move(event_storage),
+      std::move(*event_read_directory),
+      std::move(upload_state)
   );
   std::cout << "Feature registered: " << name << "(id " << id << ")" << "\n";
   return true;
@@ -259,8 +264,11 @@ bool Core::Start() {
       UploadThreadConfig::FromCoreConfig(
           _config.batch_size, _config.batch_processing_level
       ),
-      std::ref(_context), std::ref(*_subsystems.clock), std::ref(*_upload_scheduler),
-      std::ref(_features), std::ref(*_http_client)
+      std::ref(_context),
+      std::ref(*_subsystems.clock),
+      std::ref(*_upload_scheduler),
+      std::ref(_features),
+      std::ref(*_http_client)
   );
 
   std::cout << "Datadog core started.\n";
@@ -354,8 +362,14 @@ void Core::Stop() {
     // joined on both threads, all state is synchronized
     for (const auto& feature : _features) {
       Internal_HandleUploadProc(
-          flush_config, _context, *_subsystems.clock, feature.id, _features,
-          *_http_client, mut_filenames, mut_read_buffer
+          flush_config,
+          _context,
+          *_subsystems.clock,
+          feature.id,
+          _features,
+          *_http_client,
+          mut_filenames,
+          mut_read_buffer
       );
     }
   }

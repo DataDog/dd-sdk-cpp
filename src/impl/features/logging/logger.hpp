@@ -24,9 +24,13 @@ namespace datadog::impl {
  * Function used by a Logger to generate a new log message.
  */
 using LogEventCallback = std::function<void(
-    Attribute& mut_event_object, std::vector<uint8_t>& mut_event_buffer,
-    const StringAttribute& logger_service_name, const ObjectAttribute& logger_object,
-    const Attribute& logger_attributes, LogLevel level, std::string_view message,
+    Attribute& mut_event_object,
+    std::vector<uint8_t>& mut_event_buffer,
+    const StringAttribute& logger_service_name,
+    const ObjectAttribute& logger_object,
+    const Attribute& logger_attributes,
+    LogLevel level,
+    std::string_view message,
     const Attribute& message_attributes
 )>;
 
@@ -48,7 +52,8 @@ class Logger {
    * Handles a request to emit a single log message.
    */
   void EmitLogEvent(
-      LogLevel level, std::string_view message,
+      LogLevel level,
+      std::string_view message,
       const Attribute& message_attributes = Attribute()
   );
 

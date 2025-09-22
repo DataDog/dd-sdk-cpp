@@ -124,7 +124,8 @@ class Logger {
    * attributes is a value of any other type, it will be ignored.
    */
   DATADOG_API void Log(
-      LogLevel level, std::string_view message,
+      LogLevel level,
+      std::string_view message,
       const Attribute& attributes = Attribute()
   );
 

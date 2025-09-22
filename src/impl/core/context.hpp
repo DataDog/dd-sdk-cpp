@@ -84,7 +84,8 @@ struct CoreContext {
    *  trailing newline.
    */
   void BuildRequestHeaders(
-      std::string_view content_type, std::string_view feature_headers,
+      std::string_view content_type,
+      std::string_view feature_headers,
       std::string& out_headers
   ) const;
 };

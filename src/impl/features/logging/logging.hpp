@@ -25,7 +25,8 @@ namespace datadog::impl {
 class Logging final : public Feature {
  public:
   explicit Logging(
-      const platform::IClock& clock, std::string_view service_name,
+      const platform::IClock& clock,
+      std::string_view service_name,
       std::string_view application_version
   );
 
@@ -62,9 +63,13 @@ class Logging final : public Feature {
    *  other type, this value will be ignored.
    */
   void OnLoggerEmit(
-      Attribute& mut_event_object, std::vector<uint8_t>& mut_event_buffer,
-      const StringAttribute& logger_service_name, const ObjectAttribute& logger_object,
-      const Attribute& logger_attributes, LogLevel level, std::string_view message,
+      Attribute& mut_event_object,
+      std::vector<uint8_t>& mut_event_buffer,
+      const StringAttribute& logger_service_name,
+      const ObjectAttribute& logger_object,
+      const Attribute& logger_attributes,
+      LogLevel level,
+      std::string_view message,
       const Attribute& message_attributes
   ) const;
 

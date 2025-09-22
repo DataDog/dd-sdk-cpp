@@ -13,7 +13,8 @@
 namespace datadog {
 
 CoreConfig::CoreConfig(
-    std::string_view in_client_token, std::string_view in_service,
+    std::string_view in_client_token,
+    std::string_view in_service,
     std::string_view in_env
 )
     : client_token(in_client_token), service(in_service), env(in_env) {}

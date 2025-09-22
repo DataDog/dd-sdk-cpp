@@ -19,7 +19,8 @@ using namespace datadog;
 using namespace datadog::impl;
 
 TEST_CASE("BatchWriter", "[unit]") {
-  auto init_writer = [](MockClock& clock, MockStorageDirectory& storage,
+  auto init_writer = [](MockClock& clock,
+                        MockStorageDirectory& storage,
                         const BatchWriterConfig config) {
     // Set the system clock to a known timestamp
     clock.FreezeAtMilliseconds(1700000000000);
@@ -529,7 +530,8 @@ TEST_CASE("BatchWriter", "[unit]") {
 
 TEST_CASE("EventStorage", "[unit]") {
   // Common test setup logic
-  auto prepare_storage = [](MockStorageDirectory& mock_storage, MockClock& clock,
+  auto prepare_storage = [](MockStorageDirectory& mock_storage,
+                            MockClock& clock,
                             TrackingConsent consent) -> EventStorage {
     // 'events/no-upload' contains pending events; 'events/yes-upload' for granted
     auto directory = mock_storage.PrepareSubdirectory("events");

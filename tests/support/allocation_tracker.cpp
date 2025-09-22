@@ -65,8 +65,11 @@ static void log_alloc_event(AllocOp op, void* ptr, size_t size) noexcept {
   // Store the details of this operation
   static thread_local std::hash<std::thread::id> hasher;
   s_events[index] = AllocEvent{
-      s_seq.fetch_add(1, std::memory_order_relaxed), hasher(std::this_thread::get_id()),
-      op, ptr, size
+      s_seq.fetch_add(1, std::memory_order_relaxed),
+      hasher(std::this_thread::get_id()),
+      op,
+      ptr,
+      size
   };
 }
 

@@ -49,8 +49,10 @@ struct CoreTestHarness {
   MockHttpClient& client;
 
   explicit CoreTestHarness(
-      std::unique_ptr<impl::Core>&& in_core, MockClock& in_clock,
-      MockStorageDirectory& in_storage, MockHttpClient& in_client
+      std::unique_ptr<impl::Core>&& in_core,
+      MockClock& in_clock,
+      MockStorageDirectory& in_storage,
+      MockHttpClient& in_client
   )
       : _core(std::move(in_core)),
         core(std::ref(*_core)),
@@ -76,9 +78,10 @@ struct CoreTestHarness {
       config.Internal_FlushHttpRequestsOnStop();
     }
     auto core = std::make_unique<impl::Core>(
-        config, impl::CoreSubsystems(
-                    std::move(_clock), std::move(_storage_root), std::move(_http)
-                )
+        config,
+        impl::CoreSubsystems(
+            std::move(_clock), std::move(_storage_root), std::move(_http)
+        )
     );
 
     // Initialize the core: this should always succeed in tests

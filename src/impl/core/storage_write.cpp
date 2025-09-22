@@ -83,7 +83,8 @@ BatchWriterConfig BatchWriterConfig::FromBatchSize(BatchSize batch_size) {
 }
 
 BatchWriter::BatchWriter(
-    std::unique_ptr<platform::IDirectory>&& directory, const platform::IClock& clock,
+    std::unique_ptr<platform::IDirectory>&& directory,
+    const platform::IClock& clock,
     BatchWriterConfig config
 )
     : _directory(std::move(directory)), _clock(clock), _config(config) {}
@@ -148,7 +149,9 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
   // If we have a metadata block, prepend it
   if (!event_metadata.empty()) {
     const size_t metadata_tlv_size = EncodeTLVBlock(
-        write_addr, write_buffer_end - write_addr, TLVBlockType::Metadata,
+        write_addr,
+        write_buffer_end - write_addr,
+        TLVBlockType::Metadata,
         event_metadata
     );
     DATADOG_ASSERT(
@@ -327,7 +330,8 @@ bool BatchWriter::CacheKnownFilenames() const {
 }
 
 EventStorage::EventStorage(
-    TrackingConsent consent, std::unique_ptr<BatchWriter>&& pending,
+    TrackingConsent consent,
+    std::unique_ptr<BatchWriter>&& pending,
     std::unique_ptr<BatchWriter>&& granted
 )
     : _consent(consent), _pending(std::move(pending)), _granted(std::move(granted)) {}

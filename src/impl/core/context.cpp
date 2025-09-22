@@ -51,7 +51,8 @@ void CoreContext::BuildRequestURL(
 }
 
 void CoreContext::BuildRequestHeaders(
-    std::string_view content_type, std::string_view feature_headers,
+    std::string_view content_type,
+    std::string_view feature_headers,
     std::string& out_headers
 ) const {
   // These standard headers are set by this core implementation, for all features

@@ -9,3 +9,7 @@ ColumnLimit: 88
 # than arbitrarily lining them up with the open paren, and place the closing paren on
 # its own line
 AlignAfterOpenBracket: BlockIndent
+
+# When an argument list is too long to fit on one line, give each parameter its own line
+BinPackArguments: false
+BinPackParameters: false

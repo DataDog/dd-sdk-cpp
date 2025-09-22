@@ -805,34 +805,40 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
       std::function<void(const dd_attribute_t*)> check_func;
     };
     std::vector<TypeTest> types = {
-        {"null", dd_attribute_null, dd_attribute_set_null,
+        {"null",
+         dd_attribute_null,
+         dd_attribute_set_null,
          [](const dd_attribute_t* attr) {
            REQUIRE(attr->type == DD_VALUE_TYPE_NULL);
            REQUIRE(dd_attribute_get_int(attr) == 0);
          }},
 
-        {"bool", []() { return dd_attribute_bool(true); },
+        {"bool",
+         []() { return dd_attribute_bool(true); },
          [](dd_attribute_t* attr) { dd_attribute_set_bool(attr, true); },
          [](const dd_attribute_t* attr) {
            REQUIRE(attr->type == DD_VALUE_TYPE_BOOL);
            REQUIRE(dd_attribute_get_bool(attr) == true);
          }},
 
-        {"int", []() { return dd_attribute_int(-100); },
+        {"int",
+         []() { return dd_attribute_int(-100); },
          [](dd_attribute_t* attr) { dd_attribute_set_int(attr, -100); },
          [](const dd_attribute_t* attr) {
            REQUIRE(attr->type == DD_VALUE_TYPE_INT);
            REQUIRE(dd_attribute_get_int(attr) == -100);
          }},
 
-        {"uint", []() { return dd_attribute_uint(999); },
+        {"uint",
+         []() { return dd_attribute_uint(999); },
          [](dd_attribute_t* attr) { dd_attribute_set_uint(attr, 999); },
          [](const dd_attribute_t* attr) {
            REQUIRE(attr->type == DD_VALUE_TYPE_UINT);
            REQUIRE(dd_attribute_get_uint(attr) == 999);
          }},
 
-        {"timestamp", []() { return dd_attribute_timestamp_ns(145296000000000000); },
+        {"timestamp",
+         []() { return dd_attribute_timestamp_ns(145296000000000000); },
          [](dd_attribute_t* attr) {
            dd_attribute_set_timestamp_ns(attr, 145296000000000000);
          },
@@ -841,14 +847,16 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
            REQUIRE(dd_attribute_get_timestamp_ns(attr) == 145296000000000000);
          }},
 
-        {"double", []() { return dd_attribute_double(5.6789); },
+        {"double",
+         []() { return dd_attribute_double(5.6789); },
          [](dd_attribute_t* attr) { dd_attribute_set_double(attr, 5.6789); },
          [](const dd_attribute_t* attr) {
            REQUIRE(attr->type == DD_VALUE_TYPE_DOUBLE);
            REQUIRE(dd_attribute_get_double(attr) == 5.6789);
          }},
 
-        {"string", []() { return dd_attribute_string("hello"); },
+        {"string",
+         []() { return dd_attribute_string("hello"); },
          [](dd_attribute_t* attr) { dd_attribute_set_string(attr, "hello"); },
          [](const dd_attribute_t* attr) {
            REQUIRE(attr->type == DD_VALUE_TYPE_STRING);

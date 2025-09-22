@@ -40,7 +40,8 @@ struct AttributeMerge {
    * `attributes` contains no object values, `mut_obj` will not be modified.
    */
   static void AssembleObject(
-      Attribute& mut_obj, std::initializer_list<Attribute> attributes,
+      Attribute& mut_obj,
+      std::initializer_list<Attribute> attributes,
       FilterFunc filter = nullptr
   );
 };

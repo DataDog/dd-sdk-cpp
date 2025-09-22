@@ -41,7 +41,8 @@ static constexpr bool is_valid_user_attribute_name(std::string_view name) {
 }
 
 Logging::Logging(
-    const platform::IClock& clock, std::string_view service_name,
+    const platform::IClock& clock,
+    std::string_view service_name,
     std::string_view application_version
 )
     : _clock(clock),
@@ -87,27 +88,40 @@ void Logging::DeleteAttribute(std::string_view name) {
 
 std::unique_ptr<Logger> Logging::CreateLogger(const LoggerConfig& config) {
   std::weak_ptr<Logging> self = std::static_pointer_cast<Logging>(shared_from_this());
-  auto event_callback =
-      [self](
-          Attribute& mut_event_object, std::vector<uint8_t>& mut_event_buffer,
-          const StringAttribute& logger_service_name,
-          const ObjectAttribute& logger_object, const Attribute& logger_attributes,
-          LogLevel level, std::string_view message, const Attribute& message_attributes
-      ) {
-        if (auto logging = self.lock()) {
-          logging->OnLoggerEmit(
-              mut_event_object, mut_event_buffer, logger_service_name, logger_object,
-              logger_attributes, level, message, message_attributes
-          );
-        }
-      };
+  auto event_callback = [self](
+                            Attribute& mut_event_object,
+                            std::vector<uint8_t>& mut_event_buffer,
+                            const StringAttribute& logger_service_name,
+                            const ObjectAttribute& logger_object,
+                            const Attribute& logger_attributes,
+                            LogLevel level,
+                            std::string_view message,
+                            const Attribute& message_attributes
+                        ) {
+    if (auto logging = self.lock()) {
+      logging->OnLoggerEmit(
+          mut_event_object,
+          mut_event_buffer,
+          logger_service_name,
+          logger_object,
+          logger_attributes,
+          level,
+          message,
+          message_attributes
+      );
+    }
+  };
   return std::make_unique<Logger>(config, event_callback);
 }
 
 void Logging::OnLoggerEmit(
-    Attribute& mut_event_object, std::vector<uint8_t>& mut_event_buffer,
-    const StringAttribute& logger_service_name, const ObjectAttribute& logger_object,
-    const Attribute& logger_attributes, LogLevel level, std::string_view message,
+    Attribute& mut_event_object,
+    std::vector<uint8_t>& mut_event_buffer,
+    const StringAttribute& logger_service_name,
+    const ObjectAttribute& logger_object,
+    const Attribute& logger_attributes,
+    LogLevel level,
+    std::string_view message,
     const Attribute& message_attributes
 ) const {
   // Set the 'status' field based on the log level, using static Attribute strings
@@ -137,7 +151,8 @@ void Logging::OnLoggerEmit(
   // preferring the latter value in case of name conflicts
   std::shared_lock read_only_lock(_global_attributes_mutex);
   AttributeMerge::AssembleObject(
-      mut_event_object, {*_global_attributes, logger_attributes, message_attributes},
+      mut_event_object,
+      {*_global_attributes, logger_attributes, message_attributes},
       is_valid_user_attribute_name
   );
   read_only_lock.unlock();
@@ -148,7 +163,8 @@ void Logging::OnLoggerEmit(
 
   WriteEvent(Block(
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      reinterpret_cast<const char*>(mut_event_buffer.data()), mut_event_buffer.size()
+      reinterpret_cast<const char*>(mut_event_buffer.data()),
+      mut_event_buffer.size()
   ));
 }
 

@@ -201,7 +201,9 @@ DATADOG_API void dd_logger_critical(dd_logger_t* logger, const char* message);
  * will be ignored.
  */
 DATADOG_API void dd_logger_log_obj(
-    dd_logger_t* logger, dd_log_level_t level, const char* message,
+    dd_logger_t* logger,
+    dd_log_level_t level,
+    const char* message,
     const dd_attribute_t* attributes
 );
 

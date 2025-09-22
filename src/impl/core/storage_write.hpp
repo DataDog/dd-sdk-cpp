@@ -131,7 +131,8 @@ class BatchWriter {
 
  public:
   explicit BatchWriter(
-      std::unique_ptr<platform::IDirectory>&& directory, const platform::IClock& clock,
+      std::unique_ptr<platform::IDirectory>&& directory,
+      const platform::IClock& clock,
       BatchWriterConfig config
   );
   bool Delete();
@@ -187,7 +188,8 @@ class EventStorage {
    *  extend beyond the lifetime of the EventStorage.
    */
   explicit EventStorage(
-      TrackingConsent consent, std::unique_ptr<BatchWriter>&& pending,
+      TrackingConsent consent,
+      std::unique_ptr<BatchWriter>&& pending,
       std::unique_ptr<BatchWriter>&& granted
   );
 
