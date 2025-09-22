@@ -9,6 +9,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstring>
 
+#include "core/feature_read.hpp"
 #include "core/tlv.hpp"
 #include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"

@@ -15,31 +15,13 @@
 #include "assert.hpp"
 #include "core/block.hpp"
 #include "core/context.hpp"
+#include "core/feature_id.hpp"
 #include "core/tlv.hpp"
 #include "nonstd/expected.hpp"
-#include "platform/clock.hpp"
 #include "platform/filesystem.hpp"
 #include "platform/http.hpp"
 
 namespace datadog::impl {
-
-/**
- * Globally unique FourCC code that identifies a specific feature.
- */
-using FeatureId = uint32_t;
-
-/**
- * Encodes the given four characters into a uint32 in FourCC format, with the leftmost
- * character occupying the least significant byte of the resulting value. e.g.
- * CreateFeatureId("ABCD") => 0x44434241
- */
-constexpr FeatureId CreateFeatureId(const char fourcc[5]) {
-  const uint32_t a = static_cast<uint32_t>(fourcc[0]) << 0;
-  const uint32_t b = static_cast<uint32_t>(fourcc[1]) << 8;
-  const uint32_t c = static_cast<uint32_t>(fourcc[2]) << 16;
-  const uint32_t d = static_cast<uint32_t>(fourcc[3]) << 24;
-  return a | b | c | d;
-}
 
 /**
  * Callback invoked by a feature when it generates an event that needs to be enqueued
@@ -53,84 +35,6 @@ constexpr FeatureId CreateFeatureId(const char fourcc[5]) {
  * @returns whether the event was successfuly enqueued for storage.
  */
 using EventGeneratedFunc = std::function<bool(Block event, Block event_metadata)>;
-
-/**
- * Lightweight wrapper for a block of TLV-formatted data read from a file. The data
- * pointed to by `data` will be an exact copy of an `event` or `event_metadata` value
- * previously enqueued for storage.
- */
-struct TLVBlock {
-  TLVBlockType type;
-  Block data;
-};
-
-/**
- * Reason that we failed to read the next TLVBlock from a batch file.
- */
-enum class BatchReadError : uint8_t {
-  /**
-   * File reads were OK, but the data is malformed: e.g. TLV block type was
-   * unrecognized, TLV header showed a block size of 0, etc.
-   */
-  InvalidBlockFormat,
-  /**
-   * An attempt to read from the file was unsuccessful, e.g. because the file no longer
-   * exists, our handle is invalid, etc.
-   */
-  FailedRead,
-  /**
-   * An attempt to read from the file failed due to a catastrophic filesystem error
-   * (i.e. the bad bit was set).
-   */
-  IOError
-};
-
-/**
- * Interface passed to Feature::UploadThread_PrepareReport, allowing it iteratively read
- * blocks of TLV-formatted data from the relevant batch file.
- */
-class BatchReader {
- private:
-  platform::IFileReader& _file;
-  std::vector<char>& _block_data_buffer;
-
- public:
-  BatchReader(platform::IFileReader& file, std::vector<char>& buffer)
-      : _file(file), _block_data_buffer(buffer) {}
-
-  nonstd::expected<std::optional<TLVBlock>, BatchReadError> ReadNext() {
-    // Read and parse the TLV header at the current file position, then read the
-    // adjacent block data into the buffer, returning a result that contains a
-    // lightweight view of that buffer
-    const TLVBlockReadResult result = ReadTLVBlock(_file, _block_data_buffer);
-    switch (result.type) {
-      // Successful read; continue
-      case TLVBlockReadResultType::Success:
-        break;
-
-      // Read OK but there are no more blocks; return nullopt
-      case TLVBlockReadResultType::EndOfFile:
-        return std::nullopt;
-
-      // On any failure, early-out with an appropriate error
-      case TLVBlockReadResultType::IOError:
-        return nonstd::make_unexpected(BatchReadError::IOError);
-      case TLVBlockReadResultType::ReadFailed:
-        return nonstd::make_unexpected(BatchReadError::FailedRead);
-      case TLVBlockReadResultType::Malformed:
-        return nonstd::make_unexpected(BatchReadError::InvalidBlockFormat);
-    }
-
-    // Successful read; block is valid: construct a lightweight view of our member
-    // vector, and return a TLVBlock object
-    Block block_data{_block_data_buffer.data(), _block_data_buffer.size()};
-    DATADOG_ASSERT(
-        block_data.size() == result.header.block_size,
-        "After OK ReadTLVBlock, buffer size does not match block size in header"
-    );
-    return TLVBlock{result.header.type, block_data};
-  }
-};
 
 /**
  * Lightweight description of an HTTP request that should be made in order to upload a
@@ -250,7 +154,7 @@ class Feature : public std::enable_shared_from_this<Feature> {
    * feature is ready to be processed and uploaded.
    */
   virtual std::optional<Report> UploadThread_PrepareReport(
-      const CoreContext& context, BatchReader& reader
+      const CoreContext& context, class BatchReader& reader
   ) = 0;
 
  private:

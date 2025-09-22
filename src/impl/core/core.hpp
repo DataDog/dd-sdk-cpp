@@ -19,9 +19,11 @@
 #include "core/context.hpp"
 #include "core/feature.hpp"
 #include "core/queue.hpp"
-#include "core/storage.hpp"
+#include "core/storage_queue.hpp"
+#include "core/storage_write.hpp"
 #include "core/types.hpp"
-#include "core/upload.hpp"
+#include "core/upload_scheduler.hpp"
+#include "core/upload_thread.hpp"
 
 // Forward declarations
 namespace datadog::platform {
@@ -194,10 +196,11 @@ struct RegisteredFeature {
  *
  * When started, the Core runs two background threads:
  *
- * 1.) The storage thread (see `storage.hpp`), which consumes from a thread-safe queue
- *     that's owned by the Core (see `queue.hpp`). When a feature generates new event
- *     data, or when the Core needs to change the state of the storage thread, code
- *     running in the the main thread produces a `StorageMessage` to the storage queue.
+ * 1.) The storage thread (see `storage_thread.hpp`), which consumes from a thread-safe
+ *     queue that's owned by the Core (see `queue.hpp`). When a feature generates new
+ *     event data, or when the Core needs to change the state of the storage thread,
+ *     code running in the the main thread produces a `StorageMessage` to the storage
+ *     queue.
  *
  *     For each registered feature, the storage thread takes responsibility for writing
  *     event data to '<storage_root>/<feature_name>/', split into two subdirectories:
@@ -221,7 +224,7 @@ struct RegisteredFeature {
  *     - The storage thread will drain the queue, flushing all pending writes to disk
  *     - The storage thread will exit
  *
- * 2.) The upload thread (see `upload.hpp`), which uses an `UploadScheduler` to
+ * 2.) The upload thread (see `upload_thread.hpp`), which uses an `UploadScheduler` to
  *     periodically initiate "upload cycles" for all registered features. The timing of
  *     upload cycles is controlled independently for each feature, but the upload thread
  *     only handles a single upload cycle at a time.
@@ -394,7 +397,7 @@ class Core {
   std::vector<RegisteredFeature> _features;  // May not be modified while running
 
   // Initialized on Start, cleaned up on Stop
-  std::unique_ptr<Queue<StorageMessage>> _storage_queue;
+  std::unique_ptr<StorageQueue> _storage_queue;
   std::optional<std::thread> _storage_thread;
 
   std::unique_ptr<UploadScheduler> _upload_scheduler;

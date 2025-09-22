@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/upload.hpp"
+#include "core/upload_thread.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -18,9 +18,17 @@
 #include "assert.hpp"
 #include "core/block.hpp"
 #include "core/core.hpp"
+#include "core/feature_read.hpp"
+#include "core/upload_scheduler.hpp"
 #include "platform/filesystem.hpp"
 
 namespace datadog::impl {
+
+static constexpr platform::Duration from_seconds(double sec) {
+  return std::chrono::duration_cast<platform::Duration>(
+      std::chrono::duration<double>(sec)
+  );
+}
 
 static const platform::Duration ASSERTION_FAILURE_BACKOFF = from_seconds(60.0);
 
@@ -302,6 +310,12 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
   return feature.upload_state->IncreaseDelayTowardMax();
 }
 
+UploadThreadConfig::UploadThreadConfig(
+    platform::Duration in_min_file_age_for_read, size_t in_max_batches_per_cycle
+)
+    : min_file_age_for_read(in_min_file_age_for_read),
+      max_batches_per_cycle(in_max_batches_per_cycle) {}
+
 UploadThreadConfig UploadThreadConfig::FromCoreConfig(
     BatchSize batch_size, BatchProcessingLevel batch_processing_level
 ) {
@@ -309,6 +323,41 @@ UploadThreadConfig UploadThreadConfig::FromCoreConfig(
       BatchSize_ToMinFileAgeForRead(batch_size),
       BatchProcessingLevel_ToMaxBatchesPerCycle(batch_processing_level)
   );
+}
+
+UploadThreadState::UploadThreadState(UploadFrequency upload_frequency)
+    : current_delay{}, min_delay{}, max_delay{} {
+  // Initialize best-case interval between requests, when network conditions are good
+  // and uploads are succeeding
+  switch (upload_frequency) {
+    case UploadFrequency::Frequent:
+      min_delay = from_seconds(3.0);
+      break;
+    case UploadFrequency::Average:
+      min_delay = from_seconds(10.0);
+      break;
+    case UploadFrequency::Rare:
+      min_delay = from_seconds(35.0);
+      break;
+  }
+
+  // Clamp worst-case interval at 10x the best-case delay, and begin with an initial
+  // starting point that's halfway between the two
+  current_delay = min_delay * 5;
+  max_delay = min_delay * 10;
+}
+
+platform::Duration UploadThreadState::IncreaseDelayTowardMax() {
+  const int64_t current = current_delay.count();
+  const int64_t ten_percent = static_cast<int64_t>(static_cast<double>(current) * 0.1);
+  current_delay =
+      platform::Duration(std::min(max_delay.count(), current + ten_percent));
+  return current_delay;
+}
+
+platform::Duration UploadThreadState::ResetDelayToMin() {
+  current_delay = min_delay;
+  return current_delay;
 }
 
 platform::Duration Internal_HandleUploadProc(
