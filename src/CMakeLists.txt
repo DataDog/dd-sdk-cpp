@@ -26,7 +26,8 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/core/storage_queue.cpp
     impl/core/storage_thread.cpp
     impl/core/tlv.cpp
-    impl/core/upload.cpp
+    impl/core/upload_scheduler.cpp
+    impl/core/upload_thread.cpp
     impl/core/writer.cpp
     impl/features/logging/logger.cpp
     impl/features/logging/logging.cpp

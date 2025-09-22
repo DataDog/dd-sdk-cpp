@@ -22,7 +22,8 @@
 #include "core/storage_queue.hpp"
 #include "core/storage_write.hpp"
 #include "core/types.hpp"
-#include "core/upload.hpp"
+#include "core/upload_scheduler.hpp"
+#include "core/upload_thread.hpp"
 
 // Forward declarations
 namespace datadog::platform {
@@ -223,7 +224,7 @@ struct RegisteredFeature {
  *     - The storage thread will drain the queue, flushing all pending writes to disk
  *     - The storage thread will exit
  *
- * 2.) The upload thread (see `upload.hpp`), which uses an `UploadScheduler` to
+ * 2.) The upload thread (see `upload_thread.hpp`), which uses an `UploadScheduler` to
  *     periodically initiate "upload cycles" for all registered features. The timing of
  *     upload cycles is controlled independently for each feature, but the upload thread
  *     only handles a single upload cycle at a time.

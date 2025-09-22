@@ -13,7 +13,6 @@
 #include "assert.hpp"
 #include "core/storage_thread.hpp"
 #include "core/types.hpp"
-#include "core/upload.hpp"
 #include "platform/clock.hpp"
 #include "platform/filesystem.hpp"
 #include "platform/http.hpp"

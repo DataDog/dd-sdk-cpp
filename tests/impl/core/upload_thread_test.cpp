@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/upload.hpp"
+#include "core/upload_thread.hpp"
 
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
@@ -62,125 +62,6 @@ TEST_CASE("UploadThreadState", "[unit]") {
       state.IncreaseDelayTowardMax();
     }
     REQUIRE(state.current_delay == state.max_delay);
-  }
-}
-
-TEST_CASE("UploadScheduler", "[unit]") {
-  SECTION("M schedule and return feature W single feature scheduled") {
-    // Given a scheduler with an upload cycle scheduled in 1 millisecond
-    MockClock clock;
-    UploadScheduler scheduler(clock);
-    scheduler.Schedule(0xfeee0000, std::chrono::milliseconds(1));
-
-    // When we wait for the next scheduled feature
-    auto started_at = std::chrono::high_resolution_clock::now();
-    auto result = scheduler.WaitForNext();
-    auto elapsed = std::chrono::high_resolution_clock::now() - started_at;
-
-    // Then we get the ID of the feature we scheduled
-    REQUIRE(result.has_value());
-    REQUIRE(*result == 0xfeee0000);
-
-    // And somewhere between 0.5ms and 100ms has elapsed
-    auto elapsed_ms = std::chrono::round<std::chrono::milliseconds>(elapsed);
-    REQUIRE(elapsed_ms.count() >= 1);
-    REQUIRE(elapsed_ms.count() <= 100);
-  }
-
-  SECTION("M return earliest feature W features scheduled at different times") {
-    // Given a scheduler where 0xfeee0000 is scheduled in 20 microseconds
-    MockClock clock;
-    UploadScheduler scheduler(clock);
-    scheduler.Schedule(0xfeee0000, std::chrono::microseconds(20));
-
-    // And 0x1337beef is scheduled in 10 microseconds
-    scheduler.Schedule(0x1337beef, std::chrono::microseconds(10));
-
-    // When we wait for the next scheduled feature
-    auto result = scheduler.WaitForNext();
-
-    // Then we get 0x1337beef
-    REQUIRE(result.has_value());
-    REQUIRE(*result == 0x1337beef);
-
-    // And: when we wait for the next feature after that
-    result = scheduler.WaitForNext();
-
-    // Then we get feee0000
-    REQUIRE(result.has_value());
-    REQUIRE(*result == 0xfeee0000);
-  }
-
-  SECTION("M return nullopt W no features scheduled") {
-    // Given a scheduler with no features scheduled
-    MockClock clock;
-    UploadScheduler scheduler(clock);
-
-    // When we wait for the next scheduled feature
-    auto started_at = std::chrono::high_resolution_clock::now();
-    auto result = scheduler.WaitForNext();
-    auto elapsed = std::chrono::high_resolution_clock::now() - started_at;
-
-    // Then we get no value
-    REQUIRE(!result.has_value());
-
-    // And no blocking wait has occurred
-    auto elapsed_ms = std::chrono::round<std::chrono::milliseconds>(elapsed);
-    REQUIRE(elapsed_ms.count() == 0);
-  }
-
-  SECTION("M return immediately W scheduled time has already passed") {
-    // Given a feature scheduled to run an upload cycle in 9 seconds
-    MockClock clock;
-    UploadScheduler scheduler(clock);
-    scheduler.Schedule(0xfeee0000, std::chrono::seconds(9));
-
-    // When 9 seconds or more has elapsed
-    clock.FreezeAt(clock.Now());
-    clock.Tick(std::chrono::seconds(10));
-
-    // And we wait for the next scheduled feature
-    auto started_at = std::chrono::high_resolution_clock::now();
-    auto result = scheduler.WaitForNext();
-    auto elapsed = std::chrono::high_resolution_clock::now() - started_at;
-
-    // Then we get our feature
-    REQUIRE(result.has_value());
-    REQUIRE(*result == 0xfeee0000);
-
-    // And no blocking wait has occurred
-    auto elapsed_ms = std::chrono::round<std::chrono::milliseconds>(elapsed);
-    REQUIRE(elapsed_ms.count() == 0);
-  }
-
-  SECTION("M return nullopt W Stop called during wait") {
-    // Given a feature scheduled to run an upload cycle in 10 seconds
-    MockClock clock;
-    UploadScheduler scheduler(clock);
-    scheduler.Schedule(0xfeee0000, std::chrono::seconds(10));
-
-    // And a thread that's waiting for that 10-second delay to elapse
-    std::atomic<int> num_elapsed{0};
-    auto block_until_nullopt = [&]() {
-      while (auto next = scheduler.WaitForNext()) {
-        num_elapsed++;
-      }
-    };
-    std::thread thread{block_until_nullopt};
-    std::this_thread::sleep_for(std::chrono::microseconds(10));
-
-    // When we stop scheduling and join on the thread
-    auto started_at = std::chrono::high_resolution_clock::now();
-    scheduler.Stop();
-    thread.join();
-    auto elapsed = std::chrono::high_resolution_clock::now() - started_at;
-
-    // Then the thread exits immediately
-    auto elapsed_ms = std::chrono::round<std::chrono::milliseconds>(elapsed);
-    REQUIRE(elapsed_ms.count() == 0);
-
-    // And the scheduled upload cycle does not take place
-    REQUIRE(num_elapsed == 0);
   }
 }
 
