@@ -126,6 +126,13 @@ void dd_rum_attribute_delete(dd_rum_t* rum, const char* name) {
   }
   rum->impl->DeleteAttribute(name);
 }
+
+void dd_rum_stop_session(dd_rum_t* rum) {
+  if (!rum || !rum->impl) {
+    return;
+  }
+  rum->impl->StopSession();
+}
 }
 
 // NOLINTEND(cppcoreguidelines-owning-memory)

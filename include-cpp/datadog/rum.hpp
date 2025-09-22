@@ -101,6 +101,14 @@ class Rum {
    */
   DATADOG_API void DeleteAttribute(std::string_view name);
 
+  /**
+   * Explicitly stops the current RUM session, if one is active.
+   *
+   * The next call to StartView(), AddAction(), etc. will automatically start a new
+   * session.
+   */
+  DATADOG_API void StopSession();
+
  private:
   // Forbid copying/moving: we use std::shared_ptr<Rum> at the API boundary
   Rum(const Rum&) = delete;

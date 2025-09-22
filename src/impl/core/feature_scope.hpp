@@ -80,6 +80,17 @@ class FeatureScope {
   CoreContext GetContext() const;
 
   /**
+   * Performs a thread-safe write to the SDK's global CoreContext value, allowing a
+   * feature to populate up-to-date state that the core or other features may access.
+   *
+   * By convention, a feature should only modify the member(s) of CoreContext that it
+   * exclusively owns: e.g. the RUM feature modifies the `RumFeatureContext` value, etc.
+   *
+   * NOTE: CoreContext is modified synchronously. This may change in the future.
+   */
+  void UpdateContext(const std::function<void(CoreContext&)>& callback);
+
+  /**
    * Enqueues an arbitrary event payload to be written to disk in the storage thread.
    *
    * NOTE: Given that most features inevitably need thread-safe access to the

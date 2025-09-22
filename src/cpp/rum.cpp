@@ -88,4 +88,10 @@ void Rum::DeleteAttribute(std::string_view name) {
   }
 }
 
+void Rum::StopSession() {
+  if (_impl) {
+    _impl->StopSession();
+  }
+}
+
 }  // namespace datadog

@@ -45,4 +45,6 @@ class FeatureTest {
   }
 
   void Stop(const std::shared_ptr<Feature>& feature) { feature->OnCoreStopping(); }
+
+  inline CoreContext GetContextSync() const { return _context_provider.Get(); }
 };

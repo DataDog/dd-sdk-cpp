@@ -31,8 +31,8 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
       REQUIRE(rum != nullptr);
       rum->SetAttribute("foo", Attribute::Int(100));
       rum->DeleteAttribute("foo");
+      rum->StopSession();
 
-      // TODO(RUM-11367): Validate session member functions
       // TODO(RUM-11368): Validate view member functions
       // TODO(RUM-11369): Validate action member functions
     }
