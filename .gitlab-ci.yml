@@ -4,7 +4,6 @@ stages:
   - build
   - package
   - release
-  - post
 
 variables:
   # Docker registries: we push to registry.ddbuild.io and it replicates to ECR, which
@@ -326,11 +325,3 @@ create-release:
         ARCHIVE_FILENAME=$(basename "$ARCHIVE_PATH")
         echo "- $ARCHIVE_FILENAME"
       done
-
-# Stage 'post' runs after all actual CI jobs are finished, to notify the GitHub checks
-# that everything succeeded
-
-notify-success:
-  stage: post
-  script:
-    - echo "OK"
