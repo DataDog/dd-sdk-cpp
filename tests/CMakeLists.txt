@@ -18,6 +18,8 @@ add_executable(dd_native_tests
     impl/core/block_test.cpp
     impl/core/context_test.cpp
     impl/core/core_test.cpp
+    impl/core/feature_id_test.cpp
+    impl/core/feature_read_test.cpp
     impl/core/feature_test.cpp
     impl/core/queue_test.cpp
     impl/core/site_test.cpp

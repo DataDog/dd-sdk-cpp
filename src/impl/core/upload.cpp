@@ -18,6 +18,7 @@
 #include "assert.hpp"
 #include "core/block.hpp"
 #include "core/core.hpp"
+#include "core/feature_read.hpp"
 #include "platform/filesystem.hpp"
 
 namespace datadog::impl {

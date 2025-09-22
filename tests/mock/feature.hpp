@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "core/core.hpp"
-#include "core/feature.hpp"
+#include "core/feature_read.hpp"
 #include "core/writer.hpp"
 
 using namespace datadog;
