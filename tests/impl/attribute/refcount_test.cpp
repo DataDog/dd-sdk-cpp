@@ -174,6 +174,7 @@ TEST_CASE("Attribute refcount", "[unit][attribute]") {
 1 {
   process: 1 {
              pid: . 9238451ull
+             guid: 1 ccb79084-bc2b-4549-bbc7-f27e153fd4b6
              name: 1 my-cool-program
              args: 1 [
                      1 --mode
@@ -221,6 +222,7 @@ TEST_CASE("Attribute refcount", "[unit][attribute]") {
 2 {
   process: 1 {
              pid: . 9238451ull
+             guid: 1 ccb79084-bc2b-4549-bbc7-f27e153fd4b6
              name: 1 my-cool-program
              args: 1 [
                      1 --mode
@@ -269,6 +271,7 @@ TEST_CASE("Attribute refcount", "[unit][attribute]") {
 1 {
   process: 2 {
              pid: . 9238451ull
+             guid: 1 ccb79084-bc2b-4549-bbc7-f27e153fd4b6
              name: 1 my-cool-program
              args: 1 [
                      1 --mode
@@ -308,6 +311,7 @@ TEST_CASE("Attribute refcount", "[unit][attribute]") {
 1 {
   process: 2 {
              pid: . 9238451ull
+             guid: 1 ccb79084-bc2b-4549-bbc7-f27e153fd4b6
              name: 1 my-cool-program
              args: 1 [
                      1 --mode

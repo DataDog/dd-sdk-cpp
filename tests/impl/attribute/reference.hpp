@@ -14,14 +14,19 @@
 inline datadog::Attribute init_reference_value() {
   using datadog::Attribute;
 
+  static const uint8_t bytes_ccb7[16] = {
+      204, 183, 144, 132, 188, 43, 69, 73, 187, 199, 242, 126, 21, 63, 212, 182
+  };
+
   Attribute obj = Attribute::Object(3);
   {
     Attribute args = Attribute::Array(2);
     args.ArrayPush(Attribute::String("--mode"));
     args.ArrayPush(Attribute::String("good"));
 
-    Attribute process = Attribute::Object(3);
+    Attribute process = Attribute::Object(4);
     process.SetObjectProperty("pid", Attribute::UInt(9238451));
+    process.SetObjectProperty("guid", Attribute::UUID(bytes_ccb7));
     process.SetObjectProperty("name", Attribute::String("my-cool-program"));
     process.SetObjectProperty("args", args);
 

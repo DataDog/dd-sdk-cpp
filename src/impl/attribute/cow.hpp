@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "datadog/attribute.hpp"
+#include "uuid.hpp"
 
 namespace datadog::impl {
 
@@ -36,7 +37,7 @@ class CowValue {
   /**
    * Type of non-primitive value that can be stored using copy-on-write semantics.
    */
-  enum class CowValueType : uint8_t { String, Array, Object };
+  enum class CowValueType : uint8_t { UUID, String, Array, Object };
 
   /** Number of independent references to this value. */
   std::atomic<int> ref_count{1};
@@ -46,6 +47,7 @@ class CowValue {
 
   /** Underlying container for the value we're storing. */
   union Data {
+    uuid uuid;
     std::string string;
     std::vector<Attribute> array;
     std::vector<std::pair<std::string, Attribute>> object;
@@ -71,6 +73,11 @@ class CowValue {
    * `CowValue::Array()`, and `CowValue::Object()` instead.
    */
   explicit CowValue(CowValueType in_type, size_t initial_capacity);
+
+  /**
+   * Initializes a new CowValue for a UUID, with refcount 1.
+   */
+  explicit CowValue(const uint8_t uuid_value[16]);
 
   /**
    * Initializes a new CowValue for a string, with refcount 1.
@@ -110,6 +117,7 @@ class CowValue {
    * The caller (i.e. the Datadog Attribute implementation) MUST call Release() whenever
    * a CowValue pointer goes out of scope.
    */
+  static CowValue* UUID(const uint8_t value_bytes[16]);
   static CowValue* String(std::string_view string_value);
   static CowValue* Array(size_t initial_capacity);
   static CowValue* Object(size_t initial_capacity);
@@ -150,6 +158,17 @@ class CowValue {
   bool IsShared() const;
 
  public:
+  /**
+   * If storing a UUID, returns a copy of its value. Returns uuid::zero otherwise.
+   */
+  uuid GetUUID() const;
+
+  /**
+   * If storing a UUID, directly modifies its value. If not storing a UUID, has no
+   * effect.
+   */
+  void SetUUID(const uint8_t new_value[16]);
+
   /**
    * If storing a string, returns its value. Returns an empty string otherwise.
    */

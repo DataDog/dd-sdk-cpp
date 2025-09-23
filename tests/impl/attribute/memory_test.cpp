@@ -6,6 +6,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <charconv>
+#include <cinttypes>
 #include <functional>
 #include <string>
 
@@ -147,6 +148,22 @@ TEST_CASE("Attribute memory", "[unit][attribute]") {
     }
     const AllocationTracker::Stats stats = tracker.Stop();
     REQUIRE(stats.num_allocs == 0);
+  }
+
+  SECTION("M use heap memory W type is uuid") {
+    AllocationTracker tracker;
+    {
+      const uint8_t bytes_b2f7[16] = {
+          178, 247, 14, 63, 202, 147, 66, 18, 189, 101, 109, 205, 71, 27, 12, 13
+      };
+      Attribute attribute = Attribute::UUID(bytes_b2f7);
+      Attribute other = attribute;
+    }
+    // Initializing a UUID requires allocating a single 32-byte CowValue, which stores
+    // the 16 bytes of the uuid inline
+    const AllocationTracker::Stats stats = tracker.Stop();
+    REQUIRE(stats.num_allocs == 1);
+    REQUIRE(stats.min_alloc_size == 32);
   }
 
   SECTION("M use heap memory W type is string") {

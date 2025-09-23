@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "datadog/attribute.hpp"
+#include "uuid.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -27,6 +28,11 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
   static const double double_min = std::numeric_limits<double>::min();
   static const double double_max = std::numeric_limits<double>::max();
   static const double double_inf = std::numeric_limits<double>::infinity();
+
+  static const uint8_t uuid_bytes_zero[16] = {0};
+  static const uint8_t uuid_bytes_d137[16] = {
+      209, 55, 234, 75, 153, 129, 79, 158, 165, 136, 104, 200, 67, 187, 24, 156
+  };
 
   auto array_of = [](std::initializer_list<Attribute> items) -> Attribute {
     Attribute attribute = Attribute::Array(items.size());
@@ -167,6 +173,14 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
       {"double (+inf)", Attribute::Double(double_inf), "null"},
       {"double (-inf)", Attribute::Double(-double_inf), "null"},
 
+      // Literal UUID
+      {"uuid (zero)",
+       Attribute::UUID(uuid_bytes_zero),
+       "\"00000000-0000-0000-0000-000000000000\""},
+      {"uuid",
+       Attribute::UUID(uuid_bytes_d137),
+       "\"d137ea4b-9981-4f9e-a588-68c843bb189c\""},
+
       // Literal string
       {"string (empty)", Attribute::String(""), R"("")"},
       {"string",
@@ -294,12 +308,13 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
 
       // Then the result size is sufficient to hold the expected JSON value
       switch (tt.attribute.GetType()) {
-        // For integral primitives and strings, we should get the required size
+        // For integral primitives, UUIDs, and strings, we should get the required size
         // exactly right
         case ValueType::Null:
         case ValueType::Bool:
         case ValueType::Int:
         case ValueType::UInt:
+        case ValueType::UUID:
           REQUIRE(len == tt.want_json.size());
           break;
 
