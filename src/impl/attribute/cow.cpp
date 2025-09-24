@@ -36,7 +36,7 @@ CowValue::CowValue(CowValueType in_type, size_t initial_capacity) : type(in_type
 }
 
 CowValue::CowValue(const uint8_t uuid_value[16]) : type(CowValueType::UUID) {
-  value.uuid.set(uuid_value);
+  value.uid.set(uuid_value);
 }
 
 CowValue::CowValue(std::string_view string_value) : type(CowValueType::String) {
@@ -70,7 +70,7 @@ CowValue::CowValue(const CowValue& other) : ref_count(1), type(other.type) {
   // underlying CowValues until the corresponding attributes on the clone are modified.
   switch (type) {
     case CowValueType::UUID:
-      value.uuid = other.value.uuid;
+      value.uid = other.value.uid;
       break;
     case CowValueType::String:
       new (&value.string) std::string(other.value.string);
@@ -133,14 +133,14 @@ bool CowValue::IsShared() const {
 
 uuid CowValue::GetUUID() const {
   if (type == CowValueType::UUID) {
-    return value.uuid;
+    return value.uid;
   }
   return uuid::zero;
 }
 
 void CowValue::SetUUID(const uint8_t new_value[16]) {
   if (type == CowValueType::UUID) {
-    value.uuid.set(new_value);
+    value.uid.set(new_value);
   }
 }
 

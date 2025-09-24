@@ -47,7 +47,7 @@ class CowValue {
 
   /** Underlying container for the value we're storing. */
   union Data {
-    uuid uuid;
+    uuid uid;
     std::string string;
     std::vector<Attribute> array;
     std::vector<std::pair<std::string, Attribute>> object;

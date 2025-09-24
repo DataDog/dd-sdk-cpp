@@ -60,7 +60,7 @@ void AttributeDebug::Dump(
       break;
     case ValueType::UUID: {
       out << prefix << a.value.ptr->ref_count.load() << " ";
-      const auto data = a.value.ptr->value.uuid.bytes;
+      const auto data = a.value.ptr->value.uid.bytes;
       out << std::hex << static_cast<int>(data[0]) << static_cast<int>(data[1])
           << static_cast<int>(data[2]) << static_cast<int>(data[3]) << "-"
           << static_cast<int>(data[4]) << static_cast<int>(data[5]) << "-"
