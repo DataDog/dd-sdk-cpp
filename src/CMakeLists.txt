@@ -79,6 +79,31 @@ target_include_directories(dd_native
         impl
 )
 
+# On Win32, we implement UUID generation via CoCreateGuid from objbase.h; on other
+# systems we require uuid/uuid.h
+if(NOT WIN32)
+    # On macOS, uuid/uuid.h is a system header and `uuid_generate()` et al. are
+    # implemented in libc. But on Linux, uuid/uuid.h is typically not available by
+    # default and must be installed from a package
+    include(CheckIncludeFiles)
+    check_include_files("uuid/uuid.h" HAVE_UUID_H)
+    if(NOT HAVE_UUID_H)
+        message(FATAL_ERROR "uuid/uuid.h not found in include path. Please install the UUID development package:\n"
+                           "  Ubuntu/Debian: sudo apt-get install uuid-dev\n"
+                           "  RHEL/CentOS/Fedora: sudo yum install libuuid-devel\n"
+                           "  Alpine: sudo apk add util-linux-dev")
+    endif()
+
+    # On Linux, we need to link against this separate uuid library
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        find_library(UUID_LIBRARY uuid)
+        if(NOT UUID_LIBRARY)
+            message(FATAL_ERROR "UUID library not found")
+        endif()
+        target_link_libraries(dd_native PRIVATE ${UUID_LIBRARY})
+    endif()
+endif()
+
 # Platform-specific support for system clock functionality
 option(DD_CLOCK_USE_DEFAULT "Use default clock implementation. If disabled, you must supply an implementation of platform/clock.hpp in a file specified as DD_CLOCK_SRC" ON)
 if(DD_CLOCK_USE_DEFAULT)
