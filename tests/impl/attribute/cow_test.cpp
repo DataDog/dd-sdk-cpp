@@ -170,7 +170,7 @@ TEST_CASE("CowValue", "[unit][attribute]") {
     CowValue* value = CowValue::UUID(bytes);
 
     // GetUUID returns the same bytes
-    const uuid got = value->GetUUID();
+    const UUID got = value->GetUUID();
     REQUIRE(std::memcmp(bytes, got.bytes.data(), 16) == 0);
 
     // Cleanup

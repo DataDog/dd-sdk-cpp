@@ -227,10 +227,11 @@ void Attribute::SetDouble(double new_value) {
   value.f64 = new_value;
 }
 
-void Attribute::SetUUID(const uint8_t new_value[16]) {
+void Attribute::SetUUID(const datadog::UUID& new_value) {
   // If already a UUID, avoid allocation: simply overwrite UUID value
+  const uint8_t* bytes = new_value.bytes.data();
   if (type == ValueType::UUID) {
-    GetCowValueForWrite()->SetUUID(new_value);
+    GetCowValueForWrite()->SetUUID(bytes);
     return;
   }
 
@@ -240,7 +241,7 @@ void Attribute::SetUUID(const uint8_t new_value[16]) {
   }
 
   type = ValueType::UUID;
-  value.ptr = impl::CowValue::UUID(new_value);
+  value.ptr = impl::CowValue::UUID(bytes);
 }
 
 void Attribute::SetString(std::string_view new_value) {
@@ -331,10 +332,11 @@ double Attribute::GetDoubleValue() const {
   return value.f64;
 }
 
-void Attribute::GetUUIDValue(uint8_t out_value[16]) const {
-  const auto v = (type == ValueType::UUID) ? value.ptr->GetUUID() : impl::uuid::zero;
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-  std::memcpy(out_value, v.bytes.data(), 16);
+datadog::UUID Attribute::GetUUIDValue() const {
+  if (type != ValueType::UUID) {
+    return datadog::UUID::Zero;
+  }
+  return value.ptr->GetUUID();
 }
 
 std::string_view Attribute::GetStringValue() const {

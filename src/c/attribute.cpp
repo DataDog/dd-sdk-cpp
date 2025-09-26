@@ -136,10 +136,11 @@ dd_attribute_t dd_attribute_double(double value) {
   return attribute;
 }
 
-dd_attribute_t dd_attribute_uuid(const uint8_t value[16]) {
+dd_attribute_t dd_attribute_uuid(const dd_uuid_t value) {
   dd_attribute_t attribute;
   attribute.type = DD_VALUE_TYPE_UUID;
-  attribute.value.ptr = datadog::impl::CowValue::UUID(value);
+  const uint8_t* bytes = static_cast<const uint8_t*>(value.bytes);
+  attribute.value.ptr = datadog::impl::CowValue::UUID(bytes);
   return attribute;
 }
 
@@ -244,14 +245,15 @@ void dd_attribute_set_double(dd_attribute_t* attribute, double value) {
   attribute->value.f64 = value;
 }
 
-void dd_attribute_set_uuid(dd_attribute_t* attribute, const uint8_t value[16]) {
-  if (!attribute || !value) {
+void dd_attribute_set_uuid(dd_attribute_t* attribute, const dd_uuid_t value) {
+  if (!attribute) {
     return;
   }
 
   // If already a UUID, copy value directly to existing storage
+  const uint8_t* bytes = static_cast<const uint8_t*>(value.bytes);
   if (attribute->type == DD_VALUE_TYPE_UUID) {
-    get_cow_value_for_write(attribute)->SetUUID(value);
+    get_cow_value_for_write(attribute)->SetUUID(bytes);
     return;
   }
 
@@ -261,7 +263,7 @@ void dd_attribute_set_uuid(dd_attribute_t* attribute, const uint8_t value[16]) {
   }
 
   attribute->type = DD_VALUE_TYPE_UUID;
-  attribute->value.ptr = datadog::impl::CowValue::UUID(value);
+  attribute->value.ptr = datadog::impl::CowValue::UUID(bytes);
 }
 
 void dd_attribute_set_string(dd_attribute_t* attribute, const char* value) {
@@ -396,13 +398,14 @@ double dd_attribute_get_double(const dd_attribute_t* attribute) {
   return attribute->value.f64;
 }
 
-void dd_attribute_get_uuid(const dd_attribute_t* attribute, uint8_t out_value[16]) {
-  datadog::impl::uuid v = datadog::impl::uuid::zero;
+dd_uuid_t dd_attribute_get_uuid(const dd_attribute_t* attribute) {
+  datadog::UUID cpp_value = datadog::UUID::Zero;
   if (attribute && attribute->type == DD_VALUE_TYPE_UUID) {
-    v = get_cow_value(attribute)->GetUUID();
+    cpp_value = get_cow_value(attribute)->GetUUID();
   }
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-  std::memcpy(out_value, v.bytes.data(), 16);
+  dd_uuid_t result;
+  dd_uuid_set(&result, cpp_value.bytes.data());
+  return result;
 }
 
 const char* dd_attribute_get_string(const dd_attribute_t* attribute) {

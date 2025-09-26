@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 #include "datadog/api.h"
+#include "datadog/uuid.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,7 +57,7 @@ DATADOG_API dd_attribute_t dd_attribute_int(int64_t value);
 DATADOG_API dd_attribute_t dd_attribute_uint(uint64_t value);
 DATADOG_API dd_attribute_t dd_attribute_timestamp_ns(uint64_t value);
 DATADOG_API dd_attribute_t dd_attribute_double(double value);
-DATADOG_API dd_attribute_t dd_attribute_uuid(const uint8_t value[16]);
+DATADOG_API dd_attribute_t dd_attribute_uuid(const dd_uuid_t value);
 DATADOG_API dd_attribute_t dd_attribute_string(const char* value);
 DATADOG_API dd_attribute_t dd_attribute_array(size_t initial_capacity);
 DATADOG_API dd_attribute_t dd_attribute_object(size_t initial_capacity);
@@ -77,7 +78,7 @@ DATADOG_API void dd_attribute_set_timestamp_ns(
 );
 DATADOG_API void dd_attribute_set_double(dd_attribute_t* attribute, double value);
 DATADOG_API void dd_attribute_set_uuid(
-    dd_attribute_t* attribute, const uint8_t value[16]
+    dd_attribute_t* attribute, const dd_uuid_t value
 );
 DATADOG_API void dd_attribute_set_string(dd_attribute_t* attribute, const char* value);
 DATADOG_API void dd_attribute_init_array(
@@ -111,9 +112,7 @@ DATADOG_API int64_t dd_attribute_get_int(const dd_attribute_t* attribute);
 DATADOG_API uint64_t dd_attribute_get_uint(const dd_attribute_t* attribute);
 DATADOG_API uint64_t dd_attribute_get_timestamp_ns(const dd_attribute_t* attribute);
 DATADOG_API double dd_attribute_get_double(const dd_attribute_t* attribute);
-DATADOG_API void dd_attribute_get_uuid(
-    const dd_attribute_t* attribute, uint8_t out_value[16]
-);
+DATADOG_API dd_uuid_t dd_attribute_get_uuid(const dd_attribute_t* attribute);
 DATADOG_API const char* dd_attribute_get_string(const dd_attribute_t* attribute);
 
 // === Array functions ===
