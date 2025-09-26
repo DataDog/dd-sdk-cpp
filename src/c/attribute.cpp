@@ -6,6 +6,7 @@
 
 #include "datadog/attribute.h"
 
+#include <cstring>
 #include <memory>
 
 #include "assert.hpp"
@@ -31,6 +32,7 @@ static bool is_primitive_type(dd_value_type_t type) {
     case DD_VALUE_TYPE_DOUBLE:
       return true;
 
+    case DD_VALUE_TYPE_UUID:
     case DD_VALUE_TYPE_STRING:
     case DD_VALUE_TYPE_ARRAY:
     case DD_VALUE_TYPE_OBJECT:
@@ -134,6 +136,13 @@ dd_attribute_t dd_attribute_double(double value) {
   return attribute;
 }
 
+dd_attribute_t dd_attribute_uuid(const uint8_t value[16]) {
+  dd_attribute_t attribute;
+  attribute.type = DD_VALUE_TYPE_UUID;
+  attribute.value.ptr = datadog::impl::CowValue::UUID(value);
+  return attribute;
+}
+
 dd_attribute_t dd_attribute_string(const char* value) {
   dd_attribute_t attribute;
   attribute.type = DD_VALUE_TYPE_STRING;
@@ -233,6 +242,26 @@ void dd_attribute_set_double(dd_attribute_t* attribute, double value) {
 
   attribute->type = DD_VALUE_TYPE_DOUBLE;
   attribute->value.f64 = value;
+}
+
+void dd_attribute_set_uuid(dd_attribute_t* attribute, const uint8_t value[16]) {
+  if (!attribute || !value) {
+    return;
+  }
+
+  // If already a UUID, copy value directly to existing storage
+  if (attribute->type == DD_VALUE_TYPE_UUID) {
+    get_cow_value_for_write(attribute)->SetUUID(value);
+    return;
+  }
+
+  // Type is not UUID: release if needed, then allocate new UUID CowValue
+  if (!is_primitive_type(attribute->type)) {
+    get_cow_value(attribute)->Release();
+  }
+
+  attribute->type = DD_VALUE_TYPE_UUID;
+  attribute->value.ptr = datadog::impl::CowValue::UUID(value);
 }
 
 void dd_attribute_set_string(dd_attribute_t* attribute, const char* value) {
@@ -365,6 +394,15 @@ double dd_attribute_get_double(const dd_attribute_t* attribute) {
     return 0.0;
   }
   return attribute->value.f64;
+}
+
+void dd_attribute_get_uuid(const dd_attribute_t* attribute, uint8_t out_value[16]) {
+  datadog::impl::uuid v = datadog::impl::uuid::zero;
+  if (attribute && attribute->type == DD_VALUE_TYPE_UUID) {
+    v = get_cow_value(attribute)->GetUUID();
+  }
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+  std::memcpy(out_value, v.bytes.data(), 16);
 }
 
 const char* dd_attribute_get_string(const dd_attribute_t* attribute) {

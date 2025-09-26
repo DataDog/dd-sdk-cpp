@@ -16,6 +16,7 @@ inline ValueType ValueType_FromC(dd_value_type_t value) {
   static_assert(static_cast<int>(ValueType::Int) == DD_VALUE_TYPE_INT);
   static_assert(static_cast<int>(ValueType::UInt) == DD_VALUE_TYPE_UINT);
   static_assert(static_cast<int>(ValueType::Double) == DD_VALUE_TYPE_DOUBLE);
+  static_assert(static_cast<int>(ValueType::UUID) == DD_VALUE_TYPE_UUID);
   static_assert(static_cast<int>(ValueType::String) == DD_VALUE_TYPE_STRING);
   static_assert(static_cast<int>(ValueType::Array) == DD_VALUE_TYPE_ARRAY);
   static_assert(static_cast<int>(ValueType::Object) == DD_VALUE_TYPE_OBJECT);
@@ -27,6 +28,7 @@ inline dd_value_type_t ValueType_ToC(ValueType value) {
   static_assert(DD_VALUE_TYPE_INT == static_cast<int>(ValueType::Int));
   static_assert(DD_VALUE_TYPE_UINT == static_cast<int>(ValueType::UInt));
   static_assert(DD_VALUE_TYPE_DOUBLE == static_cast<int>(ValueType::Double));
+  static_assert(DD_VALUE_TYPE_UUID == static_cast<int>(ValueType::UUID));
   static_assert(DD_VALUE_TYPE_STRING == static_cast<int>(ValueType::String));
   static_assert(DD_VALUE_TYPE_ARRAY == static_cast<int>(ValueType::Array));
   static_assert(DD_VALUE_TYPE_OBJECT == static_cast<int>(ValueType::Object));
@@ -56,6 +58,7 @@ struct AttributeConversion {
       case DD_VALUE_TYPE_DOUBLE:
         return Attribute(ValueType::Double, attribute.value.f64);
 
+      case DD_VALUE_TYPE_UUID:
       case DD_VALUE_TYPE_STRING:
       case DD_VALUE_TYPE_ARRAY:
       case DD_VALUE_TYPE_OBJECT: {
@@ -86,6 +89,7 @@ struct AttributeConversion {
         attribute.value.f64 = cpp_attribute.value.f64;
         break;
 
+      case DD_VALUE_TYPE_UUID:
       case DD_VALUE_TYPE_STRING:
       case DD_VALUE_TYPE_ARRAY:
       case DD_VALUE_TYPE_OBJECT: {

@@ -7,6 +7,7 @@
 #include "attribute/cow.hpp"
 
 #include <algorithm>
+#include <cstring>
 
 #include "assert.hpp"
 
@@ -15,6 +16,8 @@ namespace datadog::impl {
 CowValue::CowValue(CowValueType in_type, size_t initial_capacity) : type(in_type) {
   // Initialize the appropriate STL union member
   switch (type) {
+    case CowValueType::UUID:
+      break;
     case CowValueType::String:
       // NOTE: This branch is technically unreachable, as all production code uses the
       // std::string_view constructor to initialize string values
@@ -32,6 +35,10 @@ CowValue::CowValue(CowValueType in_type, size_t initial_capacity) : type(in_type
   }
 }
 
+CowValue::CowValue(const uint8_t uuid_value[16]) : type(CowValueType::UUID) {
+  value.uid.set(uuid_value);
+}
+
 CowValue::CowValue(std::string_view string_value) : type(CowValueType::String) {
   // Copy the passed-in string directly
   new (&value.string) std::string(string_value);
@@ -40,6 +47,9 @@ CowValue::CowValue(std::string_view string_value) : type(CowValueType::String) {
 CowValue::~CowValue() {
   // Call the appropriate destructor on our union of STL containers
   switch (type) {
+    case CowValueType::UUID:
+      // UUID values are stored in the CowValue itself
+      break;
     case CowValueType::String:
       value.string.~basic_string();
       break;
@@ -59,6 +69,9 @@ CowValue::CowValue(const CowValue& other) : ref_count(1), type(other.type) {
   // Therefore, any array elements or subobjects in our clone will point to the same
   // underlying CowValues until the corresponding attributes on the clone are modified.
   switch (type) {
+    case CowValueType::UUID:
+      value.uid = other.value.uid;
+      break;
     case CowValueType::String:
       new (&value.string) std::string(other.value.string);
       break;
@@ -70,6 +83,11 @@ CowValue::CowValue(const CowValue& other) : ref_count(1), type(other.type) {
           std::vector<std::pair<std::string, datadog::Attribute>>(other.value.object);
       break;
   }
+}
+
+CowValue* CowValue::UUID(const uint8_t value_bytes[16]) {
+  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
+  return new CowValue(value_bytes);
 }
 
 CowValue* CowValue::String(std::string_view string_value) {
@@ -113,6 +131,19 @@ bool CowValue::IsShared() const {
   return ref_count.load(std::memory_order_acquire) > 1;
 }
 
+uuid CowValue::GetUUID() const {
+  if (type == CowValueType::UUID) {
+    return value.uid;
+  }
+  return uuid::zero;
+}
+
+void CowValue::SetUUID(const uint8_t new_value[16]) {
+  if (type == CowValueType::UUID) {
+    value.uid.set(new_value);
+  }
+}
+
 const char* CowValue::CStr() const {
   // NOTE: Returning const char* ensures that we can expose string values directly via
   // the C API - std::string_view does not store a null terminator. The C++ Attribute
@@ -132,6 +163,8 @@ void CowValue::SetString(std::string_view new_value) {
 size_t CowValue::Size() const {
   // Return the size of the underlying container that we're using
   switch (type) {
+    case CowValueType::UUID:
+      return 0;
     case CowValueType::String:
       return value.string.size();
     case CowValueType::Array:
@@ -146,6 +179,8 @@ size_t CowValue::Size() const {
 size_t CowValue::Capacity() const {
   // Return the capacity of the underlying container that we're using
   switch (type) {
+    case CowValueType::UUID:
+      return 0;
     case CowValueType::String:
       return value.string.capacity();
     case CowValueType::Array:
@@ -159,6 +194,8 @@ size_t CowValue::Capacity() const {
 
 void CowValue::Reserve(size_t new_capacity) {
   switch (type) {
+    case CowValueType::UUID:
+      break;
     case CowValueType::String:
       value.string.reserve(new_capacity);
       break;
@@ -175,6 +212,8 @@ void CowValue::Clear(size_t new_capacity) {
   // Clear the underlying container: any CowValues held in arrays/objects will be
   // released by the Attribute destructor
   switch (type) {
+    case CowValueType::UUID:
+      break;
     case CowValueType::String:
       value.string.clear();
       if (new_capacity > 0) {

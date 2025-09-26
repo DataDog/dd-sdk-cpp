@@ -58,6 +58,19 @@ void AttributeDebug::Dump(
     case ValueType::Double:
       out << prefix << ". " << a.value.f64 << "\n";
       break;
+    case ValueType::UUID: {
+      out << prefix << a.value.ptr->ref_count.load() << " ";
+      const auto data = a.value.ptr->value.uid.bytes;
+      out << std::hex << static_cast<int>(data[0]) << static_cast<int>(data[1])
+          << static_cast<int>(data[2]) << static_cast<int>(data[3]) << "-"
+          << static_cast<int>(data[4]) << static_cast<int>(data[5]) << "-"
+          << static_cast<int>(data[6]) << static_cast<int>(data[7]) << "-"
+          << static_cast<int>(data[8]) << static_cast<int>(data[9]) << "-"
+          << static_cast<int>(data[10]) << static_cast<int>(data[11])
+          << static_cast<int>(data[12]) << static_cast<int>(data[13])
+          << static_cast<int>(data[14]) << static_cast<int>(data[15]) << std::dec
+          << "\n";
+    } break;
     case ValueType::String:
       out << prefix << a.value.ptr->ref_count.load() << " " << a.value.ptr->value.string
           << "\n";
@@ -106,6 +119,7 @@ size_t AttributeDebug::ComputeHeapSizeImpl(
     // Non-primitive types use CowValue as their underlying storage: each CowValue
     // struct is heap-allocated, and it uses an underlying STL container (string or
     // vector) depending on the value type, so count them both
+    case ValueType::UUID:
     case ValueType::String:
     case ValueType::Array:
     case ValueType::Object: {
@@ -119,7 +133,9 @@ size_t AttributeDebug::ComputeHeapSizeImpl(
       // Accumulate the total size, making sure to include the heap-allocated CowValue
       // struct in our total
       size_t total_size = sizeof(CowValue);
-      if (a.type == ValueType::String) {
+      if (a.type == ValueType::UUID) {
+        // UUIDs are stored in the CowValue; they require no additional heap memory
+      } else if (a.type == ValueType::String) {
         // For strings, add the number of bytes allocated on the heap by std::string
         // (which may be 0 if using SSO)
         total_size += _compute_string_heap_size(cow_ptr->value.string);

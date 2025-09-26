@@ -6,9 +6,11 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <charconv>
+#include <cinttypes>
 #include <functional>
 #include <string>
 
+#include "attribute/cow.hpp"
 #include "datadog/attribute.hpp"
 #include "impl/attribute/reference.hpp"
 #include "support/allocation_tracker.hpp"
@@ -147,6 +149,23 @@ TEST_CASE("Attribute memory", "[unit][attribute]") {
     }
     const AllocationTracker::Stats stats = tracker.Stop();
     REQUIRE(stats.num_allocs == 0);
+  }
+
+  SECTION("M use heap memory W type is uuid") {
+    AllocationTracker tracker;
+    {
+      const uint8_t bytes_b2f7[16] = {
+          178, 247, 14, 63, 202, 147, 66, 18, 189, 101, 109, 205, 71, 27, 12, 13
+      };
+      Attribute attribute = Attribute::UUID(bytes_b2f7);
+      Attribute other = attribute;
+    }
+    // Initializing a UUID requires allocating a single CowValue, which stores the 16
+    // bytes of the uuid inline: CowValue is 32 bytes on macOS/libc++; 40 bytes on
+    // Linux/libstdc++
+    const AllocationTracker::Stats stats = tracker.Stop();
+    REQUIRE(stats.num_allocs == 1);
+    REQUIRE(stats.min_alloc_size == sizeof(CowValue));
   }
 
   SECTION("M use heap memory W type is string") {

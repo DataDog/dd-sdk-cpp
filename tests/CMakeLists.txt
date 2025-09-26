@@ -33,6 +33,7 @@ add_executable(dd_native_tests
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
+    impl/uuid_test.cpp
     mock/filesystem_mock_test.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp

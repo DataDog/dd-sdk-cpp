@@ -16,7 +16,21 @@
 #include "attribute/types.hpp"
 #include "datadog/attribute.h"
 
+static const uint8_t bytes_ccb7[16] = {
+    204, 183, 144, 132, 188, 43, 69, 73, 187, 199, 242, 126, 21, 63, 212, 182
+};
+
+static const uint8_t bytes_99a7[16] = {
+    153, 167, 196, 130, 39, 33, 71, 143, 171, 140, 191, 244, 161, 252, 181, 117
+};
+
 TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
+  auto require_uuid_value_is_zero = [](dd_attribute_t& attribute) -> void {
+    uint8_t bytes[16] = {};
+    dd_attribute_get_uuid(&attribute, bytes);
+    REQUIRE(datadog::impl::uuid(bytes) == datadog::impl::uuid::zero);
+  };
+
   auto require_array_ops_are_noop = [](dd_attribute_t& attribute) -> void {
     dd_attribute_array_clear(&attribute);
 
@@ -67,6 +81,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -93,6 +108,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -125,6 +141,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -157,6 +174,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -189,6 +207,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -221,6 +240,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -234,6 +254,45 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     dd_attribute_set_double(&copy, -99.989);
     REQUIRE(dd_attribute_get_double(&copy) == -99.989);
     REQUIRE(dd_attribute_get_double(&attribute) == 1.2345);
+
+    // dd_attribute_free() must be called once for all dd_attribute_t values
+    dd_attribute_free(&copy);
+    dd_attribute_free(&attribute);
+  }
+
+  SECTION("M allow all operations W type is uuid") {
+    // Given a uuid attribute value
+    dd_attribute_t attribute = dd_attribute_uuid(bytes_ccb7);
+    REQUIRE(attribute.type == DD_VALUE_TYPE_UUID);
+
+    // get_uuid() returns value
+    uint8_t bytes[16] = {};
+    dd_attribute_get_uuid(&attribute, bytes);
+    REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
+
+    // get_<type>() for other types returns zero; array/object funcs are no-op
+    REQUIRE(dd_attribute_get_bool(&attribute) == false);
+    REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
+    REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
+    require_array_ops_are_noop(attribute);
+    require_object_ops_are_noop(attribute);
+
+    // dd_attribute_copy() creates another uuid attribute with the same value
+    dd_attribute_t copy = dd_attribute_copy(&attribute);
+    REQUIRE(copy.type == DD_VALUE_TYPE_UUID);
+    uint8_t copy_bytes[16] = {};
+    dd_attribute_get_uuid(&copy, copy_bytes);
+    REQUIRE(std::memcmp(copy_bytes, bytes, 16) == 0);
+
+    // set_uuid() updates value; changing copy doesn't change original
+    dd_attribute_set_uuid(&copy, bytes_99a7);
+    dd_attribute_get_uuid(&copy, copy_bytes);
+    REQUIRE(std::memcmp(copy_bytes, bytes_99a7, 16) == 0);
+    dd_attribute_get_uuid(&attribute, bytes);
+    REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
 
     // dd_attribute_free() must be called once for all dd_attribute_t values
     dd_attribute_free(&copy);
@@ -254,6 +313,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    require_uuid_value_is_zero(attribute);
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
 
@@ -306,6 +366,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_object_ops_are_noop(attribute);
 
@@ -368,6 +429,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
 
@@ -449,6 +511,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     dd_attribute_set_uint(nullptr, 1);
     dd_attribute_set_timestamp_ns(nullptr, 1000);
     dd_attribute_set_double(nullptr, 1.0);
+    dd_attribute_set_uuid(nullptr, bytes_99a7);
     dd_attribute_set_string(nullptr, "hello");
     dd_attribute_init_array(nullptr, 16);
     dd_attribute_init_object(nullptr, 16);
@@ -467,6 +530,9 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_uint(nullptr) == 0ull);
     REQUIRE(dd_attribute_get_timestamp_ns(nullptr) == 0ull);
     REQUIRE(dd_attribute_get_double(nullptr) == 0.0);
+    uint8_t bytes[16] = {0xff};
+    dd_attribute_get_uuid(nullptr, bytes);
+    REQUIRE(datadog::impl::uuid(bytes) == datadog::impl::uuid::zero);
     REQUIRE(std::string(dd_attribute_get_string(nullptr)) == "");
 
     // Const dd_attribute_array operations return 0/null
@@ -855,6 +921,16 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
            REQUIRE(dd_attribute_get_double(attr) == 5.6789);
          }},
 
+        {"uuid",
+         []() { return dd_attribute_uuid(bytes_ccb7); },
+         [](dd_attribute_t* attr) { dd_attribute_set_uuid(attr, bytes_ccb7); },
+         [](const dd_attribute_t* attr) {
+           REQUIRE(attr->type == DD_VALUE_TYPE_UUID);
+           uint8_t bytes[16] = {};
+           dd_attribute_get_uuid(attr, bytes);
+           REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
+         }},
+
         {"string",
          []() { return dd_attribute_string("hello"); },
          [](dd_attribute_t* attr) { dd_attribute_set_string(attr, "hello"); },
@@ -1118,6 +1194,7 @@ TEST_CASE("dd_attribute JSON example", "[unit][attribute][c-api]") {
       {
           "process": {
               "pid": 9238451,
+              "guid": "ccb79084-bc2b-4549-bbc7-f27e153fd4b6",
               "name": "my-cool-program",
               "args": ["--mode", "good"],
               "started_at": "1974-08-09T16:00:00.000Z"
@@ -1134,14 +1211,15 @@ TEST_CASE("dd_attribute JSON example", "[unit][attribute][c-api]") {
 
   // Copying our desired object and running `pbpaste | jq -c | pbcopy` gives us:
   const std::string want_json =
-      R"({"process":{"pid":9238451,"name":"my-cool-program","args":["--mode","good"],"started_at":"1974-08-09T16:00:00.000Z"},"state":{"rect":[[0.03333,-12.3],[94,98.7001]],"state":[{}],"offset":-1,"active":true},"tags":["blue","meh",null]})";
+      R"({"process":{"pid":9238451,"guid":"ccb79084-bc2b-4549-bbc7-f27e153fd4b6","name":"my-cool-program","args":["--mode","good"],"started_at":"1974-08-09T16:00:00.000Z"},"state":{"rect":[[0.03333,-12.3],[94,98.7001]],"state":[{}],"offset":-1,"active":true},"tags":["blue","meh",null]})";
 
   // Given the dd_attribute calls required to construct that object
   dd_attribute_t obj = dd_attribute_object(3);
   {
-    dd_attribute_t process = dd_attribute_object(4);
+    dd_attribute_t process = dd_attribute_object(5);
     {
       dd_attribute_t pid = dd_attribute_uint(9238451);
+      dd_attribute_t guid = dd_attribute_uuid(bytes_ccb7);
       dd_attribute_t name = dd_attribute_string("my-cool-program");
       dd_attribute_t args = dd_attribute_array(2);
       dd_attribute_t started_at = dd_attribute_timestamp_ns(145296000000000000);
@@ -1154,10 +1232,12 @@ TEST_CASE("dd_attribute JSON example", "[unit][attribute][c-api]") {
         dd_attribute_free(&arg_1);
       }
       dd_attribute_object_property_set(&process, "pid", &pid);
+      dd_attribute_object_property_set(&process, "guid", &guid);
       dd_attribute_object_property_set(&process, "name", &name);
       dd_attribute_object_property_set(&process, "args", &args);
       dd_attribute_object_property_set(&process, "started_at", &started_at);
       dd_attribute_free(&pid);
+      dd_attribute_free(&guid);
       dd_attribute_free(&name);
       dd_attribute_free(&args);
       dd_attribute_free(&started_at);

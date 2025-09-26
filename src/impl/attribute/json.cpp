@@ -17,6 +17,7 @@
 #include "assert.hpp"
 #include "attribute/cow.hpp"
 #include "date/date.h"
+#include "uuid.hpp"
 
 namespace datadog::impl {
 
@@ -26,6 +27,9 @@ static constexpr std::string_view LITERAL_FALSE = "false";
 
 // "YYYY-MM-DDTHH:MM:SS.sssZ": 24 chars + 2 for quotes
 static const size_t QUOTED_ISO8601_LEN = 26;
+
+// "00000000-0000-0000-0000-000000000000": 36 chars + 2 for quotes
+static const size_t QUOTED_UUID_LEN = 38;
 
 // Writing to uint8_t* with std::to_chars etc. requires casts from uint8_t* to char*
 // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
@@ -336,6 +340,56 @@ static size_t _iso_timestamp_quoted_write(
   return num_bytes_written;
 }
 
+static void _write_hex_byte(uint8_t*& ptr, uint8_t byte) {
+  static const char hex_digits[16] = {
+      '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
+  };
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+  *ptr++ = hex_digits[(byte >> 4) & 0xF];
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+  *ptr++ = hex_digits[byte & 0xF];
+}
+
+static size_t _uuid_quoted_write(uint8_t* dst, size_t n, uuid value) {
+  DATADOG_ASSERT(n >= QUOTED_UUID_LEN, "insufficient buffer size for UUID");
+
+  // Write opening quote
+  uint8_t* ptr = dst;
+  *ptr++ = '"';
+
+  // Write UUID in standard format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  _write_hex_byte(ptr, value.bytes[0]);
+  _write_hex_byte(ptr, value.bytes[1]);
+  _write_hex_byte(ptr, value.bytes[2]);
+  _write_hex_byte(ptr, value.bytes[3]);
+  *ptr++ = '-';
+  _write_hex_byte(ptr, value.bytes[4]);
+  _write_hex_byte(ptr, value.bytes[5]);
+  *ptr++ = '-';
+  _write_hex_byte(ptr, value.bytes[6]);
+  _write_hex_byte(ptr, value.bytes[7]);
+  *ptr++ = '-';
+  _write_hex_byte(ptr, value.bytes[8]);
+  _write_hex_byte(ptr, value.bytes[9]);
+  *ptr++ = '-';
+  _write_hex_byte(ptr, value.bytes[10]);
+  _write_hex_byte(ptr, value.bytes[11]);
+  _write_hex_byte(ptr, value.bytes[12]);
+  _write_hex_byte(ptr, value.bytes[13]);
+  _write_hex_byte(ptr, value.bytes[14]);
+  _write_hex_byte(ptr, value.bytes[15]);
+
+  // Write closing quote
+  *ptr++ = '"';
+
+  const size_t num_bytes_written = ptr - dst;
+  DATADOG_ASSERT(
+      num_bytes_written == QUOTED_UUID_LEN,
+      "unexpected result size for JSON-encoded UUID"
+  );
+  return num_bytes_written;
+}
+
 /**
  * Returns the exact number of bytes required to represent a string value in JSON,
  * encompassing the surrounding double-quotes and accounting for any characters that
@@ -589,6 +643,8 @@ size_t AttributeSerialization::ComputeValueLen(const Attribute& attribute) {
         return LITERAL_NULL.length();
       }
       return _double_gfmt_len(attribute.value.f64);
+    case ValueType::UUID:
+      return QUOTED_UUID_LEN;
     case ValueType::String:
       return _string_quoted_escaped_len(attribute.value.ptr->CStr());
     case ValueType::Array:
@@ -622,6 +678,8 @@ size_t AttributeSerialization::WriteValue(
         return _literal_write(buffer, buffer_size, LITERAL_NULL);
       }
       return _double_gfmt_write(buffer, buffer_size, attribute.value.f64);
+    case ValueType::UUID:
+      return _uuid_quoted_write(buffer, buffer_size, attribute.value.ptr->GetUUID());
     case ValueType::String:
       return _string_quoted_escaped_write(
           buffer, buffer_size, attribute.value.ptr->CStr()

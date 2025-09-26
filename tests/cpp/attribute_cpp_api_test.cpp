@@ -11,10 +11,25 @@
 
 #include "attribute/json.hpp"
 #include "datadog/attribute.hpp"
+#include "uuid.hpp"
 
 using namespace datadog;
 
+static const uint8_t bytes_ccb7[16] = {
+    204, 183, 144, 132, 188, 43, 69, 73, 187, 199, 242, 126, 21, 63, 212, 182
+};
+
+static const uint8_t bytes_99a7[16] = {
+    153, 167, 196, 130, 39, 33, 71, 143, 171, 140, 191, 244, 161, 252, 181, 117
+};
+
 TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
+  auto require_uuid_value_is_zero = [](Attribute& attribute) -> void {
+    uint8_t bytes[16] = {};
+    attribute.GetUUIDValue(bytes);
+    REQUIRE(impl::uuid(bytes) == impl::uuid::zero);
+  };
+
   auto require_array_ops_are_noop = [](Attribute& attribute) -> void {
     attribute.ArrayClear();
     attribute.ArrayPush(Attribute::Int(100));
@@ -45,6 +60,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -67,6 +83,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -95,6 +112,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -123,6 +141,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -151,6 +170,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -238,6 +258,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -251,6 +272,41 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     copy.SetDouble(-99.989);
     REQUIRE(copy.GetDoubleValue() == -99.989);
     REQUIRE(attribute.GetDoubleValue() == 1.2345);
+  }
+
+  SECTION("M allow all operations W type is uuid") {
+    // Given a UUID attribute value
+    Attribute attribute = Attribute::UUID(bytes_ccb7);
+    REQUIRE(attribute.GetType() == ValueType::UUID);
+
+    // GetUUIDValue() returns value
+    uint8_t bytes[16] = {};
+    attribute.GetUUIDValue(bytes);
+    REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
+
+    // Get<Type>() for other types returns zero; array/object funcs are no-op
+    REQUIRE(attribute.GetBoolValue() == false);
+    REQUIRE(attribute.GetIntValue() == 0ll);
+    REQUIRE(attribute.GetUIntValue() == 0ull);
+    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    REQUIRE(attribute.GetDoubleValue() == 0.0);
+    REQUIRE(attribute.GetStringValue() == "");
+    require_array_ops_are_noop(attribute);
+    require_object_ops_are_noop(attribute);
+
+    // Copy-assignment creates another uuid attribute with the same value
+    Attribute copy = attribute;
+    REQUIRE(copy.GetType() == ValueType::UUID);
+    uint8_t copy_bytes[16] = {};
+    copy.GetUUIDValue(copy_bytes);
+    REQUIRE(std::memcmp(copy_bytes, bytes, 16) == 0);
+
+    // SetUUID() updates value; changing copy doesn't change original
+    copy.SetUUID(bytes_99a7);
+    copy.GetUUIDValue(copy_bytes);
+    REQUIRE(std::memcmp(copy_bytes, bytes_99a7, 16) == 0);
+    attribute.GetUUIDValue(bytes);
+    REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
   }
 
   SECTION("M allow all operations W type is string") {
@@ -267,6 +323,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
+    require_uuid_value_is_zero(attribute);
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
 
@@ -306,6 +363,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(attribute.GetStringValue() == "");
     require_object_ops_are_noop(attribute);
 
@@ -361,6 +419,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
+    require_uuid_value_is_zero(attribute);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
 
@@ -601,6 +660,16 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
            REQUIRE(attr.GetDoubleValue() == 5.6789);
          }},
 
+        {"uuid",
+         []() { return Attribute::UUID(bytes_ccb7); },
+         [](Attribute& attr) { attr.SetUUID(bytes_ccb7); },
+         [](const Attribute& attr) {
+           REQUIRE(attr.GetType() == ValueType::UUID);
+           uint8_t bytes[16] = {};
+           attr.GetUUIDValue(bytes);
+           REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
+         }},
+
         {"string",
          []() { return Attribute::String("hello"); },
          [](Attribute& attr) { attr.SetString("hello"); },
@@ -740,6 +809,7 @@ TEST_CASE("Attribute JSON example", "[unit][attribute][cpp-api]") {
       {
           "process": {
               "pid": 9238451,
+              "guid": "ccb79084-bc2b-4549-bbc7-f27e153fd4b6",
               "name": "my-cool-program",
               "args": ["--mode", "good"],
               "started_at": "1974-08-09T16:00:00.000Z"
@@ -756,7 +826,7 @@ TEST_CASE("Attribute JSON example", "[unit][attribute][cpp-api]") {
 
   // Copying our desired object and running `pbpaste | jq -c | pbcopy` gives us:
   const std::string want_json =
-      R"({"process":{"pid":9238451,"name":"my-cool-program","args":["--mode","good"],"started_at":"1974-08-09T16:00:00.000Z"},"state":{"rect":[[0.03333,-12.3],[94,98.7001]],"state":[{}],"offset":-1,"active":true},"tags":["blue","meh",null]})";
+      R"({"process":{"pid":9238451,"guid":"ccb79084-bc2b-4549-bbc7-f27e153fd4b6","name":"my-cool-program","args":["--mode","good"],"started_at":"1974-08-09T16:00:00.000Z"},"state":{"rect":[[0.03333,-12.3],[94,98.7001]],"state":[{}],"offset":-1,"active":true},"tags":["blue","meh",null]})";
 
   // Given the Attribute calls required to construct that object
   Attribute obj = Attribute::Object(3);
@@ -767,8 +837,9 @@ TEST_CASE("Attribute JSON example", "[unit][attribute][cpp-api]") {
     args.ArrayPush(Attribute::String("--mode"));
     args.ArrayPush(Attribute::String("good"));
 
-    Attribute process = Attribute::Object(4);
+    Attribute process = Attribute::Object(5);
     process.SetObjectProperty("pid", Attribute::UInt(9238451));
+    process.SetObjectProperty("guid", Attribute::UUID(bytes_ccb7));
     process.SetObjectProperty("name", Attribute::String("my-cool-program"));
     process.SetObjectProperty("args", args);
     process.SetObjectProperty(

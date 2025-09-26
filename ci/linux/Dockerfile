@@ -14,6 +14,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   wget \
   libcurl4-openssl-dev \
   libssl-dev \
+  uuid-dev \
   ninja-build
 
 # Use Ninja by default for CMake builds on Linux: it's ~6x faster than Make

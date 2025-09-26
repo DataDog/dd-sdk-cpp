@@ -160,6 +160,23 @@ TEST_CASE("CowValue", "[unit][attribute]") {
     clone->Release();
   }
 
+  SECTION("M handle all supported operations W storing a uuid") {
+    // Given the UUID value '6f144a3e-33e1-41a0-ba12-e980b81b3d64'
+    const uint8_t bytes[16] = {
+        111, 20, 74, 62, 51, 225, 65, 160, 186, 18, 233, 128, 184, 27, 61, 100
+    };
+
+    // And a UUID CowValue initialized from those bytes
+    CowValue* value = CowValue::UUID(bytes);
+
+    // GetUUID returns the same bytes
+    const uuid got = value->GetUUID();
+    REQUIRE(std::memcmp(bytes, got.bytes.data(), 16) == 0);
+
+    // Cleanup
+    value->Release();
+  }
+
   SECTION("M handle all supported operations W storing a string") {
     // Given a string CowValue
     CowValue* value = CowValue::String("hello");
