@@ -49,6 +49,12 @@ struct UUID {
   /** Encodes this UUID as a 36-character string of lowercase hex digits and hyphens. */
   DATADOG_API std::string ToString() const;
 
+  /**
+   * Serializes this value as a 36-byte string, writing directly into the provided
+   * buffer, without a null terminator.
+   */
+  void ToBuffer(char* dst, size_t n) const;
+
   DATADOG_API bool operator==(const UUID& other) const;
   DATADOG_API bool operator!=(const UUID& other) const;
 };

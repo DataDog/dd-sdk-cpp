@@ -8,6 +8,7 @@
 
 #include "assert.hpp"
 #include "core/version.hpp"
+#include "datadog/uuid.hpp"
 
 namespace datadog::impl {
 
@@ -95,10 +96,9 @@ void CoreContext::BuildRequestHeaders(
       "feature erroneously supplies User-Agent header"
   );
 
-  // TODO: Generate Request ID
+  // Generate a random UUID to identify this request
   static const size_t HYPHENATED_UUID_LEN = 36;
-  static const std::string_view request_id = "00000000-0000-0000-0000-000000000000";
-  DATADOG_ASSERT(request_id.size() == HYPHENATED_UUID_LEN, "unexpected UUID len");
+  const UUID request_id = UUID::Random();
 
   // TODO: Generate User-Agent
   static const std::string_view user_agent = "nobody";
@@ -137,7 +137,11 @@ void CoreContext::BuildRequestHeaders(
 
   // Concatenate DD-REQUEST-ID
   out_headers += dd_request_id;
-  out_headers += request_id;
+  const size_t uuid_start = out_headers.size();
+  out_headers.resize(uuid_start + HYPHENATED_UUID_LEN);
+  request_id.ToBuffer(
+      out_headers.data() + uuid_start, out_headers.capacity() - uuid_start
+  );
   out_headers += '\n';
 
   // Concatenate User-Agent

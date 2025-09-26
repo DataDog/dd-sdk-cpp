@@ -7,8 +7,10 @@
 #include "core/context.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <optional>
 
 #include "core/version.hpp"
+#include "datadog/uuid.hpp"
 
 using namespace datadog::impl;
 using namespace datadog;
@@ -150,11 +152,15 @@ TEST_CASE("CoreContext BuildRequestHeaders", "[unit]") {
     );
     // TODO: Update when cpp source exists
     REQUIRE(result_headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
-    // TODO: Update when real request ID generation is implemented
-    REQUIRE(
-        result_headers.find("DD-REQUEST-ID: 00000000-0000-0000-0000-000000000000\n") !=
-        std::string::npos
-    );
+
+    // And DD-REQUEST-ID is set to a random valid, nonzero UUID
+    const size_t request_id_pos = result_headers.find("DD-REQUEST-ID: ");
+    REQUIRE(request_id_pos != std::string::npos);
+    const size_t request_id_value_pos = request_id_pos + 15;  // len('DD-REQUEST-ID')
+    auto request_id = UUID::Parse(result_headers.substr(request_id_value_pos, 36));
+    REQUIRE(request_id.has_value());
+    REQUIRE(*request_id != UUID::Zero);
+
     // TODO: Update when real User-Agent generation is implemented
     REQUIRE(result_headers.find("User-Agent: nobody\n") != std::string::npos);
 
