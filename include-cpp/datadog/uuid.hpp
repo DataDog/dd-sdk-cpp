@@ -9,6 +9,7 @@
 #include <array>
 #include <cinttypes>
 #include <optional>
+#include <string>
 #include <string_view>
 
 #include "datadog/api.hpp"
