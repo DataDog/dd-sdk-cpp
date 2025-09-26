@@ -399,7 +399,7 @@ double dd_attribute_get_double(const dd_attribute_t* attribute) {
 }
 
 dd_uuid_t dd_attribute_get_uuid(const dd_attribute_t* attribute) {
-  datadog::UUID cpp_value = datadog::UUID::Zero;
+  datadog::UUID cpp_value{};
   if (attribute && attribute->type == DD_VALUE_TYPE_UUID) {
     cpp_value = get_cow_value(attribute)->GetUUID();
   }
