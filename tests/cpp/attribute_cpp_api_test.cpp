@@ -11,7 +11,7 @@
 
 #include "attribute/json.hpp"
 #include "datadog/attribute.hpp"
-#include "uuid.hpp"
+#include "datadog/uuid.hpp"
 
 using namespace datadog;
 
@@ -24,12 +24,6 @@ static const uint8_t bytes_99a7[16] = {
 };
 
 TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
-  auto require_uuid_value_is_zero = [](Attribute& attribute) -> void {
-    uint8_t bytes[16] = {};
-    attribute.GetUUIDValue(bytes);
-    REQUIRE(impl::uuid(bytes) == impl::uuid::zero);
-  };
-
   auto require_array_ops_are_noop = [](Attribute& attribute) -> void {
     attribute.ArrayClear();
     attribute.ArrayPush(Attribute::Int(100));
@@ -60,7 +54,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -83,7 +77,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -112,7 +106,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -141,7 +135,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -170,7 +164,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -258,7 +252,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
@@ -280,9 +274,8 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetType() == ValueType::UUID);
 
     // GetUUIDValue() returns value
-    uint8_t bytes[16] = {};
-    attribute.GetUUIDValue(bytes);
-    REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
+    UUID uuid = attribute.GetUUIDValue();
+    REQUIRE(std::memcmp(uuid.bytes.data(), bytes_ccb7, 16) == 0);
 
     // Get<Type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(attribute.GetBoolValue() == false);
@@ -297,16 +290,15 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     // Copy-assignment creates another uuid attribute with the same value
     Attribute copy = attribute;
     REQUIRE(copy.GetType() == ValueType::UUID);
-    uint8_t copy_bytes[16] = {};
-    copy.GetUUIDValue(copy_bytes);
-    REQUIRE(std::memcmp(copy_bytes, bytes, 16) == 0);
+    UUID copy_uuid = copy.GetUUIDValue();
+    REQUIRE(std::memcmp(copy_uuid.bytes.data(), uuid.bytes.data(), 16) == 0);
 
     // SetUUID() updates value; changing copy doesn't change original
     copy.SetUUID(bytes_99a7);
-    copy.GetUUIDValue(copy_bytes);
-    REQUIRE(std::memcmp(copy_bytes, bytes_99a7, 16) == 0);
-    attribute.GetUUIDValue(bytes);
-    REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
+    copy_uuid = copy.GetUUIDValue();
+    REQUIRE(std::memcmp(copy_uuid.bytes.data(), bytes_99a7, 16) == 0);
+    uuid = attribute.GetUUIDValue();
+    REQUIRE(std::memcmp(uuid.bytes.data(), bytes_ccb7, 16) == 0);
   }
 
   SECTION("M allow all operations W type is string") {
@@ -323,7 +315,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     require_array_ops_are_noop(attribute);
     require_object_ops_are_noop(attribute);
 
@@ -363,7 +355,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_object_ops_are_noop(attribute);
 
@@ -419,7 +411,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
     REQUIRE(attribute.GetDoubleValue() == 0.0);
-    require_uuid_value_is_zero(attribute);
+    REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
 
@@ -665,9 +657,8 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
          [](Attribute& attr) { attr.SetUUID(bytes_ccb7); },
          [](const Attribute& attr) {
            REQUIRE(attr.GetType() == ValueType::UUID);
-           uint8_t bytes[16] = {};
-           attr.GetUUIDValue(bytes);
-           REQUIRE(std::memcmp(bytes, bytes_ccb7, 16) == 0);
+           const UUID uuid = attr.GetUUIDValue();
+           REQUIRE(std::memcmp(uuid.bytes.data(), bytes_ccb7, 16) == 0);
          }},
 
         {"string",

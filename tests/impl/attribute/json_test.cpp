@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "datadog/attribute.hpp"
-#include "uuid.hpp"
+#include "datadog/uuid.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;

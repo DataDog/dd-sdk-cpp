@@ -6,10 +6,12 @@ add_executable(dd_native_tests
     c/core_c_api_test.cpp
     c/logging_c_api_test.cpp
     c/rum_c_api_test.cpp
+    c/uuid_c_api_test.cpp
     cpp/attribute_cpp_api_test.cpp
     cpp/core_cpp_api_test.cpp
     cpp/logging_cpp_api_test.cpp
     cpp/rum_cpp_api_test.cpp
+    cpp/uuid_cpp_api_test.cpp
     impl/attribute/cow_test.cpp
     impl/attribute/json_test.cpp
     impl/attribute/memory_test.cpp
@@ -33,7 +35,6 @@ add_executable(dd_native_tests
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
-    impl/uuid_test.cpp
     mock/filesystem_mock_test.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp

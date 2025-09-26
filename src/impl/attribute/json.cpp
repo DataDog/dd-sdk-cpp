@@ -16,8 +16,8 @@
 
 #include "assert.hpp"
 #include "attribute/cow.hpp"
+#include "datadog/uuid.hpp"
 #include "date/date.h"
-#include "uuid.hpp"
 
 namespace datadog::impl {
 
@@ -350,7 +350,7 @@ static void _write_hex_byte(uint8_t*& ptr, uint8_t byte) {
   *ptr++ = hex_digits[byte & 0xF];
 }
 
-static size_t _uuid_quoted_write(uint8_t* dst, size_t n, uuid value) {
+static size_t _uuid_quoted_write(uint8_t* dst, size_t n, UUID value) {
   DATADOG_ASSERT(n >= QUOTED_UUID_LEN, "insufficient buffer size for UUID");
 
   // Write opening quote

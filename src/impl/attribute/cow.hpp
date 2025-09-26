@@ -13,7 +13,7 @@
 #include <vector>
 
 #include "datadog/attribute.hpp"
-#include "uuid.hpp"
+#include "datadog/uuid.hpp"
 
 namespace datadog::impl {
 
@@ -47,7 +47,7 @@ class CowValue {
 
   /** Underlying container for the value we're storing. */
   union Data {
-    uuid uid;
+    datadog::UUID uid;
     std::string string;
     std::vector<Attribute> array;
     std::vector<std::pair<std::string, Attribute>> object;
@@ -161,7 +161,7 @@ class CowValue {
   /**
    * If storing a UUID, returns a copy of its value. Returns uuid::zero otherwise.
    */
-  uuid GetUUID() const;
+  datadog::UUID GetUUID() const;
 
   /**
    * If storing a UUID, directly modifies its value. If not storing a UUID, has no

@@ -11,3 +11,4 @@
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
 #include "datadog/rum.hpp"
+#include "datadog/uuid.hpp"

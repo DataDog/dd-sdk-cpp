@@ -36,7 +36,7 @@ CowValue::CowValue(CowValueType in_type, size_t initial_capacity) : type(in_type
 }
 
 CowValue::CowValue(const uint8_t uuid_value[16]) : type(CowValueType::UUID) {
-  value.uid.set(uuid_value);
+  value.uid = uuid_value;
 }
 
 CowValue::CowValue(std::string_view string_value) : type(CowValueType::String) {
@@ -131,16 +131,16 @@ bool CowValue::IsShared() const {
   return ref_count.load(std::memory_order_acquire) > 1;
 }
 
-uuid CowValue::GetUUID() const {
+UUID CowValue::GetUUID() const {
   if (type == CowValueType::UUID) {
     return value.uid;
   }
-  return uuid::zero;
+  return UUID::Zero;
 }
 
 void CowValue::SetUUID(const uint8_t new_value[16]) {
   if (type == CowValueType::UUID) {
-    value.uid.set(new_value);
+    value.uid = new_value;
   }
 }
 

@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "datadog/api.hpp"
+#include "datadog/uuid.hpp"
 
 namespace datadog {
 
@@ -128,7 +129,7 @@ class DATADOG_API Attribute {
   void SetUInt(uint64_t new_value);
   void SetTimestampAsNanoseconds(uint64_t new_value);
   void SetDouble(double new_value);
-  void SetUUID(const uint8_t new_value[16]);
+  void SetUUID(const datadog::UUID& new_value);
   void SetString(std::string_view new_value);
   void InitArray(size_t initial_capacity = 0);
   void InitObject(size_t initial_capacity = 0);
@@ -148,7 +149,7 @@ class DATADOG_API Attribute {
   uint64_t GetUIntValue() const;
   uint64_t GetTimestampValueAsNanoseconds() const;
   double GetDoubleValue() const;
-  void GetUUIDValue(uint8_t out_value[16]) const;
+  datadog::UUID GetUUIDValue() const;
   std::string_view GetStringValue() const;
 
   /**
