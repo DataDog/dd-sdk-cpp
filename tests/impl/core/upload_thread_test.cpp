@@ -67,7 +67,8 @@ TEST_CASE("UploadThreadState", "[unit]") {
 
 TEST_CASE("HandleUploadProc", "[unit]") {
   auto init_config = [](
-                         BatchSize batch_size, UploadFrequency upload_frequency,
+                         BatchSize batch_size,
+                         UploadFrequency upload_frequency,
                          BatchProcessingLevel batch_processing_level
                      ) -> std::tuple<CoreConfig, UploadThreadConfig, CoreContext> {
     CoreConfig config = CoreConfig("mock-client-token", "mock-service", "mock-env")
@@ -77,7 +78,8 @@ TEST_CASE("HandleUploadProc", "[unit]") {
                             .SetUploadFrequency(upload_frequency)
                             .SetBatchProcessingLevel(batch_processing_level);
     return std::make_tuple(
-        config, UploadThreadConfig::FromCoreConfig(batch_size, batch_processing_level),
+        config,
+        UploadThreadConfig::FromCoreConfig(batch_size, batch_processing_level),
         CoreContext(config)
     );
   };
@@ -95,7 +97,10 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
     // "Register" the feature
     out_features.emplace_back(
-        feature->GetId(), feature->GetName(), feature, std::move(*directory),
+        feature->GetId(),
+        feature->GetName(),
+        feature,
+        std::move(*directory),
         nullptr,  // event_storage is exclusive to storage thread
         std::move(*granted_subdir),
         std::make_unique<UploadThreadState>(upload_frequency)
@@ -118,7 +123,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 
@@ -158,7 +169,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 
@@ -244,7 +261,8 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         {"{BatchSize::Large ~ 35s}",
          BatchSize::Large,
          {"created-45s-ago"},
-         {"alpha/yes-upload/1699999985000", "alpha/yes-upload/1699999995000",
+         {"alpha/yes-upload/1699999985000",
+          "alpha/yes-upload/1699999995000",
           "alpha/yes-upload/1699999999000"}},
     };
 
@@ -269,8 +287,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-            config, context, clock, CreateFeatureId("ALFA"), features, client,
-            filenames, read_buffer
+            config,
+            context,
+            clock,
+            CreateFeatureId("ALFA"),
+            features,
+            client,
+            filenames,
+            read_buffer
         );
 
         // Then a call is made to UploadThread_PrepareReport for each batch
@@ -329,7 +353,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 
@@ -386,8 +416,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-            config, context, clock, CreateFeatureId("ALFA"), features, client,
-            filenames, read_buffer
+            config,
+            context,
+            clock,
+            CreateFeatureId("ALFA"),
+            features,
+            client,
+            filenames,
+            read_buffer
         );
 
         // Then our single batch is processed and uploaded
@@ -446,8 +482,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-            config, context, clock, CreateFeatureId("ALFA"), features, client,
-            filenames, read_buffer
+            config,
+            context,
+            clock,
+            CreateFeatureId("ALFA"),
+            features,
+            client,
+            filenames,
+            read_buffer
         );
 
         // Then our single batch is processed but not successfully uploaded, and
@@ -515,8 +557,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-            config, context, clock, CreateFeatureId("ALFA"), features, client,
-            filenames, read_buffer
+            config,
+            context,
+            clock,
+            CreateFeatureId("ALFA"),
+            features,
+            client,
+            filenames,
+            read_buffer
         );
 
         // Then a call is made to UploadThread_PrepareReport for each batch
@@ -564,7 +612,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 
@@ -613,7 +667,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 
@@ -660,7 +720,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 
@@ -703,7 +769,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 
@@ -745,7 +817,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 
@@ -792,7 +870,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, context, clock, CreateFeatureId("ALFA"), features, client, filenames,
+        config,
+        context,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        client,
+        filenames,
         read_buffer
     );
 

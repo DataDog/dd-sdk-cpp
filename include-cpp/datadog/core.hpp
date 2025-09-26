@@ -160,7 +160,8 @@ struct CoreConfig {
    *  'dev', 'staging', 'testing', etc.
    */
   DATADOG_API CoreConfig(
-      std::string_view in_client_token, std::string_view in_service,
+      std::string_view in_client_token,
+      std::string_view in_service,
       std::string_view in_env
   );
 

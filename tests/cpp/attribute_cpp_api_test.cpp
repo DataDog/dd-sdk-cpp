@@ -553,27 +553,32 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
       std::function<void(const Attribute&)> check_func;
     };
     std::vector<TypeTest> types = {
-        {"null", Attribute::Null, [](Attribute& attr) { attr.SetNull(); },
+        {"null",
+         Attribute::Null,
+         [](Attribute& attr) { attr.SetNull(); },
          [](const Attribute& attr) {
            REQUIRE(attr.GetType() == ValueType::Null);
            REQUIRE(attr.GetIntValue() == 0);
          }},
 
-        {"bool", []() { return Attribute::Bool(true); },
+        {"bool",
+         []() { return Attribute::Bool(true); },
          [](Attribute& attr) { attr.SetBool(true); },
          [](const Attribute& attr) {
            REQUIRE(attr.GetType() == ValueType::Bool);
            REQUIRE(attr.GetBoolValue() == true);
          }},
 
-        {"int", []() { return Attribute::Int(-100); },
+        {"int",
+         []() { return Attribute::Int(-100); },
          [](Attribute& attr) { attr.SetInt(-100); },
          [](const Attribute& attr) {
            REQUIRE(attr.GetType() == ValueType::Int);
            REQUIRE(attr.GetIntValue() == -100);
          }},
 
-        {"uint", []() { return Attribute::UInt(999); },
+        {"uint",
+         []() { return Attribute::UInt(999); },
          [](Attribute& attr) { attr.SetUInt(999); },
          [](const Attribute& attr) {
            REQUIRE(attr.GetType() == ValueType::UInt);
@@ -588,14 +593,16 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
            REQUIRE(attr.GetTimestampValueAsNanoseconds() == 145296000000000000);
          }},
 
-        {"double", []() { return Attribute::Double(5.6789); },
+        {"double",
+         []() { return Attribute::Double(5.6789); },
          [](Attribute& attr) { attr.SetDouble(5.6789); },
          [](const Attribute& attr) {
            REQUIRE(attr.GetType() == ValueType::Double);
            REQUIRE(attr.GetDoubleValue() == 5.6789);
          }},
 
-        {"string", []() { return Attribute::String("hello"); },
+        {"string",
+         []() { return Attribute::String("hello"); },
          [](Attribute& attr) { attr.SetString("hello"); },
          [](const Attribute& attr) {
            REQUIRE(attr.GetType() == ValueType::String);

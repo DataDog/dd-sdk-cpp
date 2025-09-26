@@ -68,8 +68,14 @@ void Logger::EmitLogEvent(
   // This message should be sampled: notify the logging feature implementation that it
   // should record this message
   _event_callback(
-      _event_object.attribute, _event_buffer, _service_name, _logger_object,
-      _logger_attributes.attribute, level, message, message_attributes
+      _event_object.attribute,
+      _event_buffer,
+      _service_name,
+      _logger_object,
+      _logger_attributes.attribute,
+      level,
+      message,
+      message_attributes
   );
 }
 

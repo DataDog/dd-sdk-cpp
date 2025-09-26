@@ -183,7 +183,9 @@ static size_t _double_gfmt_write(uint8_t* dst, size_t n, double value) {
   // Use std::to_chars with std::chars_format::general (%g), which is guaranteed not to
   // exceed our worst-case size of MAX_DECIMAL_DOUBLE_LEN (i.e. 24 bytes)
   auto result = std::to_chars(
-      reinterpret_cast<char*>(dst), reinterpret_cast<char*>(dst + n), value,
+      reinterpret_cast<char*>(dst),
+      reinterpret_cast<char*>(dst + n),
+      value,
       std::chars_format::general
   );
   DATADOG_ASSERT(result.ec == std::errc{}, "insufficient buffer size on double encode");

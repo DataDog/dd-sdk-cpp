@@ -147,7 +147,8 @@ struct RegisteredFeature {
   std::unique_ptr<UploadThreadState> upload_state;
 
   explicit RegisteredFeature(
-      FeatureId in_id, std::string_view in_name,
+      FeatureId in_id,
+      std::string_view in_name,
       const std::shared_ptr<Feature>& in_impl,
       std::unique_ptr<platform::IDirectory>&& in_directory,
       std::unique_ptr<EventStorage>&& in_event_storage,

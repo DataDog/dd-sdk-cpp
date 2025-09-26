@@ -26,7 +26,8 @@ static impl::Core _make_core() {
           .SetUploadFrequency(UploadFrequency::Frequent)
           .SetBatchProcessingLevel(BatchProcessingLevel::Low),
       CoreSubsystems(
-          std::make_unique<MockClock>(), std::make_unique<MockStorageDirectory>(),
+          std::make_unique<MockClock>(),
+          std::make_unique<MockStorageDirectory>(),
           std::make_unique<MockHttpSubsystem>()
       )
   );

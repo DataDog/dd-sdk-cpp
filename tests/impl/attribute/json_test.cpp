@@ -82,48 +82,66 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
       // Limits OK
       {"uint (max)", Attribute::UInt(uint64_max), "18446744073709551615"},
       // Power-of-ten boundaries OK
-      {"uint (pow10 minus 1)", Attribute::UInt(9999999999999999999ull),
+      {"uint (pow10 minus 1)",
+       Attribute::UInt(9999999999999999999ull),
        "9999999999999999999"},
-      {"uint (pow10)", Attribute::UInt(10000000000000000000ull),
+      {"uint (pow10)",
+       Attribute::UInt(10000000000000000000ull),
        "10000000000000000000"},
-      {"uint (pow10 plus 1)", Attribute::UInt(10000000000000000001ull),
+      {"uint (pow10 plus 1)",
+       Attribute::UInt(10000000000000000001ull),
        "10000000000000000001"},
 
       // Timestamp - stored as uint64 nanos since Unix epoch; formatted ISO-8601 with
       // millisecond precision (including enclosing double-quotes, as result value is
       // a JSON string literal)
-      {"timestamp (zero)", Attribute::TimestampFromNanoseconds(0),
+      {"timestamp (zero)",
+       Attribute::TimestampFromNanoseconds(0),
        "\"1970-01-01T00:00:00.000Z\""},
-      {"timestamp (1 microsecond)", Attribute::TimestampFromNanoseconds(1000),
+      {"timestamp (1 microsecond)",
+       Attribute::TimestampFromNanoseconds(1000),
        "\"1970-01-01T00:00:00.000Z\""},
-      {"timestamp (1 millisecond)", Attribute::TimestampFromNanoseconds(1000000),
+      {"timestamp (1 millisecond)",
+       Attribute::TimestampFromNanoseconds(1000000),
        "\"1970-01-01T00:00:00.001Z\""},
-      {"timestamp (10 milliseconds)", Attribute::TimestampFromNanoseconds(10000000),
+      {"timestamp (10 milliseconds)",
+       Attribute::TimestampFromNanoseconds(10000000),
        "\"1970-01-01T00:00:00.010Z\""},
-      {"timestamp (100 milliseconds)", Attribute::TimestampFromNanoseconds(100000000),
+      {"timestamp (100 milliseconds)",
+       Attribute::TimestampFromNanoseconds(100000000),
        "\"1970-01-01T00:00:00.100Z\""},
-      {"timestamp (1 millisecond)", Attribute::TimestampFromNanoseconds(1000000000),
+      {"timestamp (1 millisecond)",
+       Attribute::TimestampFromNanoseconds(1000000000),
        "\"1970-01-01T00:00:01.000Z\""},
-      {"timestamp (1 minute)", Attribute::TimestampFromNanoseconds(60000000000),
+      {"timestamp (1 minute)",
+       Attribute::TimestampFromNanoseconds(60000000000),
        "\"1970-01-01T00:01:00.000Z\""},
-      {"timestamp (1 hour)", Attribute::TimestampFromNanoseconds(3600000000000),
+      {"timestamp (1 hour)",
+       Attribute::TimestampFromNanoseconds(3600000000000),
        "\"1970-01-01T01:00:00.000Z\""},
-      {"timestamp (1 day)", Attribute::TimestampFromNanoseconds(86400000000000),
+      {"timestamp (1 day)",
+       Attribute::TimestampFromNanoseconds(86400000000000),
        "\"1970-01-02T00:00:00.000Z\""},
-      {"timestamp (31 days)", Attribute::TimestampFromNanoseconds(2678400000000000),
+      {"timestamp (31 days)",
+       Attribute::TimestampFromNanoseconds(2678400000000000),
        "\"1970-02-01T00:00:00.000Z\""},
-      {"timestamp (365 days)", Attribute::TimestampFromNanoseconds(31536000000000000),
+      {"timestamp (365 days)",
+       Attribute::TimestampFromNanoseconds(31536000000000000),
        "\"1971-01-01T00:00:00.000Z\""},
-      {"timestamp (leap day)", Attribute::TimestampFromNanoseconds(68239266580000000),
+      {"timestamp (leap day)",
+       Attribute::TimestampFromNanoseconds(68239266580000000),
        "\"1972-02-29T19:21:06.580Z\""},
       {"timestamp (eve of Y2K)",
        Attribute::TimestampFromNanoseconds(946684799999999999),
        "\"1999-12-31T23:59:59.999Z\""},
-      {"timestamp (Y2K)", Attribute::TimestampFromNanoseconds(946684800000000000),
+      {"timestamp (Y2K)",
+       Attribute::TimestampFromNanoseconds(946684800000000000),
        "\"2000-01-01T00:00:00.000Z\""},
-      {"timestamp (max signed)", Attribute::TimestampFromNanoseconds(int64_max),
+      {"timestamp (max signed)",
+       Attribute::TimestampFromNanoseconds(int64_max),
        "\"2262-04-11T23:47:16.854Z\""},
-      {"timestamp (max)", Attribute::TimestampFromNanoseconds(uint64_max),
+      {"timestamp (max)",
+       Attribute::TimestampFromNanoseconds(uint64_max),
        "\"2554-07-21T23:34:33.709Z\""},
 
       // Literal double
@@ -134,7 +152,8 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
       {"double (-frac)", Attribute::Double(-0.123456000), "-0.123456"},
       {"double (-rat)", Attribute::Double(-12345.60000), "-12345.6"},
       {"double (subnormal)", Attribute::Double(4.9406564584124654e-324), "5e-324"},
-      {"double (big int)", Attribute::Double(9007199254740992.0),
+      {"double (big int)",
+       Attribute::Double(9007199254740992.0),
        "9.007199254740992e+15"},
       // Negative zero allowed
       {"double (negative zero)", Attribute::Double(-0.0), "-0"},
@@ -150,13 +169,15 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
 
       // Literal string
       {"string (empty)", Attribute::String(""), R"("")"},
-      {"string", Attribute::String("that's a nice face you got there"),
+      {"string",
+       Attribute::String("that's a nice face you got there"),
        R"("that's a nice face you got there")"},
       {"string (w/ quotes)",
        // Quotes and backslashes are escaped
        Attribute::String("that's a nice \"face\" you got there"),
        R"("that's a nice \"face\" you got there")"},
-      {"string (w/ backslashes)", Attribute::String("C:\\foo\\bar.exe"),
+      {"string (w/ backslashes)",
+       Attribute::String("C:\\foo\\bar.exe"),
        R"("C:\\foo\\bar.exe")"},
       // Forward slashes are not escaped
       {"string (w/ solidus)", Attribute::String("/home/foo/bar"), R"("/home/foo/bar")"},
@@ -176,13 +197,19 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
       // Arrays
       {"array (empty)", Attribute::Array(), "[]"},
       {"array (ints)",
-       array_of({Attribute::Int(1), Attribute::Int(2), Attribute::Int(3)}), "[1,2,3]"},
+       array_of({Attribute::Int(1), Attribute::Int(2), Attribute::Int(3)}),
+       "[1,2,3]"},
       // Mixed value types OK
       {"array (mixed values)",
        array_of(
-           {Attribute::Int(-1), Attribute::Double(867.5309), Attribute::UInt(1),
-            Attribute::Bool(true), Attribute::Null(), Attribute::Array(),
-            Attribute::Object(), Attribute::String("sacré bleu")}
+           {Attribute::Int(-1),
+            Attribute::Double(867.5309),
+            Attribute::UInt(1),
+            Attribute::Bool(true),
+            Attribute::Null(),
+            Attribute::Array(),
+            Attribute::Object(),
+            Attribute::String("sacré bleu")}
        ),
        "[-1,867.5309,1,true,null,[],{},\"sacré bleu\"]"},
       // Nested arrays/objects OK
@@ -223,7 +250,8 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
        object_with({{"key\\with\\\"quotes\"_and_slashes", Attribute::Int(1)}}),
        R"({"key\\with\\\"quotes\"_and_slashes":1})"},
       // Empty-string key is valid
-      {"object (empty key)", object_with({{"", Attribute::Bool(false)}}),
+      {"object (empty key)",
+       object_with({{"", Attribute::Bool(false)}}),
        R"({"":false})"},
       // Leading whitespace in keys is valid
       {"object (space in keys)",
@@ -237,21 +265,23 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
       {
           "object (nested)",
           object_with({
-              {"items", array_of(
-                            {object_with(
-                                 {{"id", Attribute::String("item-1")},
-                                  {"count", Attribute::Int(52)}}
-                             ),
-                             object_with(
-                                 {{"id", Attribute::String("item-2")},
-                                  {"count", Attribute::Int(4)}}
-                             )}
-                        )},
+              {"items",
+               array_of(
+                   {object_with(
+                        {{"id", Attribute::String("item-1")},
+                         {"count", Attribute::Int(52)}}
+                    ),
+                    object_with(
+                        {{"id", Attribute::String("item-2")},
+                         {"count", Attribute::Int(4)}}
+                    )}
+               )},
               {"total", Attribute::UInt(2)},
-              {"next", object_with(
-                           {{"path", Attribute::String("/foo/bar")},
-                            {"cursor", Attribute::Null()}}
-                       )},
+              {"next",
+               object_with(
+                   {{"path", Attribute::String("/foo/bar")},
+                    {"cursor", Attribute::Null()}}
+               )},
           }),
           R"({"items":[{"id":"item-1","count":52},{"id":"item-2","count":4}],"total":2,"next":{"path":"/foo/bar","cursor":null}})"
       }

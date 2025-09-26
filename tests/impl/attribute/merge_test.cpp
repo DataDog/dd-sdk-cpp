@@ -192,8 +192,13 @@ TEST_CASE("AttributeMerge", "[unit][attribute]") {
     // that order), but also a bunch of other non-object values
     Attribute merged = Attribute::Object();
     AttributeMerge::AssembleObject(
-        merged, {Attribute::Null(), obj_b, Attribute::String("foo"),
-                 Attribute::Bool(true), obj_a, Attribute::Array()}
+        merged,
+        {Attribute::Null(),
+         obj_b,
+         Attribute::String("foo"),
+         Attribute::Bool(true),
+         obj_a,
+         Attribute::Array()}
     );
 
     // Then we get an object value with a single property: obj_a's "foo" value

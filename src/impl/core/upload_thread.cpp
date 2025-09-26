@@ -100,9 +100,12 @@ static _process_and_upload_batch_result _interpret_http_result(
 }
 
 static _process_and_upload_batch_result _process_and_upload_batch(
-    const CoreContext& core_context, Feature& feature_impl,
-    platform::IDirectory& directory, platform::IHttpClient& http_client,
-    std::string_view filename, std::vector<char>& mut_read_buffer
+    const CoreContext& core_context,
+    Feature& feature_impl,
+    platform::IDirectory& directory,
+    platform::IHttpClient& http_client,
+    std::string_view filename,
+    std::vector<char>& mut_read_buffer
 ) {
   // This file is ready to process: attempt to open it for read
   auto open_result = directory.OpenForRead(filename);
@@ -361,15 +364,20 @@ platform::Duration UploadThreadState::ResetDelayToMin() {
 }
 
 platform::Duration Internal_HandleUploadProc(
-    UploadThreadConfig config, const CoreContext& core_context,
-    const platform::IClock& clock, FeatureId feature_id,
-    std::vector<RegisteredFeature>& features, platform::IHttpClient& http_client,
-    std::vector<std::string>& mut_filenames, std::vector<char>& mut_read_buffer
+    UploadThreadConfig config,
+    const CoreContext& core_context,
+    const platform::IClock& clock,
+    FeatureId feature_id,
+    std::vector<RegisteredFeature>& features,
+    platform::IHttpClient& http_client,
+    std::vector<std::string>& mut_filenames,
+    std::vector<char>& mut_read_buffer
 ) {
   // Find the feature that we want to initiate an upload cycle for
   const auto feature = std::find_if(
-      features.begin(), features.end(),
-      [feature_id](const RegisteredFeature& f) { return f.id == feature_id; }
+      features.begin(), features.end(), [feature_id](const RegisteredFeature& f) {
+        return f.id == feature_id;
+      }
   );
 
   // If we don't have a matching feature, something is wrong, since the set of
@@ -391,9 +399,12 @@ platform::Duration Internal_HandleUploadProc(
 }
 
 void UploadThreadMain(
-    UploadThreadConfig config, const CoreContext& core_context,
-    const platform::IClock& clock, UploadScheduler& scheduler,
-    std::vector<RegisteredFeature>& features, platform::IHttpClient& http_client
+    UploadThreadConfig config,
+    const CoreContext& core_context,
+    const platform::IClock& clock,
+    UploadScheduler& scheduler,
+    std::vector<RegisteredFeature>& features,
+    platform::IHttpClient& http_client
 ) {
   std::cout << "<UPLOAD> Started\n";
 
@@ -418,7 +429,13 @@ void UploadThreadMain(
   // Run indefinitely, exiting once the scheduler returns nullopt
   while (auto feature_id = scheduler.WaitForNext()) {
     const platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        config, core_context, clock, *feature_id, features, http_client, filenames,
+        config,
+        core_context,
+        clock,
+        *feature_id,
+        features,
+        http_client,
+        filenames,
         read_buffer
     );
     scheduler.Schedule(*feature_id, delay_until_next_cycle);

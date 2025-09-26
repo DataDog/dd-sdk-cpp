@@ -38,7 +38,9 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
 extern "C" {
 
 void dd_core_config_init(
-    dd_core_config_t* config, const char* client_token, const char* service,
+    dd_core_config_t* config,
+    const char* client_token,
+    const char* service,
     const char* env
 ) {
   if (!config) {

@@ -28,7 +28,10 @@ static size_t _chunked_write(
 }
 
 static size_t _handle_chunked_write(
-    char* dst, size_t dst_size, const char* src_buffer, size_t src_buffer_size,
+    char* dst,
+    size_t dst_size,
+    const char* src_buffer,
+    size_t src_buffer_size,
     size_t& mut_offset
 ) {
   // Compute the position we're reading from and how many bytes are found there

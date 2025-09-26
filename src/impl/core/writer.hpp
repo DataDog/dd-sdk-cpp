@@ -118,8 +118,10 @@ struct TLVBatchWriter {
   std::string_view next_event;
 
   explicit TLVBatchWriter(
-      BatchReader& in_reader, std::string_view in_prefix = "[",
-      std::string_view in_delimiter = ",", std::string_view in_suffix = "]"
+      BatchReader& in_reader,
+      std::string_view in_prefix = "[",
+      std::string_view in_delimiter = ",",
+      std::string_view in_suffix = "]"
   )
       : reader(in_reader),
         prefix(in_prefix),

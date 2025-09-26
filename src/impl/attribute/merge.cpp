@@ -12,7 +12,8 @@
 namespace datadog::impl {
 
 void AttributeMerge::AssembleObject(
-    Attribute& mut_obj, std::initializer_list<Attribute> attributes,
+    Attribute& mut_obj,
+    std::initializer_list<Attribute> attributes,
     AttributeMerge::FilterFunc filter
 ) {
   // Require that the target attribute is already of type Object

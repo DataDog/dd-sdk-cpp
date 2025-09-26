@@ -39,8 +39,10 @@ TEST_CASE("StorageThreadMain", "[unit]") {
 
   // Common test setup code: populate a RegisteredFeature vector suitable for use by
   // the storage thread
-  auto init_features = [](TrackingConsent alpha_consent, TrackingConsent bravo_consent,
-                          MockStorageDirectory& mock_storage, MockClock& clock,
+  auto init_features = [](TrackingConsent alpha_consent,
+                          TrackingConsent bravo_consent,
+                          MockStorageDirectory& mock_storage,
+                          MockClock& clock,
                           std::vector<RegisteredFeature>& out_features) -> void {
     // Mock storage for Feature Alpha
     auto alpha = mock_storage.PrepareSubdirectory("alpha");
@@ -63,7 +65,9 @@ TEST_CASE("StorageThreadMain", "[unit]") {
 
     // "Register" Alpha
     out_features.emplace_back(
-        CreateFeatureId("ALFA"), "alpha", std::make_shared<FeatureAlpha>(),
+        CreateFeatureId("ALFA"),
+        "alpha",
+        std::make_shared<FeatureAlpha>(),
         std::move(*alpha),
         std::make_unique<EventStorage>(
             alpha_consent,
@@ -80,7 +84,9 @@ TEST_CASE("StorageThreadMain", "[unit]") {
 
     // "Register" Bravo
     out_features.emplace_back(
-        CreateFeatureId("BRVO"), "bravo", std::make_shared<FeatureBravo>(),
+        CreateFeatureId("BRVO"),
+        "bravo",
+        std::make_shared<FeatureBravo>(),
         std::move(*bravo),
         std::make_unique<EventStorage>(
             bravo_consent,
@@ -104,7 +110,10 @@ TEST_CASE("StorageThreadMain", "[unit]") {
     MockClock clock;
     std::vector<RegisteredFeature> features;
     init_features(
-        TrackingConsent::NotGranted, TrackingConsent::Granted, mock_storage, clock,
+        TrackingConsent::NotGranted,
+        TrackingConsent::Granted,
+        mock_storage,
+        clock,
         features
     );
     REQUIRE(features.size() == 2);

@@ -92,10 +92,14 @@ struct UploadThreadState {
  * thread. Exposed here to facilitate unit testing.
  */
 platform::Duration Internal_HandleUploadProc(
-    UploadThreadConfig config, const CoreContext& core_context,
-    const platform::IClock& clock, FeatureId feature_id,
-    std::vector<struct RegisteredFeature>& features, platform::IHttpClient& http_client,
-    std::vector<std::string>& mut_filenames, std::vector<char>& mut_read_buffer
+    UploadThreadConfig config,
+    const CoreContext& core_context,
+    const platform::IClock& clock,
+    FeatureId feature_id,
+    std::vector<struct RegisteredFeature>& features,
+    platform::IHttpClient& http_client,
+    std::vector<std::string>& mut_filenames,
+    std::vector<char>& mut_read_buffer
 );
 
 /**
@@ -117,9 +121,12 @@ platform::Duration Internal_HandleUploadProc(
  *  initiate requests for each report.
  */
 void UploadThreadMain(
-    UploadThreadConfig config, const CoreContext& core_context,
-    const platform::IClock& clock, class UploadScheduler& scheduler,
-    std::vector<struct RegisteredFeature>& features, platform::IHttpClient& http_client
+    UploadThreadConfig config,
+    const CoreContext& core_context,
+    const platform::IClock& clock,
+    class UploadScheduler& scheduler,
+    std::vector<struct RegisteredFeature>& features,
+    platform::IHttpClient& http_client
 );
 
 }  // namespace datadog::impl
