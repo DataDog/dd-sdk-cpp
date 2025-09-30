@@ -53,7 +53,7 @@ struct UUID {
    * Serializes this value as a 36-byte string, writing directly into the provided
    * buffer, without a null terminator.
    */
-  void ToBuffer(char* dst, size_t n) const;
+  void ToBytes(char* dst, size_t n) const;
 
   DATADOG_API bool operator==(const UUID& other) const;
   DATADOG_API bool operator!=(const UUID& other) const;

@@ -127,14 +127,22 @@ std::optional<UUID> UUID::Parse(std::string_view s) {
 }
 
 std::string UUID::ToString() const {
-  char buf[37];
-  ToBuffer(static_cast<char*>(buf), sizeof(buf));
-  buf[36] = '\0';
-  return std::string(static_cast<const char*>(buf));
+  // Encode the raw bytes of the string-encoded UUID, w/o null terminator
+  char buf[36];
+  ToBytes(static_cast<char*>(buf), sizeof(buf));
+
+  // Construct a new std::string, specifying exact length
+  return std::string(static_cast<const char*>(buf), sizeof(buf));
 }
 
-void UUID::ToBuffer(char* dst, size_t n) const {
-  DATADOG_ASSERT(n >= 36, "buffer passed to UUID::ToBuffer is too small");
+void UUID::ToBytes(char* dst, size_t n) const {
+  // Require at least 36 bytes (we don't write a null terminator)
+  if (n < 36) {
+    DATADOG_ASSERT(false, "buffer passed to UUID::ToBytes is too small");
+    return;
+  }
+
+  // Encode as hex, byte-by-byte, with delimiters
   auto write_hex_byte = [](uint8_t b, char* s) {
     static const char hex_digits[16] = {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'

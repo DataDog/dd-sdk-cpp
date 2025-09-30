@@ -139,7 +139,7 @@ void CoreContext::BuildRequestHeaders(
   out_headers += dd_request_id;
   const size_t uuid_start = out_headers.size();
   out_headers.resize(uuid_start + HYPHENATED_UUID_LEN);
-  request_id.ToBuffer(
+  request_id.ToBytes(
       out_headers.data() + uuid_start, out_headers.capacity() - uuid_start
   );
   out_headers += '\n';
