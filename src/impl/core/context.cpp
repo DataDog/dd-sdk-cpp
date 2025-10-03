@@ -6,6 +6,9 @@
 
 #include "core/context.hpp"
 
+#include <mutex>
+#include <shared_mutex>
+
 #include "assert.hpp"
 #include "core/version.hpp"
 #include "datadog/uuid.hpp"
