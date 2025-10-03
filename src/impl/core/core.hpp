@@ -299,8 +299,8 @@ class Core {
   // Core is noncopyable but movable
   Core(const Core&) = delete;
   Core& operator=(const Core&) = delete;
-  Core(Core&&) = default;
-  Core& operator=(Core&&) = default;
+  Core(Core&&) noexcept = default;
+  Core& operator=(Core&&) noexcept = default;
 
   /**
    * Updates the configured tracking consent value.
@@ -309,29 +309,6 @@ class Core {
    * change will be pushed to the storage thread.
    */
   void SetTrackingConsent(TrackingConsent value);
-
-  /**
-   * Updates the configured 'service' value used in requests.
-   *
-   * May only be called when the core is not running. Calling this function while the
-   * core is running is undefined behavior.
-   *
-   * TODO: Clarify user-facing interface for setting service/env at runtime, as the most
-   * permissible approach would add considerable complexity to the sychronization
-   * boundary between the main thread and the upload thread.
-   */
-  void SetService(std::string_view value);
-
-  /**
-   * Updates the configured 'env' value used in requests.
-   *
-   * May only be called when the core is not running. Calling this function while the
-   * core is running is undefined behavior.
-   *
-   * TODO: See note on SetService; we'd need the upload thread to read from a message
-   * queue, or acquire a mutex on every upload cycle, etc.
-   */
-  void SetEnv(std::string_view value);
 
   /**
    * Initializes the core.
@@ -388,7 +365,7 @@ class Core {
   // Initialized in ctor
   CoreState _state{CoreState::Uninitialized};
   CoreConfig _config;
-  CoreContext _context;
+  std::unique_ptr<CoreContextProvider> _context_provider;
   CoreSubsystems _subsystems;
 
   // Initialized on Init; entirely implementation-controlled

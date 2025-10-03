@@ -66,23 +66,24 @@ TEST_CASE("UploadThreadState", "[unit]") {
 }
 
 TEST_CASE("HandleUploadProc", "[unit]") {
-  auto init_config = [](
-                         BatchSize batch_size,
-                         UploadFrequency upload_frequency,
-                         BatchProcessingLevel batch_processing_level
-                     ) -> std::tuple<CoreConfig, UploadThreadConfig, CoreContext> {
-    CoreConfig config = CoreConfig("mock-client-token", "mock-service", "mock-env")
-                            .SetInitialTrackingConsent(TrackingConsent::Granted)
-                            .SetApplicationVersion("mock-application-version")
-                            .SetBatchSize(batch_size)
-                            .SetUploadFrequency(upload_frequency)
-                            .SetBatchProcessingLevel(batch_processing_level);
-    return std::make_tuple(
-        config,
-        UploadThreadConfig::FromCoreConfig(batch_size, batch_processing_level),
-        CoreContext(config)
-    );
-  };
+  auto init_config = [](BatchSize batch_size,
+                        UploadFrequency upload_frequency,
+                        BatchProcessingLevel batch_processing_level)
+      -> std::
+          tuple<CoreConfig, UploadThreadConfig, std::shared_ptr<const HttpContext>> {
+            CoreConfig config =
+                CoreConfig("mock-client-token", "mock-service", "mock-env")
+                    .SetInitialTrackingConsent(TrackingConsent::Granted)
+                    .SetApplicationVersion("mock-application-version")
+                    .SetBatchSize(batch_size)
+                    .SetUploadFrequency(upload_frequency)
+                    .SetBatchProcessingLevel(batch_processing_level);
+            return std::make_tuple(
+                config,
+                UploadThreadConfig::FromCoreConfig(batch_size, batch_processing_level),
+                std::make_shared<HttpContext>(config)
+            );
+          };
 
   auto register_feature = [](UploadFrequency upload_frequency,
                              MockStorageDirectory& mock_storage,
@@ -124,7 +125,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -170,7 +171,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -288,7 +289,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<char> read_buffer;
         platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
             config,
-            context,
+            *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
@@ -354,7 +355,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -417,7 +418,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<char> read_buffer;
         platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
             config,
-            context,
+            *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
@@ -483,7 +484,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<char> read_buffer;
         platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
             config,
-            context,
+            *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
@@ -558,7 +559,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<char> read_buffer;
         platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
             config,
-            context,
+            *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
@@ -613,7 +614,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -668,7 +669,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -721,7 +722,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -770,7 +771,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -818,7 +819,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -871,7 +872,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<char> read_buffer;
     platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        context,
+        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,

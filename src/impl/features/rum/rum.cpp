@@ -16,7 +16,7 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
 }
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
-    const CoreContext& context, BatchReader& reader
+    const HttpContext& context, BatchReader& reader
 ) {
   // TODO(RUM-11368): Implement processing and upload of events once views exist
   (void)context;

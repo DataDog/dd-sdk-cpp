@@ -6,6 +6,10 @@
 
 #pragma once
 
+#include <functional>
+#include <memory>
+#include <optional>
+#include <shared_mutex>
 #include <string>
 
 #include "core/site.hpp"
@@ -14,45 +18,49 @@
 namespace datadog::impl {
 
 /**
- * Details of SDK configuration and/or state that influence how HTTP requests are built.
- *
- * Maintained by the Core; provided to Features in UploadThread_PrepareReport.
+ * SDK configuration details that influence how HTTP requests are built. Immutable for
+ * the lifetime of the Core.
  */
-struct CoreContext {
-  int version{1};
-
+struct HttpContext {
+  /**
+   * HTTP origin describing the intake endpoint where requests should be sent.
+   */
   std::string intake_origin;
+  /**
+   * Client token used to authorize HTTP requests sent to intake.
+   */
   std::string client_token;
+  /**
+   * The 'service' value from SDK configuration.
+   */
   std::string service;
+  /**
+   * The 'env' value from SDK configuration.
+   */
   std::string env;
+  /**
+   * The 'version' value from SDK configuration.
+   */
   std::string application_version;
+  /**
+   * The 'source' value indicating the Datadog SDK product in use: 'rum-cpp' for native
+   * C++ applications; or another value if used by a multi-platform SDK.
+   *
+   * TODO(RUM-7416): Currently hardcoded to 'unity' due to lack of backend support for a
+   * cpp-specific 'source' type.
+   */
   std::string source;
 
   /**
    * Initializes a new context from the user-supplied config.
    */
-  explicit CoreContext(const datadog::CoreConfig& config)
-      : intake_origin(
-            GetIntakeOrigin(config.site, config.internal_options.custom_endpoint_url)
-        ),
-        client_token(config.client_token),
-        service(config.service),
-        env(config.env),
-        application_version(config.application_version),
-        source("unity")  // TODO(RUM-7416): "rum-cpp" is not yet supported as a source
-  {}
+  explicit HttpContext(const CoreConfig& config);
 
-  void SetService(std::string_view value) {
-    // TODO: This change is not pushed to the upload thread
-    service = value;
-    version++;
-  }
-
-  void SetEnv(std::string_view value) {
-    // TODO: This change is not pushed to the upload thread
-    env = value;
-    version++;
-  }
+  // HttpContext is noncopyable and nonmovable
+  HttpContext(const HttpContext&) = delete;
+  HttpContext& operator=(const HttpContext&) = delete;
+  HttpContext(HttpContext&&) = delete;
+  HttpContext& operator=(HttpContext&&) = delete;
 
   /**
    * Given the basic details of a request, populates out_url with the fully qualified
@@ -88,6 +96,52 @@ struct CoreContext {
       std::string_view feature_headers,
       std::string& out_headers
   ) const;
+};
+
+/**
+ * Global context shared across the entire SDK instance.
+ */
+struct CoreContext {
+  /**
+   * Initializes a new CoreContext from the provided SDK config.
+   */
+  explicit CoreContext(const CoreConfig& config);
+
+  /**
+   * Immutable configuration details that affect the building of HTTP requests in the
+   * upload thread. Maintained via std::shared_ptr to ensure that it's cheap to create a
+   * copy of CoreContext, since we create an immutable snapshot every time a
+   * feature-specific operation depends on CoreContext - @see CoreContextProvider.
+   */
+  std::shared_ptr<const HttpContext> http;
+};
+
+/**
+ * Owns a CoreContext and provides thread-safe access to that value.
+ */
+class CoreContextProvider {
+ private:
+  CoreContext _context;
+  mutable std::shared_mutex _mutex;
+
+ public:
+  explicit CoreContextProvider(const CoreContext& context);
+
+  /**
+   * Returns an immutable, thread-safe copy of the current CoreContext value.
+   */
+  CoreContext Get() const;
+
+  /**
+   * Mutates the current CoreContext value, by invoking the provided callback after
+   * obtaining exclusive write access.
+   */
+  void Update(const std::function<void(CoreContext&)>& callback);
+
+  /**
+   * Synchronously returns an immutable reference to the HttpContext value.
+   */
+  const HttpContext& GetHttpContext() const;
 };
 
 }  // namespace datadog::impl

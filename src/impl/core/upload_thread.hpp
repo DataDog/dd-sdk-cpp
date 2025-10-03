@@ -93,7 +93,7 @@ struct UploadThreadState {
  */
 platform::Duration Internal_HandleUploadProc(
     UploadThreadConfig config,
-    const CoreContext& core_context,
+    const HttpContext& http_context,
     const platform::IClock& clock,
     FeatureId feature_id,
     std::vector<struct RegisteredFeature>& features,
@@ -106,9 +106,8 @@ platform::Duration Internal_HandleUploadProc(
  * Entry point for the upload thread. See description in `core.hpp`.
  *
  * @param config Global configuration values for the upload thread.
- * @param core_context The context values held by the SDK when the thread started;
- *  passed to UploadThread_PrepareReport to inform request headers etc. TODO: changes
- *  made via SetService() and SetEnv() do not propagate to this thread.
+ * @param http_context The immutable configuration details used when building HTTP
+ *  requests.
  * @param clock Interface to the system clock.
  * @param scheduler Non-owning reference to the object used to coordinate the timing of
  *  upload cycles for each registered feature. The main thread owns the scheduler and
@@ -122,7 +121,7 @@ platform::Duration Internal_HandleUploadProc(
  */
 void UploadThreadMain(
     UploadThreadConfig config,
-    const CoreContext& core_context,
+    const HttpContext& http_context,
     const platform::IClock& clock,
     class UploadScheduler& scheduler,
     std::vector<struct RegisteredFeature>& features,

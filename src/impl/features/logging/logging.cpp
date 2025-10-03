@@ -55,7 +55,7 @@ Logging::Logging(
 }
 
 std::optional<Report> Logging::UploadThread_PrepareReport(
-    const CoreContext& context, BatchReader& reader
+    const HttpContext& context, BatchReader& reader
 ) {
   // Request URL
   static const std::string_view request_path = "/api/v2/logs";
@@ -64,11 +64,10 @@ std::optional<Report> Logging::UploadThread_PrepareReport(
   // Request headers
   static const std::string_view content_type = "application/json";
 
-  // Rebuild URL and headers only if context has changed, reusing existing strings
-  if (_last_context_version != context.version) {
+  // Build URL and headers once, on the first upload (HTTP context is immutable)
+  if (_request_url.empty()) {
     context.BuildRequestURL(request_path, with_ddsource, _request_url);
     context.BuildRequestHeaders(content_type, "", _request_headers);
-    _last_context_version = context.version;
   }
 
   // Each event in the batch is a JSON object: initialize a writer that will concatenate

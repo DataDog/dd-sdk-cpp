@@ -16,25 +16,13 @@
 #include "core/block.hpp"
 #include "core/context.hpp"
 #include "core/feature_id.hpp"
+#include "core/feature_scope.hpp"
 #include "core/tlv.hpp"
 #include "nonstd/expected.hpp"
 #include "platform/filesystem.hpp"
 #include "platform/http.hpp"
 
 namespace datadog::impl {
-
-/**
- * Callback invoked by a feature when it generates an event that needs to be enqueued
- * for storage. Passed to the Feature implementation by the Core on Start.
- *
- * @param event Arbitrary bytes. Must be non-empty. Will be copied into the storage
- *  queue. Eventually written to a batch with TLVBlockType::Event.
- * @param event_metadata Optional metadata to accompany the event; will be copied. When
- *  an event that has metadata is eventually written, the metadata will be prepended as
- *  a block of type TLVBlockType::Metadata.
- * @returns whether the event was successfuly enqueued for storage.
- */
-using EventGeneratedFunc = std::function<bool(Block event, Block event_metadata)>;
 
 /**
  * Lightweight description of an HTTP request that should be made in order to upload a
@@ -115,7 +103,7 @@ class Feature : public std::enable_shared_from_this<Feature> {
   virtual std::string_view GetName() const = 0;
   virtual FeatureStorageConfig GetStorageConfig() const { return {}; }
 
-  void OnCoreStarted(const EventGeneratedFunc& event_callback);
+  void OnCoreStarted(FeatureScope&& feature_scope);
   void OnCoreStopping();
 
  protected:
@@ -154,11 +142,11 @@ class Feature : public std::enable_shared_from_this<Feature> {
    * feature is ready to be processed and uploaded.
    */
   virtual std::optional<Report> UploadThread_PrepareReport(
-      const CoreContext& context, class BatchReader& reader
+      const HttpContext& context, class BatchReader& reader
   ) = 0;
 
- private:
-  EventGeneratedFunc _event_callback;
+ protected:
+  std::optional<FeatureScope> _scope;
 };
 
 }  // namespace datadog::impl
