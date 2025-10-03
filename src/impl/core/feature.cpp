@@ -11,7 +11,7 @@
 namespace datadog::impl {
 
 void Feature::OnCoreStarted(FeatureScope&& feature_scope) {
-  // We're now permitted to write events; store a reference to our writer callback
+  // Take ownership of our FeatureScope, which we can use as long as the Core is running
   DATADOG_ASSERT(!_scope, "Feature has non-null _scope in OnCoreStarted");
   _scope = std::move(feature_scope);
 
@@ -24,7 +24,7 @@ void Feature::OnCoreStopping() {
   // events
   Stop();
 
-  // Clear the feature scope; we're no longer permitted to write anything
+  // Drop our FeatureScope; the Core is stopped so we must stop all work
   DATADOG_ASSERT(_scope, "Feature has null _scope in OnCoreStop");
   _scope.reset();
 }
