@@ -12,6 +12,7 @@
 #include <shared_mutex>
 #include <string>
 
+#include "core/feature_types/rum.hpp"
 #include "core/site.hpp"
 #include "datadog/core.hpp"
 
@@ -114,6 +115,11 @@ struct CoreContext {
    * feature-specific operation depends on CoreContext - @see CoreContextProvider.
    */
   std::shared_ptr<const HttpContext> http;
+
+  /**
+   * Additional context provided by the RUM feature, if in use.
+   */
+  std::optional<RumFeatureContext> rum;
 };
 
 /**

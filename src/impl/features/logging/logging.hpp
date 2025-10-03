@@ -48,14 +48,10 @@ class Logging final : public Feature {
    * Builds an event payload for a message emitted by a logger, then pushes that event
    * onto the storage queue.
    *
-   * @param mut_event_object The reusable object Attribute, owned by the logger, in
-   *  which the event payload will be constructed (with top-level properties like
-   * 'status', 'service', 'message', etc.)
-   * @param mut_event_buffer The reusable buffer, owned by the logger, into which that
-   *  event payload will be serialized to JSON.
-   * @param logger_service_name The string value held by the logger to indicate an
-   *  overridden service name; or null if the logger uses the default service name.
-   * @param logger_object An object attribute describing the details of the logger.
+   * @param mut_state Logger-owned state containing attribute values and reusable
+   *  attributes/buffers required to build and serialize a log event payload.
+   * @param enrichment Configuration details specifying which features, if any, should
+   *  have their context injected into the log event for enrichment/correlation.
    * @param level The level at which this log message is being emitted.
    * @param message The text of the log message.
    * @param message_attributes An optional set of message-level attributes, which will
@@ -63,11 +59,8 @@ class Logging final : public Feature {
    *  other type, this value will be ignored.
    */
   void OnLoggerEmit(
-      Attribute& mut_event_object,
-      std::vector<uint8_t>& mut_event_buffer,
-      const StringAttribute& logger_service_name,
-      const ObjectAttribute& logger_object,
-      const Attribute& logger_attributes,
+      struct LoggerState& mut_state,
+      const struct LoggerEnrichmentConfig& enrichment,
       LogLevel level,
       std::string_view message,
       const Attribute& message_attributes

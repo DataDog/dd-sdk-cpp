@@ -29,6 +29,14 @@ TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
     dd_logging_attribute_set(nullptr, "foo", &int_100);
     dd_logging_attribute_delete(nullptr, "foo");
 
+    dd_logger_config_init(nullptr);
+    dd_logger_config_set_remote_sample_rate(nullptr, 0.5f);
+    dd_logger_config_set_service(nullptr, "service");
+    dd_logger_config_set_name(nullptr, "logger");
+    dd_logger_config_set_remote_log_threshold(nullptr, DD_LOG_LEVEL_INFO);
+    dd_logger_config_set_initial_attribute_capacity(nullptr, 8);
+    dd_logger_config_set_enrich_with_rum_context(nullptr, false);
+
     REQUIRE(dd_logger_create(nullptr, nullptr) == nullptr);
     dd_logger_destroy(nullptr);
     dd_logger_attribute_set(nullptr, "foo", &int_100);
@@ -187,13 +195,13 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     REQUIRE(
         req.body ==
         JsonArrayOf(
-            {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"}})",
-             R"({"status":"debug","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"gubed","logger":{"version":"0.2.0"}})",
-             R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"ofni","logger":{"version":"0.2.0"}})",
-             R"({"status":"notice","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"eciton","logger":{"version":"0.2.0"}})",
-             R"({"status":"warn","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"nraw","logger":{"version":"0.2.0"}})",
-             R"({"status":"error","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"rorre","logger":{"version":"0.2.0"}})",
-             R"({"status":"critical","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"lacitirc","logger":{"version":"0.2.0"}})"}
+            {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0"})",
+             R"({"status":"debug","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"gubed","logger.version":"0.2.0"})",
+             R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"ofni","logger.version":"0.2.0"})",
+             R"({"status":"notice","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"eciton","logger.version":"0.2.0"})",
+             R"({"status":"warn","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"nraw","logger.version":"0.2.0"})",
+             R"({"status":"error","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"rorre","logger.version":"0.2.0"})",
+             R"({"status":"critical","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"lacitirc","logger.version":"0.2.0"})"}
         )
     );
 
@@ -303,7 +311,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     REQUIRE(
         req.body ==
         JsonArrayOf({
-            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"}})",
+            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0"})",
         })
     );
 
@@ -338,7 +346,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     REQUIRE(
         req.body ==
         JsonArrayOf({
-            R"({"status":"info","service":"overridden-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"name":"my-logger","version":"0.2.0"}})",
+            R"({"status":"info","service":"overridden-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.name":"my-logger","logger.version":"0.2.0"})",
         })
     );
 
@@ -380,7 +388,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
       REQUIRE(
           req.body ==
           JsonArrayOf({
-              R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"}})",
+              R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0"})",
           })
       );
 
@@ -424,7 +432,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     REQUIRE(
         req.body ==
         JsonArrayOf({
-            R"({"status":"info","service":"aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhhhiiiiiiiijjjjjjjjkkkkkkkkllllllllmmmmmmmmnnnnnnnnooooooooppppppp","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"name":"aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhh","version":"0.2.0"}})",
+            R"({"status":"info","service":"aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhhhiiiiiiiijjjjjjjjkkkkkkkkllllllllmmmmmmmmnnnnnnnnooooooooppppppp","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.name":"aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhh","logger.version":"0.2.0"})",
         })
     );
 
@@ -615,7 +623,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        },
        // Event should include "foo":100,"bar":"yes"
        JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"},"foo":100,"bar":"yes"})"}
+           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":100,"bar":"yes"})"}
        )},
 
       {"M include custom attribute W set on logger",
@@ -637,7 +645,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        },
        // Event should include "foo":100,"bar":200
        JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"},"foo":100,"bar":200})"}
+           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":100,"bar":200})"}
        )},
 
       {"M override global property W logger property has same name",
@@ -659,7 +667,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        },
        // Event should include "foo":200
        JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"},"foo":200})"}
+           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":200})"}
        )},
 
       {"M include custom attribute W set on message",
@@ -695,13 +703,13 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        },
        // Event should include "foo":100,"bar":200,"baz":300
        JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"},"foo":100,"bar":200,"baz":300})",
-            R"({"status":"debug","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"gubed","logger":{"version":"0.2.0"},"foo":100,"bar":200,"baz":300})",
-            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"ofni","logger":{"version":"0.2.0"},"foo":100,"bar":200,"baz":300})",
-            R"({"status":"notice","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"eciton","logger":{"version":"0.2.0"},"foo":100,"bar":200,"baz":300})",
-            R"({"status":"warn","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"nraw","logger":{"version":"0.2.0"},"foo":100,"bar":200,"baz":300})",
-            R"({"status":"error","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"rorre","logger":{"version":"0.2.0"},"foo":100,"bar":200,"baz":300})",
-            R"({"status":"critical","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"lacitirc","logger":{"version":"0.2.0"},"foo":100,"bar":200,"baz":300})"}
+           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
+            R"({"status":"debug","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"gubed","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
+            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"ofni","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
+            R"({"status":"notice","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"eciton","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
+            R"({"status":"warn","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"nraw","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
+            R"({"status":"error","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"rorre","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
+            R"({"status":"critical","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"lacitirc","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})"}
        )},
 
       {"M override global and logger properties W message property has same name",
@@ -734,7 +742,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        },
        // Event should include "foo":300,"baz":200,"bar":400
        JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"},"foo":300,"baz":200,"bar":400})"}
+           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":300,"baz":200,"bar":400})"}
        )},
 
       {"M not override attributes W property name is reserved",
@@ -767,7 +775,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        // Event should include "ok-global":100,"ok-logger":200,"ok-message":300, but
        // all other custom attributes should be entirely ignored
        JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger":{"version":"0.2.0"},"ok-global":100,"ok-logger":200,"ok-message":300})"}
+           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","ok-global":100,"ok-logger":200,"ok-message":300})"}
        )},
   };
   for (const auto& tt : tests) {

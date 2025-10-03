@@ -54,6 +54,11 @@ LoggerConfig& LoggerConfig::SetInitialAttributeCapacity(size_t value) {
   return *this;
 }
 
+LoggerConfig& LoggerConfig::SetEnrichWithRumContext(bool value) {
+  enrich_with_rum_context = value;
+  return *this;
+}
+
 Logger::Logger(std::unique_ptr<impl::Logger>&& impl, PrivateCtorTag)
     : _impl(std::move(impl)) {}
 

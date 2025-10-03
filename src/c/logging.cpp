@@ -28,7 +28,8 @@ static const dd_logger_config_t DEFAULT_LOGGER_CONFIG = {
     "",                     // service
     "",                     // name
     DD_LOG_LEVEL_DEBUG,     // remote_log_threshold
-    0                       // initial_attribute_capacity
+    0,                      // initial_attribute_capacity
+    true                    // enrich_with_rum_context
 };
 
 // This C API necessarily uses C-style idioms for memory management and strings.
@@ -86,6 +87,14 @@ void dd_logger_config_set_initial_attribute_capacity(
 ) {
   if (config) {
     config->initial_attribute_capacity = value;
+  }
+}
+
+void dd_logger_config_set_enrich_with_rum_context(
+    dd_logger_config_t* config, bool value
+) {
+  if (config) {
+    config->enrich_with_rum_context = value;
   }
 }
 

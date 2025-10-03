@@ -7,33 +7,41 @@
 #include "features/logging/logger.hpp"
 
 #include "assert.hpp"
-#include "core/version.hpp"
 #include "datadog/attribute.hpp"
 
 namespace datadog::impl {
+
+LoggerState::LoggerState(
+    const std::optional<std::string>& in_service_name,
+    const std::optional<std::string>& in_logger_name,
+    size_t initial_attribute_capacity
+)
+    : service_name(in_service_name),
+      logger_name(in_logger_name),
+      user_attributes(initial_attribute_capacity),
+      internal_attributes(4),
+      event_object(initial_attribute_capacity + 12) {}
+
+LoggerEnrichmentConfig::LoggerEnrichmentConfig(bool in_enable_rum)
+    : enable_rum(in_enable_rum) {}
 
 Logger::Logger(const LoggerConfig& config, const LogEventCallback& event_callback)
     : _min_level(config.remote_log_threshold),
       _sampling_rate_unit(config.remote_sample_rate / 100.0f),
       _sampling_rng(std::random_device{}()),
       _sampling_distribution(0.0f, 1.0f),
-      _service_name(config.service),
-      _logger_object(2),
-      _logger_attributes(config.initial_attribute_capacity),
       _event_callback(event_callback),
-      _event_object(config.initial_attribute_capacity + 8) {
-  if (config.name) {
-    _logger_object.attribute.SetObjectProperty("name", Attribute::String(*config.name));
-  }
-  _logger_object.attribute.SetObjectProperty("version", Attribute::String(SDK_VERSION));
-}
+      _state(config.service, config.name, config.initial_attribute_capacity),
+      _enrichment(config.enrich_with_rum_context) {}
 
 void Logger::SetAttribute(std::string_view name, const Attribute& value) {
-  _logger_attributes.attribute.SetObjectProperty(name, value);
+  // Assume single-thread usage: don't synchronize access to attributes
+  _state.user_attributes.attribute.SetObjectProperty(name, value);
 }
 
 void Logger::DeleteAttribute(std::string_view name) {
-  _logger_attributes.attribute.DeleteObjectProperty(name);
+  // Assume single-thread usage: don't synchronize access to attributes
+  _state.user_attributes.attribute.DeleteObjectProperty(name);
 }
 
 void Logger::EmitLogEvent(
@@ -67,16 +75,7 @@ void Logger::EmitLogEvent(
 
   // This message should be sampled: notify the logging feature implementation that it
   // should record this message
-  _event_callback(
-      _event_object.attribute,
-      _event_buffer,
-      _service_name,
-      _logger_object,
-      _logger_attributes.attribute,
-      level,
-      message,
-      message_attributes
-  );
+  _event_callback(_state, _enrichment, level, message, message_attributes);
 }
 
 }  // namespace datadog::impl
