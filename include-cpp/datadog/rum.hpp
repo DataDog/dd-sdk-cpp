@@ -11,6 +11,7 @@
 #include <string_view>
 
 #include "datadog/api.hpp"
+#include "datadog/uuid.hpp"
 
 namespace datadog {
 
@@ -27,7 +28,7 @@ struct RumConfig {
   friend class impl::Rum;
 
  private:
-  std::string application_id;
+  UUID application_id;  // UUID::Zero if uninitialized or invalid
 
  public:
   /**
@@ -38,18 +39,22 @@ struct RumConfig {
    *  "SDK Configuration" settings for your Application.
    */
   DATADOG_API explicit RumConfig(std::string_view in_application_id);
+  DATADOG_API explicit RumConfig(const UUID& in_application_id);
+
+  // RumConfig is trivially destructible
+  ~RumConfig() = default;
 
   // RumConfig is copyable and movable
-  DATADOG_API ~RumConfig();
-  DATADOG_API RumConfig(const RumConfig&);
-  DATADOG_API RumConfig& operator=(const RumConfig&);
-  DATADOG_API RumConfig(RumConfig&&);
-  DATADOG_API RumConfig& operator=(RumConfig&&);
+  DATADOG_API RumConfig(const RumConfig&) noexcept;
+  DATADOG_API RumConfig& operator=(const RumConfig&) noexcept;
+  DATADOG_API RumConfig(RumConfig&&) noexcept;
+  DATADOG_API RumConfig& operator=(RumConfig&&) noexcept;
 
   /**
    * Sets the RUM Application ID, overriding the value passed to the constructor.
    */
   DATADOG_API RumConfig& SetApplicationId(std::string_view value);
+  DATADOG_API RumConfig& SetApplicationId(const UUID& value);
 };
 
 /**

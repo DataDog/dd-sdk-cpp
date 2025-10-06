@@ -13,6 +13,7 @@
 #include "datadog/api.h"
 #include "datadog/attribute.h"
 #include "datadog/core.h"
+#include "datadog/uuid.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,7 +27,7 @@ extern "C" {
  */
 typedef struct dd_rum_config {
   uint32_t version;
-  const char* application_id;
+  dd_uuid_t application_id;
 } dd_rum_config_t;
 
 /**

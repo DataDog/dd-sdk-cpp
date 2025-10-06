@@ -29,8 +29,8 @@ UUID::UUID() : bytes{} {}
 // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init)
 UUID::UUID(const uint8_t value[16]) { std::memcpy(bytes.data(), value, 16); }
 
-UUID::UUID(const UUID&) = default;
-UUID& UUID::operator=(const UUID&) = default;
+UUID::UUID(const UUID&) noexcept = default;
+UUID& UUID::operator=(const UUID&) noexcept = default;
 UUID::UUID(UUID&&) noexcept = default;
 UUID& UUID::operator=(UUID&&) noexcept = default;
 

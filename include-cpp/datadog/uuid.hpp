@@ -32,8 +32,8 @@ struct UUID {
   ~UUID() = default;
 
   // Copying and moving are supported w/ generated implementations thanks to std::array
-  DATADOG_API UUID(const UUID&);
-  DATADOG_API UUID& operator=(const UUID&);
+  DATADOG_API UUID(const UUID&) noexcept;
+  DATADOG_API UUID& operator=(const UUID&) noexcept;
   DATADOG_API UUID(UUID&&) noexcept;
   DATADOG_API UUID& operator=(UUID&&) noexcept;
 
