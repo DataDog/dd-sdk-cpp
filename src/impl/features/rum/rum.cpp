@@ -6,10 +6,13 @@
 
 #include "rum.hpp"
 
+#include <mutex>
+#include <shared_mutex>
+
 namespace datadog::impl {
 
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
-    : _config(config), _clock(clock) {
+    : _config(config), _clock(clock), _global_attributes(8) {
   // TODO(RUM-11368): Use these values when generating view events
   (void)_config;
   (void)_clock;
@@ -22,6 +25,16 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
   (void)context;
   (void)reader;
   return std::nullopt;
+}
+
+void Rum::SetAttribute(std::string_view name, const Attribute& value) {
+  std::unique_lock exclusive_write_lock(_global_attributes_mutex);
+  _global_attributes.attribute.SetObjectProperty(name, value);
+}
+
+void Rum::DeleteAttribute(std::string_view name) {
+  std::unique_lock exclusive_write_lock(_global_attributes_mutex);
+  _global_attributes.attribute.DeleteObjectProperty(name);
 }
 
 }  // namespace datadog::impl

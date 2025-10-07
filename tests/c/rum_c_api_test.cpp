@@ -14,11 +14,16 @@ using namespace datadog;
 
 TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
   SECTION("M safely do nothing W target object is null") {
+    dd_attribute_t int_100 = dd_attribute_int(100);
+
     dd_rum_config_init(nullptr, "a991ca10-4004-4004-4004-beefbeefbeef");
     dd_rum_config_set_application_id(nullptr, "a991ca10-4004-4004-4004-beefbeefbeef");
 
     REQUIRE(dd_rum_init(nullptr, nullptr) == nullptr);
     dd_rum_destroy(nullptr);
+
+    dd_rum_attribute_set(nullptr, "foo", &int_100);
+    dd_rum_attribute_delete(nullptr, "foo");
 
     // TODO(RUM-11367): Validate session functions
     // TODO(RUM-11368): Validate view functions
@@ -117,3 +122,7 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
     }
   }
 }
+
+// TODO(RUM-11368): Validate that view functions result in the expected events
+// TODO(RUM-11368): Validate that events include global attributes values
+// TODO(RUM-11369): Validate that action functions result in the expected events

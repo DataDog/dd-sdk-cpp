@@ -133,7 +133,7 @@ void dd_logging_attribute_set(
     dd_logging_t* logging, const char* name, const dd_attribute_t* value
 ) {
   // Abort if any argument is invalid (but allow empty-string as a property name)
-  if (!logging || !name || !value) {
+  if (!logging || !logging->impl || !name || !value) {
     return;
   }
 
@@ -145,14 +145,14 @@ void dd_logging_attribute_set(
 }
 
 void dd_logging_attribute_delete(dd_logging_t* logging, const char* name) {
-  if (!logging || !name) {
+  if (!logging || !logging->impl || !name) {
     return;
   }
   logging->impl->DeleteAttribute(name);
 }
 
 dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* config) {
-  if (!logging) {
+  if (!logging || !logging->impl) {
     return nullptr;
   }
 
@@ -180,7 +180,7 @@ void dd_logger_attribute_set(
     dd_logger_t* logger, const char* name, const dd_attribute_t* value
 ) {
   // Abort if any argument is invalid (but allow empty-string as a property name)
-  if (!logger || !name || !value) {
+  if (!logger || !logger->impl || !name || !value) {
     return;
   }
 
@@ -191,7 +191,7 @@ void dd_logger_attribute_set(
 }
 
 void dd_logger_attribute_delete(dd_logger_t* logger, const char* name) {
-  if (!logger || !name) {
+  if (!logger || !logger->impl || !name) {
     return;
   }
   logger->impl->DeleteAttribute(name);
@@ -200,7 +200,7 @@ void dd_logger_attribute_delete(dd_logger_t* logger, const char* name) {
 void dd_logger_log(dd_logger_t* logger, dd_log_level_t level, const char* message) {
   // Abort if no logger or message provided (but still allow an empty-string message to
   // be logged)
-  if (!logger || !message) {
+  if (!logger || !logger->impl || !message) {
     return;
   }
 
@@ -239,7 +239,7 @@ void dd_logger_log_obj(
 ) {
   // Abort if no logger or message provided (but still allow an empty-string message to
   // be logged)
-  if (!logger || !message) {
+  if (!logger || !logger->impl || !message) {
     return;
   }
 

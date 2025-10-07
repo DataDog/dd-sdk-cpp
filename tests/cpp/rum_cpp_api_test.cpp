@@ -29,6 +29,8 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
 
       // Then we get a valid object that handles all member function calls as a no-op
       REQUIRE(rum != nullptr);
+      rum->SetAttribute("foo", Attribute::Int(100));
+      rum->DeleteAttribute("foo");
 
       // TODO(RUM-11367): Validate session member functions
       // TODO(RUM-11368): Validate view member functions
@@ -70,3 +72,7 @@ TEST_CASE("Rum::Register", "[unit][rum][cpp-api]") {
     REQUIRE(rum != nullptr);
   }
 }
+
+// TODO(RUM-11368): Validate that view functions result in the expected events
+// TODO(RUM-11368): Validate that events include global attributes values
+// TODO(RUM-11369): Validate that action functions result in the expected events

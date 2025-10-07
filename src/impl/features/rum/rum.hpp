@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "attribute/typed_attribute.hpp"
 #include "core/feature.hpp"
 #include "datadog/rum.hpp"
 #include "platform/clock.hpp"
@@ -31,9 +32,20 @@ class Rum final : public Feature {
       const HttpContext& context, BatchReader& reader
   ) override;
 
+ public:
+  /** Sets an attribute value that will be included in all RUM event payloads. */
+  void SetAttribute(std::string_view name, const Attribute& value);
+
+  /** Clears a global attribute value. */
+  void DeleteAttribute(std::string_view name);
+
  private:
   const RumConfig _config;
   const platform::IClock& _clock;
+
+  // Global attributes applied to all RUM events
+  ObjectAttribute _global_attributes;
+  mutable std::shared_mutex _global_attributes_mutex;
 };
 
 }  // namespace datadog::impl

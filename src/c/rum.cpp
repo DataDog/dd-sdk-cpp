@@ -8,6 +8,7 @@
 
 #include <memory>
 
+#include "attribute/types.hpp"
 #include "core/core.hpp"
 #include "core_glue.hpp"
 #include "datadog/core.h"
@@ -20,7 +21,8 @@ static const uint32_t RUM_CONFIG_VERSION = 1;
 
 static const dd_rum_config_t DEFAULT_RUM_CONFIG = {
     RUM_CONFIG_VERSION,  // version
-    dd_uuid_t{}          // application_id
+    dd_uuid_t{},         // application_id
+    100.0f               // session_sample_rate
 };
 
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
@@ -47,6 +49,12 @@ void dd_rum_config_set_application_id(dd_rum_config_t* config, const char* value
     const auto value_opt = datadog::UUID::Parse(value);
     const datadog::UUID uuid_value = value_opt.value_or(datadog::UUID::Zero);
     dd_uuid_set(&config->application_id, uuid_value.bytes.data());
+  }
+}
+
+void dd_rum_config_set_session_sample_rate(dd_rum_config_t* config, float value) {
+  if (config) {
+    config->session_sample_rate = value;
   }
 }
 
@@ -99,6 +107,25 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
 }
 
 void dd_rum_destroy(dd_rum_t* rum) { delete rum; }
+
+void dd_rum_attribute_set(
+    dd_rum_t* rum, const char* name, const dd_attribute_t* value
+) {
+  // Abort if any argument is invalid (but allow empty-string as a property name)
+  if (!rum || !rum->impl || !name || !value) {
+    return;
+  }
+
+  // Copy to datadog::Attribute
+  rum->impl->SetAttribute(name, datadog::impl::AttributeConversion::CopyFromC(*value));
+}
+
+void dd_rum_attribute_delete(dd_rum_t* rum, const char* name) {
+  if (!rum || !rum->impl || !name) {
+    return;
+  }
+  rum->impl->DeleteAttribute(name);
+}
 }
 
 // NOLINTEND(cppcoreguidelines-owning-memory)
