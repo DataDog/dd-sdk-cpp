@@ -51,6 +51,7 @@ std::shared_ptr<Rum> Rum::Register(
 
   // If we don't have all required config values, return a no-op Rum interface
   if (config.application_id == UUID::Zero) {
+    // TODO(RUM-11363): Log a warning message locally to inform the user of bad config
     return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
   }
 

@@ -73,6 +73,7 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
 
   // If the config doesn't specify an application ID as a valid, nonzero UUID, reject it
   if (dd_uuid_is_zero(&config->application_id)) {
+    // TODO(RUM-11363): Log a warning message locally to inform the user of bad config
     return nullptr;
   }
 
