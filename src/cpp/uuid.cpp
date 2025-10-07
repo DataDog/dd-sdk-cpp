@@ -127,7 +127,22 @@ std::optional<UUID> UUID::Parse(std::string_view s) {
 }
 
 std::string UUID::ToString() const {
-  char buf[37];
+  // Encode the raw bytes of the string-encoded UUID, w/o null terminator
+  char buf[36];
+  ToBytes(static_cast<char*>(buf), sizeof(buf));
+
+  // Construct a new std::string, specifying exact length
+  return std::string(static_cast<const char*>(buf), sizeof(buf));
+}
+
+void UUID::ToBytes(char* dst, size_t n) const {
+  // Require at least 36 bytes (we don't write a null terminator)
+  if (n < 36) {
+    DATADOG_ASSERT(false, "buffer passed to UUID::ToBytes is too small");
+    return;
+  }
+
+  // Encode as hex, byte-by-byte, with delimiters
   auto write_hex_byte = [](uint8_t b, char* s) {
     static const char hex_digits[16] = {
         '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'
@@ -135,28 +150,26 @@ std::string UUID::ToString() const {
     *s = hex_digits[(b >> 4) & 0xf];
     *(s + 1) = hex_digits[b & 0xf];
   };
-  write_hex_byte(bytes[0], &buf[0]);
-  write_hex_byte(bytes[1], &buf[2]);
-  write_hex_byte(bytes[2], &buf[4]);
-  write_hex_byte(bytes[3], &buf[6]);
-  buf[8] = '-';
-  write_hex_byte(bytes[4], &buf[9]);
-  write_hex_byte(bytes[5], &buf[11]);
-  buf[13] = '-';
-  write_hex_byte(bytes[6], &buf[14]);
-  write_hex_byte(bytes[7], &buf[16]);
-  buf[18] = '-';
-  write_hex_byte(bytes[8], &buf[19]);
-  write_hex_byte(bytes[9], &buf[21]);
-  buf[23] = '-';
-  write_hex_byte(bytes[10], &buf[24]);
-  write_hex_byte(bytes[11], &buf[26]);
-  write_hex_byte(bytes[12], &buf[28]);
-  write_hex_byte(bytes[13], &buf[30]);
-  write_hex_byte(bytes[14], &buf[32]);
-  write_hex_byte(bytes[15], &buf[34]);
-  buf[36] = '\0';
-  return std::string(static_cast<const char*>(buf));
+  write_hex_byte(bytes[0], &dst[0]);
+  write_hex_byte(bytes[1], &dst[2]);
+  write_hex_byte(bytes[2], &dst[4]);
+  write_hex_byte(bytes[3], &dst[6]);
+  dst[8] = '-';
+  write_hex_byte(bytes[4], &dst[9]);
+  write_hex_byte(bytes[5], &dst[11]);
+  dst[13] = '-';
+  write_hex_byte(bytes[6], &dst[14]);
+  write_hex_byte(bytes[7], &dst[16]);
+  dst[18] = '-';
+  write_hex_byte(bytes[8], &dst[19]);
+  write_hex_byte(bytes[9], &dst[21]);
+  dst[23] = '-';
+  write_hex_byte(bytes[10], &dst[24]);
+  write_hex_byte(bytes[11], &dst[26]);
+  write_hex_byte(bytes[12], &dst[28]);
+  write_hex_byte(bytes[13], &dst[30]);
+  write_hex_byte(bytes[14], &dst[32]);
+  write_hex_byte(bytes[15], &dst[34]);
 }
 
 bool UUID::operator==(const UUID& other) const { return bytes == other.bytes; }
