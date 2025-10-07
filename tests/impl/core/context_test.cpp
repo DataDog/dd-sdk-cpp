@@ -15,18 +15,17 @@
 using namespace datadog::impl;
 using namespace datadog;
 
-TEST_CASE("CoreContext constructor", "[unit]") {
+TEST_CASE("HttpContext constructor", "[unit]") {
   SECTION("M initialize from CoreConfig W valid config provided") {
     // Given an ordinary config
     CoreConfig config("test_token_123", "test_service", "test_env");
     config.SetInitialTrackingConsent(TrackingConsent::Granted);
     config.SetApplicationVersion("1.2.3");
 
-    // When CoreContext is constructed from that config
-    CoreContext context(config);
+    // When HttpContext is constructed from that config
+    HttpContext context(config);
 
     // Then values are sensible
-    REQUIRE(context.version == 1);
     REQUIRE(context.client_token == "test_token_123");
     REQUIRE(context.service == "test_service");
     REQUIRE(context.env == "test_env");
@@ -36,52 +35,12 @@ TEST_CASE("CoreContext constructor", "[unit]") {
   }
 }
 
-TEST_CASE("CoreContext SetService", "[unit]") {
-  SECTION("M update service and increment version W new value provided") {
-    // Given a CoreContext at version id 1, with service 'original_service'
-    CoreConfig config("token", "original_service", "env");
-    config.SetInitialTrackingConsent(TrackingConsent::Granted);
-    config.SetApplicationVersion("1.0.0");
-
-    CoreContext context(config);
-    int original_version = context.version;
-    REQUIRE(original_version == 1);
-
-    // When service is set to 'new_service'
-    context.SetService("new_service");
-
-    // Then change takes effect and version id is incremented for change detection
-    REQUIRE(context.service == "new_service");
-    REQUIRE(context.version == original_version + 1);
-  }
-}
-
-TEST_CASE("CoreContext SetEnv", "[unit]") {
-  SECTION("M update env and increment version W new value provided") {
-    // Given a CoreContext at version id 1, with env 'original_env'
-    CoreConfig config("token", "service", "original_env");
-    config.SetInitialTrackingConsent(TrackingConsent::Granted);
-    config.SetApplicationVersion("1.0.0");
-
-    CoreContext context(config);
-    int original_version = context.version;
-    REQUIRE(original_version == 1);
-
-    // When env is set to 'new_env'
-    context.SetEnv("new_env");
-
-    // Then change takes effect and version id is incremented for change detection
-    REQUIRE(context.env == "new_env");
-    REQUIRE(context.version == original_version + 1);
-  }
-}
-
-TEST_CASE("CoreContext BuildRequestURL", "[unit]") {
+TEST_CASE("HttpContext BuildRequestURL", "[unit]") {
   // Given an ordinary config
   CoreConfig config("token", "test_service", "test_env");
   config.SetInitialTrackingConsent(TrackingConsent::Granted);
   config.SetApplicationVersion("1.0.0");
-  CoreContext context(config);
+  HttpContext context(config);
   std::string result_url;
 
   SECTION("M concatenate origin and path W path has no query parameters") {
@@ -130,12 +89,12 @@ TEST_CASE("CoreContext BuildRequestURL", "[unit]") {
   }
 }
 
-TEST_CASE("CoreContext BuildRequestHeaders", "[unit]") {
+TEST_CASE("HttpContext BuildRequestHeaders", "[unit]") {
   // Given an ordinary config
   CoreConfig config("test_client_token_456", "test_service", "production");
   config.SetInitialTrackingConsent(TrackingConsent::Granted);
   config.SetApplicationVersion("2.1.0");
-  CoreContext context(config);
+  HttpContext context(config);
   std::string result_headers;
 
   SECTION("M include standard headers W no feature headers provided") {

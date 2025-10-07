@@ -6,13 +6,27 @@
 
 #include "core/context.hpp"
 
+#include <mutex>
+#include <shared_mutex>
+
 #include "assert.hpp"
 #include "core/version.hpp"
 #include "datadog/uuid.hpp"
 
 namespace datadog::impl {
 
-void CoreContext::BuildRequestURL(
+HttpContext::HttpContext(const CoreConfig& config)
+    : intake_origin(
+          GetIntakeOrigin(config.site, config.internal_options.custom_endpoint_url)
+      ),
+      client_token(config.client_token),
+      service(config.service),
+      env(config.env),
+      application_version(config.application_version),
+      source("unity")  // TODO(RUM-7416): "rum-cpp" is not yet supported as a source
+{}
+
+void HttpContext::BuildRequestURL(
     std::string_view path, bool with_ddsource, std::string& out_url
 ) const {
   static const std::string_view ddsource_param = "ddsource=";
@@ -51,7 +65,7 @@ void CoreContext::BuildRequestURL(
   }
 }
 
-void CoreContext::BuildRequestHeaders(
+void HttpContext::BuildRequestHeaders(
     std::string_view content_type,
     std::string_view feature_headers,
     std::string& out_headers
@@ -151,6 +165,29 @@ void CoreContext::BuildRequestHeaders(
 
   // Tack on any feature-supplied headers
   out_headers += feature_headers;
+}
+
+CoreContext::CoreContext(const CoreConfig& config)
+    : http(std::make_shared<HttpContext>(config)) {}
+
+CoreContextProvider::CoreContextProvider(const CoreContext& context)
+    : _context(context) {}
+
+CoreContext CoreContextProvider::Get() const {
+  // Acquire a read-only lock, then create and return a copy of the context
+  std::shared_lock lock(_mutex);
+  return _context;
+}
+
+void CoreContextProvider::Update(const std::function<void(CoreContext&)>& callback) {
+  // Acquire an exclusive write lock, then allow the callback to mutate the context
+  std::unique_lock lock(_mutex);
+  callback(_context);
+}
+
+const HttpContext& CoreContextProvider::GetHttpContext() const {
+  std::shared_lock lock(_mutex);
+  return *_context.http;
 }
 
 }  // namespace datadog::impl

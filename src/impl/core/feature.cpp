@@ -10,15 +10,10 @@
 
 namespace datadog::impl {
 
-void Feature::OnCoreStarted(const EventGeneratedFunc& event_callback) {
-  // We're now permitted to write events; store a reference to our writer callback
-  DATADOG_ASSERT(
-      !_event_callback, "Feature has non-null _event_callback in OnCoreStarted"
-  );
-  DATADOG_ASSERT(
-      event_callback, "Feature received null event_callback in OnCoreStarted"
-  );
-  _event_callback = event_callback;
+void Feature::OnCoreStarted(FeatureScope&& feature_scope) {
+  // Take ownership of our FeatureScope, which we can use as long as the Core is running
+  DATADOG_ASSERT(!_scope, "Feature has non-null _scope in OnCoreStarted");
+  _scope = std::move(feature_scope);
 
   // Notify the feature that the core is started
   Start();
@@ -29,18 +24,18 @@ void Feature::OnCoreStopping() {
   // events
   Stop();
 
-  // Clear the writer callback; we're no longer permitted to write anything
-  DATADOG_ASSERT(_event_callback, "Feature has null _event_callback in OnCoreStop");
-  _event_callback = nullptr;
+  // Drop our FeatureScope; the Core is stopped so we must stop all work
+  DATADOG_ASSERT(_scope, "Feature has null _scope in OnCoreStop");
+  _scope.reset();
 }
 
 bool Feature::WriteEvent(Block event, Block event_metadata) const {
-  if (_event_callback) {
-    return _event_callback(event, event_metadata);
+  if (_scope) {
+    return _scope->WriteEvent(event, event_metadata);
   }
   return false;
 }
 
-bool Feature::IsRunning() const { return _event_callback != nullptr; }
+bool Feature::IsRunning() const { return _scope.has_value(); }
 
 }  // namespace datadog::impl

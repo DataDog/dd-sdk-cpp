@@ -23,6 +23,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/core/context.cpp
     impl/core/core.cpp
     impl/core/feature_read.cpp
+    impl/core/feature_scope.cpp
     impl/core/feature.cpp
     impl/core/storage_write.cpp
     impl/core/storage_queue.cpp

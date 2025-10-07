@@ -53,7 +53,9 @@ std::optional<CoreSubsystems> CoreSubsystems::Init(const CoreConfig& config) {
 }
 
 Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
-    : _config(config), _context(config), _subsystems(std::move(subsystems)) {
+    : _config(config),
+      _context_provider(std::make_unique<CoreContextProvider>(CoreContext(config))),
+      _subsystems(std::move(subsystems)) {
   DATADOG_ASSERT(
       _subsystems.storage_root, "Core created with no root storage directory"
   );
@@ -89,26 +91,6 @@ void Core::SetTrackingConsent(TrackingConsent value) {
         }
       }
     }
-  }
-}
-
-void Core::SetService(std::string_view value) {
-  // TODO: Push context changes to upload thread; requires synchronization
-  if (_config.service != value) {
-    // Cache value and update the context; subsequent reports will be generated using
-    // the latest context
-    _config.service = value;
-    _context.SetService(value);
-  }
-}
-
-void Core::SetEnv(std::string_view value) {
-  // TODO: Push context changes to upload thread; requires synchronization
-  if (_config.env != value) {
-    // Cache value and update the context; subsequent reports will be generated using
-    // the latest context
-    _config.env = value;
-    _context.SetEnv(value);
   }
 }
 
@@ -254,6 +236,12 @@ bool Core::Start() {
   DATADOG_ASSERT(!_upload_scheduler, "_upload_scheduler already exists on Start()");
   _upload_scheduler = std::make_unique<UploadScheduler>(*_subsystems.clock);
 
+  // Acquire a reference to the HttpContext that's held within our CoreContext: the
+  // HttpContext is immutable, so it's safe for the upload thread to retain this
+  // reference
+  DATADOG_ASSERT(_context_provider, "_context_provider is null on Start()");
+  const HttpContext& http_context = _context_provider->GetHttpContext();
+
   // Start another thread that will schedule periodic upload cycles on a per-feature
   // basis: each time an upload cycle runs, the thread will check the relevant storage
   // directory for batches of events that are ready for read, processing them via the
@@ -264,7 +252,7 @@ bool Core::Start() {
       UploadThreadConfig::FromCoreConfig(
           _config.batch_size, _config.batch_processing_level
       ),
-      std::ref(_context),
+      std::ref(http_context),
       std::ref(*_subsystems.clock),
       std::ref(*_upload_scheduler),
       std::ref(_features),
@@ -287,14 +275,14 @@ bool Core::Start() {
   _state = CoreState::Started;
 
   // Notify each registered feature that the core has started, providing it with a
-  // function that it can use to send events to storage
+  // FeatureScope interface that it can use to interoperate with the core
   for (const auto& feature : _features) {
     const FeatureId id = feature.id;
-    EventGeneratedFunc event_callback =
+    EventGeneratedFunc event_generated_func =
         [this, id](Block event, Block event_metadata) -> bool {
       return EnqueueStorageWrite(id, event, event_metadata);
     };
-    feature.impl->OnCoreStarted(event_callback);
+    feature.impl->OnCoreStarted(FeatureScope(*_context_provider, event_generated_func));
   }
   return true;
 }
@@ -358,12 +346,16 @@ void Core::Stop() {
     std::vector<std::string> mut_filenames;
     std::vector<char> mut_read_buffer;
 
-    // Run our upload cycle procedure on the main thread, synchronously: now that we've
-    // joined on both threads, all state is synchronized
+    // Get the HTTP context for use in the upload thread routine
+    DATADOG_ASSERT(_context_provider, "_context_provider is null on Stop()");
+    const HttpContext& http_context = _context_provider->GetHttpContext();
+
+    // Run our upload cycle procedure on the main thread, synchronously: now that
+    // we've joined on both threads, all state is synchronized
     for (const auto& feature : _features) {
       Internal_HandleUploadProc(
           flush_config,
-          _context,
+          http_context,
           *_subsystems.clock,
           feature.id,
           _features,
@@ -407,16 +399,14 @@ std::string_view Core::GetServiceName() const {
   DATADOG_ASSERT(
       _state >= CoreState::Initialized, "GetServiceName called before Core init"
   );
-
-  return _context.service;
+  return _context_provider->GetHttpContext().service;
 }
 
 std::string_view Core::GetApplicationVersion() const {
   DATADOG_ASSERT(
       _state >= CoreState::Initialized, "GetApplicationVersion called before Core init"
   );
-
-  return _context.application_version;
+  return _context_provider->GetHttpContext().application_version;
 }
 
 }  // namespace datadog::impl

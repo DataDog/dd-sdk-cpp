@@ -88,7 +88,7 @@ class MockFeature : public impl::Feature {
    * Default implementation to record reports generated under test.
    */
   virtual std::optional<impl::Report> UploadThread_PrepareReport(
-      const impl::CoreContext& context, impl::BatchReader& reader
+      const impl::HttpContext& context, impl::BatchReader& reader
   ) override {
     // Use a report struct to contain all the relevant data about this call
     MockReport report;

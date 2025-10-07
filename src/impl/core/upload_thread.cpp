@@ -100,7 +100,7 @@ static _process_and_upload_batch_result _interpret_http_result(
 }
 
 static _process_and_upload_batch_result _process_and_upload_batch(
-    const CoreContext& core_context,
+    const HttpContext& http_context,
     Feature& feature_impl,
     platform::IDirectory& directory,
     platform::IHttpClient& http_client,
@@ -119,7 +119,7 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   // Initialize a BatchReader, which the feature implementation will use to iteratively
   // process each TLV block stored in the file
   BatchReader batch_reader(file, mut_read_buffer);
-  auto report = feature_impl.UploadThread_PrepareReport(core_context, batch_reader);
+  auto report = feature_impl.UploadThread_PrepareReport(http_context, batch_reader);
   if (!report) {
     // If the feature elected not to generate a report from this batch, or was unable to
     // process it, delete the file and continue processing
@@ -147,7 +147,7 @@ static _process_and_upload_batch_result _process_and_upload_batch(
 
 static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
     UploadThreadConfig config,
-    const CoreContext& core_context,
+    const HttpContext& http_context,
     const platform::IClock& clock,
     RegisteredFeature& feature,
     platform::IHttpClient& http_client,
@@ -241,7 +241,7 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
     // to be processed, then initiate the resulting HTTP request to upload the batch to
     // intake
     last_batch_result = _process_and_upload_batch(
-        core_context, *feature.impl, directory, http_client, filename, mut_read_buffer
+        http_context, *feature.impl, directory, http_client, filename, mut_read_buffer
     );
     num_uploads_attempted++;
 
@@ -365,7 +365,7 @@ platform::Duration UploadThreadState::ResetDelayToMin() {
 
 platform::Duration Internal_HandleUploadProc(
     UploadThreadConfig config,
-    const CoreContext& core_context,
+    const HttpContext& http_context,
     const platform::IClock& clock,
     FeatureId feature_id,
     std::vector<RegisteredFeature>& features,
@@ -394,13 +394,13 @@ platform::Duration Internal_HandleUploadProc(
   // directory for files that need to be uploaded, and uploading any that are found, up
   // to the configured limits
   return _run_upload_cycle(
-      config, core_context, clock, *feature, http_client, mut_filenames, mut_read_buffer
+      config, http_context, clock, *feature, http_client, mut_filenames, mut_read_buffer
   );
 }
 
 void UploadThreadMain(
     UploadThreadConfig config,
-    const CoreContext& core_context,
+    const HttpContext& http_context,
     const platform::IClock& clock,
     UploadScheduler& scheduler,
     std::vector<RegisteredFeature>& features,
@@ -430,7 +430,7 @@ void UploadThreadMain(
   while (auto feature_id = scheduler.WaitForNext()) {
     const platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
-        core_context,
+        http_context,
         clock,
         *feature_id,
         features,

@@ -19,7 +19,7 @@ namespace datadog {
 // Forward declarations
 namespace impl {
 class Core;
-struct CoreContext;
+struct HttpContext;
 }  // namespace impl
 
 /**
@@ -126,7 +126,7 @@ enum class BatchProcessingLevel : uint8_t {
 struct CoreConfig {
   friend class Core;
   friend class impl::Core;
-  friend struct impl::CoreContext;
+  friend struct impl::HttpContext;
 
  private:
   TrackingConsent tracking_consent{TrackingConsent::Pending};

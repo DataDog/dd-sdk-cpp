@@ -35,7 +35,7 @@ class Logging final : public Feature {
   std::string_view GetName() const override { return "logs"; }
 
   std::optional<Report> UploadThread_PrepareReport(
-      const CoreContext& context, BatchReader& reader
+      const HttpContext& context, BatchReader& reader
   ) override;
 
  public:
@@ -89,7 +89,6 @@ class Logging final : public Feature {
   mutable std::shared_mutex _global_attributes_mutex;
 
   // HTTP request details used on upload; owned by the upload thread
-  int32_t _last_context_version{0};
   std::string _request_url;
   std::string _request_headers;
 };
