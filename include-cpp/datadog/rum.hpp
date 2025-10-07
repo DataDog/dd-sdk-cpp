@@ -20,6 +20,7 @@ namespace datadog {
 // Forward declarations
 namespace impl {
 class Rum;
+struct RumScopeDependencies;
 }  // namespace impl
 
 /**
@@ -28,6 +29,7 @@ class Rum;
 struct RumConfig {
   friend class Rum;
   friend class impl::Rum;
+  friend struct impl::RumScopeDependencies;
 
  private:
   UUID application_id;  // UUID::Zero if uninitialized or invalid
