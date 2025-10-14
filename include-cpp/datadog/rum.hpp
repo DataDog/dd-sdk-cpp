@@ -104,8 +104,10 @@ class Rum {
   /**
    * Explicitly stops the current RUM session, if one is active.
    *
-   * The next call to StartView(), AddAction(), etc. will automatically start a new
-   * session.
+   * Once a session has been explicitly stopped, the next call to StartView(),
+   * StartAction(), or AddAction() will automatically start a new session. If that new
+   * session is created in response to an action, the last active view from the previous
+   * session will be restarted in the new session.
    */
   DATADOG_API void StopSession();
 

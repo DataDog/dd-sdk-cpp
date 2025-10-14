@@ -94,8 +94,10 @@ DATADOG_API void dd_rum_attribute_delete(dd_rum_t* rum, const char* name);
 /**
  * Explicitly stops the current RUM session, if one is active.
  *
- * The next call to dd_rum_start_view(), dd_rum_add_action(), etc. will
- * automatically start a new session.
+ * Once a session has been explicitly stopped, the next call to dd_rum_start_view(),
+ * dd_rum_start_action(), or dd_rum_add_action() will automatically start a new session.
+ * If that new session is created in response to an action, the last active view from
+ * the previous session will be restarted in the new session.
  */
 DATADOG_API void dd_rum_stop_session(dd_rum_t* rum);
 
