@@ -28,7 +28,7 @@ std::string_view RumSessionPrecondition_ToString(RumSessionPrecondition value) {
       return "explicit_stop";
   }
   DATADOG_ASSERT(false, "invalid RumSessionPrecondition value");
-  return "";
+  return "unknown_precondition";
 }
 
 }  // namespace datadog::impl
