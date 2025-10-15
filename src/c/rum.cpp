@@ -11,6 +11,7 @@
 #include "core/core.hpp"
 #include "core_glue.hpp"
 #include "datadog/core.h"
+#include "datadog/uuid.hpp"
 #include "features/rum/rum.hpp"
 #include "features/rum/types.hpp"
 #include "rum_glue.hpp"
@@ -19,7 +20,7 @@ static const uint32_t RUM_CONFIG_VERSION = 1;
 
 static const dd_rum_config_t DEFAULT_RUM_CONFIG = {
     RUM_CONFIG_VERSION,  // version
-    nullptr              // application_id
+    dd_uuid_t{}          // application_id
 };
 
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
@@ -27,16 +28,25 @@ static const dd_rum_config_t DEFAULT_RUM_CONFIG = {
 extern "C" {
 
 void dd_rum_config_init(dd_rum_config_t* config, const char* application_id) {
-  if (!config) {
+  // Require a valid config struct and valid string
+  if (!config || !application_id) {
     return;
   }
+
+  // Parse application ID as a UUID value
+  const auto application_id_opt = datadog::UUID::Parse(application_id);
+  const datadog::UUID uuid_value = application_id_opt.value_or(datadog::UUID::Zero);
+
+  // Populate struct fields
   *config = DEFAULT_RUM_CONFIG;
-  config->application_id = application_id;
+  dd_uuid_set(&config->application_id, uuid_value.bytes.data());
 }
 
 void dd_rum_config_set_application_id(dd_rum_config_t* config, const char* value) {
-  if (config) {
-    config->application_id = value;
+  if (config && value) {
+    const auto value_opt = datadog::UUID::Parse(value);
+    const datadog::UUID uuid_value = value_opt.value_or(datadog::UUID::Zero);
+    dd_uuid_set(&config->application_id, uuid_value.bytes.data());
   }
 }
 
@@ -61,9 +71,9 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
     return nullptr;
   }
 
-  // If the config doesn't specify an application ID, reject it
-  const bool has_application_id = config->application_id && config->application_id[0];
-  if (!has_application_id) {
+  // If the config doesn't specify an application ID as a valid, nonzero UUID, reject it
+  if (dd_uuid_is_zero(&config->application_id)) {
+    // TODO(RUM-11363): Log a warning message locally to inform the user of bad config
     return nullptr;
   }
 

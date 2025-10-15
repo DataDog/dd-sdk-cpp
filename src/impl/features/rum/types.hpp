@@ -14,8 +14,9 @@
 namespace datadog {
 
 inline RumConfig RumConfig_FromC(const dd_rum_config_t& config) {
-  // Convert all of the C struct's string values to std::string_view safely
-  std::string_view application_id = config.application_id ? config.application_id : "";
+  // Convert from dd_uuid_t to datadog::UUID
+  const uint8_t* bytes = static_cast<const uint8_t*>(config.application_id.bytes);
+  const UUID application_id(bytes);
 
   // Initialize a C++ config struct from our input values
   return RumConfig(application_id);

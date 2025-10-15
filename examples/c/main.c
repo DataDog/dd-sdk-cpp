@@ -41,7 +41,7 @@ int main(int argc, char *argv[]) {
 
   // Register the RUM feature
   dd_rum_config_t rum_config;
-  dd_rum_config_init(&rum_config, "fake-application-id");
+  dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
   dd_rum_t *rum = dd_rum_init(core, &rum_config);
   if (!rum) {
     printf("Failed to register RUM\n");

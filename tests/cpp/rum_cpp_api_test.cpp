@@ -21,7 +21,7 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
     std::vector<std::shared_ptr<Core>> cores = {noop_core, null_core};
 
     // And a valid RUM Config
-    const datadog::RumConfig config("my-application-id");
+    const datadog::RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
 
     for (std::shared_ptr<Core>& core : cores) {
       // When we register the RUM feature on an invalid core
@@ -44,7 +44,7 @@ TEST_CASE("Rum::Register", "[unit][rum][cpp-api]") {
     auto core = CoreTestHarness::WrapForCpp(test);
 
     // And a valid Rum config
-    RumConfig config("my-application-id");
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
 
     // When we register the RUM feature
     auto rum = Rum::Register(core, config);
@@ -59,7 +59,7 @@ TEST_CASE("Rum::Register", "[unit][rum][cpp-api]") {
     auto core = CoreTestHarness::WrapForCpp(test);
 
     // And a Rum config that lacks a valid application ID
-    RumConfig config("");
+    RumConfig config("this-is-not-a-valid-uuid-so-application-id-will-default-to-zero");
 
     // When we register the RUM feature
     auto rum = Rum::Register(core, config);

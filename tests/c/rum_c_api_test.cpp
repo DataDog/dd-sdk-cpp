@@ -14,8 +14,8 @@ using namespace datadog;
 
 TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
   SECTION("M safely do nothing W target object is null") {
-    dd_rum_config_init(nullptr, "my-application-id");
-    dd_rum_config_set_application_id(nullptr, "my-application-id");
+    dd_rum_config_init(nullptr, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_application_id(nullptr, "a991ca10-4004-4004-4004-beefbeefbeef");
 
     REQUIRE(dd_rum_init(nullptr, nullptr) == nullptr);
     dd_rum_destroy(nullptr);
@@ -35,7 +35,7 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
 
     // And a config struct that's been initialized with the bare-minimum set of values
     dd_rum_config config;
-    dd_rum_config_init(&config, "my-application-id");
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
 
     // When we attempt to register RUM with that config
     dd_rum_t* rum = dd_rum_init(core, &config);
@@ -56,7 +56,7 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
 
     // And a config struct that's been initialized with the bare-minimum set of values
     dd_rum_config config;
-    dd_rum_config_init(&config, "my-application-id");
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
 
     // When we explicitly set the struct version to 1
     config.version = 1;

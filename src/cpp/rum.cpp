@@ -13,16 +13,26 @@
 
 namespace datadog {
 
-RumConfig::RumConfig(std::string_view in_application_id)
+RumConfig::RumConfig(std::string_view in_application_id) {
+  const auto uuid_opt = UUID::Parse(in_application_id);
+  application_id = uuid_opt.value_or(UUID::Zero);
+}
+
+RumConfig::RumConfig(const UUID& in_application_id)
     : application_id(in_application_id) {}
 
-RumConfig::~RumConfig() = default;
-RumConfig::RumConfig(const RumConfig&) = default;
-RumConfig& RumConfig::operator=(const RumConfig&) = default;
-RumConfig::RumConfig(RumConfig&&) = default;
-RumConfig& RumConfig::operator=(RumConfig&&) = default;
+RumConfig::RumConfig(const RumConfig&) noexcept = default;
+RumConfig& RumConfig::operator=(const RumConfig&) noexcept = default;
+RumConfig::RumConfig(RumConfig&&) noexcept = default;
+RumConfig& RumConfig::operator=(RumConfig&&) noexcept = default;
 
 RumConfig& RumConfig::SetApplicationId(std::string_view value) {
+  const auto uuid_opt = UUID::Parse(value);
+  application_id = uuid_opt.value_or(UUID::Zero);
+  return *this;
+}
+
+RumConfig& RumConfig::SetApplicationId(const UUID& value) {
   application_id = value;
   return *this;
 }
@@ -40,7 +50,8 @@ std::shared_ptr<Rum> Rum::Register(
   }
 
   // If we don't have all required config values, return a no-op Rum interface
-  if (config.application_id.empty()) {
+  if (config.application_id == UUID::Zero) {
+    // TODO(RUM-11363): Log a warning message locally to inform the user of bad config
     return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
   }
 
@@ -55,8 +66,8 @@ std::shared_ptr<Rum> Rum::Register(
     return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
   }
 
-  // Initialize and return the API object that represents our user-facing interface for
-  // the RUM feature
+  // Initialize and return the API object that represents our user-facing interface
+  // for the RUM feature
   return std::make_shared<Rum>(std::move(rum_impl), Rum::PrivateCtorTag{});
 }
 
