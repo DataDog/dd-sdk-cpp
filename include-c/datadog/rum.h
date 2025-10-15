@@ -28,6 +28,7 @@ extern "C" {
 typedef struct dd_rum_config {
   uint32_t version;
   dd_uuid_t application_id;
+  float session_sample_rate;
 } dd_rum_config_t;
 
 /**
@@ -44,6 +45,15 @@ DATADOG_API void dd_rum_config_init(
  */
 DATADOG_API void dd_rum_config_set_application_id(
     dd_rum_config_t* config, const char* value
+);
+
+/**
+ * Sets the sample rate to a value between 0.0 and 100.0, indicating what percentage of
+ * RUM sessions should be sampled. At 100.0, events for all sessions are sent to intake;
+ * at 0.0, no RUM events are generated. Default is 100.0.
+ */
+DATADOG_API void dd_rum_config_set_session_sample_rate(
+    dd_rum_config_t* config, float value
 );
 
 // === RUM feature interface ===
@@ -64,6 +74,20 @@ DATADOG_API dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config
  * Frees all memory allocated for the RUM feature.
  */
 DATADOG_API void dd_rum_destroy(dd_rum_t* rum);
+
+/**
+ * Adds or updates a global attribute value that will be included with all RUM events
+ * emitted hereafter.
+ */
+DATADOG_API void dd_rum_attribute_set(
+    dd_rum_t* rum, const char* name, const dd_attribute_t* value
+);
+
+/**
+ * Removes a global attribute value, if one has been previously added with the given
+ * name.
+ */
+DATADOG_API void dd_rum_attribute_delete(dd_rum_t* rum, const char* name);
 
 #ifdef __cplusplus
 }

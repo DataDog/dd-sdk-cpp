@@ -6,11 +6,13 @@
 
 #pragma once
 
+#include <cinttypes>
 #include <memory>
 #include <string>
 #include <string_view>
 
 #include "datadog/api.hpp"
+#include "datadog/attribute.hpp"
 #include "datadog/uuid.hpp"
 
 namespace datadog {
@@ -29,6 +31,7 @@ struct RumConfig {
 
  private:
   UUID application_id;  // UUID::Zero if uninitialized or invalid
+  float session_sample_rate{100.0f};
 
  public:
   /**
@@ -55,6 +58,13 @@ struct RumConfig {
    */
   DATADOG_API RumConfig& SetApplicationId(std::string_view value);
   DATADOG_API RumConfig& SetApplicationId(const UUID& value);
+
+  /**
+   * Sets the sample rate to a value between 0.0 and 100.0, indicating what percentage
+   * of RUM sessions should be sampled. At 100.0, events for all sessions are sent to
+   * intake; at 0.0, no RUM events are generated. Default is 100.0.
+   */
+  DATADOG_API RumConfig& SetSessionSampleRate(float value);
 };
 
 /**
@@ -76,6 +86,18 @@ class Rum {
   DATADOG_API static std::shared_ptr<Rum> Register(
       const std::shared_ptr<class Core>& core, const RumConfig& config
   );
+
+  /**
+   * Adds or updates a global attribute value that will be included with all RUM events
+   * emitted hereafter.
+   */
+  DATADOG_API void SetAttribute(std::string_view name, const Attribute& value);
+
+  /**
+   * Removes a global attribute value, if one has been previously added with the given
+   * name.
+   */
+  DATADOG_API void DeleteAttribute(std::string_view name);
 
  private:
   // Forbid copying/moving: we use std::shared_ptr<Rum> at the API boundary

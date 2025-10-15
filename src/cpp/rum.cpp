@@ -37,6 +37,11 @@ RumConfig& RumConfig::SetApplicationId(const UUID& value) {
   return *this;
 }
 
+RumConfig& RumConfig::SetSessionSampleRate(float value) {
+  session_sample_rate = value;
+  return *this;
+}
+
 Rum::Rum(std::shared_ptr<impl::Rum>&& impl, PrivateCtorTag) : _impl(std::move(impl)) {}
 
 Rum::~Rum() = default;
@@ -69,6 +74,18 @@ std::shared_ptr<Rum> Rum::Register(
   // Initialize and return the API object that represents our user-facing interface
   // for the RUM feature
   return std::make_shared<Rum>(std::move(rum_impl), Rum::PrivateCtorTag{});
+}
+
+void Rum::SetAttribute(std::string_view name, const Attribute& value) {
+  if (_impl) {
+    _impl->SetAttribute(name, value);
+  }
+}
+
+void Rum::DeleteAttribute(std::string_view name) {
+  if (_impl) {
+    _impl->DeleteAttribute(name);
+  }
 }
 
 }  // namespace datadog

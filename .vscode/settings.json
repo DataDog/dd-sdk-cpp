@@ -87,6 +87,7 @@
         "thread": "cpp",
         "shared_mutex": "cpp",
         "random": "cpp",
-        "atomic": "cpp"
+        "atomic": "cpp",
+        "span": "cpp"
     }
 }

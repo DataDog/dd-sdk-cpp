@@ -19,7 +19,7 @@ inline RumConfig RumConfig_FromC(const dd_rum_config_t& config) {
   const UUID application_id(bytes);
 
   // Initialize a C++ config struct from our input values
-  return RumConfig(application_id);
+  return RumConfig(application_id).SetSessionSampleRate(config.session_sample_rate);
 }
 
 }  // namespace datadog
