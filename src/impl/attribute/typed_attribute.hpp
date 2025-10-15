@@ -12,6 +12,7 @@
 #include <string_view>
 
 #include "datadog/attribute.hpp"
+#include "datadog/uuid.hpp"
 
 namespace datadog::impl {
 
@@ -53,7 +54,36 @@ struct TypedAttribute {
   }
 };
 
+struct UUIDAttribute : public TypedAttribute<ValueType::UUID> {
+  /**
+   * Default-initializes a UUID attribute to null.
+   */
+  UUIDAttribute() {}
+
+  /**
+   * Initializes a UUID attribute from the provided value.
+   */
+  explicit UUIDAttribute(const UUID& value)
+      : TypedAttribute(Attribute::UUID(value.bytes.data())) {}
+
+  /**
+   * For convenience: returns the current UUID value stored in this attribute, or
+   * UUID::Zero as a fallback.
+   */
+  UUID Get() const { return attribute.GetUUIDValue(); }
+
+  /**
+   * Updates the UUID value stored in this attribute.
+   */
+  void Set(const UUID& value) { attribute.SetUUID(value.bytes.data()); }
+};
+
 struct StringAttribute : public TypedAttribute<ValueType::String> {
+  /**
+   * Default-initializes a string attribute to null.
+   */
+  StringAttribute() {}
+
   /**
    * Initializes a new StringAttribute from a std::string_view.
    */
@@ -65,6 +95,12 @@ struct StringAttribute : public TypedAttribute<ValueType::String> {
    */
   explicit StringAttribute(const std::optional<std::string>& value)
       : TypedAttribute(value ? Attribute::String(*value) : Attribute()) {}
+
+  /**
+   * For convenience: returns a view of the string value currently stored in this
+   * attribute, or empty string as a fallback.
+   */
+  std::string_view Get() const { return attribute.GetStringValue(); }
 };
 
 struct ArrayAttribute : public TypedAttribute<ValueType::Array> {

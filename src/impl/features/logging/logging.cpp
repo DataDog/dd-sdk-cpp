@@ -88,82 +88,143 @@ void Logging::DeleteAttribute(std::string_view name) {
 std::unique_ptr<Logger> Logging::CreateLogger(const LoggerConfig& config) {
   std::weak_ptr<Logging> self = std::static_pointer_cast<Logging>(shared_from_this());
   auto event_callback = [self](
-                            Attribute& mut_event_object,
-                            std::vector<uint8_t>& mut_event_buffer,
-                            const StringAttribute& logger_service_name,
-                            const ObjectAttribute& logger_object,
-                            const Attribute& logger_attributes,
+                            LoggerState& mut_state,
+                            const LoggerEnrichmentConfig& enrichment,
                             LogLevel level,
                             std::string_view message,
                             const Attribute& message_attributes
                         ) {
     if (auto logging = self.lock()) {
-      logging->OnLoggerEmit(
-          mut_event_object,
-          mut_event_buffer,
-          logger_service_name,
-          logger_object,
-          logger_attributes,
-          level,
-          message,
-          message_attributes
-      );
+      logging->OnLoggerEmit(mut_state, enrichment, level, message, message_attributes);
     }
   };
   return std::make_unique<Logger>(config, event_callback);
 }
 
 void Logging::OnLoggerEmit(
-    Attribute& mut_event_object,
-    std::vector<uint8_t>& mut_event_buffer,
-    const StringAttribute& logger_service_name,
-    const ObjectAttribute& logger_object,
-    const Attribute& logger_attributes,
+    LoggerState& mut_state,
+    const LoggerEnrichmentConfig& enrichment,
     LogLevel level,
     std::string_view message,
     const Attribute& message_attributes
 ) const {
+  // Grab a mutable reference to the object Attribute in which we'll build the log event
+  Attribute& obj = mut_state.event_object.attribute;
+  const LoggerState& state = mut_state;
+
   // Set the 'status' field based on the log level, using static Attribute strings
-  mut_event_object.SetObjectProperty("status", Logging::GetLogLevelString(level));
+  obj.SetObjectProperty("status", Logging::GetLogLevelString(level));
 
   // Set 'service': use the logger-overridden value if set, otherwise use the global
   // default from SDK config
-  if (logger_service_name && !logger_service_name.attribute.GetStringValue().empty()) {
-    mut_event_object.SetObjectProperty("service", *logger_service_name);
+  std::string_view logger_service_name = state.service_name.attribute.GetStringValue();
+  if (!logger_service_name.empty()) {
+    obj.SetObjectProperty("service", state.service_name.attribute);
   } else {
-    mut_event_object.SetObjectProperty("service", *_default_service_name);
+    obj.SetObjectProperty("service", _default_service_name.attribute);
   }
 
   // Set 'date' from the current timestamp
   const platform::Timestamp now = _clock.Now();
-  mut_event_object.SetObjectProperty("date", Attribute::Timestamp(now));
+  obj.SetObjectProperty("date", Attribute::Timestamp(now));
 
   // Set 'message'
   // TODO: Reuse string memory on object property value set
-  mut_event_object.SetObjectProperty("message", Attribute::String(message));
+  obj.SetObjectProperty("message", Attribute::String(message));
 
-  // Set the 'logger' object with the details of the logger
-  mut_event_object.SetObjectProperty("logger", *logger_object);
+  // Set 'logger.name' to the name of the logger, if one was configured
+  std::string_view logger_name = state.logger_name.attribute.GetStringValue();
+  if (!logger_name.empty()) {
+    obj.SetObjectProperty("logger.name", state.logger_name.attribute);
+  }
 
-  // Merge in all user-supplied attributes, ignoring any properties with reserved names
-  // (ensuring that all of the standard properties set above are preserved), and
-  // preferring the latter value in case of name conflicts
+  // Set 'logger.version' to the SDK version
+  obj.SetObjectProperty("logger.version", _sdk_version.attribute);
+
+  // If the logger is configured to enrich messages with context from other features,
+  // obtain up-to-date values from the CoreContext, store them in LoggerState
+  // attributes, and update the internal_attributes object
+  if (enrichment.enable_rum && _scope) {
+    // Get an immutable, thread-safe snapshot of the current context, and get RUM values
+    const CoreContext context = _scope->GetContext();
+    if (context.rum) {
+      mut_state.rum_application_id.Set(context.rum->application_id);
+      mut_state.rum_session_id.Set(context.rum->session_id);
+      mut_state.rum_view_id.Set(context.rum->view_id);
+      mut_state.rum_action_id.Set(context.rum->action_id);
+    } else {
+      mut_state.rum_application_id.Set(UUID::Zero);
+      mut_state.rum_session_id.Set(UUID::Zero);
+      mut_state.rum_view_id.Set(UUID::Zero);
+      mut_state.rum_action_id.Set(UUID::Zero);
+    }
+
+    // Update the 'internal_attributes' object, which we'll merge into the final object
+    Attribute& internal_obj = mut_state.internal_attributes.attribute;
+
+    // Set 'application_id' from rum_application_id
+    const Attribute& application_id = state.rum_application_id.attribute;
+    if (application_id.GetUUIDValue() != UUID::Zero) {
+      internal_obj.SetObjectProperty("application_id", application_id);
+    } else {
+      internal_obj.DeleteObjectProperty("application_id");
+    }
+
+    // Set 'session_id' from rum_session_id
+    const Attribute& session_id = state.rum_session_id.attribute;
+    if (session_id.GetUUIDValue() != UUID::Zero) {
+      internal_obj.SetObjectProperty("session_id", session_id);
+    } else {
+      internal_obj.DeleteObjectProperty("session_id");
+    }
+
+    // Set 'view.id' from rum_view_id
+    const Attribute& view_id = state.rum_view_id.attribute;
+    if (view_id.GetUUIDValue() != UUID::Zero) {
+      internal_obj.SetObjectProperty("view.id", view_id);
+    } else {
+      internal_obj.DeleteObjectProperty("view.id");
+    }
+
+    // Set 'user_action.id' from rum_action_id
+    const Attribute& action_id = state.rum_action_id.attribute;
+    if (action_id.GetUUIDValue() != UUID::Zero) {
+      internal_obj.SetObjectProperty("user_action.id", action_id);
+    } else {
+      internal_obj.DeleteObjectProperty("user_action.id");
+    }
+  }
+
+  // Merge our full set of Attribute::Object() values into a single object representing
+  // the final JSON payload to be serialized. The destination object `mut_event_object`
+  // already contains the essential set of log event attributes, and the filter function
+  // `is_valid_user_attribute_name` prevents user attributes with conflicting names from
+  // being merged in and clobbering those values. We merge in all user attributes,
+  // followed by any internal attributes that inject context from other features, in
+  // this order:
+  // 1. The global attributes set via Logging::SetAttribute
+  // 2. The logger-level attributes set via Logger::SetAttribute
+  // 3. The message-level attributes supplied in the log call
+  // 4. Internal attributes derived from other features' context values
   std::shared_lock read_only_lock(_global_attributes_mutex);
   AttributeMerge::AssembleObject(
-      mut_event_object,
-      {*_global_attributes, logger_attributes, message_attributes},
+      obj,
+      {_global_attributes.attribute,
+       state.user_attributes.attribute,
+       message_attributes,
+       state.internal_attributes.attribute},
       is_valid_user_attribute_name
   );
   read_only_lock.unlock();
 
   // Serialize to JSON, using the logger-owned buffer to ensure that it's safe to
   // serialize multiple messages from different loggers concurrently
-  AttributeSerialization::ToJSON(mut_event_object, mut_event_buffer);
+  AttributeSerialization::ToJSON(obj, mut_state.event_buffer);
 
   WriteEvent(Block(
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      reinterpret_cast<const char*>(mut_event_buffer.data()),
-      mut_event_buffer.size()
+      reinterpret_cast<const char*>(mut_state.event_buffer.data()),
+      mut_state.event_buffer.size()
   ));
 }
 

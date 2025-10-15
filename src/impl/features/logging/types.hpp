@@ -46,7 +46,8 @@ inline datadog::LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config
       .SetService(config.service)
       .SetName(config.name)
       .SetRemoteLogThreshold(LogLevel_FromC(config.remote_log_threshold))
-      .SetInitialAttributeCapacity(config.initial_attribute_capacity);
+      .SetInitialAttributeCapacity(config.initial_attribute_capacity)
+      .SetEnrichWithRumContext(config.enrich_with_rum_context);
 }
 
 }  // namespace datadog

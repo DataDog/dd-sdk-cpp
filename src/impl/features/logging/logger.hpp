@@ -21,14 +21,50 @@
 namespace datadog::impl {
 
 /**
+ * Internal state that's owned by a specific logger but shared with the Logging feature
+ * for the purposes of generating log events.
+ *
+ * Since we don't guarantee thread safety for individual loggers, we can assume
+ * exclusive access to this state in any API call initiated on the owning Logger.
+ */
+struct LoggerState {
+  // Long-lived attribute values that are used in the final log event
+  StringAttribute service_name;  // 'service'
+  StringAttribute logger_name;   // 'logger.name'
+
+  UUIDAttribute rum_application_id;  // 'application_id'; if enriched with RUM context
+  UUIDAttribute rum_session_id;      // 'session_id'; if a RUM session is active
+  UUIDAttribute rum_view_id;         // 'view.id'; if a RUM view is active
+  UUIDAttribute rum_action_id;       // 'user_action.id'; if a RUM action is active
+
+  // Intermediate objects used to hold key-value pairs to be merged into the final event
+  // payload
+  ObjectAttribute user_attributes;
+  ObjectAttribute internal_attributes;
+
+  // Reusable buffers for building the final event and serializing it to JSON
+  ObjectAttribute event_object;
+  std::vector<uint8_t> event_buffer;
+
+  explicit LoggerState(
+      const std::optional<std::string>& in_service_name,
+      const std::optional<std::string>& in_logger_name,
+      size_t initial_attribute_capacity
+  );
+};
+
+struct LoggerEnrichmentConfig {
+  bool enable_rum;
+
+  explicit LoggerEnrichmentConfig(bool in_enable_rum);
+};
+
+/**
  * Function used by a Logger to generate a new log message.
  */
 using LogEventCallback = std::function<void(
-    Attribute& mut_event_object,
-    std::vector<uint8_t>& mut_event_buffer,
-    const StringAttribute& logger_service_name,
-    const ObjectAttribute& logger_object,
-    const Attribute& logger_attributes,
+    LoggerState& mut_state,
+    const LoggerEnrichmentConfig& enrichment,
     LogLevel level,
     std::string_view message,
     const Attribute& message_attributes
@@ -64,17 +100,10 @@ class Logger {
   std::mt19937 _sampling_rng;
   std::uniform_real_distribution<float> _sampling_distribution;
 
-  // Long-lived attribute values that are referenced in the final log message
-  StringAttribute _service_name;
-  ObjectAttribute _logger_object;
-  ObjectAttribute _logger_attributes;
-
-  // Callback used to emit log messages via the centralized logging feature impl
+  // State used when generating log events
   LogEventCallback _event_callback;
-
-  // Logger-specific state
-  ObjectAttribute _event_object;
-  std::vector<uint8_t> _event_buffer;
+  LoggerState _state;
+  LoggerEnrichmentConfig _enrichment;
 };
 
 }  // namespace datadog::impl
