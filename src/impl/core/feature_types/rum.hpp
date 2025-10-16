@@ -28,4 +28,51 @@ struct RumFeatureContext {
   UUID action_id;       // UUID::Zero if no active action
 };
 
+/**
+ * Indicates why and how a new RUM session was created, tracking the lifecycle
+ * transition from the previous session or initial app state. You might also call this
+ * the session's "start reason."
+ *
+ * TODO: This definition is based on the schema for RUM events that's maintained in the
+ * rum-events-format repo. Other SDKs have tooling to generate code from these JSON
+ * schemas; in this codebase we currently maintain those types by hand.
+ */
+enum class RumSessionPrecondition : uint8_t {
+  /**
+   * Session started because the user launched the instrumented application in the
+   * foreground (normal interactive launch).
+   */
+  UserAppLaunch,
+  /**
+   * Session started automatically after the previous session timed out from lack of
+   * user input.
+   */
+  InactivityTimeout,
+  /**
+   * Session started automatically after the previous session reached its maximum
+   * allowed duration.
+   */
+  MaxDuration,
+  /**
+   * Session started because the app was launched in a background state.
+   */
+  BackgroundLaunch,
+  /**
+   * Session started because the app was launched by the operating system, without user
+   * input, as an optimization.
+   */
+  Prewarm,
+  /**
+   * Session started following a previous non-interactive session.
+   */
+  FromNonInteractiveSession,
+  /**
+   * Session started after the previous session was explicitly stopped via a
+   * StopSession() API call.
+   */
+  ExplicitStop
+};
+
+std::string_view RumSessionPrecondition_ToString(RumSessionPrecondition value);
+
 }  // namespace datadog::impl

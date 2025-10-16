@@ -32,6 +32,8 @@ add_executable(dd_native_tests
     impl/core/upload_scheduler_test.cpp
     impl/core/upload_thread_test.cpp
     impl/core/writer_test.cpp
+    impl/features/rum/context_test.cpp
+    impl/features/rum/scope_test.cpp
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
