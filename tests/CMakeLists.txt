@@ -22,6 +22,7 @@ add_executable(dd_native_tests
     impl/core/core_test.cpp
     impl/core/feature_id_test.cpp
     impl/core/feature_read_test.cpp
+    impl/core/feature_scope_test.cpp
     impl/core/feature_test.cpp
     impl/core/queue_test.cpp
     impl/core/site_test.cpp
@@ -32,7 +33,10 @@ add_executable(dd_native_tests
     impl/core/upload_scheduler_test.cpp
     impl/core/upload_thread_test.cpp
     impl/core/writer_test.cpp
+    impl/features/rum/scopes/application_test.cpp
+    impl/features/rum/scopes/session_test.cpp
     impl/features/rum/context_test.cpp
+    impl/features/rum/rum_test.cpp
     impl/features/rum/scope_test.cpp
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp

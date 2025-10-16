@@ -35,6 +35,8 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/core/writer.cpp
     impl/features/logging/logger.cpp
     impl/features/logging/logging.cpp
+    impl/features/rum/scopes/application.cpp
+    impl/features/rum/scopes/session.cpp
     impl/features/rum/context.cpp
     impl/features/rum/rum.cpp
     impl/features/rum/scope.cpp

@@ -22,6 +22,11 @@ CoreContext FeatureScope::GetContext() const {
   return _context_provider->Get();
 }
 
+void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callback) {
+  DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
+  _context_provider->Update(callback);
+}
+
 bool FeatureScope::WriteEvent(Block event, Block event_metadata) const {
   if (_event_generated_func) {
     return _event_generated_func(event, event_metadata);

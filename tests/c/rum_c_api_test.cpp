@@ -25,7 +25,8 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
     dd_rum_attribute_set(nullptr, "foo", &int_100);
     dd_rum_attribute_delete(nullptr, "foo");
 
-    // TODO(RUM-11367): Validate session functions
+    dd_rum_stop_session(nullptr);
+
     // TODO(RUM-11368): Validate view functions
     // TODO(RUM-11369): Validate action functions
   }
