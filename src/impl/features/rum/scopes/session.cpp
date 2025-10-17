@@ -132,7 +132,7 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
 
   // If the command was dispatched in response to a user interaction, refresh our
   // last-interaction timestamp to reset the clock on the inactivity timeout
-  if (command.base.is_user_interaction) {
+  if (command.IsUserInteraction()) {
     _last_interaction_at = command.base.issued_at;
   }
 

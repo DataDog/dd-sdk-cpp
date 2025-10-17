@@ -77,7 +77,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     REQUIRE(prev_session.GetEndReason() == RumSessionScope::EndReason::Stopped);
   }
 
-  SECTION("M start new session W any user interaction is processed after StopSession") {
+  SECTION("M start new session W any command is processed after StopSession") {
     // Given a RumApplicationScope with an active session
     scope.Process(RumCommand::SDKInit(GetBaseParams()));
     REQUIRE(scope.GetActiveSession());
@@ -86,7 +86,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     // When we process StopSession
     scope.Process(RumCommand::StopSession(GetBaseParams()));
 
-    // And then we subsequently process any command that represents user interaction
+    // And then we subsequently process any command
     scope.Process(RumCommand::UserInteraction(GetBaseParams()));
 
     // Then we once again have an active session, and it's distinct from the first
@@ -101,6 +101,30 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     REQUIRE(scope.GetMostRecentSession());
     const RumSessionScope& most_recent_session = *scope.GetMostRecentSession();
     REQUIRE(most_recent_session.GetSessionID() == new_session.GetSessionID());
+  }
+
+  SECTION("M do nothing W StopSession is processed after StopSession") {
+    // Given a RumApplicationScope that's received StopSession, and therefore has no
+    // active session
+    scope.Process(RumCommand::SDKInit(GetBaseParams()));
+    REQUIRE(scope.GetActiveSession());
+    const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
+    scope.Process(RumCommand::StopSession(GetBaseParams()));
+    REQUIRE(scope.GetActiveSession() == std::nullopt);
+
+    // When we process an additional StopSession command in our already-stopped session
+    scope.Process(RumCommand::StopSession(GetBaseParams()));
+
+    // Then nothing happens: we still have no active session
+    REQUIRE(scope.GetActiveSession() == std::nullopt);
+
+    // And our original session is still retained as the most recent session
+    REQUIRE(scope.GetMostRecentSession());
+    const RumSessionScope& prev_session = *scope.GetMostRecentSession();
+    REQUIRE(prev_session.IsInitialSession() == true);
+    REQUIRE(prev_session.GetSessionID() == initial_session_id);
+    REQUIRE(prev_session.GetStartReason() == RumSessionPrecondition::UserAppLaunch);
+    REQUIRE(prev_session.GetEndReason() == RumSessionScope::EndReason::Stopped);
   }
 
   SECTION(

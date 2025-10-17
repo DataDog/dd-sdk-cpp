@@ -39,20 +39,36 @@ RumScopeResult RumApplicationScope::Process(const RumCommand& command) {
     return RumScopeResult::RemainOpen;
   }
 
-  // If we don't have an active session, and this command represents a user interaction,
-  // ensure that we have a session to handle the command
-  if (!_active_session && command.base.is_user_interaction) {
-    // We should have dispatched SDKInit and unconditionally created an initial
-    // session prior to processing any other commands, so having no prior session
-    // state at this point is unexpected
+  // If we have no active session to process the command, create a new one, unless the
+  // command type is one that should be ignored in this case
+  if (!_active_session && command.ShouldCreateNewSessionAfterExplicitStop()) {
+    // We'll generally always have an active session: we create one initially on
+    // SDKInit, and if the current session times out due to inactivity or excessive
+    // duration, we _immediately_ create a new session to succeed it. The only exception
+    // is an explicit StopSession() API call, which will leave the application without
+    // an active session until the next command is received. So if _active_session is
+    // null, we should have a previous session that was explicitly stopped.
     if (!_prev_session) {
+      // If this invariant doesn't hold, silently drop all commands in release builds
       DATADOG_ASSERT(
-          false, "Received user interaction with no previous or active session"
+          false,
+          "received non-SDKInit command with no active session and no previous session"
       );
       return RumScopeResult::RemainOpen;
     }
 
-    // We have a previous session; create a new session to succeed it
+    // Verify our expectation: this code path should only be reachable when the previous
+    // session was explicitly stopped
+    DATADOG_ASSERT(
+        _prev_session->GetEndReason().has_value(),
+        "on command with no active session, previous session has no end reason"
+    );
+    DATADOG_ASSERT(
+        _prev_session->GetEndReason().value() == RumSessionScope::EndReason::Stopped,
+        "on command with no active session, previous session has unexpected end reason"
+    );
+
+    // Create a new session to succeed the previous one
     _active_session =
         RumSessionScope::CreateSuccessorFor(*_prev_session, command.base.issued_at);
   }

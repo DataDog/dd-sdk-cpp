@@ -30,8 +30,7 @@ struct RumCommandParams {
   )
       : issued_at(in_issued_at),
         global_attributes(in_global_attributes),
-        attributes(in_attributes),
-        is_user_interaction(false) {}
+        attributes(in_attributes) {}
 };
 
 /**
@@ -39,6 +38,9 @@ struct RumCommandParams {
  */
 struct RumSDKInitPayload {
   static constexpr const char* COMMAND_NAME = "SDKInit";
+
+  static constexpr bool is_user_interaction = false;
+  static constexpr bool should_create_new_session_after_explicit_stop = false;
 };
 
 /**
@@ -47,6 +49,9 @@ struct RumSDKInitPayload {
  */
 struct RumStopSessionPayload {
   static constexpr const char* COMMAND_NAME = "StopSession";
+
+  static constexpr bool is_user_interaction = false;
+  static constexpr bool should_create_new_session_after_explicit_stop = false;
 };
 
 /**
@@ -55,6 +60,9 @@ struct RumStopSessionPayload {
  */
 struct RumUserInteractionPayload {
   static constexpr const char* COMMAND_NAME = "UserInteraction";
+
+  static constexpr bool is_user_interaction = true;
+  static constexpr bool should_create_new_session_after_explicit_stop = true;
 };
 
 struct RumCommand {
@@ -68,19 +76,65 @@ struct RumCommand {
       : base(std::move(in_base)), payload(std::move(in_payload)) {}
 
   /** Creates a new 'SDKInit' command. */
-  static RumCommand SDKInit(RumCommandParams&& in_base) {
-    return RumCommand(std::move(in_base), RumSDKInitPayload());
+  static RumCommand SDKInit(RumCommandParams&& base) {
+    return RumCommand(std::move(base), RumSDKInitPayload());
   }
 
   /** Creates a new 'StopSession' command. */
-  static RumCommand StopSession(RumCommandParams&& in_base) {
-    return RumCommand(std::move(in_base), RumStopSessionPayload());
+  static RumCommand StopSession(RumCommandParams&& base) {
+    return RumCommand(std::move(base), RumStopSessionPayload());
   }
 
   /** Creates a new 'UserInteraction' command. */
-  static RumCommand UserInteraction(RumCommandParams&& in_base) {
-    in_base.is_user_interaction = true;
-    return RumCommand(std::move(in_base), RumUserInteractionPayload());
+  static RumCommand UserInteraction(RumCommandParams&& base) {
+    return RumCommand(std::move(base), RumUserInteractionPayload());
+  }
+
+  /**
+   * Returns true if this command represents a user interaction.
+   *
+   * User interactions keep a session alive: if a session remains open for a certain
+   * duration (e.g. 15m) without receiving any user interactions, any command processed
+   * after that threshold will result in a new session being created, with the old
+   * session being closed due to inactivity timeout.
+   *
+   * This flag is true for command types that are instigated by an intentional action on
+   * the part of the end user: e.g. navigating to a View, providing some input that
+   * results in an Action being tracked.
+   */
+  bool IsUserInteraction() const {
+    // This fact is intrinsic to the command type: resolve the 'is_user_interaction'
+    // flag defined for the command's payload type
+    return std::visit(
+        [](const auto& payload) {
+          using T = std::decay_t<decltype(payload)>;
+          return T::is_user_interaction;
+        },
+        payload
+    );
+  }
+
+  /**
+   * Determines what should happen in a case where there is no active session to handle
+   * this command because the previous session was explicitly stopped via a StopSession
+   * API call.
+   *
+   * Returns true if we should automatically create a new session to handle this
+   * command.
+   *
+   * This flag is generally true for all command types, except for 'StopSession' itself
+   * (as StopSession calls should be idempotent) and commands representing lifecycle
+   * events that are wholly internal to the RUM implementation.
+   */
+  bool ShouldCreateNewSessionAfterExplicitStop() const {
+    // Resolve intrinsic type param 'should_create_new_session_after_explicit_stop'
+    return std::visit(
+        [](const auto& payload) {
+          using T = std::decay_t<decltype(payload)>;
+          return T::should_create_new_session_after_explicit_stop;
+        },
+        payload
+    );
   }
 };
 
