@@ -94,4 +94,18 @@ void Rum::StopSession() {
   }
 }
 
+void Rum::StartView(
+    std::string_view key, std::string_view name, const Attribute& attributes
+) {
+  if (_impl) {
+    _impl->StartView(key, name, attributes);
+  }
+}
+
+void Rum::StopView(std::string_view key, const Attribute& attributes) {
+  if (_impl) {
+    _impl->StopView(key, attributes);
+  }
+}
+
 }  // namespace datadog
