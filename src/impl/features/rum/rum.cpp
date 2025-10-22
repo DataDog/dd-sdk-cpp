@@ -9,6 +9,8 @@
 #include <mutex>
 #include <shared_mutex>
 
+#include "core/writer.hpp"
+
 namespace datadog::impl {
 
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
@@ -21,13 +23,36 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
 std::optional<Report> Rum::UploadThread_PrepareReport(
     const HttpContext& context, BatchReader& reader
 ) {
-  // TODO(RUM-11368): Implement processing and upload of events once views exist
-  (void)context;
-  (void)reader;
-  return std::nullopt;
+  // TODO(RUM-12321): Implement filtering/deduplication of view events- this preliminary
+  // implementation just streams all events directly, a la Logging
+
+  // Request URL
+  static const std::string_view request_path = "/api/v2/rum";
+  static const bool with_ddsource = true;
+
+  // Request headers
+  static const std::string_view content_type = "application/json";
+
+  // Build URL and headers once, on the first upload (HTTP context is immutable)
+  if (_request_url.empty()) {
+    context.BuildRequestURL(request_path, with_ddsource, _request_url);
+    context.BuildRequestHeaders(content_type, "", _request_headers);
+  }
+
+  // Each event in the batch is a JSON object: initialize a writer that will concatenate
+  // each of those objects into a JSON array
+  return Report{_request_url, _request_headers, TLVBatchWriter{reader}};
 }
 
 void Rum::Start() {
+  // Inject a reference to our FeatureScope interface into the RumScopeDependencies that
+  // will be provided to all scopes, so they can generate events etc.
+  if (_scope) {
+    _deps.OnStart(*_scope);
+  } else {
+    DATADOG_ASSERT(false, "Rum has no valid FeatureScope on Start");
+  }
+
   // Dispatch an SDKInit command, which should kick off initialization of our first
   // session when handled by the application scope
   Dispatch(RumCommand::SDKInit(GetBaseCommandParams()));
@@ -39,6 +64,13 @@ void Rum::Stop() {
   if (_scope) {
     _scope->UpdateContext([](CoreContext& ctx) { ctx.rum.reset(); });
   }
+
+  // Fully reinitialize RUM application state to clear all sessions/views/etc.
+  _application = RumApplicationScope(_deps);
+
+  // Clear the FeatureScope reference in RumScopeDependencies: scopes should no longer
+  // generate events
+  _deps.OnStop();
 }
 
 void Rum::SetAttribute(std::string_view name, const Attribute& value) {
@@ -56,10 +88,22 @@ void Rum::StopSession() {
   Dispatch(RumCommand::StopSession(GetBaseCommandParams()));
 }
 
-RumCommandParams Rum::GetBaseCommandParams(const ObjectAttribute& attributes) const {
+void Rum::StartView(
+    std::string_view key, std::string_view name, const Attribute& attributes
+) {
+  // Dispatch a StartView command to be handled by the active session
+  Dispatch(RumCommand::StartView(GetBaseCommandParams(attributes), key, name));
+}
+
+void Rum::StopView(std::string_view key, const Attribute& attributes) {
+  // Dispatch a StopView command
+  Dispatch(RumCommand::StopView(GetBaseCommandParams(attributes), key));
+}
+
+RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {
   // Create a shallow copy of the global attributes
   std::shared_lock read_only_lock(_global_attributes_mutex);
-  ObjectAttribute global_attributes = _global_attributes;
+  Attribute global_attributes = _global_attributes.attribute;
   read_only_lock.unlock();
 
   // Read the system clock for our issued_at timestamp
@@ -69,7 +113,14 @@ RumCommandParams Rum::GetBaseCommandParams(const ObjectAttribute& attributes) co
 }
 
 void Rum::Dispatch(const RumCommand& command) {
-  // TODO(RUM-11368): Commands that generate events will need access to the FeatureScope
+  // Refrain from dispatching any commands if we don't have a valid FeatureScope: this
+  // means that the SDK has not yet started or has previously shut down
+  if (!_scope) {
+    return;
+  }
+
+  // Let the root RumApplicationScope handle the command: each scope will propagate
+  // commands to child scope(s) at their discretion
   _application.Process(command);
 
   // After every command, update our RumFeatureContext, which makes current RUM state
@@ -91,24 +142,28 @@ void Rum::UpdateFeatureContext() {
 }
 
 void Rum::UpdateApplicationSnapshot() {
-  // If we don't have an active session, let the application scope populate our context,
-  // and clear any session- or view-related fields
+  // Reset our RumContext value to zero, without releasing string buffers etc.
+  _application_snapshot.Reset();
+
+  // If we don't have an active session, let the application scope populate our context
   auto session_opt = _application.GetActiveSession();
   if (!session_opt) {
     _application.PopulateContext(_application_snapshot);
-    _application_snapshot.session_id = UUID::Zero;
-    // TODO(RUM-11368): _application_snapshot.active_view_id = UUID::Zero;
-    // TODO(RUM-11369): _application_snapshot.active_user_action_id = UUID::Zero;
     return;
   }
 
-  // If we have a session but no views, use the session scope and clear view state
-  // TODO(RUM-11368): Populate from the last-active RumViewScope, if it exists, rather
-  // than RumSessionScope
+  // If we have a session but no views, populate from session scope
   const RumSessionScope& session = *session_opt;
-  session.PopulateContext(_application_snapshot);
+  auto view_opt = session.GetActiveView();
+  if (!view_opt) {
+    session.PopulateContext(_application_snapshot);
+    return;
+  }
 
-  // TODO(RUM-11369): Ensure that action is represented in snapshot, if any is active
+  // If our active session has an active view, populate from view scope
+  const RumViewScope& view = *view_opt;
+  view.PopulateContext(_application_snapshot);
+  // TODO(RUM-11369): Call view.GetActiveAction() and set active_user_action_id
 }
 
 }  // namespace datadog::impl

@@ -128,11 +128,7 @@ TEST_CASE("ScopeArray::Propagate", "[unit][rum]") {
     scopes.Push(process_calls_by_id, 1, RumScopeResult::RemainOpen);
 
     // When we propagate a command to all scopes in our array
-    scopes.Propagate(
-        RumCommand::SDKInit(
-            RumCommandParams({}, ObjectAttribute(0), ObjectAttribute(0))
-        )
-    );
+    scopes.Propagate(RumCommand::SDKInit(RumCommandParams({}, {}, {})));
 
     // Then Process() is called once for each scope in the array
     REQUIRE(process_calls_by_id.size() == 2);
@@ -150,22 +146,14 @@ TEST_CASE("ScopeArray::Propagate", "[unit][rum]") {
     REQUIRE(scopes.items.size() == 2);
 
     // When we propagate a command to all scopes in our array
-    scopes.Propagate(
-        RumCommand::SDKInit(
-            RumCommandParams({}, ObjectAttribute(0), ObjectAttribute(0))
-        )
-    );
+    scopes.Propagate(RumCommand::SDKInit(RumCommandParams({}, {}, {})));
 
     // Then scope 100 is closed, leaving scope 200 as the only item left in our array
     REQUIRE(scopes.items.size() == 1);
     REQUIRE(scopes.items.front().id == 200);
 
     // Next: When we propagate a second command
-    scopes.Propagate(
-        RumCommand::StopSession(
-            RumCommandParams({}, ObjectAttribute(0), ObjectAttribute(0))
-        )
-    );
+    scopes.Propagate(RumCommand::StopSession(RumCommandParams({}, {}, {})));
 
     // Then we still only have scope 200 in the array
     REQUIRE(scopes.items.size() == 1);
@@ -186,11 +174,7 @@ TEST_CASE("ScopeArray::Propagate", "[unit][rum]") {
     REQUIRE(dtor_called == false);
 
     // When we process a command that results in the scope being closed
-    scopes.Propagate(
-        RumCommand::StopSession(
-            RumCommandParams({}, ObjectAttribute(0), ObjectAttribute(0))
-        )
-    );
+    scopes.Propagate(RumCommand::StopSession(RumCommandParams({}, {}, {})));
 
     // Then the scope object's destructor is called
     REQUIRE(dtor_called == true);

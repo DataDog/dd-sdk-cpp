@@ -59,8 +59,32 @@ struct RumContext {
    */
   RumSessionPrecondition session_precondition{RumSessionPrecondition::UserAppLaunch};
 
-  // TODO(RUM-11368): Add active_view_id
+  /**
+   * ID of the currently-active RUM view scope, or UUID::Zero if no view is active.
+   * Populates `view.id` in events.
+   */
+  UUID active_view_id;
+  /**
+   * Key associated with the active view, if active_view_id is nonzero. The 'key' value
+   * is provided by the user in StartView/StopView API calls, and it uniquely identifies
+   * the view in the context of the application. Also known by 'path' or 'url' elsewhere
+   * in the platform. Populates `view.url` in events.
+   */
+  std::string active_view_key;
+  /**
+   * Human-readable name associated with the active view, if active_view_id is nonzero.
+   * Matches the 'name' value provided by the user in StartView API calls. If no name
+   * was provided, matches the view's 'key' value. Populates `view.name` in events.
+   */
+  std::string active_view_name;
+
   // TODO(RUM-11369): Add active_user_action_id
+
+ public:
+  /**
+   * Resets all values held by this struct to zero.
+   */
+  void Reset();
 
   /**
    * Converts this internal snapshot of our RUM state to an SDK-facing context struct.
