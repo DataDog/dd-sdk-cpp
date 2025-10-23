@@ -22,13 +22,13 @@ void UploadScheduler::Stop() {
   }
 }
 
-void UploadScheduler::Schedule(FeatureId feature_id, platform::Duration next_cycle_in) {
+void UploadScheduler::Schedule(FeatureId feature_id, Duration next_cycle_in) {
   // Add an entry to the priority queue, maintaining earliest-first ordering.
   // NOTE: Calls to Schedule() and WaitForNext() do not happen concurrently: the
   // upload thread uses this queue in a single-threaded fashion. Therefore, we don't
   // need to synchronize those operations or worry about waking consumers in response
   // to this push call.
-  platform::Timestamp next_cycle_at = _clock.Now() + next_cycle_in;
+  Timestamp next_cycle_at = _clock.Now() + next_cycle_in;
   _pq.push({feature_id, next_cycle_at});
 }
 
@@ -45,11 +45,11 @@ std::optional<FeatureId> UploadScheduler::WaitForNext() {
   const auto& item = _pq.top();
 
   // If the next feature isn't ready yet, sleep until it is
-  const platform::Timestamp now = _clock.Now();
+  const Timestamp now = _clock.Now();
   if (item.next_cycle_at > now) {
     // If we're awoken because of a shutdown, return nullopt to halt further
     // processing and signal that the upload thread should exit
-    const platform::Duration sleep_duration = item.next_cycle_at - now;
+    const Duration sleep_duration = item.next_cycle_at - now;
     const bool is_shutting_down = SleepFor(sleep_duration);
     if (is_shutting_down) {
       return std::nullopt;
@@ -67,7 +67,7 @@ std::optional<FeatureId> UploadScheduler::WaitForNext() {
   return feature_id;
 }
 
-bool UploadScheduler::SleepFor(platform::Duration duration) {
+bool UploadScheduler::SleepFor(Duration duration) {
   // Wait for the desired delay, -or- until the atomic shutdown flag is set
   std::unique_lock lock(_mutex);
   return _cv.wait_for(lock, duration, [&] {

@@ -29,7 +29,7 @@ struct UploadThreadConfig {
    * Until a file reaches this age, the upload thread will consider it still owned by
    * the storage thread and will refrain from reading or deleting it.
    */
-  platform::Duration min_file_age_for_read;
+  Duration min_file_age_for_read;
 
   /**
    * Once a file reacheds this age, the upload thread will refrain from processing it
@@ -38,7 +38,7 @@ struct UploadThreadConfig {
    * TODO: This is meant to be configurable per-feature (so that RUM events can persist
    * on disk for 24h, rather than the default 18h); move it elsewhere.
    */
-  platform::Duration max_file_age_for_read{std::chrono::hours(18)};
+  Duration max_file_age_for_read{std::chrono::hours(18)};
 
   /**
    * Inclusive upper limit on the number of batch files that may be processed and
@@ -47,7 +47,7 @@ struct UploadThreadConfig {
   size_t max_batches_per_cycle;
 
   explicit UploadThreadConfig(
-      platform::Duration in_min_file_age_for_read, size_t in_max_batches_per_cycle
+      Duration in_min_file_age_for_read, size_t in_max_batches_per_cycle
   );
 
   static UploadThreadConfig FromCoreConfig(
@@ -64,9 +64,9 @@ struct UploadThreadConfig {
  * will increase as a result.
  */
 struct UploadThreadState {
-  platform::Duration current_delay;
-  platform::Duration min_delay;
-  platform::Duration max_delay;
+  Duration current_delay;
+  Duration min_delay;
+  Duration max_delay;
 
   /**
    * Initializes timing for a feature's upload cycles based on the configured frequency.
@@ -77,12 +77,12 @@ struct UploadThreadState {
    * Increases the delay in response to a failed upload, clamping at the configured
    * maximum.
    */
-  platform::Duration IncreaseDelayTowardMax();
+  Duration IncreaseDelayTowardMax();
 
   /**
    * Resets the delay to the minimum in response to a successful upload.
    */
-  platform::Duration ResetDelayToMin();
+  Duration ResetDelayToMin();
 };
 
 /**
@@ -91,7 +91,7 @@ struct UploadThreadState {
  * Called by UploadThreadMain when a feature is ready to be processed by the upload
  * thread. Exposed here to facilitate unit testing.
  */
-platform::Duration Internal_HandleUploadProc(
+Duration Internal_HandleUploadProc(
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,

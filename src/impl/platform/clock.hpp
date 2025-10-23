@@ -14,10 +14,6 @@
 
 namespace datadog::platform {
 
-// TODO: Replace all usages of 'platform::Timestamp' with 'Timestamp'
-using Duration = datadog::Duration;
-using Timestamp = datadog::Timestamp;
-
 /**
  * Interface for the system clock.
  *

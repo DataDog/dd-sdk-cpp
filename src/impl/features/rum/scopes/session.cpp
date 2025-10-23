@@ -14,9 +14,8 @@
 
 namespace datadog::impl {
 
-const platform::Duration RumSessionScope::INACTIVITY_TIMEOUT_DURATION =
-    std::chrono::minutes(15);
-const platform::Duration RumSessionScope::MAX_SESSION_DURATION = std::chrono::hours(4);
+const Duration RumSessionScope::INACTIVITY_TIMEOUT_DURATION = std::chrono::minutes(15);
+const Duration RumSessionScope::MAX_SESSION_DURATION = std::chrono::hours(4);
 
 RumSessionScope::RumSessionScope(
     const RumScopeDependencies& deps,
@@ -25,7 +24,7 @@ RumSessionScope::RumSessionScope(
     bool is_sampled,
     const UUID& session_id,
     RumSessionPrecondition start_precondition,
-    platform::Timestamp start_time,
+    Timestamp start_time,
     const std::optional<RumSessionScope::ViewDetails>& active_view_from_predecessor
 )
     : _deps(deps),
@@ -167,15 +166,15 @@ std::optional<RumSessionScope::EndReason>
 RumSessionScope::ShouldCloseRatherThanProcessing(const RumCommand& command) const {
   // If it's been more than (e.g.) 15 minutes since the last user interaction, end this
   // session due to inactivity and go no further
-  const platform::Timestamp& now = command.base.issued_at;
-  const platform::Duration elapsed_since_last_interaction = now - _last_interaction_at;
+  const Timestamp& now = command.base.issued_at;
+  const Duration elapsed_since_last_interaction = now - _last_interaction_at;
   if (elapsed_since_last_interaction >= INACTIVITY_TIMEOUT_DURATION) {
     return EndReason::TimedOutDueToInactivity;
   }
 
   // If it's been more than (e.g.) 4 hours since the session started, end this session
   // and go no further
-  const platform::Duration elapsed_since_start = now - _started_at;
+  const Duration elapsed_since_start = now - _started_at;
   if (elapsed_since_start > MAX_SESSION_DURATION) {
     return EndReason::ExceededMaxDuration;
   }
@@ -241,7 +240,7 @@ void RumSessionScope::AttemptViewTransfer(
   const UUID view_id = UUID::Random();
   std::string_view view_key = prev_view.key;
   std::string_view view_name = prev_view.name;
-  const platform::Timestamp start_time = command.base.issued_at;
+  const Timestamp start_time = command.base.issued_at;
   _view_scopes.Push(
       _deps, *this, is_initial_view, view_id, view_key, view_name, start_time
   );

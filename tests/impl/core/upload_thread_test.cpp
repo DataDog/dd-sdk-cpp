@@ -35,26 +35,26 @@ TEST_CASE("UploadThreadState", "[unit]") {
     UploadThreadState state(frequency);
 
     // Then the delay values should be set
-    REQUIRE(state.min_delay > platform::Duration{0});
-    REQUIRE(state.current_delay > platform::Duration{0});
-    REQUIRE(state.max_delay > platform::Duration{0});
+    REQUIRE(state.min_delay > Duration{0});
+    REQUIRE(state.current_delay > Duration{0});
+    REQUIRE(state.max_delay > Duration{0});
 
     // And max should be not be less than min
     REQUIRE(state.max_delay >= state.min_delay);
 
     // And initial delay should be somewhere in the middle
-    const platform::Duration initial_delay = state.current_delay;
+    const Duration initial_delay = state.current_delay;
     REQUIRE(initial_delay > state.min_delay);
     REQUIRE(initial_delay < state.max_delay);
 
     // And incrementing the delay should increase it toward max
-    const platform::Duration increased_delay = state.IncreaseDelayTowardMax();
+    const Duration increased_delay = state.IncreaseDelayTowardMax();
     REQUIRE(increased_delay == state.current_delay);
     REQUIRE(increased_delay > initial_delay);
     REQUIRE(increased_delay < state.max_delay);
 
     // And resetting the delay should instantly jump it to min
-    const platform::Duration reset_delay = state.ResetDelayToMin();
+    const Duration reset_delay = state.ResetDelayToMin();
     REQUIRE(reset_delay == state.min_delay);
 
     // And incrementing it many times should eventually clamp it to the max
@@ -123,7 +123,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,
@@ -169,7 +169,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,
@@ -287,7 +287,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         // When we process uploads for that feature
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
-        platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        Duration delay_until_next_cycle = Internal_HandleUploadProc(
             config,
             *context,
             clock,
@@ -353,7 +353,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,
@@ -416,7 +416,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         // When we process uploads for that feature
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
-        platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        Duration delay_until_next_cycle = Internal_HandleUploadProc(
             config,
             *context,
             clock,
@@ -482,7 +482,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         // When we process uploads for our feature
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
-        platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        Duration delay_until_next_cycle = Internal_HandleUploadProc(
             config,
             *context,
             clock,
@@ -557,7 +557,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         // When we process uploads for that feature
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
-        platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        Duration delay_until_next_cycle = Internal_HandleUploadProc(
             config,
             *context,
             clock,
@@ -612,7 +612,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,
@@ -667,7 +667,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,
@@ -720,7 +720,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,
@@ -769,7 +769,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,
@@ -817,7 +817,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,
@@ -870,7 +870,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
-    platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         *context,
         clock,

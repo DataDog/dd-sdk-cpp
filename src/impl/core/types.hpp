@@ -92,30 +92,30 @@ inline const char* BatchSize_ToString(BatchSize value) {
   }
 }
 
-inline platform::Duration BatchSize_ToFileTimingCutoff(BatchSize value) {
+inline Duration BatchSize_ToFileTimingCutoff(BatchSize value) {
   switch (value) {
     case BatchSize::Small:
-      return std::chrono::duration_cast<platform::Duration>(std::chrono::seconds(3));
+      return std::chrono::duration_cast<Duration>(std::chrono::seconds(3));
     case BatchSize::Medium:
     default:
-      return std::chrono::duration_cast<platform::Duration>(std::chrono::seconds(10));
+      return std::chrono::duration_cast<Duration>(std::chrono::seconds(10));
     case BatchSize::Large:
-      return std::chrono::duration_cast<platform::Duration>(std::chrono::seconds(35));
+      return std::chrono::duration_cast<Duration>(std::chrono::seconds(35));
   }
 }
 
-inline platform::Duration BatchSize_ToMaxFileAgeForWrite(BatchSize value) {
-  const platform::Duration cutoff = BatchSize_ToFileTimingCutoff(value);
+inline Duration BatchSize_ToMaxFileAgeForWrite(BatchSize value) {
+  const Duration cutoff = BatchSize_ToFileTimingCutoff(value);
   const int64_t five_percent =
       static_cast<int64_t>(static_cast<double>(cutoff.count()) * 0.05);
-  return cutoff - platform::Duration{five_percent};
+  return cutoff - Duration{five_percent};
 }
 
-inline platform::Duration BatchSize_ToMinFileAgeForRead(BatchSize value) {
-  const platform::Duration cutoff = BatchSize_ToFileTimingCutoff(value);
+inline Duration BatchSize_ToMinFileAgeForRead(BatchSize value) {
+  const Duration cutoff = BatchSize_ToFileTimingCutoff(value);
   const int64_t five_percent =
       static_cast<int64_t>(static_cast<double>(cutoff.count()) * 0.05);
-  return cutoff + platform::Duration{five_percent};
+  return cutoff + Duration{five_percent};
 }
 
 inline UploadFrequency UploadFrequency_FromC(dd_upload_frequency_t value) {

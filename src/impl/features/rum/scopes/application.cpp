@@ -164,7 +164,7 @@ RumSessionScope RumApplicationScope::CreateSession(
   }
 
   // Open a new RumSessionScope with these details
-  const platform::Timestamp start_time = command.base.issued_at;
+  const Timestamp start_time = command.base.issued_at;
   return RumSessionScope(
       deps,
       *this,

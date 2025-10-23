@@ -68,14 +68,12 @@ constexpr RumCommandFlags operator&(RumCommandFlags lhs, RumCommandFlags rhs) {
  * Parameters that are defined for all RUM commands.
  */
 struct RumCommandParams {
-  platform::Timestamp issued_at;
+  Timestamp issued_at;
   Attribute global_attributes;
   Attribute attributes;
 
   explicit RumCommandParams(
-      platform::Timestamp in_issued_at,
-      Attribute in_global_attributes,
-      Attribute in_attributes
+      Timestamp in_issued_at, Attribute in_global_attributes, Attribute in_attributes
   )
       : issued_at(in_issued_at),
         global_attributes(in_global_attributes),
