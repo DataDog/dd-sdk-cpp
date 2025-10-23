@@ -144,7 +144,8 @@ TEST_CASE("Attribute memory", "[unit][attribute]") {
       Attribute attribute_bool = Attribute::Bool(true);
       Attribute attribute_int = Attribute::Int(-1);
       Attribute attribute_uint = Attribute::UInt(1);
-      Attribute attribute_timestamp = Attribute::TimestampFromNanoseconds(100000);
+      Attribute attribute_timestamp =
+          Attribute::Timestamp(Timestamp(std::chrono::seconds(1000)));
       Attribute attribute_double = Attribute::Double(1.01);
     }
     const AllocationTracker::Stats stats = tracker.Stop();

@@ -4,7 +4,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include <catch2/catch_test_macros.hpp>
 #include <functional>
 #include <limits>
 #include <vector>
@@ -12,6 +11,7 @@
 #include "attribute/json.hpp"
 #include "datadog/attribute.hpp"
 #include "datadog/uuid.hpp"
+#include "support/catch.hpp"
 
 using namespace datadog;
 
@@ -52,7 +52,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetBoolValue() == false);
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    REQUIRE(attribute.GetTimestampValue() == Timestamp{});
     REQUIRE(attribute.GetDoubleValue() == 0.0);
     REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
@@ -75,7 +75,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     // Get<Type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    REQUIRE(attribute.GetTimestampValue() == Timestamp{});
     REQUIRE(attribute.GetDoubleValue() == 0.0);
     REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
@@ -104,7 +104,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     // Get<Type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(attribute.GetBoolValue() == false);
     REQUIRE(attribute.GetUIntValue() == 0ull);
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    REQUIRE(attribute.GetTimestampValue() == Timestamp{});
     REQUIRE(attribute.GetDoubleValue() == 0.0);
     REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
@@ -133,7 +133,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     // Get<Type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(attribute.GetBoolValue() == false);
     REQUIRE(attribute.GetIntValue() == 0ll);
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    REQUIRE(attribute.GetTimestampValue() == Timestamp{});
     REQUIRE(attribute.GetDoubleValue() == 0.0);
     REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
@@ -153,11 +153,15 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
 
   SECTION("M allow all operations W type is timestamp") {
     // Given a timestamp attribute value
-    Attribute attribute = Attribute::TimestampFromNanoseconds(946684799999999999);
+    Attribute attribute =
+        Attribute::Timestamp(Timestamp(std::chrono::nanoseconds(946684799999999999)));
     REQUIRE(attribute.GetType() == ValueType::Timestamp);
 
-    // GetTimestampValueAsNanoseconds() returns value
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 946684799999999999);
+    // GetTimestampValue() returns value
+    REQUIRE(
+        attribute.GetTimestampValue() ==
+        Timestamp(std::chrono::nanoseconds(946684799999999999))
+    );
 
     // Get<Type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(attribute.GetBoolValue() == false);
@@ -172,71 +176,14 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     // Copy-assignment creates another uint attribute with the same value
     Attribute copy = attribute;
     REQUIRE(copy.GetType() == ValueType::Timestamp);
-    REQUIRE(copy.GetTimestampValueAsNanoseconds() == 946684799999999999);
+    REQUIRE(copy.GetTimestampValue().time_since_epoch().count() == 946684799999999999);
 
-    // SetTimestampAsNanoseconds() updates value; changing copy doesn't change
-    // original
-    copy.SetTimestampAsNanoseconds(145296000000000000);
-    REQUIRE(copy.GetTimestampValueAsNanoseconds() == 145296000000000000);
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 946684799999999999);
-  }
-
-  SECTION("M support timestamp W value is std::chrono time_point {nanoseconds}") {
-    // Given input std::chrono::time_point values, with nanosecond precision
-    using Clock = std::chrono::system_clock;
-    using Duration = std::chrono::nanoseconds;
-    using Timestamp = std::chrono::time_point<Clock, Duration>;
-    Timestamp eve_of_y2k(Duration(946684799999999999));
-    Timestamp moment_nixon_resigned(Duration(145296000000000000));
-
-    // When we construct an Attribute from a time_point
-    Attribute attribute = Attribute::Timestamp(eve_of_y2k);
-    REQUIRE(attribute.GetType() == ValueType::Timestamp);
-
-    // Then our underlying timestamp value is recorded faithfully
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 946684799999999999);
-
-    // And we can retrieve an equivalent time_point via GetTimestamp()
-    Timestamp retrieved = attribute.GetTimestampValue();
-    bool ok = retrieved == eve_of_y2k;  // Catch2 can't auto-format time_point
-    REQUIRE(ok);
-
-    // And we can modify the value by setting a direct nanosecond count
-    attribute.SetTimestampAsNanoseconds(145296000000000000);
-
-    // And when we retrieve our value, it's equivalent with the expected time_point
-    retrieved = attribute.GetTimestampValue();
-    ok = retrieved == moment_nixon_resigned;
-    REQUIRE(ok);
-  }
-
-  SECTION("M support timestamp W value is std::chrono time_point {milliseconds}") {
-    // Given input std::chrono::time_point values, with millisecond precision
-    using Clock = std::chrono::system_clock;
-    using Duration = std::chrono::milliseconds;
-    using Timestamp = std::chrono::time_point<Clock, Duration>;
-    Timestamp eve_of_y2k(Duration(946684799999));
-    Timestamp moment_nixon_resigned(Duration(145296000000));
-
-    // When we construct an Attribute from a time_point
-    Attribute attribute = Attribute::Timestamp(eve_of_y2k);
-    REQUIRE(attribute.GetType() == ValueType::Timestamp);
-
-    // Then our underlying timestamp value is recorded faithfully
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 946684799999000000);
-
-    // And we can retrieve an equivalent time_point via GetTimestamp()
-    Timestamp retrieved = attribute.GetTimestampValue<Clock, Duration>();
-    bool ok = retrieved == eve_of_y2k;  // Catch2 can't auto-format time_point
-    REQUIRE(ok);
-
-    // And we can modify the value by setting a direct nanosecond count
-    attribute.SetTimestampAsNanoseconds(145296000000000000);
-
-    // And when we retrieve our value, it's equivalent with the expected time_point
-    retrieved = attribute.GetTimestampValue<Clock, Duration>();
-    ok = retrieved == moment_nixon_resigned;
-    REQUIRE(ok);
+    // SetTimestamp() updates value; changing copy doesn't change original
+    copy.SetTimestamp(Timestamp(std::chrono::nanoseconds(145296000000000000)));
+    REQUIRE(copy.GetTimestampValue().time_since_epoch().count() == 145296000000000000);
+    REQUIRE(
+        attribute.GetTimestampValue().time_since_epoch().count() == 946684799999999999
+    );
   }
 
   SECTION("M allow all operations W type is double") {
@@ -251,7 +198,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetBoolValue() == false);
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    REQUIRE(attribute.GetTimestampValue() == Timestamp{});
     REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
@@ -281,7 +228,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetBoolValue() == false);
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    REQUIRE(attribute.GetTimestampValue() == Timestamp{});
     REQUIRE(attribute.GetDoubleValue() == 0.0);
     REQUIRE(attribute.GetStringValue() == "");
     require_array_ops_are_noop(attribute);
@@ -313,7 +260,7 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
     REQUIRE(attribute.GetBoolValue() == false);
     REQUIRE(attribute.GetIntValue() == 0ll);
     REQUIRE(attribute.GetUIntValue() == 0ull);
-    REQUIRE(attribute.GetTimestampValueAsNanoseconds() == 0ull);
+    REQUIRE(attribute.GetTimestampValue() == Timestamp{});
     REQUIRE(attribute.GetDoubleValue() == 0.0);
     REQUIRE(attribute.GetUUIDValue() == UUID::Zero);
     require_array_ops_are_noop(attribute);
@@ -637,11 +584,18 @@ TEST_CASE("Attribute", "[unit][attribute][cpp-api]") {
          }},
 
         {"timestamp",
-         []() { return Attribute::TimestampFromNanoseconds(145296000000000000); },
-         [](Attribute& attr) { attr.SetTimestampAsNanoseconds(145296000000000000); },
+         []() {
+           return Attribute::Timestamp(Timestamp(std::chrono::seconds(145296000)));
+         },
+         [](Attribute& attr) {
+           attr.SetTimestamp(Timestamp(std::chrono::seconds(145296000)));
+         },
          [](const Attribute& attr) {
            REQUIRE(attr.GetType() == ValueType::Timestamp);
-           REQUIRE(attr.GetTimestampValueAsNanoseconds() == 145296000000000000);
+           REQUIRE(
+               attr.GetTimestampValue() ==
+               Timestamp(std::chrono::nanoseconds(145296000000000000))
+           );
          }},
 
         {"double",
@@ -834,7 +788,7 @@ TEST_CASE("Attribute JSON example", "[unit][attribute][cpp-api]") {
     process.SetObjectProperty("name", Attribute::String("my-cool-program"));
     process.SetObjectProperty("args", args);
     process.SetObjectProperty(
-        "started_at", Attribute::TimestampFromNanoseconds(145296000000000000)
+        "started_at", Attribute::Timestamp(Timestamp(std::chrono::seconds(145296000)))
     );
 
     obj.SetObjectProperty("process", process);

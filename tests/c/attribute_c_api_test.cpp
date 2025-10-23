@@ -906,9 +906,9 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
          }},
 
         {"timestamp",
-         []() { return dd_attribute_timestamp(dd_timestamp_ns(145296000000000000)); },
+         []() { return dd_attribute_timestamp(dd_timestamp_seconds(145296000)); },
          [](dd_attribute_t* attr) {
-           dd_attribute_set_timestamp(attr, 145296000000000000);
+           dd_attribute_set_timestamp(attr, dd_timestamp_seconds(145296000));
          },
          [](const dd_attribute_t* attr) {
            REQUIRE(attr->type == DD_VALUE_TYPE_TIMESTAMP);
