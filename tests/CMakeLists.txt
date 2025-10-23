@@ -6,11 +6,13 @@ add_executable(dd_native_tests
     c/core_c_api_test.cpp
     c/logging_c_api_test.cpp
     c/rum_c_api_test.cpp
+    c/timestamp_c_api_test.cpp
     c/uuid_c_api_test.cpp
     cpp/attribute_cpp_api_test.cpp
     cpp/core_cpp_api_test.cpp
     cpp/logging_cpp_api_test.cpp
     cpp/rum_cpp_api_test.cpp
+    cpp/timestamp_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     impl/attribute/cow_test.cpp
     impl/attribute/json_test.cpp

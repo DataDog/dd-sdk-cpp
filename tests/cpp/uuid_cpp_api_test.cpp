@@ -17,7 +17,7 @@ static const uint8_t bytes_ccb7[16] = {
 
 using namespace datadog;
 
-TEST_CASE("UUID", "[unit][uuid]") {
+TEST_CASE("UUID", "[unit][uuid][cpp-api]") {
   SECTION("M default-initialize to Zero") {
     // When we default-initialize a uuid struct
     UUID value;

@@ -1,0 +1,24 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+//
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-Present Datadog, Inc.
+
+#include <catch2/catch_test_macros.hpp>
+
+#include "datadog/timestamp.h"
+
+TEST_CASE("dd_timestamp", "[unit][timestamp][c-api]") {
+  SECTION("M be accurate nano count W initialized from dd_timestamp_ns") {
+    dd_timestamp_t got = dd_timestamp_ns(1761233207897354033);
+    REQUIRE(got == 1761233207897354033);
+  }
+  SECTION("M be accurate nano count W initialized from dd_timestamp_ms") {
+    dd_timestamp_t got = dd_timestamp_ms(1761233207897);
+    REQUIRE(got == 1761233207897000000);
+  }
+  SECTION("M be accurate second count W initialized from dd_timestamp_seconds") {
+    dd_timestamp_t got = dd_timestamp_seconds(1761233207);
+    REQUIRE(got == 1761233207000000000);
+  }
+}

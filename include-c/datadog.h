@@ -12,6 +12,7 @@
 #include "datadog/core.h"
 #include "datadog/logging.h"
 #include "datadog/rum.h"
+#include "datadog/timestamp.h"
 #include "datadog/uuid.h"
 
 #endif  // DATADOG_INCLUDE_DATADOG_H
