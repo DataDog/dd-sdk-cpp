@@ -78,7 +78,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
     require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
@@ -105,7 +105,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     // get_<type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
     require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
@@ -138,7 +138,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     // get_<type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
     require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
@@ -171,7 +171,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     // get_<type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
     require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
@@ -195,11 +195,12 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
 
   SECTION("M allow all operations W type is timestamp") {
     // Given a timestamp attribute value
-    dd_attribute_t attribute = dd_attribute_timestamp_ns(946684799999999999);
+    dd_attribute_t attribute =
+        dd_attribute_timestamp(dd_timestamp_ns(946684799999999999));
     REQUIRE(attribute.type == DD_VALUE_TYPE_TIMESTAMP);
 
-    // get_timestamp_ns() returns value
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 946684799999999999);
+    // get_timestamp() returns value
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 946684799999999999);
 
     // get_<type>() for other types returns zero; array/object funcs are no-op
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
@@ -214,12 +215,12 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     // dd_attribute_copy() creates another uint attribute with the same value
     dd_attribute_t copy = dd_attribute_copy(&attribute);
     REQUIRE(copy.type == DD_VALUE_TYPE_TIMESTAMP);
-    REQUIRE(dd_attribute_get_timestamp_ns(&copy) == 946684799999999999);
+    REQUIRE(dd_attribute_get_timestamp(&copy) == 946684799999999999);
 
-    // set_timestamp_ns() updates value; changing copy doesn't change original
-    dd_attribute_set_timestamp_ns(&copy, 145296000000000000);
-    REQUIRE(dd_attribute_get_timestamp_ns(&copy) == 145296000000000000);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 946684799999999999);
+    // set_timestamp() updates value; changing copy doesn't change original
+    dd_attribute_set_timestamp(&copy, 145296000000000000);
+    REQUIRE(dd_attribute_get_timestamp(&copy) == 145296000000000000);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 946684799999999999);
 
     // dd_attribute_free() must be called once for all dd_attribute_t values
     dd_attribute_free(&copy);
@@ -238,7 +239,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
@@ -274,7 +275,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
     require_array_ops_are_noop(attribute);
@@ -312,7 +313,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
     require_uuid_value_is_zero(attribute);
     require_array_ops_are_noop(attribute);
@@ -365,7 +366,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
     require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
@@ -428,7 +429,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_bool(&attribute) == false);
     REQUIRE(dd_attribute_get_int(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_uint(&attribute) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(&attribute) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(&attribute) == 0ll);
     REQUIRE(dd_attribute_get_double(&attribute) == 0.0);
     require_uuid_value_is_zero(attribute);
     REQUIRE(std::string(dd_attribute_get_string(&attribute)) == "");
@@ -511,7 +512,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     dd_attribute_set_bool(nullptr, true);
     dd_attribute_set_int(nullptr, -1);
     dd_attribute_set_uint(nullptr, 1);
-    dd_attribute_set_timestamp_ns(nullptr, 1000);
+    dd_attribute_set_timestamp(nullptr, 1000);
     dd_attribute_set_double(nullptr, 1.0);
     dd_attribute_set_uuid(nullptr, uuid);
     dd_attribute_set_string(nullptr, "hello");
@@ -530,7 +531,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     REQUIRE(dd_attribute_get_bool(nullptr) == false);
     REQUIRE(dd_attribute_get_int(nullptr) == 0ll);
     REQUIRE(dd_attribute_get_uint(nullptr) == 0ull);
-    REQUIRE(dd_attribute_get_timestamp_ns(nullptr) == 0ull);
+    REQUIRE(dd_attribute_get_timestamp(nullptr) == 0ll);
     REQUIRE(dd_attribute_get_double(nullptr) == 0.0);
     const dd_uuid_t uuid_from_null = dd_attribute_get_uuid(nullptr);
     REQUIRE(dd_uuid_is_zero(&uuid_from_null));
@@ -905,13 +906,13 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
          }},
 
         {"timestamp",
-         []() { return dd_attribute_timestamp_ns(145296000000000000); },
+         []() { return dd_attribute_timestamp(dd_timestamp_ns(145296000000000000)); },
          [](dd_attribute_t* attr) {
-           dd_attribute_set_timestamp_ns(attr, 145296000000000000);
+           dd_attribute_set_timestamp(attr, 145296000000000000);
          },
          [](const dd_attribute_t* attr) {
            REQUIRE(attr->type == DD_VALUE_TYPE_TIMESTAMP);
-           REQUIRE(dd_attribute_get_timestamp_ns(attr) == 145296000000000000);
+           REQUIRE(dd_attribute_get_timestamp(attr) == 145296000000000000);
          }},
 
         {"double",
@@ -1125,7 +1126,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
     dd_attribute_t temp_bool = dd_attribute_bool(true);
     dd_attribute_t temp_int = dd_attribute_int(-1);
     dd_attribute_t temp_uint = dd_attribute_uint(1);
-    dd_attribute_t temp_timestamp = dd_attribute_timestamp_ns(1000);
+    dd_attribute_t temp_timestamp = dd_attribute_timestamp(dd_timestamp_ms(1));
     dd_attribute_t temp_double = dd_attribute_double(1.1);
 
     // When we push our values into the array
@@ -1233,7 +1234,8 @@ TEST_CASE("dd_attribute JSON example", "[unit][attribute][c-api]") {
       dd_attribute_t guid = dd_attribute_uuid(uuid_ccb7);
       dd_attribute_t name = dd_attribute_string("my-cool-program");
       dd_attribute_t args = dd_attribute_array(2);
-      dd_attribute_t started_at = dd_attribute_timestamp_ns(145296000000000000);
+      dd_attribute_t started_at =
+          dd_attribute_timestamp(dd_timestamp_seconds(145296000));
       {
         dd_attribute_t arg_0 = dd_attribute_string("--mode");
         dd_attribute_t arg_1 = dd_attribute_string("good");
