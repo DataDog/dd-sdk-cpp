@@ -27,21 +27,21 @@ struct MyEvent {
 
 DATADOG_JSON_STRUCT(
     MyEvent,
-    DATADOG_JSON_FIELD("type", obj.type),
-    DATADOG_JSON_FIELD("id", obj.id),
-    DATADOG_JSON_FIELD("timestamp", obj.timestamp),
-    DATADOG_JSON_FIELD("tags", obj.tags)
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(timestamp),
+    DATADOG_JSON_FIELD(tags)
 )
 
 struct MyCompoundType {
   MyEvent event;
-  std::optional<MyEvent> prev;
+  std::optional<MyEvent> prev_event;
 };
 
 DATADOG_JSON_STRUCT(
     MyCompoundType,
-    DATADOG_JSON_FIELD("event", obj.event),
-    DATADOG_JSON_FIELD("prev", obj.prev)
+    DATADOG_JSON_FIELD(event),
+    DATADOG_JSON_FIELD_NAME(prev_event, "prev")
 )
 
 TEST_CASE("struct JSON serialization", "[unit][events]") {

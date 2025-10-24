@@ -31,19 +31,20 @@ namespace datadog::impl {
  *   };
  *
  * You can separately define how a value of that type should be serialized as a JSON
- * object, given a set of JSON-serializable member values annotated with property names:
+ * object, given a set of JSON-serializable member values:
  *
  *   DATADOG_JSON_STRUCT(
  *     MyEvent,
- *     DATADOG_JSON_FIELD("type", obj.type),
- *     DATADOG_JSON_FIELD("id", obj.id),
- *     DATADOG_JSON_FIELD("timestamp", obj.timestamp),
- *     DATADOG_JSON_FIELD("tags", obj.tags)
+ *     DATADOG_JSON_FIELD(type),
+ *     DATADOG_JSON_FIELD(id),
+ *     DATADOG_JSON_FIELD(timestamp),
+ *     DATADOG_JSON_FIELD_NAME(tags, "ddtags")
  *   )
  *
- * Property names must be string literals. Property names are NOT escaped: they are
- * assumed to contain only printable ASCII characters, with no backslashes,
- * double-quotes, or control codes.
+ * Property names will match the member variable name exactly. To explicitly specify a
+ * different name, use `DATADOG_JSON_FIELD_NAME` and provide a string literal. Property
+ * names are NOT escaped: they are assumed to contain only printable ASCII characters,
+ * with no backslashes, double-quotes, or control codes.
  *
  * Once a type is annotated with `DATADOG_JSON_STRUCT`, you can serialize any value of
  * that type as a JSON object by passing it to `EncodeJson`:
@@ -55,7 +56,7 @@ namespace datadog::impl {
  *
  * The example above will print something like:
  *
- *   {"type":"foo","id":"e9d4be4a-9063-40bc-977d-b073e39d4105","timestamp":"2025-10-24T12:46:17.301Z","tags":null}
+ *   {"type":"foo","id":"e9d4be4a-9063-40bc-977d-b073e39d4105","timestamp":"2025-10-24T12:46:17.301Z","ddtags":null}
  *
  * Properties are guaranteed to be serialized in the order in which they were declared.
  * JSON values are guaranteed to be minified: no whitespace or pretty-printing.
@@ -67,16 +68,20 @@ namespace datadog::impl {
  * value. The variadic list of types formed by all such values will match the
  * `template <typename... Fields>` overloads defined below.
  *
+ * `Member` is the name of the chosen member variable.
+ *
  * `Name` is a string literal denoting the JSON property name to associate with this
  * member. The string value must be unique among all fields of the same struct, and it
  * must contain no double-quotes, backslashes, or control codes.
- *
- * `Value` is an expression that evaluates the value of the chosen member variable,
- * given a const reference to a value of the associated struct type, bound to `obj`.
- *
- * e.g. `DATADOG_JSON_FIELD("foo", obj.foo)`
  */
-#define DATADOG_JSON_FIELD(Name, Value) std::make_pair(std::string_view(Name), (Value))
+#define DATADOG_JSON_FIELD_NAME(Member, Name) \
+  std::make_pair(std::string_view(Name), (obj.Member))
+
+/**
+ * Shorthand used in `DATADOG_JSON_STRUCT` to define JSON-serializable fields for member
+ * variables whose names exactly match the desired JSON property name.
+ */
+#define DATADOG_JSON_FIELD(Member) DATADOG_JSON_FIELD_NAME(Member, #Member)
 
 /**
  * Defines the JSON object format used to serialize a value of type `Type`.
