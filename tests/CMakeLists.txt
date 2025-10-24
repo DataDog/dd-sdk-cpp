@@ -42,6 +42,14 @@ add_executable(dd_native_tests
     impl/features/rum/context_test.cpp
     impl/features/rum/rum_test.cpp
     impl/features/rum/scope_test.cpp
+    impl/json/primitives/bool_test.cpp
+    impl/json/primitives/float_test.cpp
+    impl/json/primitives/integer_test.cpp
+    impl/json/primitives/null_test.cpp
+    impl/json/primitives/string_test.cpp
+    impl/json/primitives/timestamp_test.cpp
+    impl/json/primitives/uuid_test.cpp
+    impl/json/optional_test.cpp
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp

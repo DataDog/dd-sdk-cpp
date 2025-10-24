@@ -1,0 +1,64 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+//
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-Present Datadog, Inc.
+
+#include <array>
+#include <catch2/catch_test_macros.hpp>
+
+#include "support/json_serialization.hpp"
+
+using namespace datadog::impl;
+
+TEST_CASE("string JSON serialization", "[unit][json]") {
+  SECTION("M render ordinary strings as quoted JSON string literals") {
+    RequireJsonValue("", R"("")");
+    RequireJsonValue("hello", R"("hello")");
+
+    // Forward slash (a.k.a. "solidus" is not escaped)
+    RequireJsonValue("/home/foo/bar", R"("/home/foo/bar")");
+
+    // Single quotes are fine
+    RequireJsonValue(
+        R"(that's a nice face you got there...)",
+        R"("that's a nice face you got there...")"
+    );
+  }
+
+  SECTION("M escape quotes, slashes, and control codes") {
+    RequireJsonValue(
+        R"(that's a nice "face" you got there!)",
+        R"("that's a nice \"face\" you got there!")"
+    );
+    RequireJsonValue(
+        "\b for backspace, \f for feed, and you know \n \r and \t",
+        R"("\b for backspace, \f for feed, and you know \n \r and \t")"
+    );
+    RequireJsonValue(
+        "...\a, \a, \a went the trolley!",
+        R"("...\u0007, \u0007, \u0007 went the trolley!")"
+    );
+    std::array<char, 4> bytes = {0x1e, 0x1f, 0x20, 0x21};
+    RequireJsonValue(
+        std::string_view(bytes.data(), bytes.size()), R"("\u001e\u001f !")"
+    );
+  }
+
+  SECTION("M emit multi-byte UTF-8 chars unchanged") {
+    RequireJsonValue(
+        R"(хорошо, está bien, 私の牛が戻ってきた 🐮🕺🎉)",
+        R"("хорошо, está bien, 私の牛が戻ってきた 🐮🕺🎉")"
+    );
+  }
+
+  SECTION("M handle all common string types") {
+    std::string s{"hello"};
+    RequireJsonValue(s, "\"hello\"");
+    RequireJsonValue(s.c_str(), "\"hello\"");
+
+    std::array<char, 5> bytes = {0x68, 0x65, 0x6c, 0x6c, 0x6f};
+    std::string_view sv(bytes.data(), bytes.size());
+    RequireJsonValue(sv, "\"hello\"");
+  }
+}

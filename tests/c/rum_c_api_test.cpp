@@ -12,7 +12,7 @@
 
 #include "datadog/rum.h"
 #include "support/core.hpp"
-#include "support/json.hpp"
+#include "support/json_validation.hpp"
 
 using namespace datadog;
 
