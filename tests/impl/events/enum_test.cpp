@@ -15,16 +15,17 @@ using namespace datadog::impl;
 
 enum class FoodType : uint8_t { Apple, Banana, Crab };
 
-constexpr std::string_view FoodTypeNames[] = {"Apple", "Banana", "Crab"};
-static_assert(FoodTypeNames[static_cast<size_t>(FoodType::Apple)] == "Apple", "");
-static_assert(FoodTypeNames[static_cast<size_t>(FoodType::Banana)] == "Banana", "");
-static_assert(FoodTypeNames[static_cast<size_t>(FoodType::Crab)] == "Crab", "");
-
-using FoodTypeEnum = StringEnum<FoodType, FoodTypeNames, std::size(FoodTypeNames)>;
+DATADOG_STRING_ENUM(
+    StringFoodType,
+    FoodType,
+    DATADOG_ENUM_VALUE(FoodType::Apple, "Apple"),
+    DATADOG_ENUM_VALUE(FoodType::Banana, "Banana"),
+    DATADOG_ENUM_VALUE(FoodType::Crab, "Crab")
+)
 
 TEST_CASE("enum JSON serialization", "[unit][events]") {
   SECTION("M render StringEnum as a JSON string") {
-    FoodTypeEnum food_type{FoodType::Apple};
+    StringFoodType food_type{FoodType::Apple};
     RequireJsonValue(food_type, "\"Apple\"");
 
     food_type = FoodType::Crab;
@@ -32,7 +33,7 @@ TEST_CASE("enum JSON serialization", "[unit][events]") {
   }
 
   SECTION("M render invalid enum as empty string") {
-    FoodTypeEnum food_type{static_cast<FoodType>(0xffff)};
+    StringFoodType food_type{static_cast<FoodType>(0xffff)};
     RequireJsonValue(food_type, "\"\"");
   }
 }
