@@ -7,6 +7,8 @@
 #include "json/primitives/float.hpp"
 
 #include <charconv>
+#include <cmath>
+#include <cstring>
 
 #include "assert.hpp"
 

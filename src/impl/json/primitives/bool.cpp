@@ -6,7 +6,7 @@
 
 #include "json/primitives/bool.hpp"
 
-#include <charconv>
+#include <cstring>
 
 #include "assert.hpp"
 

@@ -42,7 +42,7 @@ TEST_CASE("integer JSON serialization", "[unit][json]") {
   }
 
   SECTION("M support all common integer types") {
-    RequireJsonValue(static_cast<char>(0xff), "-1");
+    RequireJsonValue(static_cast<signed char>(0xff), "-1");
     RequireJsonValue(static_cast<unsigned char>(0xff), "255");
     RequireJsonValue(static_cast<int8_t>(0xff), "-1");
     RequireJsonValue(static_cast<uint8_t>(0xff), "255");

@@ -13,7 +13,7 @@
 
 namespace datadog::impl {
 
-size_t WriteJson(char* dst, size_t n, const nullptr_t&) {
+size_t WriteJson(char* dst, size_t n, const std::nullptr_t&) {
   DATADOG_ASSERT(n >= 4, "insufficient space for JSON null write");
   std::memcpy(dst, "null", 4);  // NOLINT(bugprone-not-null-terminated-result)
   return 4;

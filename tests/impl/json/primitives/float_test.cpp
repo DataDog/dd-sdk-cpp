@@ -5,6 +5,7 @@
 // Copyright 2025-Present Datadog, Inc.
 
 #include <catch2/catch_test_macros.hpp>
+#include <cmath>
 #include <limits>
 
 #include "support/json_serialization.hpp"
