@@ -143,6 +143,7 @@ void dd_rum_start_view_obj(
 ) {
   // Validate args; require a valid key
   if (!rum || !rum->impl || !key || !key[0]) {
+    // TODO(RUM-11363): Log a warning if application supplied no view key
     return;
   }
 
@@ -171,6 +172,7 @@ void dd_rum_stop_view_obj(
 ) {
   // Validate args; require a valid key
   if (!rum || !rum->impl || !key || !key[0]) {
+    // TODO(RUM-11363): Log a warning if application supplied no view key
     return;
   }
 

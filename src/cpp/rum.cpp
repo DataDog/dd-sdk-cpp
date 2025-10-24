@@ -97,12 +97,24 @@ void Rum::StopSession() {
 void Rum::StartView(
     std::string_view key, std::string_view name, const Attribute& attributes
 ) {
+  // Require a valid view key
+  if (key.empty()) {
+    // TODO(RUM-11363): Log a warning: application supplied no view key
+    return;
+  }
+
   if (_impl) {
     _impl->StartView(key, name, attributes);
   }
 }
 
 void Rum::StopView(std::string_view key, const Attribute& attributes) {
+  // Require a valid view key
+  if (key.empty()) {
+    // TODO(RUM-11363): Log a warning: application supplied no view key
+    return;
+  }
+
   if (_impl) {
     _impl->StopView(key, attributes);
   }
