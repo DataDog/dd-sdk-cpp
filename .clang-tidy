@@ -15,6 +15,7 @@ Checks: [
   -readability-uppercase-literal-suffix,    # permit `1.0f`
   -readability-redundant-access-specifiers, # public:/private: can delineate logical groupings of members; should be close to what they modify
   -readability-named-parameter,             # allow parameter name to be omitted (conflicts with clang-diagnostic-unused-parameter)
+  -readability-use-anyofallof,              # a for loop is perfectly readable; `std::all_of()` with a lambda is not inherently clearer
 
   performance-*,
 

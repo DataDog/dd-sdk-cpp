@@ -48,6 +48,8 @@ namespace datadog::impl {
  *   written. Does not perform bounds checking, except for fatal assertions when
  *   WITH_DATADOG_ASSERTS is enabled: required buffer size should always be precomputed
  *   via GetJsonSize().
+ *
+ * JSON values must be minified: no whitespace or pretty-printing.
  */
 
 /**
