@@ -145,6 +145,8 @@ size_t GetJsonSize(const Attribute& value) {
       return _object_len(value);
     }
   }
+  DATADOG_ASSERT(false, "unhandled ValueType in GetJsonSize");
+  return 0;
 }
 
 size_t WriteJson(char* dst, size_t n, const Attribute& value) {
@@ -172,6 +174,8 @@ size_t WriteJson(char* dst, size_t n, const Attribute& value) {
       return _object_write(dst, n, value);
     }
   }
+  DATADOG_ASSERT(false, "unhandled ValueType in WriteJson");
+  return 0;
 }
 
 }  // namespace datadog::impl

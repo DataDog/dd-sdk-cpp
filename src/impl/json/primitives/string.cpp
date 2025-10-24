@@ -6,6 +6,8 @@
 
 #include "json/primitives/string.hpp"
 
+#include <cstdint>
+
 #include "assert.hpp"
 
 namespace datadog::impl {
