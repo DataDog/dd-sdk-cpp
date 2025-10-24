@@ -20,7 +20,6 @@ namespace datadog {
 namespace impl {
 class CowValue;
 struct AttributeConversion;
-struct AttributeSerialization;
 struct AttributeDebug;
 }  // namespace impl
 
@@ -228,7 +227,6 @@ class DATADOG_API Attribute {
   // direct access to the Attribute's value, but they are not part of the public
   // interface.
   friend struct impl::AttributeConversion;
-  friend struct impl::AttributeSerialization;
   friend struct impl::AttributeDebug;
 };
 

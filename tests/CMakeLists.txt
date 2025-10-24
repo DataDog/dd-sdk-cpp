@@ -15,7 +15,6 @@ add_executable(dd_native_tests
     cpp/timestamp_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     impl/attribute/cow_test.cpp
-    impl/attribute/json_test.cpp
     impl/attribute/memory_test.cpp
     impl/attribute/merge_test.cpp
     impl/attribute/refcount_test.cpp
@@ -49,6 +48,7 @@ add_executable(dd_native_tests
     impl/json/primitives/string_test.cpp
     impl/json/primitives/timestamp_test.cpp
     impl/json/primitives/uuid_test.cpp
+    impl/json/attribute_test.cpp
     impl/json/optional_test.cpp
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp

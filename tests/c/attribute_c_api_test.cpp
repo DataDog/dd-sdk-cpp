@@ -12,9 +12,9 @@
 #include <string_view>
 #include <vector>
 
-#include "attribute/json.hpp"
 #include "attribute/types.hpp"
 #include "datadog/attribute.h"
+#include "json.hpp"
 
 static const uint8_t bytes_ccb7[16] = {
     204, 183, 144, 132, 188, 43, 69, 73, 187, 199, 242, 126, 21, 63, 212, 182
@@ -1325,7 +1325,7 @@ TEST_CASE("dd_attribute JSON example", "[unit][attribute][c-api]") {
 
   // When we serialize that attribute to JSON
   std::vector<uint8_t> buffer;
-  datadog::impl::AttributeSerialization::ToJSON(cpp_obj, buffer);
+  datadog::impl::EncodeJson(buffer, cpp_obj);
 
   // Then it's formatted exactly the same as our jq output
   std::string_view got_json{reinterpret_cast<char*>(buffer.data()), buffer.size()};

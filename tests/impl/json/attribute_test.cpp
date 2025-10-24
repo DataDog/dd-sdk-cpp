@@ -4,24 +4,22 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "attribute/json.hpp"
+#include "datadog/attribute.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cinttypes>
 #include <cmath>
+#include <iostream>
 #include <limits>
 #include <vector>
 
-#include "datadog/attribute.hpp"
 #include "datadog/uuid.hpp"
+#include "json.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
 
-// These tests validate the AttributeSerialization helper, which implements JSON
-// serialization for Attribute values
-
-TEST_CASE("AttributeSerialization", "[unit][attribute]") {
+TEST_CASE("Attribute JSON serialization", "[unit][json]") {
   static const int64_t int64_min = std::numeric_limits<int64_t>::min();
   static const int64_t int64_max = std::numeric_limits<int64_t>::max();
   static const uint64_t uint64_max = std::numeric_limits<uint64_t>::max();
@@ -303,8 +301,12 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
   for (const auto& tt : tests) {
     // Given an attribute value and the known result of JSON-encoding it
     DYNAMIC_SECTION("M encode " << tt.name << " correctly") {
+      if (tt.name == "object") {
+        std::cout << "\n";
+      }
+
       // When we precompute the required buffer size for our attribute value
-      const size_t len = AttributeSerialization::ComputeValueLen(tt.attribute);
+      const size_t len = GetJsonSize(tt.attribute);
 
       // Then the result size is sufficient to hold the expected JSON value
       switch (tt.attribute.GetType()) {
@@ -328,27 +330,11 @@ TEST_CASE("AttributeSerialization", "[unit][attribute]") {
 
       // Next: When we serialize our attribute to JSON
       std::vector<uint8_t> buffer;
-      buffer.resize(len);
-      size_t num_bytes_written =
-          AttributeSerialization::WriteValue(tt.attribute, buffer.data(), len);
+      EncodeJson(buffer, tt.attribute);
 
-      // Then we do not exceed the predetermined buffer size
-      REQUIRE(num_bytes_written <= len);
-      buffer.resize(num_bytes_written);
-
-      // And our resulting bytes are an exact match for the expected JSON result
-      std::string_view got_json = {
-          reinterpret_cast<char*>(buffer.data()), num_bytes_written
-      };
+      // Then our resulting bytes are an exact match for the expected JSON result
+      std::string_view got_json{reinterpret_cast<char*>(buffer.data()), buffer.size()};
       REQUIRE(got_json == tt.want_json);
-
-      // Next: When we use the ToJSON() function that combines both the
-      // size-computation pass and the write pass
-      std::vector<uint8_t> buffer_again;
-      AttributeSerialization::ToJSON(tt.attribute, buffer_again);
-
-      // Then we get the exact same result
-      REQUIRE(buffer_again == buffer);
     }
   }
 }

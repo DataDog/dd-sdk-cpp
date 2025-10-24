@@ -19,7 +19,6 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     cpp/rum.cpp
     cpp/uuid.cpp
     impl/attribute/cow.cpp
-    impl/attribute/json.cpp
     impl/attribute/merge.cpp
     impl/core/feature_types/rum.cpp
     impl/core/context.cpp
@@ -49,6 +48,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/json/primitives/string.cpp
     impl/json/primitives/timestamp.cpp
     impl/json/primitives/uuid.cpp
+    impl/json/attribute.cpp
 )
 
 # Inject version number from CMake project config

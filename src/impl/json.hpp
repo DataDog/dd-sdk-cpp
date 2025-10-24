@@ -20,6 +20,7 @@
 #include "json/primitives/string.hpp"
 #include "json/primitives/timestamp.hpp"
 #include "json/primitives/uuid.hpp"
+#include "json/attribute.hpp"
 #include "json/optional.hpp"
 // clang-format on
 
@@ -63,8 +64,7 @@ void EncodeJson(std::vector<uint8_t>& out_buffer, const T& value) {
   char* dst = reinterpret_cast<char*>(out_buffer.data());
   const size_t num_bytes_written = WriteJson(dst, precomputed_size, value);
 
-  // Debug: verify that WriteValue never writes more data than ComputeValueLen indicates
-  // we need
+  // Verify that WriteJson never writes more data than GetJsonSize indicates we need
   DATADOG_ASSERT(
       num_bytes_written <= precomputed_size, "unexpected overflow of JSON buffer"
   );

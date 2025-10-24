@@ -11,7 +11,6 @@
 #include <shared_mutex>
 #include <string_view>
 
-#include "attribute/json.hpp"
 #include "attribute/merge.hpp"
 #include "core/block.hpp"
 #include "core/core.hpp"
@@ -19,6 +18,7 @@
 #include "core/writer.hpp"
 #include "date/date.h"
 #include "features/logging/logger.hpp"
+#include "json.hpp"
 
 namespace datadog::impl {
 
@@ -219,7 +219,7 @@ void Logging::OnLoggerEmit(
 
   // Serialize to JSON, using the logger-owned buffer to ensure that it's safe to
   // serialize multiple messages from different loggers concurrently
-  AttributeSerialization::ToJSON(obj, mut_state.event_buffer);
+  EncodeJson(mut_state.event_buffer, obj);
 
   WriteEvent(Block(
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
