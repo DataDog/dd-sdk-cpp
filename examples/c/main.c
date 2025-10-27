@@ -61,8 +61,16 @@ int main(int argc, char *argv[]) {
   // Use our logger to send a message
   dd_logger_info(logger, "Hello world!");
 
-  // TODO(RUM-11368): Start a RUM View
+  // Start a RUM View
+  dd_rum_start_view(rum, "main_menu", NULL);
+
+  // Log messages will now be correlated with our session and view in the RUM UI
+  dd_logger_info(logger, "Main menu loaded");
+
   // TODO(RUM-11369): Record a RUM Action
+
+  // Stop the RUM view
+  dd_rum_stop_view(rum, "main_menu");
 
   // Stop the core on application shutdown
   printf("Core started successfully. Shutting down...\n");

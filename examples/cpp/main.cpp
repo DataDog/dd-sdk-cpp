@@ -64,8 +64,16 @@ int main()  // NOLINT(bugprone-exception-escape)
   // Use our logger to send a message
   logger->Info("Hello world!");
 
-  // TODO(RUM-11368): Start a RUM View
+  // Start a RUM View
+  rum->StartView("main_menu");
+
+  // Log messages will now be correlated with our session and view in the RUM UI
+  logger->Info("Main menu loaded");
+
   // TODO(RUM-11369): Record a RUM Action
+
+  // Stop the RUM view
+  rum->StopView("main_menu");
 
   // Stop the core on application shutdown
   std::cout << "Core started successfully. Shutting down...\n";

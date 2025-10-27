@@ -101,6 +101,42 @@ DATADOG_API void dd_rum_attribute_delete(dd_rum_t* rum, const char* name);
  */
 DATADOG_API void dd_rum_stop_session(dd_rum_t* rum);
 
+// === RUM views ===
+
+/**
+ * Starts a new RUM view, recording that the user has navigated to the portion of the
+ * application uniquely identified by the given string `key`. `name` is an optional
+ * human-readable view name to be used in the Datadog UI; if not specified, the view's
+ * key will be used as its name.
+ *
+ * If no RUM session is currently active, starting a view will implicitly create a new
+ * session.
+ *
+ * When a new view is started, all existing views are implicitly stopped.
+ */
+DATADOG_API void dd_rum_start_view(dd_rum_t* rum, const char* key, const char* name);
+
+/**
+ * Starts a new RUM view, associating an initial set of custom attributes with that
+ * view.
+ */
+DATADOG_API void dd_rum_start_view_obj(
+    dd_rum_t* rum, const char* key, const char* name, const dd_attribute_t* attributes
+);
+
+/**
+ * Stops any active RUM views that are identified with the given key.
+ */
+DATADOG_API void dd_rum_stop_view(dd_rum_t* rum, const char* key);
+
+/**
+ * Stops any active RUM views that have the given key, and includes the provided set of
+ * custom user attributes in the final event sent for that view.
+ */
+DATADOG_API void dd_rum_stop_view_obj(
+    dd_rum_t* rum, const char* key, const dd_attribute_t* attributes
+);
+
 #ifdef __cplusplus
 }
 #endif

@@ -133,6 +133,58 @@ void dd_rum_stop_session(dd_rum_t* rum) {
   }
   rum->impl->StopSession();
 }
+
+void dd_rum_start_view(dd_rum_t* rum, const char* key, const char* name) {
+  dd_rum_start_view_obj(rum, key, name, nullptr);
+}
+
+void dd_rum_start_view_obj(
+    dd_rum_t* rum, const char* key, const char* name, const dd_attribute_t* attributes
+) {
+  // Validate args; require a valid key
+  if (!rum || !rum->impl || !key || !key[0]) {
+    // TODO(RUM-11363): Log a warning if application supplied no view key
+    return;
+  }
+
+  // Construct a string_view of our name value, leaving it empty if no name string given
+  std::string_view cpp_name{};
+  if (name) {
+    cpp_name = name;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  // Defer to the feature implementation
+  rum->impl->StartView(key, cpp_name, cpp_attributes);
+}
+
+void dd_rum_stop_view(dd_rum_t* rum, const char* key) {
+  dd_rum_stop_view_obj(rum, key, nullptr);
+}
+
+void dd_rum_stop_view_obj(
+    dd_rum_t* rum, const char* key, const dd_attribute_t* attributes
+) {
+  // Validate args; require a valid key
+  if (!rum || !rum->impl || !key || !key[0]) {
+    // TODO(RUM-11363): Log a warning if application supplied no view key
+    return;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  // Defer to the feature implementation
+  rum->impl->StopView(key, cpp_attributes);
+}
 }
 
 // NOLINTEND(cppcoreguidelines-owning-memory)

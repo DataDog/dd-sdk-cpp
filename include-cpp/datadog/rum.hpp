@@ -111,6 +111,34 @@ class Rum {
    */
   DATADOG_API void StopSession();
 
+  /**
+   * Starts a new RUM view, recording that the user has navigated to the portion of the
+   * application uniquely identified by the given string key.
+   *
+   * If no RUM session is currently active, starting a view will implicitly create a new
+   * session.
+   *
+   * When a new view is started, all existing views are implicitly stopped.
+   *
+   * @param name An optional human-readable view name to be used in the Datadog UI. If
+   *  not specified, defaults to the value of `key`.
+   * @param attributes An optional set of custom attributes to associate with the view.
+   */
+  DATADOG_API void StartView(
+      std::string_view key,
+      std::string_view name = std::string_view{},
+      const Attribute& attributes = Attribute()
+  );
+
+  // TODO(RUM-12322): Add RUM View Attributes API
+
+  /**
+   * Stops any active RUM views that are identified with the given key.
+   */
+  DATADOG_API void StopView(
+      std::string_view key, const Attribute& attributes = Attribute()
+  );
+
  private:
   // Forbid copying/moving: we use std::shared_ptr<Rum> at the API boundary
   Rum(const Rum&) = delete;
