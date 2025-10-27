@@ -8,9 +8,9 @@
 #include <limits>
 #include <vector>
 
-#include "attribute/json.hpp"
 #include "datadog/attribute.hpp"
 #include "datadog/uuid.hpp"
+#include "json.hpp"
 #include "support/catch.hpp"
 
 using namespace datadog;
@@ -838,7 +838,7 @@ TEST_CASE("Attribute JSON example", "[unit][attribute][cpp-api]") {
 
   // When we serialize that attribute to JSON
   std::vector<uint8_t> buffer;
-  impl::AttributeSerialization::ToJSON(obj, buffer);
+  datadog::impl::EncodeJson(buffer, obj);
 
   // Then it's formatted exactly the same as our jq output
   std::string_view got_json{reinterpret_cast<char*>(buffer.data()), buffer.size()};

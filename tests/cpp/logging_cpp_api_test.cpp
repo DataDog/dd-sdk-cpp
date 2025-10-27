@@ -11,7 +11,7 @@
 #include "datadog/logging.hpp"
 #include "features/logging/logging.hpp"
 #include "support/core.hpp"
-#include "support/json.hpp"
+#include "support/json_validation.hpp"
 #include "support/threading.hpp"
 
 using namespace datadog;
