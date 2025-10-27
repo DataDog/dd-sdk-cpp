@@ -26,35 +26,39 @@ void RumApplicationScope::PopulateContext(RumContext& out_context) const {
 
 RumScopeResult RumApplicationScope::Process(const RumCommand& command) {
   // On SDK init, create an initial session
-  if (std::holds_alternative<RumSDKInitPayload>(command.payload)) {
+  if (command.Is<RumSDKInitPayload>()) {
     // Open a brand new session scope
     DATADOG_ASSERT(!_active_session, "Received SDKInit with valid session");
     DATADOG_ASSERT(!_prev_session, "Received SDKInit with valid previous session");
-    _active_session = CreateInitialSession(command);
+    _active_session = CreateSession(command);
+    DATADOG_ASSERT(_active_session, "Failed to create initial session on SDKInit");
 
-    // TODO(RUM-11368): Start 'ApplicationLaunch' view, but only in case of foreground
-    // launch?
+    // TODO(RUM-12243): If the app was launched in the foreground, issue an
+    // ApplicationStart command so that the initial session will create an initial
+    // 'ApplicationLaunch' view. If the app was _not_ launched in the foreground, defer
+    // the ApplicationStart command until the next command is processed.
 
     // No need to propagate SDKInit to the new session scope
     return RumScopeResult::RemainOpen;
   }
 
-  // If we don't have an active session, and this command represents a user interaction,
-  // ensure that we have a session to handle the command
-  if (!_active_session && command.base.is_user_interaction) {
-    // We should have dispatched SDKInit and unconditionally created an initial
-    // session prior to processing any other commands, so having no prior session
-    // state at this point is unexpected
-    if (!_prev_session) {
-      DATADOG_ASSERT(
-          false, "Received user interaction with no previous or active session"
-      );
-      return RumScopeResult::RemainOpen;
-    }
+  // If this command requires an active session and we don't have one, attempt to create
+  // one, effectively "refreshing" the session that was most recently active
+  if (command.HasFlag(RumCommandFlags::RequiresActiveSession) && !_active_session) {
+    AttemptSessionRefresh(command);
+  }
 
-    // We have a previous session; create a new session to succeed it
-    _active_session =
-        RumSessionScope::CreateSuccessorFor(*_prev_session, command.base.issued_at);
+  // If the previous session was explicitly closed while a view was still active, and
+  // we've received a StopView call targeting that view, clear the cached state so that
+  // we won't recreate the stopped view if we end up refreshing the session
+  if (!_active_session && _prev_session) {
+    if (command.Is<RumStopViewPayload>()) {
+      if (const auto& prev_view = _prev_session->GetActiveViewOnClose()) {
+        if (prev_view->key == command.As<RumStopViewPayload>().key) {
+          _prev_session->ClearActiveViewOnClose();
+        }
+      }
+    }
   }
 
   // If we have an active session scope, propagate the command to it
@@ -66,58 +70,36 @@ RumScopeResult RumApplicationScope::Process(const RumCommand& command) {
     // If the session scope was closed in response to the command, update our state and
     // refresh the session if necessary
     if (session_result == RumScopeResult::Close) {
-      // If closed, the session should no longer be active - i.e. it should have an end
-      // reason set
-      auto end_reason_opt = _active_session->GetEndReason();
-      if (!end_reason_opt) {
-        // Refrain from setting _prev_session to a RumSessionScope that doesn't have a
-        // valid EndReason: just drop the newly-closed session and abort
-        DATADOG_ASSERT(false, "RumSessionScope active (no end reason) after close");
+      // If closed, the session should have an end reason set
+      if (!_active_session->GetEndReason()) {
+        // If it failed to set one, drop it entirely and bail out rather than proceeding
+        // with a malformed _prev_session
+        DATADOG_ASSERT(false, "RumSessionScope is active (no end reason) after close");
         _active_session.reset();
         return RumScopeResult::RemainOpen;
       }
-      const RumSessionScope::EndReason end_reason = *end_reason_opt;
 
       // The session is no longer active: move it to _prev_session so we can retain any
-      // state we might need when creating the next session
+      // state we might need when transitioning to the next session
       _prev_session = std::move(_active_session);
       _active_session.reset();
 
-      // Determine whether we need to create a new session to succeed the one that was
-      // just stopped
-      bool needs_successor = false;
-      switch (end_reason) {
-        case RumSessionScope::EndReason::TimedOutDueToInactivity:
-        case RumSessionScope::EndReason::ExceededMaxDuration:
-          // If the session was closed due to inactivity timeout or because it got too
-          // long in the tooth, we'll "refresh" it by creating a new session to succeed
-          // it, then handle the command in the scope of that new session
-          needs_successor = true;
-          break;
+      // Initiate our session refresh logic: if we can and should create a new session
+      // to succeed the one that just closed, this will set _active_session; otherwise
+      // it will leave us without an active session
+      AttemptSessionRefresh(command);
 
-        case RumSessionScope::EndReason::Stopped:
-          // If the session was explicitly stopped, leave it alone; we'll create a new
-          // session on the next user interaction
-          needs_successor = false;
-          break;
-      }
+      // If we've ended up with a new session, propagate the original command to it
+      if (_active_session) {
+        const RumScopeResult result = _active_session->Process(command);
 
-      // If we need to refresh, create another session scope to replace the one we just
-      // closed, inheriting its views and other persistent state
-      if (needs_successor) {
-        _active_session =
-            RumSessionScope::CreateSuccessorFor(*_prev_session, command.base.issued_at);
-
-        // Process the command in the newly-created session scope, since our previous
-        // session (the one that closed) didn't handle it
-        const RumScopeResult successor_result = _active_session->Process(command);
-
-        // Our new session scope should remain open, since it's just now been created,
-        // and since the command we're giving it is _not_ StopSession: if that invariant
-        // is violated, just destroy the new session and forget it ever existed
-        if (successor_result == RumScopeResult::Close) {
+        // If we've just created a new session to handle a command, that command should
+        // _not_ close the session: if it does, drop the session as if it never existed
+        if (result == RumScopeResult::Close) {
           DATADOG_ASSERT(
-              false, "successor session returned Close after processing first command"
+              false,
+              "command that triggered session refresh caused the new session to "
+              "immediately close"
           );
           _active_session.reset();
         }
@@ -129,27 +111,114 @@ RumScopeResult RumApplicationScope::Process(const RumCommand& command) {
   return RumScopeResult::RemainOpen;
 }
 
-RumSessionScope RumApplicationScope::CreateInitialSession(const RumCommand& command) {
-  // Basic session details
-  const bool is_initial_session = true;
+RumSessionScope RumApplicationScope::CreateSession(
+    const RumCommand& command, const RumSessionScope* prev_session
+) {
+  // Establish basic session details
+  const bool is_initial_session = prev_session == nullptr;
   const UUID session_id = UUID::Random();
 
-  // Determine if the session should be sampled: if so, we'll populate the full set of
-  // state for it, and we'll generate RUM events and send them to intake for this
-  // session. If not sampled, we'll record that the session exists locally, but no views
-  // will be populated, no events will be generated, no context will be published, etc.
+  // Make a new, independent sampling decision for each new session
   const RumScopeDependencies& deps = _deps;
   const bool is_sampled = deps.ShouldSampleSession();
 
-  // We currently assume that all application launches are user-initiated
-  // TODO: Support detection/configuration of background launches?
-  const RumSessionPrecondition precondition = RumSessionPrecondition::UserAppLaunch;
+  // Determine the proper "session precondition" value, which indicates the reason
+  // the session was started
+  RumSessionPrecondition precondition{RumSessionPrecondition::UserAppLaunch};
+  if (!prev_session) {
+    // If this is the initial session: just assume 'UserAppLaunch'
+    // TODO(RUM-12245): Use 'BackgroundLaunch' if config indicates that app was launched
+    // in the background
+    precondition = RumSessionPrecondition::UserAppLaunch;
+  } else {
+    // This is not the initial session: figure out why the previous session ended
+    RumSessionScope::EndReason end_reason = RumSessionScope::EndReason::Stopped;
+    const auto end_reason_opt = prev_session->GetEndReason();
+    DATADOG_ASSERT(end_reason_opt, "previous session has no end reason");
+    if (end_reason_opt) {
+      end_reason = *end_reason_opt;
+    }
 
-  // Create and return a brand new session
+    // And initialize our start precondition based on that end reason
+    switch (end_reason) {
+      case RumSessionScope::EndReason::TimedOutDueToInactivity:
+        precondition = RumSessionPrecondition::InactivityTimeout;
+        break;
+      case RumSessionScope::EndReason::ExceededMaxDuration:
+        precondition = RumSessionPrecondition::MaxDuration;
+        break;
+      case RumSessionScope::EndReason::Stopped:
+        precondition = RumSessionPrecondition::ExplicitStop;
+        break;
+    }
+  }
+
+  // If this new session is succeeding a previous session, and it's sampled, convey the
+  // details of its last active view (if any) so that the new session can recreate it if
+  // needed
+  std::optional<RumSessionScope::ViewDetails> last_active_view;
+  if (prev_session && is_sampled) {
+    // TODO(RUM-12245): Views are only transferred if the app is in the foreground
+    // TODO(RUM-12246): Views are only transferred if the app is in the foreground
+    last_active_view = prev_session->GetActiveViewOnClose();
+  }
+
+  // Open a new RumSessionScope with these details
   const platform::Timestamp start_time = command.base.issued_at;
   return RumSessionScope(
-      deps, *this, is_initial_session, is_sampled, session_id, precondition, start_time
+      deps,
+      *this,
+      is_initial_session,
+      is_sampled,
+      session_id,
+      precondition,
+      start_time,
+      last_active_view
   );
+}
+
+void RumApplicationScope::AttemptSessionRefresh(const RumCommand& command) {
+  // This function is only called when no active session exists
+  DATADOG_ASSERT(!_active_session, "AttemptSessionRefresh called with active session");
+
+  // A StopSession command can never trigger the creation of a new session
+  if (command.Is<RumStopSessionPayload>()) {
+    return;
+  }
+
+  // Resolve the end reason of the previous session
+  if (!_prev_session) {
+    DATADOG_ASSERT(false, "AttemptSessionRefresh called with no previous session");
+    return;
+  }
+  auto end_reason_opt = _prev_session->GetEndReason();
+  if (!end_reason_opt) {
+    DATADOG_ASSERT(false, "unable to refresh session with no end reason");
+    return;
+  }
+  const RumSessionScope::EndReason end_reason = *end_reason_opt;
+
+  // If the application has explicitly requested that we stop tracking, we want to be
+  // more conservative and only create a new session in response to an
+  // explicitly-tracked user interaction which opens a new view or action scope
+  if (end_reason == RumSessionScope::EndReason::Stopped) {
+    const bool should_reopen_session_after_explicit_stop =
+        command.Is<RumStartActionPayload>() || command.Is<RumAddActionPayload>() ||
+        command.Is<RumStartViewPayload>();
+    if (!should_reopen_session_after_explicit_stop) {
+      return;
+    }
+  }
+
+  // Create a new session to succeed the previous one, effectively refreshing it, and
+  // potentially conveying the details of the last-active view in case the new session
+  // need to recreate that view's state
+  const RumSessionScope& prev_session = *_prev_session;
+  _active_session = CreateSession(command, &prev_session);
+
+  // The previous session no longer needs to exist: all its resources and actions are
+  // simply lost when the session stops
+  _prev_session.reset();
 }
 
 ScopeRef<const RumSessionScope> RumApplicationScope::GetActiveSession() const {

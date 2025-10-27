@@ -8,6 +8,20 @@
 
 namespace datadog::impl {
 
+void RumContext::Reset() {
+  application_id = UUID::Zero;
+
+  session_id = UUID::Zero;
+  session_is_active = false;
+  session_is_sampled = false;
+
+  active_view_id = UUID::Zero;
+  active_view_key.clear();
+  active_view_name.clear();
+
+  // TODO(RUM-11369): Clear active_action_id etc.
+}
+
 RumFeatureContext RumContext::ToFeatureContext() const {
   // If we don't have a valid RUM Application ID, return a zero-initialized value
   if (application_id == UUID::Zero) {
@@ -20,10 +34,15 @@ RumFeatureContext RumContext::ToFeatureContext() const {
     return RumFeatureContext{application_id, UUID::Zero, UUID::Zero, UUID::Zero};
   }
 
-  // We have a valid session
-  // TODO(RUM-11368): Set view_id if our session has an active view
+  // We have a valid session: if there's no active view, just set application and
+  // session ID
+  if (active_view_id == UUID::Zero) {
+    return RumFeatureContext{application_id, session_id, UUID::Zero, UUID::Zero};
+  }
+
+  // We have an active view
   // TODO(RUM-11369): Set action_id if that view has an active action
-  return RumFeatureContext{application_id, session_id, UUID::Zero, UUID::Zero};
+  return RumFeatureContext{application_id, session_id, active_view_id, UUID::Zero};
 }
 
 }  // namespace datadog::impl

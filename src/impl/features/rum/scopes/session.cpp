@@ -6,6 +6,8 @@
 
 #include "features/rum/scopes/session.hpp"
 
+#include <algorithm>
+
 #include "assert.hpp"
 #include "features/rum/context.hpp"
 #include "features/rum/scopes/application.hpp"
@@ -18,12 +20,13 @@ const platform::Duration RumSessionScope::MAX_SESSION_DURATION = std::chrono::ho
 
 RumSessionScope::RumSessionScope(
     const RumScopeDependencies& deps,
-    class RumApplicationScope& parent,
+    RumApplicationScope& parent,
     bool is_initial_session,
     bool is_sampled,
     const UUID& session_id,
     RumSessionPrecondition start_precondition,
-    platform::Timestamp start_time
+    platform::Timestamp start_time,
+    const std::optional<RumSessionScope::ViewDetails>& active_view_from_predecessor
 )
     : _deps(deps),
       _parent(parent),
@@ -32,62 +35,8 @@ RumSessionScope::RumSessionScope(
       _session_id(session_id),
       _precondition(start_precondition),
       _started_at(start_time),
-      _last_interaction_at(start_time) {}
-
-RumSessionScope RumSessionScope::CreateSuccessorFor(
-    const RumSessionScope& prev_session, platform::Timestamp start_time
-) {
-  // Establish basic details of our session scope
-  const bool is_initial_session = false;
-  const UUID session_id = UUID::Random();
-
-  // Determine why the last session ended: if the session scope is being treated as no
-  // longer active, it must have a valid end reason
-  EndReason end_reason = EndReason::Stopped;
-  const auto end_reason_opt = prev_session.GetEndReason();
-  DATADOG_ASSERT(end_reason_opt, "previous session has no end reason");
-  if (end_reason_opt) {
-    end_reason = *end_reason_opt;
-  }
-
-  // Determine the start reason for our new session based on that end reason
-  RumSessionPrecondition precondition = RumSessionPrecondition::ExplicitStop;
-  switch (end_reason) {
-    case EndReason::TimedOutDueToInactivity:
-      precondition = RumSessionPrecondition::InactivityTimeout;
-      break;
-    case EndReason::ExceededMaxDuration:
-      precondition = RumSessionPrecondition::MaxDuration;
-      break;
-    case EndReason::Stopped:
-      precondition = RumSessionPrecondition::ExplicitStop;
-      break;
-  }
-
-  // Make a new, independent sampling decision for this new session
-  const RumScopeDependencies& deps = prev_session._deps;
-  const bool is_sampled = deps.ShouldSampleSession();
-
-  // Create a new session scope
-  RumSessionScope session(
-      deps,
-      prev_session._parent,
-      is_initial_session,
-      is_sampled,
-      session_id,
-      precondition,
-      start_time
-  );
-
-  // TODO(RUM-11368): In the case of timeout/duration, transfer active views from the
-  // expired session, preserving relevant view state (stable identifier, path name,
-  // etc.) while creating a new RumViewScope with a new start timestamp and UUID for
-  // each view. In the case of explicit stop, transfer only the last-active view, unless
-  // the command being processed is StartView, in which case no views should be retained
-
-  // Return our fully initialized session scope
-  return session;
-}
+      _last_interaction_at(start_time),
+      _active_view_from_predecessor(active_view_from_predecessor) {}
 
 void RumSessionScope::PopulateContext(RumContext& out_context) const {
   // Call the parent's PopulateContext function to set application parameters
@@ -104,35 +53,31 @@ void RumSessionScope::PopulateContext(RumContext& out_context) const {
 RumScopeResult RumSessionScope::Process(const RumCommand& command) {
   // -- Determine if the session needs to end, and early-out if so
 
-  // If it's been more than (e.g.) 15 minutes since the last user interaction, end this
-  // session due to inactivity and go no further
-  const platform::Timestamp& now = command.base.issued_at;
-  const platform::Duration elapsed_since_last_interaction = now - _last_interaction_at;
-  if (elapsed_since_last_interaction >= INACTIVITY_TIMEOUT_DURATION) {
-    _end_reason = EndReason::TimedOutDueToInactivity;
+  // If the session already ended in response to a prior command, we should not be
+  // receiving any new commands: we should have been closed immediately and removed from
+  // the application scope
+  DATADOG_ASSERT(
+      !_end_reason.has_value(),
+      "session scope has a valid EndReason at the start of command processing"
+  );
+
+  // If this command either explicitly stops the session or is arriving after the user
+  // inactivity timeout or the maximum session duration have been exceeded, close the
+  // session
+  const auto should_close = ShouldCloseRatherThanProcessing(command);
+  if (should_close) {
+    // Before returning control to the application scope, record some state to
+    // facilitate view transfer, and (only if explicitly stopped) send final view events
+    _end_reason = should_close;
+    OnClose(command, *_end_reason);
     return RumScopeResult::Close;
   }
 
-  // If it's been more than (e.g.) 4 hours since the session started, end this session
-  // and go no further
-  const platform::Duration elapsed_since_start = now - _started_at;
-  if (elapsed_since_start > MAX_SESSION_DURATION) {
-    _end_reason = EndReason::ExceededMaxDuration;
-    return RumScopeResult::Close;
-  }
+  // -- Refresh inactivity timeout
 
-  // If the command is 'StopSession', the user explicitly requested that we end the
-  // session via a StopSession API call
-  if (std::holds_alternative<RumStopSessionPayload>(command.payload)) {
-    _end_reason = EndReason::Stopped;
-    return RumScopeResult::Close;
-  }
-
-  // -- Update session state (irrespective of sampling decision)
-
-  // If the command was dispatched in response to a user interaction, refresh our
-  // last-interaction timestamp to reset the clock on the inactivity timeout
-  if (command.base.is_user_interaction) {
+  // If the command is a user interaction, refresh our last-interaction timestamp to
+  // reset the clock on the inactivity timeout
+  if (command.HasFlag(RumCommandFlags::UserInteraction)) {
     _last_interaction_at = command.base.issued_at;
   }
 
@@ -145,8 +90,178 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     return RumScopeResult::RemainOpen;
   }
 
-  // TODO(RUM-11368): Handle view creation, propagate events to child views
+  // -- Deal with post-session-refresh view transfer
+
+  // If we're still holding on to the details of the last active view from the previous
+  // session and we get a StopView call targeting that view, clear those details so we
+  // won't recreate a stopped view
+  if (_active_view_from_predecessor && command.Is<RumStopViewPayload>()) {
+    const auto& payload = command.As<RumStopViewPayload>();
+    if (payload.key == _active_view_from_predecessor->key) {
+      _active_view_from_predecessor.reset();
+    }
+  }
+
+  // If we're holding on to last-active-view details from the previous session and this
+  // command requires an active view, initiate view transfer if needed, and clear the
+  // view details regardless
+  if (_active_view_from_predecessor &&
+      command.HasFlag(RumCommandFlags::RequiresActiveView)) {
+    // Attempt to perform a "view transfer", which creates a new view scope with the
+    // same basic details as the view that was active when our previous session ended:
+    // this will be a no-op if we already have an active view or have previously created
+    // any views in this session
+    AttemptViewTransfer(command, *_active_view_from_predecessor);
+
+    // Clear last view state, regardless of whether we successfully created a new view,
+    // so we don't run these checks again
+    _active_view_from_predecessor.reset();
+  }
+
+  // -- Manage child views and propagate commands to views
+
+  // TODO(RUM-12242): If the command is 'ApplicationStart', create ApplicationLaunch
+  // view if warranted
+
+  // If the command is 'StartView', open a new view scope and add it to the array of
+  // child views
+  if (command.Is<RumStartViewPayload>()) {
+    // Get basic view scope details
+    const auto& payload = command.As<RumStartViewPayload>();
+    const bool is_initial_view = false;
+    const UUID view_id = UUID::Random();
+
+    // Open a new scope: the command-propagation logic below will ensure that the
+    // StartView command is handled by this new scope as well as any others
+    _view_scopes.Push(
+        _deps,
+        *this,
+        is_initial_view,
+        view_id,
+        payload.key,
+        payload.name,
+        command.base.issued_at
+    );
+    _num_views_opened++;
+  }
+
+  // TODO(RUM-12242): In case of off-view commands, create ApplicationLaunch view if
+  // warranted
+
+  // TODO(RUM-11247): In case of off-view commands, create Background view if warranted
+
+  // Propagate the command to any and all child view scopes
+  _view_scopes.Propagate(command);
+
+  // All of the circumstances that cause a session to end are handled up-front in
+  // ShouldCloseRatherThanProcessing(): no other command types should result in the
+  // session being closed
+  DATADOG_ASSERT(
+      !_end_reason.has_value(),
+      "session scope has a valid EndReason at the end of normal command processing"
+  );
   return RumScopeResult::RemainOpen;
+}
+
+std::optional<RumSessionScope::EndReason>
+RumSessionScope::ShouldCloseRatherThanProcessing(const RumCommand& command) const {
+  // If it's been more than (e.g.) 15 minutes since the last user interaction, end this
+  // session due to inactivity and go no further
+  const platform::Timestamp& now = command.base.issued_at;
+  const platform::Duration elapsed_since_last_interaction = now - _last_interaction_at;
+  if (elapsed_since_last_interaction >= INACTIVITY_TIMEOUT_DURATION) {
+    return EndReason::TimedOutDueToInactivity;
+  }
+
+  // If it's been more than (e.g.) 4 hours since the session started, end this session
+  // and go no further
+  const platform::Duration elapsed_since_start = now - _started_at;
+  if (elapsed_since_start > MAX_SESSION_DURATION) {
+    return EndReason::ExceededMaxDuration;
+  }
+
+  // NOTE: Explicit stop should be handled after timeouts: if we process StopSession
+  // when a session has passed its expiration thresholds; that's an expiration, not an
+  // explicit stop.
+
+  // If the command is 'StopSession', the user explicitly requested that we end the
+  // session via a StopSession API call
+  if (command.Is<RumStopSessionPayload>()) {
+    return EndReason::Stopped;
+  }
+
+  // Session should remain open and attempt to process the command
+  return std::nullopt;
+}
+
+void RumSessionScope::OnClose(const RumCommand& command, EndReason end_reason) {
+  // If we have an active view, cache its essential details in _active_view_on_close so
+  // they can be conveyed to the next session we might create
+  DATADOG_ASSERT(!_active_view_on_close, "last active view already cached on close");
+  const auto view_opt = GetActiveView();
+  if (view_opt) {
+    const RumViewScope& view = *view_opt;
+    // TODO(RUM-12242): The 'ApplicationLaunch' view should not be transferred
+    // TODO(RUM-12247): The synthetic 'Background' view should not be transferred
+    _active_view_on_close.emplace(view.GetKey(), view.GetName(), view.GetAttributes());
+  }
+
+  // If this session was explicitly stopped, propagate the StopSession command to child
+  // views so they can be cleanly finalized and so that final view events can be sent:
+  // note that we _don't_ send final view events after session expiration
+  if (end_reason == EndReason::Stopped) {
+    DATADOG_ASSERT(command.Is<RumStopSessionPayload>(), "stopped by non-StopSession");
+    _view_scopes.Propagate(command);
+  }
+}
+
+void RumSessionScope::AttemptViewTransfer(
+    const RumCommand& command, const RumSessionScope::ViewDetails& prev_view
+) {
+  // If this session is the initial session, or if it's not sampled, then
+  // RumApplicationScope should not have provided it with any last_active_view details
+  // on construction
+  DATADOG_ASSERT(!_is_initial_session, "attempted view transfer in initial session");
+  DATADOG_ASSERT(_is_sampled, "attempted view transfer in non-sampled session");
+
+  // If we've ever created any foreground views in this session, old views from the
+  // previous session are now irrelevant and should be ignored
+  if (_num_views_opened > 0) {
+    return;
+  }
+
+  // If we currently have an active view of any kind, we should forget the old view
+  if (GetActiveView()) {
+    return;
+  }
+
+  // Open a new view scope in this session, giving it a new UUID and start time, but
+  // inheriting the view key, name, and attributes from the previous view
+  const bool is_initial_view = false;
+  const UUID view_id = UUID::Random();
+  std::string_view view_key = prev_view.key;
+  std::string_view view_name = prev_view.name;
+  const platform::Timestamp start_time = command.base.issued_at;
+  _view_scopes.Push(
+      _deps, *this, is_initial_view, view_id, view_key, view_name, start_time
+  );
+  _num_views_opened++;
+
+  // Dispatch a StartView command to the newly-created view to ensure that it's properly
+  // initialized, transferring the previous view's custom attributes in the process
+  RumCommandParams base = command.base;
+  base.attributes = prev_view.attributes;
+  const RumCommand cmd = RumCommand::StartView(std::move(base), view_key, view_name);
+  _view_scopes.Propagate(cmd);
+}
+
+ScopeRef<const RumViewScope> RumSessionScope::GetActiveView() const {
+  for (const RumViewScope& view : _view_scopes.items) {
+    if (view.IsActive()) {
+      return view;
+    }
+  }
+  return std::nullopt;
 }
 
 }  // namespace datadog::impl

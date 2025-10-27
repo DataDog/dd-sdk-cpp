@@ -30,6 +30,12 @@ struct RumScopeDependencies {
   // Configuration details
   UUID application_id;
 
+  // Reference to the Feature's interface to the core, used for accessing context,
+  // generating events, etc. FeatureScopes aren't created until Core::Start(), and they
+  // only last until Core::Stop(), so this value is only guaranteed to be non-NULL while
+  // the SDK is running.
+  class FeatureScope* scope;
+
  private:
   // Internal state used in sampling decisions
   float _sampling_rate_unit;
@@ -39,6 +45,17 @@ struct RumScopeDependencies {
  public:
   explicit RumScopeDependencies(const RumConfig& config);
 
+  /**
+   * Injects required dependencies that are only initialized upon SDK start.
+   */
+  void OnStart(FeatureScope& in_scope);
+
+  /**
+   * Clears any dependencies that were injected on SDK start.
+   */
+  void OnStop();
+
+ public:
   /**
    * Makes a single sampling decision for a newly-created session. If the result is
    * true, the session should be sampled, meaning that it should process the full set of
