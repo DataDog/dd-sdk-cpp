@@ -34,7 +34,7 @@ namespace datadog::impl {
  * To encode a value of any JSON-serializable type, use `EncodeJson`.
  *
  * The files within in `src/impl/json/` define JSON serialization functions for all
- * supported types. For each type, those definitions consists of two functions:
+ * supported types. For each type, those definitions consists of three functions:
  *
  * size_t datadog::impl::GetJsonSize(const T& value):
  *   Given a value of type T, returns the number of bytes required to store the
@@ -49,8 +49,24 @@ namespace datadog::impl {
  *   WITH_DATADOG_ASSERTS is enabled: required buffer size should always be precomputed
  *   via GetJsonSize().
  *
+ * bool datadog::impl::HasJsonValue(const T& value):
+ *   Given a value of type T, indicates whether that value should be serialized to JSON
+ *   at all. This function is used when serializing a data structure to a JSON object,
+ *   in order to support properties that should be omitted from the object entirely when
+ *   they contain a null or zero value.
+ *
  * JSON values must be minified: no whitespace or pretty-printing.
  */
+
+/**
+ * Default template implementation for HasJsonValue: if a type does not have an overload
+ * for this function, a value of that type is assumed to always be present when used as
+ * a JSON object property.
+ */
+template <typename T>
+bool HasJsonValue(const T&) {
+  return true;
+}
 
 /**
  * Given a value of type T, serializes it to the given buffer in JSON format.
