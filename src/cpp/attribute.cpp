@@ -144,8 +144,8 @@ Attribute Attribute::Int(int64_t value) { return Attribute(ValueType::Int, value
 
 Attribute Attribute::UInt(uint64_t value) { return Attribute(ValueType::UInt, value); }
 
-Attribute Attribute::TimestampFromNanoseconds(uint64_t value) {
-  return Attribute(ValueType::Timestamp, value);
+Attribute Attribute::Timestamp(datadog::Timestamp value) {
+  return Attribute(ValueType::Timestamp, value.time_since_epoch().count());
 }
 
 Attribute Attribute::Double(double value) {
@@ -209,13 +209,13 @@ void Attribute::SetUInt(uint64_t new_value) {
   value.u64 = new_value;
 }
 
-void Attribute::SetTimestampAsNanoseconds(uint64_t new_value) {
+void Attribute::SetTimestamp(datadog::Timestamp new_value) {
   if (!_is_primitive_type(type)) {
     value.ptr->Release();
   }
 
   type = ValueType::Timestamp;
-  value.u64 = new_value;
+  value.i64 = new_value.time_since_epoch().count();
 }
 
 void Attribute::SetDouble(double new_value) {
@@ -318,11 +318,11 @@ uint64_t Attribute::GetUIntValue() const {
   return value.u64;
 }
 
-uint64_t Attribute::GetTimestampValueAsNanoseconds() const {
+Timestamp Attribute::GetTimestampValue() const {
   if (type != ValueType::Timestamp) {
-    return 0;
+    return datadog::Timestamp{std::chrono::nanoseconds(0)};
   }
-  return value.u64;
+  return datadog::Timestamp{std::chrono::nanoseconds(value.i64)};
 }
 
 double Attribute::GetDoubleValue() const {

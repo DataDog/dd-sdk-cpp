@@ -24,13 +24,11 @@
 
 namespace datadog::impl {
 
-static constexpr platform::Duration from_seconds(double sec) {
-  return std::chrono::duration_cast<platform::Duration>(
-      std::chrono::duration<double>(sec)
-  );
+static constexpr Duration from_seconds(double sec) {
+  return std::chrono::duration_cast<Duration>(std::chrono::duration<double>(sec));
 }
 
-static const platform::Duration ASSERTION_FAILURE_BACKOFF = from_seconds(60.0);
+static const Duration ASSERTION_FAILURE_BACKOFF = from_seconds(60.0);
 
 enum class _process_and_upload_batch_result : uint8_t {
   /**
@@ -145,7 +143,7 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   return _interpret_http_result(res);
 }
 
-static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
+static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
@@ -204,12 +202,12 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
     }
 
     // Read the system clock so we can determine the relative age of the file
-    const platform::Timestamp file_time{std::chrono::milliseconds(timestamp_ms)};
-    const platform::Timestamp now = clock.Now();
+    const Timestamp file_time{std::chrono::milliseconds(timestamp_ms)};
+    const Timestamp now = clock.Now();
 
     // Defensive: guard against integer underflow on file age calculation. If the file
     // appears to be from the future, clamp its age to 0.
-    platform::Duration file_age = platform::Duration::zero();
+    Duration file_age = Duration::zero();
     if (file_time < now) {
       file_age = now - file_time;
     }
@@ -314,7 +312,7 @@ static platform::Duration _run_upload_cycle( // NOLINT(readability-function-cogn
 }
 
 UploadThreadConfig::UploadThreadConfig(
-    platform::Duration in_min_file_age_for_read, size_t in_max_batches_per_cycle
+    Duration in_min_file_age_for_read, size_t in_max_batches_per_cycle
 )
     : min_file_age_for_read(in_min_file_age_for_read),
       max_batches_per_cycle(in_max_batches_per_cycle) {}
@@ -350,20 +348,19 @@ UploadThreadState::UploadThreadState(UploadFrequency upload_frequency)
   max_delay = min_delay * 10;
 }
 
-platform::Duration UploadThreadState::IncreaseDelayTowardMax() {
+Duration UploadThreadState::IncreaseDelayTowardMax() {
   const int64_t current = current_delay.count();
   const int64_t ten_percent = static_cast<int64_t>(static_cast<double>(current) * 0.1);
-  current_delay =
-      platform::Duration(std::min(max_delay.count(), current + ten_percent));
+  current_delay = Duration(std::min(max_delay.count(), current + ten_percent));
   return current_delay;
 }
 
-platform::Duration UploadThreadState::ResetDelayToMin() {
+Duration UploadThreadState::ResetDelayToMin() {
   current_delay = min_delay;
   return current_delay;
 }
 
-platform::Duration Internal_HandleUploadProc(
+Duration Internal_HandleUploadProc(
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
@@ -428,7 +425,7 @@ void UploadThreadMain(
 
   // Run indefinitely, exiting once the scheduler returns nullopt
   while (auto feature_id = scheduler.WaitForNext()) {
-    const platform::Duration delay_until_next_cycle = Internal_HandleUploadProc(
+    const Duration delay_until_next_cycle = Internal_HandleUploadProc(
         config,
         http_context,
         clock,

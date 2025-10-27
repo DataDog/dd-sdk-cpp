@@ -11,6 +11,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     c/core.cpp
     c/logging.cpp
     c/rum.cpp
+    c/timestamp.cpp
     c/uuid.cpp
     cpp/attribute.cpp
     cpp/core.cpp

@@ -19,7 +19,7 @@ RumViewScope::RumViewScope(
     const UUID& view_id,
     std::string_view key,
     std::string_view name,
-    platform::Timestamp start_time
+    Timestamp start_time
 )
     : _deps(deps),
       _parent(parent),

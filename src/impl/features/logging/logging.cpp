@@ -125,7 +125,7 @@ void Logging::OnLoggerEmit(
   }
 
   // Set 'date' from the current timestamp
-  const platform::Timestamp now = _clock.Now();
+  const Timestamp now = _clock.Now();
   obj.SetObjectProperty("date", Attribute::Timestamp(now));
 
   // Set 'message'

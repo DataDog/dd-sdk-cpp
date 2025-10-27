@@ -29,7 +29,7 @@ class UploadScheduler {
    */
   struct Item {
     FeatureId feature_id;
-    platform::Timestamp next_cycle_at;
+    Timestamp next_cycle_at;
 
     bool operator>(const Item& other) const {
       return next_cycle_at > other.next_cycle_at;
@@ -74,7 +74,7 @@ class UploadScheduler {
    * Schedules the next upload cycle for the given feature to occur after the specified
    * delay.
    */
-  void Schedule(FeatureId feature_id, platform::Duration next_cycle_in);
+  void Schedule(FeatureId feature_id, Duration next_cycle_in);
 
   /**
    * Blocks until the next feature is ready to be processed for upload, returning its ID
@@ -85,7 +85,7 @@ class UploadScheduler {
   std::optional<FeatureId> WaitForNext();
 
  private:
-  bool SleepFor(platform::Duration duration);
+  bool SleepFor(Duration duration);
 };
 
 }  // namespace datadog::impl

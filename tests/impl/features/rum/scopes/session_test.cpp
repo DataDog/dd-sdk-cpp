@@ -42,7 +42,7 @@ class SessionFixture {
             is_session_sampled,
             *UUID::Parse(SESSION_ID),
             RumSessionPrecondition::UserAppLaunch,
-            platform::Timestamp{std::chrono::duration_cast<platform::Duration>(
+            Timestamp{std::chrono::duration_cast<Duration>(
                 std::chrono::milliseconds{1700000000000}
             )},
             std::nullopt
@@ -374,7 +374,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         is_sampled,
         session_id,
         RumSessionPrecondition::UserAppLaunch,
-        platform::Timestamp{},
+        Timestamp{},
         std::nullopt
     );
 
@@ -409,7 +409,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         is_sampled,
         session_id,
         RumSessionPrecondition::BackgroundLaunch,
-        platform::Timestamp{},
+        Timestamp{},
         std::nullopt
     );
 
@@ -440,14 +440,12 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         is_sampled,
         session_id,
         RumSessionPrecondition::InactivityTimeout,
-        platform::Timestamp{},
+        Timestamp{},
         std::nullopt
     );
 
     // When the session ends for any reason
-    scope.Process(
-        RumCommand::StopSession(RumCommandParams(platform::Timestamp{}, {}, {}))
-    );
+    scope.Process(RumCommand::StopSession(RumCommandParams(Timestamp{}, {}, {})));
 
     // And we then populate a RumContext from the session scope
     RumContext ctx;

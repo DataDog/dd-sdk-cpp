@@ -26,7 +26,7 @@ struct BatchWriterConfig {
   /**
    * Once a file exceeds this age, we will not write to it again.
    */
-  platform::Duration max_file_age;
+  Duration max_file_age;
   /**
    * If the next write to the current file would cause it to exceed this size (in
    * bytes), we will not write to that file and instead create a new one.
@@ -40,7 +40,7 @@ struct BatchWriterConfig {
    */
   int max_writes_per_file{500};
 
-  explicit BatchWriterConfig(platform::Duration in_max_file_age)
+  explicit BatchWriterConfig(Duration in_max_file_age)
       : max_file_age(in_max_file_age) {}
 
   static BatchWriterConfig FromBatchSize(BatchSize batch_size);
@@ -147,10 +147,10 @@ class BatchWriter {
  private:
   platform::IFileWriter* PrepareFileForNextWrite(Block event, Block event_metadata);
   bool CanReuseFileForNextWrite(
-      platform::Timestamp current_time, Block event, Block event_metadata
+      Timestamp current_time, Block event, Block event_metadata
   ) const;
   std::optional<std::pair<uint64_t, std::string>> GetFilenameForNextWrite(
-      platform::Timestamp current_time
+      Timestamp current_time
   ) const;
   bool CacheKnownFilenames() const;
 };

@@ -6,10 +6,9 @@
 
 #pragma once
 
-#include "datadog/api.hpp"
-#include "datadog/attribute.hpp"
-#include "datadog/core.hpp"
-#include "datadog/logging.hpp"
-#include "datadog/rum.hpp"
-#include "datadog/timestamp.hpp"
-#include "datadog/uuid.hpp"
+// clang-format off - Include custom template specializations before Catch2 headers
+#include "catch_timestamp.hpp"
+// clang-format on
+
+#include <catch2/catch_test_macros.hpp>
+#include <catch2/generators/catch_generators.hpp>

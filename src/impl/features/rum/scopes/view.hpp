@@ -66,7 +66,7 @@ class RumViewScope {
       const UUID& view_id,
       std::string_view key,
       std::string_view name,
-      platform::Timestamp start_time
+      Timestamp start_time
   );
 
   // Scopes are non-copyable but movable
@@ -107,7 +107,7 @@ class RumViewScope {
   std::string _key;       // The 'key' value passed to StartView, a.k.a. 'path' or 'url'
   std::string _name;      // The 'name' value passed to StartView
 
-  platform::Timestamp _started_at;
+  Timestamp _started_at;
 
   ObjectAttribute _attributes;
 
@@ -122,7 +122,7 @@ class RumViewScope {
   std::string_view GetKey() const { return _key; }
   std::string_view GetName() const { return _name; }
   Attribute GetAttributes() const { return _attributes.attribute; }
-  platform::Timestamp GetStartedAt() const { return _started_at; }
+  Timestamp GetStartedAt() const { return _started_at; }
 };
 
 }  // namespace datadog::impl

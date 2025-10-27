@@ -10,19 +10,9 @@
 #include <cstdint>
 #include <memory>
 
+#include "datadog/timestamp.hpp"
+
 namespace datadog::platform {
-
-/**
- * A duration compatible for comparison and arithmetic with an IClock timestamp, stored
- * as a signed int64 count of nanoseconds.
- */
-using Duration = std::chrono::nanoseconds;
-
-/**
- * A point in time as measured by the system clock, expressed as a signed int64 count of
- * nanoseconds since the Unix epoch.
- */
-using Timestamp = std::chrono::time_point<std::chrono::system_clock, Duration>;
 
 /**
  * Interface for the system clock.

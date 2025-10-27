@@ -212,7 +212,7 @@ class ViewTransferFixture {
   UUID initial_view_id;
   std::string initial_view_key;
   std::string initial_view_name;
-  platform::Timestamp initial_view_started_at{};
+  Timestamp initial_view_started_at{};
 
   // Individual test scenarios
   enum class State {

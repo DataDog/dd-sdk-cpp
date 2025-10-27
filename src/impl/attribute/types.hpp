@@ -54,7 +54,7 @@ struct AttributeConversion {
       case DD_VALUE_TYPE_UINT:
         return Attribute(ValueType::UInt, attribute.value.u64);
       case DD_VALUE_TYPE_TIMESTAMP:
-        return Attribute(ValueType::Timestamp, attribute.value.u64);
+        return Attribute(ValueType::Timestamp, attribute.value.i64);
       case DD_VALUE_TYPE_DOUBLE:
         return Attribute(ValueType::Double, attribute.value.f64);
 
@@ -79,10 +79,10 @@ struct AttributeConversion {
       case DD_VALUE_TYPE_NULL:
       case DD_VALUE_TYPE_BOOL:
       case DD_VALUE_TYPE_INT:
+      case DD_VALUE_TYPE_TIMESTAMP:
         attribute.value.i64 = cpp_attribute.value.i64;
         break;
       case DD_VALUE_TYPE_UINT:
-      case DD_VALUE_TYPE_TIMESTAMP:
         attribute.value.u64 = cpp_attribute.value.u64;
         break;
       case DD_VALUE_TYPE_DOUBLE:

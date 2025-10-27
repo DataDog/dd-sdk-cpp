@@ -59,15 +59,15 @@ static std::string_view _ms_to_string(
   return std::string_view{begin, len};
 }
 
-static platform::Timestamp _ms_to_timestamp(uint64_t timestamp_ms) {
+static Timestamp _ms_to_timestamp(uint64_t timestamp_ms) {
   const int64_t count = static_cast<int64_t>(timestamp_ms);
   if (count < 0) {
-    return platform::Timestamp{};
+    return Timestamp{};
   }
-  return platform::Timestamp{std::chrono::nanoseconds(count * 1000000)};
+  return Timestamp{std::chrono::nanoseconds(count * 1000000)};
 }
 
-static uint64_t _timestamp_to_ms(platform::Timestamp timestamp) {
+static uint64_t _timestamp_to_ms(Timestamp timestamp) {
   // Use raw milliseconds within the storage implementation, since we encode file
   // creation time in the filename with millisecond precision
   auto elapsed = timestamp.time_since_epoch();
@@ -78,7 +78,7 @@ static uint64_t _timestamp_to_ms(platform::Timestamp timestamp) {
 }
 
 BatchWriterConfig BatchWriterConfig::FromBatchSize(BatchSize batch_size) {
-  const platform::Duration max_file_age = BatchSize_ToMaxFileAgeForWrite(batch_size);
+  const Duration max_file_age = BatchSize_ToMaxFileAgeForWrite(batch_size);
   return BatchWriterConfig(max_file_age);
 }
 
@@ -188,7 +188,7 @@ platform::IFileWriter* BatchWriter::PrepareFileForNextWrite(
     Block event, Block event_metadata
 ) {
   // Check our last-used file's age, size, etc. to see if we can reuse it
-  const platform::Timestamp current_time = _clock.Now();
+  const Timestamp current_time = _clock.Now();
   if (CanReuseFileForNextWrite(current_time, event, event_metadata)) {
     return _last_file.get();
   }
@@ -218,7 +218,7 @@ platform::IFileWriter* BatchWriter::PrepareFileForNextWrite(
 }
 
 bool BatchWriter::CanReuseFileForNextWrite(
-    platform::Timestamp current_time, Block event, Block event_metadata
+    Timestamp current_time, Block event, Block event_metadata
 ) const {
   // If we have no current file, we need a new one
   if (!_last_file) {
@@ -227,9 +227,9 @@ bool BatchWriter::CanReuseFileForNextWrite(
 
   // If the current file is older than our maximum age for a writable file, leave it
   // alone and start a new file
-  const platform::Timestamp presumed_creation_time =
+  const Timestamp presumed_creation_time =
       _ms_to_timestamp(_last_file_details.filename_ms);
-  const platform::Duration presumed_age = current_time - presumed_creation_time;
+  const Duration presumed_age = current_time - presumed_creation_time;
   if (presumed_age > _config.max_file_age) {
     return false;
   }
@@ -262,7 +262,7 @@ bool BatchWriter::CanReuseFileForNextWrite(
 }
 
 std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextWrite(
-    platform::Timestamp current_time
+    Timestamp current_time
 ) const {
   // Our new file will use a filename that reflects the current timestamp, but it's
   // possible that a file already exists with that name, and we don't want to reuse any

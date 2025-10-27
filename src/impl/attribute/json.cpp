@@ -259,29 +259,38 @@ static void _write_timestamp_03d(uint8_t*& ptr, size_t n, uint64_t value) {
 }
 
 static size_t _iso_timestamp_quoted_write(
-    uint8_t* dst, size_t n, uint64_t nanoseconds_since_epoch
+    uint8_t* dst, size_t n, int64_t nanoseconds_since_epoch
 ) {
   DATADOG_ASSERT(n >= QUOTED_ISO8601_LEN, "insufficient buffer size for timestamp");
 
-  // Attribute stores timestamps internally as uint64_t in nanoseconds: construct an
+  // Attribute stores timestamps internally as int64_t in nanoseconds: construct an
   // equivalent std::chrono::time_point for interoperability with HowardHinnant/date
-  using duration = std::chrono::duration<uint64_t, std::nano>;
+  using duration = std::chrono::duration<int64_t, std::nano>;
   using time_point = std::chrono::time_point<std::chrono::system_clock, duration>;
   time_point tp = time_point{} + duration{nanoseconds_since_epoch};
 
-  // Use HowardHinnant/date to compute an accurate calendar date (YYYY-MM-DD) and time
-  // (HH:MM:SS) from that time_point
-  auto day_point = date::floor<date::days>(tp);
+  // Use HowardHinnant/date to compute an accurate calendar date (YYYY-MM-DD) from that
+  // time_point, reducing precision to seconds first so that we don't cause signed
+  // integer overflow when `date::floor` performs conversions on values near INT64_MIN
+  auto tp_seconds = std::chrono::time_point_cast<std::chrono::seconds>(tp);
+  auto day_point = date::floor<date::days>(tp_seconds);
   date::year_month_day ymd = date::year_month_day{day_point};
-  date::hh_mm_ss time = date::make_time(tp - day_point);
 
-  // Sanity check: a uint64 Unix timestamp in nanoseconds can only represent years
+  // Also using date, compute a time of day (HH:MM:SS) from our original time_point: we
+  // also need to do our arithmetic with reduced precision here to avoid overflow (at
+  // least on libc++, which uses int rather than long long for std::chrono::days), so we
+  // need to compute the subsecond remainder and tack it on after conversion
+  auto sec_of_day = tp_seconds - day_point;
+  auto subseconds = tp - tp_seconds;
+  date::hh_mm_ss time = date::make_time(sec_of_day + subseconds);
+
+  // Sanity check: an int64 Unix timestamp in nanoseconds can only represent years
   // within this range
   const int year_value = static_cast<int>(ymd.year());
-  DATADOG_ASSERT(year_value >= 1970, "date::floor yielded year before 1970");
-  DATADOG_ASSERT(year_value <= 2555, "date::floor yielded year after 2555");
+  DATADOG_ASSERT(year_value >= 1677, "date::floor yielded year before 1677");
+  DATADOG_ASSERT(year_value <= 2262, "date::floor yielded year after 2262");
 
-  // Get unsigned values for our calendar date: [1970..2286], [1..12], [1..31]
+  // Get unsigned values for our calendar date: [1677..2262], [1..12], [1..31]
   const uint64_t year = year_value;
   const uint64_t month = static_cast<unsigned>(ymd.month());
   const uint64_t day = static_cast<unsigned>(ymd.day());
@@ -672,7 +681,7 @@ size_t AttributeSerialization::WriteValue(
     case ValueType::UInt:
       return _uint64_decimal_write(buffer, buffer_size, attribute.value.u64);
     case ValueType::Timestamp:
-      return _iso_timestamp_quoted_write(buffer, buffer_size, attribute.value.u64);
+      return _iso_timestamp_quoted_write(buffer, buffer_size, attribute.value.i64);
     case ValueType::Double:
       if (!std::isfinite(attribute.value.f64)) {
         return _literal_write(buffer, buffer_size, LITERAL_NULL);

@@ -60,7 +60,7 @@ class ViewFixture {
             true,
             *UUID::Parse(SESSION_ID),
             RumSessionPrecondition::UserAppLaunch,
-            platform::Timestamp{std::chrono::duration_cast<platform::Duration>(
+            Timestamp{std::chrono::duration_cast<Duration>(
                 std::chrono::milliseconds{1700000000000}
             )},
             std::nullopt
@@ -72,7 +72,7 @@ class ViewFixture {
             *UUID::Parse(VIEW_ID),
             "my-view-key",
             "My View Name",
-            platform::Timestamp{std::chrono::duration_cast<platform::Duration>(
+            Timestamp{std::chrono::duration_cast<Duration>(
                 std::chrono::milliseconds{1700000000000}
             )}
         ),
@@ -309,7 +309,7 @@ TEST_CASE("RumViewScope::PopulateContext", "[unit][rum]") {
           is_sampled,
           session_id,
           RumSessionPrecondition::UserAppLaunch,
-          platform::Timestamp{},
+          Timestamp{},
           std::nullopt
       );
 
@@ -325,7 +325,7 @@ TEST_CASE("RumViewScope::PopulateContext", "[unit][rum]") {
           view_id,
           view_key,
           view_name,
-          platform::Timestamp{}
+          Timestamp{}
       );
 
       // When we populate a RumContext from the view scope

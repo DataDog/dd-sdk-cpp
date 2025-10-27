@@ -77,8 +77,8 @@ namespace datadog::impl {
  */
 class RumSessionScope {
  public:
-  static const platform::Duration INACTIVITY_TIMEOUT_DURATION;
-  static const platform::Duration MAX_SESSION_DURATION;
+  static const Duration INACTIVITY_TIMEOUT_DURATION;
+  static const Duration MAX_SESSION_DURATION;
 
   /**
    * Reason that a session has ended.
@@ -118,7 +118,7 @@ class RumSessionScope {
       bool is_sampled,
       const UUID& session_id,
       RumSessionPrecondition start_precondition,
-      platform::Timestamp start_time,
+      Timestamp start_time,
       const std::optional<ViewDetails>& active_view_from_predecessor
   );
 
@@ -170,8 +170,8 @@ class RumSessionScope {
   bool _is_sampled;
   UUID _session_id;
   RumSessionPrecondition _precondition;
-  platform::Timestamp _started_at;
-  platform::Timestamp _last_interaction_at;
+  Timestamp _started_at;
+  Timestamp _last_interaction_at;
   std::optional<EndReason> _end_reason;
 
   // View details for session/view lifecycle transitions: if the previous session had an

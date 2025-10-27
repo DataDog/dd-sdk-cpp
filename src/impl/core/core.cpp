@@ -335,7 +335,7 @@ void Core::Stop() {
     // Adjust our config to allow reading all files, regardless of age (since we've
     // joined on the storage thread; we now have exclusive access to batch files), and
     // to upload N batches up to our configured per-feature limit
-    platform::Duration min_file_age_for_read{0};
+    Duration min_file_age_for_read{0};
     UploadThreadConfig flush_config(
         min_file_age_for_read,
         _config.internal_options.num_http_requests_per_feature_to_flush_on_stop

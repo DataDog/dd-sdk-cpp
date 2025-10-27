@@ -12,6 +12,7 @@
 #include <stddef.h>
 
 #include "datadog/api.h"
+#include "datadog/timestamp.h"
 #include "datadog/uuid.h"
 
 #ifdef __cplusplus
@@ -55,7 +56,7 @@ DATADOG_API dd_attribute_t dd_attribute_null(void);
 DATADOG_API dd_attribute_t dd_attribute_bool(bool value);
 DATADOG_API dd_attribute_t dd_attribute_int(int64_t value);
 DATADOG_API dd_attribute_t dd_attribute_uint(uint64_t value);
-DATADOG_API dd_attribute_t dd_attribute_timestamp_ns(uint64_t value);
+DATADOG_API dd_attribute_t dd_attribute_timestamp(dd_timestamp_t value);
 DATADOG_API dd_attribute_t dd_attribute_double(double value);
 DATADOG_API dd_attribute_t dd_attribute_uuid(const dd_uuid_t value);
 DATADOG_API dd_attribute_t dd_attribute_string(const char* value);
@@ -73,8 +74,8 @@ DATADOG_API void dd_attribute_set_null(dd_attribute_t* attribute);
 DATADOG_API void dd_attribute_set_bool(dd_attribute_t* attribute, bool value);
 DATADOG_API void dd_attribute_set_int(dd_attribute_t* attribute, int64_t value);
 DATADOG_API void dd_attribute_set_uint(dd_attribute_t* attribute, uint64_t value);
-DATADOG_API void dd_attribute_set_timestamp_ns(
-    dd_attribute_t* attribute, uint64_t value
+DATADOG_API void dd_attribute_set_timestamp(
+    dd_attribute_t* attribute, dd_timestamp_t value
 );
 DATADOG_API void dd_attribute_set_double(dd_attribute_t* attribute, double value);
 DATADOG_API void dd_attribute_set_uuid(
@@ -110,7 +111,7 @@ DATADOG_API void dd_attribute_free(dd_attribute_t* attribute);
 DATADOG_API bool dd_attribute_get_bool(const dd_attribute_t* attribute);
 DATADOG_API int64_t dd_attribute_get_int(const dd_attribute_t* attribute);
 DATADOG_API uint64_t dd_attribute_get_uint(const dd_attribute_t* attribute);
-DATADOG_API uint64_t dd_attribute_get_timestamp_ns(const dd_attribute_t* attribute);
+DATADOG_API dd_timestamp_t dd_attribute_get_timestamp(const dd_attribute_t* attribute);
 DATADOG_API double dd_attribute_get_double(const dd_attribute_t* attribute);
 DATADOG_API dd_uuid_t dd_attribute_get_uuid(const dd_attribute_t* attribute);
 DATADOG_API const char* dd_attribute_get_string(const dd_attribute_t* attribute);
