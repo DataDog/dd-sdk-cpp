@@ -32,11 +32,22 @@ struct Omissible {
   // determine whether the value should be included or omitted
   Omissible() {}
 
-  // Allow implicit conversion and assignment from T
+  // Allow implicit conversion and assignment from T or anything convertible to T
   // NOLINTNEXTLINE(google-explicit-constructor)
-  Omissible(const T& in_value) : value(in_value) {}
-  Omissible& operator=(const T& in_value) {
-    value = in_value;
+  template <
+      typename U,
+      typename = std::enable_if_t<
+          std::is_constructible_v<T, U> &&
+          !std::is_same_v<std::decay_t<U>, Omissible<T>>>>
+  Omissible(U&& in_value) : value(std::forward<U>(in_value)) {}
+
+  template <
+      typename U,
+      typename = std::enable_if_t<
+          std::is_assignable_v<T&, U> &&
+          !std::is_same_v<std::decay_t<U>, Omissible<T>>>>
+  Omissible& operator=(U&& in_value) {
+    value = std::forward<U>(in_value);
     return *this;
   }
 };

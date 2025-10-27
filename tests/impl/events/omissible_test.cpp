@@ -88,6 +88,15 @@ TEST_CASE("omissible JSON serialization", "[unit][events]") {
     RequireJsonValue(s, R"({"i64":42,"uid":"a07789cb-4e46-4c36-9f73-70e8606336e0"})");
   }
 
+  SECTION("M allow implicit conversion from std::string_view W type is std::string") {
+    struct Hi {
+      Omissible<std::string> s;
+      Hi(std::string_view in_s) : s(in_s) {}
+    };
+    Hi hi{"hello"};
+    REQUIRE(hi.s.value == "hello");
+  }
+
   SECTION("M use type-specific omission criteria W HasJsonValue overloaded") {
     EvenCoords coords{OnlyEven{16}, OnlyEven{17}, OnlyEven{18}};
     RequireJsonValue(coords, R"({"x":16,"z":18})");
