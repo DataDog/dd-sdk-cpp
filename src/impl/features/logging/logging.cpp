@@ -131,6 +131,17 @@ void Logging::OnLoggerEmit(
     global_attributes = _global_attributes.attribute;
   }
 
+  // Encode our LogEvent as a JSON object, also merging in the full set of
+  // Attribute::Object() values that represent custom, user-specified attributes. User
+  // attributes are merged into the event at top-level, with the following order:
+  //
+  // 1. The global attributes set via Logging::SetAttribute
+  // 2. The logger-level attributes set via Logger::SetAttribute
+  // 3. The message-level attributes supplied in the log call
+  //
+  // If multiple user attributes share the same property name, the value that appears
+  // later in the list will take precedence. LogEvent_CanMergeUserAttribute() is applied
+  // to filter user attributes, rejecting any values with reserved property names.
   EncodeJsonWithMergedUserAttributes(
       mut_state.event_buffer,
       state.event,
@@ -139,34 +150,8 @@ void Logging::OnLoggerEmit(
       LogEvent_CanMergeUserAttribute
   );
 
-  // Merge our full set of Attribute::Object() values into a single object
-  // representing the final JSON payload to be serialized. The destination object
-  // `mut_event_object` already contains the essential set of log event attributes,
-  // and the filter function `is_valid_user_attribute_name` prevents user attributes
-  // with conflicting names from being merged in and clobbering those values. We
-  // merge in all user attributes, followed by any internal attributes that inject
-  // context from other features, in this order:
-  // 1. The global attributes set via Logging::SetAttribute
-  // 2. The logger-level attributes set via Logger::SetAttribute
-  // 3. The message-level attributes supplied in the log call
-  // 4. Internal attributes derived from other features' context values
-  /*
-  std::shared_lock read_only_lock(_global_attributes_mutex);
-  AttributeMerge::AssembleObject(
-      obj,
-      {_global_attributes.attribute,
-       state.user_attributes.attribute,
-       message_attributes,
-       state.internal_attributes.attribute},
-      is_valid_user_attribute_name
-  );
-  read_only_lock.unlock();
-  */
-
-  // Serialize to JSON, using the logger-owned buffer to ensure that it's safe to
-  // serialize multiple messages from different loggers concurrently
-  // EncodeJson(mut_state.event_buffer, ev);
-
+  // Create a view of the JSON payload now held in our buffer, and call WriteEvent,
+  // which will copy our event data onto the storage queue
   WriteEvent(Block(
       // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
       reinterpret_cast<const char*>(mut_state.event_buffer.data()),
