@@ -7,6 +7,7 @@
 #include "features/logging/logger.hpp"
 
 #include "assert.hpp"
+#include "core/version.hpp"
 #include "datadog/attribute.hpp"
 
 namespace datadog::impl {
@@ -16,11 +17,9 @@ LoggerState::LoggerState(
     const std::optional<std::string>& in_logger_name,
     size_t initial_attribute_capacity
 )
-    : service_name(in_service_name),
-      logger_name(in_logger_name),
-      user_attributes(initial_attribute_capacity),
-      internal_attributes(4),
-      event_object(initial_attribute_capacity + 12) {}
+    : user_attributes(initial_attribute_capacity),
+      event(in_service_name.value_or(""), in_logger_name.value_or(""), SDK_VERSION),
+      merged_attributes(initial_attribute_capacity * 2) {}
 
 LoggerEnrichmentConfig::LoggerEnrichmentConfig(bool in_enable_rum)
     : enable_rum(in_enable_rum) {}

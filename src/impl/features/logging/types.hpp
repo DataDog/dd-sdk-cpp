@@ -21,25 +21,6 @@ inline LogLevel LogLevel_FromC(dd_log_level_t value) {
   return static_cast<LogLevel>(value);
 }
 
-inline const char* LogLevel_ToString(LogLevel value) {
-  switch (value) {
-    case LogLevel::Debug:
-      return "debug";
-    case LogLevel::Info:
-      return "info";
-    case LogLevel::Notice:
-      return "notice";
-    case LogLevel::Warn:
-      return "warn";
-    case LogLevel::Error:
-      return "error";
-    case LogLevel::Critical:
-      return "critical";
-    default:
-      return "";
-  }
-}
-
 inline datadog::LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config) {
   return datadog::LoggerConfig()
       .SetRemoteSampleRate(config.remote_sample_rate)
