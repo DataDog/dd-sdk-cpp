@@ -62,21 +62,22 @@ TEST_CASE("AttributeMerge", "[unit][attribute]") {
     obj_b.SetObjectProperty("bar", Attribute::String("updated"));
     obj_a.SetObjectProperty("baz", Attribute::Int(-10));
 
-    // When we merge obj_b into obj_a
-    AttributeMerge::AssembleObject(obj_a, {obj_b});
+    // When we merge obj_a and obj_b into a single result object
+    Attribute result = Attribute::Object();
+    AttributeMerge::AssembleObject(result, {obj_a, obj_b});
 
-    // Then obj_a now contains three properties
-    REQUIRE(obj_a.GetObjectPropertyCount() == 3);
+    // Then result contains three properties
+    REQUIRE(result.GetObjectPropertyCount() == 3);
 
     // And the 'bar' value from obj_b prevails, since it appeared later in the list
-    REQUIRE(obj_a.GetObjectProperty("foo").GetStringValue() == "hello");
-    REQUIRE(obj_a.GetObjectProperty("bar").GetStringValue() == "updated");
-    REQUIRE(obj_a.GetObjectProperty("baz").GetIntValue() == -10);
+    REQUIRE(result.GetObjectProperty("foo").GetStringValue() == "hello");
+    REQUIRE(result.GetObjectProperty("bar").GetStringValue() == "updated");
+    REQUIRE(result.GetObjectProperty("baz").GetIntValue() == -10);
 
     // And the new object's properties are ordered deterministically
-    REQUIRE(obj_a.GetObjectPropertyNameAt(0) == "foo");
-    REQUIRE(obj_a.GetObjectPropertyNameAt(1) == "bar");
-    REQUIRE(obj_a.GetObjectPropertyNameAt(2) == "baz");
+    REQUIRE(result.GetObjectPropertyNameAt(0) == "foo");
+    REQUIRE(result.GetObjectPropertyNameAt(1) == "bar");
+    REQUIRE(result.GetObjectPropertyNameAt(2) == "baz");
   }
 
   SECTION("M ignore incoming values W property name is reserved") {
@@ -94,23 +95,19 @@ TEST_CASE("AttributeMerge", "[unit][attribute]") {
     // names
     AttributeMerge::FilterFunc filter = is_valid_property_name;
 
-    // When we merge the contents of our second object into the first, specifing
-    // that static filter function as a callback
-    AttributeMerge::AssembleObject(root, {other}, filter);
+    // When we merge our two objects, specifying the filter function as a callback
+    Attribute merged = Attribute::Object();
+    AttributeMerge::AssembleObject(merged, {root, other}, filter);
 
-    // Then our original 'foo' value is retained, even though another object had a
-    // conflicting value, because 'foo' is a reserved property name
-    REQUIRE(root.GetObjectProperty("foo").GetIntValue() == 100);
+    // Then 'foo' and '_secret' are not present in the result object, as our filter
+    // function excludes them as reserved property names
+    REQUIRE(merged.FindObjectProperty("foo") == -1);
+    REQUIRE(merged.FindObjectProperty("_secret") == -1);
 
     // And 'bar' was merged into our root object just fine, because it's not a
     // reserved property
-    REQUIRE(root.GetObjectProperty("bar").GetIntValue() == 300);
-
-    // And the user-provided '_secret' value was ignored, even though our root
-    // object didn't have a conflicting value, because '_secret' is also a reserved
-    // property name
-    REQUIRE(root.GetObjectPropertyCount() == 2);
-    REQUIRE(root.GetObjectProperty("_secret").GetType() == ValueType::Null);
+    REQUIRE(merged.GetObjectPropertyCount() == 1);
+    REQUIRE(merged.GetObjectProperty("bar").GetIntValue() == 300);
   }
 
   SECTION("M preserve nested objects as-is W nested objects have conflicting names") {
@@ -206,5 +203,27 @@ TEST_CASE("AttributeMerge", "[unit][attribute]") {
     REQUIRE(merged.GetType() == ValueType::Object);
     REQUIRE(merged.GetObjectPropertyCount() == 1);
     REQUIRE(merged.GetObjectProperty("foo").GetIntValue() == 100);
+  }
+
+  SECTION("M clear existing properties W destination object is not empty") {
+    // Given an object with values for 'foo' and 'bar'
+    Attribute obj = Attribute::Object(2);
+    obj.SetObjectProperty("foo", Attribute::Int(100));
+    obj.SetObjectProperty("bar", Attribute::Int(200));
+
+    // And an object we want to merge in, with values for 'bar' and 'baz'
+    Attribute other = Attribute::Object(2);
+    other.SetObjectProperty("bar", Attribute::Int(300));
+    other.SetObjectProperty("baz", Attribute::Int(400));
+
+    // When we merge the properties from {other} into obj
+    AttributeMerge::AssembleObject(obj, {other});
+
+    // Then obj only contains the properties that were present in other ('bar' and
+    // 'baz'); 'foo' is no longer present since obj was preemptively cleared
+    REQUIRE(obj.GetType() == ValueType::Object);
+    REQUIRE(obj.GetObjectPropertyCount() == 2);
+    REQUIRE(obj.GetObjectProperty("bar").GetIntValue() == 300);
+    REQUIRE(obj.GetObjectProperty("baz").GetIntValue() == 400);
   }
 }
