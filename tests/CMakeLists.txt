@@ -38,6 +38,7 @@ add_executable(dd_native_tests
     impl/events/omissible_test.cpp
     impl/events/struct_test.cpp
     impl/events/timestamp_test.cpp
+    impl/features/logging/logger_test.cpp
     impl/features/rum/scopes/application_test.cpp
     impl/features/rum/scopes/session_test.cpp
     impl/features/rum/scopes/view_test.cpp
@@ -57,7 +58,7 @@ add_executable(dd_native_tests
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
-    impl/features/logging/logger_test.cpp
+    impl/json_test.cpp
     mock/filesystem_mock_test.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp
