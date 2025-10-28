@@ -30,9 +30,9 @@ void AttributeMerge::AssembleObject(
     max_num_properties += attribute.GetObjectPropertyCount();
   }
 
-  // Ensure that our target object has enough space to hold all the values we might need
-  // to set, preallocating if necessary
-  mut_obj.ReserveObjectPropertyCapacity(max_num_properties);
+  // Clear the destination object of all existing properties, while ensuring that it has
+  // enough space to hold all the values we might need to set, preallocating if needed
+  mut_obj.InitObject(max_num_properties);
 
   // Merge in all top-level properties from our input objects, with input objects that
   // appear later in the list taking precedence in case of name conflicts

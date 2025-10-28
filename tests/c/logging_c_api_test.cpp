@@ -777,6 +777,44 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        JsonArrayOf(
            {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","ok-global":100,"ok-logger":200,"ok-message":300})"}
        )},
+
+      {"M no longer include custom attributes W attributes have been deleted",
+       [](dd_logging_t* logging) {
+         // Set "foo":100 globally
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_logging_attribute_set(logging, "foo", &int_100);
+         dd_attribute_free(&int_100);
+       },
+       [](dd_logging_t*, dd_logger_t* logger) {
+         // Set "bar":200 on logger
+         dd_attribute_t int_200 = dd_attribute_int(200);
+         dd_logger_attribute_set(logger, "bar", &int_200);
+         dd_attribute_free(&int_200);
+       },
+       [](dd_logging_t* logging, dd_logger_t* logger) {
+         // Set "baz":300 on an object attribute that will be passed with log calls
+         dd_attribute_t obj = dd_attribute_object(1);
+         dd_attribute_t int_300 = dd_attribute_int(300);
+         dd_attribute_object_property_set(&obj, "baz", &int_300);
+         dd_attribute_free(&int_300);
+
+         // Emit a single log message
+         dd_logger_info_obj(logger, "alpha", &obj);
+
+         // Next: delete our three custom attributes and emit another message
+         dd_logging_attribute_delete(logging, "foo");
+         dd_logger_attribute_delete(logger, "bar");
+         dd_attribute_object_property_delete(&obj, "baz");
+         dd_logger_info_obj(logger, "bravo", &obj);
+
+         dd_attribute_free(&obj);
+       },
+       // Our first event should have all three custom attribute values, while the
+       // second event should have none
+       JsonArrayOf(
+           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"alpha","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
+            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"bravo","logger.version":"0.2.0"})"}
+       )},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
