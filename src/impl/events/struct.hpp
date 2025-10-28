@@ -105,7 +105,7 @@ namespace datadog::impl {
 template <typename... Fields>
 size_t GetJsonSize(const Fields&&... fields) {
   // An empty struct is simply encoded as '{}'
-  if (sizeof...(Fields) == 0) {
+  if constexpr (sizeof...(Fields) == 0) {
     return 2;
   }
 
