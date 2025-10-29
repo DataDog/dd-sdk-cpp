@@ -34,13 +34,13 @@ struct LogEvent {
   IsoTimestamp date;
   std::string message;
 
-  Omissible<std::string> logger_name;
+  OmitIfEmpty<std::string> logger_name;
   std::string logger_version;
 
-  Omissible<UUID> rum_application_id;
-  Omissible<UUID> rum_session_id;
-  Omissible<UUID> rum_view_id;
-  Omissible<UUID> rum_action_id;
+  OmitIfZero<UUID> rum_application_id;
+  OmitIfZero<UUID> rum_session_id;
+  OmitIfZero<UUID> rum_view_id;
+  OmitIfZero<UUID> rum_action_id;
 
   explicit LogEvent(
       std::string_view in_service_name,
