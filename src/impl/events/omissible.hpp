@@ -52,12 +52,29 @@ struct Omissible {
   }
 };
 
+/**
+ * Specialization for Omissible<T> that considers a property to be without a value when
+ * its current value is equivalent to the default for that type.
+ *
+ * Overrides the default HasJsonValue() implementation from `json.hpp`, which
+ * unconditionally returns true.
+ */
 template <typename T>
 bool HasJsonValue(const Omissible<T>& value) {
   // If we're holding a value that's equivalent to the default value of our underlying
   // type, return false: this lets the implementation of DATADOG_JSON_STRUCT know that
   // there no need to serialize this value as a property
   return value.value != T{};
+}
+
+/**
+ * Specialization for Omissible<std::optional<T>>, which treats `std::nullopt` as the
+ * case where the property should be omitted, preserving the zero-value as significant.
+ */
+template <typename T>
+bool HasJsonValue(const Omissible<std::optional<T>>& value) {
+  const std::optional<T>& opt = value.value;
+  return opt.has_value();
 }
 
 template <typename T>
@@ -72,5 +89,20 @@ size_t WriteJson(char* dst, size_t n, const Omissible<T>& value) {
   // Ditto; just defer to the WriteJson implementation for the underlying value type
   return WriteJson(dst, n, value.value);
 }
+
+// Type aliases for use in struct declarations, to make the expected serialization
+// behavior more apparent:
+
+template <typename T>
+using OmitIfZero = Omissible<T>;
+
+template <typename T>
+using OmitIfFalse = Omissible<T>;
+
+template <typename T>
+using OmitIfEmpty = Omissible<T>;
+
+template <typename T>
+using OmitIfNoValue = Omissible<std::optional<T>>;
 
 }  // namespace datadog::impl
