@@ -115,8 +115,12 @@ size_t GetJsonSize(const Fields&&... fields) {
   size += sizeof...(Fields);      // colons
 
   // For each field (std::pair<std::string_view, T>), accumulate the size of the name
-  // with enclosing quotes, and the size of the value when JSON-encoded
-  ((size += fields.first.size() + 2 + GetJsonSize(fields.second)), ...);
+  // with enclosing quotes, and the size of the value when JSON-encoded, unless the
+  // field's current value indicates that it should be entirely omitted
+  ((size += HasJsonValue(fields.second)
+                ? (fields.first.size() + 2 + GetJsonSize(fields.second))
+                : 0),
+   ...);
   return size;
 }
 
@@ -132,7 +136,13 @@ size_t WriteJson(char* dst, size_t n, const Fields&&... fields) {
   // Use a lambda fold expression to process each field sequentially
   bool first = true;
   (([&] {
-     // Write a comma for all fields after the first
+     // If this field's current value is one that should be entirely omitted from the
+     // JSON object, skip it
+     if (!HasJsonValue(fields.second)) {
+       return;
+     }
+
+     // Write a comma for all fields after the first one serialized
      if (!first) {
        *ptr++ = ',';
      }

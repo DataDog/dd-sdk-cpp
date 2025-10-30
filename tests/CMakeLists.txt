@@ -35,6 +35,7 @@ add_executable(dd_native_tests
     impl/core/upload_thread_test.cpp
     impl/core/writer_test.cpp
     impl/events/enum_test.cpp
+    impl/events/omissible_test.cpp
     impl/events/struct_test.cpp
     impl/events/timestamp_test.cpp
     impl/features/rum/scopes/application_test.cpp
