@@ -6,8 +6,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
+#include <nlohmann/json.hpp>
 #include <vector>
 
+#include "core/version.hpp"
 #include "datadog/logging.hpp"
 #include "features/logging/logging.hpp"
 #include "support/core.hpp"
@@ -150,16 +152,58 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     );
     REQUIRE(req.headers.find("Content-Type: application/json") != std::string::npos);
     REQUIRE(
-        req.body ==
-        JsonArrayOf(
-            {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0"})",
-             R"({"status":"debug","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"gubed","logger.version":"0.2.0"})",
-             R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"ofni","logger.version":"0.2.0"})",
-             R"({"status":"notice","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"eciton","logger.version":"0.2.0"})",
-             R"({"status":"warn","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"nraw","logger.version":"0.2.0"})",
-             R"({"status":"error","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"rorre","logger.version":"0.2.0"})",
-             R"({"status":"critical","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"lacitirc","logger.version":"0.2.0"})"}
-        )
+        MergeJsonArrays(test.client.requests) ==
+        nlohmann::json{
+            nlohmann::json{
+                {"status", "info"},
+                {"service", "mock-service"},
+                {"date", "2023-11-14T22:13:20.000Z"},
+                {"message", "hello"},
+                {"logger.version", impl::SDK_VERSION}
+            },
+            nlohmann::json{
+                {"status", "debug"},
+                {"service", "mock-service"},
+                {"date", "2023-11-14T22:13:20.000Z"},
+                {"message", "gubed"},
+                {"logger.version", impl::SDK_VERSION}
+            },
+            nlohmann::json{
+                {"status", "info"},
+                {"service", "mock-service"},
+                {"date", "2023-11-14T22:13:20.000Z"},
+                {"message", "ofni"},
+                {"logger.version", impl::SDK_VERSION}
+            },
+            nlohmann::json{
+                {"status", "notice"},
+                {"service", "mock-service"},
+                {"date", "2023-11-14T22:13:20.000Z"},
+                {"message", "eciton"},
+                {"logger.version", impl::SDK_VERSION}
+            },
+            nlohmann::json{
+                {"status", "warn"},
+                {"service", "mock-service"},
+                {"date", "2023-11-14T22:13:20.000Z"},
+                {"message", "nraw"},
+                {"logger.version", impl::SDK_VERSION}
+            },
+            nlohmann::json{
+                {"status", "error"},
+                {"service", "mock-service"},
+                {"date", "2023-11-14T22:13:20.000Z"},
+                {"message", "rorre"},
+                {"logger.version", impl::SDK_VERSION}
+            },
+            nlohmann::json{
+                {"status", "critical"},
+                {"service", "mock-service"},
+                {"date", "2023-11-14T22:13:20.000Z"},
+                {"message", "lacitirc"},
+                {"logger.version", impl::SDK_VERSION}
+            },
+        }
     );
   }
 
@@ -255,12 +299,15 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     // Then this is safe, as the API's references to features are shared: the API
     // can no longer access the feature, but the Core's shared_ptr keeps it alive
     REQUIRE(test.client.requests.size() == 1);
-    const MockHttpRequest& req = test.client.requests.front();
     REQUIRE(
-        req.body ==
-        JsonArrayOf({
-            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0"})",
-        })
+        MergeJsonArrays(test.client.requests) ==
+        nlohmann::json::array({nlohmann::json{
+            {"status", "info"},
+            {"service", "mock-service"},
+            {"date", "2023-11-14T22:13:20.000Z"},
+            {"message", "hello"},
+            {"logger.version", impl::SDK_VERSION}
+        }})
     );
   }
 
@@ -285,12 +332,16 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     // Then the resulting log event contains our logger-specific 'name' and
     // 'event'
     REQUIRE(test.client.requests.size() == 1);
-    const MockHttpRequest& req = test.client.requests.front();
     REQUIRE(
-        req.body ==
-        JsonArrayOf({
-            R"({"status":"info","service":"overridden-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.name":"my-logger","logger.version":"0.2.0"})",
-        })
+        MergeJsonArrays(test.client.requests) ==
+        nlohmann::json::array({nlohmann::json{
+            {"status", "info"},
+            {"service", "overridden-service"},
+            {"date", "2023-11-14T22:13:20.000Z"},
+            {"message", "hello"},
+            {"logger.name", "my-logger"},
+            {"logger.version", impl::SDK_VERSION}
+        }})
     );
   }
 
@@ -318,12 +369,15 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     // Then the resulting log event contains our default service and logger names, just
     // as if we hadn't overridden them
     REQUIRE(test.client.requests.size() == 1);
-    const MockHttpRequest& req = test.client.requests.front();
     REQUIRE(
-        req.body ==
-        JsonArrayOf({
-            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0"})",
-        })
+        MergeJsonArrays(test.client.requests) ==
+        nlohmann::json::array({nlohmann::json{
+            {"status", "info"},
+            {"service", "mock-service"},
+            {"date", "2023-11-14T22:13:20.000Z"},
+            {"message", "hello"},
+            {"logger.version", impl::SDK_VERSION}
+        }})
     );
   }
 
@@ -351,22 +405,23 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
 
     // Then we should have sent exactly 20 events
     REQUIRE(test.client.requests.size() > 0);
-    auto events = ParseJsonArrays(test.client.requests);
+    auto events = MergeJsonArrays(test.client.requests);
     REQUIRE(events.size() == 20);
 
     // And those events should consist of 10 errors and 10 critical errors
-    const size_t num_warn =
-        std::count_if(events.begin(), events.end(), [](const std::string& s) {
-          return s.find("status\":\"warn") != std::string::npos;
-        });
-    const size_t num_err =
-        std::count_if(events.begin(), events.end(), [](const std::string& s) {
-          return s.find("status\":\"err") != std::string::npos;
-        });
-    const size_t num_crit =
-        std::count_if(events.begin(), events.end(), [](const std::string& s) {
-          return s.find("status\":\"crit") != std::string::npos;
-        });
+    auto has_status = [](const std::string_view status, const nlohmann::json& obj) {
+      REQUIRE(obj.is_object());
+      REQUIRE(obj.at("status").is_string());
+      return obj.at("status") == status;
+    };
+    auto is_warn = [&](const nlohmann::json& obj) { return has_status("warn", obj); };
+    auto is_err = [&](const nlohmann::json& obj) { return has_status("error", obj); };
+    auto is_crit = [&](const nlohmann::json& obj) {
+      return has_status("critical", obj);
+    };
+    const size_t num_warn = std::count_if(events.begin(), events.end(), is_warn);
+    const size_t num_err = std::count_if(events.begin(), events.end(), is_err);
+    const size_t num_crit = std::count_if(events.begin(), events.end(), is_crit);
     REQUIRE(num_warn == 0);
     REQUIRE(num_err == 10);
     REQUIRE(num_crit == 10);
@@ -393,7 +448,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
 
     // Then we should have sent ~500 log messages, +/- 60
     REQUIRE(test.client.requests.size() > 0);
-    auto events = ParseJsonArrays(test.client.requests);
+    auto events = MergeJsonArrays(test.client.requests);
     REQUIRE(events.size() >= 440);
     REQUIRE(events.size() <= 560);
   }
@@ -445,14 +500,16 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
 
     // Then we should have sent ~250 log messages, +/- 30
     REQUIRE(test.client.requests.size() > 0);
-    auto events = ParseJsonArrays(test.client.requests);
+    auto events = MergeJsonArrays(test.client.requests);
     REQUIRE(events.size() >= 220);
     REQUIRE(events.size() <= 280);
 
     // And they all should be 'info' messages
     const size_t num_info =
-        std::count_if(events.begin(), events.end(), [](const std::string& s) {
-          return s.find("status\":\"info") != std::string::npos;
+        std::count_if(events.begin(), events.end(), [](const nlohmann::json& obj) {
+          REQUIRE(obj.is_object());
+          REQUIRE(obj.at("status").is_string());
+          return obj.at("status") == "info";
         });
     REQUIRE(num_info == events.size());
   }
@@ -467,7 +524,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
     std::function<void(Logging&)> pre_logger_init;
     std::function<void(Logging&, Logger&)> post_logger_init;
     std::function<void(Logging&, Logger&)> while_running;
-    std::string want_request_body;
+    nlohmann::json want_request_body;
   };
   std::vector<TestParams> tests = {
       {"M include custom attribute W set globally on logging feature",
@@ -484,9 +541,15 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          logger.Info("hello");
        },
        // Event should include "foo":100,"bar":"yes"
-       JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":100,"bar":"yes"})"}
-       )},
+       nlohmann::json::array({nlohmann::json{
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", impl::SDK_VERSION},
+           {"foo", 100},
+           {"bar", "yes"}
+       }})},
 
       {"M include custom attribute W set on logger",
        [](Logging& logging) {
@@ -502,9 +565,15 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          logger.Info("hello");
        },
        // Event should include "foo":100,"bar":200
-       JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":100,"bar":200})"}
-       )},
+       nlohmann::json::array({nlohmann::json{
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", impl::SDK_VERSION},
+           {"foo", 100},
+           {"bar", 200}
+       }})},
 
       {"M override global property W logger property has same name",
        [](Logging& logging) {
@@ -520,9 +589,14 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          logger.Info("hello");
        },
        // Event should include "foo":200
-       JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":200})"}
-       )},
+       nlohmann::json::array({nlohmann::json{
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", impl::SDK_VERSION},
+           {"foo", 200}
+       }})},
 
       {"M include custom attribute W set on message",
        [](Logging& logging) {
@@ -548,15 +622,78 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          logger.Critical("lacitirc", obj);
        },
        // Event should include "foo":100,"bar":200,"baz":300
-       JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
-            R"({"status":"debug","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"gubed","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
-            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"ofni","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
-            R"({"status":"notice","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"eciton","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
-            R"({"status":"warn","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"nraw","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
-            R"({"status":"error","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"rorre","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
-            R"({"status":"critical","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"lacitirc","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})"}
-       )},
+       nlohmann::json{
+           nlohmann::json{
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "hello"},
+               {"logger.version", impl::SDK_VERSION},
+               {"foo", 100},
+               {"bar", 200},
+               {"baz", 300}
+           },
+           nlohmann::json{
+               {"status", "debug"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "gubed"},
+               {"logger.version", impl::SDK_VERSION},
+               {"foo", 100},
+               {"bar", 200},
+               {"baz", 300}
+           },
+           nlohmann::json{
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "ofni"},
+               {"logger.version", impl::SDK_VERSION},
+               {"foo", 100},
+               {"bar", 200},
+               {"baz", 300}
+           },
+           nlohmann::json{
+               {"status", "notice"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "eciton"},
+               {"logger.version", impl::SDK_VERSION},
+               {"foo", 100},
+               {"bar", 200},
+               {"baz", 300}
+           },
+           nlohmann::json{
+               {"status", "warn"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "nraw"},
+               {"logger.version", impl::SDK_VERSION},
+               {"foo", 100},
+               {"bar", 200},
+               {"baz", 300}
+           },
+           nlohmann::json{
+               {"status", "error"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "rorre"},
+               {"logger.version", impl::SDK_VERSION},
+               {"foo", 100},
+               {"bar", 200},
+               {"baz", 300}
+           },
+           nlohmann::json{
+               {"status", "critical"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "lacitirc"},
+               {"logger.version", impl::SDK_VERSION},
+               {"foo", 100},
+               {"bar", 200},
+               {"baz", 300}
+           }
+       }},
 
       {"M override global and logger properties W message property has same name",
        [](Logging& logging) {
@@ -577,9 +714,16 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          logger.Info("hello", obj);
        },
        // Event should include "foo":300,"baz":200,"bar":400
-       JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","foo":300,"baz":200,"bar":400})"}
-       )},
+       nlohmann::json::array({nlohmann::json{
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", impl::SDK_VERSION},
+           {"foo", 300},
+           {"baz", 200},
+           {"bar", 400}
+       }})},
 
       {"M not override attributes W property name is reserved",
        [](Logging& logging) {
@@ -602,9 +746,16 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        },
        // Event should include "ok-global":100,"ok-logger":200,"ok-message":300, but
        // all other custom attributes should be entirely ignored
-       JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","ok-global":100,"ok-logger":200,"ok-message":300})"}
-       )},
+       nlohmann::json::array({nlohmann::json{
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", impl::SDK_VERSION},
+           {"ok-global", 100},
+           {"ok-logger", 200},
+           {"ok-message", 300}
+       }})},
 
       {"M no longer include custom attributes W attributes have been deleted",
        [](Logging& logging) {
@@ -631,10 +782,25 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        },
        // Our first event should have all three custom attribute values, while the
        // second event should have none
-       JsonArrayOf(
-           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"alpha","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
-            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"bravo","logger.version":"0.2.0"})"}
-       )},
+       nlohmann::json{
+           nlohmann::json{
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "alpha"},
+               {"logger.version", impl::SDK_VERSION},
+               {"foo", 100},
+               {"bar", 200},
+               {"baz", 300}
+           },
+           nlohmann::json{
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "bravo"},
+               {"logger.version", impl::SDK_VERSION},
+           }
+       }}
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
@@ -658,7 +824,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
 
       // Then the SDK should have sent the expected set of events
       REQUIRE(test.client.requests.size() == 1);
-      REQUIRE(test.client.requests.front().body == tt.want_request_body);
+      REQUIRE(MergeJsonArrays(test.client.requests) == tt.want_request_body);
     }
   }
 }
@@ -702,19 +868,26 @@ TEST_CASE("Logger thread-safety", "[unit][logging][cpp-api][thread-safety]") {
 
   // Then we should have sent at least one request
   REQUIRE(!test.client.requests.empty());
-  auto events = ParseJsonArrays(test.client.requests);
+  auto events = MergeJsonArrays(test.client.requests);
 
   // And some events have no global 'xyz' attribute, since sometimes it was deleted
   size_t num_events_without_xyz =
-      std::count_if(events.begin(), events.end(), [](const std::string& s) {
-        return s.find(",\"xyz\":") == std::string::npos;
+      std::count_if(events.begin(), events.end(), [](const nlohmann::json& obj) {
+        REQUIRE(obj.is_object());
+        return !obj.contains("xyz");
       });
   STRICT_THREADING_REQUIRE(num_events_without_xyz > 0);
 
   // And some events have a 'xyz' value 'loop-%d'
   size_t num_events_with_valid_xyz =
-      std::count_if(events.begin(), events.end(), [](const std::string& s) {
-        return s.find(",\"xyz\":\"loop-") != std::string::npos;
+      std::count_if(events.begin(), events.end(), [](const nlohmann::json& obj) {
+        REQUIRE(obj.is_object());
+        if (!obj.contains("xyz")) {
+          return false;
+        }
+        std::string xyz = obj.at("xyz");
+        REQUIRE(xyz.find("loop-") == 0);
+        return true;
       });
   STRICT_THREADING_REQUIRE(num_events_with_valid_xyz > 0);
 

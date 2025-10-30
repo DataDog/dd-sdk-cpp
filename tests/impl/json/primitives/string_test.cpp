@@ -13,40 +13,40 @@ using namespace datadog::impl;
 
 TEST_CASE("string JSON serialization", "[unit][json]") {
   SECTION("M render ordinary strings as quoted JSON string literals") {
-    RequireJsonValue("", R"("")");
-    RequireJsonValue("hello", R"("hello")");
+    RequireJsonLiteral("", R"("")");
+    RequireJsonLiteral("hello", R"("hello")");
 
     // Forward slash (a.k.a. "solidus" is not escaped)
-    RequireJsonValue("/home/foo/bar", R"("/home/foo/bar")");
+    RequireJsonLiteral("/home/foo/bar", R"("/home/foo/bar")");
 
     // Single quotes are fine
-    RequireJsonValue(
+    RequireJsonLiteral(
         R"(that's a nice face you got there...)",
         R"("that's a nice face you got there...")"
     );
   }
 
   SECTION("M escape quotes, slashes, and control codes") {
-    RequireJsonValue(
+    RequireJsonLiteral(
         R"(that's a nice "face" you got there!)",
         R"("that's a nice \"face\" you got there!")"
     );
-    RequireJsonValue(
+    RequireJsonLiteral(
         "\b for backspace, \f for feed, and you know \n \r and \t",
         R"("\b for backspace, \f for feed, and you know \n \r and \t")"
     );
-    RequireJsonValue(
+    RequireJsonLiteral(
         "...\a, \a, \a went the trolley!",
         R"("...\u0007, \u0007, \u0007 went the trolley!")"
     );
     std::array<char, 4> bytes = {0x1e, 0x1f, 0x20, 0x21};
-    RequireJsonValue(
+    RequireJsonLiteral(
         std::string_view(bytes.data(), bytes.size()), R"("\u001e\u001f !")"
     );
   }
 
   SECTION("M emit multi-byte UTF-8 chars unchanged") {
-    RequireJsonValue(
+    RequireJsonLiteral(
         R"(хорошо, está bien, 私の牛が戻ってきた 🐮🕺🎉)",
         R"("хорошо, está bien, 私の牛が戻ってきた 🐮🕺🎉")"
     );
@@ -54,11 +54,11 @@ TEST_CASE("string JSON serialization", "[unit][json]") {
 
   SECTION("M handle all common string types") {
     std::string s{"hello"};
-    RequireJsonValue(s, "\"hello\"");
-    RequireJsonValue(s.c_str(), "\"hello\"");
+    RequireJsonLiteral(s, "\"hello\"");
+    RequireJsonLiteral(s.c_str(), "\"hello\"");
 
     std::array<char, 5> bytes = {0x68, 0x65, 0x6c, 0x6c, 0x6f};
     std::string_view sv(bytes.data(), bytes.size());
-    RequireJsonValue(sv, "\"hello\"");
+    RequireJsonLiteral(sv, "\"hello\"");
   }
 }

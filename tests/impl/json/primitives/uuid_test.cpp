@@ -16,8 +16,8 @@ using namespace datadog::impl;
 
 TEST_CASE("uuid JSON serialization", "[unit][json]") {
   SECTION("M render 36-char, lowercase-hex-encoded UUID as JSON string") {
-    RequireJsonValue(UUID::Zero, "\"00000000-0000-0000-0000-000000000000\"");
-    RequireJsonValue(
+    RequireJsonLiteral(UUID::Zero, "\"00000000-0000-0000-0000-000000000000\"");
+    RequireJsonLiteral(
         *UUID::Parse("d137ea4b-9981-4f9e-a588-68c843bb189c"),
         "\"d137ea4b-9981-4f9e-a588-68c843bb189c\""
     );
@@ -29,7 +29,7 @@ TEST_CASE("uuid JSON serialization", "[unit][json]") {
     for (int i = 0; i < 100; i++) {
       UUID value = UUID::Random();
       std::string want = '"' + value.ToString() + '"';
-      RequireJsonValue(value, want);
+      RequireJsonLiteral(value, want);
     }
   }
 }

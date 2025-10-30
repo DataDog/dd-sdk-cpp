@@ -26,14 +26,14 @@ DATADOG_STRING_ENUM(
 TEST_CASE("enum JSON serialization", "[unit][events]") {
   SECTION("M render StringEnum as a JSON string") {
     StringFoodType food_type{FoodType::Apple};
-    RequireJsonValue(food_type, "\"Apple\"");
+    RequireJsonLiteral(food_type, "\"Apple\"");
 
     food_type = FoodType::Crab;
-    RequireJsonValue(food_type, "\"Crab\"");
+    RequireJsonLiteral(food_type, "\"Crab\"");
   }
 
   SECTION("M render invalid enum as empty string") {
     StringFoodType food_type{static_cast<FoodType>(0xffff)};
-    RequireJsonValue(food_type, "\"\"");
+    RequireJsonLiteral(food_type, "\"\"");
   }
 }

@@ -15,14 +15,13 @@
 using namespace datadog::impl;
 
 /**
- * Given any JSON-serializable value T, calls `EncodeJson` to verify that it is
- * formatted as expected when converted to JSON.
+ * Given a value of any JSON-serializable type T, serializes it with `EncodeJson` and
+ * verifies that the resulting JSON is byte-for-byte identical to the expected value.
  */
 template <typename T>
-void RequireJsonValue(const T& value, std::string_view want) {
+void RequireJsonLiteral(const T& value, std::string_view want) {
   std::vector<uint8_t> buffer;
   EncodeJson<T>(buffer, value);
-
   std::string_view got(reinterpret_cast<const char*>(buffer.data()), buffer.size());
   REQUIRE(got == want);
 }

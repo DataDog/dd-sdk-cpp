@@ -12,7 +12,7 @@ using namespace datadog::impl;
 
 TEST_CASE("bool JSON serialization", "[unit][json]") {
   SECTION("M render literal true or false") {
-    RequireJsonValue(true, "true");
-    RequireJsonValue(false, "false");
+    RequireJsonLiteral(true, "true");
+    RequireJsonLiteral(false, "false");
   }
 }
