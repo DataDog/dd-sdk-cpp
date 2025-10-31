@@ -20,6 +20,7 @@ add_executable(dd_native_tests
     impl/attribute/memory_test.cpp
     impl/attribute/merge_test.cpp
     impl/attribute/refcount_test.cpp
+    impl/core/feature_types/rum_test.cpp
     impl/core/block_test.cpp
     impl/core/context_test.cpp
     impl/core/core_test.cpp

@@ -77,6 +77,16 @@ bool HasJsonValue(const Omissible<std::optional<T>>& value) {
   return opt.has_value();
 }
 
+/**
+ * Specialization for Omissible<Attribute>, which treats `Attribute::Null()` as the
+ * case where the property should be omitted. A default-constructed `Attribute` _is_
+ * equivalent to `Attribute::Null()`, but `Attribute` does not define comparison
+ * operators.
+ */
+inline bool HasJsonValue(const Omissible<Attribute>& value) {
+  return value.value.GetType() != ValueType::Null;
+}
+
 template <typename T>
 size_t GetJsonSize(const Omissible<T>& value) {
   // HasJsonValue will pre-empt the normal struct serialization path; there's no need to

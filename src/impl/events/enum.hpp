@@ -57,7 +57,9 @@ namespace datadog::impl {
 #define DATADOG_STRING_ENUM(StringEnumType, EnumType, ...)                           \
   inline constexpr StringEnumValue EnumType##Values[] = {__VA_ARGS__};               \
   static_assert(                                                                     \
-      StringEnumValuesAreContiguous<std::size(EnumType##Values)>(EnumType##Values),  \
+      StringEnumValuesAreContiguous<std::size(EnumType##Values)>(                    \
+          static_cast<const StringEnumValue*>(EnumType##Values)                      \
+      ),                                                                             \
       #StringEnumType " value names are discontiguous with original enum " #EnumType \
   );                                                                                 \
   using StringEnumType =                                                             \
