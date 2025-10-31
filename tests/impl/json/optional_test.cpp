@@ -13,12 +13,12 @@ using namespace datadog::impl;
 
 TEST_CASE("optional JSON serialization", "[unit][json]") {
   SECTION("M render null W no value is set") {
-    RequireJsonValue(std::optional<int>{}, "null");
-    RequireJsonValue(std::optional<std::string_view>{}, "null");
+    RequireJsonLiteral(std::optional<int>{}, "null");
+    RequireJsonLiteral(std::optional<std::string_view>{}, "null");
   }
 
   SECTION("M render value type W value is set") {
-    RequireJsonValue(std::optional<int>{42}, "42");
-    RequireJsonValue(std::optional<std::string>{"hello"}, "\"hello\"");
+    RequireJsonLiteral(std::optional<int>{42}, "42");
+    RequireJsonLiteral(std::optional<std::string>{"hello"}, "\"hello\"");
   }
 }

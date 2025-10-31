@@ -13,9 +13,9 @@ using namespace datadog::impl;
 TEST_CASE("null JSON serialization", "[unit][json]") {
   SECTION("M render literal null") {
     // A literal nullptr_t value will be serialized as a JSON null
-    RequireJsonValue(nullptr, "null");
+    RequireJsonLiteral(nullptr, "null");
 
     // Note that C-style NULL is just 0 and will be serialized as a number
-    RequireJsonValue(NULL, "0");
+    RequireJsonLiteral(NULL, "0");
   }
 }

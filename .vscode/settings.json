@@ -88,6 +88,8 @@
         "shared_mutex": "cpp",
         "random": "cpp",
         "atomic": "cpp",
-        "span": "cpp"
+        "span": "cpp",
+        "any": "cpp",
+        "valarray": "cpp"
     }
 }

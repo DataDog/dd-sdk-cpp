@@ -203,7 +203,7 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
     std::string_view name;
     std::function<void(dd_rum_config_t*)> config_func;
     std::function<void(dd_rum_t*, MockClock&)> func;
-    std::function<void(const std::vector<std::string>&)> assert_func;
+    std::function<void(const nlohmann::json&)> assert_func;
   };
   std::vector<TestParams> tests = {
       {"M send initial view event W new view is started",
@@ -214,10 +214,11 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
          // When we create a RUM view
          dd_rum_start_view(rum, "my-view", "My View");
        },
-       [](const std::vector<std::string>& events) {
+       [](const nlohmann::json& events) {
          // Then RUM produces exactly one view event
+         REQUIRE(events.is_array());
          REQUIRE(events.size() == 1);
-         REQUIRE(events[0] == "{\"placeholder-for\":\"view\"}");
+         REQUIRE(events[0] == nlohmann::json{{"placeholder-for", "view"}});
        }},
 
       {"M send final view event W view is stopped",
@@ -230,11 +231,11 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
          clock.Tick(std::chrono::seconds(15));
          dd_rum_stop_view(rum, "my-view");
        },
-       [](const std::vector<std::string>& events) {
+       [](const nlohmann::json& events) {
          // Then RUM produces a view event on start and stop
          REQUIRE(events.size() == 2);
-         REQUIRE(events[0] == "{\"placeholder-for\":\"view\"}");
-         REQUIRE(events[1] == "{\"placeholder-for\":\"view\"}");
+         REQUIRE(events[0] == nlohmann::json{{"placeholder-for", "view"}});
+         REQUIRE(events[1] == nlohmann::json{{"placeholder-for", "view"}});
        }},
 
       {"M send final + initial event W new view replaces previous view",
@@ -247,13 +248,13 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
          clock.Tick(std::chrono::seconds(15));
          dd_rum_start_view(rum, "my-other-view", "My Other View");
        },
-       [](const std::vector<std::string>& events) {
+       [](const nlohmann::json& events) {
          // Then RUM produces three events: a start and stop for 'my-view', and a start
          // for 'my-other-view'
          REQUIRE(events.size() == 3);
-         REQUIRE(events[0] == "{\"placeholder-for\":\"view\"}");
-         REQUIRE(events[1] == "{\"placeholder-for\":\"view\"}");
-         REQUIRE(events[2] == "{\"placeholder-for\":\"view\"}");
+         REQUIRE(events[0] == nlohmann::json{{"placeholder-for", "view"}});
+         REQUIRE(events[1] == nlohmann::json{{"placeholder-for", "view"}});
+         REQUIRE(events[2] == nlohmann::json{{"placeholder-for", "view"}});
        }},
 
       {"M send 200 view events W 100 views are started and stopped",
@@ -268,7 +269,7 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
            dd_rum_stop_view(rum, view_key.c_str());
          }
        },
-       [](const std::vector<std::string>& events) {
+       [](const nlohmann::json& events) {
          // Then RUM sends exactly 200 view events: a start and a stop for each
          REQUIRE(events.size() == 200);
        }},
@@ -288,7 +289,7 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
            dd_rum_stop_session(rum);
          }
        },
-       [](const std::vector<std::string>& events) {
+       [](const nlohmann::json& events) {
          // Then RUM produces roughly 1320 events: 2 for each sampled session, with
          // approximately 660 sessions sampled
          REQUIRE(events.size() > 1320 - 200);
@@ -324,9 +325,9 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
       dd_core_stop(core);
 
       // Then RUM sends 0 or more JSON events
-      std::vector<std::string> events;
+      nlohmann::json events;
       if (!test.client.requests.empty()) {
-        events = ParseJsonArrays(test.client.requests);
+        events = MergeJsonArrays(test.client.requests);
       }
 
       // And the assertions in our test case's assert callback hold true

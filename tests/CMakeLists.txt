@@ -1,4 +1,6 @@
+# Include development-only dependencies
 include(${DD_SDK_ROOT_DIR}/cmake/deps/catch2.cmake)
+include(${DD_SDK_ROOT_DIR}/cmake/deps/nlohmann-json.cmake)
 
 # Create test executable
 add_executable(dd_native_tests

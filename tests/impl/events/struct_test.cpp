@@ -52,7 +52,7 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
 
   SECTION("M render DATADOG_JSON_STRUCT-annotated struct as JSON object") {
     MyEvent ev{"foo", uuid_6ade, tp_13h26m, std::nullopt};
-    RequireJsonValue(
+    RequireJsonLiteral(
         ev,
         R"({"type":"foo","id":"6ade2e39-c3c4-42a9-93f5-d004e2cc452f","timestamp":"2025-10-24T13:26:44.104Z","tags":null})"
     );
@@ -62,7 +62,7 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
     MyEvent ev_1{"foo", uuid_6ade, tp_13h26m, std::nullopt};
     MyEvent ev_2{"bar", uuid_e294, tp_13h28m, "good;spicy;qu\"ote"};
     MyCompoundType compound{ev_2, ev_1};
-    RequireJsonValue(
+    RequireJsonLiteral(
         compound,
         R"({"event":{"type":"bar","id":"e29459c7-2a4a-47da-93d9-2fd197c8a8f6","timestamp":"2025-10-24T13:28:21.788Z","tags":"good;spicy;qu\"ote"},"prev":{"type":"foo","id":"6ade2e39-c3c4-42a9-93f5-d004e2cc452f","timestamp":"2025-10-24T13:26:44.104Z","tags":null}})"
     );

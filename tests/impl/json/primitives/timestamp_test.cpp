@@ -15,7 +15,7 @@ using namespace datadog::impl;
 TEST_CASE("timestamp JSON serialization", "[unit][json]") {
   SECTION("M render valid ISO-8601 timestamp as JSON string") {
     auto test = [](Duration nanos, std::string_view want) {
-      RequireJsonValue(Timestamp(nanos), want);
+      RequireJsonLiteral(Timestamp(nanos), want);
     };
 
     // Unit increments

@@ -71,13 +71,13 @@ TEST_CASE("Omissible JSON serialization", "[unit][events]") {
   SECTION("M omit struct members from serialized JSON object W values are default") {
     // With all Omissible<T> fields at zero, we get an empty object
     SomeStruct s;
-    RequireJsonValue(s, "{}");
+    RequireJsonLiteral(s, "{}");
 
     // After setting a few fields, only those fields are present
     s.str = "hello";
     s.time = Timestamp{std::chrono::nanoseconds(946684799999999999)};
     s.uid = *UUID::Parse("a07789cb-4e46-4c36-9f73-70e8606336e0");
-    RequireJsonValue(
+    RequireJsonLiteral(
         s,
         R"({"str":"hello","time":"1999-12-31T23:59:59.999Z","uid":"a07789cb-4e46-4c36-9f73-70e8606336e0"})"
     );
@@ -87,7 +87,7 @@ TEST_CASE("Omissible JSON serialization", "[unit][events]") {
     s.str.value.clear();
     s.time = Timestamp{};
     s.i64 = 42;
-    RequireJsonValue(s, R"({"i64":42,"uid":"a07789cb-4e46-4c36-9f73-70e8606336e0"})");
+    RequireJsonLiteral(s, R"({"i64":42,"uid":"a07789cb-4e46-4c36-9f73-70e8606336e0"})");
   }
 
   SECTION("M allow implicit conversion from std::string_view W type is std::string") {
@@ -101,7 +101,7 @@ TEST_CASE("Omissible JSON serialization", "[unit][events]") {
 
   SECTION("M use type-specific omission criteria W HasJsonValue overloaded") {
     EvenCoords coords{OnlyEven{16}, OnlyEven{17}, OnlyEven{18}};
-    RequireJsonValue(coords, R"({"x":16,"z":18})");
+    RequireJsonLiteral(coords, R"({"x":16,"z":18})");
   }
 
   SECTION("M treat zero value as significant W value is wrapped in std::optional") {
@@ -110,15 +110,15 @@ TEST_CASE("Omissible JSON serialization", "[unit][events]") {
 
     // When we serialize the struct while opt_bool holds true, Then we get JSON true
     s.opt_bool.value = true;
-    RequireJsonValue(s, R"({"opt_bool":true})");
+    RequireJsonLiteral(s, R"({"opt_bool":true})");
 
     // When we serialize the struct while opt_bool holds false, Then we get JSON false
     s.opt_bool.value = false;
-    RequireJsonValue(s, R"({"opt_bool":false})");
+    RequireJsonLiteral(s, R"({"opt_bool":false})");
 
     // When we serialize the struct while opt_bool is nullopt, we get no value
     s.opt_bool.value.reset();
-    RequireJsonValue(s, R"({})");
+    RequireJsonLiteral(s, R"({})");
   }
 
   SECTION("M have no effect W used alone") {
@@ -126,7 +126,7 @@ TEST_CASE("Omissible JSON serialization", "[unit][events]") {
     // implementation uses in order to determine whether a value should be included: it
     // has no effect on how the value is serialized to JSON on its own
     Omissible<int> zero = 0;
-    RequireJsonValue(zero, "0");
+    RequireJsonLiteral(zero, "0");
   }
 }
 
@@ -157,7 +157,9 @@ DATADOG_JSON_STRUCT(
 TEST_CASE("OmitIf* JSON serialization", "[unit][events]") {
   // Given a default value
   OmissibleAliases value;
-  SECTION("M omit all properties at default values") { RequireJsonValue(value, "{}"); }
+  SECTION("M omit all properties at default values") {
+    RequireJsonLiteral(value, "{}");
+  }
 
   SECTION("M render properties W values wrapped in OmitIfZero are nonzero") {
     // When we make a subset of OmitIfZero/OmitIfFalse/OmitIfEmpty values nonzero
@@ -165,7 +167,7 @@ TEST_CASE("OmitIf* JSON serialization", "[unit][events]") {
     value.bool_if_true = true;
 
     // Then those members are reflected as JSON object properties
-    RequireJsonValue(
+    RequireJsonLiteral(
         value,
         R"({"uuid_if_nonzero":"d243787d-44af-4be1-b627-06e0ea68cea0","bool_if_true":true})"
     );
@@ -175,7 +177,7 @@ TEST_CASE("OmitIf* JSON serialization", "[unit][events]") {
     value.string_if_non_empty = "hello";
 
     // Then we get the expected set of JSON properties
-    RequireJsonValue(value, R"({"bool_if_true":true,"string_if_non_empty":"hello"})");
+    RequireJsonLiteral(value, R"({"bool_if_true":true,"string_if_non_empty":"hello"})");
   }
 
   SECTION("M render properties W values wrapped in OmitIfNoValue are non-nullopt") {
@@ -185,7 +187,7 @@ TEST_CASE("OmitIf* JSON serialization", "[unit][events]") {
     value.string_if_set = "hello";
 
     // Then all of those members are reflected as JSON properties
-    RequireJsonValue(
+    RequireJsonLiteral(
         value,
         R"({"uuid_if_set":"d243787d-44af-4be1-b627-06e0ea68cea0","bool_if_set":true,"string_if_set":"hello"})"
     );
@@ -196,7 +198,7 @@ TEST_CASE("OmitIf* JSON serialization", "[unit][events]") {
     value.string_if_set = "";
 
     // Then those properties are still present with significant zero values
-    RequireJsonValue(
+    RequireJsonLiteral(
         value,
         R"({"uuid_if_set":"00000000-0000-0000-0000-000000000000","bool_if_set":false,"string_if_set":""})"
     );
@@ -206,6 +208,6 @@ TEST_CASE("OmitIf* JSON serialization", "[unit][events]") {
     value.bool_if_set.value.reset();
 
     // Then their corresponding properties are no longer present in the JSON object
-    RequireJsonValue(value, R"({"string_if_set":""})");
+    RequireJsonLiteral(value, R"({"string_if_set":""})");
   }
 }
