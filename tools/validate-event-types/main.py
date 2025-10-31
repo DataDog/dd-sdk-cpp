@@ -12,14 +12,14 @@ Running this script will:
 1. Prepare a local clone of the rum-events-format repo at the specified revision
    (latest if no revision specified)
 2. Use python-jsonschema to parse rum-events-format/schemas/rum-events-schema.json
-3. Find every invocation of the `RequireValidRumEvent` function in
-   `tests/impl/core/feature_types/rum_test.cpp`, and parse the second operand, which
-   must be a C++ raw-string literal containing a complete JSON object literal
+3. Find every invocation of the `DATADOG_RUM_EVENT_LITERAL` macro in the subset of .cpp
+   test files configured below, each of which must wrap a C++ raw-string literal
+   representing the exact value of a RUM event's JSON object literal
 4. Use python-jsonschema to validate that JSON object literal against the schema
 
 This validation process does not directly exercise the functionality of the C++ SDK. The
 C++ unit test is responsible for validating that the SDK produces the expected JSON
-payload exactly as shown in the `RequireValidRumEvent` call. This script separately
+payload exactly as shown in the `DATADOG_RUM_EVENT_LITERAL` call. This script separately
 validates that the expected JSON payload is indeed a valid RUM event according to the
 schema. If both hold true, we know that the C++ SDK produces valid RUM events within the
 extent of our test coverage.
@@ -41,6 +41,8 @@ __schema_test_event_relpath__ = os.path.join('samples', 'rum-events', 'view.json
 
 __cpp_test_relpaths__ = [
     os.path.join('impl', 'core', 'feature_types', 'rum_test.cpp'),
+    os.path.join('c', 'rum_c_api_test.cpp'),
+    os.path.join('cpp', 'rum_cpp_api_test.cpp'),
 ]
 
 
@@ -73,8 +75,8 @@ if __name__ == '__main__':
     schema.validate(test_event_data)
     print('Sanity check passed: canonical event is validated OK.')
 
-    # Examine .cpp tests to find usages of RequireValidRumEvent, then parse expected
-    # RUM event payloads from their arguments
+    # Examine .cpp tests to find usages of DATADOG_RUM_EVENT_LITERAL, then parse
+    # expected RUM event payloads from their arguments
     print_section(f'Discovering RUM event literals in .cpp test files')
     event_literals = discover_rum_event_literals(__cpp_test_relpaths__)
     if not event_literals:

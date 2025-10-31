@@ -12,6 +12,7 @@
 
 #include "datadog/rum.hpp"
 #include "support/core.hpp"
+#include "support/json_serialization.hpp"
 #include "support/json_validation.hpp"
 
 using namespace datadog;
@@ -158,8 +159,33 @@ TEST_CASE("Rum view events", "[unit][rum][cpp-api]") {
        },
        [](const nlohmann::json& events) {
          // Then RUM produces exactly one view event
+         REQUIRE(events.is_array());
          REQUIRE(events.size() == 1);
-         REQUIRE(events[0] == nlohmann::json{{"placeholder-for", "view"}});
+         RequireEventMatch(events[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "view",
+            "date": 1700000000000,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View",
+              "is_active": true,
+              "time_spent": 0,
+              "action": {"count": 0},
+              "error": {"count": 0},
+              "resource": {"count": 0}
+            },
+            "_dd": {
+              "format_version": 2,
+              "document_version": 0
+            }
+          })"));
        }},
 
       {"M send final view event W view is stopped",
@@ -168,15 +194,70 @@ TEST_CASE("Rum view events", "[unit][rum][cpp-api]") {
        },
        [](std::shared_ptr<Rum>& rum, MockClock& clock) {
          // When we create a RUM view and then later stop it
-         rum->StartView("my-view", "View");
+         rum->StartView("my-view", "My View");
          clock.Tick(std::chrono::seconds(15));
          rum->StopView("my-view");
        },
        [](const nlohmann::json& events) {
-         // Then RUM produces a view event on start and stop
+         // Then RUM produces two events
          REQUIRE(events.size() == 2);
-         REQUIRE(events[0] == nlohmann::json{{"placeholder-for", "view"}});
-         REQUIRE(events[1] == nlohmann::json{{"placeholder-for", "view"}});
+         // And the first describes the state of the view upon creation
+         RequireEventMatch(events[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "view",
+            "date": 1700000000000,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View",
+              "is_active": true,
+              "time_spent": 0,
+              "action": {"count": 0},
+              "error": {"count": 0},
+              "resource": {"count": 0}
+            },
+            "_dd": {
+              "format_version": 2,
+              "document_version": 0
+            }
+          })"));
+         // And the second describes the state of the view at its end, with 'is_active'
+         // false, with the 'date' and 'time_spent' properties reflecting the passage of
+         // 15 seconds, and '_dd.document_version' incremented
+         RequireEventMatch(events[1], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "view",
+            "date": 1700000015000,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View",
+              "is_active": false,
+              "time_spent": 15000000000,
+              "action": {"count": 0},
+              "error": {"count": 0},
+              "resource": {"count": 0}
+            },
+            "_dd": {
+              "format_version": 2,
+              "document_version": 1
+            }
+          })"));
+         // And the session and view IDs are identical between those two events
+         REQUIRE(events[0]["session"]["id"] == events[1]["session"]["id"]);
+         REQUIRE(events[0]["view"]["id"] == events[1]["view"]["id"]);
        }},
 
       {"M send final + initial event W new view replaces previous view",
@@ -193,9 +274,19 @@ TEST_CASE("Rum view events", "[unit][rum][cpp-api]") {
          // Then RUM produces three events: a start and stop for 'my-view', and a start
          // for 'my-other-view'
          REQUIRE(events.size() == 3);
-         REQUIRE(events[0] == nlohmann::json{{"placeholder-for", "view"}});
-         REQUIRE(events[1] == nlohmann::json{{"placeholder-for", "view"}});
-         REQUIRE(events[2] == nlohmann::json{{"placeholder-for", "view"}});
+         REQUIRE(events[0]["type"] == "view");
+         REQUIRE(events[1]["type"] == "view");
+         REQUIRE(events[2]["type"] == "view");
+
+         // All three events belong to the same session
+         REQUIRE(events[0]["session"]["id"] == events[1]["session"]["id"]);
+         REQUIRE(events[0]["session"]["id"] == events[2]["session"]["id"]);
+
+         // The first two events are for the same view
+         REQUIRE(events[0]["view"]["id"] == events[1]["view"]["id"]);
+
+         // The last event represents the start of a distinct view
+         REQUIRE(events[0]["view"]["id"] != events[2]["view"]["id"]);
        }},
 
       {"M send 200 view events W 100 views are started and stopped",
@@ -237,7 +328,6 @@ TEST_CASE("Rum view events", "[unit][rum][cpp-api]") {
          REQUIRE(events.size() < 1320 + 200);
        }}
 
-      // TODO(RUM-12321): Validate that view functions result in the expected events
       // TODO(RUM-12322): Validate that events include global attribute values
       // TODO(RUM-12322): Validate that events include view attribute values
       // TODO(RUM-11369): Validate that action functions result in the expected events
