@@ -20,7 +20,7 @@ struct AttributeMerge {
   /**
    * Given a target object `mut_obj` and any number of other object attributes, mutates
    * the target object such that it contains the union of all top-level properties found
-   * in both `mut_obj` and `attributes`.
+   * in `attributes`. Any existing properties in `mut_obj` will be cleared.
    *
    * If two or more objects contain properties with the same name, the value that
    * appears last will take precedence. For example, merging `{"foo":1,"bar":1}` and
@@ -37,7 +37,7 @@ struct AttributeMerge {
    * `{"obj":{"bar":3,"baz":4}}`.
    *
    * If `attributes` contains any non-object values, they will be ignored. If
-   * `attributes` contains no object values, `mut_obj` will not be modified.
+   * `attributes` contains no object values, `mut_obj` will be cleared and left empty.
    */
   static void AssembleObject(
       Attribute& mut_obj,

@@ -605,6 +605,36 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        JsonArrayOf(
            {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"hello","logger.version":"0.2.0","ok-global":100,"ok-logger":200,"ok-message":300})"}
        )},
+
+      {"M no longer include custom attributes W attributes have been deleted",
+       [](Logging& logging) {
+         // Set "foo":100 globally
+         logging.SetAttribute("foo", Attribute::Int(100));
+       },
+       [](Logging&, Logger& logger) {
+         // Set "bar":200 on logger
+         logger.SetAttribute("bar", Attribute::Int(200));
+       },
+       [](Logging& logging, Logger& logger) {
+         // Set "baz":300 on an object attribute that will be passed with log calls
+         Attribute obj = Attribute::Object(1);
+         obj.SetObjectProperty("baz", Attribute::Int(300));
+
+         // Emit a single log message
+         logger.Info("alpha", obj);
+
+         // Next: delete our three custom attributes and emit another message
+         logging.DeleteAttribute("foo");
+         logger.DeleteAttribute("bar");
+         obj.DeleteObjectProperty("baz");
+         logger.Info("bravo", obj);
+       },
+       // Our first event should have all three custom attribute values, while the
+       // second event should have none
+       JsonArrayOf(
+           {R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"alpha","logger.version":"0.2.0","foo":100,"bar":200,"baz":300})",
+            R"({"status":"info","service":"mock-service","date":"2023-11-14T22:13:20.000Z","message":"bravo","logger.version":"0.2.0"})"}
+       )},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
