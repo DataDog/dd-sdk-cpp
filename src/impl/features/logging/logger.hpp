@@ -15,6 +15,7 @@
 
 #include "attribute/typed_attribute.hpp"
 #include "core/feature.hpp"
+#include "core/feature_types/logging.hpp"
 #include "datadog/attribute.hpp"
 #include "features/logging/types.hpp"
 
@@ -28,22 +29,17 @@ namespace datadog::impl {
  * exclusive access to this state in any API call initiated on the owning Logger.
  */
 struct LoggerState {
-  // Long-lived attribute values that are used in the final log event
-  StringAttribute service_name;  // 'service'
-  StringAttribute logger_name;   // 'logger.name'
-
-  UUIDAttribute rum_application_id;  // 'application_id'; if enriched with RUM context
-  UUIDAttribute rum_session_id;      // 'session_id'; if a RUM session is active
-  UUIDAttribute rum_view_id;         // 'view.id'; if a RUM view is active
-  UUIDAttribute rum_action_id;       // 'user_action.id'; if a RUM action is active
-
-  // Intermediate objects used to hold key-value pairs to be merged into the final event
-  // payload
+  // Current set of custom user attributes applied to this logger; to be merged with
+  // global and log-event-level attributes
   ObjectAttribute user_attributes;
-  ObjectAttribute internal_attributes;
 
-  // Reusable buffers for building the final event and serializing it to JSON
-  ObjectAttribute event_object;
+  // Working memory for storing the essential details of the log event prior to
+  // serialization, along with the final set of merged user attributes for that event
+  LogEvent event;
+  ObjectAttribute merged_attributes;
+
+  // Reusable buffer where the final JSON payload will be encoded prior to being
+  // copied onto the storage thread's queue
   std::vector<uint8_t> event_buffer;
 
   explicit LoggerState(

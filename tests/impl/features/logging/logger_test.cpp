@@ -108,7 +108,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     REQUIRE(has_no_value(event.data, "user_action.id"));
   }
 
-  SECTION("M give RUM attributes precedence over user attributes W names conflict") {
+  SECTION("M preserve RUM attributes W user attributes have conflicting names") {
     // Given a valid Logging feature and a Logger with the default config
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
@@ -132,14 +132,14 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
 
     // Then the resulting log event contains:
     // - 'application_id' with our RUM context value, NOT the user-provided value
-    // - 'session_id' with our user-provided value, since no RUM session_id exists and
-    //    RUM attribute names are not reserved
+    // - No 'session_id' value, since no RUM session_id exists and RUM attribute names
+    //   are reserved
     // - No 'view.id' or 'user_action.id' attributes, since nothing sets them
     REQUIRE(test.events.size() == 1);
     const CapturedEvent& event = test.events.back();
     REQUIRE(has_uuid_value(event.data, "application_id", uuid_9916));
     REQUIRE(event.data.find("\"user-application-id\"") == std::string::npos);
-    REQUIRE(event.data.find("\"session_id\":\"user-session-id\"") != std::string::npos);
+    REQUIRE(has_no_value(event.data, "session_id"));
     REQUIRE(has_no_value(event.data, "view.id"));
     REQUIRE(has_no_value(event.data, "user_action.id"));
   }

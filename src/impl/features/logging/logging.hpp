@@ -66,16 +66,14 @@ class Logging final : public Feature {
       const Attribute& message_attributes
   ) const;
 
-  static Attribute GetLogLevelString(LogLevel level);
-
  private:
   // Reference to system clock; used to timestamp events
   const platform::IClock& _clock;
 
   // Immutable global state injected in init
-  const StringAttribute _sdk_version;
-  const StringAttribute _default_service_name;
-  const StringAttribute _application_version;
+  const std::string _sdk_version;
+  const std::string _default_service_name;
+  const std::string _application_version;
 
   // Global attributes applied to all log events
   ObjectAttribute _global_attributes;

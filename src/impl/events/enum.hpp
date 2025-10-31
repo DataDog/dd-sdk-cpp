@@ -9,7 +9,7 @@
 #include <array>
 #include <cinttypes>
 #include <cstring>
-#include <iostream>
+#include <iterator>
 #include <string>
 #include <string_view>
 
@@ -55,13 +55,13 @@ namespace datadog::impl {
  * a new StringEnum template specialization
  */
 #define DATADOG_STRING_ENUM(StringEnumType, EnumType, ...)                           \
-  constexpr StringEnumValue EnumType##Names[] = {__VA_ARGS__};                       \
+  inline constexpr StringEnumValue EnumType##Values[] = {__VA_ARGS__};               \
   static_assert(                                                                     \
-      StringEnumValuesAreContiguous<std::size(EnumType##Names)>(EnumType##Names),    \
+      StringEnumValuesAreContiguous<std::size(EnumType##Values)>(EnumType##Values),  \
       #StringEnumType " value names are discontiguous with original enum " #EnumType \
   );                                                                                 \
   using StringEnumType =                                                             \
-      StringEnum<EnumType, EnumType##Names, std::size(EnumType##Names)>;
+      StringEnum<EnumType, EnumType##Values, std::size(EnumType##Values)>;
 
 /**
  * Helper struct used in conjunction with DATADOG_STRING_ENUM. The index `i` encodes the
