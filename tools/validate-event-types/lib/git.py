@@ -50,17 +50,17 @@ def fetch_repo(name: str, commit_ref: str) -> Repo:
     already exists, any local modifications or untracked files will be discarded without
     warning.
     """
-    commit_ref = _resolve_commit_ref(commit_ref)
+    resolved_commit_ref = _resolve_commit_ref(commit_ref)
 
     local_path = __path_pattern__ % name
     if os.path.isdir(os.path.join(local_path, '.git')):
         repo = Repo(local_path)
-        _hard_reset_to(repo, commit_ref)
+        _hard_reset_to(repo, resolved_commit_ref)
         return repo
 
     github_url = __github_url_pattern__ % name
     print(f'> git clone {github_url}')
     repo = Repo.clone_from(github_url, local_path)
-    print(f'> git checkout {commit_ref}')
-    repo.git.checkout(commit_ref)
+    print(f'> git checkout {resolved_commit_ref}')
+    repo.git.checkout(resolved_commit_ref)
     return repo
