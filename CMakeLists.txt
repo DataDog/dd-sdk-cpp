@@ -32,6 +32,7 @@ option(DD_BUILD_INSTALL "Enable install targets" ${DD_IS_TOP_LEVEL})
 if(DD_BUILD_INSTALL)
     option(DD_BUILD_PACKAGE "Enable package targets and build required tools" ${DD_BUILD_INSTALL})
 endif()
+option(DD_ENABLE_EVENT_VALIDATION "Include targets for validating JSON event payloads against rum-events-format schemas (requires Python)" ${DD_DEVELOPMENT})
 option(DD_ENABLE_CLANG_FORMAT "Enable clang-format for format validation and automatic formatting" ${DD_DEVELOPMENT})
 option(DD_ENABLE_CLANG_TIDY "Enable clang-tidy for static analysis" ${DD_DEVELOPMENT})
 option(DD_ENABLE_COVERAGE "Enable code coverage reporting" ${DD_DEVELOPMENT})
@@ -55,6 +56,11 @@ include(${DD_SDK_ROOT_DIR}/cmake/compile.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/coverage.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/sanitizers.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/external.cmake)
+
+# If JSON event validation is enabled, require Python and add targets
+if(DD_ENABLE_EVENT_VALIDATION)
+    include(${DD_SDK_ROOT_DIR}/cmake/event-validation.cmake)
+endif()
 
 # Include the library itself
 add_subdirectory(src)

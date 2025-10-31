@@ -7,6 +7,11 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 
 # Install required tools and libraries
+# - ca-certificates, gpg, gpg-agent, wget: For third-party apt repositories
+# - libcurl4-openssl-dev, libssl-dev:      For default libcurl HTTP client impl
+# - uuid-dev:                              uuid/uuid.h, for datadog::UUID on Linux
+# - git && python3.10-venv:                For tools/validate-event-types
+# - ninja-build:                           Build system for use as CMake generator
 RUN apt-get update && apt-get install -y --no-install-recommends \
   ca-certificates \
   gpg \
@@ -15,6 +20,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   libcurl4-openssl-dev \
   libssl-dev \
   uuid-dev \
+  git \
+  python3.10-venv \
   ninja-build
 
 # Use Ninja by default for CMake builds on Linux: it's ~6x faster than Make
