@@ -20,6 +20,8 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     cpp/uuid.cpp
     impl/attribute/cow.cpp
     impl/attribute/merge.cpp
+    impl/core/feature_types/logging.cpp
+    impl/core/feature_types/rum.cpp
     impl/core/context.cpp
     impl/core/core.cpp
     impl/core/feature_read.cpp

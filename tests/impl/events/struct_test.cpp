@@ -32,6 +32,7 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(timestamp),
     DATADOG_JSON_FIELD(tags)
 )
+DATADOG_JSON_STRUCT_IMPL(MyEvent)
 
 struct MyCompoundType {
   MyEvent event;
@@ -43,6 +44,7 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(event),
     DATADOG_JSON_FIELD_NAME(prev_event, "prev")
 )
+DATADOG_JSON_STRUCT_IMPL(MyCompoundType)
 
 TEST_CASE("struct JSON serialization", "[unit][events]") {
   const UUID uuid_6ade = *UUID::Parse("6ade2e39-c3c4-42a9-93f5-d004e2cc452f");

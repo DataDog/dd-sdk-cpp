@@ -12,6 +12,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 
 #include "json.hpp"
@@ -45,6 +46,9 @@ namespace datadog::impl {
  * different name, use `DATADOG_JSON_FIELD_NAME` and provide a string literal. Property
  * names are NOT escaped: they are assumed to contain only printable ASCII characters,
  * with no backslashes, double-quotes, or control codes.
+ *
+ * A type annotated with `DATADOG_JSON_STRUCT(SomeType, ...)` must have an accompanying
+ * `DATADOG_JSON_STRUCT_IMPL(SomeType)` defined in a .cpp file.
  *
  * Once a type is annotated with `DATADOG_JSON_STRUCT`, you can serialize any value of
  * that type as a JSON object by passing it to `EncodeJson`:
@@ -83,19 +87,43 @@ namespace datadog::impl {
  */
 #define DATADOG_JSON_FIELD(Member) DATADOG_JSON_FIELD_NAME(Member, #Member)
 
+#define DATADOG_JSON_STRUCT_NS(Type, SafeType, ...)                      \
+  inline constexpr auto GetJsonFields_##SafeType = [](const Type& obj) { \
+    return std::make_tuple(__VA_ARGS__);                                 \
+  };                                                                     \
+  size_t GetJsonSize(const Type& obj);                                   \
+  size_t WriteJson(char* dst, size_t n, const Type& obj);
+
 /**
- * Defines the JSON object format used to serialize a value of type `Type`.
+ * Defines the JSON object format used to serialize a value of type `Type`. Must have an
+ * accompanying `DATADOG_JSON_STRUCT_IMPL(Type)` in a .cpp file.
  *
- * Declares inline definitions of `GetJsonSize` and `WriteJson` for the given type.
- * Those implementations forward to compiler-generated overloads of the
- * `template <typename... Fields>` functions defined below, based on the set of fields
- * defined via `DATADOG_JSON_FIELD`.
+ * Forward-declares of `GetJsonSize` and `WriteJson` for the given type, while also
+ * defining a `GetJsonField_<Type>()` function for use by `DATADOG_JSON_STRUCT_IMPL`,
+ * ensuring that we can keep the declaration of a struct's JSON-serializable fields
+ * colocated with the struct definition.
  */
-#define DATADOG_JSON_STRUCT(Type, ...)                                            \
-  inline size_t GetJsonSize(const Type& obj) { return GetJsonSize(__VA_ARGS__); } \
-  inline size_t WriteJson(char* dst, size_t n, const Type& obj) {                 \
-    return WriteJson(dst, n, __VA_ARGS__);                                        \
+#define DATADOG_JSON_STRUCT(Type, ...) DATADOG_JSON_STRUCT_NS(Type, Type, __VA_ARGS__)
+
+#define DATADOG_JSON_STRUCT_IMPL_NS(Type, SafeType)                            \
+  size_t GetJsonSize(const Type& obj) {                                        \
+    return std::apply(                                                         \
+        [&](auto&&... fields) {                                                \
+          return GetJsonSize(std::forward<decltype(fields)>(fields)...);       \
+        },                                                                     \
+        GetJsonFields_##SafeType(obj)                                          \
+    );                                                                         \
+  }                                                                            \
+  size_t WriteJson(char* dst, size_t n, const Type& obj) {                     \
+    return std::apply(                                                         \
+        [&](auto&&... fields) {                                                \
+          return WriteJson(dst, n, std::forward<decltype(fields)>(fields)...); \
+        },                                                                     \
+        GetJsonFields_##SafeType(obj)                                          \
+    );                                                                         \
   }
+
+#define DATADOG_JSON_STRUCT_IMPL(Type) DATADOG_JSON_STRUCT_IMPL_NS(Type, Type)
 
 /**
  * Given a set of fields declared via DATADOG_JSON_FIELD, with each field type having

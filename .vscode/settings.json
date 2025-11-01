@@ -90,6 +90,7 @@
         "atomic": "cpp",
         "span": "cpp",
         "any": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "tuple": "cpp"
     }
 }

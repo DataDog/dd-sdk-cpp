@@ -26,6 +26,7 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(foo),
     DATADOG_JSON_FIELD(bar)
 )
+DATADOG_JSON_STRUCT_IMPL(JsonTestEvent)
 };  // namespace datadog::impl
 
 struct JsonBuffer {

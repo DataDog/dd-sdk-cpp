@@ -39,6 +39,7 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(uid),
     DATADOG_JSON_FIELD(opt_bool)
 )
+DATADOG_JSON_STRUCT_IMPL(SomeStruct)
 
 namespace datadog::impl {
 /**
@@ -66,6 +67,7 @@ struct EvenCoords {
 DATADOG_JSON_STRUCT(
     EvenCoords, DATADOG_JSON_FIELD(x), DATADOG_JSON_FIELD(y), DATADOG_JSON_FIELD(z)
 )
+DATADOG_JSON_STRUCT_IMPL(EvenCoords)
 
 TEST_CASE("Omissible JSON serialization", "[unit][events]") {
   SECTION("M omit struct members from serialized JSON object W values are default") {
@@ -153,6 +155,7 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(bool_if_set),
     DATADOG_JSON_FIELD(string_if_set)
 )
+DATADOG_JSON_STRUCT_IMPL(OmissibleAliases)
 
 TEST_CASE("OmitIf* JSON serialization", "[unit][events]") {
   // Given a default value

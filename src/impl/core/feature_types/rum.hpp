@@ -711,14 +711,16 @@ struct RumViewEvent {
         ),
         _dd(Internal{in_internal_document_version}) {}
 };
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::Application,
+    RumViewEvent__Application,
     // From _common-schema.json
     DATADOG_JSON_FIELD(id),
     DATADOG_JSON_FIELD(current_locale)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::Session,
+    RumViewEvent__Session,
     // From _common-schema.json
     DATADOG_JSON_FIELD(id),
     DATADOG_JSON_FIELD(type),
@@ -727,29 +729,33 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(is_active),
     DATADOG_JSON_FIELD(sampled_for_replay)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Incidence,
+    RumViewEvent__View__Incidence,
     // From view-schema.json
     DATADOG_JSON_FIELD(count)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::PerfMetric,
+    RumViewEvent__View__PerfMetric,
     // From _perf-metric-schema.json
     DATADOG_JSON_FIELD(min),
     DATADOG_JSON_FIELD(max),
     DATADOG_JSON_FIELD(average),
     DATADOG_JSON_FIELD(metric_max)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Performance::CLS::Rect,
+    RumViewEvent__View__Performance__CLS__Rect,
     // From _rect-schema.json
     DATADOG_JSON_FIELD(x),
     DATADOG_JSON_FIELD(y),
     DATADOG_JSON_FIELD(width),
     DATADOG_JSON_FIELD(height)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Performance::CLS,
+    RumViewEvent__View__Performance__CLS,
     // From _view-performance-schema.json
     DATADOG_JSON_FIELD(score),
     DATADOG_JSON_FIELD(timestamp),
@@ -757,39 +763,45 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(previous_rect),
     DATADOG_JSON_FIELD(current_rect)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Performance::FCP,
+    RumViewEvent__View__Performance__FCP,
     // From _view-performance-schema.json
     DATADOG_JSON_FIELD(timestamp)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Performance::FID,
+    RumViewEvent__View__Performance__FID,
     // From _view-performance-schema.json
     DATADOG_JSON_FIELD(duration),
     DATADOG_JSON_FIELD(timestamp),
     DATADOG_JSON_FIELD(target_selector)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Performance::INP,
+    RumViewEvent__View__Performance__INP,
     // From _view-performance-schema.json
     DATADOG_JSON_FIELD(duration),
     DATADOG_JSON_FIELD(timestamp),
     DATADOG_JSON_FIELD(target_selector)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Performance::LCP,
+    RumViewEvent__View__Performance__LCP,
     // From _view-performance-schema.json
     DATADOG_JSON_FIELD(timestamp),
     DATADOG_JSON_FIELD(target_selector),
     DATADOG_JSON_FIELD(resource_url)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Performance::FBC,
+    RumViewEvent__View__Performance__FBC,
     // From _view-performance-schema.json
     DATADOG_JSON_FIELD(timestamp)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Performance,
+    RumViewEvent__View__Performance,
     // From _view-performance-schema.json
     DATADOG_JSON_FIELD(cls),
     DATADOG_JSON_FIELD(fcp),
@@ -798,8 +810,9 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(lcp),
     DATADOG_JSON_FIELD(fbc)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View::Accessibility,
+    RumViewEvent__View__Accessibility,
     // From _view-accessibility-schema.json
     DATADOG_JSON_FIELD(text_size),
     DATADOG_JSON_FIELD(screen_reader_enabled),
@@ -824,8 +837,9 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(speak_selection_enabled),
     DATADOG_JSON_FIELD(rtl_enabled)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::View,
+    RumViewEvent__View,
     // From _common-schema.json
     DATADOG_JSON_FIELD(id),
     DATADOG_JSON_FIELD(referrer),
@@ -868,21 +882,24 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(performance),
     DATADOG_JSON_FIELD(accessibility)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::Display,
+    RumViewEvent__Display,
     // From _common-schema.json
     DATADOG_JSON_FIELD(viewport)
     // From view-schema.json
     // NYI(web): scroll
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::Internal::Session,
+    RumViewEvent__Internal__Session,
     // From _common-schema.json
     DATADOG_JSON_FIELD(plan),
     DATADOG_JSON_FIELD(session_precondition)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::Internal::Configuration,
+    RumViewEvent__Internal__Configuration,
     // From _common-schema.json
     DATADOG_JSON_FIELD(session_sample_rate),
     DATADOG_JSON_FIELD(session_replay_sample_rate),
@@ -890,8 +907,9 @@ DATADOG_JSON_STRUCT(
     // From view-schema.json
     DATADOG_JSON_FIELD(start_session_replay_recording_manually)
 )
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_NS(
     RumViewEvent::Internal,
+    RumViewEvent__Internal,
     // From _common-schema.json
     DATADOG_JSON_FIELD(format_version),
     DATADOG_JSON_FIELD(session),
