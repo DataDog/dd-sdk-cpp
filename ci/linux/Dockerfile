@@ -7,7 +7,14 @@ ENV DEBIAN_FRONTEND=noninteractive
 RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 
 # Install required tools and libraries
+# - time:                                  System utility for diagnosing CI issues
+# - ca-certificates, gpg, gpg-agent, wget: For third-party apt repositories
+# - libcurl4-openssl-dev, libssl-dev:      For default libcurl HTTP client impl
+# - uuid-dev:                              uuid/uuid.h, for datadog::UUID on Linux
+# - git && python3.10-venv:                For tools/validate-event-types
+# - ninja-build:                           Build system for use as CMake generator
 RUN apt-get update && apt-get install -y --no-install-recommends \
+  time \
   ca-certificates \
   gpg \
   gpg-agent \

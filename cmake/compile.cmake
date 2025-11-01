@@ -7,6 +7,14 @@ function(target_enable_strict_warnings target_name)
     endif()
 endfunction()
 
+# TEMP: If CI diagnostics are enabled, invoke the compiler via a wrapper script,
+# debug-compiler.sh, so we can profile its resource usage and pinpoint why it's being
+# killed by the OS
+if(DD_ENABLE_CI_DIAGNOSTICS)
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${DD_SDK_ROOT_DIR}/debug-compiler.sh")
+    set(CMAKE_C_COMPILER_LAUNCHER "${DD_SDK_ROOT_DIR}/debug-compiler.sh")
+endif()
+
 # If configured with asserts enabled, define WITH_DATADOG_ASSERTS for targets that call
 # DATADOG_ASSERT
 function(target_enable_datadog_assert target_name)
@@ -28,3 +36,4 @@ function(target_enable_shared_library_support target_name)
         )
     endif()
 endfunction()
+

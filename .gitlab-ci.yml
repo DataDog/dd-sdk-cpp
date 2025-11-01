@@ -18,7 +18,7 @@ variables:
   # Our Linux toolchain images are tagged with this version, e.g.
   # 'ci/dd-sdk-cpp:clang15-v2': bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
-  LINUX_TOOLCHAIN_IMAGE_VERSION: v5
+  LINUX_TOOLCHAIN_IMAGE_VERSION: v6-debug
 
   # The Windows (MSVC) toolchain image is built separately: since Windows images tend to
   # be large, they are also tagged '<toolchain>-latest' on push, and then the AMI build
@@ -107,8 +107,9 @@ unit-test:
       -DDD_BUILD_EXAMPLES=ON
       -DDD_BUILD_TESTING=ON
       -S . -B build
-    - cmake --build build
+    - cmake --build build || ./debug-report.sh
     - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
+    - ./debug-report.sh
   artifacts:
     when: always
     expire_in: "30 days"

@@ -23,6 +23,10 @@ endif()
 option(DD_DEVELOPMENT "Enable development mode (examples, tests, analysis, asserts)" OFF)
 option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools (e.g. clang-format) may be automatically downloaded and installed to toos/bin/" OFF)
 
+# TEMP: In CI builds, clang++ and clang-tidy are getting killed. This is probably due to
+# resource limitations on the CI runner. Enable extra profiling to try and diagnose.
+option(DD_ENABLE_CI_DIAGNOSTICS "Enable CI diagnostics to profile memory usage of build processes" ON)
+
 # Top-level options for the build
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
 option(DD_BUILD_BENCHMARKS "Build benchmarks" ${DD_DEVELOPMENT})
