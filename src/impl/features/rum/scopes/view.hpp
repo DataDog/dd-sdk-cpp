@@ -96,7 +96,10 @@ class RumViewScope {
    */
   ViewEventType HandleCommand(const RumCommand& command);
 
-  void SendViewEvent();
+  /**
+   * Generates and sends a RUM view event in response to the given command.
+   */
+  void SendViewEvent(const RumCommand& command);
 
  private:
   std::reference_wrapper<const RumScopeDependencies> _deps;

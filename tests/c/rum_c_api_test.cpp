@@ -286,11 +286,11 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
             }
           })"));
          // And the second describes the state of the view at its end, with 'is_active'
-         // false, with the 'date' and 'time_spent' properties reflecting the passage of
-         // 15 seconds, and '_dd.document_version' incremented
+         // false, 'time_spent' reflecting the passage of 15 seconds, and
+         // '_dd.document_version' incremented; while 'date' remains stable
          RequireEventMatch(events[1], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "view",
-            "date": 1700000015000,
+            "date": 1700000000000,
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },

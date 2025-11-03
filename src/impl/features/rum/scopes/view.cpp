@@ -61,7 +61,7 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
   // Generate a 'view' event if our state has meaningfully changed since the last event
   // we sent
   if (event_type != ViewEventType::None) {
-    SendViewEvent();
+    SendViewEvent(command);
   }
 
   // If the result of this command is that we're no longer the active view and we no
@@ -154,14 +154,17 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
   return ViewEventType::None;
 }
 
-void RumViewScope::SendViewEvent() {
+void RumViewScope::SendViewEvent(const RumCommand& command) {
   // Resolve references needed to populate required event data
   const RumScopeDependencies& deps = _deps;
   const RumSessionScope& session = _parent;
 
-  // Read system time for event timestamp, and compute time since view start
-  const Timestamp now = deps.clock.Now();
-  const Duration time_spent = now - _started_at;
+  // The 'date' timestamp on a RUM 'view' event always indicates the time at which the
+  // view started: it does NOT necessarily reflect the time at which the event was sent
+  const Timestamp event_timestamp = _started_at;
+
+  // Compute elapsed time between view start and the processing of this command
+  const Duration time_spent = command.base.issued_at - _started_at;
   const uint64_t time_spent_ns = time_spent.count();
 
   // Get sums of child scope occurrences within the lifetime of this view
@@ -171,7 +174,7 @@ void RumViewScope::SendViewEvent() {
 
   // Construct an event value on the stack with the minimal set of required properties
   RumViewEvent ev(
-      now,
+      event_timestamp,
       deps.application_id,
       session.GetSessionID(),
       RumSessionType::User,
