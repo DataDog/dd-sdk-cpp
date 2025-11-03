@@ -6,6 +6,19 @@ stages:
   - release
 
 variables:
+  # We must explicitly specify `--parallel <jobs>` when building targets that invoke C++
+  # compiles - otherwise, Ninja will run with `-n 41` by default, since it's looking at
+  # nproc and not at the actual resource constraints of the Kubernetes pod.
+  NUM_PARALLEL_BUILD_JOBS: "8"
+
+  # By default, resource allocation for Datadog CI runners is 1 vCPU and 2 GB RAM. In
+  # template-heavy TUs, clang-tidy can reach a maximum resident set size in the ballpark
+  # of 512 MB, +/- 100 MB, so 1GB per CPU gives us a reasonable safety margin.
+  KUBERNETES_CPU_REQUEST: "8"
+  KUBERNETES_CPU_LIMIT: "8"
+  KUBERNETES_MEMORY_REQUEST: "8Gi"
+  KUBERNETES_MEMORY_LIMIT: "8Gi"
+
   # Docker registries: we push to registry.ddbuild.io and it replicates to ECR, which
   # Linux runners have access to
   DISTRIBUTION_REGISTRY: registry.ddbuild.io
@@ -115,7 +128,7 @@ unit-test:
       -DDD_BUILD_EXAMPLES=ON
       -DDD_BUILD_TESTING=ON
       -S . -B build
-    - cmake --build build || ./debug-report.sh
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS} || ./debug-report.sh
     - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
     - ./debug-report.sh
   artifacts:
@@ -168,7 +181,7 @@ build-linux:
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
       -S . -B build
-    - cmake --build build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
 build-macos:
   stage: build
@@ -193,7 +206,7 @@ build-macos:
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
       -S . -B build
-    - cmake --build build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
 build-windows:
   stage: build
@@ -219,7 +232,7 @@ build-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION}"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 
@@ -239,7 +252,7 @@ package-linux:
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
     - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -S . -B build
-    - cmake --build build --target package
+    - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - stat build/artifact_name.txt
     - stat "build/$(cat build/artifact_name.txt).tar.gz"
   artifacts:
@@ -258,7 +271,7 @@ package-macos:
         BUILD_SHARED_LIBS: "ON"
   script:
     - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -S . -B build
-    - cmake --build build --target package
+    - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - stat build/artifact_name.txt
     - stat "build/$(cat build/artifact_name.txt).tar.gz"
   artifacts:
@@ -290,7 +303,7 @@ package-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
   artifacts:
     expire_in: 1 week
