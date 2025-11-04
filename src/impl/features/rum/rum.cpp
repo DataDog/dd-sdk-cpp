@@ -77,12 +77,12 @@ void Rum::Stop() {
   _deps.OnStop();
 }
 
-void Rum::SetAttribute(std::string_view name, const Attribute& value) {
+void Rum::AddAttribute(std::string_view name, const Attribute& value) {
   std::unique_lock exclusive_write_lock(_global_attributes_mutex);
   _global_attributes.attribute.SetObjectProperty(name, value);
 }
 
-void Rum::DeleteAttribute(std::string_view name) {
+void Rum::RemoveAttribute(std::string_view name) {
   std::unique_lock exclusive_write_lock(_global_attributes_mutex);
   _global_attributes.attribute.DeleteObjectProperty(name);
 }
@@ -97,6 +97,25 @@ void Rum::StartView(
 ) {
   // Dispatch a StartView command to be handled by the active session
   Dispatch(RumCommand::StartView(GetBaseCommandParams(attributes), key, name));
+}
+
+void Rum::AddViewAttribute(
+    std::string_view view_key, std::string_view attribute_name, const Attribute& value
+) {
+  // TODO(RUM-11363): Log a warning if there's no active view to receive the command?
+  Dispatch(
+      RumCommand::AddViewAttribute(
+          GetBaseCommandParams(), view_key, attribute_name, value
+      )
+  );
+}
+
+void Rum::RemoveViewAttribute(
+    std::string_view view_key, std::string_view attribute_name
+) {
+  Dispatch(
+      RumCommand::RemoveViewAttribute(GetBaseCommandParams(), view_key, attribute_name)
+  );
 }
 
 void Rum::StopView(std::string_view key, const Attribute& attributes) {

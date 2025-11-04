@@ -29,7 +29,8 @@ RumViewScope::RumViewScope(
       _key(key),
       _name(name),
       _started_at(start_time),
-      _attributes(0) {}
+      _view_attributes(16),
+      _global_and_view_attributes(32) {}
 
 void RumViewScope::PopulateContext(struct RumContext& out_context) const {
   // Call the parent's PopulateContext function to set application and session details
@@ -78,19 +79,7 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
 RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& command) {
   // On `StopSession`, any active views should should be implicitly stopped
   if (command.Is<RumStopSessionPayload>()) {
-    // If already inactive, we can ignore StopSession
-    if (!_is_active) {
-      return ViewEventType::None;
-    }
-
-    // TODO(RUM-12202): If the view has pending resources on StopSession, they will
-    // never receive StopResource, so there may not be any sense in keeping the session
-    // scope open (while inactive) in this case
-
-    // If this view is still active, mark it inactive and ensure that it sends a final
-    // event
-    _is_active = false;
-    return ViewEventType::Full;
+    return HandleStopSession(command.base);
   }
 
   // TODO(RUM-12243): Handle ApplicationStart by assuming that we're the
@@ -101,48 +90,27 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
   // On `StartView`, the target view should be initialized and all other views
   // (including existing views with the same key) should be implicitly stopped
   if (command.Is<RumStartViewPayload>()) {
-    // If already inactive, we can ignore StartView
-    if (!_is_active) {
-      return ViewEventType::None;
-    }
-
-    // If this is the first StartView command we've ever seen, and it matches our view
-    // key, then _we_ are the newly-created view and we should update our state
-    const auto& payload = command.As<RumStartViewPayload>();
-    const bool is_new_view_scope = payload.key == _key && !_has_processed_start_view;
-    if (is_new_view_scope) {
-      // TODO(RUM-12322): Merge in view attributes from command
-
-      // Ensure that future StartView calls with the same key will close this scope
-      _has_processed_start_view = true;
-
-      // Ensure that we send an initial view event
-      return ViewEventType::Full;
-    }
-
-    // Otherwise, the StartView command was issued for a different view scope, and this
-    // scope should be flagged inactive and should send its final event
-    _is_active = false;
-    return ViewEventType::Full;
+    return HandleStartView(command.base, command.As<RumStartViewPayload>());
   }
 
   // On `StopView`, any still-active views matching the target view key should become
   // inactive
   if (command.Is<RumStopViewPayload>()) {
-    // If already inactive, we can ignore StopView
-    if (!_is_active) {
-      return ViewEventType::None;
-    }
+    return HandleStopView(command.base, command.As<RumStopViewPayload>());
+  }
 
-    // If the command targets a different view key, we can ignore StopView
-    const auto& payload = command.As<RumStopViewPayload>();
-    if (payload.key != _key) {
-      return ViewEventType::None;
-    }
+  // On `AddViewAttribute`, TODO
+  if (command.Is<RumAddViewAttributePayload>()) {
+    return HandleAddViewAttribute(
+        command.base, command.As<RumAddViewAttributePayload>()
+    );
+  }
 
-    // Otherwise, this view should become inactive and should send a final event
-    _is_active = false;
-    return ViewEventType::Full;
+  // On `RemoveViewAttribute`, TODO
+  if (command.Is<RumRemoveViewAttributePayload>()) {
+    return HandleRemoveViewAttribute(
+        command.base, command.As<RumRemoveViewAttributePayload>()
+    );
   }
 
   // TODO(RUM-11369): Handle StartAction and AddAction (while _is_active) by opening a
@@ -152,6 +120,145 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
   // resource scope and inserting it into our _resource_scopes lookup by key
 
   return ViewEventType::None;
+}
+
+RumViewScope::ViewEventType RumViewScope::HandleStopSession(
+    const RumCommandParams& base
+) {
+  // If already inactive, we can ignore StopSession
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // TODO(RUM-12202): If the view has pending resources on StopSession, they will
+  // never receive StopResource, so there may not be any sense in keeping the session
+  // scope open (while inactive) in this case
+
+  // If this view is still active, mark it inactive and ensure that it sends a final
+  // event
+  const bool accept_command_attributes = false;
+  BecomeInactive(base, accept_command_attributes);
+  return ViewEventType::Full;
+}
+
+RumViewScope::ViewEventType RumViewScope::HandleStartView(
+    const RumCommandParams& base, const RumStartViewPayload& payload
+) {
+  // If already inactive, we can ignore StartView
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // If this is the first StartView command we've ever seen, and it matches our view
+  // key, then _we_ are the newly-created view and we should update our state
+  const bool is_new_view_scope = payload.key == _key && !_has_processed_start_view;
+  if (is_new_view_scope) {
+    // If the StartView command has a set of attributes associated with it, adopt those
+    // values as our initial view-level attributes
+    if (base.attributes.GetType() == ValueType::Object) {
+      _view_attributes.attribute = base.attributes;
+      // _global_and_view_attributes can be left as-is in this case; it'll be populated
+      // from the latest command when we send our first event
+    }
+
+    // Ensure that future StartView calls with the same key will close this scope
+    _has_processed_start_view = true;
+
+    // Ensure that we send an initial view event
+    return ViewEventType::Full;
+  }
+
+  // Otherwise, the StartView command was issued for a different view scope: so the
+  // attributes in the command describe a different view and should not be accepted into
+  // this scope, but we should wrap up this view scope
+  const bool accept_command_attributes = false;
+  BecomeInactive(base, accept_command_attributes);
+  return ViewEventType::Full;
+}
+
+RumViewScope::ViewEventType RumViewScope::HandleStopView(
+    const RumCommandParams& base, const RumStopViewPayload& payload
+) {
+  // If already inactive, we can ignore StopView
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // If the command targets a different view key, we can ignore StopView
+  if (payload.key != _key) {
+    return ViewEventType::None;
+  }
+
+  // Otherwise, we are the active view and we're being commanded to stop: merge in any
+  // attributes that were provided on StopView so they'll be present in the final
+  // event
+  const bool accept_command_attributes = true;
+  BecomeInactive(base, accept_command_attributes);
+  return ViewEventType::Full;
+}
+
+RumViewScope::ViewEventType RumViewScope::HandleAddViewAttribute(
+    const RumCommandParams&, const RumAddViewAttributePayload& payload
+) {
+  // Once is a view becomes inactive, its attributes remain frozen
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // If the command targets a different view key, we can ignore it
+  if (payload.view_key != _key) {
+    return ViewEventType::None;
+  }
+
+  // Mutate view-level attributes: there's no need to pre-merge into
+  // _global_and_view_attributes here, since while the view is active we will perform
+  // that merge immediately before generating events
+  _view_attributes.attribute.SetObjectProperty(payload.attribute_name, payload.value);
+  return ViewEventType::None;
+}
+
+RumViewScope::ViewEventType RumViewScope::HandleRemoveViewAttribute(
+    const RumCommandParams&, const RumRemoveViewAttributePayload& payload
+) {
+  // Once is a view becomes inactive, its attributes remain frozen
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // If the command targets a different view key, we can ignore it
+  if (payload.view_key != _key) {
+    return ViewEventType::None;
+  }
+
+  // Mutate view-level attributes: as with HandleAddViewAttribute, no need to merge
+  _view_attributes.attribute.DeleteObjectProperty(payload.attribute_name);
+  return ViewEventType::None;
+}
+
+void RumViewScope::BecomeInactive(
+    const RumCommandParams& base, bool accept_command_attributes
+) {
+  // Clear the _is_active flag: this indicates that the view should no longer process
+  // any commands that affect view lifecycle, attributes, etc.; although the scope may
+  // remain open to finish processing commands for pending resources
+  DATADOG_ASSERT(_is_active, "BecomeInactive called while already inactive");
+  _is_active = false;
+
+  // Store the timestamp at which we became inactive: now that we're inactive, any
+  // further view events will have their 'time_spent' count frozen based on this value
+  _rendered_inactive_at = base.issued_at;
+
+  // Now that we're no longer active, we want to freeze the set of attributes that are
+  // included in events for this view: i.e. subsequent changes to global or view-level
+  // attributes should be IGNORED by this view scope. This requires us to store our
+  // final set of merged attributes as of view-stop-time, optionally including the
+  // command attributes in the case of StopView.
+  const Attribute& global_attributes = base.global_attributes;
+  const Attribute& view_attributes = _view_attributes.attribute;
+  const Attribute& extra = accept_command_attributes ? base.attributes : Attribute();
+  AttributeMerge::AssembleObject(
+      _global_and_view_attributes.attribute, {global_attributes, view_attributes, extra}
+  );
 }
 
 void RumViewScope::SendViewEvent(const RumCommand& command) {
@@ -164,7 +271,8 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
   const Timestamp event_timestamp = _started_at;
 
   // Compute elapsed time between view start and the processing of this command
-  const Duration time_spent = command.base.issued_at - _started_at;
+  const Timestamp end = _is_active ? command.base.issued_at : _rendered_inactive_at;
+  const Duration time_spent = end - _started_at;
   const uint64_t time_spent_ns = time_spent.count();
 
   // Get sums of child scope occurrences within the lifetime of this view
@@ -191,6 +299,21 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
   ev.view.is_active.value = _is_active;
   if (!_name.empty()) {
     ev.view.name.value = _name;
+  }
+
+  // Set 'context' to the full set of user-specified attributes that should be included
+  // in this event. If the view is still active, we resolve the current set of global
+  // attribute values carried with the command; if the view is inactive, we ignore those
+  // values and use the last known set of attribute values that we stored when the view
+  // became inactive.
+  if (_is_active) {
+    AttributeMerge::AssembleObject(
+        _global_and_view_attributes.attribute,
+        {command.base.global_attributes, _view_attributes.attribute}
+    );
+  }
+  if (_global_and_view_attributes.attribute.GetObjectPropertyCount() > 0) {
+    ev.context.value = _global_and_view_attributes.attribute;
   }
 
   // Serialize the event to JSON in a shared buffer, then copy that raw event payload

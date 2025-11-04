@@ -93,13 +93,13 @@ class Rum {
    * Adds or updates a global attribute value that will be included with all RUM events
    * emitted hereafter.
    */
-  DATADOG_API void SetAttribute(std::string_view name, const Attribute& value);
+  DATADOG_API void AddAttribute(std::string_view name, const Attribute& value);
 
   /**
    * Removes a global attribute value, if one has been previously added with the given
    * name.
    */
-  DATADOG_API void DeleteAttribute(std::string_view name);
+  DATADOG_API void RemoveAttribute(std::string_view name);
 
   /**
    * Explicitly stops the current RUM session, if one is active.
@@ -130,7 +130,31 @@ class Rum {
       const Attribute& attributes = Attribute()
   );
 
-  // TODO(RUM-12322): Add RUM View Attributes API
+  /**
+   * Adds or updates a custom attribute value stored in the context of the current view,
+   * provided that the current view has the given key.
+   *
+   * All events produced within the context of a view will include the set of custom
+   * attributes formed from both global and view-level attributes, with view attributes
+   * taking precedence in the case of name conflicts.
+   *
+   * View attributes are scoped to the lifetime of the view and do not persist to
+   * subsequent views with the same key.
+   */
+  DATADOG_API void AddViewAttribute(
+      std::string_view view_key, std::string_view attribute_name, const Attribute& value
+  );
+
+  /**
+   * Removes any custom attribute value stored under the given name in the context of
+   * the current view, provided that the current view has the given key.
+   *
+   * If the view-level attribute being removed was shadowing a global attribute of the
+   * same name, subsequent events will once again use the global attribute value.
+   */
+  DATADOG_API void RemoveViewAttribute(
+      std::string_view view_key, std::string_view attribute_name
+  );
 
   /**
    * Stops any active RUM views that are identified with the given key.

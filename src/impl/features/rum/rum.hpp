@@ -45,10 +45,10 @@ class Rum final : public Feature {
 
  public:
   /** Sets an attribute value that will be included in all RUM event payloads. */
-  void SetAttribute(std::string_view name, const Attribute& value);
+  void AddAttribute(std::string_view name, const Attribute& value);
 
   /** Clears a global attribute value. */
-  void DeleteAttribute(std::string_view name);
+  void RemoveAttribute(std::string_view name);
 
   /** Handles a StopSession API call, clearing the active session. */
   void StopSession();
@@ -59,6 +59,20 @@ class Rum final : public Feature {
       std::string_view name = std::string_view{},
       const Attribute& attributes = Attribute()
   );
+
+  /**
+   * Handles an AddViewAttribute API call, mutating the set of attributes stored for any
+   * active view scope that matches view_key.
+   */
+  void AddViewAttribute(
+      std::string_view view_key, std::string_view attribute_name, const Attribute& value
+  );
+
+  /**
+   * Handles a RemoveViewAttribute API call, mutating the set of attributes stored for
+   * any active view scope that matches view_key.
+   */
+  void RemoveViewAttribute(std::string_view view_key, std::string_view attribute_name);
 
   /** Handles a StopView API call, ending the view that corresponds to the given key. */
   void StopView(std::string_view key, const Attribute& attributes = Attribute());
