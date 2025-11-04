@@ -25,3 +25,77 @@ TEST_CASE("Core null safety", "[unit][core][cpp-api]") {
     core->Stop();
   }
 }
+
+TEST_CASE("Core validation", "[unit][core][cpp-api]") {
+  // Capture diagnostic messages that would be printed to stderr by default
+  std::vector<DiagnosticMessage> diagnostics;
+  auto diagnostic_handler = [&](const DiagnosticMessage& message) {
+    diagnostics.push_back(message);
+  };
+
+  SECTION("M accept config W initialized with required values") {
+    // Given a config struct that's been initialized with the bare-minimum set of values
+    CoreConfig config("my-client-token", "my-service", "my-env");
+    config.SetDiagnosticHandler(diagnostic_handler);
+
+    // When we attempt to create a core from that config
+    auto core = Core::Create(config);
+
+    // Then no diagnostic warnings/errors are emitted
+    REQUIRE(diagnostics.empty());
+  }
+
+  SECTION("M reject config W client_token is missing") {
+    // Given a config struct that's missing a client_token value
+    CoreConfig config("", "my-service", "my-env");
+    config.SetDiagnosticHandler(diagnostic_handler);
+
+    // When we attempt to create a core from that config
+    auto core = Core::Create(config);
+
+    // Then we receive a diagnostic error
+    REQUIRE(diagnostics.size() == 1);
+    REQUIRE(diagnostics[0].level == DiagnosticLevel::Error);
+    REQUIRE(
+        std::string_view{diagnostics[0].text} ==
+        "SDK initialization failed: application must supply a non-empty 'client_token' "
+        "value in CoreConfig"
+    );
+  }
+
+  SECTION("M reject config W service is missing") {
+    // Given a config struct that's missing a service value
+    CoreConfig config("my-client-token", "", "my-env");
+    config.SetDiagnosticHandler(diagnostic_handler);
+
+    // When we attempt to create a core from that config
+    auto core = Core::Create(config);
+
+    // Then we receive a diagnostic error
+    REQUIRE(diagnostics.size() == 1);
+    REQUIRE(diagnostics[0].level == DiagnosticLevel::Error);
+    REQUIRE(
+        std::string_view{diagnostics[0].text} ==
+        "SDK initialization failed: application must supply a non-empty 'service' "
+        "value in CoreConfig"
+    );
+  }
+
+  SECTION("M reject config W env is missing") {
+    // Given a config struct that's missing an env value
+    CoreConfig config("my-client-token", "my-service", "");
+    config.SetDiagnosticHandler(diagnostic_handler);
+
+    // When we attempt to create a core from that config
+    auto core = Core::Create(config);
+
+    // Then we receive a diagnostic error
+    REQUIRE(diagnostics.size() == 1);
+    REQUIRE(diagnostics[0].level == DiagnosticLevel::Error);
+    REQUIRE(
+        std::string_view{diagnostics[0].text} ==
+        "SDK initialization failed: application must supply a non-empty 'env' value in "
+        "CoreConfig"
+    );
+  }
+}

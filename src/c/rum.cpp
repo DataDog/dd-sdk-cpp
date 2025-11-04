@@ -68,20 +68,29 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
   // Require a valid config: RUM requires an application ID at the very least, so we
   // can't fall back to defaults
   if (!config) {
+    core->diagnostic_logger.Error(
+        "RUM initialization failed: application must supply a valid dd_rum_config_t "
+        "value to dd_rum_init"
+    );
     return nullptr;
   }
 
   // If the config has an unrecognized version, it's not properly initialized in a form
   // that we can safely read
   if (config->version <= 0 || config->version > RUM_CONFIG_VERSION) {
-    // TODO(RUM-11363): Ensure that all invalid-argument cases at the API layer are
-    // signalled to the user via local telemetry logging
+    core->diagnostic_logger.Error(
+        "RUM initialization failed: dd_rum_config_t value must be initialized via "
+        "dd_rum_config_init"
+    );
     return nullptr;
   }
 
   // If the config doesn't specify an application ID as a valid, nonzero UUID, reject it
   if (dd_uuid_is_zero(&config->application_id)) {
-    // TODO(RUM-11363): Log a warning message locally to inform the user of bad config
+    core->diagnostic_logger.Error(
+        "RUM initialization failed: application_id value supplied via dd_rum_config_t "
+        "must be a valid, nonzero UUID"
+    );
     return nullptr;
   }
 
@@ -100,10 +109,9 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
   }
 
   // Initialize and return the API object that represents our user-facing interface
-  // for the RUM feature
-  dd_rum_t* rum = new dd_rum;
-  rum->impl = std::move(rum_impl);
-  return rum;
+  // for the RUM feature, injecting a copy of the core's DiagnosticLogger so that future
+  // RUM API calls can emit warnings etc.
+  return new dd_rum(std::move(rum_impl), core->diagnostic_logger);
 }
 
 void dd_rum_destroy(dd_rum_t* rum) { delete rum; }
@@ -111,8 +119,24 @@ void dd_rum_destroy(dd_rum_t* rum) { delete rum; }
 void dd_rum_add_attribute(
     dd_rum_t* rum, const char* name, const dd_attribute_t* value
 ) {
-  // Abort if any argument is invalid (but allow empty-string as a property name)
-  if (!rum || !rum->impl || !name || !value) {
+  // Permit no-op calls
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid string, but allow "" as an attribute name
+  if (!name) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_add_attribute call ignored: application must supply an attribute name"
+    );
+    return;
+  }
+
+  // Require a valid attribute value
+  if (!value) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_add_attribute call ignored: application must supply an attribute value"
+    );
     return;
   }
 
@@ -121,9 +145,20 @@ void dd_rum_add_attribute(
 }
 
 void dd_rum_remove_attribute(dd_rum_t* rum, const char* name) {
-  if (!rum || !rum->impl || !name) {
+  // Permit no-op calls
+  if (!rum || !rum->impl) {
     return;
   }
+
+  // Require a valid string, but allow "" as an attribute name
+  if (!name) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_remove_attribute call ignored: application must supply an attribute "
+        "name"
+    );
+    return;
+  }
+
   rum->impl->RemoveAttribute(name);
 }
 
@@ -141,9 +176,16 @@ void dd_rum_start_view(dd_rum_t* rum, const char* key, const char* name) {
 void dd_rum_start_view_obj(
     dd_rum_t* rum, const char* key, const char* name, const dd_attribute_t* attributes
 ) {
-  // Validate args; require a valid key
-  if (!rum || !rum->impl || !key || !key[0]) {
-    // TODO(RUM-11363): Log a warning if application supplied no view key
+  // Permit no-op calls
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty string for view key
+  if (!key || !key[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_start_view call ignored: application must supply a non-empty view key"
+    );
     return;
   }
 
@@ -176,19 +218,28 @@ void dd_rum_add_view_attribute(
 
   // Require a valid, non-empty view key
   if (!view_key || !view_key[0]) {
-    // TODO(RUM-11363): Log a warning if application supplied no view key
+    rum->diagnostic_logger.Warning(
+        "dd_rum_add_view_attribute call ignored: application must supply a non-empty "
+        "view key"
+    );
     return;
   }
 
   // Require a valid string, but allow "" as an attribute name
   if (!attribute_name) {
-    // TODO(RUM-11363): Log a warning if application supplied no attribute name
+    rum->diagnostic_logger.Warning(
+        "dd_rum_add_view_attribute call ignored: application must supply an attribute "
+        "name"
+    );
     return;
   }
 
   // Require a valid attribute value
   if (!value) {
-    // TODO(RUM-11363): Log a warning if application supplied no attribute value
+    rum->diagnostic_logger.Warning(
+        "dd_rum_add_view_attribute call ignored: application must supply an attribute "
+        "value"
+    );
     return;
   }
 
@@ -206,13 +257,19 @@ void dd_rum_remove_view_attribute(
 
   // Require a valid, non-empty view key
   if (!view_key || !view_key[0]) {
-    // TODO(RUM-11363): Log a warning if application supplied no view key
+    rum->diagnostic_logger.Warning(
+        "dd_rum_remove_view_attribute call ignored: application must supply a "
+        "non-empty view key"
+    );
     return;
   }
 
   // Require a valid string, but allow "" as an attribute name
   if (!attribute_name) {
-    // TODO(RUM-11363): Log a warning if application supplied no attribute name
+    rum->diagnostic_logger.Warning(
+        "dd_rum_remove_view_attribute call ignored: application must supply an "
+        "attribute name"
+    );
     return;
   }
 
@@ -226,9 +283,16 @@ void dd_rum_stop_view(dd_rum_t* rum, const char* key) {
 void dd_rum_stop_view_obj(
     dd_rum_t* rum, const char* key, const dd_attribute_t* attributes
 ) {
-  // Validate args; require a valid key
-  if (!rum || !rum->impl || !key || !key[0]) {
-    // TODO(RUM-11363): Log a warning if application supplied no view key
+  // Permit no-op calls
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty string for view key
+  if (!key || !key[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_stop_view call ignored: application must supply a non-empty view key"
+    );
     return;
   }
 

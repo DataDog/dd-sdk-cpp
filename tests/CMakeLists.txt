@@ -6,12 +6,14 @@ include(${DD_SDK_ROOT_DIR}/cmake/deps/nlohmann-json.cmake)
 add_executable(dd_native_tests
     c/attribute_c_api_test.cpp
     c/core_c_api_test.cpp
+    c/diagnostics_c_api_test.cpp
     c/logging_c_api_test.cpp
     c/rum_c_api_test.cpp
     c/timestamp_c_api_test.cpp
     c/uuid_c_api_test.cpp
     cpp/attribute_cpp_api_test.cpp
     cpp/core_cpp_api_test.cpp
+    cpp/diagnostics_cpp_api_test.cpp
     cpp/logging_cpp_api_test.cpp
     cpp/rum_cpp_api_test.cpp
     cpp/timestamp_cpp_api_test.cpp
@@ -61,6 +63,7 @@ add_executable(dd_native_tests
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
+    impl/diagnostics_test.cpp
     impl/json_test.cpp
     mock/filesystem_mock_test.cpp
     mock/http_client_mock_test.cpp

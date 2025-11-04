@@ -144,6 +144,163 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
   }
 }
 
+TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
+  auto with_rum = [](RumConfig& config,
+                     std::shared_ptr<Core>& core,
+                     std::function<void(std::shared_ptr<Rum>)> func) {
+    auto rum = Rum::Register(core, config);
+    REQUIRE(rum);
+    core->Start();
+    func(rum);
+    core->Stop();
+  };
+
+  // Given a series of tests consisting of a set of API calls and the warnings and/or
+  // errors we expect to get in response
+  struct TestParams {
+    std::string_view name;
+    std::function<void(RumConfig&, std::shared_ptr<Core>&)> func;
+    std::vector<std::string_view> want_warnings;
+    std::vector<std::string_view> want_errors;
+  };
+  std::vector<TestParams> tests = {
+
+      // === Basic usage with no errors/warnings expected ===
+
+      {"M print no warnings or errors W used normally",
+       [](RumConfig& config, std::shared_ptr<Core>& core) {
+         // Register RUM and start the SDK
+         auto rum = Rum::Register(core, config);
+         core->Start();
+
+         // Add and remove global attributes
+         rum->AddAttribute("foo", Attribute::Int(100));
+         rum->AddAttribute("bar", Attribute::Int(200));
+         rum->RemoveAttribute("foo");
+
+         // Start a view with attributes
+         Attribute view_attributes = Attribute::Object(1);
+         view_attributes.SetObjectProperty("bar", Attribute::String("hello"));
+         rum->StartView("my-view", "My View", view_attributes);
+
+         // Modify view attributes
+         rum->AddViewAttribute("my-view", "baz", Attribute::String("world"));
+         rum->RemoveViewAttribute("my-view", "bar");
+
+         // Stop the view
+         rum->StopView("my-view");
+
+         // Shut down the SDK
+         core->Stop();
+       },
+       // All of the above should complete with 0 warnings and 0 errors
+       {},
+       {}},
+
+      // === Register() ===
+
+      {"M print init error W configured application_id is empty string",
+       [](RumConfig& config, std::shared_ptr<Core>& core) {
+         config.SetApplicationId("");
+         Rum::Register(core, config);
+       },
+       {},
+       {"RUM initialization failed: application_id value supplied via RumConfig must "
+        "be a valid, nonzero UUID"}},
+
+      {"M print init error W configured application_id is invalid UUID",
+       [](RumConfig& config, std::shared_ptr<Core>& core) {
+         config.SetApplicationId("not-a-valid-uuid");
+         Rum::Register(core, config);
+       },
+       {},
+       {"RUM initialization failed: application_id value supplied via RumConfig must "
+        "be a valid, nonzero UUID"}},
+
+      {"M print init error W configured application_id is nil UUID",
+       [](RumConfig& config, std::shared_ptr<Core>& core) {
+         config.SetApplicationId("00000000-0000-0000-0000-000000000000");
+         Rum::Register(core, config);
+       },
+       {},
+       {"RUM initialization failed: application_id value supplied via RumConfig must "
+        "be a valid, nonzero UUID"}},
+
+      // === StartView() ===
+
+      {"M print warning W StartView is called with empty key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("", "My View");
+         });
+       },
+       {"Rum::StartView call ignored: application must supply a non-empty view key"},
+       {}},
+
+      {"M print no warning W StartView is called with empty view name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "");
+         });
+       },
+       {},
+       {}},
+
+      // === StopView() ===
+
+      {"M print warning W StopView is called with empty key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) { rum->StopView(""); });
+       },
+       {"Rum::StopView call ignored: application must supply a non-empty view key"},
+       {}},
+
+      // === AddViewAttribute() ===
+
+      {"M print warning W AddViewAttribute is called with empty view key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->AddViewAttribute("", "foo", Attribute::Int(100));
+         });
+       },
+       {"Rum::AddViewAttribute call ignored: application must supply a non-empty view "
+        "key"},
+       {}},
+
+      // === RemoveViewAttribute() ===
+
+      {"M print warning W RemoveViewAttribute is called with empty view key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->RemoveViewAttribute("", "foo");
+         });
+       },
+       {"Rum::RemoveViewAttribute call ignored: application must supply a non-empty "
+        "view key"},
+       {}},
+  };
+  for (const auto& tt : tests) {
+    DYNAMIC_SECTION(tt.name) {
+      // Given a default RUM config and a core
+      RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+      auto test = CoreTestHarness::Init();
+      test.clock.FreezeAtMilliseconds(1700000000000);
+      auto core = CoreTestHarness::WrapForCpp(test);
+
+      // When we execute our test function to exercise the RUM API
+      tt.func(config, core);
+
+      // Then we get the expected set of diagnostic warnings and errors
+      REQUIRE(test.c_diagnostics.size() == 0);
+      DiagnosticAsserts diagnostics = test.Diagnostics();
+      diagnostics.RequireWarnings(tt.want_warnings);
+      diagnostics.RequireErrors(tt.want_errors);
+    }
+  }
+}
+
 TEST_CASE("Rum view events", "[unit][rum][cpp-api]") {
   struct TestParams {
     std::string_view name;

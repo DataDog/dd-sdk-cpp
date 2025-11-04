@@ -24,6 +24,7 @@
 #include "core/types.hpp"
 #include "core/upload_scheduler.hpp"
 #include "core/upload_thread.hpp"
+#include "diagnostics.hpp"
 
 // Forward declarations
 namespace datadog::platform {
@@ -365,6 +366,7 @@ class Core {
   // Initialized in ctor
   CoreState _state{CoreState::Uninitialized};
   CoreConfig _config;
+  DiagnosticLogger _diagnostic_logger;
   std::unique_ptr<CoreContextProvider> _context_provider;
   CoreSubsystems _subsystems;
 

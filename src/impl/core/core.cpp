@@ -54,6 +54,7 @@ std::optional<CoreSubsystems> CoreSubsystems::Init(const CoreConfig& config) {
 
 Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
     : _config(config),
+      _diagnostic_logger(config.diagnostic_handler, config.diagnostic_threshold),
       _context_provider(std::make_unique<CoreContextProvider>(CoreContext(config))),
       _subsystems(std::move(subsystems)) {
   DATADOG_ASSERT(
@@ -217,7 +218,10 @@ bool Core::Start() {
 
   // At least one feature must have been registered
   if (_features.empty()) {
-    std::cout << "Core::Start() called with no features registered\n";
+    _diagnostic_logger.Error(
+        "Failed to start SDK: application must successfully register at least one "
+        "feature"
+    );
     return false;
   }
 

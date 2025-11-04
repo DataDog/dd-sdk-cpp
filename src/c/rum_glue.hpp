@@ -8,8 +8,10 @@
 
 #include <memory>
 
+#include "core_glue.hpp"
 #include "datadog/rum.h"
 #include "datadog/rum.hpp"
+#include "diagnostics.hpp"
 
 namespace datadog::impl {
 class Rum;
@@ -17,4 +19,11 @@ class Rum;
 
 struct dd_rum {
   std::shared_ptr<datadog::impl::Rum> impl;
+  datadog::impl::DiagnosticLogger diagnostic_logger;
+
+  explicit dd_rum(
+      std::shared_ptr<datadog::impl::Rum>&& in_impl,
+      const datadog::impl::DiagnosticLogger& in_diagnostic_logger
+  )
+      : impl(std::move(in_impl)), diagnostic_logger(in_diagnostic_logger) {}
 };

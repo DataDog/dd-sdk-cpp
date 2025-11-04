@@ -9,6 +9,7 @@
 #include "core/core.hpp"
 #include "core/feature.hpp"
 #include "datadog/core.hpp"
+#include "diagnostics.hpp"
 #include "features/rum/rum.hpp"
 
 namespace datadog {
@@ -42,7 +43,20 @@ RumConfig& RumConfig::SetSessionSampleRate(float value) {
   return *this;
 }
 
-Rum::Rum(std::shared_ptr<impl::Rum>&& impl, PrivateCtorTag) : _impl(std::move(impl)) {}
+Rum::Rum(Rum::PrivateCtorTag)
+    : _impl(nullptr),
+      _diagnostic_handler(nullptr),
+      _diagnostic_threshold(DiagnosticLevel::Error) {}
+
+Rum::Rum(
+    std::shared_ptr<impl::Rum>&& impl,
+    DiagnosticHandler diagnostic_handler,
+    DiagnosticLevel diagnostic_threshold,
+    Rum::PrivateCtorTag
+)
+    : _impl(std::move(impl)),
+      _diagnostic_handler(std::move(diagnostic_handler)),
+      _diagnostic_threshold(diagnostic_threshold) {}
 
 Rum::~Rum() = default;
 
@@ -51,13 +65,19 @@ std::shared_ptr<Rum> Rum::Register(
 ) {
   // Return a no-op Rum interface if called without a valid core
   if (!core || !core->_impl) {
-    return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
+    return std::make_shared<Rum>(Rum::PrivateCtorTag{});
   }
 
   // If we don't have all required config values, return a no-op Rum interface
   if (config.application_id == UUID::Zero) {
-    // TODO(RUM-11363): Log a warning message locally to inform the user of bad config
-    return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
+    impl::DiagnosticLogger diagnostic_logger{
+        core->_diagnostic_handler, core->_diagnostic_threshold
+    };
+    diagnostic_logger.Error(
+        "RUM initialization failed: application_id value supplied via RumConfig must "
+        "be a valid, nonzero UUID"
+    );
+    return std::make_shared<Rum>(Rum::PrivateCtorTag{});
   }
 
   // Get essential state from the Core
@@ -68,12 +88,17 @@ std::shared_ptr<Rum> Rum::Register(
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(rum_impl)) {
-    return std::make_shared<Rum>(nullptr, Rum::PrivateCtorTag{});
+    return std::make_shared<Rum>(Rum::PrivateCtorTag{});
   }
 
   // Initialize and return the API object that represents our user-facing interface
   // for the RUM feature
-  return std::make_shared<Rum>(std::move(rum_impl), Rum::PrivateCtorTag{});
+  return std::make_shared<Rum>(
+      std::move(rum_impl),
+      core->_diagnostic_handler,
+      core->_diagnostic_threshold,
+      Rum::PrivateCtorTag{}
+  );
 }
 
 void Rum::AddAttribute(std::string_view name, const Attribute& value) {
@@ -99,7 +124,9 @@ void Rum::StartView(
 ) {
   // Require a valid view key
   if (key.empty()) {
-    // TODO(RUM-11363): Log a warning: application supplied no view key
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::StartView call ignored: application must supply a non-empty view key"
+    );
     return;
   }
 
@@ -113,7 +140,10 @@ void Rum::AddViewAttribute(
 ) {
   // Require a valid view key
   if (view_key.empty()) {
-    // TODO(RUM-11363): Log a warning: application supplied no view key
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::AddViewAttribute call ignored: application must supply a non-empty view "
+        "key"
+    );
     return;
   }
 
@@ -129,7 +159,10 @@ void Rum::RemoveViewAttribute(
 ) {
   // Require a valid view key
   if (view_key.empty()) {
-    // TODO(RUM-11363): Log a warning: application supplied no view key
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::RemoveViewAttribute call ignored: application must supply a non-empty "
+        "view key"
+    );
     return;
   }
 
@@ -143,7 +176,9 @@ void Rum::RemoveViewAttribute(
 void Rum::StopView(std::string_view key, const Attribute& attributes) {
   // Require a valid view key
   if (key.empty()) {
-    // TODO(RUM-11363): Log a warning: application supplied no view key
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::StopView call ignored: application must supply a non-empty view key"
+    );
     return;
   }
 

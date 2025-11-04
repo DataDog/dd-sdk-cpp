@@ -93,6 +93,9 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
 
     // Then we get a valid logger
     REQUIRE(logger != nullptr);
+
+    // And we get no diagnostic errors or warnings
+    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
   }
 
   SECTION("M return valid logger W core not yet started") {
@@ -108,6 +111,7 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
 
     // Then we get a valid logger, even though the SDK isn't running yet
     REQUIRE(logger != nullptr);
+    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
   }
 
   SECTION("M use default config W no config is provided") {
@@ -121,6 +125,81 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
 
     // Then we get a valid logger
     REQUIRE(logger != nullptr);
+
+    // And we get no diagnostic errors or warnings
+    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+  }
+}
+
+TEST_CASE("Logging argument validation", "[unit][logging][cpp-api]") {
+  // Given a series of tests consisting of a set of API calls and the warnings and/or
+  // errors we expect to get in response
+  struct TestParams {
+    std::string_view name;
+    std::function<void(std::shared_ptr<Logging>&)> func;
+    std::vector<std::string_view> want_warnings;
+    std::vector<std::string_view> want_errors;
+  };
+  std::vector<TestParams> tests = {
+
+      // === Basic usage with no errors/warnings expected ===
+
+      {"M print no warnings or errors W used normally",
+       [](std::shared_ptr<Logging>& logging) {
+         // Add and remove global attributes
+         logging->AddAttribute("foo", Attribute::Int(100));
+         logging->AddAttribute("bar", Attribute::Int(200));
+         logging->RemoveAttribute("foo");
+
+         // Create a logger with the default config
+         auto logger_a = logging->CreateLogger();
+
+         // Create a logger with a custom config
+         auto logger_b = logging->CreateLogger(
+             LoggerConfig()
+                 .SetRemoteSampleRate(100.0f)
+                 .SetService("my-service")
+                 .SetName("my-logger")
+                 .SetRemoteLogThreshold(LogLevel::Debug)
+                 .SetInitialAttributeCapacity(8)
+         );
+
+         // Add and remove logger attributes
+         logger_a->AddAttribute("bar", Attribute::String("hello"));
+         logger_a->AddAttribute("baz", Attribute::String("world"));
+         logger_a->RemoveAttribute("bar");
+
+         // Log a message
+         logger_a->Warn("hello");
+
+         // Log a message with attributes
+         Attribute message_attributes = Attribute::Object(1);
+         message_attributes.SetObjectProperty("bar", Attribute::String("world"));
+         logger_b->Info("goodbye", message_attributes);
+       },
+       // All of the above should complete with 0 warnings and 0 errors
+       {},
+       {}},
+  };
+  for (const auto& tt : tests) {
+    DYNAMIC_SECTION(tt.name) {
+      // Given a started core with the logging feature registered
+      auto test = CoreTestHarness::Init();
+      test.clock.FreezeAtMilliseconds(1700000000000);
+      auto core = CoreTestHarness::WrapForCpp(test);
+      auto logging = Logging::Register(core);
+      REQUIRE(core->Start());
+
+      // When we execute our test function to exercise the logging API
+      tt.func(logging);
+      core->Stop();
+
+      // Then we get the expected set of diagnostic warnings and errors
+      REQUIRE(test.c_diagnostics.size() == 0);
+      DiagnosticAsserts diagnostics = test.Diagnostics();
+      diagnostics.RequireWarnings(tt.want_warnings);
+      diagnostics.RequireErrors(tt.want_errors);
+    }
   }
 }
 

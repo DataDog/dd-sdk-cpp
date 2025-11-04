@@ -6,6 +6,7 @@
 
 #include "datadog/core.h"
 
+#include <iostream>
 #include <memory>
 
 #include "core/core.hpp"
@@ -20,6 +21,9 @@ static const uint32_t CORE_CONFIG_VERSION = 1;
 
 static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     CORE_CONFIG_VERSION,               // version (for ABI future-proofing)
+    dd_stderr_diagnostic_handler,      // diagnostic_handler
+    nullptr,                           // diagnostic_handler_userdata
+    DD_DIAGNOSTIC_LEVEL_WARNING,       // diagnostic_threshold
     DD_TRACKING_CONSENT_PENDING,       // tracking_consent
     DD_SITE_US1,                       // site
     nullptr,                           // client_token
@@ -37,6 +41,13 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
 
 extern "C" {
 
+void dd_stderr_diagnostic_handler(const dd_diagnostic_message_t* message, void*) {
+  static const char* level_names[] = {"DEBUG", "STATUS", "WARNING", "ERROR"};
+  const size_t i = static_cast<size_t>(message->level);
+  const char* level_name = i < std::size(level_names) ? level_names[i] : "";  // NOLINT
+  std::cerr << "[DATADOG " << level_name << "] " << message->text << "\n";
+}
+
 void dd_core_config_init(
     dd_core_config_t* config,
     const char* client_token,
@@ -50,6 +61,33 @@ void dd_core_config_init(
   config->client_token = client_token;
   config->service = service;
   config->env = env;
+}
+
+void dd_core_config_set_diagnostic_handler(
+    dd_core_config_t* config, dd_diagnostic_handler_t value
+) {
+  if (!config) {
+    return;
+  }
+  config->diagnostic_handler = value;
+}
+
+void dd_core_config_set_diagnostic_threshold(
+    dd_core_config_t* config, dd_diagnostic_level_t value
+) {
+  if (!config) {
+    return;
+  }
+  config->diagnostic_threshold = value;
+}
+
+void dd_core_config_set_diagnostic_handler_userdata(
+    dd_core_config_t* config, void* value
+) {
+  if (!config) {
+    return;
+  }
+  config->diagnostic_handler_userdata = value;
 }
 
 void dd_core_config_set_initial_tracking_consent(
@@ -136,11 +174,34 @@ dd_core_t* dd_core_create(const dd_core_config_t* config) {
     return nullptr;
   }
 
+  // Prepare a diagnostic logging interface that we can use to emit messages to be
+  // handled by the application (or written to stderr by default)
+  auto diagnostic_logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+
   // Likewise, if the config is missing any required values, reject it
-  const bool has_client_token = config->client_token && config->client_token[0];
-  const bool has_service = config->service && config->service[0];
-  const bool has_env = config->env && config->env[0];
-  if (!has_client_token || !has_service || !has_env) {
+  if (!config->client_token || !config->client_token[0]) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'client_token' "
+        "value in dd_core_config_t"
+    );
+    return nullptr;
+  }
+  if (!config->service || !config->service[0]) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'service' "
+        "value in dd_core_config_t"
+    );
+    return nullptr;
+  }
+  if (!config->env || !config->env[0]) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'env' value in "
+        "dd_core_config_t"
+    );
     return nullptr;
   }
 
@@ -165,9 +226,7 @@ dd_core_t* dd_core_create(const dd_core_config_t* config) {
 
   // Wrap the core in a dynamically-allocated dd_core struct, which will own our
   // implementation via unique_ptr, ensuring cleanup as long as we delete the dd_core
-  dd_core_t* core = new dd_core;
-  core->impl = std::move(impl);
-  return core;
+  return new dd_core(std::move(impl), std::move(diagnostic_logger));
 }
 
 void dd_core_destroy(dd_core_t* core) { delete core; }

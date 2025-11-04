@@ -10,6 +10,7 @@
 
 #include "datadog/logging.h"
 #include "datadog/logging.hpp"
+#include "diagnostics.hpp"
 
 namespace datadog::impl {
 class Logger;
@@ -18,8 +19,22 @@ class Logging;
 
 struct dd_logger {
   std::unique_ptr<datadog::impl::Logger> impl;
+  datadog::impl::DiagnosticLogger diagnostic_logger;
+
+  explicit dd_logger(
+      std::unique_ptr<datadog::impl::Logger>&& in_impl,
+      const datadog::impl::DiagnosticLogger& in_diagnostic_logger
+  )
+      : impl(std::move(in_impl)), diagnostic_logger(in_diagnostic_logger) {}
 };
 
 struct dd_logging {
   std::shared_ptr<datadog::impl::Logging> impl;
+  datadog::impl::DiagnosticLogger diagnostic_logger;
+
+  explicit dd_logging(
+      std::shared_ptr<datadog::impl::Logging>&& in_impl,
+      const datadog::impl::DiagnosticLogger& in_diagnostic_logger
+  )
+      : impl(std::move(in_impl)), diagnostic_logger(in_diagnostic_logger) {}
 };

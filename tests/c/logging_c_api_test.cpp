@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
+#include <cstring>
 #include <functional>
 #include <nlohmann/json.hpp>
 #include <thread>
@@ -119,6 +120,9 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
     // Then we get a valid logger
     REQUIRE(logger);
 
+    // And we get no diagnostic errors or warnings
+    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+
     // Cleanup
     dd_core_stop(core);
     dd_logger_destroy(logger);
@@ -141,6 +145,7 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
 
     // Then we get a valid logger, even though the SDK isn't running yet
     REQUIRE(logger);
+    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
 
     // Cleanup
     dd_logger_destroy(logger);
@@ -160,10 +165,172 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
     // Then we get a valid logger
     REQUIRE(logger);
 
+    // And we get no diagnostic errors or warnings
+    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+
     // Cleanup
     dd_logger_destroy(logger);
     dd_logging_destroy(logging);
     dd_core_destroy(core);
+  }
+}
+
+TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
+  // Given a series of tests consisting of a set of API calls and the warnings and/or
+  // errors we expect to get in response
+  struct TestParams {
+    std::string_view name;
+    std::function<void(dd_logging_t*)> func;
+    std::vector<std::string_view> want_warnings;
+    std::vector<std::string_view> want_errors;
+  };
+  std::vector<TestParams> tests = {
+
+      // === Basic usage with no errors/warnings expected ===
+
+      {"M print no warnings or errors W used normally",
+       [](dd_logging_t* logging) {
+         // Add and remove global attributes
+         dd_attribute_t int_val = dd_attribute_int(100);
+         dd_logging_add_attribute(logging, "foo", &int_val);
+         dd_attribute_set_int(&int_val, 200);
+         dd_logging_add_attribute(logging, "bar", &int_val);
+         dd_logging_remove_attribute(logging, "foo");
+
+         // Create a logger with the default config
+         dd_logger_t* logger_a = dd_logger_create(logging, nullptr);
+
+         // Create a logger with a custom config
+         dd_logger_config_t config;
+         dd_logger_config_init(&config);
+         dd_logger_config_set_remote_sample_rate(&config, 100.0f);
+         dd_logger_config_set_service(&config, "my-service");
+         dd_logger_config_set_name(&config, "my-logger");
+         dd_logger_config_set_remote_log_threshold(&config, DD_LOG_LEVEL_DEBUG);
+         dd_logger_config_set_initial_attribute_capacity(&config, 8);
+         dd_logger_t* logger_b = dd_logger_create(logging, &config);
+
+         // Add and remove logger attributes
+         dd_attribute_t str_val = dd_attribute_string("hello");
+         dd_logger_add_attribute(logger_a, "bar", &str_val);
+         dd_attribute_set_string(&str_val, "world");
+         dd_logger_add_attribute(logger_a, "baz", &str_val);
+         dd_logger_remove_attribute(logger_a, "bar");
+
+         // Log a message
+         dd_logger_warn(logger_a, "hello");
+
+         // Log a message with attributes
+         dd_attribute_t message_attributes = dd_attribute_object(1);
+         dd_attribute_object_property_set(&message_attributes, "bar", &str_val);
+         dd_logger_info_obj(logger_b, "goodbye", &message_attributes);
+         dd_attribute_free(&message_attributes);
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+         dd_attribute_free(&str_val);
+         dd_logger_destroy(logger_a);
+         dd_logger_destroy(logger_b);
+       },
+       // All of the above should complete with 0 warnings and 0 errors
+       {},
+       {}},
+
+      // === dd_logging_add_attribute() ===
+
+      {"M print warning W dd_logging_add_attribute is called with NULL name",
+       [](dd_logging_t* logging) {
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_logging_add_attribute(logging, nullptr, &int_100);
+         dd_attribute_free(&int_100);
+       },
+       {"dd_logging_add_attribute call ignored: application must supply an attribute "
+        "name"},
+       {}},
+
+      {"M print warning W dd_logging_add_attribute is called with NULL value",
+       [](dd_logging_t* logging) { dd_logging_add_attribute(logging, "foo", nullptr); },
+       {"dd_logging_add_attribute call ignored: application must supply an attribute "
+        "value"},
+       {}},
+
+      // === dd_logging_remove_attribute() ===
+
+      {"M print warning W dd_logging_remove_attribute is called with NULL name",
+       [](dd_logging_t* logging) { dd_logging_remove_attribute(logging, nullptr); },
+       {"dd_logging_remove_attribute call ignored: application must supply an "
+        "attribute name"},
+       {}},
+
+      // === dd_logger_create() ===
+
+      {"M print warning W dd_logger_config_t not properly initialized",
+       [](dd_logging_t* logging) {
+         dd_logger_config_t config;
+         std::memset(&config, 0, sizeof(config));
+         dd_logger_t* logger = dd_logger_create(logging, &config);
+         REQUIRE(logger);
+         dd_logger_destroy(logger);
+       },
+       {"dd_logger_create falling back to default config: application must initialize "
+        "dd_logger_config_t value via dd_logger_config_init"},
+       {}},
+
+      // === dd_logger_add_attribute() ===
+
+      {"M print warning W dd_logger_add_attribute is called with NULL name",
+       [](dd_logging_t* logging) {
+         dd_logger_t* logger = dd_logger_create(logging, nullptr);
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_logger_add_attribute(logger, nullptr, &int_100);
+         dd_attribute_free(&int_100);
+         dd_logger_destroy(logger);
+       },
+       {"dd_logger_add_attribute call ignored: application must supply an attribute "
+        "name"},
+       {}},
+
+      {"M print warning W dd_logger_add_attribute is called with NULL value",
+       [](dd_logging_t* logging) {
+         dd_logger_t* logger = dd_logger_create(logging, nullptr);
+         dd_logger_add_attribute(logger, "foo", nullptr);
+         dd_logger_destroy(logger);
+       },
+       {"dd_logger_add_attribute call ignored: application must supply an attribute "
+        "value"},
+       {}},
+
+      // === dd_logger_remove_attribute() ===
+
+      {"M print warning W dd_logger_remove_attribute is called with NULL name",
+       [](dd_logging_t* logging) {
+         dd_logger_t* logger = dd_logger_create(logging, nullptr);
+         dd_logger_remove_attribute(logger, nullptr);
+         dd_logger_destroy(logger);
+       },
+       {"dd_logger_remove_attribute call ignored: application must supply an attribute "
+        "name"},
+       {}},
+  };
+  for (const auto& tt : tests) {
+    DYNAMIC_SECTION(tt.name) {
+      // Given a started core with the logging feature registered
+      auto test = CoreTestHarness::Init();
+      test.clock.FreezeAtMilliseconds(1700000000000);
+      dd_core_t* core = CoreTestHarness::WrapForC(test);
+      dd_logging_t* logging = dd_logging_init(core);
+      REQUIRE(dd_core_start(core));
+
+      // When we execute our test function to exercise the logging API
+      tt.func(logging);
+      dd_core_stop(core);
+
+      // Then we get the expected set of diagnostic warnings and errors
+      REQUIRE(test.cpp_diagnostics.size() == 0);
+      DiagnosticAsserts diagnostics = test.Diagnostics();
+      diagnostics.RequireWarnings(tt.want_warnings);
+      diagnostics.RequireErrors(tt.want_errors);
+    }
   }
 }
 

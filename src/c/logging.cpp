@@ -122,9 +122,7 @@ dd_logging_t* dd_logging_init(dd_core_t* core) {
 
   // Initialize and return the API object that represents our user-facing interface
   // for the logging feature
-  dd_logging_t* logging = new dd_logging;
-  logging->impl = std::move(logging_impl);
-  return logging;
+  return new dd_logging(std::move(logging_impl), core->diagnostic_logger);
 }
 
 void dd_logging_destroy(dd_logging_t* logging) { delete logging; }
@@ -132,8 +130,26 @@ void dd_logging_destroy(dd_logging_t* logging) { delete logging; }
 void dd_logging_add_attribute(
     dd_logging_t* logging, const char* name, const dd_attribute_t* value
 ) {
-  // Abort if any argument is invalid (but allow empty-string as a property name)
-  if (!logging || !logging->impl || !name || !value) {
+  // Permit no-op calls
+  if (!logging || !logging->impl) {
+    return;
+  }
+
+  // Require a valid string, but allow "" as an attribute name
+  if (!name) {
+    logging->diagnostic_logger.Warning(
+        "dd_logging_add_attribute call ignored: application must supply an attribute "
+        "name"
+    );
+    return;
+  }
+
+  // Require a valid attribute value
+  if (!value) {
+    logging->diagnostic_logger.Warning(
+        "dd_logging_add_attribute call ignored: application must supply an attribute "
+        "value"
+    );
     return;
   }
 
@@ -145,13 +161,25 @@ void dd_logging_add_attribute(
 }
 
 void dd_logging_remove_attribute(dd_logging_t* logging, const char* name) {
-  if (!logging || !logging->impl || !name) {
+  // Permit no-op calls
+  if (!logging || !logging->impl) {
     return;
   }
+
+  // Require a valid string, but allow "" as an attribute name
+  if (!name) {
+    logging->diagnostic_logger.Warning(
+        "dd_logging_remove_attribute call ignored: application must supply an "
+        "attribute name"
+    );
+    return;
+  }
+
   logging->impl->RemoveAttribute(name);
 }
 
 dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* config) {
+  // Permit no-op calls without a warning
   if (!logging || !logging->impl) {
     return nullptr;
   }
@@ -164,14 +192,18 @@ dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* c
   // If we were given a config struct with an invalid version number, assume it was not
   // properly initialized and fall back to the default config
   if (config->version <= 0 || config->version > LOGGER_CONFIG_VERSION) {
+    logging->diagnostic_logger.Warning(
+        "dd_logger_create falling back to default config: application must initialize "
+        "dd_logger_config_t value via dd_logger_config_init"
+    );
     config = &DEFAULT_LOGGER_CONFIG;
   }
 
   // Convert from dd_logger_config_t to datadog::LoggerConfig and create our logger
   const auto cpp_config = datadog::LoggerConfig_FromC(*config);
-  dd_logger_t* logger = new dd_logger;
-  logger->impl = logging->impl->CreateLogger(cpp_config);
-  return logger;
+  return new dd_logger(
+      logging->impl->CreateLogger(cpp_config), logging->diagnostic_logger
+  );
 }
 
 void dd_logger_destroy(dd_logger_t* logger) { delete logger; }
@@ -179,8 +211,26 @@ void dd_logger_destroy(dd_logger_t* logger) { delete logger; }
 void dd_logger_add_attribute(
     dd_logger_t* logger, const char* name, const dd_attribute_t* value
 ) {
-  // Abort if any argument is invalid (but allow empty-string as a property name)
-  if (!logger || !logger->impl || !name || !value) {
+  // Permit no-op calls
+  if (!logger || !logger->impl) {
+    return;
+  }
+
+  // Require a valid string, but allow "" as an attribute name
+  if (!name) {
+    logger->diagnostic_logger.Warning(
+        "dd_logger_add_attribute call ignored: application must supply an attribute "
+        "name"
+    );
+    return;
+  }
+
+  // Require a valid attribute value
+  if (!value) {
+    logger->diagnostic_logger.Warning(
+        "dd_logger_add_attribute call ignored: application must supply an attribute "
+        "value"
+    );
     return;
   }
 
@@ -191,20 +241,25 @@ void dd_logger_add_attribute(
 }
 
 void dd_logger_remove_attribute(dd_logger_t* logger, const char* name) {
-  if (!logger || !logger->impl || !name) {
+  // Permit no-op calls
+  if (!logger || !logger->impl) {
     return;
   }
+
+  // Require a valid string, but allow "" as an attribute name
+  if (!name) {
+    logger->diagnostic_logger.Warning(
+        "dd_logger_remove_attribute call ignored: application must supply an attribute "
+        "name"
+    );
+    return;
+  }
+
   logger->impl->RemoveAttribute(name);
 }
 
 void dd_logger_log(dd_logger_t* logger, dd_log_level_t level, const char* message) {
-  // Abort if no logger or message provided (but still allow an empty-string message to
-  // be logged)
-  if (!logger || !logger->impl || !message) {
-    return;
-  }
-
-  logger->impl->EmitLogEvent(datadog::LogLevel_FromC(level), message);
+  dd_logger_log_obj(logger, level, message, nullptr);
 }
 
 void dd_logger_debug(dd_logger_t* logger, const char* message) {
@@ -237,9 +292,16 @@ void dd_logger_log_obj(
     const char* message,
     const dd_attribute_t* attributes
 ) {
-  // Abort if no logger or message provided (but still allow an empty-string message to
-  // be logged)
-  if (!logger || !logger->impl || !message) {
+  // Allow no-op function calls on a null logger
+  if (!logger || !logger->impl) {
+    return;
+  }
+
+  // Abort if no message provided (but still allow an empty-string message to be logged)
+  if (!message) {
+    logger->diagnostic_logger.Warning(
+        "dd_logger_log call ignored: application must supply a message"
+    );
     return;
   }
 
