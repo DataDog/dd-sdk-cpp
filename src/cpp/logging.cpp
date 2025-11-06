@@ -64,15 +64,15 @@ Logger::Logger(std::unique_ptr<impl::Logger>&& impl, PrivateCtorTag)
 
 Logger::~Logger() = default;
 
-void Logger::SetAttribute(std::string_view name, const Attribute& value) {
+void Logger::AddAttribute(std::string_view name, const Attribute& value) {
   if (_impl) {
-    _impl->SetAttribute(name, value);
+    _impl->AddAttribute(name, value);
   }
 }
 
-void Logger::DeleteAttribute(std::string_view name) {
+void Logger::RemoveAttribute(std::string_view name) {
   if (_impl) {
-    _impl->DeleteAttribute(name);
+    _impl->RemoveAttribute(name);
   }
 }
 
@@ -114,15 +114,15 @@ std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
   return std::make_shared<Logging>(std::move(logging_impl), Logging::PrivateCtorTag{});
 }
 
-void Logging::SetAttribute(std::string_view name, const Attribute& value) {
+void Logging::AddAttribute(std::string_view name, const Attribute& value) {
   if (_impl) {
-    _impl->SetAttribute(name, value);
+    _impl->AddAttribute(name, value);
   }
 }
 
-void Logging::DeleteAttribute(std::string_view name) {
+void Logging::RemoveAttribute(std::string_view name) {
   if (_impl) {
-    _impl->DeleteAttribute(name);
+    _impl->RemoveAttribute(name);
   }
 }
 

@@ -121,8 +121,8 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     context.rum->application_id = uuid_9916;
 
     // And user attributes named 'application_id' and 'session_id'
-    logger->SetAttribute("application_id", Attribute::String("user-application-id"));
-    logger->SetAttribute("session_id", Attribute::String("user-session-id"));
+    logger->AddAttribute("application_id", Attribute::String("user-application-id"));
+    logger->AddAttribute("session_id", Attribute::String("user-session-id"));
 
     // When we emit a log event while the SDK is running
     FeatureTest test(context);

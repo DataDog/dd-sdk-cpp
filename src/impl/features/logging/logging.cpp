@@ -58,12 +58,12 @@ std::optional<Report> Logging::UploadThread_PrepareReport(
   return Report{_request_url, _request_headers, TLVBatchWriter{reader}};
 }
 
-void Logging::SetAttribute(std::string_view name, const Attribute& value) {
+void Logging::AddAttribute(std::string_view name, const Attribute& value) {
   std::unique_lock exclusive_write_lock(_global_attributes_mutex);
   _global_attributes.attribute.SetObjectProperty(name, value);
 }
 
-void Logging::DeleteAttribute(std::string_view name) {
+void Logging::RemoveAttribute(std::string_view name) {
   std::unique_lock exclusive_write_lock(_global_attributes_mutex);
   _global_attributes.attribute.DeleteObjectProperty(name);
 }
@@ -135,8 +135,8 @@ void Logging::OnLoggerEmit(
   // Attribute::Object() values that represent custom, user-specified attributes. User
   // attributes are merged into the event at top-level, with the following order:
   //
-  // 1. The global attributes set via Logging::SetAttribute
-  // 2. The logger-level attributes set via Logger::SetAttribute
+  // 1. The global attributes set via Logging::AddAttribute
+  // 2. The logger-level attributes set via Logger::AddAttribute
   // 3. The message-level attributes supplied in the log call
   //
   // If multiple user attributes share the same property name, the value that appears

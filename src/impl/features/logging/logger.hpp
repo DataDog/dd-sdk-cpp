@@ -77,8 +77,8 @@ class Logger {
    */
   explicit Logger(const LoggerConfig& config, const LogEventCallback& event_callback);
 
-  void SetAttribute(std::string_view name, const Attribute& value);
-  void DeleteAttribute(std::string_view name);
+  void AddAttribute(std::string_view name, const Attribute& value);
+  void RemoveAttribute(std::string_view name);
 
   /**
    * Handles a request to emit a single log message.

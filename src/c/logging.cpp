@@ -129,7 +129,7 @@ dd_logging_t* dd_logging_init(dd_core_t* core) {
 
 void dd_logging_destroy(dd_logging_t* logging) { delete logging; }
 
-void dd_logging_attribute_set(
+void dd_logging_add_attribute(
     dd_logging_t* logging, const char* name, const dd_attribute_t* value
 ) {
   // Abort if any argument is invalid (but allow empty-string as a property name)
@@ -139,16 +139,16 @@ void dd_logging_attribute_set(
 
   // Perform a lightweight copy to initialize a datadog::Attribute from our value, then
   // set it as a global attribute for the logging feature
-  logging->impl->SetAttribute(
+  logging->impl->AddAttribute(
       name, datadog::impl::AttributeConversion::CopyFromC(*value)
   );
 }
 
-void dd_logging_attribute_delete(dd_logging_t* logging, const char* name) {
+void dd_logging_remove_attribute(dd_logging_t* logging, const char* name) {
   if (!logging || !logging->impl || !name) {
     return;
   }
-  logging->impl->DeleteAttribute(name);
+  logging->impl->RemoveAttribute(name);
 }
 
 dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* config) {
@@ -176,7 +176,7 @@ dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* c
 
 void dd_logger_destroy(dd_logger_t* logger) { delete logger; }
 
-void dd_logger_attribute_set(
+void dd_logger_add_attribute(
     dd_logger_t* logger, const char* name, const dd_attribute_t* value
 ) {
   // Abort if any argument is invalid (but allow empty-string as a property name)
@@ -185,16 +185,16 @@ void dd_logger_attribute_set(
   }
 
   // Copy value to a datadog::Attribute and set the logger-level value
-  logger->impl->SetAttribute(
+  logger->impl->AddAttribute(
       name, datadog::impl::AttributeConversion::CopyFromC(*value)
   );
 }
 
-void dd_logger_attribute_delete(dd_logger_t* logger, const char* name) {
+void dd_logger_remove_attribute(dd_logger_t* logger, const char* name) {
   if (!logger || !logger->impl || !name) {
     return;
   }
-  logger->impl->DeleteAttribute(name);
+  logger->impl->RemoveAttribute(name);
 }
 
 void dd_logger_log(dd_logger_t* logger, dd_log_level_t level, const char* message) {

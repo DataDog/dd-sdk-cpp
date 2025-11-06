@@ -215,7 +215,7 @@ class DATADOG_API Attribute {
 
  private:
   /**
-   * Used internally whenenver we mutate an underlying non-primitive value. If this
+   * Used internally whenever we mutate an underlying non-primitive value. If this
    * Attribute holds the only reference to that value, returns it directly. If this
    * Attribute shares it reference with other Attributes, releases that reference,
    * creates a shallow clone that can be independently modified, stores the clone as our

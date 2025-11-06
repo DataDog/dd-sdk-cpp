@@ -33,12 +33,12 @@ Logger::Logger(const LoggerConfig& config, const LogEventCallback& event_callbac
       _state(config.service, config.name, config.initial_attribute_capacity),
       _enrichment(config.enrich_with_rum_context) {}
 
-void Logger::SetAttribute(std::string_view name, const Attribute& value) {
+void Logger::AddAttribute(std::string_view name, const Attribute& value) {
   // Assume single-thread usage: don't synchronize access to attributes
   _state.user_attributes.attribute.SetObjectProperty(name, value);
 }
 
-void Logger::DeleteAttribute(std::string_view name) {
+void Logger::RemoveAttribute(std::string_view name) {
   // Assume single-thread usage: don't synchronize access to attributes
   _state.user_attributes.attribute.DeleteObjectProperty(name);
 }
