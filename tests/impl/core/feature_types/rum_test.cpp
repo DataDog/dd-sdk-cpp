@@ -15,26 +15,6 @@
 using namespace datadog;
 using namespace datadog::impl;
 
-/**
- * When tests are executed, this function simply validates that the given event is a
- * valid JSON object that's equivalent to the provided `want` value.
- *
- * However, use of `RequireValidRumEvent` indicates to the `validate-event-types` script
- * that the argument passed as `want` constitutes a valid RUM event payload. This
- * argument MUST be a raw-string literal (e.g. `R"({"type":"view",...})"`) containing
- * a fully-formed JSON object literal: the script will parse this value and validate it
- * against the rum-events-format schema.
- *
- * This complementary validation step ensures that if all unit tests pass, then we can
- * conclude that the events produced by the SDK under test are valid RUM events.
- *
- * @see tools/validate-event-types/main.py
- */
-template <typename T>
-static void RequireValidRumEvent(const T& ev, std::string_view want) {
-  RequireJsonObject(ev, want);
-}
-
 TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
   // Given a RumViewEvent initialized with the minimum set of required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
@@ -63,7 +43,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
   };
 
   SECTION("M produce a minimal view event W only required values are set") {
-    RequireValidRumEvent(ev, R"({
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
       "date": 946684799999,
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -85,7 +65,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
         "document_version": 0
       },
       "type": "view"
-    })");
+    })"));
   }
 
   SECTION("M include all properties W non-required values are set") {
@@ -108,7 +88,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
     ev._dd.document_version = 11;
 
     // Then our JSON event payload reflects all changes
-    RequireValidRumEvent(ev, R"({
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
       "date": 946684799999,
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -144,7 +124,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
         }
       },
       "type": "view"
-    })");
+    })"));
   }
 
   SECTION("M generate valid event W all supported values are set") {
@@ -299,7 +279,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
     ev.context.value.SetObjectProperty("coord", coord);
     ev.context.value.SetObjectProperty("service", Attribute::String("arbitrary-value"));
 
-    RequireValidRumEvent(ev, R"({
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
       "type": "view",
       "date": 1761829845132,
       "service": "my-service",
@@ -482,6 +462,6 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
         "browser_sdk_version": "3.1.2",
         "document_version": 121
       }
-    })");
+    })"));
   }
 }

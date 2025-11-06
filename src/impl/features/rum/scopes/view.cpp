@@ -7,6 +7,7 @@
 #include "features/rum/scopes/view.hpp"
 
 #include "core/feature_scope.hpp"
+#include "datadog/timestamp.hpp"
 #include "features/rum/context.hpp"
 #include "features/rum/scopes/session.hpp"
 
@@ -53,7 +54,7 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
 
   // If this is the very first view in the application and we've not yet sent a view
   // event describing it, override the HandleCommand result and send a full event ASAP
-  if (_is_initial_view && !_has_sent_view_event) {
+  if (_is_initial_view && _num_view_events_sent == 0) {
     event_type = ViewEventType::Full;
   }
 
@@ -154,13 +155,44 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
 }
 
 void RumViewScope::SendViewEvent() {
+  // Resolve references needed to populate required event data
   const RumScopeDependencies& deps = _deps;
-  if (deps.scope) {
-    // TODO(RUM-12321): Build and generate a RUM 'view' event
-    deps.scope->WriteEvent("{\"placeholder-for\":\"view\"}", {});
+  const RumSessionScope& session = _parent;
+
+  // Read system time for event timestamp, and compute time since view start
+  const Timestamp now = deps.clock.Now();
+  const Duration time_spent = now - _started_at;
+  const uint64_t time_spent_ns = time_spent.count();
+
+  // Get sums of child scope occurrences within the lifetime of this view
+  const uint64_t action_count = 0;    // TODO(RUM-11369)
+  const uint64_t error_count = 0;     // TODO(RUM-12201)
+  const uint64_t resource_count = 0;  // TODO(RUM-12202)
+
+  // Construct an event value on the stack with the minimal set of required properties
+  RumViewEvent ev(
+      now,
+      deps.application_id,
+      session.GetSessionID(),
+      RumSessionType::User,
+      _view_id,
+      _key,
+      time_spent_ns,
+      action_count,
+      error_count,
+      resource_count,
+      _num_view_events_sent++
+  );
+
+  // Set essential view properties
+  ev.view.is_active.value = _is_active;
+  if (!_name.empty()) {
+    ev.view.name.value = _name;
   }
 
-  _has_sent_view_event = true;
+  // Serialize the event to JSON in a shared buffer, then copy that raw event payload
+  // onto the storage thread
+  deps.ProduceEvent(ev);
 }
 
 }  // namespace datadog::impl

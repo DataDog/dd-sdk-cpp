@@ -14,17 +14,21 @@
 namespace datadog::impl {
 
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
-    : _clock(clock),
-      _global_attributes(8),
-      _deps(config),
+    : _global_attributes(8),
+      _deps(config, clock),
       _application(_deps),
       _application_snapshot() {}
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
     const HttpContext& context, BatchReader& reader
 ) {
-  // TODO(RUM-12321): Implement filtering/deduplication of view events- this preliminary
-  // implementation just streams all events directly, a la Logging
+  // This preliminary implementation just streams all RUM events directly, a la Logging
+
+  // TODO(RUM-12546): Implement filtering/deduplication of view events, unless we
+  // implement `view_update` events and find that make filtering unnecessary
+
+  // TODO(RUM-12242): If necessary to prevent the creation of microsessions on the
+  // backend, filter out events for synthetic views created on launch
 
   // Request URL
   static const std::string_view request_path = "/api/v2/rum";
@@ -107,7 +111,7 @@ RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {
   read_only_lock.unlock();
 
   // Read the system clock for our issued_at timestamp
-  auto issued_at = _clock.Now();
+  auto issued_at = _deps.clock.Now();
 
   return RumCommandParams(issued_at, global_attributes, attributes);
 }

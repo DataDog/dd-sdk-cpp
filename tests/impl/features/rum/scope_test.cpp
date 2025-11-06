@@ -10,6 +10,7 @@
 #include <map>
 
 #include "datadog/rum.hpp"
+#include "mock/clock.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -21,7 +22,7 @@ TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
     config.SetSessionSampleRate(75.0f);
 
     // And a set of RumScopeDependencies initialized from that config
-    RumScopeDependencies deps(config);
+    RumScopeDependencies deps(config, MockClock());
 
     // When we make a bunch of sampling decisions at a rate of 75%
     int num_sampled = 0;
@@ -45,7 +46,7 @@ TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
     // Given a RUM config with the default session sample rate, we should always
     // sample every session
     RumConfig config = RumConfig("7d7b0b60-c062-4290-a7a4-a3701a7629c9");
-    RumScopeDependencies deps(config);
+    RumScopeDependencies deps(config, MockClock());
     for (int i = 0; i < 200; i++) {
       const bool sampled = deps.ShouldSampleSession();
       REQUIRE(sampled == true);
@@ -57,7 +58,7 @@ TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
     // any sessions
     RumConfig config = RumConfig("7d7b0b60-c062-4290-a7a4-a3701a7629c9");
     config.SetSessionSampleRate(0.0f);
-    RumScopeDependencies deps(config);
+    RumScopeDependencies deps(config, MockClock());
     for (int i = 0; i < 200; i++) {
       const bool sampled = deps.ShouldSampleSession();
       REQUIRE(sampled == false);

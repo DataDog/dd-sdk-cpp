@@ -74,9 +74,6 @@ class Rum final : public Feature {
   void UpdateApplicationSnapshot();
 
  private:
-  // Injected on init
-  const platform::IClock& _clock;
-
   // Global attributes applied to all RUM events
   ObjectAttribute _global_attributes;
   mutable std::shared_mutex _global_attributes_mutex;

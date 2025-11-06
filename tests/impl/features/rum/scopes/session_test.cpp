@@ -23,17 +23,17 @@ class SessionFixture {
   static constexpr const char* APPLICATION_ID = "a991ca10-4004-4004-4004-beefbeefbeef";
   static constexpr const char* SESSION_ID = "5e551017-4114-4114-4114-beeeefbeeeef";
 
+  MockClock clock;
+
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope parent;
   RumSessionScope scope;
 
-  MockClock clock;
-
  public:
   SessionFixture(bool is_session_sampled = true)
       : config(APPLICATION_ID),
-        deps(config),
+        deps(config, clock),
         parent(deps),
         scope(
             deps,
@@ -360,7 +360,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
   SECTION("M set application_id and session_id W session is active") {
     // Given a RumApplicationScope configured with a specific app ID
     RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
-    RumScopeDependencies deps(config);
+    RumScopeDependencies deps(config, MockClock());
     RumApplicationScope application_scope(deps);
 
     // And a RumSessionScope with a specific session ID
@@ -395,7 +395,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
   ) {
     // Given a RumApplicationScope configured with a specific app ID
     RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
-    RumScopeDependencies deps(config);
+    RumScopeDependencies deps(config, MockClock());
     RumApplicationScope application_scope(deps);
 
     // And a RumSessionScope that's not sampled
@@ -428,7 +428,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
   SECTION("M retain session_id with active flag false W session is no longer active") {
     // Given an application with an initial session
     RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
-    RumScopeDependencies deps(config);
+    RumScopeDependencies deps(config, MockClock());
     RumApplicationScope application_scope(deps);
     const UUID session_id = *UUID::Parse("689d0d6c-c716-4eed-b449-0df936a615f8");
     const bool is_initial_session = true;

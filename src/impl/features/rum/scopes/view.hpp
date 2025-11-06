@@ -114,7 +114,8 @@ class RumViewScope {
   bool _is_active{true};                  // Whether this is currently the active view
   bool _has_processed_start_view{false};  // If true, any 'StartView' command will flag
                                           // this scope as inactive
-  bool _has_sent_view_event{false};       // Whether we've sent any 'view' events ever
+
+  uint64_t _num_view_events_sent{0};
 
  public:
   bool IsActive() const { return _is_active; }

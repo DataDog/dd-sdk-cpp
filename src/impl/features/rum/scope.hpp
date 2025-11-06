@@ -9,13 +9,17 @@
 #include <algorithm>
 #include <cinttypes>
 #include <functional>
+#include <mutex>
 #include <optional>
 #include <random>
+#include <shared_mutex>
 #include <string>
 #include <vector>
 
 #include "attribute/typed_attribute.hpp"
+#include "core/feature_scope.hpp"
 #include "features/rum/command.hpp"
+#include "platform/clock.hpp"
 
 namespace datadog {
 struct RumConfig;
@@ -30,20 +34,30 @@ struct RumScopeDependencies {
   // Configuration details
   UUID application_id;
 
+  const platform::IClock& clock;
+
   // Reference to the Feature's interface to the core, used for accessing context,
   // generating events, etc. FeatureScopes aren't created until Core::Start(), and they
   // only last until Core::Stop(), so this value is only guaranteed to be non-NULL while
   // the SDK is running.
-  class FeatureScope* scope;
+  FeatureScope* scope;
 
  private:
+  // Synchronization for internal state
+  mutable std::shared_mutex mutex;
+
   // Internal state used in sampling decisions
   float _sampling_rate_unit;
   mutable std::mt19937 _sampling_rng;
   mutable std::uniform_real_distribution<float> _sampling_distribution;
 
+  // Internal state for encoding RUM event payloads
+  mutable std::vector<uint8_t> _encode_buffer;
+
  public:
-  explicit RumScopeDependencies(const RumConfig& config);
+  explicit RumScopeDependencies(
+      const RumConfig& config, const platform::IClock& in_clock
+  );
 
   /**
    * Injects required dependencies that are only initialized upon SDK start.
@@ -63,6 +77,18 @@ struct RumScopeDependencies {
    * not be sampled, meaning it will ignore most commands and generate no events.
    */
   bool ShouldSampleSession() const;
+
+  template <typename T>
+  void ProduceEvent(const T& event) const {
+    if (scope) {
+      std::unique_lock write_lock(mutex);
+      EncodeJson(_encode_buffer, event);
+      std::string_view data(
+          reinterpret_cast<char*>(_encode_buffer.data()), _encode_buffer.size()
+      );
+      scope->WriteEvent(data, {});
+    }
+  }
 };
 
 /**

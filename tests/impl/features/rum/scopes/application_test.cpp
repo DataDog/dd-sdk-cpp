@@ -22,14 +22,14 @@ class ApplicationFixture {
  protected:
   static constexpr const char* APPLICATION_ID = "a991ca10-4004-4004-4004-beefbeefbeef";
 
+  MockClock clock;
+
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope scope;
 
-  MockClock clock;
-
  public:
-  ApplicationFixture() : config(APPLICATION_ID), deps(config), scope(deps) {
+  ApplicationFixture() : config(APPLICATION_ID), deps(config, clock), scope(deps) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -201,11 +201,11 @@ class ViewTransferFixture {
  protected:
   static constexpr const char* APPLICATION_ID = "a991ca10-4004-4004-4004-beefbeefbeef";
 
+  MockClock clock;
+
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope scope;
-
-  MockClock clock;
 
   // Recorded details of the session and view we started with
   UUID initial_session_id;
@@ -224,7 +224,7 @@ class ViewTransferFixture {
   State state{State::Initial};
 
  public:
-  ViewTransferFixture() : config(APPLICATION_ID), deps(config), scope(deps) {
+  ViewTransferFixture() : config(APPLICATION_ID), deps(config, clock), scope(deps) {
     clock.FreezeAtMilliseconds(1700000000000);
 
     // Issue SDKInit to create an initial session
@@ -764,7 +764,7 @@ TEST_CASE("RumApplicationScope::PopulateContext", "[unit][rum]") {
   SECTION("M set application_id") {
     // Given a RumApplicationScope configured with a specific app ID
     RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
-    RumScopeDependencies deps(config);
+    RumScopeDependencies deps(config, MockClock());
     RumApplicationScope scope(deps);
 
     // When we populate a RumContext from that application scope

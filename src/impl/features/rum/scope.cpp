@@ -13,12 +13,17 @@
 
 namespace datadog::impl {
 
-RumScopeDependencies::RumScopeDependencies(const RumConfig& config)
+RumScopeDependencies::RumScopeDependencies(
+    const RumConfig& config, const platform::IClock& in_clock
+)
     : application_id(config.application_id),
+      clock(in_clock),
       scope(nullptr),
       _sampling_rate_unit(config.session_sample_rate / 100.0f),
       _sampling_rng(std::random_device{}()),
-      _sampling_distribution(0.0f, 1.0f) {}
+      _sampling_distribution(0.0f, 1.0f) {
+  _encode_buffer.reserve(8192);
+}
 
 void RumScopeDependencies::OnStart(FeatureScope& in_scope) {
   DATADOG_ASSERT(!scope, "RUM deps has valid scope pointer on SDK start");
@@ -31,6 +36,8 @@ void RumScopeDependencies::OnStop() {
 }
 
 bool RumScopeDependencies::ShouldSampleSession() const {
+  std::unique_lock write_lock(mutex);
+
   // If sampling rate is 100%, all sessions are sampled
   if (_sampling_rate_unit >= 1.0f) {
     return true;
