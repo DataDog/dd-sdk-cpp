@@ -25,6 +25,7 @@
 #include "core/upload_scheduler.hpp"
 #include "core/upload_thread.hpp"
 #include "diagnostics.hpp"
+#include "nonstd/expected.hpp"
 
 // Forward declarations
 namespace datadog::platform {
@@ -99,7 +100,7 @@ struct CoreSubsystems {
    * Test builds do not use this function; they instead initialize mock
    * implementations.
    */
-  static std::optional<CoreSubsystems> Init(const CoreConfig& config);
+  static nonstd::expected<CoreSubsystems, ErrorMessage> Init(const CoreConfig& config);
 };
 
 /**

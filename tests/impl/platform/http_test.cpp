@@ -24,14 +24,18 @@ using namespace datadog;
 
 TEST_CASE("Http", "[unit][platform-http]") {
   SECTION("M create a valid IHttpSubsystem W static Init is called") {
-    auto http = platform::Http::Init();
+    auto http_result = platform::Http::Init();
+    REQUIRE(http_result.has_value());
+    auto http = std::move(*http_result);
     REQUIRE(http != nullptr);
   }
 }
 
 TEST_CASE("IHttpSubsystem", "[unit][platform-http]") {
   // Given an HTTP subsystem
-  auto http = platform::Http::Init();
+  auto http_result = platform::Http::Init();
+  REQUIRE(http_result.has_value());
+  auto http = std::move(*http_result);
   REQUIRE(http != nullptr);
 
   SECTION("M create a valid IHttpClient W ") {
@@ -42,7 +46,9 @@ TEST_CASE("IHttpSubsystem", "[unit][platform-http]") {
 
 TEST_CASE("IHttpClient", "[unit][platform-http]") {
   // Given an HTTP client
-  auto http = platform::Http::Init();
+  auto http_result = platform::Http::Init();
+  REQUIRE(http_result.has_value());
+  auto http = std::move(*http_result);
   REQUIRE(http != nullptr);
   auto client = http->CreateClient();
   REQUIRE(client != nullptr);

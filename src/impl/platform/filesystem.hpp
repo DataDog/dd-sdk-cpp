@@ -10,6 +10,7 @@
 #include <memory>
 #include <string_view>
 
+#include "error_message.hpp"
 #include "nonstd/expected.hpp"
 
 namespace datadog::platform {
@@ -188,7 +189,10 @@ class IStorageDirectory : public virtual IDirectory {
 };
 
 namespace Filesystem {
-std::unique_ptr<IStorageDirectory> Init(std::string_view path);
-};
+using InitResult =
+    nonstd::expected<std::unique_ptr<IStorageDirectory>, datadog::impl::ErrorMessage>;
+
+InitResult Init(std::string_view path);
+};  // namespace Filesystem
 
 }  // namespace datadog::platform

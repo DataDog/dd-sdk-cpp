@@ -19,34 +19,39 @@
 
 namespace datadog::impl {
 
-std::optional<CoreSubsystems> CoreSubsystems::Init(const CoreConfig& config) {
-  // TODO: Allow configuration of storage path via core; use sensible default
+nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
+    const CoreConfig& config
+) {
+  // TODO(RUM-11360): Allow configuration of storage path via core; use sensible default
   // per-platform
   (void)config;
 
   // Prepare a wrapper object that can read from the system clock
   auto clock = platform::Clock::Init();
   if (!clock) {
-    // TODO: Proper configurable logging via telemetry logger, user-provided log
-    // callbacks, etc
-    std::cout << "Failed to initialize clock\n";
-    return std::nullopt;
+    return nonstd::make_unexpected(
+        ErrorMessage("clock subsystem could not be initialized")
+    );
   }
 
   // Store event data in "$(pwd)/.datadog/<feature>" by default
   const std::string_view DEFAULT_STORAGE_DIR = ".datadog";
-  auto storage_root = platform::Filesystem::Init(DEFAULT_STORAGE_DIR);
-  if (!storage_root) {
-    std::cout << "Failed to initialize event storage subsystem\n";
-    return std::nullopt;
+  auto filesystem_result = platform::Filesystem::Init(DEFAULT_STORAGE_DIR);
+  if (!filesystem_result) {
+    return nonstd::make_unexpected(filesystem_result.error().AddPrefix(
+        "event storage subsystem could not be initialized"
+    ));
   }
+  auto storage_root = std::move(*filesystem_result);
 
   // Prepare whatever HTTP client library we'll use to create HTTP clients
-  auto http = platform::Http::Init();
-  if (!http) {
-    std::cout << "Failed to initialize HTTP subsystem\n";
-    return std::nullopt;
+  auto http_result = platform::Http::Init();
+  if (!http_result) {
+    return nonstd::make_unexpected(
+        http_result.error().AddPrefix("HTTP subsystem could not be initialized")
+    );
   }
+  auto http = std::move(*http_result);
 
   // Return our newly-created subsystems, to be transferred into the Core
   return CoreSubsystems(std::move(clock), std::move(storage_root), std::move(http));

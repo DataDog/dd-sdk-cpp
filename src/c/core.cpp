@@ -211,13 +211,17 @@ dd_core_t* dd_core_create(const dd_core_config_t* config) {
 
   // Initialize core subsystems using the platform-specific implementations compiled
   // in this build
-  auto subsystems = datadog::impl::CoreSubsystems::Init(cpp_config);
-  if (!subsystems) {
+  auto subsystems_result = datadog::impl::CoreSubsystems::Init(cpp_config);
+  if (!subsystems_result) {
+    // If we fail to initialize subsystems, log an error and return a no-op Core
+    auto err = subsystems_result.error().AddPrefix("SDK initialization failed");
+    diagnostic_logger.Error(err.Format().c_str());
     return nullptr;
   }
+  datadog::impl::CoreSubsystems subsystems = std::move(*subsystems_result);
 
   // Create the impl::Core object
-  auto impl = std::make_unique<datadog::impl::Core>(cpp_config, std::move(*subsystems));
+  auto impl = std::make_unique<datadog::impl::Core>(cpp_config, std::move(subsystems));
 
   // Perform mandatory initialization routines that might fail
   if (!impl->Init()) {

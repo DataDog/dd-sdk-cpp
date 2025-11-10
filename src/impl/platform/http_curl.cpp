@@ -230,10 +230,7 @@ class CurlHttpClient final : public IHttpClient {
 
 class CurlHttpSubsystem final : public IHttpSubsystem {
  public:
-  CurlHttpSubsystem() {
-    // Initialize curl on SDK startup
-    curl_global_init(CURL_GLOBAL_ALL);
-  }
+  CurlHttpSubsystem() = default;
 
   ~CurlHttpSubsystem() override {
     // Tear down curl on SDK shutdown
@@ -259,14 +256,43 @@ class CurlHttpSubsystem final : public IHttpSubsystem {
   }
 };
 
-std::unique_ptr<IHttpSubsystem> Http::Init() {
-  // NOTE: Our current HTTP client implementation uses default, system-level DNS.
-  // dd-sdk-android implements an application-level name resolution cache that rotates
-  // through available addresses for the given host, providing failover and load
-  // balancing at the level of the HTTP client. TODO investigate providing similar
-  // behavior here, whether that's an internal libcurl implementation detail, a separate
-  // platform::dns subsystem, or a static component of datadog::impl.
-  return std::make_unique<CurlHttpSubsystem>();
+Http::InitResult Http::Init() {
+  // Initialize curl: if successful, return an HttpSubsystem implementation
+  CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
+  if (res == CURLE_OK) {
+    // When the application eventually releases this unique_ptr, curl_global_cleanup
+    // will be called via ~CurlHttpSubsystem()
+    return std::make_unique<CurlHttpSubsystem>();
+  }
+
+  // If curl initialization fails, attempt to gather diagnostic info
+  Attribute curl_version = Attribute::String("n/a");
+  Attribute ssl_version = Attribute::String("n/a");
+  Attribute zlib_version = Attribute::String("n/a");
+  curl_version_info_data* info = curl_version_info(CURLVERSION_NOW);
+  if (info) {
+    if (info->version) {
+      curl_version.SetString(info->version);
+    }
+    if (info->ssl_version) {
+      ssl_version.SetString(info->ssl_version);
+    }
+    if (info->libz_version) {
+      zlib_version.SetString(info->libz_version);
+    }
+  }
+
+  // Return an error that wraps the human-readable libcurl error message and includes
+  // diagnostic info in custom attributes
+  const char* curl_error_text = curl_easy_strerror(res);
+  return nonstd::make_unexpected(
+      datadog::impl::ErrorMessage(
+          curl_error_text,
+          {{"curl_version", curl_version},
+           {"ssl_version", ssl_version},
+           {"zlib_version", zlib_version}}
+      ).AddPrefix("libcurl init failed")
+  );
 }
 
 }  // namespace datadog::platform
