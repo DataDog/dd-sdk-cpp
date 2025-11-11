@@ -6,7 +6,9 @@
 
 #include "diagnostics.hpp"
 
+#include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "datadog/core.h"
@@ -16,6 +18,8 @@
 using namespace datadog;
 using namespace datadog::impl;
 
+using CopiedMessage = std::pair<DiagnosticLevel, std::string>;
+
 /**
  * Handles a C-API diagnostic message callback by converting the message to the
  * equivalent C++ type, reinterpreting userdata as a pointer to a vector of messages,
@@ -23,19 +27,20 @@ using namespace datadog::impl;
  */
 static void my_c_handler(const dd_diagnostic_message_t* message, void* userdata) {
   REQUIRE(userdata);
-  auto* messages_ptr = reinterpret_cast<std::vector<DiagnosticMessage>*>(userdata);
-  std::vector<DiagnosticMessage>& messages = *messages_ptr;
-  messages.push_back(DiagnosticMessage_FromC(*message));
+  auto* messages_ptr = reinterpret_cast<std::vector<CopiedMessage>*>(userdata);
+  std::vector<CopiedMessage>& messages = *messages_ptr;
+  DiagnosticMessage cpp_message = DiagnosticMessage_FromC(*message);
+  messages.emplace_back(cpp_message.level, cpp_message.text);
 }
 
 TEST_CASE("DiagnosticLogger", "[unit][diagnostics]") {
   // Given a vector that will accumulate messages received via the handler callback that
   // we provide to a DiagnosticLogger instance
-  std::vector<DiagnosticMessage> messages;
+  std::vector<CopiedMessage> messages;
 
   // And a message-handler callback that buffers all values received into that vector
   auto cpp_handler = [&messages](const DiagnosticMessage& message) {
-    messages.push_back(message);
+    messages.emplace_back(message.level, message.text);
   };
 
   SECTION("M do nothing W default-initalized") {
@@ -63,8 +68,8 @@ TEST_CASE("DiagnosticLogger", "[unit][diagnostics]") {
 
     // Then our handler function is invoked for that message
     REQUIRE(messages.size() == 1);
-    REQUIRE(messages[0].level == DiagnosticLevel::Error);
-    REQUIRE(std::string_view{messages[0].text} == "oh no");
+    REQUIRE(messages[0].first == DiagnosticLevel::Error);
+    REQUIRE(messages[0].second == "oh no");
   }
 
   SECTION("M invoke handler callback W message emitted {FromC}") {
@@ -75,8 +80,24 @@ TEST_CASE("DiagnosticLogger", "[unit][diagnostics]") {
 
     // Then our handler function is invoked for that message, just the same
     REQUIRE(messages.size() == 1);
-    REQUIRE(messages[0].level == DiagnosticLevel::Error);
-    REQUIRE(std::string_view{messages[0].text} == "oh no");
+    REQUIRE(messages[0].first == DiagnosticLevel::Error);
+    REQUIRE(messages[0].second == "oh no");
+  }
+
+  SECTION("M format message with attribute values W log call includes attribute list") {
+    // When we properly initialize a logger and log a message with a list of custom
+    // attribute values
+    DiagnosticLogger{cpp_handler, DiagnosticLevel::Debug}.Status(
+        "this is a message", {{"foo", 42}, {"bar", "hello world"}, {"baz", true}}
+    );
+
+    // Then our handler function is invoked for that message
+    REQUIRE(messages.size() == 1);
+    REQUIRE(messages[0].first == DiagnosticLevel::Status);
+    REQUIRE(
+        messages[0].second ==
+        R"(this is a message {"foo":42,"bar":"hello world","baz":true})"
+    );
   }
 
   SECTION("M only emit messages W level meets or exceeds threshold") {
@@ -98,20 +119,20 @@ TEST_CASE("DiagnosticLogger", "[unit][diagnostics]") {
 
     // And a set of functions that we can use to validate the set of messages emitted
     auto require_debug = [&](size_t i) {
-      REQUIRE(messages[i].level == DiagnosticLevel::Debug);
-      REQUIRE(std::string_view{messages[i].text} == "debug");
+      REQUIRE(messages[i].first == DiagnosticLevel::Debug);
+      REQUIRE(messages[i].second == "debug");
     };
     auto require_status = [&](size_t i) {
-      REQUIRE(messages[i].level == DiagnosticLevel::Status);
-      REQUIRE(std::string_view{messages[i].text} == "status");
+      REQUIRE(messages[i].first == DiagnosticLevel::Status);
+      REQUIRE(messages[i].second == "status");
     };
     auto require_warning = [&](size_t i) {
-      REQUIRE(messages[i].level == DiagnosticLevel::Warning);
-      REQUIRE(std::string_view{messages[i].text} == "warning");
+      REQUIRE(messages[i].first == DiagnosticLevel::Warning);
+      REQUIRE(messages[i].second == "warning");
     };
     auto require_error = [&](size_t i) {
-      REQUIRE(messages[i].level == DiagnosticLevel::Error);
-      REQUIRE(std::string_view{messages[i].text} == "error");
+      REQUIRE(messages[i].first == DiagnosticLevel::Error);
+      REQUIRE(messages[i].second == "error");
     };
 
     // When we make all 8 log calls at each configured treshold, we get the expected set

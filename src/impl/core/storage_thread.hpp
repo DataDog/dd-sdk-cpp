@@ -9,12 +9,14 @@
 #include <vector>
 
 #include "core/storage_queue.hpp"
+#include "diagnostics.hpp"
 
 namespace datadog::impl {
 
 /**
  * Entry point for the storage thread. See description in `core.hpp`.
  *
+ * @param diagnostic_logger Interface for logging local status/warning messages.
  * @param queue Non-owning reference to the thread-safe queue that we should read from;
  *  guaranteed to outlive the thread.
  * @param features Non-owning reference to the array of features that may produce to
@@ -23,7 +25,9 @@ namespace datadog::impl {
  *  remain immutable for the lifetime of the thread.
  */
 void StorageThreadMain(
-    StorageQueue& queue, std::vector<struct RegisteredFeature>& features
+    const DiagnosticLogger& diagnostic_logger,
+    StorageQueue& queue,
+    std::vector<struct RegisteredFeature>& features
 );
 
 }  // namespace datadog::impl

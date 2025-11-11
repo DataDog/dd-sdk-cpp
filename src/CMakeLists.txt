@@ -48,6 +48,8 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/json/primitives/timestamp.cpp
     impl/json/primitives/uuid.cpp
     impl/json/attribute.cpp
+    impl/json/diagnostic_attribute.cpp
+    impl/diagnostics.cpp
     impl/error_message.cpp
 )
 

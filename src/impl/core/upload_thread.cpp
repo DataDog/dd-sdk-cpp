@@ -98,6 +98,7 @@ static _process_and_upload_batch_result _interpret_http_result(
 }
 
 static _process_and_upload_batch_result _process_and_upload_batch(
+    const DiagnosticLogger& diagnostic_logger,
     const HttpContext& http_context,
     Feature& feature_impl,
     platform::IDirectory& directory,
@@ -131,12 +132,32 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   // our open file handle MUST remain in scope until the HTTP request is finished.
 
   // Initiate an HTTP request, blocking until it finishes
-  std::cout << "<UPLOAD> POST " << report->url << "\n";
+  diagnostic_logger.Debug(
+      "Initiating HTTP request", {{"method", "POST"}, {"url", report->url}}
+  );
   const platform::HttpResult res = http_client.Post(
       report->url.c_str(), report->headers.c_str(), report->body_writer
   );
-  std::cout << "<UPLOAD> Result type " << static_cast<int>(res.type) << ", status "
-            << res.status_code << "\n";
+  switch (res.type) {
+    case platform::HttpResultType::SentNoRequest:
+      diagnostic_logger.Debug("Failed to send HTTP request", {{"url", report->url}});
+      break;
+    case platform::HttpResultType::GotNoResponse_NonRetryable:
+      diagnostic_logger.Debug(
+          "Got no HTTP response", {{"url", report->url}, {"is_retryable", false}}
+      );
+      break;
+    case platform::HttpResultType::GotNoResponse_Retryable:
+      diagnostic_logger.Debug(
+          "Got no HTTP response", {{"url", report->url}, {"is_retryable", true}}
+      );
+      break;
+    case platform::HttpResultType::GotResponse:
+      diagnostic_logger.Debug(
+          "Got HTTP response", {{"url", report->url}, {"status_code", res.status_code}}
+      );
+      break;
+  }
 
   // Interpret the result of our HTTP request and return the intended action, closing
   // the file in the process
@@ -144,6 +165,7 @@ static _process_and_upload_batch_result _process_and_upload_batch(
 }
 
 static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
+    const DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
@@ -226,11 +248,18 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
 
     // If this file is too old to process, delete it and continue
     if (file_age >= config.max_file_age_for_read) {
-      if (!directory.RemoveFile(filename)) {
+      if (directory.RemoveFile(filename)) {
+        diagnostic_logger.Debug(
+            "Deleted outdated batch file",
+            {{"feature", feature.name}, {"filename", filename}}
+        );
+      } else {
         // TODO: Keep track of the files we've processed, so that even if we fail to
         // delete a batch, we won't continually reupload it
-        std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
-                  << "): ERROR: delete failed\n";
+        diagnostic_logger.Warning(
+            "Failed to delete outdated batch file",
+            {{"feature", feature.name}, {"filename", filename}}
+        );
       }
       continue;
     }
@@ -239,7 +268,13 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // to be processed, then initiate the resulting HTTP request to upload the batch to
     // intake
     last_batch_result = _process_and_upload_batch(
-        http_context, *feature.impl, directory, http_client, filename, mut_read_buffer
+        diagnostic_logger,
+        http_context,
+        *feature.impl,
+        directory,
+        http_client,
+        filename,
+        mut_read_buffer
     );
     num_uploads_attempted++;
 
@@ -248,19 +283,25 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     bool should_abort_upload_cycle = false;
     switch (last_batch_result) {
       case _process_and_upload_batch_result::success:
-        std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
-                  << "): Upload OK\n";
+        diagnostic_logger.Debug(
+            "Batch upload OK; will delete and continue this upload cycle",
+            {{"feature", feature.name}, {"filename", filename}}
+        );
         num_uploads_completed_successfully++;
         should_delete_batch = true;
         break;
       case _process_and_upload_batch_result::retryable_failure:
-        std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
-                  << "): Failed; will retry\n";
+        diagnostic_logger.Debug(
+            "Batch upload failed; will abort this upload cycle and retry later",
+            {{"feature", feature.name}, {"filename", filename}}
+        );
         should_abort_upload_cycle = true;
         break;
       case _process_and_upload_batch_result::bad_batch:
-        std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
-                  << "): Bad batch; will delete\n";
+        diagnostic_logger.Debug(
+            "Batch rejected on upload; will delete and continue this upload cycle",
+            {{"feature", feature.name}, {"filename", filename}}
+        );
         should_delete_batch = true;
         break;
     }
@@ -268,14 +309,18 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // If we need to delete the batch file, either because we processed it successfully
     // or because it's somehow malformed, delete it
     if (should_delete_batch) {
-      if (!directory.RemoveFile(filename)) {
+      if (directory.RemoveFile(filename)) {
+        diagnostic_logger.Debug(
+            "Deleted batch file", {{"feature", feature.name}, {"filename", filename}}
+        );
+      } else {
         // TODO: Keep track of the files we've processed, so that even if we fail to
         // delete a batch, we won't continually reupload it
-        std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
-                  << "): ERROR: delete failed\n";
+        diagnostic_logger.Warning(
+            "Failed to delete batch file",
+            {{"feature", feature.name}, {"filename", filename}}
+        );
       }
-      std::cout << "<UPLOAD> " << feature.name << " (batch" << filename
-                << "): deleted\n";
     }
 
     // Break out of the loop if we don't want to continue processing batches
@@ -286,13 +331,35 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // If we would otherwise keep going but we've hit our limit on the number of batches
     // processed in one upload cycle, stop processing
     if (num_uploads_attempted >= config.max_batches_per_cycle) {
+      // Frequent occurrence of this log message may be an indication that the SDK is
+      // accumulating data in storage faster than it can upload it
+      diagnostic_logger.Debug(
+          "Reached batch limit for this upload cycle",
+          {{"feature", feature.name},
+           {"num_uploads_attempted", num_uploads_attempted},
+           {"max_batches_per_cycle", config.max_batches_per_cycle}}
+      );
       break;
     }
   }
 
-  std::cout << "<UPLOAD> " << feature.name << ": cycle finished with "
-            << num_uploads_attempted << " uploads attempted; "
-            << num_uploads_completed_successfully << " uploads successful\n";
+  if (num_uploads_attempted == 0) {
+    diagnostic_logger.Debug(
+        "Upload cycle finished with nothing to upload", {{"feature", feature.name}}
+    );
+  } else if (num_uploads_completed_successfully == num_uploads_attempted) {
+    diagnostic_logger.Status(
+        "Upload cycle finished with all uploads successful",
+        {{"feature", feature.name}, {"num_uploads", num_uploads_attempted}}
+    );
+  } else {
+    diagnostic_logger.Warning(
+        "Upload cycle finished with unsuccessful uploads",
+        {{"feature", feature.name},
+         {"num_uploads_attempted", num_uploads_attempted},
+         {"num_uploads_completed_successfully", num_uploads_completed_successfully}}
+    );
+  }
 
   // If we didn't find any batches to upload, leave our backoff interval unchanged
   if (num_uploads_attempted == 0) {
@@ -361,6 +428,7 @@ Duration UploadThreadState::ResetDelayToMin() {
 }
 
 Duration Internal_HandleUploadProc(
+    const DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
@@ -391,11 +459,19 @@ Duration Internal_HandleUploadProc(
   // directory for files that need to be uploaded, and uploading any that are found, up
   // to the configured limits
   return _run_upload_cycle(
-      config, http_context, clock, *feature, http_client, mut_filenames, mut_read_buffer
+      diagnostic_logger,
+      config,
+      http_context,
+      clock,
+      *feature,
+      http_client,
+      mut_filenames,
+      mut_read_buffer
   );
 }
 
 void UploadThreadMain(
+    const DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
@@ -403,13 +479,17 @@ void UploadThreadMain(
     std::vector<RegisteredFeature>& features,
     platform::IHttpClient& http_client
 ) {
-  std::cout << "<UPLOAD> Started\n";
+  diagnostic_logger.Debug("Upload thread starting");
 
   // Schedule initial upload cycles for all features
   for (auto& feature : features) {
-    std::cout << "<UPLOAD> First cycle in "
-              << feature.upload_state->current_delay.count() << "\n";
     scheduler.Schedule(feature.id, feature.upload_state->current_delay);
+    diagnostic_logger.Debug(
+        "Scheduled first upload cycle for feature",
+        {{"feature", feature.name},
+         {"feature_id", static_cast<int64_t>(feature.id)},
+         {"delay_ms", feature.upload_state->current_delay.count() / 1000000}}
+    );
   }
 
   // Initialize a reusable vector to contain filenames, so we don't have to allocate
@@ -426,6 +506,7 @@ void UploadThreadMain(
   // Run indefinitely, exiting once the scheduler returns nullopt
   while (auto feature_id = scheduler.WaitForNext()) {
     const Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        diagnostic_logger,
         config,
         http_context,
         clock,
@@ -436,9 +517,14 @@ void UploadThreadMain(
         read_buffer
     );
     scheduler.Schedule(*feature_id, delay_until_next_cycle);
+    diagnostic_logger.Debug(
+        "Scheduled next upload cycle for feature",
+        {{"feature_id", static_cast<int64_t>(*feature_id)},
+         {"delay_ms", delay_until_next_cycle.count() / 1000000}}
+    );
   }
 
-  std::cout << "<UPLOAD> Finished\n";
+  diagnostic_logger.Debug("Upload thread finished");
 }
 
 }  // namespace datadog::impl
