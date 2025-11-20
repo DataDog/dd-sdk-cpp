@@ -33,11 +33,12 @@ std::string_view Buffer::Write(std::string_view s) {
 
 std::string_view Buffer::Writef(const char* fmt, ...) {
   // Call vsnprintf, passing our variadic args
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg,cppcoreguidelines-init-variables)
+  // NOLINTBEGIN
   va_list args;
   va_start(args, fmt);
   const int n = std::vsnprintf(bytes.data(), bytes.size(), fmt, args);
   va_end(args);
+  // NOLINTEND
 
   // vsnprintf returns negative if it couldn't write anything
   if (n < 0) {
