@@ -27,20 +27,23 @@
 namespace datadog::impl {
 
 static void _handle_tracking_consent_changed(
+    const DiagnosticLogger& diagnostic_logger,
     std::vector<RegisteredFeature>& features,
     const StorageMessage_TrackingConsentChanged& m
 ) {
   for (auto& feature : features) {
     if (!feature.event_storage->SetTrackingConsent(m.value)) {
-      std::cout << "[STORAGE] ERROR: failed to handle tracking consent change "
-                   "for feature "
-                << feature.name << "\n";
+      diagnostic_logger.Error(
+          "Failed to handle tracking consent change", {{"feature", feature.name}}
+      );
     }
   }
 }
 
 static void _handle_event_generated(
-    std::vector<RegisteredFeature>& features, const StorageMessage_EventGenerated& m
+    const DiagnosticLogger& diagnostic_logger,
+    std::vector<RegisteredFeature>& features,
+    const StorageMessage_EventGenerated& m
 ) {
   // Find the feature implementation identified in the message
   const auto feature =
@@ -74,12 +77,28 @@ static void _handle_event_generated(
 
   // If the write operation failed, note the error, drop the event, and continue
   if (!write_ok) {
-    std::cout << "[STORAGE] ERROR: write failed\n";
+    diagnostic_logger.Error(
+        "Failed to write event to storage",
+        {{"feature", feature->name},
+         {"event_size", m.event.size()},
+         {"event_metadata_size", m.event_metadata.size()}}
+    );
+  } else {
+    diagnostic_logger.Debug(
+        "Event written to storage",
+        {{"feature", feature->name},
+         {"event_size", m.event.size()},
+         {"event_metadata_size", m.event_metadata.size()}}
+    );
   }
 }
 
-void StorageThreadMain(StorageQueue& queue, std::vector<RegisteredFeature>& features) {
-  std::cout << "[STORAGE] Started\n";
+void StorageThreadMain(
+    const DiagnosticLogger& diagnostic_logger,
+    StorageQueue& queue,
+    std::vector<RegisteredFeature>& features
+) {
+  diagnostic_logger.Debug("Storage thread starting");
 
   // Perform continual blocking reads until we get std::nullopt, indicating that the
   // queue is drained and processing should stop
@@ -87,17 +106,19 @@ void StorageThreadMain(StorageQueue& queue, std::vector<RegisteredFeature>& feat
     switch (item->type) {
       case StorageMessageType::TrackingConsentChanged:
         _handle_tracking_consent_changed(
-            features, item->payload.tracking_consent_changed
+            diagnostic_logger, features, item->payload.tracking_consent_changed
         );
         break;
 
       case StorageMessageType::EventGenerated:
-        _handle_event_generated(features, item->payload.event_generated);
+        _handle_event_generated(
+            diagnostic_logger, features, item->payload.event_generated
+        );
         break;
     }
   }
 
-  std::cout << "[STORAGE] Finished\n";
+  diagnostic_logger.Debug("Storage thread finished");
 }
 
 }  // namespace datadog::impl

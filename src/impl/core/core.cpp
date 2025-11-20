@@ -13,6 +13,7 @@
 #include "assert.hpp"
 #include "core/storage_thread.hpp"
 #include "core/types.hpp"
+#include "core/version.hpp"
 #include "platform/clock.hpp"
 #include "platform/filesystem.hpp"
 #include "platform/http.hpp"
@@ -93,7 +94,7 @@ void Core::SetTrackingConsent(TrackingConsent value) {
       // config on RegisterFeature(), not on Start()
       for (auto& feature : _features) {
         if (!feature.event_storage->SetTrackingConsent(value)) {
-          std::cout << "Failed to set tracking consent synchronously\n";
+          _diagnostic_logger.Warning("Failed to set tracking consent synchronously");
         }
       }
     }
@@ -110,23 +111,34 @@ bool Core::Init() {
   // Create a single HTTP client
   _http_client = _subsystems.http->CreateClient();
   if (!_http_client) {
-    std::cout << "Failed to create HTTP client\n";
+    _diagnostic_logger.Error(
+        "Core initialization failed: could not create HTTP client"
+    );
     return false;
   }
 
   // Core is initialized; ready to register features and start
   _state = CoreState::Initialized;
+  _diagnostic_logger.Debug("Core initialization complete");
   return true;
 }
 
 bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   const FeatureId id = impl->GetId();
   const std::string_view name = impl->GetName();
-
   // Features may only be registered after init but before the core is started
   if (_state != CoreState::Initialized) {
-    std::cout << "Failed to register feature " << name << " (id " << id
-              << "): core in improper state\n";
+    if (_state == CoreState::Started) {
+      _diagnostic_logger.Warning(
+          "Ignoring request to register feature: Core is already running",
+          {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
+      );
+    } else {
+      _diagnostic_logger.Warning(
+          "Ignoring request to register feature: Core is uninitialized",
+          {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
+      );
+    }
     return false;
   }
 
@@ -138,8 +150,11 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
         return f.id == id || f.name == name;
       });
   if (existing != _features.end()) {
-    std::cout << "Failed to register feature " << name << " (id " << id
-              << "): id or name conflict\n";
+    _diagnostic_logger.Warning(
+        "Ignoring request to register feature: a feature is already registered with "
+        "that name or id",
+        {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
+    );
     return false;
   }
 
@@ -147,9 +162,12 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   // written on behalf of this feature
   auto feature_subdir = _subsystems.storage_root->PrepareSubdirectory(name);
   if (!feature_subdir) {
-    std::cout << "Failed to register feature " << name << " (id " << id
-              << "): feature subdir init failed with error "
-              << static_cast<int>(feature_subdir.error()) << "\n";
+    _diagnostic_logger.Error(
+        "Failed to register feature: storage directory could not be initialized",
+        {{"feature", name},
+         {"feature_id", static_cast<int64_t>(id)},
+         {"fs_error_type", static_cast<int64_t>(feature_subdir.error())}}
+    );
     return false;
   }
 
@@ -159,17 +177,25 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   auto pending_subdir =
       (*feature_subdir)->PrepareSubdirectory(EventStorage::PENDING_SUBDIRECTORY_NAME);
   if (!pending_subdir) {
-    std::cout << "Failed to register feature " << name << " (id " << id
-              << "): pending subdir init failed with error "
-              << static_cast<int>(pending_subdir.error()) << "\n";
+    _diagnostic_logger.Error(
+        "Failed to register feature: storage subdirectory could not be initialized",
+        {{"feature", name},
+         {"feature_id", static_cast<int64_t>(id)},
+         {"subdir_name", EventStorage::PENDING_SUBDIRECTORY_NAME},
+         {"fs_error_type", static_cast<int64_t>(feature_subdir.error())}}
+    );
     return false;
   }
   auto granted_subdir =
       (*feature_subdir)->PrepareSubdirectory(EventStorage::GRANTED_SUBDIRECTORY_NAME);
   if (!granted_subdir) {
-    std::cout << "Failed to register feature " << name << " (id " << id
-              << "): granted subdir init failed with error "
-              << static_cast<int>(granted_subdir.error()) << "\n";
+    _diagnostic_logger.Error(
+        "Failed to register feature: storage subdirectory could not be initialized",
+        {{"feature", name},
+         {"feature_id", static_cast<int64_t>(id)},
+         {"subdir_name", EventStorage::GRANTED_SUBDIRECTORY_NAME},
+         {"fs_error_type", static_cast<int64_t>(feature_subdir.error())}}
+    );
     return false;
   }
 
@@ -179,10 +205,16 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   auto event_storage = std::make_unique<EventStorage>(
       _config.tracking_consent,
       std::make_unique<BatchWriter>(
-          std::move(*pending_subdir), *_subsystems.clock, writer_config
+          _diagnostic_logger,
+          std::move(*pending_subdir),
+          *_subsystems.clock,
+          writer_config
       ),
       std::make_unique<BatchWriter>(
-          std::move(*granted_subdir), *_subsystems.clock, writer_config
+          _diagnostic_logger,
+          std::move(*granted_subdir),
+          *_subsystems.clock,
+          writer_config
       )
   );
 
@@ -192,9 +224,13 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   auto event_read_directory =
       (*feature_subdir)->PrepareSubdirectory(EventStorage::GRANTED_SUBDIRECTORY_NAME);
   if (!event_read_directory) {
-    std::cout << "Failed to register feature " << name << " (id " << id
-              << "): event read subdir init failed with error "
-              << static_cast<int>(event_read_directory.error()) << "\n";
+    _diagnostic_logger.Error(
+        "Failed to register feature: upload subdirectory could not be initialized",
+        {{"feature", name},
+         {"feature_id", static_cast<int64_t>(id)},
+         {"subdir_name", EventStorage::GRANTED_SUBDIRECTORY_NAME},
+         {"fs_error_type", static_cast<int64_t>(feature_subdir.error())}}
+    );
     return false;
   }
 
@@ -210,16 +246,29 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
       std::move(*event_read_directory),
       std::move(upload_state)
   );
-  std::cout << "Feature registered: " << name << "(id " << id << ")" << "\n";
+  _diagnostic_logger.Debug(
+      "Feature registered",
+      {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
+  );
   return true;
 }
 
 bool Core::Start() {
   // Start() may only be called after Init(), and while the core is not yet started
   if (_state != CoreState::Initialized) {
-    std::cout << "Core::Start() called in improper state\n";
+    if (_state == CoreState::Started) {
+      _diagnostic_logger.Warning(
+          "Ignoring request to start Core: Core is already running"
+      );
+    } else {
+      _diagnostic_logger.Warning(
+          "Ignoring request to start Core: Core is uninitialized"
+      );
+    }
     return false;
   }
+
+  _diagnostic_logger.Debug("Beginning Core startup");
 
   // At least one feature must have been registered
   if (_features.empty()) {
@@ -239,8 +288,12 @@ bool Core::Start() {
   // persistent storage: the thread accepts non-owning references to the queue and the
   // vector of features, as both are stable for the lifetime of the thread
   DATADOG_ASSERT(!_storage_thread, "_storage_thread already exists on Start()");
-  _storage_thread =
-      std::thread(StorageThreadMain, std::ref(*_storage_queue), std::ref(_features));
+  _storage_thread = std::thread(
+      StorageThreadMain,
+      std::ref(_diagnostic_logger),
+      std::ref(*_storage_queue),
+      std::ref(_features)
+  );
 
   DATADOG_ASSERT(!_upload_scheduler, "_upload_scheduler already exists on Start()");
   _upload_scheduler = std::make_unique<UploadScheduler>(*_subsystems.clock);
@@ -258,6 +311,7 @@ bool Core::Start() {
   DATADOG_ASSERT(!_upload_thread, "_upload_thread already exists on Start()");
   _upload_thread = std::thread(
       UploadThreadMain,
+      std::ref(_diagnostic_logger),
       UploadThreadConfig::FromCoreConfig(
           _config.batch_size, _config.batch_processing_level
       ),
@@ -268,19 +322,14 @@ bool Core::Start() {
       std::ref(*_http_client)
   );
 
-  std::cout << "Datadog core started.\n";
-  std::cout << "- Tracking Consent: "
-            << TrackingConsent_ToString(_config.tracking_consent) << "\n";
-  std::cout << "- Site: " << Site_ToString(_config.site) << "\n";
-  std::cout << "- Client Token: " << _config.client_token << "\n";
-  std::cout << "- Env: " << _config.env << "\n";
-  std::cout << "- Application Version: " << _config.application_version << "\n";
-  std::cout << "- Batch Size: " << BatchSize_ToString(_config.batch_size) << "\n";
-  std::cout << "- Upload Frequency: "
-            << UploadFrequency_ToString(_config.upload_frequency) << "\n";
-  std::cout << "- Batch Processing Level: "
-            << BatchProcessingLevel_ToString(_config.batch_processing_level) << "\n";
-
+  _diagnostic_logger.Status(
+      "Core started",
+      {{"service", _config.service},
+       {"start_time", _subsystems.clock->Now()},
+       {"env", _config.env},
+       {"application_version", _config.application_version},
+       {"sdk_version", SDK_VERSION}}
+  );
   _state = CoreState::Started;
 
   // Notify each registered feature that the core has started, providing it with a
@@ -301,6 +350,7 @@ void Core::Stop() {
   if (_state != CoreState::Started) {
     return;
   }
+  _diagnostic_logger.Debug("Beginning Core shutdown");
 
   // Notify each registered feature that the core has stopped
   for (const auto& feature : _features) {
@@ -323,6 +373,7 @@ void Core::Stop() {
   // and exits, at which point it's safe to release the queue
   _storage_queue->Stop();
   if (_storage_thread) {
+    _diagnostic_logger.Debug("Joining on storage thread");
     _storage_thread->join();
   }
   _storage_thread.reset();
@@ -332,6 +383,7 @@ void Core::Stop() {
   // synchronization) that it should exit, then wait for it to do so
   _upload_scheduler->Stop();
   if (_upload_thread) {
+    _diagnostic_logger.Debug("Joining on upload thread");
     _upload_thread->join();
   }
   _upload_thread.reset();
@@ -363,6 +415,7 @@ void Core::Stop() {
     // we've joined on both threads, all state is synchronized
     for (const auto& feature : _features) {
       Internal_HandleUploadProc(
+          _diagnostic_logger,
           flush_config,
           http_context,
           *_subsystems.clock,
@@ -375,9 +428,7 @@ void Core::Stop() {
     }
   }
 
-  std::cout << "Datadog core stopped.\n";
-  std::cout << "Time at shutdown: "
-            << _subsystems.clock->Now().time_since_epoch().count() << "\n";
+  _diagnostic_logger.Status("Core stopped", {{"stop_time", _subsystems.clock->Now()}});
 
   // Revert to the initialized state; subsequent calls to Start() will restart us
   _state = CoreState::Initialized;
@@ -387,8 +438,10 @@ bool Core::EnqueueStorageWrite(
     FeatureId feature_id, Block event, Block event_metadata
 ) {
   if (_state != CoreState::Started) {
-    std::cout << "Feature " << feature_id
-              << " attempted to write to storage while core not running\n";
+    _diagnostic_logger.Warning(
+        "Ignoring event generated while Core not running",
+        {{"feature_id", static_cast<int64_t>(feature_id)}}
+    );
     return false;
   }
 

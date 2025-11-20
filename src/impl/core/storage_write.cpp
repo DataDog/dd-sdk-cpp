@@ -83,16 +83,21 @@ BatchWriterConfig BatchWriterConfig::FromBatchSize(BatchSize batch_size) {
 }
 
 BatchWriter::BatchWriter(
+    const DiagnosticLogger& diagnostic_logger,
     std::unique_ptr<platform::IDirectory>&& directory,
     const platform::IClock& clock,
     BatchWriterConfig config
 )
-    : _directory(std::move(directory)), _clock(clock), _config(config) {}
+    : _diagnostic_logger(diagnostic_logger),
+      _directory(std::move(directory)),
+      _clock(clock),
+      _config(config) {}
 
 bool BatchWriter::Delete()  // NOLINT (TODO)
 {
   // TODO: Delete all files in our directory, with appropriate synchronization and
   // filesystem error handling
+  _diagnostic_logger.Debug("BatchWriter::Delete NYI");
   return false;
 }
 
@@ -102,6 +107,7 @@ bool BatchWriter::MigrateTo(BatchWriter& other)  // NOLINT (TODO)
   // appropriate synchronization, filesystem error handling, and file name conflict
   // handling
   (void)other;
+  _diagnostic_logger.Debug("BatchWriter::MigrateTo NYI");
   return false;
 }
 
@@ -131,7 +137,10 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
   // appropriate writable file
   platform::IFileWriter* file = PrepareFileForNextWrite(event, event_metadata);
   if (!file) {
-    std::cout << "[STORAGE] ERROR: Failed to prepare file for next write\n";
+    // If this error occurs, it's likely due to an underlying I/O error, or else we're
+    // flooding the storage thread with 100+ batches worth of event data in a very small
+    // time span, such that there are no available timestamps left to use as filenames
+    _diagnostic_logger.Error("Event dropped; could not prepare batch file for write");
     return false;
   }
 
@@ -174,7 +183,7 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
   if (!ok) {
     // Write failed: log an error, drop the event, and carry on attempting to write
     // future events
-    std::cout << "[STORAGE] ERROR: Write operation failed\n";
+    _diagnostic_logger.Error("Event dropped; write to batch file failed");
     return false;
   }
 

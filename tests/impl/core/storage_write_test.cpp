@@ -30,7 +30,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(directory.has_value());
 
     // Return an initialized writer
-    return BatchWriter(std::move(*directory), clock, config);
+    return BatchWriter(DiagnosticLogger{}, std::move(*directory), clock, config);
   };
 
   SECTION("M successfully write event W valid event data provided") {
@@ -543,10 +543,12 @@ TEST_CASE("EventStorage", "[unit]") {
 
     // Make two BatchWriters, one to handle writes for each directory
     auto writer_config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
-    auto pending_writer =
-        std::make_unique<BatchWriter>(std::move(*pending_subdir), clock, writer_config);
-    auto granted_writer =
-        std::make_unique<BatchWriter>(std::move(*granted_subdir), clock, writer_config);
+    auto pending_writer = std::make_unique<BatchWriter>(
+        DiagnosticLogger{}, std::move(*pending_subdir), clock, writer_config
+    );
+    auto granted_writer = std::make_unique<BatchWriter>(
+        DiagnosticLogger{}, std::move(*granted_subdir), clock, writer_config
+    );
 
     // Create an EventStorage interface to sit in front of them, using the desired
     // value for our initial tracking consent

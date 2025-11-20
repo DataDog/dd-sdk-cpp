@@ -14,6 +14,7 @@
 
 #include "core/block.hpp"
 #include "datadog/core.hpp"
+#include "diagnostics.hpp"
 #include "platform/clock.hpp"
 #include "platform/filesystem.hpp"
 
@@ -59,6 +60,12 @@ struct BatchWriterConfig {
  */
 class BatchWriter {
  private:
+  /**
+   * Interface used to emit local log messages, mostly to aid in debugging the behavior
+   * of the storage thread.
+   */
+  DiagnosticLogger _diagnostic_logger;
+
   /**
    * The directory containing TLV-format batch files with event data for this feature
    * and tracking consent permutation.
@@ -131,6 +138,7 @@ class BatchWriter {
 
  public:
   explicit BatchWriter(
+      const DiagnosticLogger& diagnostic_logger,
       std::unique_ptr<platform::IDirectory>&& directory,
       const platform::IClock& clock,
       BatchWriterConfig config

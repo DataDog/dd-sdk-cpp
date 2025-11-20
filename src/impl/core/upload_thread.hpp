@@ -15,6 +15,7 @@
 
 #include "core/feature.hpp"
 #include "core/types.hpp"
+#include "diagnostics.hpp"
 #include "platform/clock.hpp"
 #include "platform/http.hpp"
 
@@ -92,6 +93,7 @@ struct UploadThreadState {
  * thread. Exposed here to facilitate unit testing.
  */
 Duration Internal_HandleUploadProc(
+    const DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
@@ -105,6 +107,7 @@ Duration Internal_HandleUploadProc(
 /**
  * Entry point for the upload thread. See description in `core.hpp`.
  *
+ * @param diagnostic_logger Interface for logging local status/warning messages.
  * @param config Global configuration values for the upload thread.
  * @param http_context The immutable configuration details used when building HTTP
  *  requests.
@@ -120,6 +123,7 @@ Duration Internal_HandleUploadProc(
  *  initiate requests for each report.
  */
 void UploadThreadMain(
+    const DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,

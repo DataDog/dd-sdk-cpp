@@ -6,11 +6,34 @@
 
 #pragma once
 
+#include <cinttypes>
+#include <initializer_list>
+#include <string_view>
+#include <utility>
+#include <variant>
+
 #include "core/types.hpp"
+#include "datadog/attribute.hpp"
 #include "datadog/core.h"
 #include "datadog/core.hpp"
+#include "datadog/timestamp.hpp"
+#include "datadog/uuid.hpp"
 
 namespace datadog::impl {
+
+/**
+ * Union of the possible primitive value types that can be included in diagnostic log
+ * messages as named attributes.
+ */
+using DiagnosticAttributeValue =
+    std::variant<bool, int64_t, uint64_t, double, Timestamp, UUID, std::string_view>;
+
+/**
+ * A static list of attribute values to include in a specific log message. Serialized as
+ * a JSON object; see `json/diagnostic_attribute.hpp`.
+ */
+using DiagnosticAttributeList =
+    std::initializer_list<std::pair<std::string_view, DiagnosticAttributeValue>>;
 
 /**
  * Wraps a user-provided (or SDK-default) diagnostic message handler callback, providing
@@ -79,16 +102,16 @@ class DiagnosticLogger {
    * Logs a debug message. A debug message provides verbose, low-level details about the
    * state of the SDK.
    */
-  void Debug(const char* text) const {
-    Emit(DiagnosticMessage{DiagnosticLevel::Debug, text});
+  void Debug(const char* text, DiagnosticAttributeList attributes = {}) const {
+    Emit(DiagnosticLevel::Debug, text, attributes);
   }
 
   /**
    * Logs a status message. A status message provides relatively infrequent and succinct
    * feedback about the state of the SDK, such as the results of upload attempts.
    */
-  void Status(const char* text) const {
-    Emit(DiagnosticMessage{DiagnosticLevel::Status, text});
+  void Status(const char* text, DiagnosticAttributeList attributes = {}) const {
+    Emit(DiagnosticLevel::Status, text, attributes);
   }
 
   /**
@@ -97,24 +120,22 @@ class DiagnosticLogger {
    * supplied invalid arguments, the SDK was not in a supported state to handle the
    * operation, etc.) but the SDK continues to operate normally otherwise.
    */
-  void Warning(const char* text) const {
-    Emit(DiagnosticMessage{DiagnosticLevel::Warning, text});
+  void Warning(const char* text, DiagnosticAttributeList attributes = {}) const {
+    Emit(DiagnosticLevel::Warning, text, attributes);
   }
 
   /**
    * Logs an error message. An error usually indicates that the SDK could not be
    * initialized or has ceased to function as intended.
    */
-  void Error(const char* text) const {
-    Emit(DiagnosticMessage{DiagnosticLevel::Error, text});
+  void Error(const char* text, DiagnosticAttributeList attributes = {}) const {
+    Emit(DiagnosticLevel::Error, text, attributes);
   }
 
  private:
-  void Emit(const DiagnosticMessage& message) const {
-    if (handler && message.level >= threshold) {
-      handler(message);
-    }
-  }
+  void Emit(
+      DiagnosticLevel level, const char* text, DiagnosticAttributeList attributes
+  ) const;
 };
 
 }  // namespace datadog::impl

@@ -23,6 +23,7 @@
 #include "json/primitives/timestamp.hpp"
 #include "json/primitives/uuid.hpp"
 #include "json/attribute.hpp"
+#include "json/diagnostic_attribute.hpp"
 #include "json/optional.hpp"
 // clang-format on
 

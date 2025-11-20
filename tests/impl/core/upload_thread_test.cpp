@@ -124,6 +124,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,
@@ -170,6 +171,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,
@@ -288,6 +290,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
+            DiagnosticLogger{},
             config,
             *context,
             clock,
@@ -354,6 +357,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,
@@ -417,6 +421,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
+            DiagnosticLogger{},
             config,
             *context,
             clock,
@@ -483,6 +488,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
+            DiagnosticLogger{},
             config,
             *context,
             clock,
@@ -558,6 +564,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
+            DiagnosticLogger{},
             config,
             *context,
             clock,
@@ -613,6 +620,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,
@@ -668,6 +676,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,
@@ -721,6 +730,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,
@@ -770,6 +780,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,
@@ -818,6 +829,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,
@@ -871,6 +883,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        DiagnosticLogger{},
         config,
         *context,
         clock,

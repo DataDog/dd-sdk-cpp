@@ -72,10 +72,10 @@ TEST_CASE("StorageThreadMain", "[unit]") {
         std::make_unique<EventStorage>(
             alpha_consent,
             std::make_unique<BatchWriter>(
-                std::move(*alpha_pending), clock, writer_config
+                DiagnosticLogger{}, std::move(*alpha_pending), clock, writer_config
             ),
             std::make_unique<BatchWriter>(
-                std::move(*alpha_granted), clock, writer_config
+                DiagnosticLogger{}, std::move(*alpha_granted), clock, writer_config
             )
         ),
         nullptr,  // event_read_directory is exclusive to upload thread
@@ -91,10 +91,10 @@ TEST_CASE("StorageThreadMain", "[unit]") {
         std::make_unique<EventStorage>(
             bravo_consent,
             std::make_unique<BatchWriter>(
-                std::move(*bravo_pending), clock, writer_config
+                DiagnosticLogger{}, std::move(*bravo_pending), clock, writer_config
             ),
             std::make_unique<BatchWriter>(
-                std::move(*bravo_granted), clock, writer_config
+                DiagnosticLogger{}, std::move(*bravo_granted), clock, writer_config
             )
         ),
         nullptr,  // event_read_directory is exclusive to upload thread
@@ -143,7 +143,7 @@ TEST_CASE("StorageThreadMain", "[unit]") {
 
     // When we run the upload thread and drain the queue
     queue.Stop();
-    StorageThreadMain(queue, features);
+    StorageThreadMain(DiagnosticLogger{}, queue, features);
 
     // Then 'alpha/no-upload' should contain 'alpha-1'
     auto alpha_pending_files = mock_storage.FindFiles("alpha/no-upload");
