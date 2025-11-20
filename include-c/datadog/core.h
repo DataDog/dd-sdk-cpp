@@ -171,6 +171,9 @@ DATADOG_API void dd_core_config_init(
  *
  * The default handler is dd_stderr_diagnostic_handler, which prints to stderr. If this
  * value is set to NULL, all diagnostic messages will be silently dropped.
+ *
+ * The SDK may call the provided handler function from any thread, without
+ * synchronization.
  */
 DATADOG_API void dd_core_config_set_diagnostic_handler(
     dd_core_config_t* config, dd_diagnostic_handler_t value

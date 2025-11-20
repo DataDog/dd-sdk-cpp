@@ -43,8 +43,8 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
       Attribute attributes = Attribute::Object(1);
       attributes.SetObjectProperty("bar", Attribute::Int(100));
       rum->StartView("foo", "My View", attributes);
-      rum->AddViewAttribute("foo", "something", Attribute::Int(100));
-      rum->RemoveViewAttribute("foo", "something");
+      rum->AddViewAttribute("something", Attribute::Int(100));
+      rum->RemoveViewAttribute("something");
       rum->StopView("foo", attributes);
 
       rum->AddAction(RumActionType::Click, "Button");
@@ -106,9 +106,9 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->AddAttribute("attr1", Attribute::Int(100));
     rum->RemoveAttribute("attr1");
     rum->StartView("bar", "Bar");
-    rum->AddViewAttribute("bar", "attr2", Attribute::Int(100));
+    rum->AddViewAttribute("attr2", Attribute::Int(100));
     rum->AddAction(RumActionType::Custom, "action1");
-    rum->RemoveViewAttribute("bar", "attr2");
+    rum->RemoveViewAttribute("attr2");
     rum->StopView("bar");
     rum->StopSession();
     rum->StartView("foo", "Foo");
@@ -187,8 +187,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
          rum->StartView("my-view", "My View", view_attributes);
 
          // Modify view attributes
-         rum->AddViewAttribute("my-view", "baz", Attribute::String("world"));
-         rum->RemoveViewAttribute("my-view", "bar");
+         rum->AddViewAttribute("baz", Attribute::String("world"));
+         rum->RemoveViewAttribute("bar");
 
          // Stop the view
          rum->StopView("my-view");
@@ -260,34 +260,6 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) { rum->StopView(""); });
        },
        {"Rum::StopView call ignored: application must supply a non-empty view key"},
-       {}},
-
-      // === AddViewAttribute() ===
-
-      {"M print warning W AddViewAttribute is called with empty view key",
-       [&](RumConfig& config, std::shared_ptr<Core>& core) {
-         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
-           rum->StartView("my-view", "My View");
-           rum->AddViewAttribute("", "foo", Attribute::Int(100));
-         });
-       },
-       {"Rum::AddViewAttribute call ignored: application must supply a non-empty "
-        "view "
-        "key"},
-       {}},
-
-      // === RemoveViewAttribute() ===
-
-      {"M print warning W RemoveViewAttribute is called with empty view key",
-       [&](RumConfig& config, std::shared_ptr<Core>& core) {
-         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
-           rum->StartView("my-view", "My View");
-           rum->RemoveViewAttribute("", "foo");
-         });
-       },
-       {"Rum::RemoveViewAttribute call ignored: application must supply a "
-        "non-empty "
-        "view key"},
        {}},
 
       // === AddAction() / StartAction() ===
@@ -685,7 +657,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          rum->StartView("my-view", "My View");
 
          // And we then set {"foo":100} on the view after its creation
-         rum->AddViewAttribute("my-view", "foo", Attribute::Int(100));
+         rum->AddViewAttribute("foo", Attribute::Int(100));
 
          // And 15 seconds passes
          clock.Tick(std::chrono::seconds(15));
@@ -714,10 +686,10 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          rum->StartView("my-view", "My View");
 
          // And we then set {"foo":100} on the view after its creation
-         rum->AddViewAttribute("my-view", "foo", Attribute::Int(100));
+         rum->AddViewAttribute("foo", Attribute::Int(100));
 
          // And we then set {"foo":200} immediately thereafter
-         rum->AddViewAttribute("my-view", "foo", Attribute::Int(200));
+         rum->AddViewAttribute("foo", Attribute::Int(200));
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
@@ -738,11 +710,11 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          rum->StartView("my-view", "My View");
 
          // And we then set {"foo":100,"bar":200} on the view after its creation
-         rum->AddViewAttribute("my-view", "foo", Attribute::Int(100));
-         rum->AddViewAttribute("my-view", "bar", Attribute::Int(200));
+         rum->AddViewAttribute("foo", Attribute::Int(100));
+         rum->AddViewAttribute("bar", Attribute::Int(200));
 
          // And we then delete "foo" immediately thereafter
-         rum->RemoveViewAttribute("my-view", "foo");
+         rum->RemoveViewAttribute("foo");
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
@@ -762,7 +734,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          rum->StartView("my-view", "My View");
 
          // And we then attempt to delete an attribute called "foo", which doens't exist
-         rum->RemoveViewAttribute("my-view", "foo");
+         rum->RemoveViewAttribute("foo");
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
@@ -773,28 +745,6 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          REQUIRE(events.is_array());
          REQUIRE(events.size() == 2);
          REQUIRE(!events[1].contains("context"));
-       }},
-
-      {"M do nothing W RemoveViewAttribute called for nonexistent view",
-       [](RumConfig&) {},
-       [](std::shared_ptr<Rum>& rum, MockClock&) {
-         // When we attempt to remove a view attribute from a view that doesn't exist
-         rum->RemoveViewAttribute("nonexistent-view", "foo");
-       },
-       [](const nlohmann::json& events) {
-         // Then nothing happens
-         REQUIRE(events.is_null());
-       }},
-
-      {"M do nothing W AddViewAttribute called for nonexistent view",
-       [](RumConfig&) {},
-       [](std::shared_ptr<Rum>& rum, MockClock&) {
-         // When we attempt to add a view attribute to a view that doesn't exist
-         rum->AddViewAttribute("nonexistent-view", "foo", Attribute::Int(100));
-       },
-       [](const nlohmann::json& events) {
-         // Then nothing happens
-         REQUIRE(events.is_null());
        }},
 
       {"M mutate view attributes W start/attr/stop funcs are called successively",
@@ -809,9 +759,9 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          rum->StartView("my-view", "My View", start_view_obj);
 
          // And we then delete "baker" and set {"charlie":"modified"} and {"dog":444}
-         rum->RemoveViewAttribute("my-view", "baker");
-         rum->AddViewAttribute("my-view", "charlie", Attribute::String("modified"));
-         rum->AddViewAttribute("my-view", "dog", Attribute::Int(444));
+         rum->RemoveViewAttribute("baker");
+         rum->AddViewAttribute("charlie", Attribute::String("modified"));
+         rum->AddViewAttribute("dog", Attribute::Int(444));
 
          // And 15 seconds passes
          clock.Tick(std::chrono::seconds(15));
@@ -963,7 +913,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          rum->AddAttribute("bravo", Attribute::String("modified"));
 
          // And we remove the view-level "charlie"
-         rum->RemoveViewAttribute("my-view", "charlie");
+         rum->RemoveViewAttribute("charlie");
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
@@ -1030,8 +980,8 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
 
          // And we attempt to modify view attributes after the view has stopped, trying
          // to delete "able" and trying to add {"dog":400}
-         rum->RemoveViewAttribute("my-view", "able");
-         rum->AddViewAttribute("my-view", "dog", Attribute::Int(400));
+         rum->RemoveViewAttribute("able");
+         rum->AddViewAttribute("dog", Attribute::Int(400));
 
          // And 1 second later, we stop the resource, allowing our original view scope
          // to close
@@ -1263,7 +1213,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          // And we wait 15 seconds and initiate any RUM operation that will result in a
          // command being processed by the active action scope
          clock.Tick(std::chrono::seconds(15));
-         rum->RemoveViewAttribute("my-view", "nonexistent");
+         rum->RemoveViewAttribute("nonexistent");
        },
        [](const nlohmann::json& events) {
          // Then an action event gets sent, and its duration is clamped at 10s
@@ -1286,7 +1236,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          // And then 4s later, we initiate any RUM operation that will result in a
          // command being processed by the active action scope
          clock.Tick(std::chrono::seconds(4));
-         rum->RemoveViewAttribute("my-view", "nonexistent");
+         rum->RemoveViewAttribute("nonexistent");
        },
        [](const nlohmann::json& events) {
          // Then we don't end up with any action events, because at T+4s, the scope for
@@ -1373,7 +1323,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          // And then 150ms later, we initiate any RUM operation that will result in a
          // command being processed by the active action scope
          clock.Tick(std::chrono::milliseconds(150));
-         rum->RemoveViewAttribute("my-view", "nonexistent");
+         rum->RemoveViewAttribute("nonexistent");
        },
        [](const nlohmann::json& events) {
          // Then an action event gets sent, and its duration is clamped at 100ms

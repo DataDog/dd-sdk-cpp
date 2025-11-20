@@ -37,8 +37,8 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
 
     dd_rum_start_view(nullptr, "foo", "My View");
     dd_rum_start_view_obj(nullptr, "foo", "My View", &obj);
-    dd_rum_add_view_attribute(nullptr, "foo", "something", &int_100);
-    dd_rum_remove_view_attribute(nullptr, "foo", "something");
+    dd_rum_add_view_attribute(nullptr, "something", &int_100);
+    dd_rum_remove_view_attribute(nullptr, "something");
     dd_rum_stop_view(nullptr, "foo");
     dd_rum_stop_view_obj(nullptr, "foo", &obj);
 
@@ -162,9 +162,9 @@ TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
     dd_rum_add_attribute(rum, "attr1", &int_100);
     dd_rum_remove_attribute(rum, "attr1");
     dd_rum_start_view(rum, "bar", "Bar");
-    dd_rum_add_view_attribute(rum, "bar", "attr2", &int_100);
+    dd_rum_add_view_attribute(rum, "attr2", &int_100);
     dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "action1", NULL);
-    dd_rum_remove_view_attribute(rum, "bar", "attr2");
+    dd_rum_remove_view_attribute(rum, "attr2");
     dd_rum_stop_view(rum, "bar");
     dd_rum_stop_session(rum);
     dd_rum_start_view(rum, "foo", "Foo");
@@ -253,8 +253,8 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
 
          // Modify view attributes
          dd_attribute_set_string(&str_val, "world");
-         dd_rum_add_view_attribute(rum, "my-view", "baz", &str_val);
-         dd_rum_remove_view_attribute(rum, "my-view", "bar");
+         dd_rum_add_view_attribute(rum, "baz", &str_val);
+         dd_rum_remove_view_attribute(rum, "bar");
 
          // Stop the view
          dd_rum_stop_view(rum, "my-view");
@@ -400,38 +400,12 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
 
       // === dd_rum_add_view_attribute() ===
 
-      {"M print warning W dd_rum_add_view_attribute is called with NULL view key",
-       [&](dd_rum_config_t* config, dd_core_t* core) {
-         with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
-           dd_attribute_t int_100 = dd_attribute_int(100);
-           dd_rum_add_view_attribute(rum, NULL, "foo", &int_100);
-           dd_attribute_free(&int_100);
-         });
-       },
-       {"dd_rum_add_view_attribute call ignored: application must supply a non-empty "
-        "view key"},
-       {}},
-
-      {"M print warning W dd_rum_add_view_attribute is called with empty view key",
-       [&](dd_rum_config_t* config, dd_core_t* core) {
-         with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
-           dd_attribute_t int_100 = dd_attribute_int(100);
-           dd_rum_add_view_attribute(rum, "", "foo", &int_100);
-           dd_attribute_free(&int_100);
-         });
-       },
-       {"dd_rum_add_view_attribute call ignored: application must supply a non-empty "
-        "view key"},
-       {}},
-
       {"M print warning W dd_rum_add_view_attribute is called with NULL attribute name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
            dd_attribute_t int_100 = dd_attribute_int(100);
-           dd_rum_add_view_attribute(rum, "my-view", nullptr, &int_100);
+           dd_rum_add_view_attribute(rum, nullptr, &int_100);
            dd_attribute_free(&int_100);
          });
        },
@@ -443,7 +417,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_add_view_attribute(rum, "my-view", "foo", nullptr);
+           dd_rum_add_view_attribute(rum, "foo", nullptr);
          });
        },
        {"dd_rum_add_view_attribute call ignored: application must supply an attribute "
@@ -452,33 +426,11 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
 
       // === dd_rum_remove_view_attribute() ===
 
-      {"M print warning W dd_rum_remove_view_attribute is called with NULL view key",
-       [&](dd_rum_config_t* config, dd_core_t* core) {
-         with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_remove_view_attribute(rum, NULL, "foo");
-         });
-       },
-       {"dd_rum_remove_view_attribute call ignored: application must supply a "
-        "non-empty view key"},
-       {}},
-
-      {"M print warning W dd_rum_remove_view_attribute is called with empty view key",
-       [&](dd_rum_config_t* config, dd_core_t* core) {
-         with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_remove_view_attribute(rum, "", "foo");
-         });
-       },
-       {"dd_rum_remove_view_attribute call ignored: application must supply a "
-        "non-empty view key"},
-       {}},
-
       {"M print warning W dd_rum_remove_view_attribute is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_remove_view_attribute(rum, "my-view", nullptr);
+           dd_rum_remove_view_attribute(rum, nullptr);
          });
        },
        {"dd_rum_remove_view_attribute call ignored: application must supply an "
@@ -929,7 +881,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And we then set {"foo":100} on the view after its creation
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_rum_add_view_attribute(rum, "my-view", "foo", &int_100);
+         dd_rum_add_view_attribute(rum, "foo", &int_100);
          dd_attribute_free(&int_100);
 
          // And 15 seconds passes
@@ -960,12 +912,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And we then set {"foo":100} on the view after its creation
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_rum_add_view_attribute(rum, "my-view", "foo", &int_100);
+         dd_rum_add_view_attribute(rum, "foo", &int_100);
          dd_attribute_free(&int_100);
 
          // And we then set {"foo":200} immediately thereafter
          dd_attribute_t int_200 = dd_attribute_int(200);
-         dd_rum_add_view_attribute(rum, "my-view", "foo", &int_200);
+         dd_rum_add_view_attribute(rum, "foo", &int_200);
          dd_attribute_free(&int_200);
 
          // And we stop the view 15 seconds later
@@ -989,13 +941,13 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // And we then set {"foo":100,"bar":200} on the view after its creation
          dd_attribute_t int_100 = dd_attribute_int(100);
          dd_attribute_t int_200 = dd_attribute_int(200);
-         dd_rum_add_view_attribute(rum, "my-view", "foo", &int_100);
-         dd_rum_add_view_attribute(rum, "my-view", "bar", &int_200);
+         dd_rum_add_view_attribute(rum, "foo", &int_100);
+         dd_rum_add_view_attribute(rum, "bar", &int_200);
          dd_attribute_free(&int_100);
          dd_attribute_free(&int_200);
 
          // And we then delete "foo" immediately thereafter
-         dd_rum_remove_view_attribute(rum, "my-view", "foo");
+         dd_rum_remove_view_attribute(rum, "foo");
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
@@ -1015,7 +967,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_rum_start_view(rum, "my-view", "My View");
 
          // And we then attempt to delete an attribute called "foo", which doens't exist
-         dd_rum_remove_view_attribute(rum, "my-view", "foo");
+         dd_rum_remove_view_attribute(rum, "foo");
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
@@ -1026,30 +978,6 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          REQUIRE(events.is_array());
          REQUIRE(events.size() == 2);
          REQUIRE(!events[1].contains("context"));
-       }},
-
-      {"M do nothing W dd_rum_remove_view_attribute called for nonexistent view",
-       [](dd_rum_config*) {},
-       [](dd_rum_t* rum, MockClock&) {
-         // When we attempt to remove a view attribute from a view that doesn't exist
-         dd_rum_remove_view_attribute(rum, "nonexistent-view", "foo");
-       },
-       [](const nlohmann::json& events) {
-         // Then nothing happens
-         REQUIRE(events.is_null());
-       }},
-
-      {"M do nothing W dd_rum_add_view_attribute called for nonexistent view",
-       [](dd_rum_config*) {},
-       [](dd_rum_t* rum, MockClock&) {
-         // When we attempt to add a view attribute to a view that doesn't exist
-         dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_rum_add_view_attribute(rum, "nonexistent-view", "foo", &int_100);
-         dd_attribute_free(&int_100);
-       },
-       [](const nlohmann::json& events) {
-         // Then nothing happens
-         REQUIRE(events.is_null());
        }},
 
       {"M mutate view attributes W start/attr/stop funcs are called successively",
@@ -1071,12 +999,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_free(&start_view_obj);
 
          // And we then delete "baker" and set {"charlie":"modified"} and {"dog":444}
-         dd_rum_remove_view_attribute(rum, "my-view", "baker");
+         dd_rum_remove_view_attribute(rum, "baker");
          dd_attribute_t str_modified = dd_attribute_string("modified");
-         dd_rum_add_view_attribute(rum, "my-view", "charlie", &str_modified);
+         dd_rum_add_view_attribute(rum, "charlie", &str_modified);
          dd_attribute_free(&str_modified);
          dd_attribute_set_int(&int_val, 444);
-         dd_rum_add_view_attribute(rum, "my-view", "dog", &int_val);
+         dd_rum_add_view_attribute(rum, "dog", &int_val);
 
          // And 15 seconds passes
          clock.Tick(std::chrono::seconds(15));
@@ -1265,7 +1193,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_free(&str_modified);
 
          // And we remove the view-level "charlie"
-         dd_rum_remove_view_attribute(rum, "my-view", "charlie");
+         dd_rum_remove_view_attribute(rum, "charlie");
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
@@ -1345,9 +1273,9 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And we attempt to modify view attributes after the view has stopped, trying
          // to delete "able" and trying to add {"dog":400}
-         dd_rum_remove_view_attribute(rum, "my-view", "able");
+         dd_rum_remove_view_attribute(rum, "able");
          dd_attribute_set_int(&int_val, 400);
-         dd_rum_add_view_attribute(rum, "my-view", "dog", &int_val);
+         dd_rum_add_view_attribute(rum, "dog", &int_val);
 
          // And 1 second later, we stop the resource, allowing our original view scope
          // to close
@@ -1595,7 +1523,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // And we wait 15 seconds and initiate any RUM operation that will result in a
          // command being processed by the active action scope
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_remove_view_attribute(rum, "my-view", "nonexistent");
+         dd_rum_remove_view_attribute(rum, "nonexistent");
        },
        [](const nlohmann::json& events) {
          // Then an action event gets sent, and its duration is clamped at 10s
@@ -1618,7 +1546,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // And then 4s later, we initiate any RUM operation that will result in a
          // command being processed by the active action scope
          clock.Tick(std::chrono::seconds(4));
-         dd_rum_remove_view_attribute(rum, "my-view", "nonexistent");
+         dd_rum_remove_view_attribute(rum, "nonexistent");
        },
        [](const nlohmann::json& events) {
          // Then we don't end up with any action events, because at T+4s, the scope for
@@ -1705,7 +1633,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // And then 150ms later, we initiate any RUM operation that will result in a
          // command being processed by the active action scope
          clock.Tick(std::chrono::milliseconds(150));
-         dd_rum_remove_view_attribute(rum, "my-view", "nonexistent");
+         dd_rum_remove_view_attribute(rum, "nonexistent");
        },
        [](const nlohmann::json& events) {
          // Then an action event gets sent, and its duration is clamped at 100ms
