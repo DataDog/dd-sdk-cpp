@@ -146,7 +146,7 @@ DATADOG_API void dd_logging_destroy(dd_logging_t* logging);
  * Adds or updates a global attribute value that will be included with all log messages
  * emitted by all loggers.
  */
-DATADOG_API void dd_logging_attribute_set(
+DATADOG_API void dd_logging_add_attribute(
     dd_logging_t* logging, const char* name, const dd_attribute_t* value
 );
 
@@ -154,7 +154,7 @@ DATADOG_API void dd_logging_attribute_set(
  * Removes a global attribute value, if one has been previously added with the given
  * name.
  */
-DATADOG_API void dd_logging_attribute_delete(dd_logging_t* logging, const char* name);
+DATADOG_API void dd_logging_remove_attribute(dd_logging_t* logging, const char* name);
 
 // === Logger interface ===
 
@@ -178,7 +178,7 @@ DATADOG_API void dd_logger_destroy(dd_logger_t* logger);
  * messages emitted by this logger. If a logger-level attribute shares its name with a
  * global attribute, the logger-level attribute will take precedence.
  */
-DATADOG_API void dd_logger_attribute_set(
+DATADOG_API void dd_logger_add_attribute(
     dd_logger_t* logger, const char* name, const dd_attribute_t* value
 );
 
@@ -186,7 +186,7 @@ DATADOG_API void dd_logger_attribute_set(
  * Removes a logger-level attribute value, if one has been previously added with the
  * given name.
  */
-DATADOG_API void dd_logger_attribute_delete(dd_logger_t* logger, const char* name);
+DATADOG_API void dd_logger_remove_attribute(dd_logger_t* logger, const char* name);
 
 /**
  * Emits a log message at the given level.

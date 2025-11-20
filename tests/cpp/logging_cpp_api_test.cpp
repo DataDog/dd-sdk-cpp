@@ -32,16 +32,16 @@ TEST_CASE("Logging null safety", "[unit][logging][cpp-api]") {
 
       // Then we get a valid object that handles all member function calls as a no-op
       REQUIRE(logging != nullptr);
-      logging->SetAttribute("foo", Attribute::Int(1));
-      logging->DeleteAttribute("bar");
+      logging->AddAttribute("foo", Attribute::Int(1));
+      logging->RemoveAttribute("bar");
 
       // And: When we try to create a logger from a no-op logging interface
       auto logger = logging->CreateLogger();
 
       // Then we get a valid no-op logger
       REQUIRE(logger != nullptr);
-      logger->SetAttribute("foo", Attribute::Int(2));
-      logger->DeleteAttribute("bar");
+      logger->AddAttribute("foo", Attribute::Int(2));
+      logger->RemoveAttribute("bar");
       logger->Info("hello");
     }
   }
@@ -530,11 +530,11 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       {"M include custom attribute W set globally on logging feature",
        [](Logging& logging) {
          // Set "foo":100 globally before logger is created
-         logging.SetAttribute("foo", Attribute::Int(100));
+         logging.AddAttribute("foo", Attribute::Int(100));
        },
        [](Logging& logging, Logger&) {
          // Set "bar":"yes" globally after logger is created
-         logging.SetAttribute("bar", Attribute::String("yes"));
+         logging.AddAttribute("bar", Attribute::String("yes"));
        },
        [](Logging&, Logger& logger) {
          // Emit a message from our logger
@@ -554,11 +554,11 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       {"M include custom attribute W set on logger",
        [](Logging& logging) {
          // Set "foo":100 globally
-         logging.SetAttribute("foo", Attribute::Int(100));
+         logging.AddAttribute("foo", Attribute::Int(100));
        },
        [](Logging&, Logger& logger) {
          // Set "bar":200 on logger
-         logger.SetAttribute("bar", Attribute::Int(200));
+         logger.AddAttribute("bar", Attribute::Int(200));
        },
        [](Logging&, Logger& logger) {
          // Emit a message from our logger
@@ -578,11 +578,11 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       {"M override global property W logger property has same name",
        [](Logging& logging) {
          // Set "foo":100 globally
-         logging.SetAttribute("foo", Attribute::Int(100));
+         logging.AddAttribute("foo", Attribute::Int(100));
        },
        [](Logging&, Logger& logger) {
          // Set "foo":200 on logger
-         logger.SetAttribute("foo", Attribute::Int(200));
+         logger.AddAttribute("foo", Attribute::Int(200));
        },
        [](Logging&, Logger& logger) {
          // Emit a message from our logger
@@ -601,11 +601,11 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       {"M include custom attribute W set on message",
        [](Logging& logging) {
          // Set "foo":100 globally
-         logging.SetAttribute("foo", Attribute::Int(100));
+         logging.AddAttribute("foo", Attribute::Int(100));
        },
        [](Logging&, Logger& logger) {
          // Set "bar":200 on logger
-         logger.SetAttribute("bar", Attribute::Int(200));
+         logger.AddAttribute("bar", Attribute::Int(200));
        },
        [](Logging&, Logger& logger) {
          // Set "baz":300 on an object attribute that will be passed with log calls
@@ -698,13 +698,13 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       {"M override global and logger properties W message property has same name",
        [](Logging& logging) {
          // Set "foo":100,"baz":100 globally
-         logging.SetAttribute("foo", Attribute::Int(100));
-         logging.SetAttribute("baz", Attribute::Int(100));
+         logging.AddAttribute("foo", Attribute::Int(100));
+         logging.AddAttribute("baz", Attribute::Int(100));
        },
        [](Logging&, Logger& logger) {
          // Set "bar":200,"baz":200 on logger
-         logger.SetAttribute("bar", Attribute::Int(200));
-         logger.SetAttribute("baz", Attribute::Int(200));
+         logger.AddAttribute("bar", Attribute::Int(200));
+         logger.AddAttribute("baz", Attribute::Int(200));
        },
        [](Logging&, Logger& logger) {
          // Log a message with "foo":300,"bar":400
@@ -728,13 +728,13 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       {"M not override attributes W property name is reserved",
        [](Logging& logging) {
          // Set "status":100,"ok-global":100 globally
-         logging.SetAttribute("status", Attribute::Int(100));
-         logging.SetAttribute("ok-global", Attribute::Int(100));
+         logging.AddAttribute("status", Attribute::Int(100));
+         logging.AddAttribute("ok-global", Attribute::Int(100));
        },
        [](Logging&, Logger& logger) {
          // Set "service":200,"ok-logger":200 on logger
-         logger.SetAttribute("service", Attribute::Int(200));
-         logger.SetAttribute("ok-logger", Attribute::Int(200));
+         logger.AddAttribute("service", Attribute::Int(200));
+         logger.AddAttribute("ok-logger", Attribute::Int(200));
        },
        [](Logging&, Logger& logger) {
          // Log a message with "message":300,"_dd":300,"ok-message":300
@@ -760,11 +760,11 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       {"M no longer include custom attributes W attributes have been deleted",
        [](Logging& logging) {
          // Set "foo":100 globally
-         logging.SetAttribute("foo", Attribute::Int(100));
+         logging.AddAttribute("foo", Attribute::Int(100));
        },
        [](Logging&, Logger& logger) {
          // Set "bar":200 on logger
-         logger.SetAttribute("bar", Attribute::Int(200));
+         logger.AddAttribute("bar", Attribute::Int(200));
        },
        [](Logging& logging, Logger& logger) {
          // Set "baz":300 on an object attribute that will be passed with log calls
@@ -775,8 +775,8 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          logger.Info("alpha", obj);
 
          // Next: delete our three custom attributes and emit another message
-         logging.DeleteAttribute("foo");
-         logger.DeleteAttribute("bar");
+         logging.RemoveAttribute("foo");
+         logger.RemoveAttribute("bar");
          obj.DeleteObjectProperty("baz");
          logger.Info("bravo", obj);
        },
@@ -853,10 +853,10 @@ TEST_CASE("Logger thread-safety", "[unit][logging][cpp-api][thread-safety]") {
     // We need to delete the attribute in the main thread 90% of the time in order
     // for it to have no value in the upload thread ~50% of the time
     if (i % 10 < 9) {
-      logging->DeleteAttribute("xyz");
+      logging->RemoveAttribute("xyz");
     } else {
       const std::string s = "loop-" + std::to_string(i);
-      logging->SetAttribute("xyz", Attribute::String(s));
+      logging->AddAttribute("xyz", Attribute::String(s));
     }
   }
 

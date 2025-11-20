@@ -39,8 +39,8 @@ class Logging final : public Feature {
   ) override;
 
  public:
-  void SetAttribute(std::string_view name, const Attribute& value);
-  void DeleteAttribute(std::string_view name);
+  void AddAttribute(std::string_view name, const Attribute& value);
+  void RemoveAttribute(std::string_view name);
   std::unique_ptr<Logger> CreateLogger(const LoggerConfig& config);
 
  private:

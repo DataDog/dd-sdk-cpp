@@ -28,8 +28,8 @@ TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
 
     REQUIRE(dd_logging_init(nullptr) == nullptr);
     dd_logging_destroy(nullptr);
-    dd_logging_attribute_set(nullptr, "foo", &int_100);
-    dd_logging_attribute_delete(nullptr, "foo");
+    dd_logging_add_attribute(nullptr, "foo", &int_100);
+    dd_logging_remove_attribute(nullptr, "foo");
 
     dd_logger_config_init(nullptr);
     dd_logger_config_set_remote_sample_rate(nullptr, 0.5f);
@@ -41,8 +41,8 @@ TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
 
     REQUIRE(dd_logger_create(nullptr, nullptr) == nullptr);
     dd_logger_destroy(nullptr);
-    dd_logger_attribute_set(nullptr, "foo", &int_100);
-    dd_logger_attribute_delete(nullptr, "foo");
+    dd_logger_add_attribute(nullptr, "foo", &int_100);
+    dd_logger_remove_attribute(nullptr, "foo");
     dd_logger_log(nullptr, DD_LOG_LEVEL_INFO, "hello");
     dd_logger_debug(nullptr, "hello");
     dd_logger_info(nullptr, "hello");
@@ -672,13 +672,13 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        [](dd_logging_t* logging) {
          // Set "foo":100 globally before logger is created
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_logging_attribute_set(logging, "foo", &int_100);
+         dd_logging_add_attribute(logging, "foo", &int_100);
          dd_attribute_free(&int_100);
        },
        [](dd_logging_t* logging, dd_logger_t*) {
          // Set "bar":"yes" globally after logger is created
          dd_attribute_t string_yes = dd_attribute_string("yes");
-         dd_logging_attribute_set(logging, "bar", &string_yes);
+         dd_logging_add_attribute(logging, "bar", &string_yes);
          dd_attribute_free(&string_yes);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
@@ -700,13 +700,13 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        [](dd_logging_t* logging) {
          // Set "foo":100 globally
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_logging_attribute_set(logging, "foo", &int_100);
+         dd_logging_add_attribute(logging, "foo", &int_100);
          dd_attribute_free(&int_100);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Set "bar":200 on logger
          dd_attribute_t int_200 = dd_attribute_int(200);
-         dd_logger_attribute_set(logger, "bar", &int_200);
+         dd_logger_add_attribute(logger, "bar", &int_200);
          dd_attribute_free(&int_200);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
@@ -728,13 +728,13 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        [](dd_logging_t* logging) {
          // Set "foo":100 globally
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_logging_attribute_set(logging, "foo", &int_100);
+         dd_logging_add_attribute(logging, "foo", &int_100);
          dd_attribute_free(&int_100);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Set "foo":200 on logger
          dd_attribute_t int_200 = dd_attribute_int(200);
-         dd_logger_attribute_set(logger, "foo", &int_200);
+         dd_logger_add_attribute(logger, "foo", &int_200);
          dd_attribute_free(&int_200);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
@@ -755,13 +755,13 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        [](dd_logging_t* logging) {
          // Set "foo":100 globally
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_logging_attribute_set(logging, "foo", &int_100);
+         dd_logging_add_attribute(logging, "foo", &int_100);
          dd_attribute_free(&int_100);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Set "bar":200 on logger
          dd_attribute_t int_200 = dd_attribute_int(200);
-         dd_logger_attribute_set(logger, "bar", &int_200);
+         dd_logger_add_attribute(logger, "bar", &int_200);
          dd_attribute_free(&int_200);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
@@ -860,15 +860,15 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        [](dd_logging_t* logging) {
          // Set "foo":100,"baz":100 globally
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_logging_attribute_set(logging, "foo", &int_100);
-         dd_logging_attribute_set(logging, "baz", &int_100);
+         dd_logging_add_attribute(logging, "foo", &int_100);
+         dd_logging_add_attribute(logging, "baz", &int_100);
          dd_attribute_free(&int_100);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Set "bar":200,"baz":200 on logger
          dd_attribute_t int_200 = dd_attribute_int(200);
-         dd_logger_attribute_set(logger, "bar", &int_200);
-         dd_logger_attribute_set(logger, "baz", &int_200);
+         dd_logger_add_attribute(logger, "bar", &int_200);
+         dd_logger_add_attribute(logger, "baz", &int_200);
          dd_attribute_free(&int_200);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
@@ -900,15 +900,15 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        [](dd_logging_t* logging) {
          // Set "status":100,"ok-global":100 globally
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_logging_attribute_set(logging, "status", &int_100);
-         dd_logging_attribute_set(logging, "ok-global", &int_100);
+         dd_logging_add_attribute(logging, "status", &int_100);
+         dd_logging_add_attribute(logging, "ok-global", &int_100);
          dd_attribute_free(&int_100);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Set "service":200,"ok-logger":200 on logger
          dd_attribute_t int_200 = dd_attribute_int(200);
-         dd_logger_attribute_set(logger, "service", &int_200);
-         dd_logger_attribute_set(logger, "ok-logger", &int_200);
+         dd_logger_add_attribute(logger, "service", &int_200);
+         dd_logger_add_attribute(logger, "ok-logger", &int_200);
          dd_attribute_free(&int_200);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
@@ -940,13 +940,13 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        [](dd_logging_t* logging) {
          // Set "foo":100 globally
          dd_attribute_t int_100 = dd_attribute_int(100);
-         dd_logging_attribute_set(logging, "foo", &int_100);
+         dd_logging_add_attribute(logging, "foo", &int_100);
          dd_attribute_free(&int_100);
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Set "bar":200 on logger
          dd_attribute_t int_200 = dd_attribute_int(200);
-         dd_logger_attribute_set(logger, "bar", &int_200);
+         dd_logger_add_attribute(logger, "bar", &int_200);
          dd_attribute_free(&int_200);
        },
        [](dd_logging_t* logging, dd_logger_t* logger) {
@@ -960,8 +960,8 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
          dd_logger_info_obj(logger, "alpha", &obj);
 
          // Next: delete our three custom attributes and emit another message
-         dd_logging_attribute_delete(logging, "foo");
-         dd_logger_attribute_delete(logger, "bar");
+         dd_logging_remove_attribute(logging, "foo");
+         dd_logger_remove_attribute(logger, "bar");
          dd_attribute_object_property_delete(&obj, "baz");
          dd_logger_info_obj(logger, "bravo", &obj);
 
@@ -1050,12 +1050,12 @@ TEST_CASE("dd_logger thread-safety", "[unit][logging][c-api][thread-safety]") {
     // We need to delete the attribute in the main thread 90% of the time in order
     // for it to have no value in the upload thread ~50% of the time
     if (i % 10 < 9) {
-      dd_logging_attribute_delete(logging, "xyz");
+      dd_logging_remove_attribute(logging, "xyz");
     } else {
       dd_attribute_t value;
       const std::string s = "loop-" + std::to_string(i);
       value = dd_attribute_string(s.c_str());
-      dd_logging_attribute_set(logging, "xyz", &value);
+      dd_logging_add_attribute(logging, "xyz", &value);
       dd_attribute_free(&value);
     }
   }

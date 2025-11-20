@@ -115,13 +115,13 @@ class Logger {
    * messages emitted by this logger. If a logger-level attribute shares its name with a
    * global attribute, the logger-level attribute will take precedence.
    */
-  DATADOG_API void SetAttribute(std::string_view name, const Attribute& value);
+  DATADOG_API void AddAttribute(std::string_view name, const Attribute& value);
 
   /**
    * Removes a logger-level attribute value, if one has been previously added with the
    * given name.
    */
-  DATADOG_API void DeleteAttribute(std::string_view name);
+  DATADOG_API void RemoveAttribute(std::string_view name);
 
   /**
    * Emits a log message at the given level. If attributes has type ValueType::Object,
@@ -205,13 +205,13 @@ class Logging {
    * Adds or updates a global attribute value that will be included with all log
    * messages emitted by all loggers.
    */
-  DATADOG_API void SetAttribute(std::string_view name, const Attribute& value);
+  DATADOG_API void AddAttribute(std::string_view name, const Attribute& value);
 
   /**
    * Removes a global attribute value, if one has been previously added with the given
    * name.
    */
-  DATADOG_API void DeleteAttribute(std::string_view name);
+  DATADOG_API void RemoveAttribute(std::string_view name);
 
   /**
    * Creates and returns a new logger with the given configuration.
