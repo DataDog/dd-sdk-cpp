@@ -84,15 +84,32 @@ void Logger::Log(
   }
 }
 
-Logging::Logging(std::shared_ptr<impl::Logging>&& impl, PrivateCtorTag)
-    : _impl(std::move(impl)) {}
+Logging::Logging(Logging::PrivateCtorTag)
+    : _impl(nullptr),
+      _diagnostic_handler(nullptr),
+      _diagnostic_threshold(DiagnosticLevel::Error) {}
+
+Logging::Logging(
+    std::shared_ptr<impl::Logging>&& impl,
+    DiagnosticHandler diagnostic_handler,
+    DiagnosticLevel diagnostic_threshold,
+    Logging::PrivateCtorTag
+)
+    : _impl(std::move(impl)),
+      _diagnostic_handler(std::move(diagnostic_handler)),
+      _diagnostic_threshold(diagnostic_threshold) {
+  // The C++ logging API doesn't emit any diagnostic messages, but storing these values
+  // ensures that we can do so in the future without ABI changes
+  (void)_diagnostic_handler;
+  (void)_diagnostic_threshold;
+}
 
 Logging::~Logging() = default;
 
 std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
   // Return a no-op Logging interface if called without a valid core
   if (!core || !core->_impl) {
-    return std::make_shared<Logging>(nullptr, Logging::PrivateCtorTag{});
+    return std::make_shared<Logging>(Logging::PrivateCtorTag{});
   }
 
   // Get essential state from the Core
@@ -106,12 +123,17 @@ std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(logging_impl)) {
-    return std::make_shared<Logging>(nullptr, Logging::PrivateCtorTag{});
+    return std::make_shared<Logging>(Logging::PrivateCtorTag{});
   }
 
   // Initialize and return the API object that represents our user-facing interface for
   // the logging feature
-  return std::make_shared<Logging>(std::move(logging_impl), Logging::PrivateCtorTag{});
+  return std::make_shared<Logging>(
+      std::move(logging_impl),
+      core->_diagnostic_handler,
+      core->_diagnostic_threshold,
+      Logging::PrivateCtorTag{}
+  );
 }
 
 void Logging::AddAttribute(std::string_view name, const Attribute& value) {

@@ -9,7 +9,15 @@
 #include <memory>
 
 #include "core/core.hpp"
+#include "diagnostics.hpp"
 
 struct dd_core {
   std::unique_ptr<datadog::impl::Core> impl;
+  datadog::impl::DiagnosticLogger diagnostic_logger;
+
+  explicit dd_core(
+      std::unique_ptr<datadog::impl::Core>&& in_impl,
+      datadog::impl::DiagnosticLogger&& in_diagnostic_logger
+  )
+      : impl(std::move(in_impl)), diagnostic_logger(in_diagnostic_logger) {}
 };

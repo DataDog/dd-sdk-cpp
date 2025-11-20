@@ -13,6 +13,7 @@
 #include <string_view>
 
 #include "datadog/attribute.hpp"
+#include "datadog/core.hpp"
 
 namespace datadog {
 
@@ -190,7 +191,13 @@ class Logging {
 
  public:
   // Callers should use Logging::Register
-  explicit Logging(std::shared_ptr<impl::Logging>&& impl, PrivateCtorTag);
+  explicit Logging(PrivateCtorTag);
+  explicit Logging(
+      std::shared_ptr<impl::Logging>&& impl,
+      DiagnosticHandler diagnostic_handler,
+      DiagnosticLevel diagnostic_threshold,
+      PrivateCtorTag
+  );
   DATADOG_API ~Logging();
 
  public:
@@ -228,6 +235,8 @@ class Logging {
   Logging& operator=(Logging&&) = delete;
 
   std::shared_ptr<impl::Logging> _impl;
+  DiagnosticHandler _diagnostic_handler;
+  DiagnosticLevel _diagnostic_threshold;
 };
 
 }  // namespace datadog

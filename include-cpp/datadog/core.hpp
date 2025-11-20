@@ -6,21 +6,60 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
 #include "datadog/api.hpp"
 
-// Forward declarations
 struct CoreTestHarness;
 
 namespace datadog {
 
-// Forward declarations
+// === Forward declarations ===
+
 namespace impl {
 class Core;
 struct HttpContext;
 }  // namespace impl
+
+// === Diagnostic logging ===
+
+/**
+ * Severity of a diagnostic message emitted by the SDK.
+ */
+enum class DiagnosticLevel : uint8_t { Debug, Status, Warning, Error };
+
+/**
+ * A single message emitted by the SDK to signal an error or status update. By default,
+ * diagnostic messages with a status of 'warning' or 'error' will be printed to stderr.
+ *
+ * Use CoreConfig::SetDiagnosticThreshold() to change the threshold for diagnostic
+ * messages: at DiagnosticLevel::Status, all messages will be emitted; at
+ * DiagnosticLevel::Error, only errors will be emitted.
+ *
+ * Use CoreConfig::SetDiagnosticHandler() to specify how emitted messages should be
+ * handled. Supply your own callback to override the default behavior of printing to
+ * stderr; supply nullptr to entirely suppress all diagnostic output.
+ */
+struct DiagnosticMessage {
+  DiagnosticLevel level;
+  const char* text;
+};
+
+/**
+ * Callback function used to handle a single diagnostic message emitted by the SDK.
+ */
+using DiagnosticHandler = std::function<void(const DiagnosticMessage& message)>;
+
+/**
+ * Default DiagnosticHandler implementation: prints all messages to stderr, prefixed
+ * with '[DATADOG <level>]'.
+ */
+extern void StderrDiagnosticHandler(const DiagnosticMessage& message);
+
+// === SDK configuration ===
 
 /**
  * Indicates whether the end user has consented to tracking, as determined by your
@@ -129,6 +168,8 @@ struct CoreConfig {
   friend struct impl::HttpContext;
 
  private:
+  DiagnosticHandler diagnostic_handler{StderrDiagnosticHandler};
+  DiagnosticLevel diagnostic_threshold{DiagnosticLevel::Warning};
   TrackingConsent tracking_consent{TrackingConsent::Pending};
   Site site{Site::us1};
   std::string client_token;
@@ -171,6 +212,22 @@ struct CoreConfig {
   DATADOG_API CoreConfig& operator=(const CoreConfig&);
   DATADOG_API CoreConfig(CoreConfig&&);
   DATADOG_API CoreConfig& operator=(CoreConfig&&);
+
+  /**
+   * Supplies a callback function that will be invoked whenever the SDK emits a
+   * diagnostic message whose level meets or exceeds the configured diagnostic
+   * threshold.
+   *
+   * The default handler is StderrDiagnosticHandler, which prints to stderr. If this
+   * value is set to nullptr, all diagnostic messages will be silently dropped.
+   */
+  DATADOG_API CoreConfig& SetDiagnosticHandler(DiagnosticHandler value);
+
+  /**
+   * Sets the threshold for diagnostic logging: any message whose level meets or exceeds
+   * this value will be passed to the configured diagnostic handler callback.
+   */
+  DATADOG_API CoreConfig& SetDiagnosticThreshold(DiagnosticLevel value);
 
   /**
    * Sets the tracking consent value used on SDK startup. Defaults to Pending.
@@ -244,6 +301,8 @@ struct CoreConfig {
   DATADOG_API CoreConfig& Internal_UseCustomEndpoint(std::string_view value);
 };
 
+// === SDK Core ===
+
 /**
  * Top-level interface to the Datadog SDK.
  *
@@ -257,7 +316,13 @@ class Core {
 
  public:
   // Callers should use Core::Create
-  explicit Core(std::unique_ptr<impl::Core>&& impl, PrivateCtorTag);
+  explicit Core(PrivateCtorTag);
+  explicit Core(
+      std::unique_ptr<impl::Core>&& impl,
+      DiagnosticHandler diagnostic_handler,
+      DiagnosticLevel diagnostic_threshold,
+      PrivateCtorTag
+  );
   DATADOG_API ~Core();
 
   DATADOG_API static std::shared_ptr<Core> Create(const CoreConfig& config);
@@ -275,6 +340,8 @@ class Core {
   Core& operator=(Core&&) = delete;
 
   std::unique_ptr<impl::Core> _impl;
+  DiagnosticHandler _diagnostic_handler;
+  DiagnosticLevel _diagnostic_threshold;
 
   friend class Logging;
   friend class Rum;

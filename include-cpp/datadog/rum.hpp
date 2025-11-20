@@ -13,6 +13,7 @@
 
 #include "datadog/api.hpp"
 #include "datadog/attribute.hpp"
+#include "datadog/core.hpp"
 #include "datadog/uuid.hpp"
 
 namespace datadog {
@@ -78,7 +79,13 @@ class Rum {
 
  public:
   // Callers should use Rum::Register
-  explicit Rum(std::shared_ptr<impl::Rum>&& impl, PrivateCtorTag);
+  explicit Rum(PrivateCtorTag);
+  explicit Rum(
+      std::shared_ptr<impl::Rum>&& impl,
+      DiagnosticHandler diagnostic_handler,
+      DiagnosticLevel diagnostic_threshold,
+      PrivateCtorTag
+  );
   DATADOG_API ~Rum();
 
  public:
@@ -171,6 +178,8 @@ class Rum {
   Rum& operator=(Rum&&) = delete;
 
   std::shared_ptr<impl::Rum> _impl;
+  DiagnosticHandler _diagnostic_handler;
+  DiagnosticLevel _diagnostic_threshold;
 };
 
 }  // namespace datadog

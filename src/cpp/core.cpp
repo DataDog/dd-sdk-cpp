@@ -6,11 +6,20 @@
 
 #include "datadog/core.hpp"
 
+#include <iostream>
 #include <limits>
 
 #include "core/core.hpp"
+#include "diagnostics.hpp"
 
 namespace datadog {
+
+void StderrDiagnosticHandler(const DiagnosticMessage& message) {
+  static const char* level_names[] = {"DEBUG", "STATUS", "WARNING", "ERROR"};
+  const size_t i = static_cast<size_t>(message.level);
+  const char* level_name = i < std::size(level_names) ? level_names[i] : "";  // NOLINT
+  std::cerr << "[DATADOG " << level_name << "] " << message.text << "\n";
+}
 
 CoreConfig::CoreConfig(
     std::string_view in_client_token,
@@ -24,6 +33,16 @@ CoreConfig::CoreConfig(const CoreConfig&) = default;
 CoreConfig& CoreConfig::operator=(const CoreConfig&) = default;
 CoreConfig::CoreConfig(CoreConfig&&) = default;
 CoreConfig& CoreConfig::operator=(CoreConfig&&) = default;
+
+CoreConfig& CoreConfig::SetDiagnosticHandler(DiagnosticHandler value) {
+  diagnostic_handler = std::move(value);
+  return *this;
+}
+
+CoreConfig& CoreConfig::SetDiagnosticThreshold(DiagnosticLevel value) {
+  diagnostic_threshold = value;
+  return *this;
+}
 
 CoreConfig& CoreConfig::SetInitialTrackingConsent(TrackingConsent value) {
   tracking_consent = value;
@@ -81,34 +100,74 @@ CoreConfig& CoreConfig::Internal_UseCustomEndpoint(std::string_view value) {
   return *this;
 }
 
-Core::Core(std::unique_ptr<impl::Core>&& impl, Core::PrivateCtorTag)
-    : _impl(std::move(impl)) {}
+Core::Core(Core::PrivateCtorTag)
+    : _impl(nullptr),
+      _diagnostic_handler(nullptr),
+      _diagnostic_threshold(DiagnosticLevel::Error) {}
+
+Core::Core(
+    std::unique_ptr<impl::Core>&& impl,
+    DiagnosticHandler diagnostic_handler,
+    DiagnosticLevel diagnostic_threshold,
+    PrivateCtorTag
+)
+    : _impl(std::move(impl)),
+      _diagnostic_handler(std::move(diagnostic_handler)),
+      _diagnostic_threshold(diagnostic_threshold) {}
 
 Core::~Core() = default;
 
 std::shared_ptr<Core> Core::Create(const CoreConfig& config) {
+  // Prepare a diagnostic logger that will allow us to emit errors for invalid API usage
+  const impl::DiagnosticLogger diagnostic_logger{
+      config.diagnostic_handler, config.diagnostic_threshold
+  };
+
   // Validate the config: if we don't have all required parameters, return a no-op Core
-  if (config.client_token.empty() || config.service.empty() || config.env.empty()) {
-    return std::make_shared<Core>(nullptr, Core::PrivateCtorTag{});
+  if (config.client_token.empty()) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'client_token' "
+        "value in CoreConfig"
+    );
+    return std::make_shared<Core>(Core::PrivateCtorTag{});
+  }
+  if (config.service.empty()) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'service' "
+        "value in CoreConfig"
+    );
+    return std::make_shared<Core>(Core::PrivateCtorTag{});
+  }
+  if (config.env.empty()) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'env' value in "
+        "CoreConfig"
+    );
+    return std::make_shared<Core>(Core::PrivateCtorTag{});
   }
 
   // Create core subsystems using default implementations
   auto subsystems = impl::CoreSubsystems::Init(config);
   if (!subsystems) {
     // If we fail to create subsystems, return a no-op Core
-    return std::make_shared<Core>(nullptr, Core::PrivateCtorTag{});
+    return std::make_shared<Core>(Core::PrivateCtorTag{});
   }
 
   // Create the core implementation
   auto impl = std::make_unique<impl::Core>(config, std::move(*subsystems));
   if (!impl->Init()) {
     // If subsystem initialization fails, return a no-op core
-    return std::make_shared<Core>(nullptr, Core::PrivateCtorTag{});
+    return std::make_shared<Core>(Core::PrivateCtorTag{});
   }
 
   // Wrap the implementation in a C++ struct that exposes the public API for the core,
   // using the pimpl idiom, with automatic cleanup
-  return std::make_shared<Core>(std::move(impl), PrivateCtorTag{});
+  return std::make_shared<Core>(
+      std::move(impl),
+      config.diagnostic_handler,
+      config.diagnostic_threshold,
+      PrivateCtorTag{}
+  );
 }
 
 void Core::SetTrackingConsent(TrackingConsent value) {

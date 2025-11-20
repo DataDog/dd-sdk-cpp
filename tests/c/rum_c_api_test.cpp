@@ -202,6 +202,304 @@ TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
   dd_core_destroy(core);
 }
 
+TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
+  auto with_rum = [](dd_rum_config_t* config,
+                     dd_core_t* core,
+                     std::function<void(dd_rum_t*)> func) {
+    dd_rum_t* rum = dd_rum_init(core, config);
+    REQUIRE(rum);
+    dd_core_start(core);
+    func(rum);
+    dd_core_stop(core);
+    dd_rum_destroy(rum);
+  };
+
+  // Given a series of tests consisting of a set of API calls and the warnings and/or
+  // errors we expect to get in response
+  struct TestParams {
+    std::string_view name;
+    std::function<void(dd_rum_config_t*, dd_core_t*)> func;
+    std::vector<std::string_view> want_warnings;
+    std::vector<std::string_view> want_errors;
+  };
+  std::vector<TestParams> tests = {
+
+      // === Basic usage with no errors/warnings expected ===
+
+      {"M print no warnings or errors W used normally",
+       [](dd_rum_config_t* config, dd_core_t* core) {
+         // Register RUM and start the SDK
+         dd_rum_t* rum = dd_rum_init(core, config);
+         dd_core_start(core);
+
+         // Add and remove global attributes
+         dd_attribute_t int_val = dd_attribute_int(100);
+         dd_rum_add_attribute(rum, "foo", &int_val);
+         dd_attribute_set_int(&int_val, 200);
+         dd_rum_add_attribute(rum, "bar", &int_val);
+         dd_rum_remove_attribute(rum, "foo");
+
+         // Start a view with attributes
+         dd_attribute_t view_attributes = dd_attribute_object(1);
+         dd_attribute_t str_val = dd_attribute_string("hello");
+         dd_attribute_object_property_set(&view_attributes, "bar", &str_val);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &view_attributes);
+
+         // Modify view attributes
+         dd_attribute_set_string(&str_val, "world");
+         dd_rum_add_view_attribute(rum, "my-view", "baz", &str_val);
+         dd_rum_remove_view_attribute(rum, "my-view", "bar");
+
+         // Stop the view
+         dd_rum_stop_view(rum, "my-view");
+
+         // Shut down the SDK
+         dd_core_stop(core);
+         dd_rum_destroy(rum);
+         dd_attribute_free(&int_val);
+         dd_attribute_free(&str_val);
+       },
+       // All of the above should complete with 0 warnings and 0 errors
+       {},
+       {}},
+
+      // === dd_rum_init() ===
+
+      {"M print init error W dd_rum_config_t not properly initialized",
+       [](dd_rum_config_t* config, dd_core_t* core) {
+         std::memset(config, 0, sizeof(dd_rum_config_t));
+         dd_rum_init(core, config);
+       },
+       {},
+       {"RUM initialization failed: dd_rum_config_t value must be initialized via "
+        "dd_rum_config_init"}},
+
+      {"M print init error W configured application_id is empty string",
+       [](dd_rum_config_t* config, dd_core_t* core) {
+         dd_rum_config_set_application_id(config, "");
+         dd_rum_init(core, config);
+       },
+       {},
+       {"RUM initialization failed: application_id value supplied via dd_rum_config_t "
+        "must be a valid, nonzero UUID"}},
+
+      {"M print init error W configured application_id is invalid UUID",
+       [](dd_rum_config_t* config, dd_core_t* core) {
+         dd_rum_config_set_application_id(config, "not-a-valid-uuid");
+         dd_rum_init(core, config);
+       },
+       {},
+       {"RUM initialization failed: application_id value supplied via dd_rum_config_t "
+        "must be a valid, nonzero UUID"}},
+
+      {"M print init error W configured application_id is nil UUID",
+       [](dd_rum_config_t* config, dd_core_t* core) {
+         dd_rum_config_set_application_id(
+             config, "00000000-0000-0000-0000-000000000000"
+         );
+         dd_rum_init(core, config);
+       },
+       {},
+       {"RUM initialization failed: application_id value supplied via dd_rum_config_t "
+        "must be a valid, nonzero UUID"}},
+
+      // === dd_rum_add_attribute() ===
+
+      {"M print warning W dd_rum_add_attribute is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_attribute_t int_100 = dd_attribute_int(100);
+           dd_rum_add_attribute(rum, nullptr, &int_100);
+           dd_attribute_free(&int_100);
+         });
+       },
+       {"dd_rum_add_attribute call ignored: application must supply an attribute name"},
+       {}},
+
+      {"M print warning W dd_rum_add_attribute is called with NULL value",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_add_attribute(rum, "foo", nullptr);
+         });
+       },
+       {"dd_rum_add_attribute call ignored: application must supply an attribute "
+        "value"},
+       {}},
+
+      // === dd_rum_remove_attribute() ===
+
+      {"M print warning W dd_rum_remove_attribute is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_remove_attribute(rum, nullptr);
+         });
+       },
+       {"dd_rum_remove_attribute call ignored: application must supply an attribute "
+        "name"},
+       {}},
+
+      // === dd_rum_start_view() ===
+
+      {"M print warning W dd_rum_start_view is called with NULL key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, nullptr, "My View");
+         });
+       },
+       {"dd_rum_start_view call ignored: application must supply a non-empty view key"},
+       {}},
+
+      {"M print warning W dd_rum_start_view is called with empty key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "", "My View");
+         });
+       },
+       {"dd_rum_start_view call ignored: application must supply a non-empty view key"},
+       {}},
+
+      {"M print no warning W dd_rum_start_view is called with NULL view name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", nullptr);
+         });
+       },
+       {},
+       {}},
+
+      {"M print no warning W dd_rum_start_view is called with empty view name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "");
+         });
+       },
+       {},
+       {}},
+
+      // === dd_rum_stop_view() ===
+
+      {"M print warning W dd_rum_stop_view is called with NULL key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) { dd_rum_stop_view(rum, nullptr); });
+       },
+       {"dd_rum_stop_view call ignored: application must supply a non-empty view key"},
+       {}},
+
+      {"M print warning W dd_rum_stop_view is called with empty key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) { dd_rum_stop_view(rum, ""); });
+       },
+       {"dd_rum_stop_view call ignored: application must supply a non-empty view key"},
+       {}},
+
+      // === dd_rum_add_view_attribute() ===
+
+      {"M print warning W dd_rum_add_view_attribute is called with NULL view key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_attribute_t int_100 = dd_attribute_int(100);
+           dd_rum_add_view_attribute(rum, NULL, "foo", &int_100);
+           dd_attribute_free(&int_100);
+         });
+       },
+       {"dd_rum_add_view_attribute call ignored: application must supply a non-empty "
+        "view key"},
+       {}},
+
+      {"M print warning W dd_rum_add_view_attribute is called with empty view key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_attribute_t int_100 = dd_attribute_int(100);
+           dd_rum_add_view_attribute(rum, "", "foo", &int_100);
+           dd_attribute_free(&int_100);
+         });
+       },
+       {"dd_rum_add_view_attribute call ignored: application must supply a non-empty "
+        "view key"},
+       {}},
+
+      {"M print warning W dd_rum_add_view_attribute is called with NULL attribute name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_attribute_t int_100 = dd_attribute_int(100);
+           dd_rum_add_view_attribute(rum, "my-view", nullptr, &int_100);
+           dd_attribute_free(&int_100);
+         });
+       },
+       {"dd_rum_add_view_attribute call ignored: application must supply an attribute "
+        "name"},
+       {}},
+
+      {"M print warning W dd_rum_add_view_attribute is called with NULL value",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_add_view_attribute(rum, "my-view", "foo", nullptr);
+         });
+       },
+       {"dd_rum_add_view_attribute call ignored: application must supply an attribute "
+        "value"},
+       {}},
+
+      // === dd_rum_remove_view_attribute() ===
+
+      {"M print warning W dd_rum_remove_view_attribute is called with NULL view key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_remove_view_attribute(rum, NULL, "foo");
+         });
+       },
+       {"dd_rum_remove_view_attribute call ignored: application must supply a "
+        "non-empty view key"},
+       {}},
+
+      {"M print warning W dd_rum_remove_view_attribute is called with empty view key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_remove_view_attribute(rum, "", "foo");
+         });
+       },
+       {"dd_rum_remove_view_attribute call ignored: application must supply a "
+        "non-empty view key"},
+       {}},
+
+      {"M print warning W dd_rum_remove_view_attribute is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_remove_view_attribute(rum, "my-view", nullptr);
+         });
+       },
+       {"dd_rum_remove_view_attribute call ignored: application must supply an "
+        "attribute name"},
+       {}},
+  };
+  for (const auto& tt : tests) {
+    DYNAMIC_SECTION(tt.name) {
+      // Given a default RUM config and a core
+      dd_rum_config config;
+      dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+      auto test = CoreTestHarness::Init();
+      test.clock.FreezeAtMilliseconds(1700000000000);
+      dd_core_t* core = CoreTestHarness::WrapForC(test);
+
+      // When we execute our test function to exercise the RUM API
+      tt.func(&config, core);
+
+      // Then we get the expected set of diagnostic warnings and errors
+      REQUIRE(test.cpp_diagnostics.size() == 0);
+      DiagnosticAsserts diagnostics = test.Diagnostics();
+      diagnostics.RequireWarnings(tt.want_warnings);
+      diagnostics.RequireErrors(tt.want_errors);
+    }
+  }
+}
+
 TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
   struct TestParams {
     std::string_view name;
@@ -1112,6 +1410,9 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
       if (!test.client.requests.empty()) {
         events = MergeJsonArrays(test.client.requests);
       }
+
+      // And the SDK produces no diagnostic errors or warnings
+      test.Diagnostics().RequireNoWarnings().RequireNoErrors();
 
       // And the assertions in our test case's assert callback hold true
       tt.assert_func(events);

@@ -14,6 +14,49 @@
 
 namespace datadog {
 
+inline DiagnosticLevel DiagnosticLevel_FromC(dd_diagnostic_level_t value) {
+  static_assert(static_cast<int>(DiagnosticLevel::Debug) == DD_DIAGNOSTIC_LEVEL_DEBUG);
+  static_assert(
+      static_cast<int>(DiagnosticLevel::Status) == DD_DIAGNOSTIC_LEVEL_STATUS
+  );
+  static_assert(
+      static_cast<int>(DiagnosticLevel::Warning) == DD_DIAGNOSTIC_LEVEL_WARNING
+  );
+  static_assert(static_cast<int>(DiagnosticLevel::Error) == DD_DIAGNOSTIC_LEVEL_ERROR);
+  return static_cast<DiagnosticLevel>(value);
+}
+
+inline dd_diagnostic_level_t DiagnosticLevel_ToC(DiagnosticLevel value) {
+  static_assert(static_cast<int>(DiagnosticLevel::Debug) == DD_DIAGNOSTIC_LEVEL_DEBUG);
+  static_assert(
+      static_cast<int>(DiagnosticLevel::Status) == DD_DIAGNOSTIC_LEVEL_STATUS
+  );
+  static_assert(
+      static_cast<int>(DiagnosticLevel::Warning) == DD_DIAGNOSTIC_LEVEL_WARNING
+  );
+  static_assert(static_cast<int>(DiagnosticLevel::Error) == DD_DIAGNOSTIC_LEVEL_ERROR);
+  return static_cast<dd_diagnostic_level_t>(value);
+}
+
+inline DiagnosticMessage DiagnosticMessage_FromC(const dd_diagnostic_message_t& value) {
+  return DiagnosticMessage{DiagnosticLevel_FromC(value.level), value.text};
+}
+
+inline dd_diagnostic_message_t DiagnosticMessage_ToC(const DiagnosticMessage& value) {
+  return dd_diagnostic_message_t{DiagnosticLevel_ToC(value.level), value.text};
+}
+
+inline DiagnosticHandler DiagnosticHandler_FromC(
+    dd_diagnostic_handler_t handler, void* userdata
+) {
+  return [=](const DiagnosticMessage& cpp_message) {
+    if (handler) {
+      dd_diagnostic_message_t c_message = DiagnosticMessage_ToC(cpp_message);
+      handler(&c_message, userdata);
+    }
+  };
+}
+
 inline TrackingConsent TrackingConsent_FromC(dd_tracking_consent_t value) {
   static_assert(
       static_cast<int>(TrackingConsent::Granted) == DD_TRACKING_CONSENT_GRANTED
@@ -194,6 +237,10 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
   // Initialize a C++ config struct from our input values
   auto cpp_config =
       CoreConfig(client_token, service, env)
+          .SetDiagnosticHandler(DiagnosticHandler_FromC(
+              config.diagnostic_handler, config.diagnostic_handler_userdata
+          ))
+          .SetDiagnosticThreshold(DiagnosticLevel_FromC(config.diagnostic_threshold))
           .SetInitialTrackingConsent(TrackingConsent_FromC(config.tracking_consent))
           .SetSite(Site_FromC(config.site))
           .SetApplicationVersion(application_version)

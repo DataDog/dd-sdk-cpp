@@ -21,6 +21,50 @@
 extern "C" {
 #endif
 
+// === Diagnostic logging ===
+
+/**
+ * Severity of a diagnostic message emitted by the SDK.
+ */
+typedef enum {
+  DD_DIAGNOSTIC_LEVEL_DEBUG,
+  DD_DIAGNOSTIC_LEVEL_STATUS,
+  DD_DIAGNOSTIC_LEVEL_WARNING,
+  DD_DIAGNOSTIC_LEVEL_ERROR
+} dd_diagnostic_level_t;
+
+/**
+ * A single message emitted by the SDK to signal an error or status update. By default,
+ * diagnostic messages with a status of 'warning' or 'error' will be printed to stderr.
+ *
+ * Use dd_core_config_set_diagnostic_threshold() to change the threshold for diagnostic
+ * messages: at DD_DIAGNOSTIC_LEVEL_DEBUG, all messages will be emitted; at
+ * DD_DIAGNOSTIC_LEVEL_ERROR, only errors will be emitted.
+ *
+ * Use dd_core_config_set_diagnostic_handler() to specify how emitted messages should be
+ * handled. Supply your own callback to override the default behavior of printing to
+ * stderr; supply NULL to entirely suppress all diagnostic output.
+ */
+typedef struct dd_diagnostic_message {
+  dd_diagnostic_level_t level;
+  const char* text;
+} dd_diagnostic_message_t;
+
+/**
+ * Callback function used to handle a single diagnostic message emitted by the SDK. If
+ * you supply a value to dd_core_config_set_diagnostic_handler_userdata(), that value
+ * will be passed as `userdata`; otherwise `userdata` will be NULL.
+ */
+typedef void (*dd_diagnostic_handler_t)(
+    const dd_diagnostic_message_t* message, void* userdata
+);
+
+/**
+ * Default dd_diagnostic_handler_t implementation: prints all messages to stderr,
+ * prefixed with '[DATADOG <level>]'.
+ */
+extern void dd_stderr_diagnostic_handler(const dd_diagnostic_message_t* message, void*);
+
 // === SDK configuration ===
 
 /**
@@ -90,6 +134,9 @@ typedef struct dd_internal_options {
  */
 typedef struct dd_core_config {
   uint32_t version;
+  dd_diagnostic_handler_t diagnostic_handler;
+  void* diagnostic_handler_userdata;
+  dd_diagnostic_level_t diagnostic_threshold;
   dd_tracking_consent_t tracking_consent;
   dd_site_t site;
   const char* client_token;
@@ -116,6 +163,34 @@ void dd_core_config_init(
     const char* client_token,
     const char* service,
     const char* env
+);
+
+/**
+ * Supplies a callback function that will be invoked whenever the SDK emits a diagnostic
+ * message whose level meets or exceeds the configured diagnostic threshold.
+ *
+ * The default handler is dd_stderr_diagnostic_handler, which prints to stderr. If this
+ * value is set to NULL, all diagnostic messages will be silently dropped.
+ */
+void dd_core_config_set_diagnostic_handler(
+    dd_core_config_t* config, dd_diagnostic_handler_t value
+);
+
+/**
+ * Sets an arbitrary value that will be supplied to all invocations of the diagnostic
+ * handler callback. The default handler (dd_stderr_diagnostic_handler) will never read
+ * this value.
+ */
+void dd_core_config_set_diagnostic_handler_userdata(
+    dd_core_config_t* config, void* value
+);
+
+/**
+ * Sets the threshold for diagnostic logging: any message whose level meets or exceeds
+ * this value will be passed to the configured diagnostic handler callback.
+ */
+void dd_core_config_set_diagnostic_threshold(
+    dd_core_config_t* config, dd_diagnostic_level_t value
 );
 
 /**

@@ -16,8 +16,11 @@
 #include "mock/clock.hpp"
 #include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog;
+
+static void on_c_diagnostic(const dd_diagnostic_message_t* message, void* userdata);
 
 /**
  * Default SDK configuration used in tests.
@@ -47,6 +50,9 @@ struct CoreTestHarness {
   MockClock& clock;
   MockStorageDirectory& storage;
   MockHttpClient& client;
+
+  std::vector<dd_diagnostic_message_t> c_diagnostics;
+  std::vector<DiagnosticMessage> cpp_diagnostics;
 
   explicit CoreTestHarness(
       std::unique_ptr<impl::Core>&& in_core,
@@ -104,15 +110,32 @@ struct CoreTestHarness {
   static dd_core_t* WrapForC(CoreTestHarness& test) {
     // Steal the impl::Core from the CoreTestHarness so it can be owned by the C API
     // interface
-    dd_core_t* c_core = new dd_core_t();
-    c_core->impl = std::move(test._core);
-    return c_core;
+    return new dd_core_t(
+        std::move(test._core),
+        impl::DiagnosticLogger::FromC(on_c_diagnostic, &test, DD_DIAGNOSTIC_LEVEL_DEBUG)
+    );
   }
 
   /**
    * Initializes a CoreTestHarness for use in C++ API tests.
    */
   static std::shared_ptr<Core> WrapForCpp(CoreTestHarness& test) {
-    return std::make_shared<Core>(std::move(test._core), Core::PrivateCtorTag{});
+    return std::make_shared<Core>(
+        std::move(test._core),
+        [&](const DiagnosticMessage& message) {
+          test.cpp_diagnostics.push_back(message);
+        },
+        DiagnosticLevel::Debug,
+        Core::PrivateCtorTag{}
+    );
+  }
+
+  DiagnosticAsserts Diagnostics() const {
+    return DiagnosticAsserts{c_diagnostics, cpp_diagnostics};
   }
 };
+
+static void on_c_diagnostic(const dd_diagnostic_message_t* message, void* userdata) {
+  CoreTestHarness& test = *reinterpret_cast<CoreTestHarness*>(userdata);
+  test.c_diagnostics.push_back(*message);
+}
