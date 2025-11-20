@@ -20,6 +20,9 @@
 #include <string_view>
 #include <vector>
 
+#include "error_message.hpp"
+#include "nonstd/expected.hpp"
+
 namespace datadog::platform {
 
 enum class HttpResultType : uint8_t {
@@ -127,7 +130,10 @@ class IHttpSubsystem {
 };
 
 namespace Http {
-std::unique_ptr<IHttpSubsystem> Init();
-};
+using InitResult =
+    nonstd::expected<std::unique_ptr<IHttpSubsystem>, datadog::impl::ErrorMessage>;
+
+InitResult Init();
+};  // namespace Http
 
 }  // namespace datadog::platform

@@ -13,6 +13,23 @@
 
 namespace datadog::platform {
 
+static datadog::impl::ErrorMessage _fs_error(
+    const char* text, const std::filesystem::path& path, const std::error_code& ec
+) {
+  if (ec) {
+    return datadog::impl::ErrorMessage(
+        text,
+        {{"path", Attribute::String(path.string())},
+         {"message", Attribute::String(ec.message())},
+         {"category", Attribute::String(ec.category().name())},
+         {"value", Attribute::Int(ec.value())}}
+    );
+  }
+  return datadog::impl::ErrorMessage(
+      text, {{"path", Attribute::String(path.string())}}
+  );
+}
+
 static bool _is_clean_basename(std::string_view name) {
   return (
       !name.empty() && name != "." && name != ".." &&
@@ -28,7 +45,9 @@ enum class _check_path_result : uint8_t {
   check_failed,
 };
 
-static _check_path_result _check_path(const std::filesystem::path& path) {
+static _check_path_result _check_path(
+    const std::filesystem::path& path, std::error_code& ec
+) {
   // We could do all of this in a single std::filesystem::status call, but platforms
   // have subtle variation in behavior for stat'ing a nonexistent path: some return a
   // valid status where type() == std::filesystem::file_type::not_found, some return a
@@ -38,7 +57,6 @@ static _check_path_result _check_path(const std::filesystem::path& path) {
   // files infrequently, using background threads.
 
   // Make a call to std::filesystem::exists to see if it points to anything
-  std::error_code ec;
   const bool exists = std::filesystem::exists(path, ec);
   if (ec) {
     return _check_path_result::check_failed;
@@ -254,7 +272,8 @@ class StdDirectory : public virtual IDirectory {
 
     // We failed to open the file: determine whether that's because the file doesn't
     // exist or for some other reason
-    switch (_check_path(file_path)) {
+    std::error_code ec;
+    switch (_check_path(file_path, ec)) {
       case _check_path_result::does_not_exist:
         return nonstd::make_unexpected(FilesystemError::DoesNotExist);
 
@@ -283,7 +302,8 @@ class StdDirectory : public virtual IDirectory {
     const std::filesystem::path subdir_path = _path / name;
 
     // Check to see if the target path is occupied
-    switch (_check_path(subdir_path)) {
+    std::error_code ec;
+    switch (_check_path(subdir_path, ec)) {
       // If we can't stat the path, or if the target directory path is occupied by an
       // existing file, the operation failed
       case _check_path_result::check_failed:
@@ -320,32 +340,40 @@ class StdStorageDirectory final : public StdDirectory, public IStorageDirectory 
 #pragma warning(pop)
 #endif
 
-std::unique_ptr<IStorageDirectory> Filesystem::Init(std::string_view path) {
+Filesystem::InitResult Filesystem::Init(std::string_view path) {
   // Resolve the configured path for our root storage directory
   const std::filesystem::path root_path{path};
 
   // Check to see if the target directory exists
-  switch (_check_path(root_path)) {
+  std::error_code ec;
+  switch (_check_path(root_path, ec)) {
     // If we failed to check the path, or if the target directory path is occupied by an
     // existing file, we can't initialize the filesystem
     case _check_path_result::check_failed:
+      DATADOG_ASSERT(ec, "_check_path returned check_failed w/ successful error_code");
+      return nonstd::make_unexpected(
+          _fs_error("failed to stat root storage path", path, ec)
+      );
+
     case _check_path_result::exists_as_file:
-      return nullptr;
+      return nonstd::make_unexpected(
+          _fs_error("root storage path is occupied by a file", path, {})
+      );
 
     // If the target directory doesn't yet exist, create it
     case _check_path_result::does_not_exist: {
       // Create the target directory, requiring that the parent already exist
-      std::error_code ec;
       std::filesystem::create_directory(root_path, ec);
       if (ec) {
         // Failed to create directory; we can't initialize the filesystem
-        return nullptr;
+        return nonstd::make_unexpected(
+            _fs_error("failed to create root storage directory", path, ec)
+        );
       }
     } break;
 
     // If it already exists, we're good to go
     case _check_path_result::exists_as_directory:
-      //
       break;
   }
 

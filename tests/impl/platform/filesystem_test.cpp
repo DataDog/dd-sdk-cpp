@@ -23,7 +23,9 @@ TEST_CASE("Filesystem", "[unit][platform-filesystem]") {
   TempDirectory tempdir;
 
   SECTION("M create a valid IStorageDirectory W static Init is called") {
-    auto storage = platform::Filesystem::Init(tempdir.path);
+    auto storage_result = platform::Filesystem::Init(tempdir.path);
+    REQUIRE(storage_result.has_value());
+    auto storage = std::move(*storage_result);
     REQUIRE(storage != nullptr);
   }
 }
@@ -31,7 +33,9 @@ TEST_CASE("Filesystem", "[unit][platform-filesystem]") {
 TEST_CASE("IStorageDirectory", "[unit][platform-filesystem]") {
   // Given a storage directory
   TempDirectory tempdir;
-  auto storage = platform::Filesystem::Init(tempdir.path);
+  auto storage_result = platform::Filesystem::Init(tempdir.path);
+  REQUIRE(storage_result.has_value());
+  auto storage = std::move(*storage_result);
   REQUIRE(storage != nullptr);
 
   SECTION("M list empty directory W ListFiles is called on empty directory") {
@@ -117,7 +121,9 @@ TEST_CASE("IStorageDirectory", "[unit][platform-filesystem]") {
 TEST_CASE("IFileWriter", "[unit][platform-filesystem]") {
   // Given a storage directory
   TempDirectory tempdir;
-  auto storage = platform::Filesystem::Init(tempdir.path);
+  auto storage_result = platform::Filesystem::Init(tempdir.path);
+  REQUIRE(storage_result.has_value());
+  auto storage = std::move(*storage_result);
   REQUIRE(storage != nullptr);
 
   SECTION("M create file writer W PrepareForWrite is called") {
@@ -191,7 +197,9 @@ TEST_CASE("IFileWriter", "[unit][platform-filesystem]") {
 TEST_CASE("IFileReader", "[unit][platform-filesystem]") {
   // Given a storage directory with a test file
   TempDirectory tempdir;
-  auto storage = platform::Filesystem::Init(tempdir.path);
+  auto storage_result = platform::Filesystem::Init(tempdir.path);
+  REQUIRE(storage_result.has_value());
+  auto storage = std::move(*storage_result);
   REQUIRE(storage != nullptr);
 
   SECTION("M return DoesNotExist error W OpenForRead is called on non-existent file") {
@@ -422,7 +430,9 @@ TEST_CASE("IFileReader", "[unit][platform-filesystem]") {
 TEST_CASE("Subdirectory Operations", "[unit][platform-filesystem]") {
   // Given a storage directory with a subdirectory
   TempDirectory tempdir;
-  auto storage = platform::Filesystem::Init(tempdir.path);
+  auto storage_result = platform::Filesystem::Init(tempdir.path);
+  REQUIRE(storage_result.has_value());
+  auto storage = std::move(*storage_result);
   REQUIRE(storage != nullptr);
 
   auto subdir_result = storage->PrepareSubdirectory("subdir");
