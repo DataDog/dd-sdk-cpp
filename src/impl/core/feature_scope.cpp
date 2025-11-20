@@ -12,10 +12,12 @@ namespace datadog::impl {
 
 FeatureScope::FeatureScope(
     CoreContextProvider& context_provider,
-    const EventGeneratedFunc& event_generated_func
+    const EventGeneratedFunc& event_generated_func,
+    const DiagnosticLogger& in_diagnostic_logger
 )
     : _context_provider(&context_provider),
-      _event_generated_func(event_generated_func) {}
+      _event_generated_func(event_generated_func),
+      diagnostic_logger(in_diagnostic_logger) {}
 
 CoreContext FeatureScope::GetContext() const {
   DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");

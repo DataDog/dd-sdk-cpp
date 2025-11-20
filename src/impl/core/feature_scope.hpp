@@ -10,6 +10,7 @@
 
 #include "core/block.hpp"
 #include "core/context.hpp"
+#include "diagnostics.hpp"
 
 namespace datadog::impl {
 
@@ -36,13 +37,16 @@ class FeatureScope {
   EventGeneratedFunc _event_generated_func;
 
  public:
+  DiagnosticLogger diagnostic_logger;
+
   /**
    * Initializes a FeatureScope for a single feature, given the state necessary to
    * connect it to the Core.
    */
   explicit FeatureScope(
       CoreContextProvider& context_provider,
-      const EventGeneratedFunc& event_generated_func
+      const EventGeneratedFunc& event_generated_func,
+      const DiagnosticLogger& in_diagnostic_logger
   );
 
   // Noncopyable, but movable (so ownership can be transferred to Feature from Core)

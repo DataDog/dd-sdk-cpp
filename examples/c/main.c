@@ -8,7 +8,7 @@
 
 #include "datadog.h"
 
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   (void)argc;
   (void)argv;
 
@@ -19,21 +19,21 @@ int main(int argc, char *argv[]) {
   dd_core_config_init(&config, "fake-client-token", "example-service", "development");
   dd_core_config_set_application_version(&config, "1.0.0");
 
-  dd_core_t *core = dd_core_create(&config);
+  dd_core_t* core = dd_core_create(&config);
   if (!core) {
     printf("Failed to create dd_core\n");
     return 1;
   }
 
   // Register the logging feature
-  dd_logging_t *logging = dd_logging_init(core);
+  dd_logging_t* logging = dd_logging_init(core);
   if (!logging) {
     printf("Failed to register logging\n");
     return 1;
   }
 
   // Create a logger (this can be done before or after Core start)
-  dd_logger_t *logger = dd_logger_create(logging, NULL);
+  dd_logger_t* logger = dd_logger_create(logging, NULL);
   if (!logger) {
     printf("Failed to create logger\n");
     return 1;
@@ -42,7 +42,7 @@ int main(int argc, char *argv[]) {
   // Register the RUM feature
   dd_rum_config_t rum_config;
   dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
-  dd_rum_t *rum = dd_rum_init(core, &rum_config);
+  dd_rum_t* rum = dd_rum_init(core, &rum_config);
   if (!rum) {
     printf("Failed to register RUM\n");
     return 1;
@@ -67,7 +67,8 @@ int main(int argc, char *argv[]) {
   // Log messages will now be correlated with our session and view in the RUM UI
   dd_logger_info(logger, "Main menu loaded");
 
-  // TODO(RUM-11369): Record a RUM Action
+  // Record a RUM Action
+  dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "Start Menu Navigation", NULL);
 
   // Stop the RUM view
   dd_rum_stop_view(rum, "main_menu");

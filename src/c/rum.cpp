@@ -305,6 +305,95 @@ void dd_rum_stop_view_obj(
   // Defer to the feature implementation
   rum->impl->StopView(key, cpp_attributes);
 }
+
+void dd_rum_add_action(
+    dd_rum_t* rum,
+    dd_rum_action_type_t type,
+    const char* name,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty action name
+  if (!name || !name[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_add_action call ignored: application must supply a non-empty action "
+        "name"
+    );
+    return;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  rum->impl->AddAction(datadog::RumActionType_FromC(type), name, cpp_attributes);
+}
+
+void dd_rum_start_action(
+    dd_rum_t* rum,
+    dd_rum_action_type_t type,
+    const char* name,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty action name
+  if (!name || !name[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_start_action call ignored: application must supply a non-empty action "
+        "name"
+    );
+    return;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  rum->impl->StartAction(datadog::RumActionType_FromC(type), name, cpp_attributes);
+}
+
+void dd_rum_stop_action(
+    dd_rum_t* rum,
+    dd_rum_action_type_t type,
+    const char* name,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // If we've been given a name, use it to rename the current action on stop; but allow
+  // either NULL or empty-string
+  std::string_view cpp_name;
+  if (name) {
+    cpp_name = name;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  // The RUM implementation doesn't actually use the provided RumActionType value when
+  // stopping an action: it just stops the currently-active action without matching on
+  // action type. We accept the parameter anyway for consistency.
+  (void)type;
+  rum->impl->StopAction(cpp_name, cpp_attributes);
+}
 }
 
 // NOLINTEND(cppcoreguidelines-owning-memory)

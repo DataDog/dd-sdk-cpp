@@ -14,6 +14,7 @@
 #include "core/feature.hpp"
 #include "datadog/attribute.hpp"
 #include "datadog/rum.hpp"
+#include "diagnostics.hpp"
 #include "features/rum/command.hpp"
 #include "features/rum/context.hpp"
 #include "features/rum/scopes/application.hpp"
@@ -76,6 +77,29 @@ class Rum final : public Feature {
 
   /** Handles a StopView API call, ending the view that corresponds to the given key. */
   void StopView(std::string_view key, const Attribute& attributes = Attribute());
+
+  /** Handles an AddAction API call. */
+  void AddAction(
+      RumActionType type,
+      std::string_view name,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Handles a StartAction API call, recording a continuous user action of the given
+   * type.
+   */
+  void StartAction(
+      RumActionType type,
+      std::string_view name,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Handles a StopAction API call, recording the end of the currently-active continuous
+   * user action, if any.
+   */
+  void StopAction(std::string_view new_name, const Attribute& attributes = Attribute());
 
  private:
   RumCommandParams GetBaseCommandParams(

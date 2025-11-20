@@ -187,4 +187,48 @@ void Rum::StopView(std::string_view key, const Attribute& attributes) {
   }
 }
 
+void Rum::AddAction(
+    RumActionType type, std::string_view name, const Attribute& attributes
+) {
+  // Require a valid action name
+  if (name.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::AddAction call ignored: application must supply a non-empty action name"
+    );
+    return;
+  }
+
+  if (_impl) {
+    _impl->AddAction(type, name, attributes);
+  }
+}
+
+void Rum::StartAction(
+    RumActionType type, std::string_view name, const Attribute& attributes
+) {
+  // Require a valid action name
+  if (name.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::StartAction call ignored: application must supply a non-empty action name"
+    );
+    return;
+  }
+
+  if (_impl) {
+    _impl->StartAction(type, name, attributes);
+  }
+}
+
+void Rum::StopAction(
+    RumActionType type, std::string_view name, const Attribute& attributes
+) {
+  if (_impl) {
+    // The RUM implementation doesn't actually use the provided RumActionType value when
+    // stopping an action: it just stops the currently-active action without matching on
+    // action type. We accept the parameter anyway for consistency.
+    (void)type;
+    _impl->StopAction(name, attributes);
+  }
+}
+
 }  // namespace datadog

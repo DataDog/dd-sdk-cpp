@@ -14,6 +14,7 @@
 #include "core/feature.hpp"
 #include "core/feature_scope.hpp"
 
+using namespace datadog;
 using namespace datadog::impl;
 
 struct CapturedEvent {
@@ -22,6 +23,14 @@ struct CapturedEvent {
 
   explicit CapturedEvent(Block event, Block event_metadata)
       : data(event), metadata(event_metadata) {}
+};
+
+struct CapturedMessage {
+  DiagnosticLevel level;
+  std::string text;
+
+  explicit CapturedMessage(const DiagnosticMessage& message)
+      : level(message.level), text(message.text) {}
 };
 
 /**
@@ -33,6 +42,7 @@ class FeatureTest {
 
  public:
   std::vector<CapturedEvent> events;
+  std::vector<CapturedMessage> messages;
 
   explicit FeatureTest(const CoreContext& context) : _context_provider(context) {}
 
@@ -41,7 +51,14 @@ class FeatureTest {
       events.emplace_back(event, event_metadata);
       return true;
     };
-    feature->OnCoreStarted(FeatureScope(_context_provider, event_generated_func));
+    auto diagnostic_handler = [this](const DiagnosticMessage& message) {
+      messages.emplace_back(message);
+    };
+    feature->OnCoreStarted(FeatureScope(
+        _context_provider,
+        event_generated_func,
+        DiagnosticLogger(diagnostic_handler, DiagnosticLevel::Debug)
+    ));
   }
 
   void Stop(const std::shared_ptr<Feature>& feature) { feature->OnCoreStopping(); }

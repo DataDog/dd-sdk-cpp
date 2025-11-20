@@ -85,7 +85,28 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.action_id == UUID::Zero);
   }
 
-  // TODO(RUM-11369): Test active_user_action_id
+  SECTION("M set action_id W active view has an active action") {
+    // Given a RUM state snapshot that has a valid application_id, an active, sampled
+    // session with an active view, and an active action within that view
+    RumContext snapshot;
+    snapshot.application_id = *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf");
+    snapshot.session_id = *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8");
+    snapshot.session_is_active = true;
+    snapshot.session_is_sampled = true;
+    snapshot.active_view_id = *UUID::Parse("76cb171c-c6d5-4719-adfc-f90c6b57c0a0");
+    snapshot.active_view_key = "foo";
+    snapshot.active_view_name = "Foo";
+    snapshot.active_action_id = *UUID::Parse("860a7264-f20a-4833-8e7c-10f15ef6f873");
+
+    // When we populate a RumFeatureContext from that snapshot
+    const RumFeatureContext ctx = snapshot.ToFeatureContext();
+
+    // Then we have a valid application_id, session_id, view_id, and action_id
+    REQUIRE(ctx.application_id == *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf"));
+    REQUIRE(ctx.session_id == *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8"));
+    REQUIRE(ctx.view_id == *UUID::Parse("76cb171c-c6d5-4719-adfc-f90c6b57c0a0"));
+    REQUIRE(ctx.action_id == *UUID::Parse("860a7264-f20a-4833-8e7c-10f15ef6f873"));
+  }
 
   SECTION("M not set session_id, view_id, or action_id W session is not sampled") {
     // Given a RUM state snapshot that has a valid application_id and an active session

@@ -47,7 +47,10 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
       rum->RemoveViewAttribute("foo", "something");
       rum->StopView("foo", attributes);
 
-      // TODO(RUM-11369): Exercise RUM Action API
+      rum->AddAction(RumActionType::Click, "Button");
+      rum->StartAction(RumActionType::Click, "Button");
+      rum->StopAction(RumActionType::Click, "Button");
+
       // TODO(RUM-12201): Exercise RUM Error API
       // TODO(RUM-12202): Exercise RUM Resource API
     }
@@ -82,8 +85,6 @@ TEST_CASE("Rum::Register", "[unit][rum][cpp-api]") {
     auto rum = Rum::Register(core, config);
 
     // Then we get a valid pointer to a no-op Rum interface
-    // TODO: Surface some indication of whether a call to the C++ API succeeded (and
-    // gave you a valid, functional object) or failed (and gave you a no-op interface)
     REQUIRE(rum != nullptr);
   }
 }
@@ -106,11 +107,13 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->RemoveAttribute("attr1");
     rum->StartView("bar", "Bar");
     rum->AddViewAttribute("bar", "attr2", Attribute::Int(100));
+    rum->AddAction(RumActionType::Custom, "action1");
     rum->RemoveViewAttribute("bar", "attr2");
     rum->StopView("bar");
     rum->StopSession();
     rum->StartView("foo", "Foo");
-    // TODO(RUM-11369): Exercise RUM Action API
+    rum->StartAction(RumActionType::Scroll, "scroll1");
+    rum->StopAction(RumActionType::Scroll, "scroll1");
     // TODO(RUM-12201): Exercise RUM Error API
     // TODO(RUM-12202): Exercise RUM Resource API
   };
@@ -205,7 +208,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
          Rum::Register(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via RumConfig must "
+       {"RUM initialization failed: application_id value supplied via RumConfig "
+        "must "
         "be a valid, nonzero UUID"}},
 
       {"M print init error W configured application_id is invalid UUID",
@@ -214,7 +218,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
          Rum::Register(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via RumConfig must "
+       {"RUM initialization failed: application_id value supplied via RumConfig "
+        "must "
         "be a valid, nonzero UUID"}},
 
       {"M print init error W configured application_id is nil UUID",
@@ -223,7 +228,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
          Rum::Register(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via RumConfig must "
+       {"RUM initialization failed: application_id value supplied via RumConfig "
+        "must "
         "be a valid, nonzero UUID"}},
 
       // === StartView() ===
@@ -234,7 +240,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
            rum->StartView("", "My View");
          });
        },
-       {"Rum::StartView call ignored: application must supply a non-empty view key"},
+       {"Rum::StartView call ignored: application must supply a non-empty view "
+        "key"},
        {}},
 
       {"M print no warning W StartView is called with empty view name",
@@ -264,7 +271,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
            rum->AddViewAttribute("", "foo", Attribute::Int(100));
          });
        },
-       {"Rum::AddViewAttribute call ignored: application must supply a non-empty view "
+       {"Rum::AddViewAttribute call ignored: application must supply a non-empty "
+        "view "
         "key"},
        {}},
 
@@ -277,8 +285,33 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
            rum->RemoveViewAttribute("", "foo");
          });
        },
-       {"Rum::RemoveViewAttribute call ignored: application must supply a non-empty "
+       {"Rum::RemoveViewAttribute call ignored: application must supply a "
+        "non-empty "
         "view key"},
+       {}},
+
+      // === AddAction() / StartAction() ===
+
+      {"M print warning W AddAction is called with empty name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->AddAction(RumActionType::Custom, "");
+         });
+       },
+       {"Rum::AddAction call ignored: application must supply a non-empty action "
+        "name"},
+       {}},
+
+      {"M print warning W StartAction is called with empty name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartAction(RumActionType::Custom, "");
+         });
+       },
+       {"Rum::StartAction call ignored: application must supply a non-empty action "
+        "name"},
        {}},
   };
   for (const auto& tt : tests) {
@@ -301,7 +334,20 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
   }
 }
 
-TEST_CASE("Rum view events", "[unit][rum][cpp-api]") {
+static nlohmann::json filter_events(std::string_view type, const nlohmann::json& xs) {
+  nlohmann::json result = nlohmann::json::array();
+  std::copy_if(
+      xs.begin(),
+      xs.end(),
+      std::back_inserter(result),
+      [type](const nlohmann::json& x) {
+        return x.contains("type") && x["type"] == type;
+      }
+  );
+  return result;
+}
+
+TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
   struct TestParams {
     std::string_view name;
     std::function<void(RumConfig&)> config_func;
@@ -310,7 +356,7 @@ TEST_CASE("Rum view events", "[unit][rum][cpp-api]") {
   };
   std::vector<TestParams> tests = {
 
-      // === Basic event validation ===
+      // === Basic view event validation ===
 
       {"M send initial view event W new view is started",
        [](RumConfig&) {
@@ -1048,29 +1094,832 @@ TEST_CASE("Rum view events", "[unit][rum][cpp-api]") {
          clock.Tick(std::chrono::minutes(30));
 
          // And we subsequently record a user interaction to trigger session refresh and
-         // view transfer
-         // TODO(RUM-11369): Call rum->AddAction()
+         // view transfer, making it a discrete custom attribute so it'll send an event
+         // immediately, and providing {"baker":22,"dog":44} as action attributes
+         Attribute add_action_obj = Attribute::Object(2);
+         add_action_obj.SetObjectProperty("baker", Attribute::Int(22));
+         add_action_obj.SetObjectProperty("dog", Attribute::Int(44));
+         rum->AddAction(RumActionType::Custom, "instant!", add_action_obj);
        },
        [](const nlohmann::json& events) {
          // Then we get the following sequence of RUM events:
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 4);
          // - At T+0: a `view` with:
          //   - _dd.document_version: 0
-         //   - is_active: true
+         //   - view.is_active: true
          //   - view.name: "My View"
-         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         //   - context: {"bravo":2,"baker":200,"charlie":300}
+         REQUIRE(events[0]["type"] == "view");
+         REQUIRE(events[0]["_dd"]["document_version"] == 0);
+         REQUIRE(events[0]["view"]["is_active"] == true);
+         REQUIRE(events[0]["view"]["name"] == "My View");
+         REQUIRE(
+             events[0]["context"] ==
+             nlohmann::json{{"bravo", 2}, {"baker", 200}, {"charlie", 300}}
+         );
          // - At T+1800: a `view` with:
          //   - _dd.document_version: 0
-         //   - is_active: true
+         //   - session.id: <distinct from the session.id value in the preceding event>
+         //   - view.id: <distinct from the view.id value in the preceding event>
+         //   - view.is_active: true
          //   - view.name: "My View"
-         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
-         // - At T+1800.1: an `action` with:
-         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
-         REQUIRE(events.is_array());
-         REQUIRE(events.size() == 1);
-         // TODO(RUM-11369): Implement the assertions described above
+         //   - context: {"bravo":2,"baker":200,"charlie":300}
+         // TODO(RUM-12546): After view event deduplication, this event will be omitted
+         REQUIRE(events[1]["type"] == "view");
+         REQUIRE(events[1]["_dd"]["document_version"] == 0);
+         REQUIRE(events[1]["session"]["id"] != events[0]["session"]["id"]);
+         REQUIRE(events[1]["view"]["id"] != events[0]["view"]["id"]);
+         REQUIRE(events[1]["view"]["is_active"] == true);
+         REQUIRE(events[1]["view"]["action"]["count"] == 0);
+         REQUIRE(events[1]["view"]["name"] == "My View");
+         REQUIRE(
+             events[1]["context"] ==
+             nlohmann::json{{"bravo", 2}, {"baker", 200}, {"charlie", 300}}
+         );
+         // - At T+1800: an `action` with:
+         //   - session.id: <equal to the session.id value in the latest view event>
+         //   - view.id: <equal to the view.id value in the latest view event>
+         //   - context: {"bravo":2,"baker":22,"charlie":300,"dog":44}
+         REQUIRE(events[2]["type"] == "action");
+         REQUIRE(events[2]["session"]["id"] == events[1]["session"]["id"]);
+         REQUIRE(events[2]["view"]["id"] == events[1]["view"]["id"]);
+         REQUIRE(
+             events[2]["context"] ==
+             nlohmann::json{{"bravo", 2}, {"baker", 22}, {"charlie", 300}, {"dog", 44}}
+         );
+         // - At T+1800: a duplicate `view` event with an incremented view.action.count
+         // TODO(RUM-12546): After view event deduplication, this will be the only event
+         // for the second view
+         REQUIRE(events[3]["type"] == "view");
+         REQUIRE(events[3]["view"]["action"]["count"] == 1);
+         REQUIRE(events[3]["view"]["id"] == events[1]["view"]["id"]);
        }},
 
-      // TODO(RUM-11369): Validate that action functions result in the expected events
+      // === Actions (continuous: StartAction(), StopAction()) ===
+
+      {"M not send action event W action remains active",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and record an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Scroll, "scroll1");
+       },
+       [](const nlohmann::json& events) {
+         // Then we don't end up with any action events, because an action scope only
+         // sends a single event upon being closed
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 1);
+         REQUIRE(events[0]["type"] == "view");
+       }},
+
+      {"M send action event W continuous action is stopped immediately",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and record an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Scroll, "scroll1");
+
+         // And we then stop that action explicitly
+         rum->StopAction(RumActionType::Scroll, "scroll1");
+       },
+       [](const nlohmann::json& events) {
+         // Then RUM produces a single action event, along with at least one view event
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() > 1);
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+
+         // And the action event has all expected properties
+         RequireEventMatch(actions[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "action",
+            "date": 1700000000000,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "action": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "scroll",
+              "target": {"name": "scroll1"},
+              "loading_time": 0
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+
+         // And the last of our view events has an incremented action count
+         auto last = events.back();
+         REQUIRE(last["type"] == "view");
+         REQUIRE(last["view"]["id"] == actions[0]["view"]["id"]);
+         REQUIRE(last["view"]["action"]["count"] == 1);
+       }},
+
+      {"M send action event W continuous action is stopped after a delay",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and record an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Scroll, "scroll1");
+
+         // And we then stop that action explicitly after a 2-second delay
+         clock.Tick(std::chrono::seconds(2));
+         rum->StopAction(RumActionType::Scroll, "scroll1");
+       },
+       [](const nlohmann::json& events) {
+         // Then RUM produces a single action event where the 'date' value reflects the
+         // time at which the action started, and 'action.loading_time' is the count of
+         // nanoseconds reflecting our action's 2-second lifetime
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 2000000000);
+       }},
+
+      {"M send action event W command is processed >=10s after continuous action start",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and record an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Scroll, "scroll1");
+
+         // And we wait 15 seconds and initiate any RUM operation that will result in a
+         // command being processed by the active action scope
+         clock.Tick(std::chrono::seconds(15));
+         rum->RemoveViewAttribute("my-view", "nonexistent");
+       },
+       [](const nlohmann::json& events) {
+         // Then an action event gets sent, and its duration is clamped at 10s
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 10000000000);
+       }},
+
+      {"M not send action event W command is processed <10s after continuous action "
+       "start",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and record an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Scroll, "scroll1");
+
+         // And then 4s later, we initiate any RUM operation that will result in a
+         // command being processed by the active action scope
+         clock.Tick(std::chrono::seconds(4));
+         rum->RemoveViewAttribute("my-view", "nonexistent");
+       },
+       [](const nlohmann::json& events) {
+         // Then we don't end up with any action events, because at T+4s, the scope for
+         // our continuous action is still active
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 1);
+         REQUIRE(events[0]["type"] == "view");
+       }},
+
+      // === Actions (discrete: AddAction()) ===
+
+      {"M send immediate action event W discrete action has a type of custom",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add a custom discrete action
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Custom, "custom1");
+       },
+       [](const nlohmann::json& events) {
+         // Then an action event is sent immediately
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() > 1);
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+
+         // And the action event has all expected properties
+         RequireEventMatch(actions[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "action",
+            "date": 1700000000000,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "action": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "custom",
+              "target": {"name": "custom1"},
+              "loading_time": 0
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+       }},
+
+      {"M not send immediate action event W discrete action has a type other than "
+       "custom",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add a discrete action whose type is not custom
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+       },
+       [](const nlohmann::json& events) {
+         // Then we don't end up with any action events, because an action scope only
+         // sends a single event upon being closed, and even a discrete action has a
+         // brief lifetime
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 1);
+         REQUIRE(events[0]["type"] == "view");
+       }},
+
+      {"M send action event W any command is processed >=100ms after discrete action",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and add a discrete action whose type is not custom
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+
+         // And then 150ms later, we initiate any RUM operation that will result in a
+         // command being processed by the active action scope
+         clock.Tick(std::chrono::milliseconds(150));
+         rum->RemoveViewAttribute("my-view", "nonexistent");
+       },
+       [](const nlohmann::json& events) {
+         // Then an action event gets sent, and its duration is clamped at 100ms
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 100000000);
+       }},
+
+      {"M send action event W discrete action is explicitly stopped",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and add a discrete action whose type is not custom
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+
+         // And then 50ms later, we explicitly stop the current action
+         clock.Tick(std::chrono::milliseconds(50));
+         rum->StopAction(RumActionType::Click, "button1");
+       },
+       [](const nlohmann::json& events) {
+         // Then an action event gets sent, and its duration is 50ms: discrete actions
+         // are subject to StopAction calls just the same continuous actions
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 50000000);
+       }},
+
+      {"M send discrete custom action event immediately W another action is active",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start a continuous custom action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Custom, "long-custom");
+
+         // And then at T+2s, we add a discrete custom action
+         clock.Tick(std::chrono::seconds(2));
+         rum->AddAction(RumActionType::Custom, "instant-custom");
+
+         // And then at T+4s, we stop our original continuous action
+         clock.Tick(std::chrono::seconds(2));
+         rum->StopAction(RumActionType::Custom, "long-custom");
+       },
+       [](const nlohmann::json& events) {
+         // Then we went up with two action events
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 2);
+
+         // And the first event to be sent describes our discrete action (since it
+         // "ended" first), with a timestamp of T+2s and a duration of 0
+         REQUIRE(actions[0]["action"]["target"]["name"] == "instant-custom");
+         REQUIRE(actions[0]["date"] == 1700000002000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 0);
+
+         // And the second event describes our continuous action, with an earlier
+         // timestamp of T+0 and a duration of 4 seconds
+         REQUIRE(actions[1]["action"]["target"]["name"] == "long-custom");
+         REQUIRE(actions[1]["date"] == 1700000000000);
+         REQUIRE(actions[1]["action"]["loading_time"] == 4000000000);
+       }},
+
+      // === Parameters passed to rum->StopAction(==
+
+      {"M stop current action W rum->StopAction alled, regardless of type",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action with type 'click'
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Click, "button1");
+
+         // And then 50ms later, we explicitly stop the current action, passing a
+         // different action type of 'swipe'
+         clock.Tick(std::chrono::milliseconds(50));
+         rum->StopAction(RumActionType::Swipe, "button1");
+       },
+       [](const nlohmann::json& events) {
+         // Then the action is stopped and an action event gets sent, with the original
+         // action type of 'click' retained: the 'type' parameter accepted by StopAction
+         // serves no actual purpose
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 50000000);
+         REQUIRE(actions[0]["action"]["type"] == "click");
+         REQUIRE(actions[0]["action"]["target"]["name"] == "button1");
+       }},
+
+      {"M stop current action W StopAction is called with empty name",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action with name "button1"
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Click, "button1");
+
+         // And then 50ms later, we explicitly stop the current action, passing no name
+         clock.Tick(std::chrono::milliseconds(50));
+         rum->StopAction(RumActionType::Click);
+       },
+       [](const nlohmann::json& events) {
+         // Then the action is stopped and an action event gets sent, with the
+         // original name of 'button1'
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 50000000);
+         REQUIRE(actions[0]["action"]["type"] == "click");
+         REQUIRE(actions[0]["action"]["target"]["name"] == "button1");
+       }},
+
+      {"M rename and stop current action W rum->StopAction alled with different "
+       "name",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action with name "button1"
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Click, "button1");
+
+         // And then 50ms later, we explicitly stop the current action, passing a
+         // different name of "boton2"
+         clock.Tick(std::chrono::milliseconds(50));
+         rum->StopAction(RumActionType::Click, "boton2");
+       },
+       [](const nlohmann::json& events) {
+         // Then the action is stopped and an action event gets sent, with the
+         // newly-provided name of 'boton2' used in place of the original 'button1': the
+         // 'name' parameter accepted by StopAction does _not_ describe the intended
+         // target; it's applied to whatever action is active
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 50000000);
+         REQUIRE(actions[0]["action"]["type"] == "click");
+         REQUIRE(actions[0]["action"]["target"]["name"] == "boton2");
+       }},
+
+      // === Action events at view/session stop ===
+
+      {"M stop current action W StopView is called",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Click, "button1");
+
+         // And then 50ms later, we explicitly stop the current view
+         clock.Tick(std::chrono::milliseconds(50));
+         rum->StopView("my-view");
+       },
+       [](const nlohmann::json& events) {
+         // Then we end up with a single action event, as our action is cleanly stopped
+         // as a side effect of the view being stopped
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 50000000);
+         REQUIRE(actions[0]["action"]["type"] == "click");
+         REQUIRE(actions[0]["action"]["target"]["name"] == "button1");
+
+         // And the last of our view events has an incremented action count
+         auto last = events.back();
+         REQUIRE(last["type"] == "view");
+         REQUIRE(last["view"]["id"] == actions[0]["view"]["id"]);
+         REQUIRE(last["view"]["action"]["count"] == 1);
+       }},
+
+      {"M stop current action W StartView is called",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Click, "button1");
+
+         // And then 50ms later, we start a new view, effectively ending the current one
+         clock.Tick(std::chrono::milliseconds(50));
+         rum->StartView("another-view", "Another View");
+       },
+       [](const nlohmann::json& events) {
+         // Then we end up with a single action event, as our action is cleanly stopped
+         // as a side effect of the view being stopped
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 50000000);
+         REQUIRE(actions[0]["action"]["type"] == "click");
+         REQUIRE(actions[0]["action"]["target"]["name"] == "button1");
+
+         // And final view event for our original view has an incremented view count
+         const nlohmann::json* last_event_for_original_view;
+         for (const auto& event : events) {
+           if (event["type"] == "view" &&
+               event["view"]["id"] == actions[0]["view"]["id"]) {
+             last_event_for_original_view = &event;
+           }
+         }
+         REQUIRE(last_event_for_original_view);
+         REQUIRE((*last_event_for_original_view)["view"]["name"] == "My View");
+         REQUIRE((*last_event_for_original_view)["view"]["action"]["count"] == 1);
+
+         // And we also have a view event for the newly-created view
+         auto last = events.back();
+         REQUIRE(last["type"] == "view");
+         REQUIRE(last["view"]["id"] != actions[0]["view"]["id"]);
+         REQUIRE(last["view"]["action"]["count"] == 0);
+       }},
+
+      {"M stop current action W StopSession is called",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Click, "button1");
+
+         // And then 50ms later, we explicitly stop the session
+         clock.Tick(std::chrono::milliseconds(50));
+         rum->StopSession();
+       },
+       [](const nlohmann::json& events) {
+         // Then we end up with a single action event, as our action is cleanly stopped
+         // as a side effect of the view being stopped
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["loading_time"] == 50000000);
+         REQUIRE(actions[0]["action"]["type"] == "click");
+         REQUIRE(actions[0]["action"]["target"]["name"] == "button1");
+
+         // And the last of our view events has an incremented action count
+         auto last = events.back();
+         REQUIRE(last["type"] == "view");
+         REQUIRE(last["view"]["id"] == actions[0]["view"]["id"]);
+         REQUIRE(last["view"]["action"]["count"] == 1);
+       }},
+
+      {"M drop current action W session expires",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Click, "button1");
+
+         // And then 7h later, we attempt to stop the action
+         clock.Tick(std::chrono::hours(7));
+         rum->StopAction(RumActionType::Click, "button1");
+       },
+       [](const nlohmann::json& events) {
+         // Then we get no action events: when a session expires with an action still
+         // active, that action is simply dropped
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 0);
+       }},
+
+      // === Action lifetime vis-a-vis resources ===
+
+      {"M extend discrete action lifetime W concurrent resource remains active",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and add an action with a type other than custom
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+
+         // And then at T+50ms, a resource begins
+         clock.Tick(std::chrono::milliseconds(50));
+         // TODO(RUM-12202): rum->StartResource()
+
+         // And then at T+150ms, the resource ends
+         clock.Tick(std::chrono::milliseconds(100));
+         // TODO(RUM-12202): rum->StopResource()
+       },
+       [](const nlohmann::json& events) {
+         // TODO(RUM-12202): Then:
+         // - Our action event is sent, its resource count is 1, and its duration is
+         //   clamped at 100ms despite the fact that the scope persisted for 150ms
+         // - We get a resource event, and its action.id matches the action event
+         auto actions = filter_events("action", events);
+         auto resources = filter_events("resource", events);
+         (void)actions;
+         (void)resources;
+       }},
+
+      {"M extend continuous action lifetime W concurrent resource remains active",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start a RUM action
+         rum->StartView("my-view", "My View");
+         rum->StartAction(RumActionType::Scroll, "scroll1");
+
+         // And then at T+9.8s, a resource begins
+         clock.Tick(std::chrono::milliseconds(9800));
+         // TODO(RUM-12202): rum->StartResource()
+
+         // And then at T+14.8s, the resource ends
+         clock.Tick(std::chrono::seconds(5));
+         // TODO(RUM-12202): rum->StopResource()
+       },
+       [](const nlohmann::json& events) {
+         // TODO(RUM-12202): Then:
+         // - Our action event is sent, its resource count is 1, and its duration is
+         //   clamped at 10s despite the fact that the scope persisted for 14.8s
+         // - We get a resource event, and its action.id matches the action event
+         auto actions = filter_events("action", events);
+         auto resources = filter_events("resource", events);
+         (void)actions;
+         (void)resources;
+       }},
+
+      {"M not extend action lifetime W resource is started after action timeout",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and add an action with a type other than custom
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+
+         // And then at T+150ms, a resource begins
+         clock.Tick(std::chrono::milliseconds(150));
+         // TODO(RUM-12202): rum->StartResource()
+
+         // And then at T+200ms, the resource ends
+         clock.Tick(std::chrono::milliseconds(50));
+         // TODO(RUM-12202): rum->StopResource()
+       },
+       [](const nlohmann::json& events) {
+         // TODO(RUM-12202): Then:
+         // - Our action event is sent, its resource count is 0, and its duration is
+         //   clamped at 100ms
+         // - We get a resource event, and it has no action.id
+         auto actions = filter_events("action", events);
+         auto resources = filter_events("resource", events);
+         (void)actions;
+         (void)resources;
+       }},
+
+      {"M continually extend action lifetime W concurrent resources overlap",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and add an action with a type other than custom
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+
+         // And then at T+50ms, a resource begins
+         clock.Tick(std::chrono::milliseconds(50));
+         // TODO(RUM-12202): rum->StartResource()
+
+         // And then at T+150ms, another resource begins
+         clock.Tick(std::chrono::milliseconds(100));
+         // TODO(RUM-12202): rum->StartResource()
+
+         // And then at T+200ms, our first resource is stopped
+         clock.Tick(std::chrono::milliseconds(50));
+         // TODO(RUM-12202): rum->StopResource()
+       },
+       [](const nlohmann::json& events) {
+         // TODO(RUM-12202): Then:
+         // - Our action event is not sent because our second resource call is still
+         //   pending
+         // - We get a single resource event, and it has a valid action.id
+         auto actions = filter_events("action", events);
+         auto resources = filter_events("resource", events);
+         (void)actions;
+         (void)resources;
+       }},
+
+      {"M respect StopAction even W concurrent resource remains actives",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and add an action with a type other than custom
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+
+         // And then at T+50ms, a resource begins
+         clock.Tick(std::chrono::milliseconds(50));
+         // TODO(RUM-12202): rum->StartResource()
+
+         // And then at T+70ms, we explicitly stop the action
+         clock.Tick(std::chrono::milliseconds(20));
+         rum->StopAction(RumActionType::Click, "button1");
+       },
+       [](const nlohmann::json& events) {
+         // TODO(RUM-12202): Then:
+         // - Our action event is sent, its duration is 70ms, and its resource count is
+         //   zero
+         // - We get no resource events
+         auto actions = filter_events("action", events);
+         auto resources = filter_events("resource", events);
+         (void)actions;
+         (void)resources;
+       }},
+
+      // === Action attributes, merging with view and global attributes ===
+
+      {"M include action-level attributes as context W provided on start",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action with {"alpha":1,"bravo":2}
+         rum->StartView("my-view", "My View");
+         Attribute start_action_obj = Attribute::Object(2);
+         start_action_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         start_action_obj.SetObjectProperty("bravo", Attribute::Int(2));
+         rum->StartAction(RumActionType::Custom, "foo", start_action_obj);
+
+         // And then at T+2s, we explicitly stop the action
+         clock.Tick(std::chrono::seconds(2));
+         rum->StopAction(RumActionType::Custom, "foo");
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our action has {"alpha":1,"bravo":2}
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["context"] == nlohmann::json{{"alpha", 1}, {"bravo", 2}});
+       }},
+
+      {"M merge command attributes into action-level attributes W command is "
+       "StopAction",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action with {"alpha":1,"bravo":2}
+         rum->StartView("my-view", "My View");
+         Attribute start_action_obj = Attribute::Object(2);
+         start_action_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         start_action_obj.SetObjectProperty("bravo", Attribute::Int(2));
+         rum->StartAction(RumActionType::Custom, "foo", start_action_obj);
+
+         // And then at T+2s, we stop the action with {"bravo":22,"charlie":33}
+         clock.Tick(std::chrono::seconds(2));
+         Attribute stop_action_obj = Attribute::Object(2);
+         stop_action_obj.SetObjectProperty("bravo", Attribute::Int(22));
+         stop_action_obj.SetObjectProperty("charlie", Attribute::Int(33));
+         rum->StopAction(RumActionType::Custom, "foo", stop_action_obj);
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our action has
+         // {"alpha":1,"bravo":22,"charlie":33}
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(
+             actions[0]["context"] ==
+             nlohmann::json{{"alpha", 1}, {"bravo", 22}, {"charlie", 33}}
+         );
+       }},
+
+      {"M not merge command attributes into action-level attributes W command is not "
+       "StopAction",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and start an action with {"alpha":1,"bravo":2}
+         rum->StartView("my-view", "My View");
+         Attribute start_action_obj = Attribute::Object(2);
+         start_action_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         start_action_obj.SetObjectProperty("bravo", Attribute::Int(2));
+         rum->StartAction(RumActionType::Custom, "foo", start_action_obj);
+
+         // And then at T+2s, we stop the _view_ with {"bravo":22,"charlie":33}
+         clock.Tick(std::chrono::seconds(2));
+         Attribute stop_view_obj = Attribute::Object(2);
+         stop_view_obj.SetObjectProperty("bravo", Attribute::Int(22));
+         stop_view_obj.SetObjectProperty("charlie", Attribute::Int(33));
+         rum->StopView("my-view");
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our action has {"alpha":1,"bravo":2}: even
+         // though the command that ends the action carries attributes, they are not
+         // intended as action attributes, so they're ignored.
+         // (...or should we have {"alpha":1,"bravo":2,"charlie":33}?)
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["context"] == nlohmann::json{{"alpha", 1}, {"bravo", 2}});
+       }},
+
+      {"M merge global <- view <- action attributes",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // Given global RUM attributes {"able":100,"baker":200}
+         rum->AddAttribute("able", Attribute::Int(100));
+         rum->AddAttribute("baker", Attribute::Int(200));
+
+         // And a view with attributes {"baker":222,"charlie":333,"dog":444}
+         Attribute start_view_obj = Attribute::Object(3);
+         start_view_obj.SetObjectProperty("baker", Attribute::Int(222));
+         start_view_obj.SetObjectProperty("charlie", Attribute::Int(333));
+         start_view_obj.SetObjectProperty("dog", Attribute::Int(444));
+         rum->StartView("my-view", "My View", start_view_obj);
+
+         // When we start an action with {"alpha":1,"bravo":2,"dog":"good"}
+         Attribute start_action_obj = Attribute::Object(3);
+         start_action_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         start_action_obj.SetObjectProperty("bravo", Attribute::Int(2));
+         start_action_obj.SetObjectProperty("dog", Attribute::String("good"));
+         rum->StartAction(RumActionType::Custom, "foo", start_action_obj);
+
+         // And then at T+2s, we explicitly stop the action
+         clock.Tick(std::chrono::seconds(2));
+         rum->StopAction(RumActionType::Custom, "foo");
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our action has
+         // {"able":100,"baker":222,"charlie":333,"alpha":1,"bravo":2,"dog":"good"}
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(
+             actions[0]["context"] == nlohmann::json{
+                                          {"able", 100},
+                                          {"baker", 222},
+                                          {"charlie", 333},
+                                          {"alpha", 1},
+                                          {"bravo", 2},
+                                          {"dog", "good"},
+                                      }
+         );
+       }},
+
       // TODO(RUM-12201): Validate that error functions result in the expected events
       // TODO(RUM-12202): Validate that resource functions result in the expected events
   };

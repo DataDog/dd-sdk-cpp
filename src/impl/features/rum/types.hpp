@@ -22,4 +22,13 @@ inline RumConfig RumConfig_FromC(const dd_rum_config_t& config) {
   return RumConfig(application_id).SetSessionSampleRate(config.session_sample_rate);
 }
 
+inline RumActionType RumActionType_FromC(dd_rum_action_type_t value) {
+  static_assert(static_cast<int>(RumActionType::Tap) == DD_RUM_ACTION_TYPE_TAP);
+  static_assert(static_cast<int>(RumActionType::Click) == DD_RUM_ACTION_TYPE_CLICK);
+  static_assert(static_cast<int>(RumActionType::Scroll) == DD_RUM_ACTION_TYPE_SCROLL);
+  static_assert(static_cast<int>(RumActionType::Swipe) == DD_RUM_ACTION_TYPE_SWIPE);
+  static_assert(static_cast<int>(RumActionType::Custom) == DD_RUM_ACTION_TYPE_CUSTOM);
+  return static_cast<RumActionType>(value);
+}
+
 }  // namespace datadog

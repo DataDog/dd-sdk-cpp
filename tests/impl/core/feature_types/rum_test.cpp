@@ -166,6 +166,15 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
     ev.os.value.emplace("Windows", "98", "4");
     ev.os.value->build = "4.10.2222 A";
 
+    // RumDeviceProperties
+    ev.device.value.emplace();
+    ev.device.value->type = RumDeviceType::Desktop;
+    ev.device.value->name = "Packard Bell Legend 486";
+    ev.device.value->model = "486DX4-100";
+    ev.device.value->brand = "Packard Bell";
+    ev.device.value->architecture = "x86 [Intel 80486]";
+    ev.device.value->locale = "en-US";
+
     // RumViewEvent::Application
     ev.application.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
     ev.application.current_locale = "en-US";
@@ -321,6 +330,14 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
         "build": "4.10.2222 A",
         "version_major": "4"
       },
+      "device": {
+        "type": "desktop",
+        "name": "Packard Bell Legend 486",
+        "model": "486DX4-100",
+        "brand": "Packard Bell",
+        "architecture": "x86 [Intel 80486]",
+        "locale": "en-US"
+      },
       "application": {
         "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
         "current_locale": "en-US"
@@ -461,6 +478,245 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
         },
         "browser_sdk_version": "3.1.2",
         "document_version": 121
+      }
+    })"));
+  }
+}
+
+TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
+  // Given a RumActionEvent initialized with the minimum set of required properties
+  const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
+  const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+  const UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+  const RumSessionType session_type = RumSessionType::User;
+  const UUID view_id = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
+  const std::string_view view_url = "my-view";
+  const RumActionType action_type = RumActionType::Click;
+  const UUID action_id = *UUID::Parse("4c10171e-4334-4334-4334-b0000eeeefff");
+  const Duration action_duration = std::chrono::milliseconds(55);
+  RumActionEvent ev{
+      date,
+      application_id,
+      session_id,
+      session_type,
+      view_id,
+      view_url,
+      action_type,
+      action_id,
+      action_duration
+  };
+
+  SECTION("M produce a minimal action event W only required values are set") {
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "action": {
+        "type": "click",
+        "id": "4c10171e-4334-4334-4334-b0000eeeefff",
+        "loading_time": 55000000
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "action"
+    })"));
+  }
+
+  SECTION("M generate valid event W all supported values are set") {
+    // RumActionEvent
+    ev.date = Timestamp{std::chrono::nanoseconds(1761829845132015612)};
+    ev.service = "my-service";
+    ev.version = "my-version";
+    ev.build_version = "my-build-version";
+    ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
+    ev.ddtags = "service:my-service,env:test,foo:bar";
+    ev.source = RumSource::Unity;
+
+    // RumUserProperties
+    ev.usr.value.emplace();
+    ev.usr.value->id = "390cfcd41";
+    ev.usr.value->name = "John Q. Public";
+    ev.usr.value->email = "jqpublic@example.com";
+    ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+
+    // RumAccountProperties
+    ev.account.value.emplace("708876d3e663c2eb");
+    ev.account.value->name = "Important Account";
+
+    // RumConnectivityProperties
+    ev.connectivity.value.emplace(RumConnectivityStatus::Connected);
+
+    // RumViewEvent::Display
+    ev.display.value.emplace();
+    ev.display.value->viewport.value.emplace(1280, 720);
+
+    // RumSyntheticsProperties
+    ev.synthetics.value.emplace("test-8e81e7", "result-6049db");
+    ev.synthetics.value->injected = true;
+
+    // RumCITestProperties
+    ev.ci_test.value.emplace("execution-90cfcd");
+
+    // RumOSProperties
+    ev.os.value.emplace("Windows", "98", "4");
+    ev.os.value->build = "4.10.2222 A";
+
+    // RumDeviceProperties
+    ev.device.value.emplace();
+    ev.device.value->type = RumDeviceType::Desktop;
+    ev.device.value->name = "Packard Bell Legend 486";
+    ev.device.value->model = "486DX4-100";
+    ev.device.value->brand = "Packard Bell";
+    ev.device.value->architecture = "x86 [Intel 80486]";
+    ev.device.value->locale = "en-US";
+
+    // RumActionEvent::Application
+    ev.application.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.application.current_locale = "en-US";
+
+    // RumActionEvent::Session
+    ev.session.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.session.type = RumSessionType::Synthetics;
+    ev.session.has_replay = true;
+
+    // RumActionEvent::View
+    ev.view.id = *UUID::Parse("18136cf5-e4a8-4e5c-9d65-7cab1703f17f");
+    ev.view.referrer = "https://referer.referrer";
+    ev.view.url = "https://example.com/yes";
+    ev.view.name = "Yes!!!🙌";
+
+    // RumActionEvent::Internal::Session
+    ev._dd.session.value.emplace();
+    ev._dd.session.value->plan = 2;
+    ev._dd.session.value->session_precondition =
+        RumSessionPrecondition::InactivityTimeout;
+
+    // RumActionEvent::Internal::Configuration
+    ev._dd.configuration.value.emplace(10.0f);
+    ev._dd.configuration.value->session_replay_sample_rate = 5.0f;
+    ev._dd.configuration.value->profiling_sample_rate = 20.0f;
+
+    // RumActionEvent::Action
+    ev.action.target.value.emplace("my-target");
+    ev.action.error.value.emplace(4);
+    ev.action.crash.value.emplace(8);
+    ev.action.long_task.value.emplace(12);
+    ev.action.resource.value.emplace(16);
+
+    // RumActionEvent::Internal
+    ev._dd.browser_sdk_version = "3.1.2";
+
+    // Custom user attributes (RumActionEvent::context)
+    ev.context.value.InitObject(8);
+    ev.context.value.SetObjectProperty("foo", Attribute::Int(100));
+    auto coord = Attribute::Object(2);
+    coord.SetObjectProperty("x", Attribute::Double(33.3));
+    coord.SetObjectProperty("y", Attribute::Double(-14.1));
+    ev.context.value.SetObjectProperty("coord", coord);
+    ev.context.value.SetObjectProperty("service", Attribute::String("arbitrary-value"));
+
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "type": "action",
+      "date": 1761829845132,
+      "service": "my-service",
+      "version": "my-version",
+      "build_version": "my-build-version",
+      "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
+      "ddtags": "service:my-service,env:test,foo:bar",
+      "source": "unity",
+      "usr": {
+        "id": "390cfcd41",
+        "name": "John Q. Public",
+        "email": "jqpublic@example.com",
+        "anonymous_id": "a52beca3-34c1-4e35-9c26-d8a2daa212e6"
+      },
+      "account": {
+        "id": "708876d3e663c2eb",
+        "name": "Important Account"
+      },
+      "connectivity": {
+        "status": "connected"
+      },
+      "display": {
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      "synthetics": {
+        "test_id": "test-8e81e7",
+        "result_id": "result-6049db",
+        "injected": true
+      },
+      "ci_test": {
+        "test_execution_id": "execution-90cfcd"
+      },
+      "os": {
+        "name": "Windows",
+        "version": "98",
+        "build": "4.10.2222 A",
+        "version_major": "4"
+      },
+      "device": {
+        "type": "desktop",
+        "name": "Packard Bell Legend 486",
+        "model": "486DX4-100",
+        "brand": "Packard Bell",
+        "architecture": "x86 [Intel 80486]",
+        "locale": "en-US"
+      },
+      "application": {
+        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "current_locale": "en-US"
+      },
+      "session": {
+        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "type": "synthetics",
+        "has_replay": true
+      },
+      "view": {
+        "id": "18136cf5-e4a8-4e5c-9d65-7cab1703f17f",
+        "referrer": "https://referer.referrer",
+        "url": "https://example.com/yes",
+        "name": "Yes!!!🙌"
+      },
+      "action": {
+        "type": "click",
+        "id": "4c10171e-4334-4334-4334-b0000eeeefff",
+        "loading_time": 55000000,
+        "target": {"name": "my-target"},
+        "error": {"count": 4},
+        "crash": {"count": 8},
+        "long_task": {"count": 12},
+        "resource": {"count": 16}
+      },
+      "context": {
+        "foo": 100,
+        "coord": {"x": 33.3, "y": -14.1},
+        "service": "arbitrary-value"
+      },
+      "_dd": {
+        "format_version": 2,
+        "session": {
+          "plan": 2,
+          "session_precondition": "inactivity_timeout"
+        },
+        "configuration": {
+          "session_sample_rate": 10,
+          "session_replay_sample_rate": 5,
+          "profiling_sample_rate": 20
+        },
+        "browser_sdk_version": "3.1.2"
       }
     })"));
   }

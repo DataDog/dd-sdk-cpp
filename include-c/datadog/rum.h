@@ -166,6 +166,105 @@ DATADOG_API void dd_rum_stop_view_obj(
     dd_rum_t* rum, const char* key, const dd_attribute_t* attributes
 );
 
+// === RUM actions ===
+
+/**
+ * Type of user action to be recorded. Action types like 'tap', 'click', 'scroll', and
+ * 'swipe' may be used to record user input. An action of type 'custom' records any
+ * arbitrary event that occurs in response to the user's interactions with the
+ * application.
+ */
+typedef enum {
+  DD_RUM_ACTION_TYPE_TAP,
+  DD_RUM_ACTION_TYPE_CLICK,
+  DD_RUM_ACTION_TYPE_SCROLL,
+  DD_RUM_ACTION_TYPE_SWIPE,
+  DD_RUM_ACTION_TYPE_CUSTOM
+} dd_rum_action_type_t;
+
+/**
+ * Records a discrete user action of the given type in the context of the current view.
+ * A name is required, and the provided name will be used to identify the target of the
+ * action in the Datadog UI.
+ *
+ * Discrete actions (i.e. those added via dd_rum_add_action()) are momentary: they do
+ * not require an explicit call to dd_rum_stop_action().
+ *
+ * Discrete actions with type DD_RUM_ACTION_TYPE_CUSTOM are reported immediately, and
+ * they may be recorded via dd_rum_add_action() at any time, regardless of whether
+ * another action is curently active.
+ *
+ * Discrete actions of all other types will remain active for at least 100ms prior to
+ * being reported, so that any RUM resources or errors occurring immediately after the
+ * action may be correlated with the action.
+ *
+ * If dd_rum_start_resource() calls occur while the action is active, the action may
+ * remain active until the corresponding dd_rum_stop_resource() calls are made, even if
+ * those resources remain active after the initial 100ms timeout. However, an explicit
+ * dd_rum_stop_action() call will always stop the action, regardless of whether it's
+ * waiting for resources to complete.
+ *
+ * Only one action may be active at any given time: if you call dd_rum_add_action() or
+ * dd_rum_start_action() while another action is active, the new action will be ignored
+ * (with the exception of dd_rum_add_action() with DD_RUM_ACTION_TYPE_CUSTOM as
+ * described above).
+ */
+DATADOG_API void dd_rum_add_action(
+    dd_rum_t* rum,
+    dd_rum_action_type_t type,
+    const char* name,
+    dd_attribute_t* attributes
+);
+
+/**
+ * Records a continuous user action of the given type in the context of the current
+ * view. A name is required, and the provided name will be used to identify the target
+ * of the action in the Datadog UI.
+ *
+ * A continuous user action will remain active until dd_rum_stop_action() is called, or
+ * until a timeout duration (of at least 10 seconds) has elapsed without a call to
+ * dd_rum_stop_action().
+ *
+ * If dd_rum_start_resource() calls occur while the action is active, the action may
+ * remain active until the corresponding dd_rum_stop_resource() calls are made, even if
+ * those resources remain active after the initial 10-second timeout. However, an
+ * explicit dd_rum_stop_action() call will always stop the action, regardless of whether
+ * it's waiting for resources to complete.
+ *
+ * Only one action may be active at a time. If you call dd_rum_start_action() while
+ * another action is already active, regardless of the type you pass to
+ * dd_rum_start_action(), the new action will be ignored.
+ */
+DATADOG_API void dd_rum_start_action(
+    dd_rum_t* rum,
+    dd_rum_action_type_t type,
+    const char* name,
+    dd_attribute_t* attributes
+);
+
+/**
+ * Stops the currently-active action, if any exists in the current view.
+ *
+ * By convention, the provided `type` value is expected to match the value passed to
+ * dd_rum_start_action() for the action that you intend to stop. However, this value is
+ * currently ignored.
+ *
+ * A name value is not required. If provided, the active action will have its name
+ * changed to the provided value before it is stopped. If NULL or "", the active action
+ * will be stopped without any change to its name.
+ *
+ * dd_rum_stop_action() will always stop the active action, regardless of whether it was
+ * created via dd_rum_add_action() or dd_rum_start_action(), regardless of its type and
+ * name, and regardless of whether the action is waiting for associated RUM resources to
+ * be stopped.
+ */
+DATADOG_API void dd_rum_stop_action(
+    dd_rum_t* rum,
+    dd_rum_action_type_t type,
+    const char* name,
+    dd_attribute_t* attributes
+);
+
 #ifdef __cplusplus
 }
 #endif

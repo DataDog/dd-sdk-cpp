@@ -90,7 +90,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     // And then we subsequently process a command like AddAction
     // (Note that the '{on session refresh}' tests below validate a more exhaustive
     // range of command types)
-    scope.Process(RumCommand::AddAction(GetBaseParams()));
+    scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
 
     // Then we once again have an active session, and it's distinct from the first
     REQUIRE(scope.GetActiveSession());
@@ -144,7 +144,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     // When we wait 16 minutes, then process any command that represents user
     // interaction
     clock.Tick(std::chrono::minutes(16));
-    scope.Process(RumCommand::StopAction(GetBaseParams()));
+    scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
     // Then we have an active session that's distinct from the first one
     REQUIRE(scope.GetActiveSession());
@@ -167,7 +167,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     // times so that our last interaction is recorded at 3h58m into the session
     for (int i = 1; i <= 17; i++) {
       clock.Tick(std::chrono::minutes(14));
-      scope.Process(RumCommand::StopAction(GetBaseParams()));
+      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
     }
 
     // Then as of 3h58m, our original session should still be active
@@ -178,7 +178,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
 
     // Next: When we wait three minutes, then try to record a user interaction at 4h01m
     clock.Tick(std::chrono::minutes(3));
-    scope.Process(RumCommand::StopAction(GetBaseParams()));
+    scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
     // Then we have an active session that's distinct from the first one
     REQUIRE(scope.GetActiveSession());
@@ -277,7 +277,7 @@ class ViewTransferFixture {
         for (int i = 1; i <= 17; i++) {
           // User interactions recorded at [T+14m, T+28m, ..., T+238m]
           clock.Tick(std::chrono::minutes(14));
-          scope.Process(RumCommand::StopAction(GetBaseParams()));
+          scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
         }
         // Advance one minute beyond the max session duration: next command will trigger
         // expiration and refresh
@@ -555,7 +555,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a AddAction command
-      scope.Process(RumCommand::AddAction(GetBaseParams()));
+      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -572,7 +572,9 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a StartAction command
-      scope.Process(RumCommand::StartAction(GetBaseParams()));
+      scope.Process(
+          RumCommand::StartAction(GetBaseParams(), RumActionType::Tap, "foo")
+      );
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -588,7 +590,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with StopAction
-      scope.Process(RumCommand::StopAction(GetBaseParams()));
+      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
       // Then the session is refreshed, but it remains without an active view
       RequireNewSessionWithNoActiveView();
@@ -599,7 +601,7 @@ TEST_CASE_METHOD(
       EnterState(ViewTransferFixture::State::ExplicitlyStopped);
 
       // When we process StopAction after the session has been explicitly stopped
-      scope.Process(RumCommand::StopAction(GetBaseParams()));
+      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
       // Then the command is ignored and no session refresh occurs
       RequireNoActiveSession();
@@ -620,7 +622,7 @@ TEST_CASE_METHOD(
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams()));
+      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -641,7 +643,7 @@ TEST_CASE_METHOD(
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams()));
+      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -663,7 +665,7 @@ TEST_CASE_METHOD(
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams()));
+      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -685,7 +687,7 @@ TEST_CASE_METHOD(
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams()));
+      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
 
       // TODO(RUM-12247): With background tracking enabled, the new session would have
       // a 'Background' view
@@ -711,7 +713,7 @@ TEST_CASE_METHOD(
 
       // Next: When we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams()));
+      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
 
       // TODO(RUM-12247): With background tracking enabled, the new session would have
       // a 'Background' view
@@ -748,14 +750,22 @@ TEST_CASE_METHOD(
       // Then that view is active in a new session
       RequireDifferentView("bar", "Bar");
 
+      // And that new session has no active action
+      REQUIRE(
+          !scope.GetActiveSession()->get().GetActiveView()->get().GetActiveAction()
+      );
+
       // Next: When we process StartAction
-      scope.Process(RumCommand::StartAction(GetBaseParams()));
+      scope.Process(
+          RumCommand::StartAction(GetBaseParams(), RumActionType::Tap, "foo")
+      );
 
       // Then we remain in our newly-created view: the last-active view from our
       // original session is not recreated, since the new view supersedes it
       RequireDifferentView("bar", "Bar");
 
-      // TODO(RUM-11369): Verify that action exists in active view scope?
+      // And the StartAction call resulted in new action scope being opened
+      REQUIRE(scope.GetActiveSession()->get().GetActiveView()->get().GetActiveAction());
     }
   }
 }
