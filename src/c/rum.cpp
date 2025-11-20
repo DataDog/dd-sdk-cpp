@@ -108,7 +108,7 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
 
 void dd_rum_destroy(dd_rum_t* rum) { delete rum; }
 
-void dd_rum_attribute_set(
+void dd_rum_add_attribute(
     dd_rum_t* rum, const char* name, const dd_attribute_t* value
 ) {
   // Abort if any argument is invalid (but allow empty-string as a property name)
@@ -117,14 +117,14 @@ void dd_rum_attribute_set(
   }
 
   // Copy to datadog::Attribute
-  rum->impl->SetAttribute(name, datadog::impl::AttributeConversion::CopyFromC(*value));
+  rum->impl->AddAttribute(name, datadog::impl::AttributeConversion::CopyFromC(*value));
 }
 
-void dd_rum_attribute_delete(dd_rum_t* rum, const char* name) {
+void dd_rum_remove_attribute(dd_rum_t* rum, const char* name) {
   if (!rum || !rum->impl || !name) {
     return;
   }
-  rum->impl->DeleteAttribute(name);
+  rum->impl->RemoveAttribute(name);
 }
 
 void dd_rum_stop_session(dd_rum_t* rum) {
@@ -161,6 +161,62 @@ void dd_rum_start_view_obj(
 
   // Defer to the feature implementation
   rum->impl->StartView(key, cpp_name, cpp_attributes);
+}
+
+void dd_rum_add_view_attribute(
+    dd_rum_t* rum,
+    const char* view_key,
+    const char* attribute_name,
+    const dd_attribute_t* value
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty view key
+  if (!view_key || !view_key[0]) {
+    // TODO(RUM-11363): Log a warning if application supplied no view key
+    return;
+  }
+
+  // Require a valid string, but allow "" as an attribute name
+  if (!attribute_name) {
+    // TODO(RUM-11363): Log a warning if application supplied no attribute name
+    return;
+  }
+
+  // Require a valid attribute value
+  if (!value) {
+    // TODO(RUM-11363): Log a warning if application supplied no attribute value
+    return;
+  }
+
+  datadog::Attribute cpp_value = datadog::impl::AttributeConversion::CopyFromC(*value);
+  rum->impl->AddViewAttribute(view_key, attribute_name, cpp_value);
+}
+
+void dd_rum_remove_view_attribute(
+    dd_rum_t* rum, const char* view_key, const char* attribute_name
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty view key
+  if (!view_key || !view_key[0]) {
+    // TODO(RUM-11363): Log a warning if application supplied no view key
+    return;
+  }
+
+  // Require a valid string, but allow "" as an attribute name
+  if (!attribute_name) {
+    // TODO(RUM-11363): Log a warning if application supplied no attribute name
+    return;
+  }
+
+  rum->impl->RemoveViewAttribute(view_key, attribute_name);
 }
 
 void dd_rum_stop_view(dd_rum_t* rum, const char* key) {

@@ -79,7 +79,7 @@ DATADOG_API void dd_rum_destroy(dd_rum_t* rum);
  * Adds or updates a global attribute value that will be included with all RUM events
  * emitted hereafter.
  */
-DATADOG_API void dd_rum_attribute_set(
+DATADOG_API void dd_rum_add_attribute(
     dd_rum_t* rum, const char* name, const dd_attribute_t* value
 );
 
@@ -87,7 +87,7 @@ DATADOG_API void dd_rum_attribute_set(
  * Removes a global attribute value, if one has been previously added with the given
  * name.
  */
-DATADOG_API void dd_rum_attribute_delete(dd_rum_t* rum, const char* name);
+DATADOG_API void dd_rum_remove_attribute(dd_rum_t* rum, const char* name);
 
 // === RUM sessions ===
 
@@ -122,6 +122,35 @@ DATADOG_API void dd_rum_start_view(dd_rum_t* rum, const char* key, const char* n
  */
 DATADOG_API void dd_rum_start_view_obj(
     dd_rum_t* rum, const char* key, const char* name, const dd_attribute_t* attributes
+);
+
+/**
+ * Adds or updates a custom attribute value stored in the context of the current view,
+ * provided that the current view has the given key.
+ *
+ * All events produced within the context of a view will include the set of custom
+ * attributes formed from both global and view-level attributes, with view attributes
+ * taking precedence in the case of name conflicts.
+ *
+ * View attributes are scoped to the lifetime of the view and do not persist to
+ * subsequent views with the same key.
+ */
+DATADOG_API void dd_rum_add_view_attribute(
+    dd_rum_t* rum,
+    const char* view_key,
+    const char* attribute_name,
+    const dd_attribute_t* value
+);
+
+/**
+ * Removes any custom attribute value stored under the given name in the context of the
+ * current view, provided that the current view has the given key.
+ *
+ * If the view-level attribute being removed was shadowing a global attribute of the
+ * same name, subsequent events will once again use the global attribute value.
+ */
+DATADOG_API void dd_rum_remove_view_attribute(
+    dd_rum_t* rum, const char* view_key, const char* attribute_name
 );
 
 /**

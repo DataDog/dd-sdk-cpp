@@ -29,17 +29,18 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
     REQUIRE(dd_rum_init(nullptr, nullptr) == nullptr);
     dd_rum_destroy(nullptr);
 
-    dd_rum_attribute_set(nullptr, "foo", &int_100);
-    dd_rum_attribute_delete(nullptr, "foo");
+    dd_rum_add_attribute(nullptr, "foo", &int_100);
+    dd_rum_remove_attribute(nullptr, "foo");
 
     dd_rum_stop_session(nullptr);
 
     dd_rum_start_view(nullptr, "foo", "My View");
     dd_rum_start_view_obj(nullptr, "foo", "My View", &obj);
+    dd_rum_add_view_attribute(nullptr, "foo", "something", &int_100);
+    dd_rum_remove_view_attribute(nullptr, "foo", "something");
     dd_rum_stop_view(nullptr, "foo");
     dd_rum_stop_view_obj(nullptr, "foo", &obj);
 
-    // TODO(RUM-12322): Exercise RUM View Attributes API
     // TODO(RUM-11369): Exercise RUM Action API
     // TODO(RUM-12201): Exercise RUM Error API
     // TODO(RUM-12202): Exercise RUM Resource API
@@ -154,13 +155,15 @@ TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
   auto test_func = [](dd_rum_t* rum) {
     dd_attribute_t int_100 = dd_attribute_int(100);
     dd_rum_start_view(rum, "foo", "Foo");
-    dd_rum_attribute_set(rum, "attr1", &int_100);
+    dd_rum_add_attribute(rum, "attr1", &int_100);
+    dd_rum_remove_attribute(rum, "attr1");
     dd_rum_start_view(rum, "bar", "Bar");
+    dd_rum_add_view_attribute(rum, "bar", "attr2", &int_100);
+    dd_rum_remove_view_attribute(rum, "bar", "attr2");
     dd_rum_stop_view(rum, "bar");
     dd_rum_stop_session(rum);
     dd_rum_start_view(rum, "foo", "Foo");
     dd_attribute_free(&int_100);
-    // TODO(RUM-12322): Exercise RUM View Attributes API
     // TODO(RUM-11369): Exercise RUM Action API
     // TODO(RUM-12201): Exercise RUM Error API
     // TODO(RUM-12202): Exercise RUM Resource API
@@ -207,6 +210,9 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
     std::function<void(const nlohmann::json&)> assert_func;
   };
   std::vector<TestParams> tests = {
+
+      // === Basic event validation ===
+
       {"M send initial view event W new view is started",
        [](dd_rum_config_t*) {
          // Given an ordinary RUM config
@@ -286,11 +292,11 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
             }
           })"));
          // And the second describes the state of the view at its end, with 'is_active'
-         // false, with the 'date' and 'time_spent' properties reflecting the passage of
-         // 15 seconds, and '_dd.document_version' incremented
+         // false, 'time_spent' reflecting the passage of 15 seconds, and
+         // '_dd.document_version' incremented; while 'date' remains stable
          RequireEventMatch(events[1], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "view",
-            "date": 1700000015000,
+            "date": 1700000000000,
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -364,6 +370,8 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
          REQUIRE(events.size() == 200);
        }},
 
+      // === Session sampling ===
+
       {"M send roughly 2/3 of view events W session sample rate is 66%",
        [](dd_rum_config_t* config) {
          // Given a RUM config with a 66% session sample rate
@@ -384,10 +392,696 @@ TEST_CASE("dd_rum view events", "[unit][rum][c-api]") {
          // approximately 660 sessions sampled
          REQUIRE(events.size() > 1320 - 200);
          REQUIRE(events.size() < 1320 + 200);
-       }}
+       }},
 
-      // TODO(RUM-12322): Validate that events include global attribute values
-      // TODO(RUM-12322): Validate that events include view attribute values
+      // === Inclusion of view attributes via StartView/StopView ===
+
+      {"M include view attributes in view event W set via dd_rum_start_view",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         // When we start a new view with {"foo":100}
+         dd_attribute_t start_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
+         dd_attribute_free(&int_100);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_attribute_free(&start_view_attributes);
+       },
+       [](const nlohmann::json& events) {
+         // Then our initial view event should have {"foo":100}
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 1);
+         REQUIRE(events[0]["context"] == nlohmann::json{{"foo", 100}});
+       }},
+
+      {"M isolate view attributes to target view W dd_rum_start_view starts new view",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we start a new view "my-view" with {"foo":100}
+         dd_attribute_t my_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_attribute_object_property_set(&my_view_attributes, "foo", &int_100);
+         dd_attribute_free(&int_100);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &my_view_attributes);
+         dd_attribute_free(&my_view_attributes);
+
+         // And 15 seconds passes
+         clock.Tick(std::chrono::seconds(15));
+
+         // And we start another view "other-view" with {"bar":200}
+         dd_attribute_t other_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_200 = dd_attribute_int(200);
+         dd_attribute_object_property_set(&other_view_attributes, "bar", &int_200);
+         dd_attribute_free(&int_200);
+         dd_rum_start_view_obj(rum, "other-view", "Other View", &other_view_attributes);
+         dd_attribute_free(&other_view_attributes);
+       },
+       [](const nlohmann::json& events) {
+         // Then 'my-view' is started and stopped, producing view events both times, and
+         // 'other-view' produces a single event on creation
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 3);
+         REQUIRE(events[0]["view"]["url"] == "my-view");
+         REQUIRE(events[0]["view"]["is_active"] == true);
+         REQUIRE(events[1]["view"]["url"] == "my-view");
+         REQUIRE(events[1]["view"]["is_active"] == false);
+         REQUIRE(events[2]["view"]["url"] == "other-view");
+         REQUIRE(events[2]["view"]["is_active"] == true);
+
+         // And both events for 'my-view' have {"foo":100}: they do _not_ adopt the
+         // attributes in the second StartView command, as those values are intended for
+         // another view
+         REQUIRE(events[0]["context"] == nlohmann::json{{"foo", 100}});
+         REQUIRE(events[1]["context"] == nlohmann::json{{"foo", 100}});
+
+         // And the event for 'other-view' has {"bar":200}: prior attributes were
+         // targeted only to the previous view
+         REQUIRE(events[2]["context"] == nlohmann::json{{"bar", 200}});
+       }},
+
+      {"M isolate view attributes to target view W dd_rum_start_view starts new view "
+       "{with identical key}",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we start a new view "my-view" with {"foo":100}
+         dd_attribute_t my_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_attribute_object_property_set(&my_view_attributes, "foo", &int_100);
+         dd_attribute_free(&int_100);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &my_view_attributes);
+         dd_attribute_free(&my_view_attributes);
+
+         // And 15 seconds passes
+         clock.Tick(std::chrono::seconds(15));
+
+         // And we start another view, also using the key "my-view", with {"bar":200}
+         dd_attribute_t my_view_2_attributes = dd_attribute_object(4);
+         dd_attribute_t int_200 = dd_attribute_int(200);
+         dd_attribute_object_property_set(&my_view_2_attributes, "bar", &int_200);
+         dd_attribute_free(&int_200);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &my_view_2_attributes);
+         dd_attribute_free(&my_view_2_attributes);
+       },
+       [](const nlohmann::json& events) {
+         // Then we still have two distinct views, both labeled 'my-view': the first one
+         // starts and ends, and the second one starts
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 3);
+         REQUIRE(events[0]["view"]["url"] == "my-view");
+         REQUIRE(events[0]["view"]["is_active"] == true);
+         REQUIRE(events[1]["view"]["url"] == "my-view");
+         REQUIRE(events[1]["view"]["is_active"] == false);
+         REQUIRE(events[2]["view"]["url"] == "my-view");
+         REQUIRE(events[2]["view"]["id"] != events[0]["view"]["id"]);
+         REQUIRE(events[2]["view"]["is_active"] == true);
+
+         // And both events for the first 'my-view' have {"foo":100}: they do _not_
+         // adopt the attributes in the second StartView command, regardless of the fact
+         // that the target view key is identical: the second StartView command still
+         // targets an entirely separate view
+         REQUIRE(events[0]["context"] == nlohmann::json{{"foo", 100}});
+         REQUIRE(events[1]["context"] == nlohmann::json{{"foo", 100}});
+
+         // And the second 'my-view' has {"bar":200}: view-level attributes are limited
+         // to the lifetime of a single view scope; they are _not_ stored persistently
+         // and reused for later views with the same key
+         REQUIRE(events[2]["context"] == nlohmann::json{{"bar", 200}});
+       }},
+
+      {"M include view attributes in view event W set via dd_rum_stop_view",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we start a new view with {"foo":100,"bar":200}
+         dd_attribute_t start_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_attribute_t int_200 = dd_attribute_int(200);
+         dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
+         dd_attribute_object_property_set(&start_view_attributes, "bar", &int_200);
+         dd_attribute_free(&int_100);
+         dd_attribute_free(&int_200);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_attribute_free(&start_view_attributes);
+
+         // And 15 seconds passes
+         clock.Tick(std::chrono::seconds(15));
+
+         // And we issue a StopView call for that same view, with {"bar":300,"baz":400}
+         dd_attribute_t stop_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_300 = dd_attribute_int(300);
+         dd_attribute_t int_400 = dd_attribute_int(400);
+         dd_attribute_object_property_set(&stop_view_attributes, "bar", &int_300);
+         dd_attribute_object_property_set(&stop_view_attributes, "baz", &int_400);
+         dd_attribute_free(&int_300);
+         dd_attribute_free(&int_400);
+         dd_rum_stop_view_obj(rum, "my-view", &stop_view_attributes);
+         dd_attribute_free(&stop_view_attributes);
+       },
+       [](const nlohmann::json& events) {
+         // Then our view has two events, one for start and one for stop
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+         REQUIRE(events[0]["view"]["is_active"] == true);
+         REQUIRE(events[1]["view"]["is_active"] == false);
+
+         // And the first event reflects the attributes that were applied to the view at
+         // its birth: {"foo":100,"bar":200}
+         REQUIRE(events[0]["context"] == nlohmann::json{{"foo", 100}, {"bar", 200}});
+
+         // And the second event has {"foo":100,"bar":300,"baz":400}, since attributes
+         // supplied on StopView are merged into the existing set of view-level
+         // attributes
+         REQUIRE(
+             events[1]["context"] ==
+             nlohmann::json{{"foo", 100}, {"bar", 300}, {"baz", 400}}
+         );
+       }},
+
+      // === Inclusion of view attributes via AddViewAtribute/RemoveViewAttribute ===
+
+      {"M include view attributes in view event W set via dd_rum_add_view_attribute",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we start a new view with no attributes
+         dd_rum_start_view(rum, "my-view", "My View");
+
+         // And we then set {"foo":100} on the view after its creation
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_rum_add_view_attribute(rum, "my-view", "foo", &int_100);
+         dd_attribute_free(&int_100);
+
+         // And 15 seconds passes
+         clock.Tick(std::chrono::seconds(15));
+
+         // And we issue a StopView call to produce another view event
+         dd_rum_stop_view(rum, "my-view");
+       },
+       [](const nlohmann::json& events) {
+         // Then we get two view events, one at start and one at stop
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+
+         // And the first has no user attributes since it occured before our call
+         REQUIRE(!events[0].contains("context"));
+
+         // And the second has {"foo":100} since it occurred after our call
+         REQUIRE(events[1].contains("context"));
+         REQUIRE(events[1]["context"] == nlohmann::json{{"foo", 100}});
+       }},
+
+      {"M modify existing view attribute value W dd_rum_add_view_attribute called for "
+       "existing attribute",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we start a new view with no attributes
+         dd_rum_start_view(rum, "my-view", "My View");
+
+         // And we then set {"foo":100} on the view after its creation
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_rum_add_view_attribute(rum, "my-view", "foo", &int_100);
+         dd_attribute_free(&int_100);
+
+         // And we then set {"foo":200} immediately thereafter
+         dd_attribute_t int_200 = dd_attribute_int(200);
+         dd_rum_add_view_attribute(rum, "my-view", "foo", &int_200);
+         dd_attribute_free(&int_200);
+
+         // And we stop the view 15 seconds later
+         clock.Tick(std::chrono::seconds(15));
+         dd_rum_stop_view(rum, "my-view");
+       },
+       [](const nlohmann::json& events) {
+         // Then our final view event has {"foo":200}
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+         REQUIRE(events[1]["context"] == nlohmann::json{{"foo", 200}});
+       }},
+
+      {"M remove existing view attribute value W dd_rum_remove_view_attribute called "
+       "for existing attribute",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we start a new view with no attributes
+         dd_rum_start_view(rum, "my-view", "My View");
+
+         // And we then set {"foo":100,"bar":200} on the view after its creation
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_attribute_t int_200 = dd_attribute_int(200);
+         dd_rum_add_view_attribute(rum, "my-view", "foo", &int_100);
+         dd_rum_add_view_attribute(rum, "my-view", "bar", &int_200);
+         dd_attribute_free(&int_100);
+         dd_attribute_free(&int_200);
+
+         // And we then delete "foo" immediately thereafter
+         dd_rum_remove_view_attribute(rum, "my-view", "foo");
+
+         // And we stop the view 15 seconds later
+         clock.Tick(std::chrono::seconds(15));
+         dd_rum_stop_view(rum, "my-view");
+       },
+       [](const nlohmann::json& events) {
+         // Then our final view event has {"bar":200}
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+         REQUIRE(events[1]["context"] == nlohmann::json{{"bar", 200}});
+       }},
+
+      {"M do nothing W dd_rum_remove_view_attribute called for nonexistent attribute",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we start a new view with no attributes
+         dd_rum_start_view(rum, "my-view", "My View");
+
+         // And we then attempt to delete an attribute called "foo", which doens't exist
+         dd_rum_remove_view_attribute(rum, "my-view", "foo");
+
+         // And we stop the view 15 seconds later
+         clock.Tick(std::chrono::seconds(15));
+         dd_rum_stop_view(rum, "my-view");
+       },
+       [](const nlohmann::json& events) {
+         // Then our final view event has no user attributes
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+         REQUIRE(!events[1].contains("context"));
+       }},
+
+      {"M do nothing W dd_rum_remove_view_attribute called for nonexistent view",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         // When we attempt to remove a view attribute from a view that doesn't exist
+         dd_rum_remove_view_attribute(rum, "nonexistent-view", "foo");
+       },
+       [](const nlohmann::json& events) {
+         // Then nothing happens
+         REQUIRE(events.is_null());
+       }},
+
+      {"M do nothing W dd_rum_add_view_attribute called for nonexistent view",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         // When we attempt to add a view attribute to a view that doesn't exist
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_rum_add_view_attribute(rum, "nonexistent-view", "foo", &int_100);
+         dd_attribute_free(&int_100);
+       },
+       [](const nlohmann::json& events) {
+         // Then nothing happens
+         REQUIRE(events.is_null());
+       }},
+
+      {"M mutate view attributes W start/attr/stop funcs are called successively",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_attribute_t int_val = dd_attribute_int(0);
+
+         // When we start a new view with {"able":1,"baker":2,"charlie":3,"dog":4}
+         dd_attribute_t start_view_obj = dd_attribute_object(4);
+         dd_attribute_set_int(&int_val, 1);
+         dd_attribute_object_property_set(&start_view_obj, "able", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
+         dd_attribute_set_int(&int_val, 3);
+         dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
+         dd_attribute_set_int(&int_val, 4);
+         dd_attribute_object_property_set(&start_view_obj, "dog", &int_val);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_attribute_free(&start_view_obj);
+
+         // And we then delete "baker" and set {"charlie":"modified"} and {"dog":444}
+         dd_rum_remove_view_attribute(rum, "my-view", "baker");
+         dd_attribute_t str_modified = dd_attribute_string("modified");
+         dd_rum_add_view_attribute(rum, "my-view", "charlie", &str_modified);
+         dd_attribute_free(&str_modified);
+         dd_attribute_set_int(&int_val, 444);
+         dd_rum_add_view_attribute(rum, "my-view", "dog", &int_val);
+
+         // And 15 seconds passes
+         clock.Tick(std::chrono::seconds(15));
+
+         // And we then stop the view, supplying {"dog":98,"easy":99}
+         dd_attribute_t stop_view_obj = dd_attribute_object(2);
+         dd_attribute_set_int(&int_val, 98);
+         dd_attribute_object_property_set(&stop_view_obj, "dog", &int_val);
+         dd_attribute_set_int(&int_val, 99);
+         dd_attribute_object_property_set(&stop_view_obj, "easy", &int_val);
+         dd_rum_stop_view_obj(rum, "my-view", &stop_view_obj);
+         dd_attribute_free(&stop_view_obj);
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then we get two view events, one at start and one at stop
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+
+         // And the first has {"able":1,"baker":2,"charlie":3,"dog":4}, reflecting our
+         // initial set of attributes at view creation
+         REQUIRE(
+             events[0]["context"] ==
+             nlohmann::json{{"able", 1}, {"baker", 2}, {"charlie", 3}, {"dog", 4}}
+         );
+
+         // And the second has {"able":1,"charlie":"modified","dog:98,"easy":99},
+         // reflecting the deletion of baker, the modification of charlie, the final
+         // prevailing value of dog, and the addition of easy
+         REQUIRE(
+             events[1]["context"] ==
+             nlohmann::json{
+                 {"able", 1}, {"charlie", "modified"}, {"dog", 98}, {"easy", 99}
+             }
+         );
+       }},
+
+      // === Inclusion of global attributes; merging of global and view attributes ===
+
+      {"M include global attributes in view events W dd_rum_add_attribute called",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         // When we add a global attribute {"x":"hello"}
+         dd_attribute_t str_hello = dd_attribute_string("hello");
+         dd_rum_add_attribute(rum, "x", &str_hello);
+         dd_attribute_free(&str_hello);
+
+         // And we start a new view with {"foo":100}
+         dd_attribute_t start_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
+         dd_attribute_free(&int_100);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_attribute_free(&start_view_attributes);
+       },
+       [](const nlohmann::json& events) {
+         // Then our initial view event should have {"x":"hello","foo":100}
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 1);
+         REQUIRE(events[0]["context"] == nlohmann::json{{"x", "hello"}, {"foo", 100}});
+       }},
+
+      {"M modify global attribute value W dd_rum_add_attribute called for existing "
+       "attribute",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we add a global attribute {"x":"hello"}
+         dd_attribute_t str_hello = dd_attribute_string("hello");
+         dd_rum_add_attribute(rum, "x", &str_hello);
+         dd_attribute_free(&str_hello);
+
+         // And we start a new view with {"foo":100}
+         dd_attribute_t start_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
+         dd_attribute_free(&int_100);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_attribute_free(&start_view_attributes);
+
+         // And we update our global attribute to {"x":"world"}
+         dd_attribute_t str_world = dd_attribute_string("world");
+         dd_rum_add_attribute(rum, "x", &str_world);
+         dd_attribute_free(&str_world);
+
+         // And we stop the view 15 seconds later
+         clock.Tick(std::chrono::seconds(15));
+         dd_rum_stop_view(rum, "my-view");
+       },
+       [](const nlohmann::json& events) {
+         // Then we get two view events
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+
+         // And the first has {"x":"hello","foo":100}
+         REQUIRE(events[0]["context"] == nlohmann::json{{"x", "hello"}, {"foo", 100}});
+
+         // And the last has {"x":"world","foo":100}
+         REQUIRE(events[1]["context"] == nlohmann::json{{"x", "world"}, {"foo", 100}});
+       }},
+
+      {"M remove global attribute value W dd_rum_remove_attribute called for existing "
+       "attribute",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we set global attributes {"x":"hello","y":"world"}
+         dd_attribute_t str_hello = dd_attribute_string("hello");
+         dd_attribute_t str_world = dd_attribute_string("world");
+         dd_rum_add_attribute(rum, "x", &str_hello);
+         dd_rum_add_attribute(rum, "y", &str_world);
+         dd_attribute_free(&str_hello);
+         dd_attribute_free(&str_world);
+
+         // And we start a new view with {"foo":100}
+         dd_attribute_t start_view_attributes = dd_attribute_object(4);
+         dd_attribute_t int_100 = dd_attribute_int(100);
+         dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
+         dd_attribute_free(&int_100);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_attribute_free(&start_view_attributes);
+
+         // And we then delete the global attribute "x"
+         dd_rum_remove_attribute(rum, "x");
+
+         // And we stop the view 15 seconds later
+         clock.Tick(std::chrono::seconds(15));
+         dd_rum_stop_view(rum, "my-view");
+       },
+       [](const nlohmann::json& events) {
+         // Then we get two view events
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+
+         // And the first has {"x":"hello","y":"world","foo":100}
+         REQUIRE(
+             events[0]["context"] ==
+             nlohmann::json{{"x", "hello"}, {"y", "world"}, {"foo", 100}}
+         );
+
+         // And the last has {"y":"world","foo":100}
+         REQUIRE(events[1]["context"] == nlohmann::json{{"y", "world"}, {"foo", 100}});
+       }},
+
+      {"M do nothing W dd_rum_remove_attribute called for nonexistent attribute",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         // When we attempt to remove a global attribute that doesn't exist
+         dd_rum_remove_attribute(rum, "foo");
+       },
+       [](const nlohmann::json& events) {
+         // Then nothing happens
+         REQUIRE(events.is_null());
+       }},
+
+      {"M merge view attributes into global attributes",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_attribute_t int_val = dd_attribute_int(0);
+
+         // When we add global attributes {"alpha":1,"bravo":2,"charlie":3}
+         dd_attribute_set_int(&int_val, 1);
+         dd_rum_add_attribute(rum, "alpha", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_rum_add_attribute(rum, "bravo", &int_val);
+         dd_attribute_set_int(&int_val, 3);
+         dd_rum_add_attribute(rum, "charlie", &int_val);
+
+         // And we start a new view with {"able":100,"baker":200,"charlie":300}
+         dd_attribute_t start_view_obj = dd_attribute_object(3);
+         dd_attribute_set_int(&int_val, 100);
+         dd_attribute_object_property_set(&start_view_obj, "able", &int_val);
+         dd_attribute_set_int(&int_val, 200);
+         dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
+         dd_attribute_set_int(&int_val, 300);
+         dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_attribute_free(&start_view_obj);
+
+         // And we then remove the global "alpha"
+         dd_rum_remove_attribute(rum, "alpha");
+
+         // And we update the global "bravo" to "modified"
+         dd_attribute_t str_modified = dd_attribute_string("modified");
+         dd_rum_add_attribute(rum, "bravo", &str_modified);
+         dd_attribute_free(&str_modified);
+
+         // And we remove the view-level "charlie"
+         dd_rum_remove_view_attribute(rum, "my-view", "charlie");
+
+         // And we stop the view 15 seconds later
+         clock.Tick(std::chrono::seconds(15));
+         dd_rum_stop_view(rum, "my-view");
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then we get two view events
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 2);
+
+         // And the first has {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         REQUIRE(
+             events[0]["context"] == nlohmann::json{
+                                         {"alpha", 1},
+                                         {"bravo", 2},
+                                         {"able", 100},
+                                         {"baker", 200},
+                                         {"charlie", 300}
+                                     }
+         );
+
+         // And the last has {"bravo":"modified","able":100,"baker":200,"charlie":3},
+         // reflecting the deletion of alpha, the mutation of bravo, and the return to
+         // the global value of charlie after the deletion of the view-level attribute
+         // that was shadowing it
+         REQUIRE(
+             events[1]["context"] ==
+             nlohmann::json{
+                 {"bravo", "modified"}, {"able", 100}, {"baker", 200}, {"charlie", 3}
+             }
+         );
+       }},
+
+      // === Freezing of attribute values upon view inactivity ===
+
+      {"M freeze attribute values W view is stopped while scope remains open due to "
+       "pending resources",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_attribute_t int_val = dd_attribute_int(0);
+
+         // When we set global attributes {"alpha":1,"bravo":2,"charlie":3}
+         dd_attribute_set_int(&int_val, 1);
+         dd_rum_add_attribute(rum, "alpha", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_rum_add_attribute(rum, "bravo", &int_val);
+         dd_attribute_set_int(&int_val, 3);
+         dd_rum_add_attribute(rum, "charlie", &int_val);
+
+         // And we start a view with {"able":100,"baker":200,"charlie":300}
+         dd_attribute_t start_view_obj = dd_attribute_object(3);
+         dd_attribute_set_int(&int_val, 100);
+         dd_attribute_object_property_set(&start_view_obj, "able", &int_val);
+         dd_attribute_set_int(&int_val, 200);
+         dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
+         dd_attribute_set_int(&int_val, 300);
+         dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_attribute_free(&start_view_obj);
+
+         // And we start a resource within the active view
+         // TODO(RUM-12202): Call dd_rum_start_resource()
+
+         // And 15 seconds later, we create a new view with the same key, thereby
+         // stopping the original view while it still has pending resources
+         clock.Tick(std::chrono::seconds(15));
+         dd_rum_start_view(rum, "my-view", "My View");
+
+         // And we modify global attributes after the original view has stopped,
+         // deleting "alpha" and adding {"delta":4}
+         dd_rum_remove_attribute(rum, "alpha");
+         dd_attribute_set_int(&int_val, 4);
+         dd_rum_add_attribute(rum, "delta", &int_val);
+
+         // And we attempt to modify view attributes after the view has stopped, trying
+         // to delete "able" and trying to add {"dog":400}
+         dd_rum_remove_view_attribute(rum, "my-view", "able");
+         dd_attribute_set_int(&int_val, 400);
+         dd_rum_add_view_attribute(rum, "my-view", "dog", &int_val);
+
+         // And 1 second later, we stop the resource, allowing our original view scope
+         // to close
+         clock.Tick(std::chrono::seconds(1));
+         // TODO(RUM-12202): Call dd_rum_stop_resource()
+
+         // And finally, 5 seconds after that, we close the new view
+         clock.Tick(std::chrono::seconds(5));
+         dd_rum_stop_view(rum, "my-view");
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then we get the following sequence of RUM events:
+         // - At T+0: a `view` with:
+         //   - _dd.document_version: 0
+         //   - is_active: true
+         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         // - At T+15: a `view` with:
+         //   - _dd.document_version: 1
+         //   - is_active: true
+         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         // - At T+15: a `view` with:
+         //   - _dd.document_version: 0
+         //   - is_active: true
+         //   - context: {"alpha":1,"bravo":2,"charlie":3}
+         // - At T+16: a `resource` recording successful completion, with:
+         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         // - At T+16: a `view` with:
+         //   - _dd.document_version: 2
+         //   - is_active: false
+         //   - resource.count: 1
+         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         // - At T+21: a `view` with:
+         //   - _dd.document_version: 1
+         //   - is_active: false
+         //   - context: {"bravo":2,"charlie":3,"dog":4}
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 4);
+         // TODO(RUM-12202): Implement the assertions described above
+       }},
+
+      // === Retention of view attributes on session refresh ===
+
+      {"M retain view attributes W last-active view is recreated after session refresh",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_attribute_t int_val = dd_attribute_int(0);
+
+         // When we set global attributes {"bravo":2,"charlie":3}
+         dd_attribute_set_int(&int_val, 2);
+         dd_rum_add_attribute(rum, "bravo", &int_val);
+         dd_attribute_set_int(&int_val, 3);
+         dd_rum_add_attribute(rum, "charlie", &int_val);
+
+         // And we start a view with {"baker":200,"charlie":300}
+         dd_attribute_t start_view_obj = dd_attribute_object(3);
+         dd_attribute_set_int(&int_val, 200);
+         dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
+         dd_attribute_set_int(&int_val, 300);
+         dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_attribute_free(&start_view_obj);
+
+         // And we allow 30 minutes to pass without user activity, such that on the next
+         // user action we record, the initial session will be considered expired and a
+         // new session will be created to replace it, with our original view being
+         // recreated in that new session
+         clock.Tick(std::chrono::minutes(30));
+
+         // And we subsequently record a user interaction to trigger session refresh and
+         // view transfer
+         // TODO(RUM-11369): Call dd_rum_add_action()
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then we get the following sequence of RUM events:
+         // - At T+0: a `view` with:
+         //   - _dd.document_version: 0
+         //   - is_active: true
+         //   - view.name: "My View"
+         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         // - At T+1800: a `view` with:
+         //   - _dd.document_version: 0
+         //   - is_active: true
+         //   - view.name: "My View"
+         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         // - At T+1800.1: an `action` with:
+         //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 1);
+         // TODO(RUM-11369): Implement the assertions described above
+       }},
+
       // TODO(RUM-11369): Validate that action functions result in the expected events
       // TODO(RUM-12201): Validate that error functions result in the expected events
       // TODO(RUM-12202): Validate that resource functions result in the expected events

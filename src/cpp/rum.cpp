@@ -76,15 +76,15 @@ std::shared_ptr<Rum> Rum::Register(
   return std::make_shared<Rum>(std::move(rum_impl), Rum::PrivateCtorTag{});
 }
 
-void Rum::SetAttribute(std::string_view name, const Attribute& value) {
+void Rum::AddAttribute(std::string_view name, const Attribute& value) {
   if (_impl) {
-    _impl->SetAttribute(name, value);
+    _impl->AddAttribute(name, value);
   }
 }
 
-void Rum::DeleteAttribute(std::string_view name) {
+void Rum::RemoveAttribute(std::string_view name) {
   if (_impl) {
-    _impl->DeleteAttribute(name);
+    _impl->RemoveAttribute(name);
   }
 }
 
@@ -105,6 +105,38 @@ void Rum::StartView(
 
   if (_impl) {
     _impl->StartView(key, name, attributes);
+  }
+}
+
+void Rum::AddViewAttribute(
+    std::string_view view_key, std::string_view attribute_name, const Attribute& value
+) {
+  // Require a valid view key
+  if (view_key.empty()) {
+    // TODO(RUM-11363): Log a warning: application supplied no view key
+    return;
+  }
+
+  // We allow any string (including "") as an attribute name, so no need to validate
+
+  if (_impl) {
+    _impl->AddViewAttribute(view_key, attribute_name, value);
+  }
+}
+
+void Rum::RemoveViewAttribute(
+    std::string_view view_key, std::string_view attribute_name
+) {
+  // Require a valid view key
+  if (view_key.empty()) {
+    // TODO(RUM-11363): Log a warning: application supplied no view key
+    return;
+  }
+
+  // We allow any string (including "") as an attribute name, so no need to validate
+
+  if (_impl) {
+    _impl->RemoveViewAttribute(view_key, attribute_name);
   }
 }
 
