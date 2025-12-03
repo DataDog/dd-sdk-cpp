@@ -158,7 +158,7 @@ typedef struct dd_core_config {
  * @param in_env The environment in which this application is running, e.g. 'prod',
  *  'dev', 'staging', 'testing', etc.
  */
-void dd_core_config_init(
+DATADOG_API void dd_core_config_init(
     dd_core_config_t* config,
     const char* client_token,
     const char* service,
@@ -172,7 +172,7 @@ void dd_core_config_init(
  * The default handler is dd_stderr_diagnostic_handler, which prints to stderr. If this
  * value is set to NULL, all diagnostic messages will be silently dropped.
  */
-void dd_core_config_set_diagnostic_handler(
+DATADOG_API void dd_core_config_set_diagnostic_handler(
     dd_core_config_t* config, dd_diagnostic_handler_t value
 );
 
@@ -181,7 +181,7 @@ void dd_core_config_set_diagnostic_handler(
  * handler callback. The default handler (dd_stderr_diagnostic_handler) will never read
  * this value.
  */
-void dd_core_config_set_diagnostic_handler_userdata(
+DATADOG_API void dd_core_config_set_diagnostic_handler_userdata(
     dd_core_config_t* config, void* value
 );
 
@@ -189,7 +189,7 @@ void dd_core_config_set_diagnostic_handler_userdata(
  * Sets the threshold for diagnostic logging: any message whose level meets or exceeds
  * this value will be passed to the configured diagnostic handler callback.
  */
-void dd_core_config_set_diagnostic_threshold(
+DATADOG_API void dd_core_config_set_diagnostic_threshold(
     dd_core_config_t* config, dd_diagnostic_level_t value
 );
 
@@ -199,7 +199,7 @@ void dd_core_config_set_diagnostic_threshold(
  * If the user's tracking consent changes after the SDK is initialized, call
  * dd_core_set_tracking_consent() to update it at runtime.
  */
-void dd_core_config_set_initial_tracking_consent(
+DATADOG_API void dd_core_config_set_initial_tracking_consent(
     dd_core_config_t* config, dd_tracking_consent_t value
 );
 
@@ -207,28 +207,32 @@ void dd_core_config_set_initial_tracking_consent(
  * Sets the site (i.e. Datadog datacenter) where data for your organization is stored.
  * Defaults to us1.
  */
-void dd_core_config_set_site(dd_core_config_t* config, dd_site_t value);
+DATADOG_API void dd_core_config_set_site(dd_core_config_t* config, dd_site_t value);
 
 /**
  * Sets the client token value, overriding the value passed to dd_core_config_init().
  */
-void dd_core_config_set_client_token(dd_core_config_t* config, const char* value);
+DATADOG_API void dd_core_config_set_client_token(
+    dd_core_config_t* config, const char* value
+);
 
 /**
  * Sets the 'service' value, overriding the value passed to dd_core_config_init().
  */
-void dd_core_config_set_service(dd_core_config_t* config, const char* value);
+DATADOG_API void dd_core_config_set_service(
+    dd_core_config_t* config, const char* value
+);
 
 /**
  * Sets the 'env' value, overriding the value passed to dd_core_config_init().
  */
-void dd_core_config_set_env(dd_core_config_t* config, const char* value);
+DATADOG_API void dd_core_config_set_env(dd_core_config_t* config, const char* value);
 
 /**
  * Sets the 'version' value, identifying the version of your applicating that's being
  * monitored.
  */
-void dd_core_config_set_application_version(
+DATADOG_API void dd_core_config_set_application_version(
     dd_core_config_t* config, const char* value
 );
 
@@ -236,13 +240,15 @@ void dd_core_config_set_application_version(
  * Configures the SDK's batch size, which informs how quickly it will consider a batch
  * of event data ready for upload.
  */
-void dd_core_config_set_batch_size(dd_core_config_t* config, dd_batch_size_t value);
+DATADOG_API void dd_core_config_set_batch_size(
+    dd_core_config_t* config, dd_batch_size_t value
+);
 
 /**
  * Configures the SDK's upload frequency, which informs how frequently it will check for
  * new batches of events to upload.
  */
-void dd_core_config_set_upload_frequency(
+DATADOG_API void dd_core_config_set_upload_frequency(
     dd_core_config_t* config, dd_upload_frequency_t value
 );
 
@@ -250,7 +256,7 @@ void dd_core_config_set_upload_frequency(
  * Configures the SDK's batch processing level, which limits the number of batches that
  * will be uploaded in a given upload cycle.
  */
-void dd_core_config_set_batch_processing_level(
+DATADOG_API void dd_core_config_set_batch_processing_level(
     dd_core_config_t* config, dd_batch_processing_level_t value
 );
 
