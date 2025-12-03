@@ -35,7 +35,8 @@ RumSessionScope::RumSessionScope(
       _precondition(start_precondition),
       _started_at(start_time),
       _last_interaction_at(start_time),
-      _active_view_from_predecessor(active_view_from_predecessor) {}
+      _active_view_from_predecessor(active_view_from_predecessor),
+      _view_scopes(deps.diagnostic_logger) {}
 
 void RumSessionScope::PopulateContext(RumContext& out_context) const {
   // Call the parent's PopulateContext function to set application parameters
@@ -252,15 +253,6 @@ void RumSessionScope::AttemptViewTransfer(
   base.attributes = prev_view.attributes;
   const RumCommand cmd = RumCommand::StartView(std::move(base), view_key, view_name);
   _view_scopes.Propagate(cmd);
-}
-
-ScopeRef<const RumViewScope> RumSessionScope::GetActiveView() const {
-  for (const RumViewScope& view : _view_scopes.items) {
-    if (view.IsActive()) {
-      return view;
-    }
-  }
-  return std::nullopt;
 }
 
 }  // namespace datadog::impl
