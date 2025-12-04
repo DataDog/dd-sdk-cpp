@@ -45,6 +45,7 @@ add_executable(dd_native_tests
     impl/events/timestamp_test.cpp
     impl/features/logging/logger_test.cpp
     impl/features/rum/containers/view_array_test.cpp
+    impl/features/rum/scopes/action_test.cpp
     impl/features/rum/scopes/application_test.cpp
     impl/features/rum/scopes/session_test.cpp
     impl/features/rum/scopes/view_test.cpp
