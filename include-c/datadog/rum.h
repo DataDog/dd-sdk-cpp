@@ -7,6 +7,7 @@
 #ifndef DATADOG_INCLUDE_RUM_H
 #define DATADOG_INCLUDE_RUM_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -20,6 +21,10 @@ extern "C" {
 #endif
 
 // === RUM configuration ===
+
+// To enable RUM instrumentation for your application, you must supply the ID for your
+// RUM Application. In the Datadog UI, see: Digital Experience -> Real User Monitoring
+// -> Manage Applications -> [Your Application] -> SDK Configuration.
 
 /**
  * RUM configuration struct: initialize with dd_rum_config_init(), then call
@@ -58,6 +63,9 @@ DATADOG_API void dd_rum_config_set_session_sample_rate(
 
 // === RUM feature interface ===
 
+// You must register RUM as a feature after calling dd_core_create() and before calling
+// dd_core_start().
+
 /**
  * Interface to the Datadog SDK's RUM feature. Use dd_rum_init() to register the
  * RUM feature with the core. You MUST call dd_rum_destroy() when done.
@@ -91,6 +99,14 @@ DATADOG_API void dd_rum_remove_attribute(dd_rum_t* rum, const char* name);
 
 // === RUM sessions ===
 
+// A session represents a single user's interactions with the application over a
+// continuous span of time up to 4 hours in length. After 4 hours, or if 15 minutes
+// elapses with no user interaction, the session will expire, resulting in a new session
+// the next time user interactions are recorded.
+
+// There is no need to manually register session start: simply create views and begin
+// recording user interactions, and the SDK will manage session lifecycle automatically.
+
 /**
  * Explicitly stops the current RUM session, if one is active.
  *
@@ -102,6 +118,10 @@ DATADOG_API void dd_rum_remove_attribute(dd_rum_t* rum, const char* name);
 DATADOG_API void dd_rum_stop_session(dd_rum_t* rum);
 
 // === RUM views ===
+
+// A view represents a distinct portion of the application (page, screen, section,
+// level) with which the user is exclusively interacting with. All RUM actions,
+// resources, and errors are recorded in the context of the current view.
 
 /**
  * Starts a new RUM view, recording that the user has navigated to the portion of the
@@ -161,6 +181,8 @@ DATADOG_API void dd_rum_stop_view_obj(
 );
 
 // === RUM actions ===
+
+// An action represents a single user interaction in the context of the current view.
 
 /**
  * Type of user action to be recorded. Action types like 'tap', 'click', 'scroll', and
@@ -256,6 +278,122 @@ DATADOG_API void dd_rum_stop_action(
     dd_rum_t* rum,
     dd_rum_action_type_t type,
     const char* name,
+    dd_attribute_t* attributes
+);
+
+// === RUM resources ===
+
+// A resource represents a single HTTP request made by the application in the context of
+// the current view.
+
+/**
+ * HTTP method used to initiate the retrieval of a resource.
+ */
+typedef enum {
+  DD_RUM_RESOURCE_METHOD_GET,
+  DD_RUM_RESOURCE_METHOD_HEAD,
+  DD_RUM_RESOURCE_METHOD_POST,
+  DD_RUM_RESOURCE_METHOD_PUT,
+  DD_RUM_RESOURCE_METHOD_DELETE,
+  DD_RUM_RESOURCE_METHOD_CONNECT,
+  DD_RUM_RESOURCE_METHOD_OPTIONS,
+  DD_RUM_RESOURCE_METHOD_TRACE,
+  DD_RUM_RESOURCE_METHOD_PATCH
+} dd_rum_resource_method_t;
+
+/**
+ * Type of resource retrieved; typically inferred from a response's Content-Type.
+ */
+typedef enum {
+  DD_RUM_RESOURCE_TYPE_UNKNOWN,
+  DD_RUM_RESOURCE_TYPE_BEACON,
+  DD_RUM_RESOURCE_TYPE_FETCH,
+  DD_RUM_RESOURCE_TYPE_XHR,
+  DD_RUM_RESOURCE_TYPE_DOCUMENT,
+  DD_RUM_RESOURCE_TYPE_NATIVE,
+  DD_RUM_RESOURCE_TYPE_IMAGE,
+  DD_RUM_RESOURCE_TYPE_JS,
+  DD_RUM_RESOURCE_TYPE_FONT,
+  DD_RUM_RESOURCE_TYPE_CSS,
+  DD_RUM_RESOURCE_TYPE_MEDIA,
+  DD_RUM_RESOURCE_TYPE_OTHER
+} dd_rum_resource_type_t;
+
+/**
+ * Records that the application has initiated an HTTP request, causing that request to
+ * be tracked as a RUM Resource in the context of the current view.
+ *
+ * @param key - An arbitrary string that uniquely identifies this specific HTTP request.
+ *  Must be unique among all concurrent requests. Must be a valid, non-empty string.
+ * @param method - The HTTP request method used.
+ * @param url - The request URL. Conventionally, this is an absolute URL. Must be a
+ *  valid, non-empty string.
+ * @param attributes - An optional set of custom attributes describing the resource,
+ *  provided as a dd_attribute_t value with DD_VALUE_TYPE_OBJECT.
+ */
+DATADOG_API void dd_rum_start_resource(
+    dd_rum_t* rum,
+    const char* key,
+    dd_rum_resource_method_t method,
+    const char* url,
+    dd_attribute_t* attributes
+);
+
+/**
+ * Records that an HTTP request has been completed and has received a valid response. A
+ * response with a 400-level or 500-level status code is still considered a valid
+ * response, provided that the application encountered no errors while processing it.
+ *
+ * @param key - The unique identifier that was used when the target resource was
+ *  started. Must be a valid, non-empty string.
+ * @param status_code - The HTTP status code received from the response. If unknown,
+ *  supply 0.
+ * @param size - The total size of the resource. Conventionally, this is the decoded
+ *  size of the response body in bytes; i.e. the response size after decompression,
+ *  excluding headers and framing overhead. If unknown, supply -1.
+ * @param type - The kind of resource that was retrieved by this request. If unknown,
+ *  supply DD_RUM_RESOURCE_TYPE_UNKNOWN.
+ * @param attributes - An optional set of custom attributes describing the resource,
+ *  provided as a dd_attribute_t value with DD_VALUE_TYPE_OBJECT, to be merged with any
+ *  custom attribute values provided when the resource was started.
+ */
+DATADOG_API void dd_rum_stop_resource(
+    dd_rum_t* rum,
+    const char* key,
+    int32_t status_code,
+    int64_t size,
+    dd_rum_resource_type_t type,
+    dd_attribute_t* attributes
+);
+
+/**
+ * Records that an HTTP request could not be completed due to an error (and therefore no
+ * response was received), or that processing of the response failed due to an error.
+ *
+ * @param key - The unique identifier that was used when the target resource was
+ *  started. Must be a valid, non-empty string.
+ * @param error_message - A string describing the error. Should be a valid, non-empty
+ *  string.
+ * @param error_type - A name describing the error's type. May be omitted.
+ * @param error_stack_trace - The full text of a stack trace describing the context for
+ *  the error. May be omitted.
+ * @param is_network_error - Whether the request failed due to a network connection
+ *  issue, such as DNS lookup failure, connection timeout, etc. Used to categorize the
+ *  resulting RUM Error in either the "network" or "exception" category.
+ * @param status_code - The HTTP status code received from the response. If unknown, or
+ *  if no response was received, supply 0.
+ * @param attributes - An optional set of custom attributes describing the resource,
+ *  provided as a dd_attribute_t value with DD_VALUE_TYPE_OBJECT, to be merged with any
+ *  custom attribute values provided when the resource was started.
+ */
+DATADOG_API void dd_rum_stop_resource_with_error(
+    dd_rum_t* rum,
+    const char* key,
+    const char* error_message,
+    const char* error_type,
+    const char* error_stack_trace,
+    bool is_network_error,
+    int32_t status_code,
     dd_attribute_t* attributes
 );
 

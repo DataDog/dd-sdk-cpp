@@ -52,7 +52,14 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
       rum->StopAction(RumActionType::Click, "Button");
 
       // TODO(RUM-12201): Exercise RUM Error API
-      // TODO(RUM-12202): Exercise RUM Resource API
+
+      rum->StartResource(
+          "foo", RumResourceMethod::Get, "http://localhost:8080", attributes
+      );
+      rum->StopResource("foo", 200, 65535, RumResourceType::Document, attributes);
+      rum->StopResourceWithError(
+          "foo", "Bad times", "RuntimeError", "", false, 0, attributes
+      );
     }
   }
 }
@@ -108,14 +115,17 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->StartView("bar", "Bar");
     rum->AddViewAttribute("attr2", Attribute::Int(100));
     rum->AddAction(RumActionType::Custom, "action1");
+    rum->StartResource("res1", RumResourceMethod::Post, "http://api/foo");
+    rum->StopResource("res1", 204, 0, RumResourceType::Fetch);
     rum->RemoveViewAttribute("attr2");
     rum->StopView("bar");
     rum->StopSession();
     rum->StartView("foo", "Foo");
+    rum->StartResource("res2", RumResourceMethod::Post, "http://api/bar");
+    rum->StopResourceWithError("res2", "Invalid", "BadError", "", false, 0);
     rum->StartAction(RumActionType::Scroll, "scroll1");
     rum->StopAction(RumActionType::Scroll, "scroll1");
     // TODO(RUM-12201): Exercise RUM Error API
-    // TODO(RUM-12202): Exercise RUM Resource API
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -285,6 +295,64 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
        {"Rum::StartAction call ignored: application must supply a non-empty action "
         "name"},
        {}},
+
+      // === StartResource() / StopResource() / StopResourceWithError() ===
+
+      {"M print warning W StartResource is called with empty key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartResource("", RumResourceMethod::Get, "http://localhost:5000/foo");
+         });
+       },
+       {"Rum::StartResource call ignored: application must supply a non-empty resource "
+        "key"},
+       {}},
+
+      {"M print warning W StartResource is called with empty URL",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartResource("foo", RumResourceMethod::Get, "");
+         });
+       },
+       {"Rum::StartResource call ignored: application must supply a non-empty URL"},
+       {}},
+
+      {"M print warning W StopResource is called with empty key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StopResource("");
+         });
+       },
+       {"Rum::StopResource call ignored: application must supply a non-empty resource "
+        "key"},
+       {}},
+
+      {"M print warning W StopResourceWithError is called with empty key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StopResourceWithError("", "Connection failed");
+         });
+       },
+       {"Rum::StopResourceWithError call ignored: application must supply a non-empty "
+        "resource key"},
+       {}},
+
+      {"M print warning W StopResourceWithError is called with empty error message",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StopResourceWithError("foo", "");
+         });
+       },
+       {"Rum::StopResourceWithError recording an error with no message: application "
+        "should supply a non-empty error message"},
+       {}},
+
+      // TODO(RUM-12201): === AddError() ===
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
@@ -966,7 +1034,11 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          rum->StartView("my-view", "My View", start_view_obj);
 
          // And we start a resource within the active view
-         // TODO(RUM-12202): Call rum->StartResource()
+         rum->StartResource(
+             "get-profile-123",
+             RumResourceMethod::Get,
+             "https://my-cool-website.biz/api/profile/123"
+         );
 
          // And 15 seconds later, we create a new view with the same key, thereby
          // stopping the original view while it still has pending resources
@@ -986,7 +1058,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          // And 1 second later, we stop the resource, allowing our original view scope
          // to close
          clock.Tick(std::chrono::seconds(1));
-         // TODO(RUM-12202): Call rum->StopResource()
+         rum->StopResource("get-profile-123", 200, 12345, RumResourceType::Xhr);
 
          // And finally, 5 seconds after that, we close the new view
          clock.Tick(std::chrono::seconds(5));
@@ -1607,11 +1679,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
 
          // And then at T+50ms, a resource begins
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): rum->StartResource()
+         rum->StartResource(
+             "get-profile-123",
+             RumResourceMethod::Get,
+             "https://my-cool-website.biz/api/profile/123"
+         );
 
          // And then at T+150ms, the resource ends
          clock.Tick(std::chrono::milliseconds(100));
-         // TODO(RUM-12202): rum->StopResource()
+         rum->StopResource("get-profile-123", 200, 12345, RumResourceType::Xhr);
        },
        [](const nlohmann::json& events) {
          // TODO(RUM-12202): Then:
@@ -1635,11 +1711,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
 
          // And then at T+9.8s, a resource begins
          clock.Tick(std::chrono::milliseconds(9800));
-         // TODO(RUM-12202): rum->StartResource()
+         rum->StartResource(
+             "get-profile-123",
+             RumResourceMethod::Get,
+             "https://my-cool-website.biz/api/profile/123"
+         );
 
          // And then at T+14.8s, the resource ends
          clock.Tick(std::chrono::seconds(5));
-         // TODO(RUM-12202): rum->StopResource()
+         rum->StopResource("get-profile-123", 200, 12345, RumResourceType::Xhr);
        },
        [](const nlohmann::json& events) {
          // TODO(RUM-12202): Then:
@@ -1663,11 +1743,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
 
          // And then at T+150ms, a resource begins
          clock.Tick(std::chrono::milliseconds(150));
-         // TODO(RUM-12202): rum->StartResource()
+         rum->StartResource(
+             "get-profile-123",
+             RumResourceMethod::Get,
+             "https://my-cool-website.biz/api/profile/123"
+         );
 
          // And then at T+200ms, the resource ends
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): rum->StopResource()
+         rum->StopResource("get-profile-123", 200, 12345, RumResourceType::Xhr);
        },
        [](const nlohmann::json& events) {
          // TODO(RUM-12202): Then:
@@ -1691,15 +1775,23 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
 
          // And then at T+50ms, a resource begins
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): rum->StartResource()
+         rum->StartResource(
+             "get-profile-123",
+             RumResourceMethod::Get,
+             "https://my-cool-website.biz/api/profile/123"
+         );
 
          // And then at T+150ms, another resource begins
          clock.Tick(std::chrono::milliseconds(100));
-         // TODO(RUM-12202): rum->StartResource()
+         rum->StartResource(
+             "get-profile-123",
+             RumResourceMethod::Get,
+             "https://my-cool-website.biz/api/profile/123"
+         );
 
          // And then at T+200ms, our first resource is stopped
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): rum->StopResource()
+         rum->StopResource("get-profile-123", 200, 12345, RumResourceType::Xhr);
        },
        [](const nlohmann::json& events) {
          // TODO(RUM-12202): Then:
@@ -1723,7 +1815,11 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
 
          // And then at T+50ms, a resource begins
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): rum->StartResource()
+         rum->StartResource(
+             "get-profile-123",
+             RumResourceMethod::Get,
+             "https://my-cool-website.biz/api/profile/123"
+         );
 
          // And then at T+70ms, we explicitly stop the action
          clock.Tick(std::chrono::milliseconds(20));

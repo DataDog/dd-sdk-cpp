@@ -31,4 +31,55 @@ inline RumActionType RumActionType_FromC(dd_rum_action_type_t value) {
   return static_cast<RumActionType>(value);
 }
 
+inline RumResourceMethod RumResourceMethod_FromC(dd_rum_resource_method_t value) {
+  static_assert(static_cast<int>(RumResourceMethod::Get) == DD_RUM_RESOURCE_METHOD_GET);
+  static_assert(
+      static_cast<int>(RumResourceMethod::Head) == DD_RUM_RESOURCE_METHOD_HEAD
+  );
+  static_assert(
+      static_cast<int>(RumResourceMethod::Post) == DD_RUM_RESOURCE_METHOD_POST
+  );
+  static_assert(static_cast<int>(RumResourceMethod::Put) == DD_RUM_RESOURCE_METHOD_PUT);
+  static_assert(
+      static_cast<int>(RumResourceMethod::Delete) == DD_RUM_RESOURCE_METHOD_DELETE
+  );
+  static_assert(
+      static_cast<int>(RumResourceMethod::Connect) == DD_RUM_RESOURCE_METHOD_CONNECT
+  );
+  static_assert(
+      static_cast<int>(RumResourceMethod::Options) == DD_RUM_RESOURCE_METHOD_OPTIONS
+  );
+  static_assert(
+      static_cast<int>(RumResourceMethod::Trace) == DD_RUM_RESOURCE_METHOD_TRACE
+  );
+  static_assert(
+      static_cast<int>(RumResourceMethod::Patch) == DD_RUM_RESOURCE_METHOD_PATCH
+  );
+  return static_cast<RumResourceMethod>(value);
+}
+
+inline RumResourceType RumResourceType_FromC(dd_rum_resource_type_t value) {
+  static_assert(
+      static_cast<int>(RumResourceType::Unknown) == DD_RUM_RESOURCE_TYPE_UNKNOWN
+  );
+  static_assert(
+      static_cast<int>(RumResourceType::Beacon) == DD_RUM_RESOURCE_TYPE_BEACON
+  );
+  static_assert(static_cast<int>(RumResourceType::Fetch) == DD_RUM_RESOURCE_TYPE_FETCH);
+  static_assert(static_cast<int>(RumResourceType::Xhr) == DD_RUM_RESOURCE_TYPE_XHR);
+  static_assert(
+      static_cast<int>(RumResourceType::Document) == DD_RUM_RESOURCE_TYPE_DOCUMENT
+  );
+  static_assert(
+      static_cast<int>(RumResourceType::Native) == DD_RUM_RESOURCE_TYPE_NATIVE
+  );
+  static_assert(static_cast<int>(RumResourceType::Image) == DD_RUM_RESOURCE_TYPE_IMAGE);
+  static_assert(static_cast<int>(RumResourceType::Js) == DD_RUM_RESOURCE_TYPE_JS);
+  static_assert(static_cast<int>(RumResourceType::Font) == DD_RUM_RESOURCE_TYPE_FONT);
+  static_assert(static_cast<int>(RumResourceType::Css) == DD_RUM_RESOURCE_TYPE_CSS);
+  static_assert(static_cast<int>(RumResourceType::Media) == DD_RUM_RESOURCE_TYPE_MEDIA);
+  static_assert(static_cast<int>(RumResourceType::Other) == DD_RUM_RESOURCE_TYPE_OTHER);
+  return static_cast<RumResourceType>(value);
+}
+
 }  // namespace datadog
