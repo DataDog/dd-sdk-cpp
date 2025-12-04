@@ -180,7 +180,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
     ev.application.current_locale = "en-US";
 
     // RumViewEvent::Session
-    ev.session.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.session.id = *UUID::Parse("f1f719db-ed81-4e63-9fe9-cf434c2af8e6");
     ev.session.type = RumSessionType::Synthetics;
     ev.session.has_replay = true;
     ev.session.is_active = true;
@@ -343,7 +343,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
         "current_locale": "en-US"
       },
       "session": {
-        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "id": "f1f719db-ed81-4e63-9fe9-cf434c2af8e6",
         "type": "synthetics",
         "has_replay": true,
         "is_active": true,
@@ -585,7 +585,7 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
     ev.application.current_locale = "en-US";
 
     // RumActionEvent::Session
-    ev.session.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.session.id = *UUID::Parse("f1f719db-ed81-4e63-9fe9-cf434c2af8e6");
     ev.session.type = RumSessionType::Synthetics;
     ev.session.has_replay = true;
 
@@ -680,7 +680,7 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
         "current_locale": "en-US"
       },
       "session": {
-        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "id": "f1f719db-ed81-4e63-9fe9-cf434c2af8e6",
         "type": "synthetics",
         "has_replay": true
       },
@@ -699,6 +699,614 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
         "crash": {"count": 8},
         "long_task": {"count": 12},
         "resource": {"count": 16}
+      },
+      "context": {
+        "foo": 100,
+        "coord": {"x": 33.3, "y": -14.1},
+        "service": "arbitrary-value"
+      },
+      "_dd": {
+        "format_version": 2,
+        "session": {
+          "plan": 2,
+          "session_precondition": "inactivity_timeout"
+        },
+        "configuration": {
+          "session_sample_rate": 10,
+          "session_replay_sample_rate": 5,
+          "profiling_sample_rate": 20
+        },
+        "browser_sdk_version": "3.1.2"
+      }
+    })"));
+  }
+}
+
+TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
+  // Given a RumResourceEvent initialized with the minimum set of required properties
+  const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
+  const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+  const UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+  const RumSessionType session_type = RumSessionType::User;
+  const UUID view_id = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
+  const std::string_view view_url = "my-view";
+  const UUID resource_id = *UUID::Parse("8e5048ce-4444-4444-4444-bbb000eeefff");
+  const RumResourceType resource_type = RumResourceType::Fetch;
+  const std::string_view resource_url = "https://my-cool-website.biz/api/profile/123";
+  RumResourceEvent ev{
+      date,
+      application_id,
+      session_id,
+      session_type,
+      view_id,
+      view_url,
+      resource_id,
+      resource_type,
+      resource_url
+  };
+
+  SECTION("M produce a minimal resource event W only required values are set") {
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "resource": {
+        "id": "8e5048ce-4444-4444-4444-bbb000eeefff",
+        "type": "fetch",
+        "url": "https://my-cool-website.biz/api/profile/123"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "resource"
+    })"));
+  }
+
+  SECTION("M generate valid event W all supported values are set") {
+    // RumResourceEvent
+    ev.date = Timestamp{std::chrono::nanoseconds(1761829845132015612)};
+    ev.service = "my-service";
+    ev.version = "my-version";
+    ev.build_version = "my-build-version";
+    ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
+    ev.ddtags = "service:my-service,env:test,foo:bar";
+    ev.source = RumSource::Unity;
+
+    // RumUserProperties
+    ev.usr.value.emplace();
+    ev.usr.value->id = "390cfcd41";
+    ev.usr.value->name = "John Q. Public";
+    ev.usr.value->email = "jqpublic@example.com";
+    ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+
+    // RumAccountProperties
+    ev.account.value.emplace("708876d3e663c2eb");
+    ev.account.value->name = "Important Account";
+
+    // RumConnectivityProperties
+    ev.connectivity.value.emplace(RumConnectivityStatus::Connected);
+
+    // RumViewEvent::Display
+    ev.display.value.emplace();
+    ev.display.value->viewport.value.emplace(1280, 720);
+
+    // RumSyntheticsProperties
+    ev.synthetics.value.emplace("test-8e81e7", "result-6049db");
+    ev.synthetics.value->injected = true;
+
+    // RumCITestProperties
+    ev.ci_test.value.emplace("execution-90cfcd");
+
+    // RumOSProperties
+    ev.os.value.emplace("Windows", "98", "4");
+    ev.os.value->build = "4.10.2222 A";
+
+    // RumDeviceProperties
+    ev.device.value.emplace();
+    ev.device.value->type = RumDeviceType::Desktop;
+    ev.device.value->name = "Packard Bell Legend 486";
+    ev.device.value->model = "486DX4-100";
+    ev.device.value->brand = "Packard Bell";
+    ev.device.value->architecture = "x86 [Intel 80486]";
+    ev.device.value->locale = "en-US";
+
+    // RumResourceEvent::Application
+    ev.application.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.application.current_locale = "en-US";
+
+    // RumResourceEvent::Session
+    ev.session.id = *UUID::Parse("f1f719db-ed81-4e63-9fe9-cf434c2af8e6");
+    ev.session.type = RumSessionType::Synthetics;
+    ev.session.has_replay = true;
+
+    // RumResourceEvent::View
+    ev.view.id = *UUID::Parse("18136cf5-e4a8-4e5c-9d65-7cab1703f17f");
+    ev.view.referrer = "https://referer.referrer";
+    ev.view.url = "https://example.com/yes";
+    ev.view.name = "Yes!!!🙌";
+
+    // RumResourceEvent::Internal::Session
+    ev._dd.session.value.emplace();
+    ev._dd.session.value->plan = 2;
+    ev._dd.session.value->session_precondition =
+        RumSessionPrecondition::InactivityTimeout;
+
+    // RumResourceEvent::Internal::Configuration
+    ev._dd.configuration.value.emplace(10.0f);
+    ev._dd.configuration.value->session_replay_sample_rate = 5.0f;
+    ev._dd.configuration.value->profiling_sample_rate = 20.0f;
+
+    // RumResourceEvent::Internal
+    ev._dd.browser_sdk_version = "3.1.2";
+    ev._dd.span_id = "927461028374650123";
+    ev._dd.parent_span_id = "562837461029384756";
+    ev._dd.trace_id = "4bf92f3577b34da6a3ce929d0e0e4736";
+    ev._dd.rule_psr = 1.0f;
+    ev._dd.discarded = true;
+
+    // RumResourceEvent::Action
+    ev.action.value.emplace(*UUID::Parse("4aa1315e-4cb3-4d32-90cf-a92bfd02c38c"));
+
+    // RumResourceEvent::Resource
+    ev.resource.id = *UUID::Parse("aa8cd99e-1393-4b73-ab22-f3d68feec429");
+    ev.resource.type = RumResourceType::Native;
+    ev.resource.method = RumResourceMethod::Patch;
+    ev.resource.url = "https://www.example.com/api/user/profile";
+    ev.resource.status_code = 204;
+    ev.resource.duration = 179200000;
+    ev.resource.size = 518;
+    ev.resource.encoded_body_size = 220;
+    ev.resource.decoded_body_size = 481;
+    ev.resource.transfer_size = 199;
+    ev.resource.render_blocking_status = RumResourceRenderBlockingStatus::NonBlocking;
+    ev.resource.worker.value.emplace(0, 0);
+    ev.resource.redirect.value.emplace(0, 0);
+    ev.resource.dns.value.emplace(12000000, 0);
+    ev.resource.connect.value.emplace(33300000, 12000000);
+    ev.resource.ssl.value.emplace(41000000, 45300000);
+    ev.resource.first_byte.value.emplace(77700000, 86300000);
+    ev.resource.download.value.emplace(15200000, 164000000);
+    ev.resource.protocol = "HTTP/1.1";
+    ev.resource.delivery_type = RumResourceDeliveryType::Other;
+    ev.resource.provider.value.emplace();
+    ev.resource.provider.value->domain = "example.com";
+    ev.resource.provider.value->name = "Example Provider";
+    ev.resource.provider.value->type = RumResourceProviderType::FirstParty;
+
+    // Custom user attributes (RumResourceEvent::context)
+    ev.context.value.InitObject(8);
+    ev.context.value.SetObjectProperty("foo", Attribute::Int(100));
+    auto coord = Attribute::Object(2);
+    coord.SetObjectProperty("x", Attribute::Double(33.3));
+    coord.SetObjectProperty("y", Attribute::Double(-14.1));
+    ev.context.value.SetObjectProperty("coord", coord);
+    ev.context.value.SetObjectProperty("service", Attribute::String("arbitrary-value"));
+
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "type": "resource",
+      "date": 1761829845132,
+      "service": "my-service",
+      "version": "my-version",
+      "build_version": "my-build-version",
+      "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
+      "ddtags": "service:my-service,env:test,foo:bar",
+      "source": "unity",
+      "usr": {
+        "id": "390cfcd41",
+        "name": "John Q. Public",
+        "email": "jqpublic@example.com",
+        "anonymous_id": "a52beca3-34c1-4e35-9c26-d8a2daa212e6"
+      },
+      "account": {
+        "id": "708876d3e663c2eb",
+        "name": "Important Account"
+      },
+      "connectivity": {
+        "status": "connected"
+      },
+      "display": {
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      "synthetics": {
+        "test_id": "test-8e81e7",
+        "result_id": "result-6049db",
+        "injected": true
+      },
+      "ci_test": {
+        "test_execution_id": "execution-90cfcd"
+      },
+      "os": {
+        "name": "Windows",
+        "version": "98",
+        "build": "4.10.2222 A",
+        "version_major": "4"
+      },
+      "device": {
+        "type": "desktop",
+        "name": "Packard Bell Legend 486",
+        "model": "486DX4-100",
+        "brand": "Packard Bell",
+        "architecture": "x86 [Intel 80486]",
+        "locale": "en-US"
+      },
+      "application": {
+        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "current_locale": "en-US"
+      },
+      "session": {
+        "id": "f1f719db-ed81-4e63-9fe9-cf434c2af8e6",
+        "type": "synthetics",
+        "has_replay": true
+      },
+      "view": {
+        "id": "18136cf5-e4a8-4e5c-9d65-7cab1703f17f",
+        "referrer": "https://referer.referrer",
+        "url": "https://example.com/yes",
+        "name": "Yes!!!🙌"
+      },
+      "action": {
+        "id": "4aa1315e-4cb3-4d32-90cf-a92bfd02c38c"
+      },
+      "resource": {
+        "id": "aa8cd99e-1393-4b73-ab22-f3d68feec429",
+        "type": "native",
+        "method": "PATCH",
+        "url": "https://www.example.com/api/user/profile",
+        "status_code": 204,
+        "duration": 179200000,
+        "size": 518,
+        "encoded_body_size": 220,
+        "decoded_body_size": 481,
+        "transfer_size": 199,
+        "render_blocking_status": "non-blocking",
+        "worker": {"duration": 0, "start": 0},
+        "redirect": {"duration": 0, "start": 0},
+        "dns": {"duration": 12000000, "start": 0},
+        "connect": {"duration": 33300000, "start": 12000000},
+        "ssl": {"duration": 41000000, "start": 45300000},
+        "first_byte": {"duration": 77700000, "start": 86300000},
+        "download": {"duration": 15200000, "start": 164000000},
+        "protocol": "HTTP/1.1",
+        "delivery_type": "other",
+        "provider": {
+          "domain": "example.com",
+          "name": "Example Provider",
+          "type": "first party"
+        }
+      },
+      "context": {
+        "foo": 100,
+        "coord": {"x": 33.3, "y": -14.1},
+        "service": "arbitrary-value"
+      },
+      "_dd": {
+        "format_version": 2,
+        "session": {
+          "plan": 2,
+          "session_precondition": "inactivity_timeout"
+        },
+        "configuration": {
+          "session_sample_rate": 10,
+          "session_replay_sample_rate": 5,
+          "profiling_sample_rate": 20
+        },
+        "browser_sdk_version": "3.1.2",
+        "span_id": "927461028374650123",
+        "parent_span_id": "562837461029384756",
+        "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+        "rule_psr": 1,
+        "discarded": true
+      }
+    })"));
+  }
+}
+
+TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
+  // Given a RumErrorEvent initialized with the minimum set of required properties
+  const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
+  const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+  const UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+  const RumSessionType session_type = RumSessionType::User;
+  const UUID view_id = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
+  const std::string_view view_url = "my-view";
+  const UUID error_id = *UUID::Parse("e1313013-4554-4554-4554-bbbbbb00eeff");
+  const std::string_view error_message = "oh no";
+  const RumErrorSource error_source = RumErrorSource::Source;
+  RumErrorEvent ev{
+      date,
+      application_id,
+      session_id,
+      session_type,
+      view_id,
+      view_url,
+      error_id,
+      error_message,
+      error_source
+  };
+
+  SECTION("M produce a minimal error event W only required values are set") {
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "error": {
+        "id": "e1313013-4554-4554-4554-bbbbbb00eeff",
+        "message": "oh no",
+        "source": "source"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "error"
+    })"));
+  }
+
+  SECTION("M generate valid event W all supported values are set") {
+    // RumErrorEvent
+    ev.date = Timestamp{std::chrono::nanoseconds(1761829845132015612)};
+    ev.service = "my-service";
+    ev.version = "my-version";
+    ev.build_version = "my-build-version";
+    ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
+    ev.ddtags = "service:my-service,env:test,foo:bar";
+    ev.source = RumSource::Unity;
+
+    // RumUserProperties
+    ev.usr.value.emplace();
+    ev.usr.value->id = "390cfcd41";
+    ev.usr.value->name = "John Q. Public";
+    ev.usr.value->email = "jqpublic@example.com";
+    ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+
+    // RumAccountProperties
+    ev.account.value.emplace("708876d3e663c2eb");
+    ev.account.value->name = "Important Account";
+
+    // RumConnectivityProperties
+    ev.connectivity.value.emplace(RumConnectivityStatus::Connected);
+
+    // RumViewEvent::Display
+    ev.display.value.emplace();
+    ev.display.value->viewport.value.emplace(1280, 720);
+
+    // RumSyntheticsProperties
+    ev.synthetics.value.emplace("test-8e81e7", "result-6049db");
+    ev.synthetics.value->injected = true;
+
+    // RumCITestProperties
+    ev.ci_test.value.emplace("execution-90cfcd");
+
+    // RumOSProperties
+    ev.os.value.emplace("Windows", "98", "4");
+    ev.os.value->build = "4.10.2222 A";
+
+    // RumDeviceProperties
+    ev.device.value.emplace();
+    ev.device.value->type = RumDeviceType::Desktop;
+    ev.device.value->name = "Packard Bell Legend 486";
+    ev.device.value->model = "486DX4-100";
+    ev.device.value->brand = "Packard Bell";
+    ev.device.value->architecture = "x86 [Intel 80486]";
+    ev.device.value->locale = "en-US";
+
+    // RumErrorEvent::Application
+    ev.application.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.application.current_locale = "en-US";
+
+    // RumErrorEvent::Session
+    ev.session.id = *UUID::Parse("f1f719db-ed81-4e63-9fe9-cf434c2af8e6");
+    ev.session.type = RumSessionType::Synthetics;
+    ev.session.has_replay = true;
+
+    // RumErrorEvent::View
+    ev.view.id = *UUID::Parse("18136cf5-e4a8-4e5c-9d65-7cab1703f17f");
+    ev.view.referrer = "https://referer.referrer";
+    ev.view.url = "https://example.com/yes";
+    ev.view.name = "Yes!!!🙌";
+
+    // RumErrorEvent::Internal::Session
+    ev._dd.session.value.emplace();
+    ev._dd.session.value->plan = 2;
+    ev._dd.session.value->session_precondition =
+        RumSessionPrecondition::InactivityTimeout;
+
+    // RumErrorEvent::Internal::Configuration
+    ev._dd.configuration.value.emplace(10.0f);
+    ev._dd.configuration.value->session_replay_sample_rate = 5.0f;
+    ev._dd.configuration.value->profiling_sample_rate = 20.0f;
+
+    // RumErrorEvent::Internal
+    ev._dd.browser_sdk_version = "3.1.2";
+
+    // RumErrorEvent::Action
+    ev.action.value.emplace(*UUID::Parse("4aa1315e-4cb3-4d32-90cf-a92bfd02c38c"));
+
+    // RumErrorEvent::Error::Resource
+    auto& resource = ev.error.resource.value.emplace(
+        RumResourceMethod::Patch, 204, "https://www.example.com/api/user/profile"
+    );
+    auto& provider = resource.provider.value.emplace();
+    provider.domain = "example.com";
+    provider.name = "Example Provider";
+    provider.type = RumResourceProviderType::FirstParty;
+
+    // RumErrorEvent::Error::Meta
+    auto& meta = ev.error.meta.value.emplace();
+    meta.code_type = "x86";
+    meta.parent_process = "COMMAND.COM [pid 17]";
+    meta.incident_identifier = "3F92A1B4-8C0D-4F79-AE11-9C0B12F4D1A7";
+    meta.process = "MYPROG.EXE";
+    meta.exception_type = "SIGSEGV";
+    meta.exception_codes = "0x0000000D 0x00004B12";
+    meta.path = "C:\\GAMES\\MYPROG\\MYPROG.EXE";
+
+    // RumErrorEvent::Error::Csp
+    auto& csp = ev.error.csp.value.emplace();
+    csp.disposition = RumCspDisposition::Report;
+
+    // RumErrorEvent::Error
+    ev.error.id = *UUID::Parse("c7accfd7-610f-4117-992f-2a2f788d2c7b");
+    ev.error.message = "Something has gone terribly wrong";
+    ev.error.source = RumErrorSource::Custom;
+    ev.error.stack = R"(Exception 0Dh: General Protection Fault
+CS:EIP = 02AF:00004B12  SS:ESP = 13C2:0000F7A8
+EAX=00000000  EBX=00000120  ECX=0000FFFF  EDX=00000003
+ESI=0000A420  EDI=0000C8F0  EBP=0000F7C4  EFL=00010246
+DS=12B0  ES=12B0  FS=0000  GS=0000
+
+Fault at linear address 0004B12A (segment limit exceeded)
+
+Stack dump (SS:ESP):
+  F7A8: 02AF 4B12 12B0 0000 0000 F7C4 4B00 02AF
+  F7B8: 0000 0003 C8F0 0000 A420 0000 F7E0 13C2
+  F7C8: 0000 0010 4B80 02AF 4BA0 02AF 0003 0000
+
+Last 8 instructions at CS:EIP:
+  02AF:4B0A  MOV DX,[SI+04]
+  02AF:4B0D  ADD AX,DX
+  02AF:4B0F  MOV [DI],AX)";
+    ev.error.is_crash = true;
+    ev.error.fingerprint = "sys-exc-0dh";
+    ev.error.category = RumErrorCategory::Exception;
+    ev.error.handling = RumErrorHandling::Handled;
+    ev.error.handling_stack = "00001f16: foo\n00001f00: bar\n00001c33: baz\n";
+    ev.error.source_type = RumErrorSourceType::NDK_IL2CPP;
+    ev.error.was_truncated = true;
+    ev.error.time_since_app_start = 3331;
+
+    // Custom user attributes (RumErrorEvent::context)
+    ev.context.value.InitObject(8);
+    ev.context.value.SetObjectProperty("foo", Attribute::Int(100));
+    auto coord = Attribute::Object(2);
+    coord.SetObjectProperty("x", Attribute::Double(33.3));
+    coord.SetObjectProperty("y", Attribute::Double(-14.1));
+    ev.context.value.SetObjectProperty("coord", coord);
+    ev.context.value.SetObjectProperty("service", Attribute::String("arbitrary-value"));
+
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "type": "error",
+      "date": 1761829845132,
+      "service": "my-service",
+      "version": "my-version",
+      "build_version": "my-build-version",
+      "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
+      "ddtags": "service:my-service,env:test,foo:bar",
+      "source": "unity",
+      "usr": {
+        "id": "390cfcd41",
+        "name": "John Q. Public",
+        "email": "jqpublic@example.com",
+        "anonymous_id": "a52beca3-34c1-4e35-9c26-d8a2daa212e6"
+      },
+      "account": {
+        "id": "708876d3e663c2eb",
+        "name": "Important Account"
+      },
+      "connectivity": {
+        "status": "connected"
+      },
+      "display": {
+        "viewport": {
+          "width": 1280,
+          "height": 720
+        }
+      },
+      "synthetics": {
+        "test_id": "test-8e81e7",
+        "result_id": "result-6049db",
+        "injected": true
+      },
+      "ci_test": {
+        "test_execution_id": "execution-90cfcd"
+      },
+      "os": {
+        "name": "Windows",
+        "version": "98",
+        "build": "4.10.2222 A",
+        "version_major": "4"
+      },
+      "device": {
+        "type": "desktop",
+        "name": "Packard Bell Legend 486",
+        "model": "486DX4-100",
+        "brand": "Packard Bell",
+        "architecture": "x86 [Intel 80486]",
+        "locale": "en-US"
+      },
+      "application": {
+        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "current_locale": "en-US"
+      },
+      "session": {
+        "id": "f1f719db-ed81-4e63-9fe9-cf434c2af8e6",
+        "type": "synthetics",
+        "has_replay": true
+      },
+      "view": {
+        "id": "18136cf5-e4a8-4e5c-9d65-7cab1703f17f",
+        "referrer": "https://referer.referrer",
+        "url": "https://example.com/yes",
+        "name": "Yes!!!🙌"
+      },
+      "action": {
+        "id": "4aa1315e-4cb3-4d32-90cf-a92bfd02c38c"
+      },
+      "error": {
+        "id": "c7accfd7-610f-4117-992f-2a2f788d2c7b",
+        "message": "Something has gone terribly wrong",
+        "source": "custom",
+        "stack": "Exception 0Dh: General Protection Fault\nCS:EIP = 02AF:00004B12  SS:ESP = 13C2:0000F7A8\nEAX=00000000  EBX=00000120  ECX=0000FFFF  EDX=00000003\nESI=0000A420  EDI=0000C8F0  EBP=0000F7C4  EFL=00010246\nDS=12B0  ES=12B0  FS=0000  GS=0000\n\nFault at linear address 0004B12A (segment limit exceeded)\n\nStack dump (SS:ESP):\n  F7A8: 02AF 4B12 12B0 0000 0000 F7C4 4B00 02AF\n  F7B8: 0000 0003 C8F0 0000 A420 0000 F7E0 13C2\n  F7C8: 0000 0010 4B80 02AF 4BA0 02AF 0003 0000\n\nLast 8 instructions at CS:EIP:\n  02AF:4B0A  MOV DX,[SI+04]\n  02AF:4B0D  ADD AX,DX\n  02AF:4B0F  MOV [DI],AX",
+        "is_crash": true,
+        "fingerprint": "sys-exc-0dh",
+        "category": "Exception",
+        "handling": "handled",
+        "handling_stack": "00001f16: foo\n00001f00: bar\n00001c33: baz\n",
+        "source_type": "ndk+il2cpp",
+        "resource": {
+          "method": "PATCH",
+          "status_code": 204,
+          "url": "https://www.example.com/api/user/profile",
+          "provider": {
+            "domain": "example.com",
+            "name": "Example Provider",
+            "type": "first party"
+          }
+        },
+        "was_truncated": true,
+        "meta": {
+          "code_type": "x86",
+          "parent_process": "COMMAND.COM [pid 17]",
+          "incident_identifier": "3F92A1B4-8C0D-4F79-AE11-9C0B12F4D1A7",
+          "process": "MYPROG.EXE",
+          "exception_type": "SIGSEGV",
+          "exception_codes": "0x0000000D 0x00004B12",
+          "path": "C:\\GAMES\\MYPROG\\MYPROG.EXE"
+        },
+        "csp": {
+          "disposition": "report"
+        },
+        "time_since_app_start": 3331
       },
       "context": {
         "foo": 100,

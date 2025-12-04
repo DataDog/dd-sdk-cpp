@@ -72,6 +72,33 @@ struct RumConfig {
 
 enum class RumActionType : uint8_t { Tap, Click, Scroll, Swipe, Custom };
 
+enum class RumResourceMethod : uint8_t {
+  Get,
+  Head,
+  Post,
+  Put,
+  Delete,
+  Connect,
+  Options,
+  Trace,
+  Patch
+};
+
+enum class RumResourceType : uint8_t {
+  Unknown,
+  Beacon,
+  Fetch,
+  Xhr,
+  Document,
+  Native,
+  Image,
+  Js,
+  Font,
+  Css,
+  Media,
+  Other
+};
+
 /**
  * Interface to the Datadog SDK's RUM feature.
  */
