@@ -38,3 +38,6 @@ CommandResult HandleStopView(State& state, const CommandInput& args);
 CommandResult HandleAddAction(State& state, const CommandInput& args);
 CommandResult HandleStartAction(State& state, const CommandInput& args);
 CommandResult HandleStopAction(State& state, const CommandInput& args);
+CommandResult HandleStartResource(State& state, const CommandInput& args);
+CommandResult HandleStopResource(State& state, const CommandInput& args);
+CommandResult HandleStopResourceWithError(State& state, const CommandInput& args);

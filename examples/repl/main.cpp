@@ -88,6 +88,15 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "stop-action") {
     return HandleStopAction(state, input.Shift());
   }
+  if (input.Peek() == "start-resource") {
+    return HandleStartResource(state, input.Shift());
+  }
+  if (input.Peek() == "stop-resource") {
+    return HandleStopResource(state, input.Shift());
+  }
+  if (input.Peek() == "stop-resource-with-error") {
+    return HandleStopResourceWithError(state, input.Shift());
+  }
 
   return CommandResult::Error("Unrecognized command.");
 }

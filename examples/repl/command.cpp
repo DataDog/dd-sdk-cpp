@@ -6,7 +6,45 @@
 
 #include "repl/command.hpp"
 
+#include <charconv>
+
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+
+namespace {
+
+size_t get_named_arg_delim_pos(std::string_view s) {
+  // If the input token represents a positional arg, it has no named-argument delimiter
+  const auto npos = std::string_view::npos;
+
+  // Empty token is treated as positional
+  if (s.empty()) {
+    return npos;
+  }
+
+  // A quoted token is treated as positional
+  if (s[0] == '"') {
+    return npos;
+  }
+
+  // A token with no colon is treated as positional
+  const size_t first_colon_pos = s.find(':');
+  if (first_colon_pos == std::string_view::npos) {
+    return npos;
+  }
+
+  // Allow ':/' in positional args for URLs etc.
+  const size_t slash_pos = s.find('/', first_colon_pos + 1);
+  const bool is_probably_url = slash_pos == first_colon_pos + 1;
+  if (is_probably_url) {
+    return npos;
+  }
+
+  // If we have a colon that isn't immediately followed by a slash, this token is a
+  // named argument that should be split on the first colon
+  return first_colon_pos;
+}
+
+}  // namespace
 
 std::string_view Unquote(std::string_view s) {
   if (s.size() > 1 && s.front() == '"' && s.back() == '"') {
@@ -31,6 +69,19 @@ std::string_view NamedValueList::Get(std::string_view name) const {
     }
   }
   return "";
+}
+
+int64_t NamedValueList::GetInt(std::string_view name) const {
+  int64_t value{0};
+  std::string_view str_value = Get(name);
+  std::from_chars(str_value.begin(), str_value.end(), value);
+  return value;
+}
+
+bool NamedValueList::GetFlag(std::string_view name) const {
+  std::string_view str_value = Get(name);
+  return str_value == "1" || str_value == "true" || str_value == "t" ||
+         str_value == "yes" || str_value == "on";
 }
 
 std::string_view CommandInput::operator[](size_t i) const {
@@ -58,7 +109,7 @@ CommandInput CommandInput::Positional() const {
   CommandInput positional{};
   for (size_t i = 0; i < n; i++) {
     std::string_view token = operator[](i);
-    if (token.find_first_of(':') == std::string_view::npos) {
+    if (get_named_arg_delim_pos(token) == std::string_view::npos) {
       positional.tokens[positional.n++] = token;
     }
   }
@@ -69,7 +120,7 @@ NamedValueList CommandInput::Named() const {
   NamedValueList named{};
   for (size_t i = 0; i < n; i++) {
     std::string_view token = operator[](i);
-    const size_t delim_pos = token.find_first_of(':');
+    const size_t delim_pos = get_named_arg_delim_pos(token);
     if (delim_pos != std::string_view::npos) {
       const char* data = token.data();
       std::string_view name{data, delim_pos};
