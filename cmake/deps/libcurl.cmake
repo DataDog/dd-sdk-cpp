@@ -4,6 +4,7 @@ include(FetchContent)
 set(BUILD_CURL_EXE OFF)
 set(BUILD_LIBCURL_DOCS OFF)
 set(BUILD_MISC_DOCS OFF)
+set(ENABLE_CURL_MANUAL OFF)
 
 # Disable curl features
 set(CURL_BROTLI OFF)
@@ -14,6 +15,11 @@ set(CURL_DISABLE_ALTSVC ON)
 set(CURL_DISABLE_SRP ON)
 set(CURL_DISABLE_LDAP ON)
 set(USE_LIBIDN2 OFF)
+set(CURL_ENABLE_EXPORT_TARGET OFF)
+
+# Disable building examples for CURL but don't pollute other portions
+set(_original_build_examples ${BUILD_EXAMPLES})
+set(BUILD_EXAMPLES OFF)
 
 # Force static library build - save original value and restore after
 set(_original_build_shared_libs ${BUILD_SHARED_LIBS})
@@ -31,8 +37,9 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(curl)
 
-# Restore original BUILD_SHARED_LIBS setting
+# Restore original BUILD_SHARED_LIBS and BUILD_EXAMPLES setting
 set(BUILD_SHARED_LIBS ${_original_build_shared_libs})
+set(BUILD_EXAMPLES ${_original_build_examples})
 
 # Make libcurl exportable by adding it to the export set (only when installing)
 if(DD_BUILD_INSTALL)
