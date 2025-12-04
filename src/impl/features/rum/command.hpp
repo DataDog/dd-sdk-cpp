@@ -7,11 +7,13 @@
 #pragma once
 
 #include <cinttypes>
+#include <optional>
 #include <string_view>
 #include <variant>
 
 #include "attribute/typed_attribute.hpp"
 #include "datadog/rum.hpp"
+#include "features/rum/resource_types.hpp"
 #include "platform/clock.hpp"
 
 namespace datadog::impl {
@@ -165,25 +167,41 @@ struct RumStopViewPayload {
 };
 
 /**
- * TEMP: This command type is not yet supported; it's defined for use in session/view
- * lifecycle tests.
- *
- * TODO(RUM-12202): Fully implement resource commands
+ * On StartResource, the application has called the StartResource API function,
+ * recording the start of an HTTP request.
  */
 struct RumStartResourcePayload {
   static constexpr const char* COMMAND_NAME = "StartResource";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::RequiresActiveView;
+
+  std::string_view key;
+  RumRequestDetails request;
+
+  explicit RumStartResourcePayload(
+      std::string_view in_key, const RumRequestDetails& in_request
+  )
+      : key(in_key), request(in_request) {}
 };
 
 /**
- * TEMP: This command type is not yet supported; it's defined for use in session/view
- * lifecycle tests.
- *
- * TODO(RUM-12202): Fully implement resource commands
+ * On StopResource, the application has called the StopResource or StopResourceWithError
+ * API functions, concluding an HTTP request that was previously recorded via
+ * StartResource.
  */
 struct RumStopResourcePayload {
   static constexpr const char* COMMAND_NAME = "StopResource";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
+
+  std::string_view key;
+  RumResponseDetails response;
+  std::optional<RumErrorDetails> error;
+
+  explicit RumStopResourcePayload(
+      std::string_view in_key,
+      const RumResponseDetails& in_response,
+      const std::optional<RumErrorDetails>& in_error
+  )
+      : key(in_key), response(in_response), error(in_error) {}
 };
 
 /**
@@ -291,13 +309,20 @@ struct RumCommand {
   }
 
   /** Creates a new 'StartResource' command. */
-  static RumCommand StartResource(RumCommandParams&& base) {
-    return RumCommand(std::move(base), RumStartResourcePayload());
+  static RumCommand StartResource(
+      RumCommandParams&& base, std::string_view key, const RumRequestDetails& request
+  ) {
+    return RumCommand(std::move(base), RumStartResourcePayload(key, request));
   }
 
   /** Creates a new 'StopResource' command. */
-  static RumCommand StopResource(RumCommandParams&& base) {
-    return RumCommand(std::move(base), RumStopResourcePayload());
+  static RumCommand StopResource(
+      RumCommandParams&& base,
+      std::string_view key,
+      const RumResponseDetails& response = RumResponseDetails(),
+      const std::optional<RumErrorDetails>& error = std::nullopt
+  ) {
+    return RumCommand(std::move(base), RumStopResourcePayload(key, response, error));
   }
 
   /** Creates a new 'AddAction' command. */

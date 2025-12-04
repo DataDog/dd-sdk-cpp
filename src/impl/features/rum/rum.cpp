@@ -129,6 +129,23 @@ void Rum::StopAction(std::string_view new_name, const Attribute& attributes) {
   Dispatch(RumCommand::StopAction(GetBaseCommandParams(attributes), new_name));
 }
 
+void Rum::StartResource(
+    std::string_view key, RumRequestDetails request, const Attribute& attributes
+) {
+  Dispatch(RumCommand::StartResource(GetBaseCommandParams(attributes), key, request));
+}
+
+void Rum::StopResource(
+    std::string_view key,
+    RumResponseDetails response,
+    std::optional<RumErrorDetails> error,
+    const Attribute& attributes
+) {
+  Dispatch(
+      RumCommand::StopResource(GetBaseCommandParams(attributes), key, response, error)
+  );
+}
+
 RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {
   // Create a shallow copy of the global attributes
   std::shared_lock read_only_lock(_global_attributes_mutex);
