@@ -174,6 +174,9 @@ struct RumStartResourcePayload {
   static constexpr const char* COMMAND_NAME = "StartResource";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::RequiresActiveView;
 
+  // TODO(RUM-13165): Store string values as std::string in all commands; once commands
+  // are processed in another thread (RUM-13164), these types will no longer be safe to
+  // use as members of any payload type
   std::string_view key;
   RumRequestDetails request;
 
