@@ -1021,7 +1021,6 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
   const RumSessionType session_type = RumSessionType::User;
   const UUID view_id = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
   const std::string_view view_url = "my-view";
-  const UUID error_id = *UUID::Parse("e1313013-4554-4554-4554-bbbbbb00eeff");
   const std::string_view error_message = "oh no";
   const RumErrorSource error_source = RumErrorSource::Source;
   RumErrorEvent ev{
@@ -1031,7 +1030,6 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
       session_type,
       view_id,
       view_url,
-      error_id,
       error_message,
       error_source
   };
@@ -1051,7 +1049,6 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
         "url": "my-view"
       },
       "error": {
-        "id": "e1313013-4554-4554-4554-bbbbbb00eeff",
         "message": "oh no",
         "source": "source"
       },
@@ -1166,7 +1163,7 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
     csp.disposition = RumCspDisposition::Report;
 
     // RumErrorEvent::Error
-    ev.error.id = *UUID::Parse("c7accfd7-610f-4117-992f-2a2f788d2c7b");
+    ev.error.id = *UUID::Parse("e1313013-4554-4554-4554-bbbbbb00eeff");
     ev.error.message = "Something has gone terribly wrong";
     ev.error.source = RumErrorSource::Custom;
     ev.error.stack = R"(Exception 0Dh: General Protection Fault
@@ -1187,6 +1184,7 @@ Last 8 instructions at CS:EIP:
   02AF:4B0D  ADD AX,DX
   02AF:4B0F  MOV [DI],AX)";
     ev.error.is_crash = true;
+    ev.error.type = "some-kind-of-error";
     ev.error.fingerprint = "sys-exc-0dh";
     ev.error.category = RumErrorCategory::Exception;
     ev.error.handling = RumErrorHandling::Handled;
@@ -1273,12 +1271,13 @@ Last 8 instructions at CS:EIP:
         "id": "4aa1315e-4cb3-4d32-90cf-a92bfd02c38c"
       },
       "error": {
-        "id": "c7accfd7-610f-4117-992f-2a2f788d2c7b",
+        "id": "e1313013-4554-4554-4554-bbbbbb00eeff",
         "message": "Something has gone terribly wrong",
         "source": "custom",
         "stack": "Exception 0Dh: General Protection Fault\nCS:EIP = 02AF:00004B12  SS:ESP = 13C2:0000F7A8\nEAX=00000000  EBX=00000120  ECX=0000FFFF  EDX=00000003\nESI=0000A420  EDI=0000C8F0  EBP=0000F7C4  EFL=00010246\nDS=12B0  ES=12B0  FS=0000  GS=0000\n\nFault at linear address 0004B12A (segment limit exceeded)\n\nStack dump (SS:ESP):\n  F7A8: 02AF 4B12 12B0 0000 0000 F7C4 4B00 02AF\n  F7B8: 0000 0003 C8F0 0000 A420 0000 F7E0 13C2\n  F7C8: 0000 0010 4B80 02AF 4BA0 02AF 0003 0000\n\nLast 8 instructions at CS:EIP:\n  02AF:4B0A  MOV DX,[SI+04]\n  02AF:4B0D  ADD AX,DX\n  02AF:4B0F  MOV [DI],AX",
         "is_crash": true,
         "fingerprint": "sys-exc-0dh",
+        "type": "some-kind-of-error",
         "category": "Exception",
         "handling": "handled",
         "handling_stack": "00001f16: foo\n00001f00: bar\n00001c33: baz\n",

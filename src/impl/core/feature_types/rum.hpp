@@ -1712,13 +1712,14 @@ struct RumErrorEvent {
       Csp() {};
     };
     // From error-schema.json
-    UUID id;
+    OmitIfZero<UUID> id;
     std::string message;
     StringRumErrorSource source;
     OmitIfEmpty<std::string> stack;
     // NYI(array): causes
     OmitIfNoValue<bool> is_crash;
     OmitIfEmpty<std::string> fingerprint;
+    OmitIfEmpty<std::string> type;
     OmitIfNoValue<StringRumErrorCategory> category;
     OmitIfNoValue<StringRumErrorHandling> handling;
     OmitIfEmpty<std::string> handling_stack;
@@ -1731,8 +1732,8 @@ struct RumErrorEvent {
     OmitIfNoValue<Csp> csp;
     OmitIfZero<int64_t> time_since_app_start{0};
 
-    explicit Error(UUID in_id, std::string_view in_message, RumErrorSource in_source)
-        : id(in_id), message(in_message), source(in_source) {}
+    explicit Error(std::string_view in_message, RumErrorSource in_source)
+        : message(in_message), source(in_source) {}
   };
   struct Freeze {
     // From error-schema.json
@@ -1802,7 +1803,6 @@ struct RumErrorEvent {
       RumSessionType in_session_type,
       const UUID& in_view_id,
       std::string_view in_view_url,
-      const UUID& in_error_id,
       std::string_view in_error_message,
       RumErrorSource in_error_source
   )
@@ -1811,7 +1811,7 @@ struct RumErrorEvent {
         session(Session{in_session_id, in_session_type}),
         view(View{in_view_id, in_view_url}),
         _dd(Internal{}),
-        error(in_error_id, in_error_message, in_error_source) {}
+        error(in_error_message, in_error_source) {}
 };
 DATADOG_JSON_STRUCT(
     RumErrorEvent::Application,
@@ -1901,6 +1901,7 @@ DATADOG_JSON_STRUCT(
     // NYI: causes
     DATADOG_JSON_FIELD(is_crash),
     DATADOG_JSON_FIELD(fingerprint),
+    DATADOG_JSON_FIELD(type),
     DATADOG_JSON_FIELD(category),
     DATADOG_JSON_FIELD(handling),
     DATADOG_JSON_FIELD(handling_stack),
