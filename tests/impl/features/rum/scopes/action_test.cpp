@@ -292,6 +292,48 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
     REQUIRE(events.size() == 1);
     REQUIRE(events.front().obj["action"]["resource"]["count"] == 2);
   }
+
+  SECTION("M increment error count W resource is stopped due to error") {
+    // Given a RumActionScope with a configured timeout of 100ms
+
+    // When we process StartResource at T+0
+    auto result = scope.Process(
+        RumCommand::StartResource(
+            GetBaseParams(),
+            "some-resource",
+            RumRequestDetails{RumResourceMethod::Get, "http://localhost:5000/foo"}
+        )
+    );
+
+    // Then our action scope remains open
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // Next: When we process StopResource with valid error details at T+50ms
+    clock.TickMilliseconds(50);
+    result = scope.Process(
+        RumCommand::StopResource(
+            GetBaseParams(), "some-resource", RumResponseDetails(), RumErrorDetails()
+        )
+    );
+
+    // Then our scope remains open, because we haven't exceeded the timeout
+    REQUIRE(result == RumScopeResult::RemainOpen);
+    REQUIRE(events.size() == 0);
+
+    // Next: When the action scope is closed for any reason and sends its action event
+    clock.TickMilliseconds(3);
+    result = scope.Process(RumCommand::StopSession(GetBaseParams()));
+    REQUIRE(result == RumScopeResult::Close);
+    REQUIRE(events.size() == 1);
+
+    // Then our resource count and error counts are both 1
+    const auto& event = events.front().obj;
+    REQUIRE(event["action"]["resource"]["count"] == 1);
+    REQUIRE(event["action"]["error"]["count"] == 1);
+    REQUIRE(event["action"]["loading_time"] == 53000000);
+  }
+
+  // TODO(RUM-12201): M increment error count W explicit error is reported
 }
 
 TEST_CASE("RumActionScope::PopulateContext", "[unit][rum]") {

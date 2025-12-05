@@ -267,8 +267,6 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
     REQUIRE(scope.GetActiveView()->get().GetViewID() == initial_view_id);
   }
 
-  // TODO(RUM-12202): Test deactivation of views with pending resources
-
   // TODO(RUM-12242): Test creation of ApplicationLaunch view
 
   // TODO(RUM-12247): Test creation of Background view

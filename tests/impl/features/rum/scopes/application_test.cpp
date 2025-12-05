@@ -506,8 +506,6 @@ TEST_CASE_METHOD(
       // Then the session is refreshed, and the last active view is recreated in order
       // to track our resource
       RequireRecreatedView();
-
-      // TODO(RUM-12202): Verify that the active view contains an open resource scope?
     }
 
     SECTION("M do nothing W no active session") {

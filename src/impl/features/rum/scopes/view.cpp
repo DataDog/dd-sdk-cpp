@@ -31,7 +31,8 @@ RumViewScope::RumViewScope(
       _name(name),
       _started_at(start_time),
       _view_attributes(16),
-      _global_and_view_attributes(32) {}
+      _global_and_view_attributes(32),
+      _resource_scopes(deps.diagnostic_logger) {}
 
 void RumViewScope::PopulateContext(struct RumContext& out_context) const {
   // Call the parent's PopulateContext function to set application and session details
@@ -63,8 +64,26 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
   // Process the command, updating our internal state as needed
   ViewEventType event_type = HandleCommand(command);
 
-  // TODO(RUM-12202): If processing a resource command, propagate that command _only_ to
-  // the child resource scope that matches the target resource key, if any
+  // Determine whether this command targets a specific resource, and forward it to that
+  // resource if applicable
+  std::string_view target_resource_key = IdentifyTargetResourceKey(command);
+  if (!target_resource_key.empty()) {
+    // If processing of the command results in a 'resource' or 'error' event being sent,
+    // increment the appropriate count
+    auto res = _resource_scopes.Forward(std::string{target_resource_key}, command);
+    switch (res) {
+      case RumResourceScope::Result::SentNoEvent:
+        break;
+      case RumResourceScope::Result::SentResourceEvent:
+        event_type = ViewEventType::Full;
+        _num_resources_completed++;
+        break;
+      case RumResourceScope::Result::SentErrorEvent:
+        event_type = ViewEventType::Full;
+        _num_errors_reported++;
+        break;
+    }
+  }
 
   // If this is the very first view in the application and we've not yet sent a view
   // event describing it, override the HandleCommand result and send a full event ASAP
@@ -86,7 +105,7 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
 
   // If the result of this command is that we're no longer the active view and we no
   // longer have any child resources in flight, we can be closed
-  const bool has_pending_resources = false;  // TODO(RUM-12202): Initialize
+  const bool has_pending_resources = _resource_scopes.Size() > 0;
   if (!_is_active && !has_pending_resources) {
     return RumScopeResult::Close;
   }
@@ -147,8 +166,11 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
     return HandleStartAction(command.base, command.As<RumStartActionPayload>());
   }
 
-  // TODO(RUM-12202): Handle StartResource (while _is_active) by opening a child
-  // resource scope and inserting it into our _resource_scopes lookup by key
+  // `StartResource`, we should open a new resources scope and keep it open in the
+  // context of this view until it's closed in response to `StopResource`
+  if (command.Is<RumStartResourcePayload>()) {
+    return HandleStartResource(command.base, command.As<RumStartResourcePayload>());
+  }
 
   return ViewEventType::None;
 }
@@ -160,10 +182,6 @@ RumViewScope::ViewEventType RumViewScope::HandleStopSession(
   if (!_is_active) {
     return ViewEventType::None;
   }
-
-  // TODO(RUM-12202): If the view has pending resources on StopSession, they will
-  // never receive StopResource, so there may not be any sense in keeping the session
-  // scope open (while inactive) in this case
 
   // If this view is still active, mark it inactive and ensure that it sends a final
   // event
@@ -299,6 +317,33 @@ RumViewScope::ViewEventType RumViewScope::HandleStartAction(
   return ViewEventType::None;
 }
 
+RumViewScope::ViewEventType RumViewScope::HandleStartResource(
+    const RumCommandParams& base, const RumStartResourcePayload& payload
+) {
+  // If already inactive, we can ignore StartResource
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // Defer to our RumResourceMap container to create and store a new RumResourceScope
+  // indexed with the given key
+  const RumScopeDependencies& deps = _deps;
+  const UUID resource_id = UUID::Random();
+  _resource_scopes.Add(
+      deps,
+      *this,
+      resource_id,
+      std::string{payload.key},
+      payload.request.method,
+      payload.request.url,
+      base.issued_at,
+      base.attributes
+  );
+
+  // Our resource remains open; there's no need to send another view event yet
+  return ViewEventType::None;
+}
+
 void RumViewScope::BecomeInactive(
     const RumCommandParams& base, bool accept_command_attributes
 ) {
@@ -395,6 +440,21 @@ void RumViewScope::LogDroppedAction(RumActionType type, std::string_view name) c
   );
 }
 
+std::string_view RumViewScope::IdentifyTargetResourceKey(const RumCommand& command) {
+  // Note that StartResource is not propagated to RumResourceScope.
+
+  // StopResource identifies a specific resource and should be propagated to the scope
+  // that matches the given key, if any such scope is active in this view
+  if (command.Is<RumStopResourcePayload>()) {
+    return command.As<RumStopResourcePayload>().key;
+  }
+
+  // TODO(RUM-13166): Match on AddResourceMetrics commands
+
+  // No other commands need to be propagated to resource scopes
+  return std::string_view{};
+}
+
 void RumViewScope::SendViewEvent(const RumCommand& command) {
   // Resolve references needed to populate required event data
   const RumScopeDependencies& deps = _deps;
@@ -411,8 +471,8 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
 
   // Get sums of child scope occurrences within the lifetime of this view
   const uint64_t action_count = _num_actions_completed;
-  const uint64_t error_count = 0;     // TODO(RUM-12201)
-  const uint64_t resource_count = 0;  // TODO(RUM-12202)
+  const uint64_t error_count = _num_errors_reported;
+  const uint64_t resource_count = _num_resources_completed;
 
   // Construct an event value on the stack with the minimal set of required properties
   RumViewEvent ev(
@@ -430,7 +490,11 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
   );
 
   // Set essential view properties
-  ev.view.is_active.value = _is_active;
+
+  // The 'view.is_active' property remains true while the view is waiting for resource
+  // completion, even if we've set _is_active to false in our scope
+  ev.view.is_active.value = _is_active || _resource_scopes.Size() > 0;
+
   if (!_name.empty()) {
     ev.view.name.value = _name;
   }

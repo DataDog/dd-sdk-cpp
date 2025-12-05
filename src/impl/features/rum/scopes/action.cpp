@@ -53,9 +53,13 @@ RumScopeResult RumActionScope::Process(const RumCommand& command) {
   if (command.Is<RumStopResourcePayload>() && _num_active_resources > 0) {
     _num_resources_recorded++;
     _num_active_resources--;
+
+    // If the resource in question is being stopped due to an error, record the fact
+    // that an error has occurred while this action was active
+    if (command.As<RumStopResourcePayload>().error) {
+      _num_errors_recorded++;
+    }
   }
-  // TODO(RUM-12202): On StopResourceWithError, update resource counts and increment
-  // _num_errors_recorded
 
   // Determine if we should consider the action completed and close this scope: if our
   // expiration time has passed and we're not waiting on any resource calls to finish,
@@ -115,7 +119,7 @@ void RumActionScope::SendActionEvent(
   const RumSessionScope& session = view.GetParentSessionScope();
 
   // The 'date' timestamp on a RUM 'action' event indicates when the action started, not
-  // when the time at which we're sending it
+  // when we're sending it
   const Timestamp event_timestamp = _started_at;
 
   // The oddly-named 'loading_time' property indicates how long the action lasted, which
@@ -149,6 +153,9 @@ void RumActionScope::SendActionEvent(
 
   if (_num_resources_recorded > 0) {
     ev.action.resource.value.emplace(_num_resources_recorded);
+  }
+  if (_num_errors_recorded > 0) {
+    ev.action.error.value.emplace(_num_errors_recorded);
   }
 
   // Prepare to merge the final set of custom attributes for our action event, in this

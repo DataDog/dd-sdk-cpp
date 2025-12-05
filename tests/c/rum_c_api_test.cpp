@@ -8,6 +8,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <cstring>
 #include <functional>
+#include <optional>
 #include <string_view>
 #include <vector>
 
@@ -1439,32 +1440,95 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](const nlohmann::json& events) {
          // Then we get the following sequence of RUM events:
+         REQUIRE(events.is_array());
+         REQUIRE(events.size() == 6);
+
          // - At T+0: a `view` with:
          //   - _dd.document_version: 0
-         //   - is_active: true
+         //   - view.is_active: true
          //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         REQUIRE(events[0]["type"] == "view");
+         REQUIRE(events[0]["_dd"]["document_version"] == 0);
+         REQUIRE(events[0]["view"]["is_active"] == true);
+         REQUIRE(
+             events[0]["context"] == nlohmann::json{
+                                         {"alpha", 1},
+                                         {"bravo", 2},
+                                         {"able", 100},
+                                         {"baker", 200},
+                                         {"charlie", 300}
+                                     }
+         );
+         const std::string& first_view_id_str =
+             events[0]["view"]["id"].get_ref<const std::string&>();
+
          // - At T+15: a `view` with:
+         //   - view.id: <same as previous event>
          //   - _dd.document_version: 1
-         //   - is_active: true
+         //   - view.is_active: true
          //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         REQUIRE(events[1]["type"] == "view");
+         REQUIRE(events[1]["view"]["id"] == first_view_id_str);
+         REQUIRE(events[1]["_dd"]["document_version"] == 1);
+         // REQUIRE(events[1]["view"]["is_active"] == true);
+         REQUIRE(events[1]["context"] == events[0]["context"]);
+
          // - At T+15: a `view` with:
+         //   - view.id: <different from prior view events>
          //   - _dd.document_version: 0
-         //   - is_active: true
+         //   - view.is_active: true
          //   - context: {"alpha":1,"bravo":2,"charlie":3}
+         REQUIRE(events[2]["type"] == "view");
+         REQUIRE(events[2]["view"]["id"] != first_view_id_str);
+         REQUIRE(events[2]["_dd"]["document_version"] == 0);
+         REQUIRE(events[2]["view"]["is_active"] == true);
+         REQUIRE(
+             events[2]["context"] ==
+             nlohmann::json{{"alpha", 1}, {"bravo", 2}, {"charlie", 3}}
+         );
+         const std::string& second_view_id_str =
+             events[2]["view"]["id"].get_ref<const std::string&>();
+
          // - At T+16: a `resource` recording successful completion, with:
+         //   - view.id: <matching first view>
          //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         REQUIRE(events[3]["type"] == "resource");
+         REQUIRE(events[3]["view"]["id"] == first_view_id_str);
+         REQUIRE(events[3]["resource"]["method"] == "GET");
+         REQUIRE(
+             events[3]["resource"]["url"] ==
+             "https://my-cool-website.biz/api/profile/123"
+         );
+         REQUIRE(events[3]["resource"]["duration"] == 16000000000);
+         REQUIRE(events[3]["resource"]["type"] == "xhr");
+         REQUIRE(events[3]["resource"]["status_code"] == 200);
+
          // - At T+16: a `view` with:
+         //   - view.id: <matching first view>
          //   - _dd.document_version: 2
-         //   - is_active: false
-         //   - resource.count: 1
+         //   - view.is_active: false
+         //   - view.resource.count: 1
          //   - context: {"alpha":1,"bravo":2,"able":100,"baker":200,"charlie":300}
+         REQUIRE(events[4]["type"] == "view");
+         REQUIRE(events[4]["view"]["id"] == first_view_id_str);
+         REQUIRE(events[4]["_dd"]["document_version"] == 2);
+         REQUIRE(events[4]["view"]["is_active"] == false);
+         REQUIRE(events[4]["view"]["resource"]["count"] == 1);
+         REQUIRE(events[4]["context"] == events[0]["context"]);
+
          // - At T+21: a `view` with:
+         //   - view.id: <matching second view>
          //   - _dd.document_version: 1
-         //   - is_active: false
-         //   - context: {"bravo":2,"charlie":3,"dog":4}
-         REQUIRE(events.is_array());
-         REQUIRE(events.size() == 4);
-         // TODO(RUM-12202): Implement the assertions described above
+         //   - view.is_active: false
+         //   - context: {"bravo":2,"charlie":3,"delta":4,"dog":400}
+         REQUIRE(events[5]["type"] == "view");
+         REQUIRE(events[5]["view"]["id"] == second_view_id_str);
+         REQUIRE(events[5]["_dd"]["document_version"] == 1);
+         REQUIRE(events[5]["view"]["is_active"] == false);
+         REQUIRE(
+             events[5]["context"] ==
+             nlohmann::json{{"bravo", 2}, {"charlie", 3}, {"delta", 4}, {"dog", 400}}
+         );
        }},
 
       // === Retention of view attributes on session refresh ===
@@ -1831,7 +1895,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_rum_stop_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "long-custom", NULL);
        },
        [](const nlohmann::json& events) {
-         // Then we went up with two action events
+         // Then we end up with two action events
          auto actions = filter_events("action", events);
          REQUIRE(actions.size() == 2);
 
@@ -2076,6 +2140,228 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          REQUIRE(actions.size() == 0);
        }},
 
+      // === Resources send 'resource' or 'error' on StopResource[WithError] ===
+
+      {"M send no event W resource remains open",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock&) {
+         // When we create a RUM view and record the start of a resource, without
+         // recording the end of that resource
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then no resource or error events are sent; only view events
+         REQUIRE(filter_events("resource", events).size() == 0);
+         REQUIRE(filter_events("error", events).size() == 0);
+         REQUIRE(filter_events("view", events).size() == events.size());
+       }},
+
+      {"M send resource event W resource is ended via StopResource",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and record the start of a resource
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
+
+         // And 2.4s later, we end that resource
+         clock.Tick(std::chrono::milliseconds(2400));
+         dd_rum_stop_resource(
+             rum, "get-profile-123", 200, 12345, DD_RUM_RESOURCE_TYPE_XHR, NULL
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then a resource event is sent to describe our finished resource
+         REQUIRE(filter_events("error", events).size() == 0);
+         auto resources = filter_events("resource", events);
+
+         // And the resource event has all expected properties
+         RequireEventMatch(resources[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "resource",
+            "date": 1700000000000,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "resource": {
+              "id": "${__NONZERO_UUID__}",
+              "method": "GET",
+              "url": "https://my-cool-website.biz/api/profile/123",
+              "duration": 2400000000,
+              "status_code": 200,
+              "size": 12345,
+              "type": "xhr"
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+       }},
+
+      {"M send error event W resource is ended via StopResourceWithError",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and record the start of a resource
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
+
+         // And 2.4s later, we end that resource with an error
+         clock.Tick(std::chrono::milliseconds(2400));
+         dd_rum_stop_resource_with_error(
+             rum,
+             "get-profile-123",
+             "Invalid format",
+             "ParseError",
+             "this\nis\na\nstack\ntrace\n",
+             false,
+             200,
+             NULL
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then an error event is sent to describe our finished resource
+         REQUIRE(filter_events("resource", events).size() == 0);
+         auto errors = filter_events("error", events);
+
+         // And the error event has all expected error properties, plus relevant context
+         // describing the resource, and its 'date' timestamp reflects error time, not
+         // resource start time
+         RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "error",
+            "date": 1700000002400,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "error": {
+              "resource": {
+                "method": "GET",
+                "url": "https://my-cool-website.biz/api/profile/123",
+                "status_code": 200
+              },
+              "message": "Invalid format",
+              "type": "ParseError",
+              "stack": "this\nis\na\nstack\ntrace\n",
+              "source": "network",
+              "category": "Exception"
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+       }},
+
+      {"M report error.category = Network W StopResourceWithError is called with "
+       "is_network_error",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and record the start of a resource
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
+
+         // And 2.4s later, we end that resource with an error
+         clock.Tick(std::chrono::milliseconds(2400));
+         dd_rum_stop_resource_with_error(
+             rum,
+             "get-profile-123",
+             "DNS lookup failed [CURLE_COULDNT_RESOLVE_HOST]",
+             "6",
+             NULL,
+             true,
+             0,
+             NULL
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then an error event is sent to describe our finished resource
+         REQUIRE(filter_events("resource", events).size() == 0);
+         auto errors = filter_events("error", events);
+
+         // And the error event has all expected error properties, plus relevant context
+         // describing the resource, and its 'date' timestamp reflects error time, not
+         // resource start time
+         RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "error",
+            "date": 1700000002400,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "error": {
+              "resource": {
+                "method": "GET",
+                "url": "https://my-cool-website.biz/api/profile/123",
+                "status_code": 0
+              },
+              "message": "DNS lookup failed [CURLE_COULDNT_RESOLVE_HOST]",
+              "type": "6",
+              "source": "network",
+              "category": "Network"
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+       }},
+
+      // TODO(RUM-12201): Validate that dd_rum_add_error results in the expected events
+
       // === Action lifetime vis-a-vis resources ===
 
       {"M extend discrete action lifetime W concurrent resource remains active",
@@ -2104,14 +2390,35 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          );
        },
        [](const nlohmann::json& events) {
-         // TODO(RUM-12202): Then:
+         // Then:
+         // - We have no error events
+         REQUIRE(filter_events("error", events).size() == 0);
+
          // - Our action event is sent, its resource count is 1, and its duration is
          //   clamped at 100ms despite the fact that the scope persisted for 150ms
-         // - We get a resource event, and its action.id matches the action event
          auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["type"] == "click");
+         REQUIRE(actions[0]["action"]["target"]["name"] == "button1");
+         REQUIRE(!actions[0]["action"].contains("error"));
+         REQUIRE(actions[0]["action"]["resource"]["count"] == 1);
+         REQUIRE(actions[0]["action"]["loading_time"] == 100000000);
+
+         // - We get a resource event, and its action.id matches the action event
          auto resources = filter_events("resource", events);
-         (void)actions;
-         (void)resources;
+         REQUIRE(resources.size() == 1);
+         REQUIRE(resources[0]["date"] == 1700000000050);
+         REQUIRE(resources[0]["resource"]["duration"] == 100000000);
+         REQUIRE(resources[0]["resource"]["method"] == "GET");
+         REQUIRE(
+             resources[0]["resource"]["url"] ==
+             "https://my-cool-website.biz/api/profile/123"
+         );
+         REQUIRE(resources[0]["resource"]["size"] == 12345);
+         REQUIRE(resources[0]["resource"]["status_code"] == 200);
+         REQUIRE(resources[0]["resource"]["type"] == "xhr");
+         REQUIRE(resources[0]["action"]["id"] == actions[0]["action"]["id"]);
        }},
 
       {"M extend continuous action lifetime W concurrent resource remains active",
@@ -2140,14 +2447,90 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          );
        },
        [](const nlohmann::json& events) {
-         // TODO(RUM-12202): Then:
+         // Then:
+         // - We have no error events
+         REQUIRE(filter_events("error", events).size() == 0);
+
          // - Our action event is sent, its resource count is 1, and its duration is
          //   clamped at 10s despite the fact that the scope persisted for 14.8s
-         // - We get a resource event, and its action.id matches the action event
          auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(!actions[0]["action"].contains("error"));
+         REQUIRE(actions[0]["action"]["resource"]["count"] == 1);
+         REQUIRE(actions[0]["action"]["loading_time"] == 10000000000);
+
+         // - We get a resource event, and its action.id matches the action event
          auto resources = filter_events("resource", events);
-         (void)actions;
-         (void)resources;
+         REQUIRE(resources.size() == 1);
+         REQUIRE(resources[0]["date"] == 1700000009800);
+         REQUIRE(resources[0]["resource"]["duration"] == 5000000000);
+         REQUIRE(resources[0]["action"]["id"] == actions[0]["action"]["id"]);
+       }},
+
+      {"M stop action W pending resource is stopped due to error",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and start a RUM action
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
+
+         // And then at T+9.8s, a resource begins
+         clock.Tick(std::chrono::milliseconds(9800));
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
+
+         // And then at T+14.8s, the resource ends due to an error
+         clock.Tick(std::chrono::seconds(5));
+         dd_rum_stop_resource_with_error(
+             rum,
+             "get-profile-123",
+             "Invalid format",
+             "ParseError",
+             "stack-trace-here",
+             false,
+             200,
+             NULL
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then:
+         // - We have no resource events
+         REQUIRE(filter_events("resource", events).size() == 0);
+
+         // - Our action event is sent, its resource and error counts are both 1, and
+         //   its duration is clamped at 10s despite the fact that the scope persisted
+         //   for 14.8s
+         auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(actions[0]["action"]["error"]["count"] == 1);
+         REQUIRE(actions[0]["action"]["resource"]["count"] == 1);
+         REQUIRE(actions[0]["action"]["loading_time"] == 10000000000);
+
+         // - We get an error event describing the resource, and its action.id matches
+         //   the action event
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["date"] == 1700000014800);
+         REQUIRE(errors[0]["error"]["message"] == "Invalid format");
+         REQUIRE(errors[0]["error"]["type"] == "ParseError");
+         REQUIRE(errors[0]["error"]["stack"] == "stack-trace-here");
+         REQUIRE(errors[0]["error"]["source"] == "network");
+         REQUIRE(errors[0]["error"]["resource"]["method"] == "GET");
+         REQUIRE(
+             errors[0]["error"]["resource"]["url"] ==
+             "https://my-cool-website.biz/api/profile/123"
+         );
+         REQUIRE(errors[0]["error"]["resource"]["status_code"] == 200);
+         REQUIRE(errors[0]["action"]["id"] == actions[0]["action"]["id"]);
        }},
 
       {"M not extend action lifetime W resource is started after action timeout",
@@ -2155,7 +2538,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // Given an ordinary RUM config
        },
        [](dd_rum_t* rum, MockClock& clock) {
-         // When we create a RUM view and add an action with a type other than custom
+         // When we create a RUM view and add an action with a type other than
+         // custom
          dd_rum_start_view(rum, "my-view", "My View");
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
@@ -2176,14 +2560,25 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          );
        },
        [](const nlohmann::json& events) {
-         // TODO(RUM-12202): Then:
+         // Then:
+         // - We have no error events
+         REQUIRE(filter_events("error", events).size() == 0);
+
          // - Our action event is sent, its resource count is 0, and its duration is
          //   clamped at 100ms
-         // - We get a resource event, and it has no action.id
          auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(!actions[0]["action"].contains("error"));
+         REQUIRE(!actions[0]["action"].contains("resource"));
+         REQUIRE(actions[0]["action"]["loading_time"] == 100000000);
+
+         // - We get a resource event, and it has no action.id
          auto resources = filter_events("resource", events);
-         (void)actions;
-         (void)resources;
+         REQUIRE(resources.size() == 1);
+         REQUIRE(resources[0]["date"] == 1700000000150);
+         REQUIRE(resources[0]["resource"]["duration"] == 50000000);
+         REQUIRE(!resources[0].contains("action"));
        }},
 
       {"M continually extend action lifetime W concurrent resources overlap",
@@ -2222,14 +2617,21 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          );
        },
        [](const nlohmann::json& events) {
-         // TODO(RUM-12202): Then:
+         // Then:
+         // - We have no error events
+         REQUIRE(filter_events("error", events).size() == 0);
+
          // - Our action event is not sent because our second resource call is still
          //   pending
-         // - We get a single resource event, and it has a valid action.id
          auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 0);
+
+         // - We get a single resource event, and it has a valid action.id
          auto resources = filter_events("resource", events);
-         (void)actions;
-         (void)resources;
+         REQUIRE(resources.size() == 1);
+         REQUIRE(resources[0]["date"] == 1700000000050);
+         REQUIRE(resources[0]["resource"]["duration"] == 150000000);
+         REQUIRE(resources[0]["action"]["id"].get_ref<const std::string&>() != "");
        }},
 
       {"M respect StopAction even W concurrent resource remains actives",
@@ -2256,14 +2658,22 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_rum_stop_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
        },
        [](const nlohmann::json& events) {
-         // TODO(RUM-12202): Then:
+         // Then:
+         // - We have no error events
+         REQUIRE(filter_events("error", events).size() == 0);
+
          // - Our action event is sent, its duration is 70ms, and its resource count is
          //   zero
-         // - We get no resource events
          auto actions = filter_events("action", events);
+         REQUIRE(actions.size() == 1);
+         REQUIRE(actions[0]["date"] == 1700000000000);
+         REQUIRE(!actions[0]["action"].contains("error"));
+         REQUIRE(!actions[0]["action"].contains("resource"));
+         REQUIRE(actions[0]["action"]["loading_time"] == 70000000);
+
+         // - We get no resource events
          auto resources = filter_events("resource", events);
-         (void)actions;
-         (void)resources;
+         REQUIRE(resources.size() == 0);
        }},
 
       // === Action attributes, merging with view and global attributes ===
@@ -2439,8 +2849,222 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          );
        }},
 
-      // TODO(RUM-12201): Validate that error functions result in the expected events
-      // TODO(RUM-12202): Validate that resource functions result in the expected events
+      // === Resource attributes, merging with view and global attributes ===
+
+      {"M include resource-level attributes as context W provided on start",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_attribute_t int_val = dd_attribute_int(1);
+
+         // When we create a RUM view and start a resource with {"alpha":1,"bravo":2}
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_attribute_t start_resource_obj = dd_attribute_object(2);
+         dd_attribute_object_property_set(&start_resource_obj, "alpha", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_attribute_object_property_set(&start_resource_obj, "bravo", &int_val);
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             &start_resource_obj
+         );
+         dd_attribute_free(&start_resource_obj);
+
+         // And then at T+2s, we stop the resource
+         clock.Tick(std::chrono::seconds(2));
+         dd_rum_stop_resource(
+             rum, "get-profile-123", 200, 12345, DD_RUM_RESOURCE_TYPE_XHR, NULL
+         );
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our resource has {"alpha":1,"bravo":2}
+         auto resources = filter_events("resource", events);
+         REQUIRE(resources.size() == 1);
+         REQUIRE(resources[0]["context"] == nlohmann::json{{"alpha", 1}, {"bravo", 2}});
+       }},
+
+      {"M merge attributes into resource-level attributes W StopResource is called "
+       "with custom attributes",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_attribute_t int_val = dd_attribute_int(1);
+
+         // When we create a RUM view and start a resource with {"alpha":1,"bravo":2}
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_attribute_t start_resource_obj = dd_attribute_object(2);
+         dd_attribute_object_property_set(&start_resource_obj, "alpha", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_attribute_object_property_set(&start_resource_obj, "bravo", &int_val);
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             &start_resource_obj
+         );
+         dd_attribute_free(&start_resource_obj);
+
+         // And then at T+2s, we stop the resource with {"bravo":22,"charlie":33}
+         clock.Tick(std::chrono::seconds(2));
+         dd_attribute_t stop_resource_obj = dd_attribute_object(2);
+         dd_attribute_set_int(&int_val, 22);
+         dd_attribute_object_property_set(&stop_resource_obj, "bravo", &int_val);
+         dd_attribute_set_int(&int_val, 33);
+         dd_attribute_object_property_set(&stop_resource_obj, "charlie", &int_val);
+         dd_rum_stop_resource(
+             rum,
+             "get-profile-123",
+             200,
+             12345,
+             DD_RUM_RESOURCE_TYPE_XHR,
+             &stop_resource_obj
+         );
+         dd_attribute_free(&stop_resource_obj);
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our resource has
+         // {"alpha":1,"bravo":22,"charlie":33}
+         auto resources = filter_events("resource", events);
+         REQUIRE(resources.size() == 1);
+         REQUIRE(
+             resources[0]["context"] ==
+             nlohmann::json{{"alpha", 1}, {"bravo", 22}, {"charlie", 33}}
+         );
+       }},
+
+      {"M merge attributes into resource-level attributes W StopResourceWithError is "
+       "called with custom attributes",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_attribute_t int_val = dd_attribute_int(1);
+
+         // When we create a RUM view and start a resource with {"alpha":1,"bravo":2}
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_attribute_t start_resource_obj = dd_attribute_object(2);
+         dd_attribute_object_property_set(&start_resource_obj, "alpha", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_attribute_object_property_set(&start_resource_obj, "bravo", &int_val);
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             &start_resource_obj
+         );
+         dd_attribute_free(&start_resource_obj);
+
+         // And then at T+2s, we stop the resource with {"bravo":22,"charlie":33}
+         clock.Tick(std::chrono::seconds(2));
+         dd_attribute_t stop_resource_obj = dd_attribute_object(2);
+         dd_attribute_set_int(&int_val, 22);
+         dd_attribute_object_property_set(&stop_resource_obj, "bravo", &int_val);
+         dd_attribute_set_int(&int_val, 33);
+         dd_attribute_object_property_set(&stop_resource_obj, "charlie", &int_val);
+         dd_rum_stop_resource_with_error(
+             rum,
+             "get-profile-123",
+             "Invalid format",
+             "ParseError",
+             "this\nis\na\nstack\ntrace\n",
+             false,
+             200,
+             &stop_resource_obj
+         );
+         dd_attribute_free(&stop_resource_obj);
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then the resulting RUM error event has {"alpha":1,"bravo":22,"charlie":33}
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(
+             errors[0]["context"] ==
+             nlohmann::json{{"alpha", 1}, {"bravo", 22}, {"charlie", 33}}
+         );
+       }},
+
+      {"M merge global <- view <- resource attributes",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_attribute_t int_val = dd_attribute_int(1);
+
+         // Given global RUM attributes {"able":100,"baker":200}
+         dd_attribute_set_int(&int_val, 100);
+         dd_rum_add_attribute(rum, "able", &int_val);
+         dd_attribute_set_int(&int_val, 200);
+         dd_rum_add_attribute(rum, "baker", &int_val);
+
+         // And a view with attributes {"baker":222,"charlie":333,"dog":444}
+         dd_attribute_t start_view_obj = dd_attribute_object(3);
+         dd_attribute_set_int(&int_val, 222);
+         dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
+         dd_attribute_set_int(&int_val, 333);
+         dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
+         dd_attribute_set_int(&int_val, 444);
+         dd_attribute_object_property_set(&start_view_obj, "dog", &int_val);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_attribute_free(&start_view_obj);
+
+         // When we start a resource with {"alpha":1,"bravo":2,"dog":"good"}
+         dd_attribute_t start_resource_obj = dd_attribute_object(3);
+         dd_attribute_set_int(&int_val, 1);
+         dd_attribute_object_property_set(&start_resource_obj, "alpha", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_attribute_object_property_set(&start_resource_obj, "bravo", &int_val);
+         dd_attribute_t str_good = dd_attribute_string("good");
+         dd_attribute_object_property_set(&start_resource_obj, "dog", &str_good);
+         dd_attribute_free(&str_good);
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             &start_resource_obj
+         );
+         dd_attribute_free(&start_resource_obj);
+
+         // And then at T+2s, we stop the resource
+         clock.Tick(std::chrono::seconds(2));
+         dd_rum_stop_resource(
+             rum, "get-profile-123", 200, 12345, DD_RUM_RESOURCE_TYPE_XHR, NULL
+         );
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our resource has
+         // {"able":100,"baker":222,"charlie":333,"alpha":1,"bravo":2,"dog":"good"}
+         auto resources = filter_events("resource", events);
+         REQUIRE(resources.size() == 1);
+         REQUIRE(
+             resources[0]["context"] == nlohmann::json{
+                                            {"able", 100},
+                                            {"baker", 222},
+                                            {"charlie", 333},
+                                            {"alpha", 1},
+                                            {"bravo", 2},
+                                            {"dog", "good"},
+                                        }
+         );
+       }},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
