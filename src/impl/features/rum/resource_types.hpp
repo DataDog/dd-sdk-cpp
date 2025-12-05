@@ -16,7 +16,7 @@ namespace datadog::impl {
  * Details of an error reported to RUM by the application.
  */
 struct RumErrorDetails {
-  std::string_view name;
+  std::string_view message;
   std::string_view type;
   std::string_view stack_trace;
   bool is_network_error{false};
