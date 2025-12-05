@@ -70,6 +70,8 @@ struct RumConfig {
   DATADOG_API RumConfig& SetSessionSampleRate(float value);
 };
 
+enum class RumActionType : uint8_t { Tap, Click, Scroll, Swipe, Custom };
+
 /**
  * Interface to the Datadog SDK's RUM feature.
  */
@@ -168,6 +170,85 @@ class Rum {
    */
   DATADOG_API void StopView(
       std::string_view key, const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records a discrete user action of the given type in the context of the current
+   * view. A name is required, and the provided name will be used to identify the target
+   * of the action in the Datadog UI.
+   *
+   * Discrete actions (i.e. those added via AddAction()) are momentary: they do not
+   * require an explicit call to StopAction().
+   *
+   * Discrete actions with type RumActionType::Custom are reported immediately, and they
+   * may be recorded via AddAction() at any time, regardless of whether another action
+   * is curently active.
+   *
+   * Discrete actions of all other types will remain active for at least 100ms prior to
+   * being reported, so that any RUM resources or errors occurring immediately after the
+   * action may be correlated with the action.
+   *
+   * If StartResource() calls occur while the action is active, the action may remain
+   * active until the corresponding StopResource() calls are made, even if those
+   * resources remain active after the initial 100ms timeout. However, an explicit
+   * StopAction() call will always stop the action, regardless of whether it's waiting
+   * for resources to complete.
+   *
+   * Only one action may be active at any given time: if you call AddAction() or
+   * StartAction() while another action is active, the new action will be ignored (with
+   * the exception of AddAction() with RumActionType::Custom as described above).
+   */
+  DATADOG_API void AddAction(
+      RumActionType type,
+      std::string_view name,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records a continuous user action of the given type in the context of the current
+   * view. A name is required, and the provided name will be used to identify the target
+   * of the action in the Datadog UI.
+   *
+   * A continuous user action will remain active until StopAction() is called, or until
+   * a timeout duration (of at least 10 seconds) has elapsed without a call to
+   * StopAction().
+   *
+   * If StartResource() calls occur while the action is active, the action may remain
+   * active until the corresponding StopResource() calls are made, even if those
+   * resources remain active after the initial 10-second timeout. However, an explicit
+   * StopAction() call will always stop the action, regardless of whether it's waiting
+   * for resources to complete.
+   *
+   * Only one action may be active at a time. If you call StartAction() while another
+   * action is already active, regardless of the type you pass to StartAction(), the new
+   * action will be ignored.
+   */
+  DATADOG_API void StartAction(
+      RumActionType type,
+      std::string_view name,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Stops the currently-active action, if any exists in the current view.
+   *
+   * By convention, the provided `type` value is expected to match the value passed to
+   * StartAction() for the action that you intend to stop. However, this value is
+   * currently ignored.
+   *
+   * A name value is not required. If provided, the active action will have its name
+   * changed to the provided value before it is stopped. If empty, the active action
+   * will be stopped without any change to its name.
+   *
+   * StopAction() will always stop the active action, regardless of whether it was
+   * created via AddAction() or StartAction(), regardless of its type and name, and
+   * regardless of whether the action is waiting for associated RUM resources to be
+   * stopped.
+   */
+  DATADOG_API void StopAction(
+      RumActionType type,
+      std::string_view name = {},
+      const Attribute& attributes = Attribute()
   );
 
  private:

@@ -10,6 +10,7 @@
 #include <string>
 #include <string_view>
 
+#include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
 #include "events/enum.hpp"
 #include "events/omissible.hpp"
@@ -125,6 +126,16 @@ struct RumFeatureContext {
   UUID view_id;         // UUID::Zero if no active view
   UUID action_id;       // UUID::Zero if no active action
 };
+
+DATADOG_STRING_ENUM(
+    StringRumActionType,
+    RumActionType,
+    DATADOG_ENUM_VALUE(RumActionType::Tap, "tap"),
+    DATADOG_ENUM_VALUE(RumActionType::Click, "click"),
+    DATADOG_ENUM_VALUE(RumActionType::Scroll, "scroll"),
+    DATADOG_ENUM_VALUE(RumActionType::Swipe, "swipe"),
+    DATADOG_ENUM_VALUE(RumActionType::Custom, "custom")
+)
 
 /**
  * Indicates why and how a new RUM session was created, tracking the lifecycle
@@ -932,6 +943,243 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(type)
     // NYI: feature_flags
     // NYI: privacy
+)
+
+struct RumActionEvent {
+  struct Application {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> current_locale;
+
+    explicit Application(const UUID& in_id) : id(in_id) {}
+  };
+  struct Session {
+    // From _common-schema.json
+    UUID id;
+    StringRumSessionType type;
+    OmitIfFalse<bool> has_replay{false};
+
+    explicit Session(const UUID& in_id, RumSessionType in_type)
+        : id(in_id), type(in_type) {}
+  };
+  struct View {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> referrer;
+    std::string url;
+    OmitIfEmpty<std::string> name;
+
+    // From action-schema.json
+    // NYI(browser): in_foreground
+
+    explicit View(UUID in_id, std::string_view in_url) : id(in_id), url(in_url) {}
+  };
+  struct Display {
+    // From _common-schema.json
+    OmitIfNoValue<RumViewportProperties> viewport;
+
+    Display() {};
+  };
+  struct Action {
+    struct Target {
+      // From action-schema.json
+      std::string name;
+
+      explicit Target(std::string_view in_name) : name(in_name) {}
+    };
+    struct Incidence {
+      // From action-schema.json
+      uint64_t count;
+
+      explicit Incidence(uint64_t in_count) : count(in_count) {}
+    };
+
+    // From action-schema.json
+    StringRumActionType type;
+    UUID id;
+    uint64_t loading_time;
+    OmitIfNoValue<Target> target;
+    // NYI: frustration
+    OmitIfNoValue<Incidence> error;
+    OmitIfNoValue<Incidence> crash;
+    OmitIfNoValue<Incidence> long_task;
+    OmitIfNoValue<Incidence> resource;
+
+    explicit Action(RumActionType in_type, UUID in_id, Duration in_duration)
+        : type(in_type), id(in_id), loading_time(in_duration.count()) {}
+  };
+  struct Internal {
+    struct Session {
+      // From _common-schema.json
+      OmitIfZero<uint8_t> plan{};
+      OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
+
+      Session() {};
+    };
+    struct Configuration {
+      // From _common-schema.json
+      float session_sample_rate;
+      OmitIfNoValue<float> session_replay_sample_rate;
+      OmitIfNoValue<float> profiling_sample_rate;
+
+      explicit Configuration(float in_session_sample_rate)
+          : session_sample_rate(in_session_sample_rate) {}
+    };
+    // From _common-schema.json
+    const uint8_t format_version{2};
+    OmitIfNoValue<Session> session;
+    OmitIfNoValue<Configuration> configuration;
+    OmitIfEmpty<std::string> browser_sdk_version;
+
+    // From action-schema.json
+    // NYI(browser): action
+    // NYI(browser): target
+    // NYI(browser): name_source
+
+    Internal() {}
+  };
+  // From _common-schema.json
+  MilliTimestamp date;
+  Application application;
+  OmitIfEmpty<std::string> service;
+  OmitIfEmpty<std::string> version;
+  OmitIfEmpty<std::string> build_version;
+  OmitIfEmpty<std::string> build_id;
+  OmitIfEmpty<std::string> ddtags;
+  Session session;
+  OmitIfNoValue<StringRumSource> source;
+  View view;
+  OmitIfNoValue<RumUserProperties> usr;
+  OmitIfNoValue<RumAccountProperties> account;
+  OmitIfNoValue<RumConnectivityProperties> connectivity;
+  OmitIfNoValue<Display> display;
+  OmitIfNoValue<RumSyntheticsProperties> synthetics;
+  OmitIfNoValue<RumCITestProperties> ci_test;
+  OmitIfNoValue<RumOSProperties> os;
+  OmitIfNoValue<RumDeviceProperties> device;
+  Internal _dd;
+  OmitIfZero<Attribute> context;
+  // NYI: stream
+
+  // From action-schema.json
+  const std::string_view type{"action"};
+  Action action;
+
+  explicit RumActionEvent(
+      Timestamp in_date,
+      const UUID& in_application_id,
+      const UUID& in_session_id,
+      RumSessionType in_session_type,
+      const UUID& in_view_id,
+      std::string_view in_view_url,
+      RumActionType in_action_type,
+      const UUID& in_action_id,
+      const Duration& in_action_duration
+  )
+      : date(in_date),
+        application(Application{in_application_id}),
+        session(Session{in_session_id, in_session_type}),
+        view(View{in_view_id, in_view_url}),
+        _dd(Internal{}),
+        action(Action{in_action_type, in_action_id, in_action_duration}) {}
+};
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Application,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(current_locale)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(has_replay)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::View,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(referrer),
+    DATADOG_JSON_FIELD(url),
+    DATADOG_JSON_FIELD(name)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Display,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(viewport)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Internal::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(plan),
+    DATADOG_JSON_FIELD(session_precondition)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Internal::Configuration,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(session_sample_rate),
+    DATADOG_JSON_FIELD(session_replay_sample_rate),
+    DATADOG_JSON_FIELD(profiling_sample_rate)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Internal,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(format_version),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(configuration),
+    DATADOG_JSON_FIELD(browser_sdk_version)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Action::Target,
+    // From action-schema.json
+    DATADOG_JSON_FIELD(name)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Action::Incidence,
+    // From action-schema.json
+    DATADOG_JSON_FIELD(count)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent::Action,
+    // From action-schema.json
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(loading_time),
+    DATADOG_JSON_FIELD(target),
+    // NYI: frustration
+    DATADOG_JSON_FIELD(error),
+    DATADOG_JSON_FIELD(crash),
+    DATADOG_JSON_FIELD(long_task),
+    DATADOG_JSON_FIELD(resource)
+)
+DATADOG_JSON_STRUCT(
+    RumActionEvent,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(date),
+    DATADOG_JSON_FIELD(application),
+    DATADOG_JSON_FIELD(service),
+    DATADOG_JSON_FIELD(version),
+    DATADOG_JSON_FIELD(build_version),
+    DATADOG_JSON_FIELD(build_id),
+    DATADOG_JSON_FIELD(ddtags),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(source),
+    DATADOG_JSON_FIELD(view),
+    DATADOG_JSON_FIELD(usr),
+    DATADOG_JSON_FIELD(account),
+    DATADOG_JSON_FIELD(connectivity),
+    DATADOG_JSON_FIELD(display),
+    DATADOG_JSON_FIELD(synthetics),
+    DATADOG_JSON_FIELD(ci_test),
+    DATADOG_JSON_FIELD(os),
+    DATADOG_JSON_FIELD(device),
+    DATADOG_JSON_FIELD(_dd),
+    DATADOG_JSON_FIELD(context),
+    // NYI: stream
+    // From action-schema.json
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(action)
 )
 
 }  // namespace datadog::impl

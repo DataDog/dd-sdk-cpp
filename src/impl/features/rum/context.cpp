@@ -19,7 +19,7 @@ void RumContext::Reset() {
   active_view_key.clear();
   active_view_name.clear();
 
-  // TODO(RUM-11369): Clear active_action_id etc.
+  active_action_id = UUID::Zero;
 }
 
 RumFeatureContext RumContext::ToFeatureContext() const {
@@ -40,9 +40,16 @@ RumFeatureContext RumContext::ToFeatureContext() const {
     return RumFeatureContext{application_id, session_id, UUID::Zero, UUID::Zero};
   }
 
-  // We have an active view
-  // TODO(RUM-11369): Set action_id if that view has an active action
-  return RumFeatureContext{application_id, session_id, active_view_id, UUID::Zero};
+  // We have an active view: if there's no active action, set application, session, and
+  // view state
+  if (active_action_id == UUID::Zero) {
+    return RumFeatureContext{application_id, session_id, active_view_id, UUID::Zero};
+  }
+
+  // We have an active action
+  return RumFeatureContext{
+      application_id, session_id, active_view_id, active_action_id
+  };
 }
 
 }  // namespace datadog::impl

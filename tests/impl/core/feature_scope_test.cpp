@@ -87,15 +87,27 @@ TEST_CASE("FeatureScope thread safety", "[unit][core][thread-safety]") {
   FeatureState feature_c;
 
   // And a separate scope for each feature, initialized from the same context provider
-  FeatureScope scope_a(context_provider, [&](Block event, Block event_metadata) {
-    return feature_a.HandleEvent(event, event_metadata);
-  });
-  FeatureScope scope_b(context_provider, [&](Block event, Block event_metadata) {
-    return feature_b.HandleEvent(event, event_metadata);
-  });
-  FeatureScope scope_c(context_provider, [&](Block event, Block event_metadata) {
-    return feature_c.HandleEvent(event, event_metadata);
-  });
+  FeatureScope scope_a(
+      context_provider,
+      [&](Block event, Block event_metadata) {
+        return feature_a.HandleEvent(event, event_metadata);
+      },
+      DiagnosticLogger{}
+  );
+  FeatureScope scope_b(
+      context_provider,
+      [&](Block event, Block event_metadata) {
+        return feature_b.HandleEvent(event, event_metadata);
+      },
+      DiagnosticLogger{}
+  );
+  FeatureScope scope_c(
+      context_provider,
+      [&](Block event, Block event_metadata) {
+        return feature_c.HandleEvent(event, event_metadata);
+      },
+      DiagnosticLogger{}
+  );
 
   // When we run three threads, each of which sporadically reads from or writes to a
   // shared context value, then produces an event based on that value, 512 times each

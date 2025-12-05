@@ -340,7 +340,9 @@ bool Core::Start() {
         [this, id](Block event, Block event_metadata) -> bool {
       return EnqueueStorageWrite(id, event, event_metadata);
     };
-    feature.impl->OnCoreStarted(FeatureScope(*_context_provider, event_generated_func));
+    feature.impl->OnCoreStarted(
+        FeatureScope(*_context_provider, event_generated_func, _diagnostic_logger)
+    );
   }
   return true;
 }

@@ -78,7 +78,10 @@ struct RumContext {
    */
   std::string active_view_name;
 
-  // TODO(RUM-11369): Add active_user_action_id
+  /**
+   * ID of the currently-active RUM action scope, or UUID::Zero if no action is active.
+   */
+  UUID active_action_id;
 
  public:
   /**

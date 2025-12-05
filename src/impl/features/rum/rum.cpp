@@ -123,6 +123,22 @@ void Rum::StopView(std::string_view key, const Attribute& attributes) {
   Dispatch(RumCommand::StopView(GetBaseCommandParams(attributes), key));
 }
 
+void Rum::AddAction(
+    RumActionType type, std::string_view name, const Attribute& attributes
+) {
+  Dispatch(RumCommand::AddAction(GetBaseCommandParams(attributes), type, name));
+}
+
+void Rum::StartAction(
+    RumActionType type, std::string_view name, const Attribute& attributes
+) {
+  Dispatch(RumCommand::StartAction(GetBaseCommandParams(attributes), type, name));
+}
+
+void Rum::StopAction(std::string_view new_name, const Attribute& attributes) {
+  Dispatch(RumCommand::StopAction(GetBaseCommandParams(attributes), new_name));
+}
+
 RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {
   // Create a shallow copy of the global attributes
   std::shared_lock read_only_lock(_global_attributes_mutex);
@@ -183,10 +199,18 @@ void Rum::UpdateApplicationSnapshot() {
     return;
   }
 
-  // If our active session has an active view, populate from view scope
+  // If our active session has an active view, but that view has no actions, populate
+  // from view scope
   const RumViewScope& view = *view_opt;
-  view.PopulateContext(_application_snapshot);
-  // TODO(RUM-11369): Call view.GetActiveAction() and set active_user_action_id
+  auto action_opt = view.GetActiveAction();
+  if (!action_opt) {
+    view.PopulateContext(_application_snapshot);
+    return;
+  }
+
+  // If we have an active session, view, and action, populate from action scope
+  const RumActionScope& action = *action_opt;
+  action.PopulateContext(_application_snapshot);
 }
 
 }  // namespace datadog::impl

@@ -70,7 +70,8 @@ int main()  // NOLINT(bugprone-exception-escape)
   // Log messages will now be correlated with our session and view in the RUM UI
   logger->Info("Main menu loaded");
 
-  // TODO(RUM-11369): Record a RUM Action
+  // Record a RUM Action
+  rum->AddAction(datadog::RumActionType::Custom, "Start Menu Navigation");
 
   // Stop the RUM view
   rum->StopView("main_menu");

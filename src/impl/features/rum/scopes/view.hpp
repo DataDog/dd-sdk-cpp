@@ -6,11 +6,13 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 
 #include "attribute/typed_attribute.hpp"
 #include "datadog/uuid.hpp"
 #include "features/rum/scope.hpp"
+#include "features/rum/scopes/action.hpp"
 #include "platform/clock.hpp"
 
 namespace datadog::impl {
@@ -50,8 +52,52 @@ namespace datadog::impl {
  *     no longer being active.
  *   - Once an inactive view has no pending resources, it will be closed.
  *
+ * == ACTION LIFECYCLE ==
+ *
+ * A RUM Action represents some instantaneous or ongoing user interaction in the context
+ * of the current view. The active View may have 0 or 1 active Actions at any given
+ * time.
+ *
+ * `RumViewScope` handles new actions differently depending upon the API function used
+ * to create them:
+ *
+ * - A `StartAction` call records a "continuous" action.
+ * - An `AddAction` call records a "discrete" action.
+ * - An `AddAction` call with `RumActionType::Custom` records a custom discrete action,
+ *   which is handled according to special-case rules.
+ *
+ * Custom discrete actions are always processed immediately, regardless of whether
+ * there's an active action scope of another type.
+ *
+ * All other action scopes persist for a finite duration, and only one such scope may be
+ * open at any given time. If the application calls `AddAction` (with a type other than
+ * `custom`) or `StartAction` while a user action is already active in the current view,
+ * that action will be ignored.
+ *
+ * All action scopes besides custom discrete actions have a finite, nonzero lifetime.
+ * A discrete action has an expected lifetime of 100ms, while a continuous action's
+ * lifetime is limited to 10 seconds. If no `StopAction` call is made, the action will
+ * be automatically stopped when the next command is processed after that expected
+ * lifetime has passed, unless the lifetime of the action has been extended by one or
+ * more active RUM Resources.
+ *
+ * While the active view has an active action, any newly-recorded RUM Resources or RUM
+ * Errors will be associated with that action. For example, if the user clicks a button,
+ * resulting in an `AddAction` call at T+0, the app may initiate an HTTP request
+ * thereafter, resulting in a `StartResource` call at T+10ms. In this case, the Action
+ * will remain active until the next `StopResource` call is made, even if that occurs
+ * after T+100ms.
+ *
+ * Calling `StopAction` will always end the active action, regardless of its type, name,
+ * expected lifetime, current age, or number of active resources.
+ *
+ * If a view is stopped via StartView, StopView, or StopSession, any active action will
+ * receive the event and be stopped as well. Upon session expiration, any active action
+ * within the active view is lost.
+ *
+ * See `RumActionScope` for more details on action lifecycle.
+ *
  * TODO(RUM-12202): Clarify as needed once resources are implemented
- * TODO(RUM-11369): Clarify as needed once actions are implemented
  *
  * == VIEW ATTRIBUTES ==
  *
@@ -126,6 +172,12 @@ class RumViewScope {
   ViewEventType HandleRemoveViewAttribute(
       const RumCommandParams& base, const RumRemoveViewAttributePayload& payload
   );
+  ViewEventType HandleAddAction(
+      const RumCommandParams& base, const RumAddActionPayload& payload
+  );
+  ViewEventType HandleStartAction(
+      const RumCommandParams& base, const RumStartActionPayload& payload
+  );
 
   /**
    * Renders the view inactive, updating all necessary state to finalize the scope. This
@@ -138,6 +190,17 @@ class RumViewScope {
    *  view inactive explicitly targeted this scope, as in the case of StopView.
    */
   void BecomeInactive(const RumCommandParams& base, bool accept_command_attributes);
+
+  void ProcessDiscreteCustomAction(const RumCommandParams& base, std::string_view name);
+
+  void OpenActionScope(
+      const RumCommandParams& base,
+      RumActionType type,
+      std::string_view name,
+      bool is_continuous
+  );
+
+  void LogDroppedAction(RumActionType type, std::string_view name) const;
 
   /**
    * Generates and sends a RUM view event in response to the given command.
@@ -179,7 +242,17 @@ class RumViewScope {
   bool _has_processed_start_view{false};  // If true, any 'StartView' command will flag
                                           // this scope as inactive
 
+  /**
+   * Total nmber of RUM 'view' events sent during the lifetime of this view scope.
+   */
   uint64_t _num_view_events_sent{0};
+  /**
+   * Number of actions (of any type) that have been completed within the scope of this
+   * view and have sent a RUM 'action' event.
+   */
+  uint64_t _num_actions_completed{0};
+
+  std::optional<RumActionScope> _active_action_scope;
 
  public:
   bool IsActive() const { return _is_active; }
@@ -188,6 +261,9 @@ class RumViewScope {
   std::string_view GetName() const { return _name; }
   Attribute GetAttributes() const { return _view_attributes.attribute; }
   Timestamp GetStartedAt() const { return _started_at; }
+
+  ScopeRef<const RumActionScope> GetActiveAction() const;
+  const RumSessionScope& GetParentSessionScope() const { return _parent; }
 };
 
 }  // namespace datadog::impl

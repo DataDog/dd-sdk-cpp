@@ -11,6 +11,7 @@
 #include <variant>
 
 #include "attribute/typed_attribute.hpp"
+#include "datadog/rum.hpp"
 #include "platform/clock.hpp"
 
 namespace datadog::impl {
@@ -193,38 +194,48 @@ struct RumStopResourcePayload {
 };
 
 /**
- * TEMP: This command type is not yet supported; it's defined for use in session/view
- * lifecycle tests.
- *
- * TODO(RUM-11369): Fully implement action commands
+ * On AddAction, the application has called the AddAction API function, recording an
+ * instantaneous or short-lived user interaction of a specific type.
  */
 struct RumAddActionPayload {
   static constexpr const char* COMMAND_NAME = "AddAction";
   static constexpr RumCommandFlags FLAGS =
       RumCommandFlags::UserInteraction | RumCommandFlags::RequiresActiveView;
+
+  RumActionType type;
+  std::string_view name;
+
+  explicit RumAddActionPayload(RumActionType in_type, std::string_view in_name)
+      : type(in_type), name(in_name) {}
 };
 
 /**
- * TEMP: This command type is not yet supported; it's defined for use in session/view
- * lifecycle tests.
- *
- * TODO(RUM-11369): Fully implement action commands
+ * On StartAction, the application has called the StartAction API function, recording
+ * the start of a continuous user interaction of a specific type.
  */
 struct RumStartActionPayload {
   static constexpr const char* COMMAND_NAME = "StartAction";
   static constexpr RumCommandFlags FLAGS =
       RumCommandFlags::UserInteraction | RumCommandFlags::RequiresActiveView;
+
+  RumActionType type;
+  std::string_view name;
+
+  explicit RumStartActionPayload(RumActionType in_type, std::string_view in_name)
+      : type(in_type), name(in_name) {}
 };
 
 /**
- * TEMP: This command type is not yet supported; it's defined for use in session/view
- * lifecycle tests.
- *
- * TODO(RUM-11369): Fully implement action commands
+ * On StopAction, the application has called the StopAction API function, recording that
+ * the currently-active action has stopped.
  */
 struct RumStopActionPayload {
   static constexpr const char* COMMAND_NAME = "StopAction";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::UserInteraction;
+
+  std::string_view name;
+
+  explicit RumStopActionPayload(std::string_view in_name) : name(in_name) {}
 };
 
 struct RumCommand {
@@ -306,18 +317,22 @@ struct RumCommand {
   }
 
   /** Creates a new 'AddAction' command. */
-  static RumCommand AddAction(RumCommandParams&& base) {
-    return RumCommand(std::move(base), RumAddActionPayload());
+  static RumCommand AddAction(
+      RumCommandParams&& base, RumActionType type, std::string_view name
+  ) {
+    return RumCommand(std::move(base), RumAddActionPayload(type, name));
   }
 
   /** Creates a new 'StartAction' command. */
-  static RumCommand StartAction(RumCommandParams&& base) {
-    return RumCommand(std::move(base), RumStartActionPayload());
+  static RumCommand StartAction(
+      RumCommandParams&& base, RumActionType type, std::string_view name
+  ) {
+    return RumCommand(std::move(base), RumStartActionPayload(type, name));
   }
 
   /** Creates a new 'StopAction' command. */
-  static RumCommand StopAction(RumCommandParams&& base) {
-    return RumCommand(std::move(base), RumStopActionPayload());
+  static RumCommand StopAction(RumCommandParams&& base, std::string_view name) {
+    return RumCommand(std::move(base), RumStopActionPayload(name));
   }
 
   /**

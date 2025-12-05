@@ -68,7 +68,8 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
     REQUIRE(scope.GetEndReason() == std::nullopt);
 
     // When we process any user interaction
-    RumScopeResult result = scope.Process(RumCommand::StopAction(GetBaseParams()));
+    RumScopeResult result =
+        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
     // Then the command is processed and the session scope remains open
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -81,7 +82,8 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
   ) {
     // When we process any user interaction after 7 minutes
     clock.Tick(std::chrono::minutes(7));
-    RumScopeResult result = scope.Process(RumCommand::StopAction(GetBaseParams()));
+    RumScopeResult result =
+        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
     // Then the scope is still open, as 7m does not exceed our inactivity timeout
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -89,7 +91,7 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // Next: When we process any user interaction 14 minutes thereafter
     clock.Tick(std::chrono::minutes(14));
-    result = scope.Process(RumCommand::StopAction(GetBaseParams()));
+    result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
     // Then the result is the same, as 14m does not exceed our timeout either, and our
     // previous command refreshed the last-interaction timestamp
@@ -98,7 +100,7 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // Next: When we wait a full 16 minutes before processing the next user interaction
     clock.Tick(std::chrono::minutes(16));
-    result = scope.Process(RumCommand::StopAction(GetBaseParams()));
+    result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
     // Then our session scope is closed and the command is not handled
     REQUIRE(result == RumScopeResult::Close);
@@ -116,14 +118,14 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
       clock.Tick(std::chrono::minutes(10));
 
       // Then every such interaction is accepted and keeps the session open
-      const auto result = scope.Process(RumCommand::StopAction(GetBaseParams()));
+      const auto result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
       REQUIRE(result == RumScopeResult::RemainOpen);
       REQUIRE(scope.GetEndReason() == std::nullopt);
     }
 
     // Next: When we advance time to T+4h01m and process another user interaction
     clock.Tick(std::chrono::minutes(11));
-    const auto result = scope.Process(RumCommand::StopAction(GetBaseParams()));
+    const auto result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
 
     // Then our session scope is closed and the command is not handled
     REQUIRE(result == RumScopeResult::Close);
@@ -160,7 +162,7 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
     // When we process StopSession at T+4h01m since session start
     for (int i = 1; i <= 23; i++) {
       clock.Tick(std::chrono::minutes(10));
-      const auto result = scope.Process(RumCommand::StopAction(GetBaseParams()));
+      const auto result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
       REQUIRE(result == RumScopeResult::RemainOpen);
       REQUIRE(scope.GetEndReason() == std::nullopt);
     }

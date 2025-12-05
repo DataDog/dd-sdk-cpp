@@ -181,7 +181,90 @@ TEST_CASE("Rum context population", "[unit][rum]") {
     REQUIRE(context.rum->action_id == UUID::Zero);
   }
 
-  // TODO(RUM-11369): Test population of action_id in response to StartAction
-  // TODO(RUM-11369): Test reset of action_id in response to StopAction
-  // TODO(RUM-11369): Test action_id precedence with multiple Start/StopAction calls
+  SECTION("M populate action_id W an action is active") {
+    // Given a running RUM feature with a valid session
+    MockClock clock;
+    FeatureTest test(CoreContext{CORE_CONFIG});
+    clock.FreezeAtMilliseconds(1700000000000);
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    test.Start(rum);
+
+    // When we start a view and then start an action within that view
+    rum->StartView("foo");
+    rum->StartAction(RumActionType::Custom, "long-custom");
+
+    // Then our RumFeatureContext has a nonzero action_id
+    CoreContext context = test.GetContextSync();
+    REQUIRE(context.rum);
+    REQUIRE(context.rum->application_id == APPLICATION_ID);
+    REQUIRE(context.rum->session_id != UUID::Zero);
+    REQUIRE(context.rum->view_id != UUID::Zero);
+    REQUIRE(context.rum->action_id != UUID::Zero);
+  }
+
+  SECTION("M not populate action_id W action is no longer active") {
+    // Given a running RUM feature with a valid session and view
+    MockClock clock;
+    FeatureTest test(CoreContext{CORE_CONFIG});
+    clock.FreezeAtMilliseconds(1700000000000);
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    test.Start(rum);
+
+    // When we start a view, start an action within that view, then stop that action
+    rum->StartView("foo");
+    rum->StartAction(RumActionType::Custom, "long-custom");
+    rum->StopAction("long-custom");
+
+    // Then our RumFeatureContext has an action_id of zero
+    CoreContext context = test.GetContextSync();
+    REQUIRE(context.rum);
+    REQUIRE(context.rum->application_id == APPLICATION_ID);
+    REQUIRE(context.rum->session_id != UUID::Zero);
+    REQUIRE(context.rum->view_id != UUID::Zero);
+    REQUIRE(context.rum->action_id == UUID::Zero);
+  }
+
+  SECTION("M not populate action_id W view is no longer active") {
+    // Given a running RUM feature with a valid session and view
+    MockClock clock;
+    FeatureTest test(CoreContext{CORE_CONFIG});
+    clock.FreezeAtMilliseconds(1700000000000);
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    test.Start(rum);
+
+    // When we start a view, start an action within that view, then stop the view
+    rum->StartView("foo");
+    rum->StartAction(RumActionType::Custom, "long-custom");
+    rum->StopView("foo");
+
+    // Then our RumFeatureContext has both a view_id and an action_id of zero
+    CoreContext context = test.GetContextSync();
+    REQUIRE(context.rum);
+    REQUIRE(context.rum->application_id == APPLICATION_ID);
+    REQUIRE(context.rum->session_id != UUID::Zero);
+    REQUIRE(context.rum->view_id == UUID::Zero);
+    REQUIRE(context.rum->action_id == UUID::Zero);
+  }
+
+  SECTION("M not populate action_id W session is no longer active") {
+    // Given a running RUM feature with a valid session and view
+    MockClock clock;
+    FeatureTest test(CoreContext{CORE_CONFIG});
+    clock.FreezeAtMilliseconds(1700000000000);
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    test.Start(rum);
+
+    // When we start a view, start an action within that view, then stop the session
+    rum->StartView("foo");
+    rum->StartAction(RumActionType::Custom, "long-custom");
+    rum->StopSession();
+
+    // Then our RumFeatureContext has no session_id, view_id, or action_id
+    CoreContext context = test.GetContextSync();
+    REQUIRE(context.rum);
+    REQUIRE(context.rum->application_id == APPLICATION_ID);
+    REQUIRE(context.rum->session_id == UUID::Zero);
+    REQUIRE(context.rum->view_id == UUID::Zero);
+    REQUIRE(context.rum->action_id == UUID::Zero);
+  }
 }

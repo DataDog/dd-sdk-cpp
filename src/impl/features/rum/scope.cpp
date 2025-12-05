@@ -27,11 +27,13 @@ RumScopeDependencies::RumScopeDependencies(
 
 void RumScopeDependencies::OnStart(FeatureScope& in_scope) {
   DATADOG_ASSERT(!scope, "RUM deps has valid scope pointer on SDK start");
+  diagnostic_logger = in_scope.diagnostic_logger;
   scope = &in_scope;
 }
 
 void RumScopeDependencies::OnStop() {
   DATADOG_ASSERT(scope, "RUM deps has no valid scope pointer on SDK start");
+  diagnostic_logger = DiagnosticLogger{};
   scope = nullptr;
 }
 

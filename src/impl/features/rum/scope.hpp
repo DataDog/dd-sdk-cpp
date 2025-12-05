@@ -18,6 +18,7 @@
 
 #include "attribute/typed_attribute.hpp"
 #include "core/feature_scope.hpp"
+#include "diagnostics.hpp"
 #include "features/rum/command.hpp"
 #include "platform/clock.hpp"
 
@@ -33,7 +34,7 @@ namespace datadog::impl {
 struct RumScopeDependencies {
   // Configuration details
   UUID application_id;
-
+  DiagnosticLogger diagnostic_logger;
   const platform::IClock& clock;
 
   // Reference to the Feature's interface to the core, used for accessing context,
@@ -137,6 +138,27 @@ struct ScopeArray {
    * will be removed from this list.
    */
   std::vector<T> items;
+
+  ScopeArray() {
+    // TODO(RUM-12946): Preallocating space for up to 8 items masks a potential
+    // use-after-free bug: this is a band-aid.
+    //
+    // To reproduce: remove the reserve() call below, then run any test that calls
+    // StartView(), StartAction(), and then StartView(). ASan will catch the bug during
+    // `RumActionScope::SendActionEvent`, at the point where the action scope is
+    // attempting to cal functions on its parent view scope using an address where that
+    // RumViewScope no longer resides.
+    //
+    // The problem boils down to this:
+    // - RumSessionScope holds a ScopeArray<RumViewScope>, which holds view scopes
+    //   by value in a std::vector
+    // - RumActionScope is initialized with a reference to its parent RumViewScope
+    // - This isn't actually safe: when we add a new view scope, the vector may be
+    //   resized, causing existing RumViewScope values to be moved, and invalidating
+    //   the reference stored by RumActionScope
+    //
+    items.reserve(8);
+  }
 
   /**
    * Creates a new scope and adds it to the end of the array.

@@ -7,6 +7,7 @@
 #include "features/rum/scopes/view.hpp"
 
 #include "core/feature_scope.hpp"
+#include "core/feature_types/rum.hpp"
 #include "datadog/timestamp.hpp"
 #include "features/rum/context.hpp"
 #include "features/rum/scopes/session.hpp"
@@ -45,7 +46,19 @@ void RumViewScope::PopulateContext(struct RumContext& out_context) const {
 }
 
 RumScopeResult RumViewScope::Process(const RumCommand& command) {
-  // TODO(RUM-11369): Propagate to child action scopes
+  // If we have a child action scope, allow it to process this command, and clear it if
+  // the scope is closed as a result
+  bool has_incremented_action_count = false;
+  if (_active_action_scope) {
+    const RumScopeResult action_result = _active_action_scope->Process(command);
+    if (action_result == RumScopeResult::Close) {
+      if (_active_action_scope->HasSentActionEvent()) {
+        _num_actions_completed++;
+        has_incremented_action_count = true;
+      }
+      _active_action_scope.reset();
+    }
+  }
 
   // Process the command, updating our internal state as needed
   ViewEventType event_type = HandleCommand(command);
@@ -56,6 +69,12 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
   // If this is the very first view in the application and we've not yet sent a view
   // event describing it, override the HandleCommand result and send a full event ASAP
   if (_is_initial_view && _num_view_events_sent == 0) {
+    event_type = ViewEventType::Full;
+  }
+
+  // Similarly, if we just closed an action scope that reported an event, trigger
+  // another view update so we can report our up-to-date action count
+  if (has_incremented_action_count) {
     event_type = ViewEventType::Full;
   }
 
@@ -99,22 +118,34 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
     return HandleStopView(command.base, command.As<RumStopViewPayload>());
   }
 
-  // On `AddViewAttribute`, TODO
+  // On `AddViewAttribute`, the given attribute value should be added or updated on the
+  // active view
   if (command.Is<RumAddViewAttributePayload>()) {
     return HandleAddViewAttribute(
         command.base, command.As<RumAddViewAttributePayload>()
     );
   }
 
-  // On `RemoveViewAttribute`, TODO
+  // On `RemoveViewAttribute`, any attribute value matching the given name should be
+  // removed from the active view
   if (command.Is<RumRemoveViewAttributePayload>()) {
     return HandleRemoveViewAttribute(
         command.base, command.As<RumRemoveViewAttributePayload>()
     );
   }
 
-  // TODO(RUM-11369): Handle StartAction and AddAction (while _is_active) by opening a
-  // child action scope and adding it to our _action_scopes array
+  // On `AddAction`, we should immediately process the action if its type is `custom`,
+  // or for any other action type we should either a.) open a new action scope with
+  // is_continuous false, or b.) drop the action if we already have an active action
+  if (command.Is<RumAddActionPayload>()) {
+    return HandleAddAction(command.base, command.As<RumAddActionPayload>());
+  }
+
+  // On `StartAction`, we should either a.) open a new action scope with is_continuous
+  // true, or b.) drop the action if we already have an active action
+  if (command.Is<RumStartActionPayload>()) {
+    return HandleStartAction(command.base, command.As<RumStartActionPayload>());
+  }
 
   // TODO(RUM-12202): Handle StartResource (while _is_active) by opening a child
   // resource scope and inserting it into our _resource_scopes lookup by key
@@ -235,6 +266,49 @@ RumViewScope::ViewEventType RumViewScope::HandleRemoveViewAttribute(
   return ViewEventType::None;
 }
 
+RumViewScope::ViewEventType RumViewScope::HandleAddAction(
+    const RumCommandParams& base, const RumAddActionPayload& payload
+) {
+  // If already inactive, we can ignore AddAction
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // A discrete custom action should always be recorded immediately
+  if (payload.type == RumActionType::Custom) {
+    ProcessDiscreteCustomAction(base, payload.name);
+    return ViewEventType::Full;
+  }
+
+  // If we still have an active action
+  if (_active_action_scope) {
+    LogDroppedAction(payload.type, payload.name);
+    return ViewEventType::None;
+  }
+
+  const bool is_continuous = false;
+  OpenActionScope(base, payload.type, payload.name, is_continuous);
+  return ViewEventType::None;
+}
+
+RumViewScope::ViewEventType RumViewScope::HandleStartAction(
+    const RumCommandParams& base, const RumStartActionPayload& payload
+) {
+  // If already inactive, we can ignore StartAction
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  if (_active_action_scope) {
+    LogDroppedAction(payload.type, payload.name);
+    return ViewEventType::None;
+  }
+
+  const bool is_continuous = true;
+  OpenActionScope(base, payload.type, payload.name, is_continuous);
+  return ViewEventType::None;
+}
+
 void RumViewScope::BecomeInactive(
     const RumCommandParams& base, bool accept_command_attributes
 ) {
@@ -261,6 +335,76 @@ void RumViewScope::BecomeInactive(
   );
 }
 
+void RumViewScope::ProcessDiscreteCustomAction(
+    const RumCommandParams& base, std::string_view name
+) {
+  const RumScopeDependencies& deps = _deps;
+  const UUID action_id = UUID::Random();
+  RumActionScope scope(
+      deps,
+      *this,
+      action_id,
+      RumActionType::Custom,
+      name,
+      base.issued_at,
+      std::chrono::milliseconds(100),
+      base.attributes
+  );
+
+  RumCommandParams base_copy = base;
+  const RumScopeResult result =
+      scope.Process(RumCommand::StopAction(std::move(base_copy), name));
+
+  DATADOG_ASSERT(
+      result == RumScopeResult::Close,
+      "Scope for discrete user action did not close in response to StopAction"
+  );
+  DATADOG_ASSERT(
+      scope.HasSentActionEvent(),
+      "Scope for discrete user action did not sent event in response to StopAction"
+  );
+
+  _num_actions_completed++;
+}
+
+void RumViewScope::OpenActionScope(
+    const RumCommandParams& base,
+    RumActionType type,
+    std::string_view name,
+    bool is_continuous
+) {
+  DATADOG_ASSERT(
+      _active_action_scope == std::nullopt,
+      "OpenActionScope called with existing _active_action_scope"
+  );
+
+  const RumScopeDependencies& deps = _deps;
+  const UUID action_id = UUID::Random();
+  const Duration timeout_duration =
+      is_continuous ? std::chrono::seconds(10) : std::chrono::milliseconds(100);
+  _active_action_scope.emplace(
+      deps,
+      *this,
+      action_id,
+      type,
+      name,
+      base.issued_at,
+      timeout_duration,
+      base.attributes
+  );
+}
+
+void RumViewScope::LogDroppedAction(RumActionType type, std::string_view name) const {
+  const RumScopeDependencies& deps = _deps;
+  const size_t i = static_cast<size_t>(type);
+  std::string_view type_str =
+      i < std::size(RumActionTypeValues) ? RumActionTypeValues[i].name : "";  // NOLINT
+  deps.diagnostic_logger.Warning(
+      "RUM action dropped: a view may only have one active action at any given time",
+      {{"action_type", type_str}, {"action_name", name}}
+  );
+}
+
 void RumViewScope::SendViewEvent(const RumCommand& command) {
   // Resolve references needed to populate required event data
   const RumScopeDependencies& deps = _deps;
@@ -276,7 +420,7 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
   const uint64_t time_spent_ns = time_spent.count();
 
   // Get sums of child scope occurrences within the lifetime of this view
-  const uint64_t action_count = 0;    // TODO(RUM-11369)
+  const uint64_t action_count = _num_actions_completed;
   const uint64_t error_count = 0;     // TODO(RUM-12201)
   const uint64_t resource_count = 0;  // TODO(RUM-12202)
 
@@ -319,6 +463,10 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
   // Serialize the event to JSON in a shared buffer, then copy that raw event payload
   // onto the storage thread
   deps.ProduceEvent(ev);
+}
+
+ScopeRef<const RumActionScope> RumViewScope::GetActiveAction() const {
+  return _active_action_scope;
 }
 
 }  // namespace datadog::impl
