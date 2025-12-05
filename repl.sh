@@ -84,9 +84,9 @@ tmux send-keys -t "$TMUX_SESSION_NAME:.$MAIN_PANE" " $REPL_ARGS < $PIPE" Enter
 INPUT_PANE=$(tmux split-window -t "$TMUX_SESSION_NAME:.$MAIN_PANE" -v -P -F '#{pane_id}')
 tmux resize-pane -t "$TMUX_SESSION_NAME:.$INPUT_PANE" -y 5
 if command -v rlwrap &> /dev/null; then
-    tmux send-keys -t "$TMUX_SESSION_NAME:.$PROXY_PANE" "rlwrap -a ./repl-input.sh $PIPE" Enter
+    tmux send-keys -t "$TMUX_SESSION_NAME:.$PROXY_PANE" "rlwrap -a examples/repl/repl-input.sh $PIPE" Enter
 else
-    tmux send-keys -t "$TMUX_SESSION_NAME:.$PROXY_PANE" "./repl-input.sh $PIPE" Enter
+    tmux send-keys -t "$TMUX_SESSION_NAME:.$PROXY_PANE" "examples/repl/repl-input.sh $PIPE" Enter
 fi
 
 # If using --proxy, split the top pane horizontally to create a right pane for mitmdump
