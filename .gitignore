@@ -4,3 +4,4 @@ llvm-bin/
 Testing/
 *.profraw
 .DS_Store
+.repl-env
