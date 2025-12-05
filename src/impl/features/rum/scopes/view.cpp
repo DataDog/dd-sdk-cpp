@@ -236,15 +236,10 @@ RumViewScope::ViewEventType RumViewScope::HandleAddViewAttribute(
     return ViewEventType::None;
   }
 
-  // If the command targets a different view key, we can ignore it
-  if (payload.view_key != _key) {
-    return ViewEventType::None;
-  }
-
   // Mutate view-level attributes: there's no need to pre-merge into
   // _global_and_view_attributes here, since while the view is active we will perform
   // that merge immediately before generating events
-  _view_attributes.attribute.SetObjectProperty(payload.attribute_name, payload.value);
+  _view_attributes.attribute.SetObjectProperty(payload.name, payload.value);
   return ViewEventType::None;
 }
 
@@ -256,13 +251,8 @@ RumViewScope::ViewEventType RumViewScope::HandleRemoveViewAttribute(
     return ViewEventType::None;
   }
 
-  // If the command targets a different view key, we can ignore it
-  if (payload.view_key != _key) {
-    return ViewEventType::None;
-  }
-
   // Mutate view-level attributes: as with HandleAddViewAttribute, no need to merge
-  _view_attributes.attribute.DeleteObjectProperty(payload.attribute_name);
+  _view_attributes.attribute.DeleteObjectProperty(payload.name);
   return ViewEventType::None;
 }
 

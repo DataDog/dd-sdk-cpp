@@ -220,6 +220,9 @@ struct CoreConfig {
    *
    * The default handler is StderrDiagnosticHandler, which prints to stderr. If this
    * value is set to nullptr, all diagnostic messages will be silently dropped.
+   *
+   * The SDK may call the provided handler function from any thread, without
+   * synchronization.
    */
   DATADOG_API CoreConfig& SetDiagnosticHandler(DiagnosticHandler value);
 

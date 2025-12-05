@@ -123,39 +123,32 @@ struct RumStartViewPayload {
 
 /**
  * On AddViewAttribute, the application has called the AddViewAttribute API function,
- * inserting or updating a custom view-level attribute.
+ * inserting or updating a custom view-level attribute on the current view.
  */
 struct RumAddViewAttributePayload {
   static constexpr const char* COMMAND_NAME = "AddViewAttribute";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
 
-  std::string_view view_key;
-  std::string_view attribute_name;
+  std::string_view name;
   Attribute value;
 
   explicit RumAddViewAttributePayload(
-      std::string_view in_view_key,
-      std::string_view in_attribute_name,
-      const Attribute& in_value
+      std::string_view in_name, const Attribute& in_value
   )
-      : view_key(in_view_key), attribute_name(in_attribute_name), value(in_value) {}
+      : name(in_name), value(in_value) {}
 };
 
 /**
  * On RemoveViewAttribute, the application has called the RemoveViewAttribute API
- * function, removing a custom view-level attribute.
+ * function, removing a custom view-level attribute from the current view.
  */
 struct RumRemoveViewAttributePayload {
   static constexpr const char* COMMAND_NAME = "RemoveViewAttribute";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
 
-  std::string_view view_key;
-  std::string_view attribute_name;
+  std::string_view name;
 
-  explicit RumRemoveViewAttributePayload(
-      std::string_view in_view_key, std::string_view in_attribute_name
-  )
-      : view_key(in_view_key), attribute_name(in_attribute_name) {}
+  explicit RumRemoveViewAttributePayload(std::string_view in_name) : name(in_name) {}
 };
 
 /**
@@ -285,25 +278,16 @@ struct RumCommand {
 
   /** Creates a new 'AddViewAttribute' command. */
   static RumCommand AddViewAttribute(
-      RumCommandParams&& base,
-      std::string_view view_key,
-      std::string_view attribute_name,
-      const Attribute& value
+      RumCommandParams&& base, std::string_view name, const Attribute& value
   ) {
-    return RumCommand(
-        std::move(base), RumAddViewAttributePayload(view_key, attribute_name, value)
-    );
+    return RumCommand(std::move(base), RumAddViewAttributePayload(name, value));
   }
 
   /** Creates a new 'RemoveViewAttribute' command. */
   static RumCommand RemoveViewAttribute(
-      RumCommandParams&& base,
-      std::string_view view_key,
-      std::string_view attribute_name
+      RumCommandParams&& base, std::string_view name
   ) {
-    return RumCommand(
-        std::move(base), RumRemoveViewAttributePayload(view_key, attribute_name)
-    );
+    return RumCommand(std::move(base), RumRemoveViewAttributePayload(name));
   }
 
   /** Creates a new 'StartResource' command. */

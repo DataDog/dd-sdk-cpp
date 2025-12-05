@@ -99,23 +99,13 @@ void Rum::StartView(
   Dispatch(RumCommand::StartView(GetBaseCommandParams(attributes), key, name));
 }
 
-void Rum::AddViewAttribute(
-    std::string_view view_key, std::string_view attribute_name, const Attribute& value
-) {
+void Rum::AddViewAttribute(std::string_view name, const Attribute& value) {
   // TODO(RUM-11363): Log a warning if there's no active view to receive the command?
-  Dispatch(
-      RumCommand::AddViewAttribute(
-          GetBaseCommandParams(), view_key, attribute_name, value
-      )
-  );
+  Dispatch(RumCommand::AddViewAttribute(GetBaseCommandParams(), name, value));
 }
 
-void Rum::RemoveViewAttribute(
-    std::string_view view_key, std::string_view attribute_name
-) {
-  Dispatch(
-      RumCommand::RemoveViewAttribute(GetBaseCommandParams(), view_key, attribute_name)
-  );
+void Rum::RemoveViewAttribute(std::string_view name) {
+  Dispatch(RumCommand::RemoveViewAttribute(GetBaseCommandParams(), name));
 }
 
 void Rum::StopView(std::string_view key, const Attribute& attributes) {

@@ -62,18 +62,16 @@ class Rum final : public Feature {
   );
 
   /**
-   * Handles an AddViewAttribute API call, mutating the set of attributes stored for any
-   * active view scope that matches view_key.
+   * Handles an AddViewAttribute API call, mutating the set of attributes stored for the
+   * active view scope.
    */
-  void AddViewAttribute(
-      std::string_view view_key, std::string_view attribute_name, const Attribute& value
-  );
+  void AddViewAttribute(std::string_view name, const Attribute& value);
 
   /**
    * Handles a RemoveViewAttribute API call, mutating the set of attributes stored for
-   * any active view scope that matches view_key.
+   * the active view scope.
    */
-  void RemoveViewAttribute(std::string_view view_key, std::string_view attribute_name);
+  void RemoveViewAttribute(std::string_view name);
 
   /** Handles a StopView API call, ending the view that corresponds to the given key. */
   void StopView(std::string_view key, const Attribute& attributes = Attribute());

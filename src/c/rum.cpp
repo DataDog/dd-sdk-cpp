@@ -206,27 +206,15 @@ void dd_rum_start_view_obj(
 }
 
 void dd_rum_add_view_attribute(
-    dd_rum_t* rum,
-    const char* view_key,
-    const char* attribute_name,
-    const dd_attribute_t* value
+    dd_rum_t* rum, const char* name, const dd_attribute_t* value
 ) {
   // If the underlying feature is NULL, this call is a no-op
   if (!rum || !rum->impl) {
     return;
   }
 
-  // Require a valid, non-empty view key
-  if (!view_key || !view_key[0]) {
-    rum->diagnostic_logger.Warning(
-        "dd_rum_add_view_attribute call ignored: application must supply a non-empty "
-        "view key"
-    );
-    return;
-  }
-
   // Require a valid string, but allow "" as an attribute name
-  if (!attribute_name) {
+  if (!name) {
     rum->diagnostic_logger.Warning(
         "dd_rum_add_view_attribute call ignored: application must supply an attribute "
         "name"
@@ -244,28 +232,17 @@ void dd_rum_add_view_attribute(
   }
 
   datadog::Attribute cpp_value = datadog::impl::AttributeConversion::CopyFromC(*value);
-  rum->impl->AddViewAttribute(view_key, attribute_name, cpp_value);
+  rum->impl->AddViewAttribute(name, cpp_value);
 }
 
-void dd_rum_remove_view_attribute(
-    dd_rum_t* rum, const char* view_key, const char* attribute_name
-) {
+void dd_rum_remove_view_attribute(dd_rum_t* rum, const char* name) {
   // If the underlying feature is NULL, this call is a no-op
   if (!rum || !rum->impl) {
     return;
   }
 
-  // Require a valid, non-empty view key
-  if (!view_key || !view_key[0]) {
-    rum->diagnostic_logger.Warning(
-        "dd_rum_remove_view_attribute call ignored: application must supply a "
-        "non-empty view key"
-    );
-    return;
-  }
-
   // Require a valid string, but allow "" as an attribute name
-  if (!attribute_name) {
+  if (!name) {
     rum->diagnostic_logger.Warning(
         "dd_rum_remove_view_attribute call ignored: application must supply an "
         "attribute name"
@@ -273,7 +250,7 @@ void dd_rum_remove_view_attribute(
     return;
   }
 
-  rum->impl->RemoveViewAttribute(view_key, attribute_name);
+  rum->impl->RemoveViewAttribute(name);
 }
 
 void dd_rum_stop_view(dd_rum_t* rum, const char* key) {

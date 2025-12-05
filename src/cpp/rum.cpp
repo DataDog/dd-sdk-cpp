@@ -135,41 +135,19 @@ void Rum::StartView(
   }
 }
 
-void Rum::AddViewAttribute(
-    std::string_view view_key, std::string_view attribute_name, const Attribute& value
-) {
-  // Require a valid view key
-  if (view_key.empty()) {
-    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
-        "Rum::AddViewAttribute call ignored: application must supply a non-empty view "
-        "key"
-    );
-    return;
-  }
-
+void Rum::AddViewAttribute(std::string_view name, const Attribute& value) {
   // We allow any string (including "") as an attribute name, so no need to validate
 
   if (_impl) {
-    _impl->AddViewAttribute(view_key, attribute_name, value);
+    _impl->AddViewAttribute(name, value);
   }
 }
 
-void Rum::RemoveViewAttribute(
-    std::string_view view_key, std::string_view attribute_name
-) {
-  // Require a valid view key
-  if (view_key.empty()) {
-    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
-        "Rum::RemoveViewAttribute call ignored: application must supply a non-empty "
-        "view key"
-    );
-    return;
-  }
-
+void Rum::RemoveViewAttribute(std::string_view name) {
   // We allow any string (including "") as an attribute name, so no need to validate
 
   if (_impl) {
-    _impl->RemoveViewAttribute(view_key, attribute_name);
+    _impl->RemoveViewAttribute(name);
   }
 }
 
