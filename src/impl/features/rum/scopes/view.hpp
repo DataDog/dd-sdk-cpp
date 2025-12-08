@@ -182,6 +182,9 @@ class RumViewScope {
   ViewEventType HandleStartResource(
       const RumCommandParams& base, const RumStartResourcePayload& payload
   );
+  ViewEventType HandleAddError(
+      const RumCommandParams& base, const RumAddErrorPayload& payload
+  );
 
   /**
    * Renders the view inactive, updating all necessary state to finalize the scope. This
@@ -212,6 +215,11 @@ class RumViewScope {
    * Generates and sends a RUM view event in response to the given command.
    */
   void SendViewEvent(const RumCommand& command);
+
+  /**
+   * Generates and sends a RUM error event in response to the given command.
+   */
+  void SendErrorEvent(const RumCommandParams& base, const RumAddErrorPayload& payload);
 
  private:
   std::reference_wrapper<const RumScopeDependencies> _deps;

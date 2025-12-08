@@ -333,7 +333,30 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
     REQUIRE(event["action"]["loading_time"] == 53000000);
   }
 
-  // TODO(RUM-12201): M increment error count W explicit error is reported
+  SECTION("M increment error count W explicit error is reported") {
+    // Given an active RumActionScope
+
+    // When we process AddError
+    auto result = scope.Process(
+        RumCommand::AddError(
+            GetBaseParams(),
+            RumErrorSource::Source,
+            RumErrorDetails{"oops", "Error", "stacktrace"}
+        )
+    );
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // And we then process StopAction to explicitly end the action 10ms later
+    clock.TickMilliseconds(10);
+    result = scope.Process(RumCommand::StopAction(GetBaseParams(), ""));
+    REQUIRE(result == RumScopeResult::Close);
+    REQUIRE(events.size() == 1);
+
+    // Then we get an action event that has an error count of 1
+    const auto& event = events.front().obj;
+    REQUIRE(event["action"]["error"]["count"] == 1);
+    REQUIRE(event["action"]["loading_time"] == 10000000);
+  }
 }
 
 TEST_CASE("RumActionScope::PopulateContext", "[unit][rum]") {

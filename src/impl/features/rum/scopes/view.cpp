@@ -166,10 +166,16 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
     return HandleStartAction(command.base, command.As<RumStartActionPayload>());
   }
 
-  // `StartResource`, we should open a new resources scope and keep it open in the
+  // On `StartResource`, we should open a new resources scope and keep it open in the
   // context of this view until it's closed in response to `StopResource`
   if (command.Is<RumStartResourcePayload>()) {
     return HandleStartResource(command.base, command.As<RumStartResourcePayload>());
+  }
+
+  // On `AddError`, we should immediately send an error event in the context of this
+  // view, updating our view state accordingly
+  if (command.Is<RumAddErrorPayload>()) {
+    return HandleAddError(command.base, command.As<RumAddErrorPayload>());
   }
 
   return ViewEventType::None;
@@ -342,6 +348,21 @@ RumViewScope::ViewEventType RumViewScope::HandleStartResource(
 
   // Our resource remains open; there's no need to send another view event yet
   return ViewEventType::None;
+}
+
+RumViewScope::ViewEventType RumViewScope::HandleAddError(
+    const RumCommandParams& base, const RumAddErrorPayload& payload
+) {
+  // If the view is no longer active, it should report no errors
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // Immediately generate a RUM 'error' event describing the error
+  SendErrorEvent(base, payload);
+
+  // Our error count has been incremented we must update the state of the view
+  return ViewEventType::Full;
 }
 
 void RumViewScope::BecomeInactive(
@@ -517,6 +538,61 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
   // Serialize the event to JSON in a shared buffer, then copy that raw event payload
   // onto the storage thread
   deps.ProduceEvent(ev);
+}
+
+void RumViewScope::SendErrorEvent(
+    const RumCommandParams& base, const RumAddErrorPayload& payload
+) {
+  DATADOG_ASSERT(_is_active, "SendErrorEvent called while view scope is inactive");
+
+  // Resolve references needed to populate required event data
+  const RumScopeDependencies& deps = _deps;
+  const RumSessionScope& session = _parent;
+
+  // The 'date' timestamp on a RUM 'error' event indicates the time at which the error
+  // occurred
+  const Timestamp event_timestamp = base.issued_at;
+
+  // Construct an event value on the stack with the minimal set of required properties
+  RumErrorEvent ev(
+      event_timestamp,
+      deps.application_id,
+      session.GetSessionID(),
+      RumSessionType::User,
+      _view_id,
+      _key,
+      payload.error.message,
+      payload.source
+  );
+
+  // Set essential view properties
+  if (!_name.empty()) {
+    ev.view.name.value = _name;
+  }
+
+  // Correlate this event with the active action, if we have one
+  if (_active_action_scope) {
+    ev.action.value.emplace(_active_action_scope->GetActionID());
+  }
+
+  // Set essential error details
+  ev.error.type = payload.error.type;
+  ev.error.stack = payload.error.stack_trace;
+  ev.error.category = RumErrorCategory::Exception;
+
+  // Set 'context' to the full set of user-specified attributes that should be included
+  // in this event, merging: global <- view <- error
+  Attribute merged_error_attributes = Attribute::Object();
+  AttributeMerge::AssembleObject(
+      merged_error_attributes,
+      {base.global_attributes, _view_attributes.attribute, base.attributes}
+  );
+  if (merged_error_attributes.GetObjectPropertyCount() > 0) {
+    ev.context.value = merged_error_attributes;
+  }
+
+  deps.ProduceEvent(ev);
+  _num_errors_reported++;
 }
 
 ScopeRef<const RumActionScope> RumViewScope::GetActiveAction() const {

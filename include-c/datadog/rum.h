@@ -397,6 +397,45 @@ DATADOG_API void dd_rum_stop_resource_with_error(
     dd_attribute_t* attributes
 );
 
+// === RUM errors ===
+
+/**
+ * Describes a component of the application from which a RUM error originates.
+ */
+typedef enum {
+  DD_RUM_ERROR_SOURCE_NETWORK,
+  DD_RUM_ERROR_SOURCE_SOURCE,
+  DD_RUM_ERROR_SOURCE_CONSOLE,
+  DD_RUM_ERROR_SOURCE_LOGGER,
+  DD_RUM_ERROR_SOURCE_AGENT,
+  DD_RUM_ERROR_SOURCE_WEBVIEW,
+  DD_RUM_ERROR_SOURCE_CUSTOM,
+  DD_RUM_ERROR_SOURCE_REPORT
+} dd_rum_error_source_t;
+
+/**
+ * Records that the application has encountered an error in the context of the current
+ * view.
+ *
+ * @param source - The source of the error. If in doubt: 'source' covers errors due to
+ *  bugs in the application's source; 'network' covers network issues; and 'custom' is
+ *  resonable catch-all.
+ * @param message - A string describing the error. Should be a valid, non-empty string.
+ * @param type - A name describing the error's type. May be omitted.
+ * @param stack_trace - The full text of a stack trace describing the context for the
+ *  error. May be omitted.
+ * @param attributes - An optional set of custom attributes describing the error,
+ *  provided as a dd_attribute_t value with DD_VALUE_TYPE_OBJECT.
+ */
+DATADOG_API void dd_rum_add_error(
+    dd_rum_t* rum,
+    dd_rum_error_source_t source,
+    const char* message,
+    const char* type,
+    const char* stack_trace,
+    dd_attribute_t* attributes
+);
+
 #ifdef __cplusplus
 }
 #endif

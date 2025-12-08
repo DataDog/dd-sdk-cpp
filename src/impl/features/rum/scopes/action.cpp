@@ -104,7 +104,10 @@ RumScopeResult RumActionScope::Process(const RumCommand& command) {
     _num_active_resources++;
   }
 
-  // TODO(RUM-12201): On AddError, increment _num_errors_recorded
+  // On AddError: increment the count of errors recorded while this view was active
+  if (command.Is<RumAddErrorPayload>()) {
+    _num_errors_recorded++;
+  }
 
   // The action remains active
   return RumScopeResult::RemainOpen;

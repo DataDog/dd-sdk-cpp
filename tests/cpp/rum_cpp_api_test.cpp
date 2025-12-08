@@ -51,7 +51,7 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
       rum->StartAction(RumActionType::Click, "Button");
       rum->StopAction(RumActionType::Click, "Button");
 
-      // TODO(RUM-12201): Exercise RUM Error API
+      rum->AddError(RumErrorSource::Source, "Oh no", "BadError");
 
       rum->StartResource(
           "foo", RumResourceMethod::Get, "http://localhost:8080", attributes
@@ -125,7 +125,7 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->StopResourceWithError("res2", "Invalid", "BadError", "", false, 0);
     rum->StartAction(RumActionType::Scroll, "scroll1");
     rum->StopAction(RumActionType::Scroll, "scroll1");
-    // TODO(RUM-12201): Exercise RUM Error API
+    rum->AddError(RumErrorSource::Console, "Internal error", "66");
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -352,7 +352,18 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
         "should supply a non-empty error message"},
        {}},
 
-      // TODO(RUM-12201): === AddError() ===
+      // === AddError() ===
+
+      {"M print warning W AddError is called with empty error message",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->AddError(RumErrorSource::Source, "", "Error");
+         });
+       },
+       {"Rum::AddError recording an error with no message: application should supply a "
+        "non-empty error message"},
+       {}},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
@@ -1934,7 +1945,115 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
           })"));
        }},
 
-      // TODO(RUM-12201): Validate that AddError results in the expected events
+      // === AddError() ===
+
+      {"M send error event W AddError is called",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and then record an error at T+5ms
+         rum->StartView("my-view", "My View");
+         clock.TickMilliseconds(5);
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace"
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then we get an error event that contains our error details
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "error",
+            "date": 1700000000005,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "error": {
+              "message": "Something went wrong",
+              "type": "AssertionError",
+              "stack": "stack\ntrace",
+              "source": "source",
+              "category": "Exception"
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+
+         // And we also get a view event with an incremented error count
+         auto views = filter_events("view", events);
+         REQUIRE(views.size() == 2);
+         REQUIRE(views[0]["view"]["id"] == errors[0]["view"]["id"]);
+         REQUIRE(views[0]["date"] == 1700000000000);
+         REQUIRE(views[0]["view"]["time_spent"] == 0);
+         REQUIRE(views[0]["view"]["is_active"] == true);
+         REQUIRE(views[0]["view"]["error"]["count"] == 0);
+         REQUIRE(views[1]["view"]["id"] == errors[0]["view"]["id"]);
+         REQUIRE(views[1]["date"] == 1700000000000);
+         REQUIRE(views[1]["view"]["time_spent"] == 5000000);
+         REQUIRE(views[1]["view"]["is_active"] == true);
+         REQUIRE(views[1]["view"]["error"]["count"] == 1);
+       }},
+
+      {"M send error event with action.id W AddError is called with active action",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and a RUM action, and then record an error at
+         // T+5ms
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+         clock.TickMilliseconds(5);
+         rum->AddError(RumErrorSource::Console, "This is an error", "SomeErrorType");
+       },
+       [](const nlohmann::json& events) {
+         // Then we get an error event that contains our error details, along with the
+         // context for the active action
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "error",
+            "date": 1700000000005,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "action": {
+              "id": "${__NONZERO_UUID__}"
+            },
+            "error": {
+              "message": "This is an error",
+              "type": "SomeErrorType",
+              "source": "console",
+              "category": "Exception"
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+       }},
 
       // === Action lifetime vis-a-vis resources ===
 
@@ -2512,6 +2631,79 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
                                             {"bravo", 2},
                                             {"dog", "good"},
                                         }
+         );
+       }},
+
+      // === Error attributes ===
+
+      {"M include custom attributes as context W provided on AddError",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add an error with {"alpha":1,"bravo":2}
+         rum->StartView("my-view", "My View");
+         Attribute add_error_obj = Attribute::Object(2);
+         add_error_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         add_error_obj.SetObjectProperty("bravo", Attribute::Int(2));
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             add_error_obj
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has {"alpha":1,"bravo":2}
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["context"] == nlohmann::json{{"alpha", 1}, {"bravo", 2}});
+       }},
+
+      {"M merge global <- view <- error attributes",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // Given global RUM attributes {"able":100,"baker":200}
+         rum->AddAttribute("able", Attribute::Int(100));
+         rum->AddAttribute("baker", Attribute::Int(200));
+
+         // And a view with attributes {"baker":222,"charlie":333,"dog":444}
+         Attribute start_view_obj = Attribute::Object(3);
+         start_view_obj.SetObjectProperty("baker", Attribute::Int(222));
+         start_view_obj.SetObjectProperty("charlie", Attribute::Int(333));
+         start_view_obj.SetObjectProperty("dog", Attribute::Int(444));
+         rum->StartView("my-view", "My View", start_view_obj);
+
+         // When we add an error with {"alpha":1,"bravo":2,"dog":"good"}
+         Attribute add_error_obj = Attribute::Object(3);
+         add_error_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         add_error_obj.SetObjectProperty("bravo", Attribute::Int(2));
+         add_error_obj.SetObjectProperty("dog", Attribute::String("good"));
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             add_error_obj
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has
+         // {"able":100,"baker":222,"charlie":333,"alpha":1,"bravo":2,"dog":"good"}
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(
+             errors[0]["context"] == nlohmann::json{
+                                         {"able", 100},
+                                         {"baker", 222},
+                                         {"charlie", 333},
+                                         {"alpha", 1},
+                                         {"bravo", 2},
+                                         {"dog", "good"},
+                                     }
          );
        }},
   };

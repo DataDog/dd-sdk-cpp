@@ -100,6 +100,34 @@ std::optional<datadog::RumResourceType> ParseRumResourceType(std::string_view s)
   return std::nullopt;
 }
 
+std::optional<datadog::RumErrorSource> ParseRumErrorSource(std::string_view s) {
+  if (s == "network") {
+    return datadog::RumErrorSource::Network;
+  }
+  if (s == "source") {
+    return datadog::RumErrorSource::Source;
+  }
+  if (s == "console") {
+    return datadog::RumErrorSource::Console;
+  }
+  if (s == "logger") {
+    return datadog::RumErrorSource::Logger;
+  }
+  if (s == "agent") {
+    return datadog::RumErrorSource::Agent;
+  }
+  if (s == "webview") {
+    return datadog::RumErrorSource::Webview;
+  }
+  if (s == "custom") {
+    return datadog::RumErrorSource::Custom;
+  }
+  if (s == "report") {
+    return datadog::RumErrorSource::Report;
+  }
+  return std::nullopt;
+}
+
 }  // namespace
 
 CommandResult HandleRegisterRum(State& state, const CommandInput&) {
@@ -384,4 +412,39 @@ CommandResult HandleStopResourceWithError(State& state, const CommandInput& args
       key, error_message, error_type, error_stack_trace, is_network_error, status_code
   );
   return CommandResult::OK("Rum::StopResourceWithError()");
+}
+
+CommandResult HandleAddError(State& state, const CommandInput& args) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  // Positional args
+  auto pos = args.Positional();
+  auto message = Unquote(pos[0]);
+  if (message.empty()) {
+    return CommandResult::Error("No error message given!");
+  }
+
+  // Named args
+  auto named = args.Named();
+  std::string_view type = Unquote(named.Get("type"));
+  std::string_view stack_trace = Unquote(named.Get("stack"));
+
+  datadog::RumErrorSource source{datadog::RumErrorSource::Source};
+  auto source_str = Unquote(named.Get("source"));
+  if (!source_str.empty()) {
+    if (auto source_opt = ParseRumErrorSource(source_str)) {
+      source = *source_opt;
+    } else {
+      return CommandResult::Error("Invalid error source!");
+    }
+  }
+
+  state.rum->AddError(source, message, type, stack_trace);
+  return CommandResult::OK("Rum::AddError()");
 }

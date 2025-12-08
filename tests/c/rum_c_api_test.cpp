@@ -47,7 +47,9 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
     dd_rum_start_action(nullptr, DD_RUM_ACTION_TYPE_CLICK, "Button", &obj);
     dd_rum_stop_action(nullptr, DD_RUM_ACTION_TYPE_CLICK, "Button", &obj);
 
-    // TODO(RUM-12201): Exercise RUM Error API
+    dd_rum_add_error(
+        nullptr, DD_RUM_ERROR_SOURCE_SOURCE, "Oh no", "BadError", NULL, NULL
+    );
 
     dd_rum_start_resource(
         nullptr, "foo", DD_RUM_RESOURCE_METHOD_GET, "http://localhost:8080", &obj
@@ -190,8 +192,10 @@ TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
     );
     dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
     dd_rum_stop_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
+    dd_rum_add_error(
+        rum, DD_RUM_ERROR_SOURCE_CUSTOM, "Internal error", "66", NULL, NULL
+    );
     dd_attribute_free(&int_100);
-    // TODO(RUM-12201): Exercise RUM Error API
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -622,7 +626,29 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
         "application should supply a non-empty error message"},
        {}},
 
-      // TODO(RUM-12201): === dd_rum_add_error() ===
+      // === dd_rum_add_error() ===
+
+      {"M print warning W dd_rum_add_error is called with NULL error message",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_add_error(rum, DD_RUM_ERROR_SOURCE_SOURCE, NULL, "Error", "", NULL);
+         });
+       },
+       {"dd_rum_add_error recording an error with no message: application should "
+        "supply a non-empty error message"},
+       {}},
+
+      {"M print warning W dd_rum_add_error is called with empty error message",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_add_error(rum, DD_RUM_ERROR_SOURCE_SOURCE, "", "Error", "", NULL);
+         });
+       },
+       {"dd_rum_add_error recording an error with no message: application should "
+        "supply a non-empty error message"},
+       {}},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
@@ -2360,7 +2386,124 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
           })"));
        }},
 
-      // TODO(RUM-12201): Validate that dd_rum_add_error results in the expected events
+      // === dd_rum_add_error() ===
+
+      {"M send error event W AddError is called",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and then record an error at T+5ms
+         dd_rum_start_view(rum, "my-view", "My View");
+         clock.TickMilliseconds(5);
+         dd_rum_add_error(
+             rum,
+             DD_RUM_ERROR_SOURCE_SOURCE,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             NULL
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then we get an error event that contains our error details
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "error",
+            "date": 1700000000005,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "error": {
+              "message": "Something went wrong",
+              "type": "AssertionError",
+              "stack": "stack\ntrace",
+              "source": "source",
+              "category": "Exception"
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+
+         // And we also get a view event with an incremented error count
+         auto views = filter_events("view", events);
+         REQUIRE(views.size() == 2);
+         REQUIRE(views[0]["view"]["id"] == errors[0]["view"]["id"]);
+         REQUIRE(views[0]["date"] == 1700000000000);
+         REQUIRE(views[0]["view"]["time_spent"] == 0);
+         REQUIRE(views[0]["view"]["is_active"] == true);
+         REQUIRE(views[0]["view"]["error"]["count"] == 0);
+         REQUIRE(views[1]["view"]["id"] == errors[0]["view"]["id"]);
+         REQUIRE(views[1]["date"] == 1700000000000);
+         REQUIRE(views[1]["view"]["time_spent"] == 5000000);
+         REQUIRE(views[1]["view"]["is_active"] == true);
+         REQUIRE(views[1]["view"]["error"]["count"] == 1);
+       }},
+
+      {"M send error event with action.id W AddError is called with active action",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and a RUM action, and then record an error at
+         // T+5ms
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
+         clock.TickMilliseconds(5);
+         dd_rum_add_error(
+             rum,
+             DD_RUM_ERROR_SOURCE_CONSOLE,
+             "This is an error",
+             "SomeErrorType",
+             NULL,
+             NULL
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then we get an error event that contains our error details, along with the
+         // context for the active action
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "error",
+            "date": 1700000000005,
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "action": {
+              "id": "${__NONZERO_UUID__}"
+            },
+            "error": {
+              "message": "This is an error",
+              "type": "SomeErrorType",
+              "source": "console",
+              "category": "Exception"
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+       }},
 
       // === Action lifetime vis-a-vis resources ===
 
@@ -3063,6 +3206,104 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
                                             {"bravo", 2},
                                             {"dog", "good"},
                                         }
+         );
+       }},
+
+      // === Error attributes ===
+
+      {"M include custom attributes as context W provided on AddError",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock&) {
+         dd_attribute_t int_val = dd_attribute_int(1);
+
+         // When we create a RUM view and add an error with {"alpha":1,"bravo":2}
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_attribute_t add_error_obj = dd_attribute_object(2);
+         dd_attribute_object_property_set(&add_error_obj, "alpha", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_attribute_object_property_set(&add_error_obj, "bravo", &int_val);
+         dd_rum_add_error(
+             rum,
+             DD_RUM_ERROR_SOURCE_SOURCE,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             &add_error_obj
+         );
+         dd_attribute_free(&add_error_obj);
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has {"alpha":1,"bravo":2}
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["context"] == nlohmann::json{{"alpha", 1}, {"bravo", 2}});
+       }},
+
+      {"M merge global <- view <- error attributes",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock&) {
+         dd_attribute_t int_val = dd_attribute_int(1);
+
+         // Given global RUM attributes {"able":100,"baker":200}
+         dd_attribute_set_int(&int_val, 100);
+         dd_rum_add_attribute(rum, "able", &int_val);
+         dd_attribute_set_int(&int_val, 200);
+         dd_rum_add_attribute(rum, "baker", &int_val);
+
+         // And a view with attributes {"baker":222,"charlie":333,"dog":444}
+         dd_attribute_t start_view_obj = dd_attribute_object(3);
+         dd_attribute_set_int(&int_val, 222);
+         dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
+         dd_attribute_set_int(&int_val, 333);
+         dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
+         dd_attribute_set_int(&int_val, 444);
+         dd_attribute_object_property_set(&start_view_obj, "dog", &int_val);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_attribute_free(&start_view_obj);
+
+         // When we add an error with {"alpha":1,"bravo":2,"dog":"good"}
+         dd_attribute_t add_error_obj = dd_attribute_object(3);
+         dd_attribute_set_int(&int_val, 1);
+         dd_attribute_object_property_set(&add_error_obj, "alpha", &int_val);
+         dd_attribute_set_int(&int_val, 2);
+         dd_attribute_object_property_set(&add_error_obj, "bravo", &int_val);
+         dd_attribute_t str_good = dd_attribute_string("good");
+         dd_attribute_object_property_set(&add_error_obj, "dog", &str_good);
+         dd_attribute_free(&str_good);
+         dd_rum_add_error(
+             rum,
+             DD_RUM_ERROR_SOURCE_SOURCE,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             &add_error_obj
+         );
+         dd_attribute_free(&add_error_obj);
+
+         // Cleanup
+         dd_attribute_free(&int_val);
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has
+         // {"able":100,"baker":222,"charlie":333,"alpha":1,"bravo":2,"dog":"good"}
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(
+             errors[0]["context"] == nlohmann::json{
+                                         {"able", 100},
+                                         {"baker", 222},
+                                         {"charlie", 333},
+                                         {"alpha", 1},
+                                         {"bravo", 2},
+                                         {"dog", "good"},
+                                     }
          );
        }},
   };

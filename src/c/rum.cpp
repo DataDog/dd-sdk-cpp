@@ -496,6 +496,43 @@ void dd_rum_stop_resource_with_error(
   };
   rum->impl->StopResource(key, response, error, cpp_attributes);
 }
+
+void dd_rum_add_error(
+    dd_rum_t* rum,
+    dd_rum_error_source_t source,
+    const char* message,
+    const char* type,
+    const char* stack_trace,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // If no error message is given, allow it (as the schema for RUM error events does not
+  // forbid empty messages) but log a warning
+  if (!message || !message[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_add_error recording an error with no message: application should "
+        "supply a non-empty error message"
+    );
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  // Call AddError on our RUM feature implementation
+  const datadog::impl::RumErrorDetails error{
+      message ? message : std::string_view{},
+      type ? type : std::string_view{},
+      stack_trace ? stack_trace : std::string_view{}
+  };
+  rum->impl->AddError(datadog::RumErrorSource_FromC(source), error, cpp_attributes);
+}
 }
 
 // NOLINTEND(cppcoreguidelines-owning-memory)

@@ -118,7 +118,17 @@ class Rum final : public Feature {
   void StopResource(
       std::string_view key,
       RumResponseDetails response,
-      std::optional<RumErrorDetails> error = std::nullopt,
+      const std::optional<RumErrorDetails>& error = std::nullopt,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Handles an AddError API call, causing an error to be reported in the context of the
+   * current view.
+   */
+  void AddError(
+      RumErrorSource source,
+      const RumErrorDetails& error,
       const Attribute& attributes = Attribute()
   );
 

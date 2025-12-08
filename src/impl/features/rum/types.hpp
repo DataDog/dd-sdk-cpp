@@ -82,4 +82,22 @@ inline RumResourceType RumResourceType_FromC(dd_rum_resource_type_t value) {
   return static_cast<RumResourceType>(value);
 }
 
+inline RumErrorSource RumErrorSource_FromC(dd_rum_error_source_t value) {
+  static_assert(
+      static_cast<int>(RumErrorSource::Network) == DD_RUM_ERROR_SOURCE_NETWORK
+  );
+  static_assert(static_cast<int>(RumErrorSource::Source) == DD_RUM_ERROR_SOURCE_SOURCE);
+  static_assert(
+      static_cast<int>(RumErrorSource::Console) == DD_RUM_ERROR_SOURCE_CONSOLE
+  );
+  static_assert(static_cast<int>(RumErrorSource::Logger) == DD_RUM_ERROR_SOURCE_LOGGER);
+  static_assert(static_cast<int>(RumErrorSource::Agent) == DD_RUM_ERROR_SOURCE_AGENT);
+  static_assert(
+      static_cast<int>(RumErrorSource::Webview) == DD_RUM_ERROR_SOURCE_WEBVIEW
+  );
+  static_assert(static_cast<int>(RumErrorSource::Custom) == DD_RUM_ERROR_SOURCE_CUSTOM);
+  static_assert(static_cast<int>(RumErrorSource::Report) == DD_RUM_ERROR_SOURCE_REPORT);
+  return static_cast<RumErrorSource>(value);
+}
+
 }  // namespace datadog
