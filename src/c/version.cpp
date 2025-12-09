@@ -4,13 +4,15 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#pragma once
+#include "datadog/version.h"
 
-#include "datadog/api.hpp"
-#include "datadog/attribute.hpp"
-#include "datadog/core.hpp"
-#include "datadog/logging.hpp"
-#include "datadog/rum.hpp"
-#include "datadog/timestamp.hpp"
-#include "datadog/uuid.hpp"
-#include "datadog/version.hpp"
+#include "core/version.hpp"
+
+extern "C" {
+
+dd_version_info_t dd_get_version_info() {
+  return dd_version_info_t{
+      DATADOG_BUILD_VERSION, DATADOG_GIT_REVISION_ID, DATADOG_BUILD_ARTIFACT_NAME
+  };
+}
+}

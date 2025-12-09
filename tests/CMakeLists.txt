@@ -11,6 +11,7 @@ add_executable(dd_native_tests
     c/rum_c_api_test.cpp
     c/timestamp_c_api_test.cpp
     c/uuid_c_api_test.cpp
+    c/version_c_api_test.cpp
     cpp/attribute_cpp_api_test.cpp
     cpp/core_cpp_api_test.cpp
     cpp/diagnostics_cpp_api_test.cpp
@@ -18,6 +19,7 @@ add_executable(dd_native_tests
     cpp/rum_cpp_api_test.cpp
     cpp/timestamp_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
+    cpp/version_cpp_api_test.cpp
     impl/attribute/cow_test.cpp
     impl/attribute/memory_test.cpp
     impl/attribute/merge_test.cpp

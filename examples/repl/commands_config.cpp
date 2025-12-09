@@ -158,7 +158,13 @@ CommandResult HandleSetConfig(State& state, const CommandInput& args) {
     if (value.empty()) {
       return CommandResult::Error("No value supplied for version!");
     }
-    state.config.SetApplicationVersion(value);
+    // If given a value of 'auto', compute a value procedurally based on SDK version
+    if (value == "auto") {
+      auto info = datadog::GetVersionInfo();
+      state.config.SetApplicationVersion(info.revision_id);
+    } else {
+      state.config.SetApplicationVersion(value);
+    }
     return CommandResult::OK("CoreConfig::SetApplicationVersion()");
   }
 

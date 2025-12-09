@@ -13,11 +13,13 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     c/rum.cpp
     c/timestamp.cpp
     c/uuid.cpp
+    c/version.cpp
     cpp/attribute.cpp
     cpp/core.cpp
     cpp/logging.cpp
     cpp/rum.cpp
     cpp/uuid.cpp
+    cpp/version.cpp
     impl/attribute/cow.cpp
     impl/attribute/merge.cpp
     impl/core/context.cpp
@@ -59,6 +61,9 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
 
 # Inject version number from CMake project config
 target_compile_definitions(dd_native PUBLIC DATADOG_BUILD_VERSION="${ddsdkcpp_VERSION}")
+if(DD_GIT_REVISION_ID)
+    target_compile_definitions(dd_native PUBLIC DATADOG_GIT_REVISION_ID="${DD_GIT_REVISION_ID}")
+endif()
 
 # Enable position-independent code for ASLR, shared library usage, etc.
 set_target_properties(dd_native PROPERTIES POSITION_INDEPENDENT_CODE ON)
