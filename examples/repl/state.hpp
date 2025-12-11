@@ -11,15 +11,25 @@
 #include <memory>
 
 #include "datadog.hpp"
+#include "repl/buffer.hpp"
 
 static constexpr const char* DEFAULT_SERVICE = "dd-sdk-cpp-repl";
 static constexpr const char* DEFAULT_ENV = "development";
 
+static const size_t MAX_SOURCED_FILES = 8;
+
 struct State {
+  // Shared output buffer used to ensure line-by-line writes to stdout
+  mutable Buffer output_buffer;
+
   // Script execution state: script files loaded via 'source <filename>' are pushed onto
   // this stack and processed to completion before we return to reading from stdin
-  std::array<std::ifstream, 8> files;
+  std::array<std::ifstream, MAX_SOURCED_FILES> files;
   size_t num_files{0};
+
+  // Profiling state
+  bool is_profiling{false};
+  bool is_profiling_allocations{false};
 
   // SDK config (any changes made after create-core do nothing)
   datadog::CoreConfig config{"", DEFAULT_SERVICE, DEFAULT_ENV};

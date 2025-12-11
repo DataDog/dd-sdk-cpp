@@ -1,0 +1,287 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+//
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-Present Datadog, Inc.
+
+#include "repl/alloc.hpp"
+
+#include <algorithm>
+#include <atomic>
+#include <cassert>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <limits>
+#include <numeric>
+#include <thread>
+
+#if WITH_DATADOG_ALLOCATION_TRACKING
+
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+// NOLINTBEGIN(cppcoreguidelines-init-variables)
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+// NOLINTBEGIN(cppcoreguidelines-no-malloc)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+// NOLINTBEGIN(performance-no-int-to-ptr)
+// NOLINTBEGIN(readability-use-std-min-max)
+
+// State used while allocation tracking is running: every allocation/free will result in
+// a new element being added to s_events, up to the max, at which point
+// s_num_dropped_events will be incremented
+static const size_t MAX_ALLOCATION_TRACKING_EVENTS = 4096;
+static AllocEvent s_events[MAX_ALLOCATION_TRACKING_EVENTS];
+static std::atomic<size_t> s_num_events{0};
+static std::atomic<size_t> s_num_dropped_events{0};
+static std::atomic<size_t> s_next_read_index{0};
+static std::atomic<int> s_started{0};
+static std::atomic<uint64_t> s_seq{0};
+
+static void log_alloc_event(AllocOp op, void* ptr, size_t size) noexcept {
+  // Don't log any events if allocation tracking hasn't been started
+  if (s_started.load(std::memory_order_relaxed) == 0) {
+    return;
+  }
+
+  // Atomically claim a slot in our global buffer of events
+  size_t index = s_num_events.fetch_add(1, std::memory_order_relaxed);
+
+  // If there's no more space, drop the event
+  if (index >= MAX_ALLOCATION_TRACKING_EVENTS) {
+    s_num_dropped_events.fetch_add(1, std::memory_order_relaxed);
+    return;
+  }
+
+  // Store the details of this operation
+  static thread_local std::hash<std::thread::id> hasher;
+  s_events[index] = AllocEvent{
+      s_seq.fetch_add(1, std::memory_order_relaxed),
+      hasher(std::this_thread::get_id()),
+      op,
+      ptr,
+      size
+  };
+}
+
+static size_t align_up(size_t x, size_t a) { return (x + (a - 1)) & ~(a - 1); }
+
+static void* overaligned_alloc(size_t raw_size, size_t user_align) {
+  assert(
+      user_align > alignof(std::max_align_t) &&
+      "overaligned_alloc called with alignment <= max align"
+  );
+#ifdef _MSC_VER
+  // MSVC: Use _aligned_malloc, which will require _aligned_free
+  return _aligned_malloc(raw_size, user_align);
+#else
+#ifdef _ISOC11_SOURCE
+  // POSIX C11: Use std::aligned_alloc, which requires size % align == 0
+  const size_t rounded_size = align_up(raw_size, user_align);
+  return std::aligned_alloc(user_align, rounded_size);
+#else
+  // POSIX C99: Use posix_memalign
+  void* raw;
+  if (posix_memalign(&raw, user_align, raw_size) != 0) {
+    raw = nullptr;
+  }
+  return raw;
+#endif
+#endif
+}
+
+static void overaligned_free(void* raw) {
+#ifdef _MSC_VER
+  // MSVC: If we allocated with _aligned_malloc, we must free with _aligned_free
+  _aligned_free(raw);
+#else
+  // POSIX: Normal free is fine to call after aligned_alloc/posix_memalign
+  std::free(raw);
+#endif
+}
+
+static void* backend_alloc(size_t count, size_t req_align, bool nothrow) {
+  // new(0) must return non-null unique pointer; malloc(0) may be null.
+  if (count == 0) {
+    count = 1;
+  }
+
+  // Always align the user pointer to at least max_align_t
+  size_t user_align = req_align;
+  if (user_align < alignof(std::max_align_t)) {
+    user_align = alignof(std::max_align_t);
+  }
+
+  // Validate we got a power-of-two alignment (required for posix_memalign, align_up)
+  assert((user_align & (user_align - 1)) == 0 && "alignment must be power of two");
+
+  // We place a header immediately before the user bytes: the raw block that we get from
+  // malloc will encompass: <padding> + <header> + <user bytes (count)>
+  const size_t header_size = sizeof(AllocHeader);
+  const size_t raw_size = header_size + count + (user_align - 1);
+
+  // Call malloc to get our raw bytes, handling per-platform differences re: alignment
+  void* raw = nullptr;
+  uint8_t overaligned = 0;
+  if (user_align > alignof(std::max_align_t)) {
+    raw = overaligned_alloc(raw_size, user_align);
+    overaligned = 1;
+  } else {
+    raw = std::malloc(raw_size);
+  }
+
+  // If allocation failed, abort
+  if (!raw) {
+    if (nothrow) {
+      return nullptr;
+    }
+    throw std::bad_alloc();
+  }
+
+  // Compute the aligned user pointer inside [raw, raw+raw_size)
+  uintptr_t base = reinterpret_cast<uintptr_t>(raw);
+  uintptr_t after_header = base + header_size;
+  uintptr_t user_addr = align_up(after_header, user_align);
+  void* user = reinterpret_cast<void*>(user_addr);
+
+  // Place header immediately before the user bytes
+  AllocHeader* header = reinterpret_cast<AllocHeader*>(user_addr - header_size);
+
+  // Verify that the header fits within our raw allocation
+#ifndef NDEBUG
+  uintptr_t header_addr = reinterpret_cast<uintptr_t>(header);
+  uintptr_t raw_end = base + raw_size;
+  assert(
+      header_addr >= base && header_addr + header_size <= raw_end &&
+      "Header placement outside allocated bounds"
+  );
+#endif
+
+  // Store allocation-related metadata in the header
+  header->raw = raw;
+  header->size = count;
+  header->overaligned = overaligned;
+
+  // Record profiling information about this allocation
+  log_alloc_event(AllocOp::Alloc, user, count);
+
+  // Return the user pointer
+  return user;
+}
+
+static void backend_free(void* user) noexcept {
+  // delete nullptr is a no-op
+  if (!user) {
+    return;
+  }
+
+  // Retrieve allocation metadata from header that precedes the user bytes
+  uintptr_t header_addr = reinterpret_cast<uintptr_t>(user) - sizeof(AllocHeader);
+  AllocHeader* header = reinterpret_cast<AllocHeader*>(header_addr);
+
+  // Record profiling information about this free
+  log_alloc_event(AllocOp::Free, user, header->size);
+
+  // Call the appropriate system function to free our raw bytes
+  if (header->overaligned != 0) {
+    overaligned_free(header->raw);
+  } else {
+    std::free(header->raw);
+  }
+}
+
+void* operator new(std::size_t count) {
+  return backend_alloc(count, alignof(std::max_align_t), false);
+}
+
+void* operator new(std::size_t count, const std::nothrow_t&) noexcept {
+  return backend_alloc(count, alignof(std::max_align_t), true);
+}
+
+void* operator new(std::size_t count, std::align_val_t al) {
+  return backend_alloc(count, static_cast<size_t>(al), false);
+}
+
+void operator delete(void* ptr) noexcept { backend_free(ptr); }
+
+void operator delete(void* ptr, std::size_t) noexcept { backend_free(ptr); }
+
+void operator delete(void* ptr, const std::nothrow_t&) noexcept { backend_free(ptr); }
+
+void operator delete(void* ptr, std::align_val_t) noexcept { backend_free(ptr); }
+
+void operator delete(void* ptr, std::size_t, std::align_val_t) noexcept {
+  backend_free(ptr);
+}
+
+void* operator new[](std::size_t count) {
+  return backend_alloc(count, alignof(std::max_align_t), false);
+}
+
+void* operator new[](std::size_t count, const std::nothrow_t&) noexcept {
+  return backend_alloc(count, alignof(std::max_align_t), true);
+}
+
+void* operator new[](std::size_t count, std::align_val_t al) {
+  return backend_alloc(count, static_cast<size_t>(al), false);
+}
+
+void operator delete[](void* ptr) noexcept { backend_free(ptr); }
+
+void operator delete[](void* ptr, std::size_t) noexcept { backend_free(ptr); }
+
+void operator delete[](void* ptr, const std::nothrow_t&) noexcept { backend_free(ptr); }
+
+void operator delete[](void* ptr, std::align_val_t) noexcept { backend_free(ptr); }
+
+void operator delete[](void* ptr, std::size_t, std::align_val_t) noexcept {
+  backend_free(ptr);
+}
+
+void StartAllocationTracking() {
+  std::memset(s_events, 0, sizeof(s_events));
+  s_num_events.store(0, std::memory_order_relaxed);
+  s_num_dropped_events.store(0, std::memory_order_relaxed);
+  s_next_read_index.store(0, std::memory_order_relaxed);
+  s_seq.store(0, std::memory_order_relaxed);
+
+  s_started.store(1, std::memory_order_release);
+}
+
+size_t StopAllocationTracking() {
+  s_started.fetch_sub(1, std::memory_order_acquire);
+  return s_num_dropped_events.load(std::memory_order_acquire);
+}
+
+std::pair<AllocEvent*, size_t> ReadAvailableAllocationEvents() {
+  size_t old_index = s_next_read_index.load(std::memory_order_acquire);
+  size_t num_events = s_num_events.load(std::memory_order_acquire);
+
+  while (old_index < num_events) {
+    // Try to atomically update s_next_read_index from old_index to num_events
+    if (s_next_read_index.compare_exchange_weak(
+            old_index, num_events, std::memory_order_acq_rel, std::memory_order_acquire
+        )) {
+      // Success: we claimed events [old_index, num_events)
+      return {s_events + old_index, num_events - old_index};
+    }
+    // Failure: old_index was updated by CAS to current value, retry
+    num_events = s_num_events.load(std::memory_order_acquire);
+  }
+
+  // No events available
+  return {nullptr, 0};
+}
+
+// NOLINTEND(readability-use-std-min-max)
+// NOLINTEND(performance-no-int-to-ptr)
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+// NOLINTEND(cppcoreguidelines-no-malloc)
+// NOLINTEND(cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-init-variables)
+// NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
+// NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+
+#endif  // WITH_DATADOG_ALLOCATION_TRACKING
