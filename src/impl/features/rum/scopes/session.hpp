@@ -12,6 +12,7 @@
 
 #include "core/feature_types/rum.hpp"
 #include "datadog/uuid.hpp"
+#include "features/rum/containers/view_array.hpp"
 #include "features/rum/scope.hpp"
 #include "features/rum/scopes/view.hpp"
 #include "platform/clock.hpp"
@@ -183,21 +184,23 @@ class RumSessionScope {
   std::optional<ViewDetails> _active_view_on_close;
 
   size_t _num_views_opened{0};
-  ScopeArray<RumViewScope> _view_scopes;
+  RumViewArray _view_scopes;
 
  public:
-  inline bool IsInitialSession() const { return _is_initial_session; }
-  inline bool IsSampled() const { return _is_sampled; }
-  inline UUID GetSessionID() const { return _session_id; }
-  inline RumSessionPrecondition GetStartReason() const { return _precondition; }
-  inline std::optional<EndReason> GetEndReason() const { return _end_reason; }
+  bool IsInitialSession() const { return _is_initial_session; }
+  bool IsSampled() const { return _is_sampled; }
+  UUID GetSessionID() const { return _session_id; }
+  RumSessionPrecondition GetStartReason() const { return _precondition; }
+  std::optional<EndReason> GetEndReason() const { return _end_reason; }
 
   std::optional<ViewDetails> GetActiveViewOnClose() const {
     return _active_view_on_close;
   }
   void ClearActiveViewOnClose() { _active_view_on_close.reset(); }
 
-  ScopeRef<const RumViewScope> GetActiveView() const;
+  ScopeRef<const RumViewScope> GetActiveView() const {
+    return _view_scopes.FindActive();
+  }
 };
 
 }  // namespace datadog::impl

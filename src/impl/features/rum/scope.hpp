@@ -128,65 +128,6 @@ enum class RumScopeResult : uint8_t {
 struct RumScope {};
 
 /**
- * Wrapper for any number of scopes of a consistent type. Used within a given scope type
- * to own child scopes and propagate commands to them.
- */
-template <typename T>
-struct ScopeArray {
-  /**
-   * List of owned scopes still active: once a scope returns `RumScopeResult::Close`, it
-   * will be removed from this list.
-   */
-  std::vector<T> items;
-
-  ScopeArray() {
-    // TODO(RUM-12946): Preallocating space for up to 8 items masks a potential
-    // use-after-free bug: this is a band-aid.
-    //
-    // To reproduce: remove the reserve() call below, then run any test that calls
-    // StartView(), StartAction(), and then StartView(). ASan will catch the bug during
-    // `RumActionScope::SendActionEvent`, at the point where the action scope is
-    // attempting to cal functions on its parent view scope using an address where that
-    // RumViewScope no longer resides.
-    //
-    // The problem boils down to this:
-    // - RumSessionScope holds a ScopeArray<RumViewScope>, which holds view scopes
-    //   by value in a std::vector
-    // - RumActionScope is initialized with a reference to its parent RumViewScope
-    // - This isn't actually safe: when we add a new view scope, the vector may be
-    //   resized, causing existing RumViewScope values to be moved, and invalidating
-    //   the reference stored by RumActionScope
-    //
-    items.reserve(8);
-  }
-
-  /**
-   * Creates a new scope and adds it to the end of the array.
-   */
-  template <typename... Args>
-  T& Push(Args&&... args) {
-    return items.emplace_back(std::forward<Args>(args)...);
-  }
-
-  /**
-   * Propagates the given command to all scopes in the array, calling the `Process()`
-   * function on each scope. Any scopes that return `RumScopeResult::Close` will be
-   * removed from the array.
-   */
-  void Propagate(const RumCommand& command) {
-    // Call Process() on all scopes, and if any return 'Close', shuffle them to the end
-    // of the vector
-    auto new_end = std::remove_if(items.begin(), items.end(), [&](T& scope) {
-      RumScopeResult result = scope.Process(command);
-      return result == RumScopeResult::Close;
-    });
-
-    // Remove any newly-closed scopes from the vector
-    items.erase(new_end, items.end());
-  }
-};
-
-/**
  * Non-owning, nullable reference to a single child scope.
  */
 template <typename T>
