@@ -106,6 +106,20 @@ enum class RumResourceType : uint8_t {
 };
 
 /**
+ * Describes a component of the application from which a RUM error originates.
+ */
+enum class RumErrorSource : uint8_t {
+  Network,
+  Source,
+  Console,
+  Logger,
+  Agent,
+  Webview,
+  Custom,
+  Report
+};
+
+/**
  * Interface to the Datadog SDK's RUM feature.
  */
 class Rum {
@@ -350,6 +364,28 @@ class Rum {
       std::string_view error_stack_trace = {},
       bool is_network_error = false,
       int32_t status_code = 0,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records that the application has encountered an error in the context of the current
+   * view.
+   *
+   * @param source - The source of the error. If in doubt: 'source' covers errors due to
+   *  bugs in the application's source; 'network' covers network issues; and 'custom' is
+   *  resonable catch-all.
+   * @param message - A string describing the error. Should be non-empty.
+   * @param type - A name describing the error's type. May be empty.
+   * @param stack_trace - The full text of a stack trace describing the context for the
+   *  error. May be empty.
+   * @param attributes - An optional set of custom attributes describing the error,
+   *  provided as an Attribute with ValueType::Object.
+   */
+  DATADOG_API void AddError(
+      RumErrorSource source,
+      std::string_view message,
+      std::string_view type = {},
+      std::string_view stack_trace = {},
       const Attribute& attributes = Attribute()
   );
 

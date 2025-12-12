@@ -252,6 +252,22 @@ struct RumStopActionPayload {
   explicit RumStopActionPayload(std::string_view in_name) : name(in_name) {}
 };
 
+/**
+ * On AddError, the application has called the AddError API function, recording that the
+ * application has encountered a runtime error that should be reported in the context of
+ * the current view.
+ */
+struct RumAddErrorPayload {
+  static constexpr const char* COMMAND_NAME = "AddError";
+  static constexpr RumCommandFlags FLAGS = RumCommandFlags::RequiresActiveView;
+
+  RumErrorSource source;
+  RumErrorDetails error;
+
+  explicit RumAddErrorPayload(RumErrorSource in_source, const RumErrorDetails& in_error)
+      : source(in_source), error(in_error) {}
+};
+
 struct RumCommand {
   using Payload = std::variant<
       RumSDKInitPayload,
@@ -265,7 +281,8 @@ struct RumCommand {
       RumStopResourcePayload,
       RumAddActionPayload,
       RumStartActionPayload,
-      RumStopActionPayload>;
+      RumStopActionPayload,
+      RumAddErrorPayload>;
 
   RumCommandParams base;
   Payload payload;
@@ -345,6 +362,13 @@ struct RumCommand {
   /** Creates a new 'StopAction' command. */
   static RumCommand StopAction(RumCommandParams&& base, std::string_view name) {
     return RumCommand(std::move(base), RumStopActionPayload(name));
+  }
+
+  /** Creates a new 'AddError' command. */
+  static RumCommand AddError(
+      RumCommandParams&& base, RumErrorSource source, const RumErrorDetails& error
+  ) {
+    return RumCommand(std::move(base), RumAddErrorPayload(source, error));
   }
 
   /**

@@ -41,3 +41,4 @@ CommandResult HandleStopAction(State& state, const CommandInput& args);
 CommandResult HandleStartResource(State& state, const CommandInput& args);
 CommandResult HandleStopResource(State& state, const CommandInput& args);
 CommandResult HandleStopResourceWithError(State& state, const CommandInput& args);
+CommandResult HandleAddError(State& state, const CommandInput& args);

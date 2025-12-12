@@ -1557,16 +1557,6 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(resource)
 )
 
-enum class RumErrorSource : uint8_t {
-  Network,
-  Source,
-  Console,
-  Logger,
-  Agent,
-  Webview,
-  Custom,
-  Report
-};
 DATADOG_STRING_ENUM(
     StringRumErrorSource,
     RumErrorSource,

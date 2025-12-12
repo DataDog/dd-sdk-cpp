@@ -97,6 +97,9 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "stop-resource-with-error") {
     return HandleStopResourceWithError(state, input.Shift());
   }
+  if (input.Peek() == "add-error") {
+    return HandleAddError(state, input.Shift());
+  }
 
   return CommandResult::Error("Unrecognized command.");
 }

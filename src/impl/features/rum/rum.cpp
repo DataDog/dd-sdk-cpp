@@ -138,12 +138,18 @@ void Rum::StartResource(
 void Rum::StopResource(
     std::string_view key,
     RumResponseDetails response,
-    std::optional<RumErrorDetails> error,
+    const std::optional<RumErrorDetails>& error,
     const Attribute& attributes
 ) {
   Dispatch(
       RumCommand::StopResource(GetBaseCommandParams(attributes), key, response, error)
   );
+}
+
+void Rum::AddError(
+    RumErrorSource source, const RumErrorDetails& error, const Attribute& attributes
+) {
+  Dispatch(RumCommand::AddError(GetBaseCommandParams(attributes), source, error));
 }
 
 RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {

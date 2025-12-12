@@ -297,4 +297,27 @@ void Rum::StopResourceWithError(
   }
 }
 
+void Rum::AddError(
+    RumErrorSource source,
+    std::string_view message,
+    std::string_view type,
+    std::string_view stack_trace,
+    const Attribute& attributes
+) {
+  if (_impl) {
+    // If no error message is given, allow it (as the schema for RUM error events does
+    // not forbid empty messages) but log a warning
+    if (message.empty()) {
+      impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+          "Rum::AddError recording an error with no message: application should supply "
+          "a non-empty error message"
+      );
+    }
+
+    _impl->AddError(
+        source, impl::RumErrorDetails{message, type, stack_trace}, attributes
+    );
+  }
+}
+
 }  // namespace datadog
