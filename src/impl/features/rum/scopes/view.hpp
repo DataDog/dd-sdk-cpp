@@ -11,6 +11,7 @@
 
 #include "attribute/typed_attribute.hpp"
 #include "datadog/uuid.hpp"
+#include "features/rum/containers/resource_map.hpp"
 #include "features/rum/scope.hpp"
 #include "features/rum/scopes/action.hpp"
 #include "platform/clock.hpp"
@@ -178,6 +179,9 @@ class RumViewScope {
   ViewEventType HandleStartAction(
       const RumCommandParams& base, const RumStartActionPayload& payload
   );
+  ViewEventType HandleStartResource(
+      const RumCommandParams& base, const RumStartResourcePayload& payload
+  );
 
   /**
    * Renders the view inactive, updating all necessary state to finalize the scope. This
@@ -201,6 +205,8 @@ class RumViewScope {
   );
 
   void LogDroppedAction(RumActionType type, std::string_view name) const;
+
+  static std::string_view IdentifyTargetResourceKey(const RumCommand& command);
 
   /**
    * Generates and sends a RUM view event in response to the given command.
@@ -251,8 +257,12 @@ class RumViewScope {
    * view and have sent a RUM 'action' event.
    */
   uint64_t _num_actions_completed{0};
+  uint64_t _num_errors_reported{0};
+  uint64_t _num_resources_completed{0};
 
   std::optional<RumActionScope> _active_action_scope;
+
+  RumResourceMap _resource_scopes;
 
  public:
   bool IsActive() const { return _is_active; }
