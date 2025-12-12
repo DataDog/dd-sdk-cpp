@@ -104,8 +104,8 @@ DATADOG_API void dd_rum_remove_attribute(dd_rum_t* rum, const char* name);
 // elapses with no user interaction, the session will expire, resulting in a new session
 // the next time user interactions are recorded.
 
-// There is no need to manually register session start: simply create views and begin
-// recording user interactions, and the SDK will manage session lifecycle automatically.
+// There is no need to manually register session start: the SDK will manage session
+// lifecycle automatically in response to dd_rum_start_view(), dd_rum_add_action(), etc.
 
 /**
  * Explicitly stops the current RUM session, if one is active.
