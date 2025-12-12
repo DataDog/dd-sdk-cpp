@@ -3,6 +3,7 @@ $ErrorActionPreference = 'Stop'
 . .\helpers.ps1
 
 try {
+    .\install-7zip.ps1 -Version "25.01" -Sha256 "78afa2a1c773caf3cf7edf62f857d2a8a5da55fb0fff5da416074c0d28b2b55f"
     .\install-mingit.ps1 -Version "2.26.2" -Sha256 "2dfbb1c46547c70179442a92b8593d592292b8bce2fd02ac4e0051a8072dde8f"
     .\install-python.ps1 -Version "3.12.6" -Sha256 "5914748e6580e70bedeb7c537a0832b3071de9e09a2e4e7e3d28060616045e0a"
     .\install-cmake.ps1 -Version "3.30.2" -Sha256 "31f799a9e7756305f74cd821970a793e599ead230925392886f45aed897a3c0e"
