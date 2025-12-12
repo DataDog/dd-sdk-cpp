@@ -9,7 +9,7 @@ Data types used to store and retrieve benchmark results from the database.
 import math
 import statistics
 from dataclasses import dataclass
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Optional
 
 
 def _stats_t_ppf(p: float, df: int) -> float:
@@ -123,6 +123,10 @@ class AllocEvent:
     size: int
     thread_index: int
 
+    @property
+    def delta(self) -> int:
+        return self.size if self.is_alloc else -self.size
+
 
 @dataclass
 class CommandExecution:
@@ -139,6 +143,24 @@ class BenchmarkInvocation:
     teardown_duration: AggregateDuration
     teardown_net_bytes: int
     commands: List[CommandExecution]
+
+    def find(self, label: str) -> Optional[CommandExecution]:
+        return next((c for c in self.commands if c.label == label), None)
+
+    def find_all(self, label: str) -> List[CommandExecution]:
+        return [c for c in self.commands if c.label == label]
+    
+    @property
+    def heap_hwm(self) -> int:
+        hwm = 0
+        acc = self.setup_net_bytes
+        for command in self.commands:
+            for event in command.alloc_events:
+                acc += event.delta
+                if acc > hwm:
+                    hwm = acc
+        acc += self.teardown_net_bytes
+        return max(hwm, acc)
 
 
 @dataclass
