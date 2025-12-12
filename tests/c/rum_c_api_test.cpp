@@ -47,7 +47,16 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
     dd_rum_stop_action(nullptr, DD_RUM_ACTION_TYPE_CLICK, "Button", &obj);
 
     // TODO(RUM-12201): Exercise RUM Error API
-    // TODO(RUM-12202): Exercise RUM Resource API
+
+    dd_rum_start_resource(
+        nullptr, "foo", DD_RUM_RESOURCE_METHOD_GET, "http://localhost:8080", &obj
+    );
+    dd_rum_stop_resource(
+        nullptr, "foo", 200, 65535, DD_RUM_RESOURCE_TYPE_DOCUMENT, &obj
+    );
+    dd_rum_stop_resource_with_error(
+        nullptr, "foo", "Bad times", "RuntimeError", nullptr, false, 0, &obj
+    );
   }
 }
 
@@ -164,15 +173,24 @@ TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
     dd_rum_start_view(rum, "bar", "Bar");
     dd_rum_add_view_attribute(rum, "attr2", &int_100);
     dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "action1", NULL);
+    dd_rum_start_resource(
+        rum, "res1", DD_RUM_RESOURCE_METHOD_POST, "http://api/foo", NULL
+    );
+    dd_rum_stop_resource(rum, "res1", 204, 0, DD_RUM_RESOURCE_TYPE_FETCH, NULL);
     dd_rum_remove_view_attribute(rum, "attr2");
     dd_rum_stop_view(rum, "bar");
     dd_rum_stop_session(rum);
     dd_rum_start_view(rum, "foo", "Foo");
+    dd_rum_start_resource(
+        rum, "res2", DD_RUM_RESOURCE_METHOD_POST, "http://api/bar", NULL
+    );
+    dd_rum_stop_resource_with_error(
+        rum, "res2", "Invalid", "BadError", "stack", false, 0, NULL
+    );
     dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
     dd_rum_stop_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
     dd_attribute_free(&int_100);
     // TODO(RUM-12201): Exercise RUM Error API
-    // TODO(RUM-12202): Exercise RUM Resource API
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -482,6 +500,128 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        {"dd_rum_start_action call ignored: application must supply a non-empty action "
         "name"},
        {}},
+
+      // === dd_rum_start_resource() / dd_rum_stop_resource[_with_error]() ===
+
+      {"M print warning W dd_rum_start_resource is called with NULL key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_resource(
+               rum, NULL, DD_RUM_RESOURCE_METHOD_GET, "http://localhost:5000/foo", NULL
+           );
+         });
+       },
+       {"dd_rum_start_resource call ignored: application must supply a non-empty "
+        "resource key"},
+       {}},
+
+      {"M print warning W dd_rum_start_resource is called with empty key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_resource(
+               rum, "", DD_RUM_RESOURCE_METHOD_GET, "http://localhost:5000/foo", NULL
+           );
+         });
+       },
+       {"dd_rum_start_resource call ignored: application must supply a non-empty "
+        "resource key"},
+       {}},
+
+      {"M print warning W dd_rum_start_resource is called with NULL URL",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_resource(rum, "foo", DD_RUM_RESOURCE_METHOD_GET, NULL, NULL);
+         });
+       },
+       {"dd_rum_start_resource call ignored: application must supply a non-empty URL"},
+       {}},
+
+      {"M print warning W dd_rum_start_resource is called with empty URL",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_resource(rum, "foo", DD_RUM_RESOURCE_METHOD_GET, "", NULL);
+         });
+       },
+       {"dd_rum_start_resource call ignored: application must supply a non-empty URL"},
+       {}},
+
+      {"M print warning W dd_rum_stop_resource is called with NULL key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_stop_resource(rum, NULL, 0, -1, DD_RUM_RESOURCE_TYPE_UNKNOWN, NULL);
+         });
+       },
+       {"dd_rum_stop_resource call ignored: application must supply a non-empty "
+        "resource key"},
+       {}},
+
+      {"M print warning W dd_rum_stop_resource is called with empty key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_stop_resource(rum, "", 0, -1, DD_RUM_RESOURCE_TYPE_UNKNOWN, NULL);
+         });
+       },
+       {"dd_rum_stop_resource call ignored: application must supply a non-empty "
+        "resource key"},
+       {}},
+
+      {"M print warning W dd_rum_stop_resource_with_error is called with NULL key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_stop_resource_with_error(
+               rum, NULL, "Connection failed", "", "", false, 0, NULL
+           );
+         });
+       },
+       {"dd_rum_stop_resource_with_error call ignored: application must supply a "
+        "non-empty resource key"},
+       {}},
+
+      {"M print warning W dd_rum_stop_resource_with_error is called with empty key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_stop_resource_with_error(
+               rum, "", "Connection failed", "", "", false, 0, NULL
+           );
+         });
+       },
+       {"dd_rum_stop_resource_with_error call ignored: application must supply a "
+        "non-empty resource key"},
+       {}},
+
+      {"M print warning W dd_rum_stop_resource_with_error is called with NULL error "
+       "message",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_stop_resource_with_error(rum, "foo", NULL, "", "", false, 0, NULL);
+         });
+       },
+       {"dd_rum_stop_resource_with_error recording an error with no message: "
+        "application should supply a non-empty error message"},
+       {}},
+
+      {"M print warning W dd_rum_stop_resource_with_error is called with empty error "
+       "message",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_stop_resource_with_error(rum, "foo", "", "", "", false, 0, NULL);
+         });
+       },
+       {"dd_rum_stop_resource_with_error recording an error with no message: "
+        "application should supply a non-empty error message"},
+       {}},
+
+      // TODO(RUM-12201): === dd_rum_add_error() ===
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
@@ -1258,7 +1398,13 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_free(&start_view_obj);
 
          // And we start a resource within the active view
-         // TODO(RUM-12202): Call dd_rum_start_resource()
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
 
          // And 15 seconds later, we create a new view with the same key, thereby
          // stopping the original view while it still has pending resources
@@ -1280,7 +1426,9 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // And 1 second later, we stop the resource, allowing our original view scope
          // to close
          clock.Tick(std::chrono::seconds(1));
-         // TODO(RUM-12202): Call dd_rum_stop_resource()
+         dd_rum_stop_resource(
+             rum, "get-profile-123", 200, 12345, DD_RUM_RESOURCE_TYPE_XHR, NULL
+         );
 
          // And finally, 5 seconds after that, we close the new view
          clock.Tick(std::chrono::seconds(5));
@@ -1941,11 +2089,19 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And then at T+50ms, a resource begins
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): dd_rum_start_resource()
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
 
          // And then at T+150ms, the resource ends
          clock.Tick(std::chrono::milliseconds(100));
-         // TODO(RUM-12202): dd_rum_stop_resource()
+         dd_rum_stop_resource(
+             rum, "get-profile-123", 200, 12345, DD_RUM_RESOURCE_TYPE_XHR, NULL
+         );
        },
        [](const nlohmann::json& events) {
          // TODO(RUM-12202): Then:
@@ -1969,11 +2125,19 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And then at T+9.8s, a resource begins
          clock.Tick(std::chrono::milliseconds(9800));
-         // TODO(RUM-12202): dd_rum_start_resource()
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
 
          // And then at T+14.8s, the resource ends
          clock.Tick(std::chrono::seconds(5));
-         // TODO(RUM-12202): dd_rum_stop_resource()
+         dd_rum_stop_resource(
+             rum, "get-profile-123", 200, 12345, DD_RUM_RESOURCE_TYPE_XHR, NULL
+         );
        },
        [](const nlohmann::json& events) {
          // TODO(RUM-12202): Then:
@@ -1997,11 +2161,19 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And then at T+150ms, a resource begins
          clock.Tick(std::chrono::milliseconds(150));
-         // TODO(RUM-12202): dd_rum_start_resource()
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
 
          // And then at T+200ms, the resource ends
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): dd_rum_stop_resource()
+         dd_rum_stop_resource(
+             rum, "get-profile-123", 200, 12345, DD_RUM_RESOURCE_TYPE_XHR, NULL
+         );
        },
        [](const nlohmann::json& events) {
          // TODO(RUM-12202): Then:
@@ -2025,15 +2197,29 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And then at T+50ms, a resource begins
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): dd_rum_start_resource()
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
 
          // And then at T+150ms, another resource begins
          clock.Tick(std::chrono::milliseconds(100));
-         // TODO(RUM-12202): dd_rum_start_resource()
+         dd_rum_start_resource(
+             rum,
+             "get-profile-456",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/456",
+             NULL
+         );
 
          // And then at T+200ms, our first resource is stopped
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): dd_rum_stop_resource()
+         dd_rum_stop_resource(
+             rum, "get-profile-123", 200, 12345, DD_RUM_RESOURCE_TYPE_XHR, NULL
+         );
        },
        [](const nlohmann::json& events) {
          // TODO(RUM-12202): Then:
@@ -2057,7 +2243,13 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And then at T+50ms, a resource begins
          clock.Tick(std::chrono::milliseconds(50));
-         // TODO(RUM-12202): dd_rum_start_resource()
+         dd_rum_start_resource(
+             rum,
+             "get-profile-123",
+             DD_RUM_RESOURCE_METHOD_GET,
+             "https://my-cool-website.biz/api/profile/123",
+             NULL
+         );
 
          // And then at T+70ms, we explicitly stop the action
          clock.Tick(std::chrono::milliseconds(20));
