@@ -1470,7 +1470,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          REQUIRE(events[1]["type"] == "view");
          REQUIRE(events[1]["view"]["id"] == first_view_id_str);
          REQUIRE(events[1]["_dd"]["document_version"] == 1);
-         // REQUIRE(events[1]["view"]["is_active"] == true);
+         REQUIRE(events[1]["view"]["is_active"] == true);
          REQUIRE(events[1]["context"] == events[0]["context"]);
 
          // - At T+15: a `view` with:
