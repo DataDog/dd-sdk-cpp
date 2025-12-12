@@ -147,6 +147,10 @@ void RumActionScope::SendActionEvent(
   // Set essential action properties
   ev.action.target.value.emplace(_name);
 
+  if (_num_resources_recorded > 0) {
+    ev.action.resource.value.emplace(_num_resources_recorded);
+  }
+
   // Prepare to merge the final set of custom attributes for our action event, in this
   // order:
   // 1. Global RUM attributes as of the time the event is generated
