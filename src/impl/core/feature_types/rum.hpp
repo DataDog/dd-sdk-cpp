@@ -137,6 +137,37 @@ DATADOG_STRING_ENUM(
     DATADOG_ENUM_VALUE(RumActionType::Custom, "custom")
 )
 
+DATADOG_STRING_ENUM(
+    StringRumResourceMethod,
+    RumResourceMethod,
+    DATADOG_ENUM_VALUE(RumResourceMethod::Get, "GET"),
+    DATADOG_ENUM_VALUE(RumResourceMethod::Head, "HEAD"),
+    DATADOG_ENUM_VALUE(RumResourceMethod::Post, "POST"),
+    DATADOG_ENUM_VALUE(RumResourceMethod::Put, "PUT"),
+    DATADOG_ENUM_VALUE(RumResourceMethod::Delete, "DELETE"),
+    DATADOG_ENUM_VALUE(RumResourceMethod::Connect, "CONNECT"),
+    DATADOG_ENUM_VALUE(RumResourceMethod::Options, "OPTIONS"),
+    DATADOG_ENUM_VALUE(RumResourceMethod::Trace, "TRACE"),
+    DATADOG_ENUM_VALUE(RumResourceMethod::Patch, "PATCH"),
+)
+
+DATADOG_STRING_ENUM(
+    StringRumResourceType,
+    RumResourceType,
+    DATADOG_ENUM_VALUE(RumResourceType::Unknown, "unknown"),
+    DATADOG_ENUM_VALUE(RumResourceType::Beacon, "beacon"),
+    DATADOG_ENUM_VALUE(RumResourceType::Fetch, "fetch"),
+    DATADOG_ENUM_VALUE(RumResourceType::Xhr, "xhr"),
+    DATADOG_ENUM_VALUE(RumResourceType::Document, "document"),
+    DATADOG_ENUM_VALUE(RumResourceType::Native, "native"),
+    DATADOG_ENUM_VALUE(RumResourceType::Image, "image"),
+    DATADOG_ENUM_VALUE(RumResourceType::Js, "js"),
+    DATADOG_ENUM_VALUE(RumResourceType::Font, "font"),
+    DATADOG_ENUM_VALUE(RumResourceType::Css, "css"),
+    DATADOG_ENUM_VALUE(RumResourceType::Media, "media"),
+    DATADOG_ENUM_VALUE(RumResourceType::Other, "other")
+)
+
 /**
  * Indicates why and how a new RUM session was created, tracking the lifecycle
  * transition from the previous session or initial app state. You might also call this
@@ -1180,6 +1211,745 @@ DATADOG_JSON_STRUCT(
     // From action-schema.json
     DATADOG_JSON_FIELD(type),
     DATADOG_JSON_FIELD(action)
+)
+
+enum class RumResourceRenderBlockingStatus : uint8_t { Blocking, NonBlocking };
+DATADOG_STRING_ENUM(
+    StringRumResourceRenderBlockingStatus,
+    RumResourceRenderBlockingStatus,
+    DATADOG_ENUM_VALUE(RumResourceRenderBlockingStatus::Blocking, "blocking"),
+    DATADOG_ENUM_VALUE(RumResourceRenderBlockingStatus::NonBlocking, "non-blocking")
+)
+
+enum class RumResourceDeliveryType : uint8_t { Cache, NavigationalPrefetch, Other };
+DATADOG_STRING_ENUM(
+    StringRumResourceDeliveryType,
+    RumResourceDeliveryType,
+    DATADOG_ENUM_VALUE(RumResourceDeliveryType::Cache, "cache"),
+    DATADOG_ENUM_VALUE(
+        RumResourceDeliveryType::NavigationalPrefetch, "navigational-prefetch"
+    ),
+    DATADOG_ENUM_VALUE(RumResourceDeliveryType::Other, "other")
+)
+
+enum class RumResourceProviderType : uint8_t {
+  Ad,
+  Advertising,
+  Analytics,
+  Cdn,
+  Content,
+  CustomerSuccess,
+  FirstParty,
+  Hosting,
+  Marketing,
+  Other,
+  Social,
+  TagManager,
+  Utility,
+  Video
+};
+DATADOG_STRING_ENUM(
+    StringRumResourceProviderType,
+    RumResourceProviderType,
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Ad, "ad"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Advertising, "advertising"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Analytics, "analytics"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Cdn, "cdn"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Content, "content"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::CustomerSuccess, "customer-success"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::FirstParty, "first party"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Hosting, "hosting"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Marketing, "marketing"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Other, "other"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Social, "social"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::TagManager, "tag-manager"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Utility, "utility"),
+    DATADOG_ENUM_VALUE(RumResourceProviderType::Video, "video")
+)
+
+struct RumResourceEvent {
+  struct Application {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> current_locale;
+
+    explicit Application(const UUID& in_id) : id(in_id) {}
+  };
+  struct Session {
+    // From _common-schema.json
+    UUID id;
+    StringRumSessionType type;
+    OmitIfFalse<bool> has_replay{false};
+
+    explicit Session(const UUID& in_id, RumSessionType in_type)
+        : id(in_id), type(in_type) {}
+  };
+  struct View {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> referrer;
+    std::string url;
+    OmitIfEmpty<std::string> name;
+
+    explicit View(UUID in_id, std::string_view in_url) : id(in_id), url(in_url) {}
+  };
+  struct Display {
+    // From _common-schema.json
+    OmitIfNoValue<RumViewportProperties> viewport;
+
+    Display() {};
+  };
+  struct Action {
+    // From _action-child-schema.json
+    UUID id;  // Schema permits array of UUIDs; we only support a single value
+
+    explicit Action(UUID in_id) : id(in_id) {}
+  };
+  struct Resource {
+    struct Phase {
+      // From resource-schema.json
+      int64_t duration;
+      int64_t start;
+
+      explicit Phase(int64_t in_duration, int64_t in_start)
+          : duration(in_duration), start(in_start) {}
+    };
+    struct Provider {
+      // From resource-schema.json
+      OmitIfNoValue<std::string> domain;
+      OmitIfNoValue<std::string> name;
+      OmitIfNoValue<StringRumResourceProviderType> type;
+
+      Provider() {}
+    };
+    // From resource-schema.json
+    UUID id;
+    StringRumResourceType type;
+    OmitIfNoValue<StringRumResourceMethod> method;
+    std::string url;
+    OmitIfNoValue<int32_t> status_code;
+    OmitIfNoValue<int64_t> duration;
+    OmitIfNoValue<int64_t> size;
+    OmitIfNoValue<int64_t> encoded_body_size;
+    OmitIfNoValue<int64_t> decoded_body_size;
+    OmitIfNoValue<int64_t> transfer_size;
+    OmitIfNoValue<StringRumResourceRenderBlockingStatus> render_blocking_status;
+    OmitIfNoValue<Phase> worker;
+    OmitIfNoValue<Phase> redirect;
+    OmitIfNoValue<Phase> dns;
+    OmitIfNoValue<Phase> connect;
+    OmitIfNoValue<Phase> ssl;
+    OmitIfNoValue<Phase> first_byte;
+    OmitIfNoValue<Phase> download;
+    OmitIfEmpty<std::string> protocol;
+    OmitIfNoValue<StringRumResourceDeliveryType> delivery_type;
+    OmitIfNoValue<Provider> provider;
+    // NYI: graphql
+
+    explicit Resource(UUID in_id, RumResourceType in_type, std::string_view in_url)
+        : id(in_id), type(in_type), url(in_url) {}
+  };
+  struct Internal {
+    struct Session {
+      // From _common-schema.json
+      OmitIfZero<uint8_t> plan{};
+      OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
+
+      Session() {};
+    };
+    struct Configuration {
+      // From _common-schema.json
+      float session_sample_rate;
+      OmitIfNoValue<float> session_replay_sample_rate;
+      OmitIfNoValue<float> profiling_sample_rate;
+
+      explicit Configuration(float in_session_sample_rate)
+          : session_sample_rate(in_session_sample_rate) {}
+    };
+    // From _common-schema.json
+    const uint8_t format_version{2};
+    OmitIfNoValue<Session> session;
+    OmitIfNoValue<Configuration> configuration;
+    OmitIfEmpty<std::string> browser_sdk_version;
+
+    // From resource-schema.json
+    OmitIfEmpty<std::string> span_id;
+    OmitIfEmpty<std::string> parent_span_id;
+    OmitIfEmpty<std::string> trace_id;
+    OmitIfNoValue<float> rule_psr;
+    OmitIfNoValue<bool> discarded;
+
+    Internal() {}
+  };
+  // From _common-schema.json
+  MilliTimestamp date;
+  Application application;
+  OmitIfEmpty<std::string> service;
+  OmitIfEmpty<std::string> version;
+  OmitIfEmpty<std::string> build_version;
+  OmitIfEmpty<std::string> build_id;
+  OmitIfEmpty<std::string> ddtags;
+  Session session;
+  OmitIfNoValue<StringRumSource> source;
+  View view;
+  OmitIfNoValue<RumUserProperties> usr;
+  OmitIfNoValue<RumAccountProperties> account;
+  OmitIfNoValue<RumConnectivityProperties> connectivity;
+  OmitIfNoValue<Display> display;
+  OmitIfNoValue<RumSyntheticsProperties> synthetics;
+  OmitIfNoValue<RumCITestProperties> ci_test;
+  OmitIfNoValue<RumOSProperties> os;
+  OmitIfNoValue<RumDeviceProperties> device;
+  Internal _dd;
+  OmitIfZero<Attribute> context;
+  // NYI: stream
+
+  // From _action-child-schema.json
+  OmitIfNoValue<Action> action;
+
+  // From resource-schema.json
+  const std::string_view type{"resource"};
+  Resource resource;
+
+  explicit RumResourceEvent(
+      Timestamp in_date,
+      const UUID& in_application_id,
+      const UUID& in_session_id,
+      RumSessionType in_session_type,
+      const UUID& in_view_id,
+      std::string_view in_view_url,
+      const UUID& in_resource_id,
+      RumResourceType in_resource_type,
+      std::string_view in_resource_url
+  )
+      : date(in_date),
+        application(Application{in_application_id}),
+        session(Session{in_session_id, in_session_type}),
+        view(View{in_view_id, in_view_url}),
+        _dd(Internal{}),
+        resource(in_resource_id, in_resource_type, in_resource_url) {}
+};
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Application,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(current_locale)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(has_replay)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::View,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(referrer),
+    DATADOG_JSON_FIELD(url),
+    DATADOG_JSON_FIELD(name)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Display,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(viewport)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Internal::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(plan),
+    DATADOG_JSON_FIELD(session_precondition)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Internal::Configuration,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(session_sample_rate),
+    DATADOG_JSON_FIELD(session_replay_sample_rate),
+    DATADOG_JSON_FIELD(profiling_sample_rate)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Internal,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(format_version),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(configuration),
+    DATADOG_JSON_FIELD(browser_sdk_version),
+    // From resource-schema.json
+    DATADOG_JSON_FIELD(span_id),
+    DATADOG_JSON_FIELD(parent_span_id),
+    DATADOG_JSON_FIELD(trace_id),
+    DATADOG_JSON_FIELD(rule_psr),
+    DATADOG_JSON_FIELD(discarded)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Action,
+    // From _action-child-schema.json
+    DATADOG_JSON_FIELD(id)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Resource::Phase,
+    // From resource-schema.json
+    DATADOG_JSON_FIELD(duration),
+    DATADOG_JSON_FIELD(start)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Resource::Provider,
+    // From resource-schema.json
+    DATADOG_JSON_FIELD(domain),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(type)
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent::Resource,
+    // From resource-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(method),
+    DATADOG_JSON_FIELD(url),
+    DATADOG_JSON_FIELD(status_code),
+    DATADOG_JSON_FIELD(duration),
+    DATADOG_JSON_FIELD(size),
+    DATADOG_JSON_FIELD(encoded_body_size),
+    DATADOG_JSON_FIELD(decoded_body_size),
+    DATADOG_JSON_FIELD(transfer_size),
+    DATADOG_JSON_FIELD(render_blocking_status),
+    DATADOG_JSON_FIELD(worker),
+    DATADOG_JSON_FIELD(redirect),
+    DATADOG_JSON_FIELD(dns),
+    DATADOG_JSON_FIELD(connect),
+    DATADOG_JSON_FIELD(ssl),
+    DATADOG_JSON_FIELD(first_byte),
+    DATADOG_JSON_FIELD(download),
+    DATADOG_JSON_FIELD(protocol),
+    DATADOG_JSON_FIELD(delivery_type),
+    DATADOG_JSON_FIELD(provider)
+    // NYI: graphql
+)
+DATADOG_JSON_STRUCT(
+    RumResourceEvent,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(date),
+    DATADOG_JSON_FIELD(application),
+    DATADOG_JSON_FIELD(service),
+    DATADOG_JSON_FIELD(version),
+    DATADOG_JSON_FIELD(build_version),
+    DATADOG_JSON_FIELD(build_id),
+    DATADOG_JSON_FIELD(ddtags),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(source),
+    DATADOG_JSON_FIELD(view),
+    DATADOG_JSON_FIELD(usr),
+    DATADOG_JSON_FIELD(account),
+    DATADOG_JSON_FIELD(connectivity),
+    DATADOG_JSON_FIELD(display),
+    DATADOG_JSON_FIELD(synthetics),
+    DATADOG_JSON_FIELD(ci_test),
+    DATADOG_JSON_FIELD(os),
+    DATADOG_JSON_FIELD(device),
+    DATADOG_JSON_FIELD(_dd),
+    DATADOG_JSON_FIELD(context),
+    // NYI: stream
+    // From _action-child-schema.json
+    DATADOG_JSON_FIELD(action),
+    // From resource-schema.json
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(resource)
+)
+
+enum class RumErrorSource : uint8_t {
+  Network,
+  Source,
+  Console,
+  Logger,
+  Agent,
+  Webview,
+  Custom,
+  Report
+};
+DATADOG_STRING_ENUM(
+    StringRumErrorSource,
+    RumErrorSource,
+    DATADOG_ENUM_VALUE(RumErrorSource::Network, "network"),
+    DATADOG_ENUM_VALUE(RumErrorSource::Source, "source"),
+    DATADOG_ENUM_VALUE(RumErrorSource::Console, "console"),
+    DATADOG_ENUM_VALUE(RumErrorSource::Logger, "logger"),
+    DATADOG_ENUM_VALUE(RumErrorSource::Agent, "agent"),
+    DATADOG_ENUM_VALUE(RumErrorSource::Webview, "webview"),
+    DATADOG_ENUM_VALUE(RumErrorSource::Custom, "custom"),
+    DATADOG_ENUM_VALUE(RumErrorSource::Report, "report")
+)
+
+enum class RumErrorCategory : uint8_t {
+  Anr,
+  AppHang,
+  Exception,
+  WatchdogTermination,
+  MemoryWarning,
+  Network
+};
+DATADOG_STRING_ENUM(
+    StringRumErrorCategory,
+    RumErrorCategory,
+    DATADOG_ENUM_VALUE(RumErrorCategory::Anr, "ANR"),
+    DATADOG_ENUM_VALUE(RumErrorCategory::AppHang, "App Hang"),
+    DATADOG_ENUM_VALUE(RumErrorCategory::Exception, "Exception"),
+    DATADOG_ENUM_VALUE(RumErrorCategory::WatchdogTermination, "Watchdog Termination"),
+    DATADOG_ENUM_VALUE(RumErrorCategory::MemoryWarning, "Memory Warning"),
+    DATADOG_ENUM_VALUE(RumErrorCategory::Network, "Network")
+)
+
+enum class RumErrorHandling : uint8_t { Handled, Unhandled };
+DATADOG_STRING_ENUM(
+    StringRumErrorHandling,
+    RumErrorHandling,
+    DATADOG_ENUM_VALUE(RumErrorHandling::Handled, "handled"),
+    DATADOG_ENUM_VALUE(RumErrorHandling::Unhandled, "unhandled")
+)
+
+enum class RumCspDisposition : uint8_t { Enforce, Report };
+DATADOG_STRING_ENUM(
+    StringRumCspDisposition,
+    RumCspDisposition,
+    DATADOG_ENUM_VALUE(RumCspDisposition::Enforce, "enforce"),
+    DATADOG_ENUM_VALUE(RumCspDisposition::Report, "report")
+)
+
+enum class RumErrorSourceType : uint8_t {
+  Android,
+  Browser,
+  iOS,
+  ReactNative,
+  Flutter,
+  Roku,
+  NDK,
+  iOS_IL2CPP,
+  NDK_IL2CPP
+};
+DATADOG_STRING_ENUM(
+    StringRumErrorSourceType,
+    RumErrorSourceType,
+    DATADOG_ENUM_VALUE(RumErrorSourceType::Android, "android"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::Browser, "browser"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::iOS, "ios"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::ReactNative, "react-native"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::Flutter, "flutter"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::Roku, "roku"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::NDK, "ndk"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::iOS_IL2CPP, "ios+il2cpp"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::NDK_IL2CPP, "ndk+il2cpp")
+)
+
+struct RumErrorEvent {
+  struct Application {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> current_locale;
+
+    explicit Application(const UUID& in_id) : id(in_id) {}
+  };
+  struct Session {
+    // From _common-schema.json
+    UUID id;
+    StringRumSessionType type;
+    OmitIfFalse<bool> has_replay{false};
+
+    explicit Session(const UUID& in_id, RumSessionType in_type)
+        : id(in_id), type(in_type) {}
+  };
+  struct View {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> referrer;
+    std::string url;
+    OmitIfEmpty<std::string> name;
+    // From error-schema.json
+    OmitIfNoValue<bool> in_foreground;
+
+    explicit View(UUID in_id, std::string_view in_url) : id(in_id), url(in_url) {}
+  };
+  struct Display {
+    // From _common-schema.json
+    OmitIfNoValue<RumViewportProperties> viewport;
+
+    Display() {};
+  };
+  struct Action {
+    // From _action-child-schema.json
+    UUID id;  // Schema permits array of UUIDs; we only support a single value
+
+    explicit Action(UUID in_id) : id(in_id) {}
+  };
+  struct Error {
+    struct Resource {
+      // From error-schema.json
+      StringRumResourceMethod method;
+      int32_t status_code;
+      std::string url;
+      OmitIfNoValue<RumResourceEvent::Resource::Provider> provider;
+
+      explicit Resource(
+          RumResourceMethod in_method, int32_t in_status_code, std::string_view in_url
+      )
+          : method(in_method), status_code(in_status_code), url(in_url) {}
+    };
+    struct Meta {
+      // From error-schema.json
+      OmitIfEmpty<std::string> code_type;
+      OmitIfEmpty<std::string> parent_process;
+      OmitIfEmpty<std::string> incident_identifier;
+      OmitIfEmpty<std::string> process;
+      OmitIfEmpty<std::string> exception_type;
+      OmitIfEmpty<std::string> exception_codes;
+      OmitIfEmpty<std::string> path;
+
+      Meta() {};
+    };
+    struct Csp {
+      // From error-schema.json
+      OmitIfNoValue<StringRumCspDisposition> disposition;
+
+      Csp() {};
+    };
+    // From error-schema.json
+    OmitIfZero<UUID> id;
+    std::string message;
+    StringRumErrorSource source;
+    OmitIfEmpty<std::string> stack;
+    // NYI(array): causes
+    OmitIfNoValue<bool> is_crash;
+    OmitIfEmpty<std::string> fingerprint;
+    OmitIfEmpty<std::string> type;
+    OmitIfNoValue<StringRumErrorCategory> category;
+    OmitIfNoValue<StringRumErrorHandling> handling;
+    OmitIfEmpty<std::string> handling_stack;
+    OmitIfNoValue<StringRumErrorSourceType> source_type;
+    OmitIfNoValue<Resource> resource;
+    // NYI(array): threads
+    // NYI(array): binary_images
+    OmitIfNoValue<bool> was_truncated;
+    OmitIfNoValue<Meta> meta;
+    OmitIfNoValue<Csp> csp;
+    OmitIfZero<int64_t> time_since_app_start{0};
+
+    explicit Error(std::string_view in_message, RumErrorSource in_source)
+        : message(in_message), source(in_source) {}
+  };
+  struct Freeze {
+    // From error-schema.json
+    int64_t duration;
+  };
+  struct Internal {
+    struct Session {
+      // From _common-schema.json
+      OmitIfZero<uint8_t> plan{};
+      OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
+
+      Session() {};
+    };
+    struct Configuration {
+      // From _common-schema.json
+      float session_sample_rate;
+      OmitIfNoValue<float> session_replay_sample_rate;
+      OmitIfNoValue<float> profiling_sample_rate;
+
+      explicit Configuration(float in_session_sample_rate)
+          : session_sample_rate(in_session_sample_rate) {}
+    };
+    // From _common-schema.json
+    const uint8_t format_version{2};
+    OmitIfNoValue<Session> session;
+    OmitIfNoValue<Configuration> configuration;
+    OmitIfEmpty<std::string> browser_sdk_version;
+
+    Internal() {}
+  };
+  // From _common-schema.json
+  MilliTimestamp date;
+  Application application;
+  OmitIfEmpty<std::string> service;
+  OmitIfEmpty<std::string> version;
+  OmitIfEmpty<std::string> build_version;
+  OmitIfEmpty<std::string> build_id;
+  OmitIfEmpty<std::string> ddtags;
+  Session session;
+  OmitIfNoValue<StringRumSource> source;
+  View view;
+  OmitIfNoValue<RumUserProperties> usr;
+  OmitIfNoValue<RumAccountProperties> account;
+  OmitIfNoValue<RumConnectivityProperties> connectivity;
+  OmitIfNoValue<Display> display;
+  OmitIfNoValue<RumSyntheticsProperties> synthetics;
+  OmitIfNoValue<RumCITestProperties> ci_test;
+  OmitIfNoValue<RumOSProperties> os;
+  OmitIfNoValue<RumDeviceProperties> device;
+  Internal _dd;
+  OmitIfZero<Attribute> context;
+  // NYI: stream
+
+  // From _action-child-schema.json
+  OmitIfNoValue<Action> action;
+
+  // From error-schema.json
+  const std::string_view type{"error"};
+  Error error;
+  OmitIfNoValue<Freeze> freeze;
+  // NYI: feature_flags
+
+  explicit RumErrorEvent(
+      Timestamp in_date,
+      const UUID& in_application_id,
+      const UUID& in_session_id,
+      RumSessionType in_session_type,
+      const UUID& in_view_id,
+      std::string_view in_view_url,
+      std::string_view in_error_message,
+      RumErrorSource in_error_source
+  )
+      : date(in_date),
+        application(Application{in_application_id}),
+        session(Session{in_session_id, in_session_type}),
+        view(View{in_view_id, in_view_url}),
+        _dd(Internal{}),
+        error(in_error_message, in_error_source) {}
+};
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Application,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(current_locale)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(has_replay)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::View,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(referrer),
+    DATADOG_JSON_FIELD(url),
+    DATADOG_JSON_FIELD(name),
+    // From error-schema.json
+    DATADOG_JSON_FIELD(in_foreground)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Display,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(viewport)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Internal::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(plan),
+    DATADOG_JSON_FIELD(session_precondition)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Internal::Configuration,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(session_sample_rate),
+    DATADOG_JSON_FIELD(session_replay_sample_rate),
+    DATADOG_JSON_FIELD(profiling_sample_rate)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Internal,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(format_version),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(configuration),
+    DATADOG_JSON_FIELD(browser_sdk_version)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Action,
+    // From _action-child-schema.json
+    DATADOG_JSON_FIELD(id)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Error::Resource,
+    // From error-schema.json
+    DATADOG_JSON_FIELD(method),
+    DATADOG_JSON_FIELD(status_code),
+    DATADOG_JSON_FIELD(url),
+    DATADOG_JSON_FIELD(provider)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Error::Meta,
+    // From error-schema.json
+    DATADOG_JSON_FIELD(code_type),
+    DATADOG_JSON_FIELD(parent_process),
+    DATADOG_JSON_FIELD(incident_identifier),
+    DATADOG_JSON_FIELD(process),
+    DATADOG_JSON_FIELD(exception_type),
+    DATADOG_JSON_FIELD(exception_codes),
+    DATADOG_JSON_FIELD(path)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Error::Csp,
+    // From error-schema.json
+    DATADOG_JSON_FIELD(disposition)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Error,
+    // From error-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(message),
+    DATADOG_JSON_FIELD(source),
+    DATADOG_JSON_FIELD(stack),
+    // NYI: causes
+    DATADOG_JSON_FIELD(is_crash),
+    DATADOG_JSON_FIELD(fingerprint),
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(category),
+    DATADOG_JSON_FIELD(handling),
+    DATADOG_JSON_FIELD(handling_stack),
+    DATADOG_JSON_FIELD(source_type),
+    DATADOG_JSON_FIELD(resource),
+    // NYI: threads
+    // NYI: binary_images
+    DATADOG_JSON_FIELD(was_truncated),
+    DATADOG_JSON_FIELD(meta),
+    DATADOG_JSON_FIELD(csp),
+    DATADOG_JSON_FIELD(time_since_app_start)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent::Freeze,
+    // From error-schema.json
+    DATADOG_JSON_FIELD(duration)
+)
+DATADOG_JSON_STRUCT(
+    RumErrorEvent,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(date),
+    DATADOG_JSON_FIELD(application),
+    DATADOG_JSON_FIELD(service),
+    DATADOG_JSON_FIELD(version),
+    DATADOG_JSON_FIELD(build_version),
+    DATADOG_JSON_FIELD(build_id),
+    DATADOG_JSON_FIELD(ddtags),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(source),
+    DATADOG_JSON_FIELD(view),
+    DATADOG_JSON_FIELD(usr),
+    DATADOG_JSON_FIELD(account),
+    DATADOG_JSON_FIELD(connectivity),
+    DATADOG_JSON_FIELD(display),
+    DATADOG_JSON_FIELD(synthetics),
+    DATADOG_JSON_FIELD(ci_test),
+    DATADOG_JSON_FIELD(os),
+    DATADOG_JSON_FIELD(device),
+    DATADOG_JSON_FIELD(_dd),
+    DATADOG_JSON_FIELD(context),
+    // NYI: stream
+    // From _action-child-schema.json
+    DATADOG_JSON_FIELD(action),
+    // From error-schema.json
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(error),
+    DATADOG_JSON_FIELD(freeze)
+    // NYI: feature_flags
 )
 
 }  // namespace datadog::impl
