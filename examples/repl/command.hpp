@@ -7,6 +7,7 @@
 #pragma once
 
 #include <array>
+#include <cinttypes>
 #include <string_view>
 
 static const size_t MAX_INPUT_TOKENS = 64;
@@ -37,6 +38,8 @@ struct NamedValueList {
 
   bool Has(std::string_view name) const;
   std::string_view Get(std::string_view name) const;
+  int64_t GetInt(std::string_view name) const;
+  bool GetFlag(std::string_view name) const;
 };
 
 struct CommandInput {

@@ -29,6 +29,77 @@ std::optional<datadog::RumActionType> ParseRumActionType(std::string_view s) {
   return std::nullopt;
 }
 
+std::optional<datadog::RumResourceMethod> ParseRumResourceMethod(std::string_view s) {
+  if (s == "get") {
+    return datadog::RumResourceMethod::Get;
+  }
+  if (s == "head") {
+    return datadog::RumResourceMethod::Head;
+  }
+  if (s == "post") {
+    return datadog::RumResourceMethod::Post;
+  }
+  if (s == "put") {
+    return datadog::RumResourceMethod::Put;
+  }
+  if (s == "delete") {
+    return datadog::RumResourceMethod::Delete;
+  }
+  if (s == "connect") {
+    return datadog::RumResourceMethod::Connect;
+  }
+  if (s == "options") {
+    return datadog::RumResourceMethod::Options;
+  }
+  if (s == "trace") {
+    return datadog::RumResourceMethod::Trace;
+  }
+  if (s == "patch") {
+    return datadog::RumResourceMethod::Patch;
+  }
+  return std::nullopt;
+}
+
+std::optional<datadog::RumResourceType> ParseRumResourceType(std::string_view s) {
+  if (s == "unknown") {
+    return datadog::RumResourceType::Unknown;
+  }
+  if (s == "beacon") {
+    return datadog::RumResourceType::Beacon;
+  }
+  if (s == "fetch") {
+    return datadog::RumResourceType::Fetch;
+  }
+  if (s == "xhr") {
+    return datadog::RumResourceType::Xhr;
+  }
+  if (s == "document") {
+    return datadog::RumResourceType::Document;
+  }
+  if (s == "native") {
+    return datadog::RumResourceType::Native;
+  }
+  if (s == "image") {
+    return datadog::RumResourceType::Image;
+  }
+  if (s == "js") {
+    return datadog::RumResourceType::Js;
+  }
+  if (s == "font") {
+    return datadog::RumResourceType::Font;
+  }
+  if (s == "css") {
+    return datadog::RumResourceType::Css;
+  }
+  if (s == "media") {
+    return datadog::RumResourceType::Media;
+  }
+  if (s == "other") {
+    return datadog::RumResourceType::Other;
+  }
+  return std::nullopt;
+}
+
 }  // namespace
 
 CommandResult HandleRegisterRum(State& state, const CommandInput&) {
@@ -196,4 +267,121 @@ CommandResult HandleStopAction(State& state, const CommandInput& args) {
 
   state.rum->StopAction(type, name);
   return CommandResult::OK("Rum::StopAction()");
+}
+
+CommandResult HandleStartResource(State& state, const CommandInput& args) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  // Positional args
+  auto pos = args.Positional();
+  auto key = Unquote(pos[0]);
+  if (key.empty()) {
+    return CommandResult::Error("No resource key given!");
+  }
+  auto url = Unquote(pos[1]);
+  if (url.empty()) {
+    return CommandResult::Error("No URL given!");
+  }
+
+  // Named args
+  auto named = args.Named();
+  datadog::RumResourceMethod method{datadog::RumResourceMethod::Get};
+  auto method_str = Unquote(named.Get("method"));
+  if (!method_str.empty()) {
+    if (auto method_opt = ParseRumResourceMethod(method_str)) {
+      method = *method_opt;
+    } else {
+      return CommandResult::Error("Invalid resource method!");
+    }
+  }
+
+  state.rum->StartResource(key, method, url);
+  return CommandResult::OK("Rum::StartResource()");
+}
+
+CommandResult HandleStopResource(State& state, const CommandInput& args) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  // Positional args
+  auto pos = args.Positional();
+  auto key = Unquote(pos[0]);
+  if (key.empty()) {
+    return CommandResult::Error("No resource key given!");
+  }
+
+  // Named args
+  auto named = args.Named();
+
+  int32_t status_code{200};
+  if (named.Has("status")) {
+    status_code = static_cast<int32_t>(named.GetInt("status"));
+  }
+
+  int64_t size{-1};
+  if (named.Has("size")) {
+    size = named.GetInt("size");
+  }
+
+  datadog::RumResourceType type{datadog::RumResourceType::Unknown};
+  auto type_str = Unquote(named.Get("type"));
+  if (!type_str.empty()) {
+    if (auto type_opt = ParseRumResourceType(type_str)) {
+      type = *type_opt;
+    } else {
+      return CommandResult::Error("Invalid resource type!");
+    }
+  }
+
+  state.rum->StopResource(key, status_code, size, type);
+  return CommandResult::OK("Rum::StopResource()");
+}
+
+CommandResult HandleStopResourceWithError(State& state, const CommandInput& args) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  // Positional args
+  auto pos = args.Positional();
+  auto key = Unquote(pos[0]);
+  if (key.empty()) {
+    return CommandResult::Error("No resource key given!");
+  }
+  auto error_message = Unquote(pos[1]);
+  if (error_message.empty()) {
+    return CommandResult::Error("No error message given!");
+  }
+
+  // Named args
+  auto named = args.Named();
+
+  std::string_view error_type = Unquote(named.Get("type"));
+  std::string_view error_stack_trace = Unquote(named.Get("stack"));
+  const bool is_network_error = named.GetFlag("network");
+
+  int32_t status_code{200};
+  if (named.Has("status")) {
+    status_code = static_cast<int32_t>(named.GetInt("status"));
+  }
+
+  state.rum->StopResourceWithError(
+      key, error_message, error_type, error_stack_trace, is_network_error, status_code
+  );
+  return CommandResult::OK("Rum::StopResourceWithError()");
 }
