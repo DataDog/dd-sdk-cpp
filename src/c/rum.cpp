@@ -371,6 +371,131 @@ void dd_rum_stop_action(
   (void)type;
   rum->impl->StopAction(cpp_name, cpp_attributes);
 }
+
+void dd_rum_start_resource(
+    dd_rum_t* rum,
+    const char* key,
+    dd_rum_resource_method_t method,
+    const char* url,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty resource key and URL
+  if (!key || !key[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_start_resource call ignored: application must supply a non-empty "
+        "resource key"
+    );
+    return;
+  }
+  if (!url || !url[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_start_resource call ignored: application must supply a non-empty URL"
+    );
+    return;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  // Call StartResource on our RUM feature implementation, passing HTTP request details
+  const datadog::impl::RumRequestDetails request{
+      datadog::RumResourceMethod_FromC(method), url
+  };
+  rum->impl->StartResource(key, request, cpp_attributes);
+}
+
+void dd_rum_stop_resource(
+    dd_rum_t* rum,
+    const char* key,
+    int32_t status_code,
+    int64_t size,
+    dd_rum_resource_type_t type,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty resource key
+  if (!key || !key[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_stop_resource call ignored: application must supply a non-empty "
+        "resource key"
+    );
+    return;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  // Call StopResource on our RUM feature implementation, passing HTTP response details
+  const datadog::impl::RumResponseDetails response{
+      status_code, size, datadog::RumResourceType_FromC(type)
+  };
+  rum->impl->StopResource(key, response, std::nullopt, cpp_attributes);
+}
+
+void dd_rum_stop_resource_with_error(
+    dd_rum_t* rum,
+    const char* key,
+    const char* error_message,
+    const char* error_type,
+    const char* error_stack_trace,
+    bool is_network_error,
+    int32_t status_code,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty resource key
+  if (!key || !key[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_stop_resource_with_error call ignored: application must supply a "
+        "non-empty resource key"
+    );
+    return;
+  }
+
+  // If no error message is given, allow it (as the schema for RUM error events does not
+  // forbid empty messages) but log a warning
+  if (!error_message || !error_message[0]) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_stop_resource_with_error recording an error with no message: "
+        "application should supply a non-empty error message"
+    );
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  // Call StopResource on our RUM feature implementation, passing error details
+  const datadog::impl::RumResponseDetails response{status_code};
+  const datadog::impl::RumErrorDetails error{
+      error_message ? error_message : std::string_view{},
+      error_type ? error_type : std::string_view{},
+      error_stack_trace ? error_stack_trace : std::string_view{},
+      is_network_error
+  };
+  rum->impl->StopResource(key, response, error, cpp_attributes);
+}
 }
 
 // NOLINTEND(cppcoreguidelines-owning-memory)

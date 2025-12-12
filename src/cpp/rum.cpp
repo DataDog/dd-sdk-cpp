@@ -209,4 +209,92 @@ void Rum::StopAction(
   }
 }
 
+void Rum::StartResource(
+    std::string_view key,
+    RumResourceMethod method,
+    std::string_view url,
+    const Attribute& attributes
+) {
+  // Require a non-empty resource key and URL
+  if (key.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::StartResource call ignored: application must supply a non-empty resource "
+        "key"
+    );
+    return;
+  }
+  if (url.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::StartResource call ignored: application must supply a non-empty URL"
+    );
+    return;
+  }
+
+  if (_impl) {
+    _impl->StartResource(key, impl::RumRequestDetails{method, url}, attributes);
+  }
+}
+
+void Rum::StopResource(
+    std::string_view key,
+    int32_t status_code,
+    int64_t size,
+    RumResourceType type,
+    const Attribute& attributes
+) {
+  // Require a non-empty resource key
+  if (key.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::StopResource call ignored: application must supply a non-empty resource "
+        "key"
+    );
+    return;
+  }
+
+  if (_impl) {
+    _impl->StopResource(
+        key, impl::RumResponseDetails{status_code, size, type}, std::nullopt, attributes
+    );
+  }
+}
+
+void Rum::StopResourceWithError(
+    std::string_view key,
+    std::string_view error_message,
+    std::string_view error_type,
+    std::string_view error_stack_trace,
+    bool is_network_error,
+    int32_t status_code,
+    const Attribute& attributes
+) {
+  // Require a non-empty resource key
+  if (key.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::StopResourceWithError call ignored: application must supply a non-empty "
+        "resource key"
+    );
+    return;
+  }
+
+  if (_impl) {
+    // If no error message is given, allow it (as the schema for RUM error events does
+    // not forbid empty messages) but log a warning
+    if (error_message.empty()) {
+      impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+          "Rum::StopResourceWithError recording an error with no message: application "
+          "should supply a non-empty error message"
+      );
+    }
+
+    _impl->StopResource(
+        key,
+        impl::RumResponseDetails{status_code},
+        impl::RumErrorDetails{
+            error_message, error_type, error_stack_trace, is_network_error
+        },
+        attributes
+    );
+  }
+}
+
 }  // namespace datadog

@@ -49,13 +49,15 @@ TEST_CASE("RumCommand::HasFlag", "[unit][rum]") {
     REQUIRE(!stop_view.HasFlag(RumCommandFlags::RequiresActiveView));
   }
   {
-    const RumCommand start_resource = RumCommand::StartResource(Base());
+    const RumCommand start_resource = RumCommand::StartResource(
+        Base(), "foo", RumRequestDetails{RumResourceMethod::Get, "/foo"}
+    );
     REQUIRE(!start_resource.HasFlag(RumCommandFlags::UserInteraction));
     REQUIRE(start_resource.HasFlag(RumCommandFlags::RequiresActiveSession));
     REQUIRE(start_resource.HasFlag(RumCommandFlags::RequiresActiveView));
   }
   {
-    const RumCommand stop_resource = RumCommand::StopResource(Base());
+    const RumCommand stop_resource = RumCommand::StopResource(Base(), "foo");
     REQUIRE(!stop_resource.HasFlag(RumCommandFlags::UserInteraction));
     REQUIRE(!stop_resource.HasFlag(RumCommandFlags::RequiresActiveSession));
     REQUIRE(!stop_resource.HasFlag(RumCommandFlags::RequiresActiveView));

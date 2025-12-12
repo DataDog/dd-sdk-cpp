@@ -497,7 +497,11 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with StartResource
-      scope.Process(RumCommand::StartResource(GetBaseParams()));
+      scope.Process(
+          RumCommand::StartResource(
+              GetBaseParams(), "foo", RumRequestDetails{RumResourceMethod::Get, "/foo"}
+          )
+      );
 
       // Then the session is refreshed, and the last active view is recreated in order
       // to track our resource
@@ -511,7 +515,11 @@ TEST_CASE_METHOD(
       EnterState(ViewTransferFixture::State::ExplicitlyStopped);
 
       // When we process StartResource after the session has been explicitly stopped
-      scope.Process(RumCommand::StartResource(GetBaseParams()));
+      scope.Process(
+          RumCommand::StartResource(
+              GetBaseParams(), "foo", RumRequestDetails{RumResourceMethod::Get, "/foo"}
+          )
+      );
 
       // Then the StartResource call is ignored
       RequireNoActiveSession();
@@ -527,7 +535,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with StopResource
-      scope.Process(RumCommand::StopResource(GetBaseParams()));
+      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
 
       // Then the session is refreshed, but it remains without an active view
       RequireNewSessionWithNoActiveView();
@@ -538,7 +546,7 @@ TEST_CASE_METHOD(
       EnterState(ViewTransferFixture::State::ExplicitlyStopped);
 
       // When we process StopResource after the session has been explicitly stopped
-      scope.Process(RumCommand::StopResource(GetBaseParams()));
+      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
 
       // Then the command is ignored and no session refresh occurs
       RequireNoActiveSession();
@@ -618,7 +626,11 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a StartResource command
-      scope.Process(RumCommand::StartResource(GetBaseParams()));
+      scope.Process(
+          RumCommand::StartResource(
+              GetBaseParams(), "foo", RumRequestDetails{RumResourceMethod::Get, "/foo"}
+          )
+      );
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
@@ -639,7 +651,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a StopResource command
-      scope.Process(RumCommand::StopResource(GetBaseParams()));
+      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
@@ -734,7 +746,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a StopResource command
-      scope.Process(RumCommand::StopResource(GetBaseParams()));
+      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
 
       // Then either we end up with an expired session or we remain in our
       // post-StopSession state with no active session

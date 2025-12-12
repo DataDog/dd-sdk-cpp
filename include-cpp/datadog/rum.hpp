@@ -72,6 +72,9 @@ struct RumConfig {
 
 enum class RumActionType : uint8_t { Tap, Click, Scroll, Swipe, Custom };
 
+/**
+ * HTTP method used to initiate the retrieval of a resource.
+ */
 enum class RumResourceMethod : uint8_t {
   Get,
   Head,
@@ -84,6 +87,9 @@ enum class RumResourceMethod : uint8_t {
   Patch
 };
 
+/**
+ * Type of resource retrieved; typically inferred from a response's Content-Type.
+ */
 enum class RumResourceType : uint8_t {
   Unknown,
   Beacon,
@@ -270,6 +276,80 @@ class Rum {
   DATADOG_API void StopAction(
       RumActionType type,
       std::string_view name = {},
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records that the application has initiated an HTTP request, causing that request to
+   * be tracked as a RUM Resource in the context of the current view.
+   *
+   * @param key - An arbitrary string that uniquely identifies this specific HTTP
+   *  request. Must be unique among all concurrent requests. Must be non-empty.
+   * @param method - The HTTP request method used.
+   * @param url - The request URL. Conventionally, this is an absolute URL. Must be
+   *  non-empty.
+   * @param attributes - An optional set of custom attributes describing the resource,
+   *  provided as an Attribute with ValueType::Object.
+   */
+  DATADOG_API void StartResource(
+      std::string_view key,
+      RumResourceMethod method,
+      std::string_view url,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records that an HTTP request has been completed and has received a valid response.
+   * A response with a 400-level or 500-level status code is still considered a valid
+   * response, provided that the application encountered no errors while processing it.
+   *
+   * @param key - The unique identifier that was used when the target resource was
+   *  started. Must be non-empty.
+   * @param status_code - The HTTP status code received from the response. If unknown,
+   *  supply 0.
+   * @param size - The total size of the resource. Conventionally, this is the decoded
+   *  size of the response body in bytes; i.e. the response size after decompression,
+   *  excluding headers and framing overhead.
+   * @param type - The kind of resource that was retrieved by this request.
+   * @param attributes - An optional set of custom attributes describing the resource,
+   *  provided as an Attribute with ValueType::Object, to be merged with any custom
+   *  attribute values provided when the resource was started.
+   */
+  DATADOG_API void StopResource(
+      std::string_view key,
+      int32_t status_code = 0,
+      int64_t size = -1,
+      RumResourceType type = RumResourceType::Unknown,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records that an HTTP request could not be completed due to an error (and therefore
+   * no response was received), or that processing of the response failed due to an
+   * error.
+   *
+   * @param key - The unique identifier that was used when the target resource was
+   *  started. Must be non-empty.
+   * @param error_message - A string describing the error. Should be non-empty.
+   * @param error_type - A name describing the error's type. May be empty.
+   * @param error_stack_trace - The full text of a stack trace describing the context
+   * for the error. May be empty.
+   * @param is_network_error - Whether the request failed due to a network connection
+   *  issue, such as DNS lookup failure, connection timeout, etc. Used to categorize the
+   *  resulting RUM Error in either the "network" or "exception" category.
+   * @param status_code - The HTTP status code received from the response, if a response
+   *  was received.
+   * @param attributes - An optional set of custom attributes describing the resource,
+   *  provided as an Attribute with ValueType::Object, to be merged with any custom
+   *  attribute values provided when the resource was started.
+   */
+  DATADOG_API void StopResourceWithError(
+      std::string_view key,
+      std::string_view error_message,
+      std::string_view error_type = {},
+      std::string_view error_stack_trace = {},
+      bool is_network_error = false,
+      int32_t status_code = 0,
       const Attribute& attributes = Attribute()
   );
 

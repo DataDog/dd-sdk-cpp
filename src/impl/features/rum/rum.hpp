@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <optional>
 #include <shared_mutex>
 #include <string>
 #include <string_view>
@@ -17,6 +18,7 @@
 #include "diagnostics.hpp"
 #include "features/rum/command.hpp"
 #include "features/rum/context.hpp"
+#include "features/rum/resource_types.hpp"
 #include "features/rum/scopes/application.hpp"
 #include "platform/clock.hpp"
 
@@ -98,6 +100,27 @@ class Rum final : public Feature {
    * user action, if any.
    */
   void StopAction(std::string_view new_name, const Attribute& attributes = Attribute());
+
+  /**
+   * Handles a StartResource API call, opening a new resource scope with the given key
+   * in the currently-active view.
+   */
+  void StartResource(
+      std::string_view key,
+      RumRequestDetails request,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Handles a StopResource or StopResourceWithError API call, closing the resource
+   * scope with the given key, if such a scope exists in the current view.
+   */
+  void StopResource(
+      std::string_view key,
+      RumResponseDetails response,
+      std::optional<RumErrorDetails> error = std::nullopt,
+      const Attribute& attributes = Attribute()
+  );
 
  private:
   RumCommandParams GetBaseCommandParams(
