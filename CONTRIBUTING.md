@@ -72,16 +72,6 @@ Unit tests are written using [Catch2](https://github.com/catchorg/Catch2). If yo
 ctest --test-dir build
 ```
 
-### Running benchmarks
-
-If you configure with `DD_DEVELOPMENT` (or `DD_BUILD_BENCHMARKS`), the build will produce a program at `./build/benchmarks/dd_native_benchmark`, which you can use to run a small set of benchmarks that exercise SDK functionality.
-
-For example, to profile SDK startup time:
-
-```
-build/benchmarks/dd_native_benchmark startup
-```
-
 ## Repository overview
 
 - [`include-c/`][include-c] contains public headers for the C API.
@@ -100,7 +90,6 @@ build/benchmarks/dd_native_benchmark startup
     - [`platform/`][impl-platform]: Platform abstraction layer, i.e. modular subsystems for platform-specific functionality like filesystem access and HTTP client.
 - [`tests/`][tests]: Unit tests for code in `src/`, along with test-only support code.
 - [`examples/`][examples] demonstrates usage of both C and C++ APIs.
-- [`benchmarks/`][benchmarks] implements small, self-contained commands that exercise SDK functionality in a controlled environment.
 
 [include-c]: ./include-c/
 [include-cpp]: ./include-cpp/
@@ -118,7 +107,6 @@ build/benchmarks/dd_native_benchmark startup
 [impl-platform]: ./src/impl/platform/
 [tests]: ./tests/
 [examples]: ./examples/
-[benchmarks]: ./benchmarks/
 
 ## CI
 
