@@ -75,16 +75,19 @@ if __name__ == "__main__":
             sys.exit(1)
         tests = [matching_test]
 
-    # If configured to use multiple threads
-    num_test_threads = 1
-    if args.jobs > 1:
-        num_test_threads = min(len(tests), args.jobs)
-
+    # Start mitmproxy on a background thread, configured with an addon that will
+    # intercept and capture all requests
     proxy_port = 8080
     proxy_url = 'http://127.0.0.1:%d' % proxy_port
     proxy = ProxyServer(proxy_port)
     proxy.start()
     print("Proxy started.")
+
+    # Prepare to run either serially or split across multiple threads, depending on CLI
+    # args and number of tests to run
+    num_test_threads = 1
+    if args.jobs > 1:
+        num_test_threads = min(len(tests), args.jobs)
 
     # Construct a pre-sized list to contain the results of the repl invocation for each
     # of the tests that we'll run, and prepare functions to run each test's repl
