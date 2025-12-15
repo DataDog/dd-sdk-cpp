@@ -309,14 +309,6 @@ int main(int argc, char* argv[]) {  // NOLINT
       }
     }
 
-    //
-    if (!Run(state, "set-config env repl-interactive")) {
-      return 1;
-    }
-    if (!Run(state, "set-config version auto")) {
-      return 1;
-    }
-
     // Prepare an SDK instance with all features and start it
     if (!Run(state, "set-config tracking-consent granted")) {
       return 1;
