@@ -53,10 +53,12 @@ CommandResult HandleStopProfile(State& state, const CommandInput&) {
   state.is_profiling = false;
 
 #if WITH_DATADOG_ALLOCATION_TRACKING
-  state.is_profiling_allocations = false;
-  const size_t num_events_dropped = StopAllocationTracking();
-  if (num_events_dropped > 0) {
-    return CommandResult::Error("Profiling results truncated!");
+  if (state.is_profiling_allocations) {
+    state.is_profiling_allocations = false;
+    const size_t num_events_dropped = StopAllocationTracking();
+    if (num_events_dropped > 0) {
+      return CommandResult::Error("Profiling results truncated!");
+    }
   }
 #endif
   return CommandResult::OK("Profiling stopped.");
