@@ -16,7 +16,7 @@ See tools/repl-profile/benchmarks/ for the definition of each benchmark.
 
 To profile an optimized release build, configure with `-DCMAKE_BUILD_TYPE=Release` and
 `-DDD_BUILD_EXAMPLES=ON`, then run `cmake --build build [--target dd_native_repl]`. This
-command will examine your CMakeCache.txt file to ascertain the build configuration it's
+script will examine your CMakeCache.txt file to ascertain the build configuration it's
 profiling.
 
 By default, benchmark results will be written directly to

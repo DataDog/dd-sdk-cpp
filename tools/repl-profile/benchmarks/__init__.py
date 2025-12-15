@@ -5,7 +5,7 @@
 # Copyright 2025-Present Datadog, Inc.
 """
 Collection of benchmarks used to profile the runtime performance of the C++ SDK. Each
-benchmark is defined as a script containing a series of commands to be run the repl
+benchmark is defined as a script containing a series of commands to be run in the repl
 binary (see examples/repl) with profiling enabled.
 
 To define a new benchmark, create a <benchmark_name>.py file in this directory, then
