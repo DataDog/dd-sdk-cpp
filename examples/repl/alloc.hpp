@@ -12,37 +12,15 @@
 #include <utility>
 
 /**
- * If WITH_DATADOG_ALLOCATION_TRACKING is enabled for the build, our test binaries will
- * be compiled with custom implementations the new and delete operators which will
- * profile all calls made to those operators during the execution of a test.
- *
- * Note that the tracker will only profile new and delete, which should be sufficient
- * for profiling our usage of STL containers and direct allocation via C++ constructs
- * like new, make_unique, etc. Allocations made via direct calls to cstdlib malloc (or
- * custom malloc implementations), direct system calls, etc. will not be recorded by our
- * tracker.
- *
- * The `AllocationTracker` type is provided for use within individual unit tests. Define
- * a tracker, enclose all code to be profiled in a nested scope, and then call the
- * tracker's `Stop()` function to get an `AllocationTracker::Stats` value. Check the
- * `enabled` flag on that value before proceeding: if WITH_DATADOG_ALLOCATION_TRACKING
- * is disabled, the tracker will do nothing and `enabled` will be false.
+ * If WITH_DATADOG_ALLOCATION_TRACKING is enabled for the build, the repl binary will be
+ * compiled with custom implementations the new and delete operators which will profile
+ * all calls made to those operators while `start-profile memory` is active.
  *
  * The tracker implementation uses fixed-size static buffers to record information about
  * alloc and free events. If it runs out of space during profiling, the resulting stats
  * will have a nonzero `num_events_dropped` value. If this value is set, indicating
- * incomplete results, tests should fail and you should consider increasing
- * `MAX_ALLOCATION_TRACKING_EVENTS`.
- *
- * Our profiled implementations of `operator new`, `operator new[]`, `operator delete`,
- * and `operator delete[]` should generally behave as the standard implementations do.
- * If used outside the scope of an `AllocationTracker`, they should record no data and
- * have no significant overhead. However, they are not guaranteed to exactly replicate
- * the standard-library versions, and as such they should not be used in test
- * environments that aim to strictly replicate a production environment.
- *
- * This profiling code is specific to our `tests` target; it is not included in builds
- * of the library itself.
+ * incomplete results, a call made to `stop-profile` will produce an error, causing the
+ * repl invocation to fail if called with `--abort-on-error`.
  */
 #ifndef WITH_DATADOG_ALLOCATION_TRACKING
 #define WITH_DATADOG_ALLOCATION_TRACKING 0
@@ -113,10 +91,24 @@ void operator delete[](void* ptr, const std::nothrow_t& tag) noexcept;
 void operator delete[](void* ptr, std::align_val_t al) noexcept;
 void operator delete[](void* ptr, size_t count, std::align_val_t al) noexcept;
 
+/**
+ * Clears all state and begins recording of all calls to new/delete, up to a maximum of
+ * MAX_ALLOCATION_TRACKING_EVENTS recorded.
+ */
 void StartAllocationTracking();
 
+/**
+ * Stops activation tracking and returns an integer indicating the number of events that
+ * were dropped: if nonzero, available results should be considered incomplete.
+ */
 size_t StopAllocationTracking();
 
+/**
+ * Consumes all events that have been recorded since the last call to this function: may
+ * be used while allocation tracking is active. First element is a pointer to the first
+ * event that may be read; second is the total number of elements that may be read from
+ * that address.
+ */
 std::pair<AllocEvent*, size_t> ReadAvailableAllocationEvents();
 
 #endif  // WITH_DATADOG_ALLOCATION_TRACKING
