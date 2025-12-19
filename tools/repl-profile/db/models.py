@@ -152,6 +152,10 @@ class BenchmarkInvocation:
     
     @property
     def heap_hwm(self) -> int:
+        """
+        Computes and returns the high-water mark of heap bytes in use, i.e. the highest
+        cumulative value seen at any point in the benchmark.
+        """
         hwm = 0
         acc = self.setup_net_bytes
         for command in self.commands:
