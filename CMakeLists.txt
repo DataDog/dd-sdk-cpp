@@ -25,7 +25,6 @@ option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools
 
 # Top-level options for the build
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
-option(DD_BUILD_BENCHMARKS "Build benchmarks" ${DD_DEVELOPMENT})
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
 option(DD_BUILD_INSTALL "Enable install targets" ${DD_IS_TOP_LEVEL})
@@ -78,11 +77,6 @@ endif()
 # Include the library itself
 add_subdirectory(src)
 add_library(Datadog::dd_native ALIAS dd_native)
-
-# If configured to build benchmarks, include benchmarks/ in the build
-if(DD_BUILD_BENCHMARKS)
-    add_subdirectory(benchmarks)
-endif()
 
 # If configured to build examples, include examples/ in the build
 if(DD_BUILD_EXAMPLES)
