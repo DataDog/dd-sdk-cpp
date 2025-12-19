@@ -34,6 +34,7 @@ if(DD_BUILD_INSTALL)
 endif()
 option(DD_ENABLE_GIT_REVISION_INFO "Stamp the build with the git branch name, commit sha, and blob hash of src/ (incl. pending changes) computed at configure-time" ${DD_BUILD_INSTALL})
 option(DD_ENABLE_EVENT_VALIDATION "Include targets for validating JSON event payloads against rum-events-format schemas (requires Python)" ${DD_DEVELOPMENT})
+option(DD_ENABLE_INTEGRATION_TEST "Include targets for running integration tests (requires Python and DD_BUILD_EXAMPLES)" "${DD_DEVELOPMENT}")
 option(DD_ENABLE_CLANG_FORMAT "Enable clang-format for format validation and automatic formatting" ${DD_DEVELOPMENT})
 option(DD_ENABLE_CLANG_TIDY "Enable clang-tidy for static analysis" ${DD_DEVELOPMENT})
 option(DD_ENABLE_COVERAGE "Enable code coverage reporting" ${DD_DEVELOPMENT})
@@ -67,6 +68,11 @@ endif()
 # If JSON event validation is enabled, require Python and add targets
 if(DD_ENABLE_EVENT_VALIDATION)
     include(${DD_SDK_ROOT_DIR}/cmake/event-validation.cmake)
+endif()
+
+# If integration tests are enabled, require Python and add targets
+if(DD_ENABLE_INTEGRATION_TEST)
+    include(${DD_SDK_ROOT_DIR}/cmake/integration-test.cmake)
 endif()
 
 # Include the library itself
