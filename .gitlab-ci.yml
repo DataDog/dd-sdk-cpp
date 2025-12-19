@@ -38,7 +38,7 @@ variables:
   # in `ci-platform-machine-images` pre-pulls the image using that tag. If you bump this
   # version, your Windows CI builds may be slower until the next time Windows runner
   # AMIs are rebuilt.
-  WINDOWS_TOOLCHAIN_IMAGE_VERSION: v2
+  WINDOWS_TOOLCHAIN_IMAGE_VERSION: v3
 
   # clang-20 is our golden-path toolchain for development: use the clang-20 image to
   # validate builds with full linting, format checks, etc.

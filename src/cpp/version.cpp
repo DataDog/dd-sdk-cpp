@@ -4,13 +4,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#pragma once
-
-#include "datadog/api.hpp"
-#include "datadog/attribute.hpp"
-#include "datadog/core.hpp"
-#include "datadog/logging.hpp"
-#include "datadog/rum.hpp"
-#include "datadog/timestamp.hpp"
-#include "datadog/uuid.hpp"
 #include "datadog/version.hpp"
+
+#include "core/version.hpp"
+
+namespace datadog {
+
+VersionInfo GetVersionInfo() {
+  return VersionInfo{
+      impl::SDK_VERSION, impl::GIT_REVISION_ID, impl::BUILD_ARTIFACT_NAME
+  };
+}
+
+}  // namespace datadog

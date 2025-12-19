@@ -14,5 +14,6 @@
 #include "datadog/rum.h"
 #include "datadog/timestamp.h"
 #include "datadog/uuid.h"
+#include "datadog/version.h"
 
 #endif  // DATADOG_INCLUDE_DATADOG_H

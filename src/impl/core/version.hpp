@@ -20,6 +20,11 @@
 #define DATADOG_BUILD_VERSION "0.0.0"
 #endif
 
+// Internal revision info optionally stamped into builds
+#ifndef DATADOG_GIT_REVISION_ID
+#define DATADOG_GIT_REVISION_ID "unknown"
+#endif
+
 // platform: e.g. 'windows', 'macos', 'linux'
 #if defined(_WIN32)
 #define DATADOG_BUILD_PLATFORM "windows"
@@ -110,6 +115,7 @@
 namespace datadog::impl {
 
 static const std::string_view SDK_VERSION = DATADOG_BUILD_VERSION;
+static const std::string_view GIT_REVISION_ID = DATADOG_GIT_REVISION_ID;
 static const std::string_view BUILD_ARTIFACT_NAME = DATADOG_BUILD_ARTIFACT_NAME;
 
 }  // namespace datadog::impl

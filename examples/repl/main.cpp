@@ -299,13 +299,19 @@ int main(int argc, char* argv[]) {  // NOLINT
 
   // Support --autostart for interactive use: run a standard initialization routine that
   // gives us all features and a running SDK ready to receive API calls that generate
-  // events, and also source a file called '.repl-env' if we weren't given both
-  // --client-token and --rum-application-id args
+  // events
   if (args.autostart) {
+    // If we weren't given both --client-token and --rum-application-id args, source a
+    // file called .repl-env
     if (args.client_token.empty() || args.rum_application_id.empty()) {
       if (!RunFile(state, ".repl-env")) {
         return 1;
       }
+    }
+
+    // Prepare an SDK instance with all features and start it
+    if (!Run(state, "set-config tracking-consent granted")) {
+      return 1;
     }
     if (!Run(state, "create-core")) {
       return 1;
@@ -320,9 +326,6 @@ int main(int argc, char* argv[]) {  // NOLINT
       return 1;
     }
     if (!Run(state, "start-core")) {
-      return 1;
-    }
-    if (!Run(state, "set-tracking-consent granted")) {
       return 1;
     }
   }

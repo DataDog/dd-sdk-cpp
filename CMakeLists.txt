@@ -32,6 +32,7 @@ option(DD_BUILD_INSTALL "Enable install targets" ${DD_IS_TOP_LEVEL})
 if(DD_BUILD_INSTALL)
     option(DD_BUILD_PACKAGE "Enable package targets and build required tools" ${DD_BUILD_INSTALL})
 endif()
+option(DD_ENABLE_GIT_REVISION_INFO "Stamp the build with the git branch name, commit sha, and blob hash of src/ (incl. pending changes) computed at configure-time" ${DD_BUILD_INSTALL})
 option(DD_ENABLE_EVENT_VALIDATION "Include targets for validating JSON event payloads against rum-events-format schemas (requires Python)" ${DD_DEVELOPMENT})
 option(DD_ENABLE_CLANG_FORMAT "Enable clang-format for format validation and automatic formatting" ${DD_DEVELOPMENT})
 option(DD_ENABLE_CLANG_TIDY "Enable clang-tidy for static analysis" ${DD_DEVELOPMENT})
@@ -56,6 +57,12 @@ include(${DD_SDK_ROOT_DIR}/cmake/compile.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/coverage.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/sanitizers.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/external.cmake)
+
+# If we want to stamp the build git revision info, compute those details and save them
+# to variables at configure time
+if(DD_ENABLE_GIT_REVISION_INFO)
+    include(${DD_SDK_ROOT_DIR}/cmake/git-revision-info.cmake)
+endif()
 
 # If JSON event validation is enabled, require Python and add targets
 if(DD_ENABLE_EVENT_VALIDATION)
