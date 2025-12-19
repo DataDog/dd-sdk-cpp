@@ -21,15 +21,18 @@ target_link_libraries(dd_native_cpp_example PRIVATE dd_native)
 # REPL
 add_executable(dd_native_repl
     repl/main.cpp
+    repl/alloc.cpp
     repl/args.cpp
     repl/buffer.cpp
     repl/command.cpp
     repl/commands_config.cpp
     repl/commands_core.cpp
     repl/commands_logging.cpp
+    repl/commands_profile.cpp
     repl/commands_rum.cpp
     repl/commands_util.cpp
 )
+target_compile_definitions(dd_native_repl PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=1)
 target_enable_strict_warnings(dd_native_repl)
 target_enable_clang_tidy(dd_native_repl)
 target_enable_coverage(dd_native_repl)

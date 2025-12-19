@@ -88,3 +88,8 @@ CommandResult HandleUrl(State& state, const CommandInput& args) {
   std::cout << url << "\n";
   return CommandResult::OK("URL printed.");
 }
+
+CommandResult HandleNop(State&, const CommandInput& args) {
+  auto message = Unquote(args[0]);
+  return CommandResult::OK(message.empty() ? "nop" : message);
+}

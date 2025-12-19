@@ -14,6 +14,11 @@ struct State;
 CommandResult HandleSource(State& state, const CommandInput& args);
 CommandResult HandleSleep(State& state, const CommandInput& args);
 CommandResult HandleUrl(State& state, const CommandInput& args);
+CommandResult HandleNop(State& state, const CommandInput& args);
+
+// profile
+CommandResult HandleStartProfile(State& state, const CommandInput& args);
+CommandResult HandleStopProfile(State& state, const CommandInput& args);
 
 // config
 CommandResult HandleSetConfig(State& state, const CommandInput& args);

@@ -4,22 +4,26 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <chrono>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <optional>
+#include <thread>
 
 #ifndef _WIN32
 #include <unistd.h>
 #endif
 
+#include "repl/alloc.hpp"
 #include "repl/args.hpp"
 #include "repl/buffer.hpp"
 #include "repl/commands.hpp"
 #include "repl/state.hpp"
 
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
 
 CommandResult Handle(State& state, const CommandInput& input) {
   // Utility
@@ -31,6 +35,17 @@ CommandResult Handle(State& state, const CommandInput& input) {
   }
   if (input.Peek() == "url") {
     return HandleUrl(state, input.Shift());
+  }
+  if (input.Peek() == "nop") {
+    return HandleNop(state, input.Shift());
+  }
+
+  // Profile
+  if (input.Peek() == "start-profile") {
+    return HandleStartProfile(state, input.Shift());
+  }
+  if (input.Peek() == "stop-profile") {
+    return HandleStopProfile(state, input.Shift());
   }
 
   // datadog::CoreConfig, datadog::RumConfig
@@ -109,24 +124,38 @@ void EchoInput(const State& state, std::string_view line) {
   if (line.find("set-config client-token ") != std::string_view::npos) {
     sanitized_line = "set-config client-token ***********************************";
   }
-  for (size_t i = 0; i < state.num_files; i++) {
-    std::cout << ">";
+  // Print '>' by default, '>>' if executing a sourced file, etc.; adding another
+  // character for each level of nesting
+  char prompt_buf[MAX_SOURCED_FILES + 2];
+  const size_t num_prompt_chars = state.num_files + 1;
+  for (size_t i = 0; i < num_prompt_chars; i++) {
+    prompt_buf[i] = '>';
   }
-  std::cout << "> " << sanitized_line << "\n" << std::flush;
+  prompt_buf[num_prompt_chars] = '\0';
+  std::cout << state.output_buffer.Writef(
+      "%s %.*s\n",
+      static_cast<const char*>(prompt_buf),
+      sanitized_line.size(),
+      sanitized_line.data()
+  );
 }
 
-void PrintResult(const CommandResult& result) {
+void PrintResult(Buffer& output_buffer, const CommandResult& result) {
   if (result.ok) {
-    std::cout << "\033[32m< " << result.message << "\033[0m\n";
+    std::cout << output_buffer.Writef(
+        "\033[32m< %.*s\033[0m\n", result.message.size(), result.message.data()
+    );
   } else {
-    std::cout << "\033[35mERROR: " << result.message << "\033[0m\n";
+    std::cout << output_buffer.Writef(
+        "\033[35mERROR: %.*s\033[0m\n", result.message.size(), result.message.data()
+    );
   }
 }
 
 bool Run(State& state, std::string_view line) {
   EchoInput(state, line);
   CommandResult result = Handle(state, CommandInput::Parse(line));
-  PrintResult(result);
+  PrintResult(state.output_buffer, result);
   return result.ok;
 }
 
@@ -134,7 +163,7 @@ bool SetConfig(State& state, std::string_view name, std::string_view value) {
   Buffer buffer;
   return Run(
       state,
-      buffer.Writef(  // NOLINT(cppcoreguidelines-pro-type-vararg)
+      buffer.Writef(
           "set-config %.*s %.*s", name.size(), name.data(), value.size(), value.data()
       )
   );
@@ -144,7 +173,6 @@ bool RunFile(State& state, std::string_view name) {
   // Run 'source <name>' to open the given file
   Buffer buffer;
   const size_t i = state.num_files;
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
   if (!Run(state, buffer.Writef("source %.*s", name.size(), name.data()))) {
     return false;
   }
@@ -157,7 +185,7 @@ bool RunFile(State& state, std::string_view name) {
     auto [input_line, eof] = buffer.GetLine(state.files[i]);
     if (eof) {
       state.files[--state.num_files].close();
-      PrintResult(CommandResult::OK("std::ifstream::close()"));
+      PrintResult(state.output_buffer, CommandResult::OK("std::ifstream::close()"));
       break;
     }
     if (input_line.empty()) {
@@ -244,7 +272,6 @@ int main(int argc, char* argv[]) {  // NOLINT
     if (json_start) {
       const size_t json_start_pos = json_start - message.text;
       const size_t message_text_len = json_start_pos;
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
       std::cout << buffer.Writef(
           "\r%s[DATADOG %s] %.*s%s%s%s\n",
           ansi_start,
@@ -256,7 +283,6 @@ int main(int argc, char* argv[]) {  // NOLINT
           ansi_reset
       );
     } else {
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
       std::cout << buffer.Writef(
           "\r%s[DATADOG %s] %s%s\n", ansi_start, level_name, message.text, ansi_reset
       );
@@ -348,7 +374,7 @@ int main(int argc, char* argv[]) {  // NOLINT
       // If we've hit EOF on a sourced file, close it and pop it off the stack
       if (state.num_files > 0) {
         state.files[--state.num_files].close();  // NOLINT
-        PrintResult(CommandResult::OK("std::ifstream::close()"));
+        PrintResult(state.output_buffer, CommandResult::OK("std::ifstream::close()"));
         continue;
       }
 
@@ -366,13 +392,42 @@ int main(int argc, char* argv[]) {  // NOLINT
       break;
     }
     CommandInput input = CommandInput::Parse(input_line);
+    auto start_time = std::chrono::steady_clock::now();
     CommandResult result = Handle(state, input);
-    PrintResult(result);
+    auto elapsed = std::chrono::steady_clock::now() - start_time;
+    PrintResult(state.output_buffer, result);
     if (!result.ok && args.abort_on_error) {
       return 1;
+    }
+
+    if (result.ok && state.is_profiling) {
+      std::cout << state.output_buffer.Writef(
+          "<<(duration): %" PRId64 "\n",
+          std::chrono::duration_cast<std::chrono::nanoseconds>(elapsed).count()
+      );
+
+#if WITH_DATADOG_ALLOCATION_TRACKING
+      if (state.is_profiling_allocations) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(16));
+        auto events = ReadAvailableAllocationEvents();
+        std::cout << state.output_buffer.Writef(
+            "<<(alloc-events): %zu\n", events.second
+        );
+        if (events.second > 0) {
+          for (size_t i = 0; i < events.second; i++) {
+            AllocEvent* ev = events.first + i;
+            const char* op = ev->op == AllocOp::Alloc ? "alloc" : "free";
+            std::cout << state.output_buffer.Writef(
+                "<<<(%zu): op:%s size:%zu tid:%zu\n", i, op, ev->size, ev->tid
+            );
+          }
+        }
+      }
+#endif
     }
   }
   return 0;
 }
 
+// NOLINTEND(cppcoreguidelines-pro-type-vararg)
 // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
