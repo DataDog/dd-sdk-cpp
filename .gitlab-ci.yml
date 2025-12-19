@@ -135,6 +135,21 @@ unit-test:
     reports:
       junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
 
+  integration-test:
+    stage: validate
+    tags: [arch:amd64]
+    image: ${GOLDEN_LINUX_IMAGE}
+    script:
+      - >
+        cmake
+        -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
+        -DDD_HTTP_USE_SYSTEM_LIBCURL=ON
+        -DDD_BUILD_EXAMPLES=ON
+        -DDD_ENABLE_INTEGRATION_TEST=ON
+        -S . -B build
+      - cmake --build build --target dd_native_repl --parallel ${NUM_PARALLEL_BUILD_JOBS}
+      - cmake --build build --target integration-test
+
 # Stage 'build' performs a more exhaustive set of library builds to validate that our
 # library builds successfully on all supported compilers in all configurations.
 
