@@ -84,13 +84,16 @@ def pretty_metric(value: Optional[PerfMetricValue], baseline: Optional[PerfMetri
     if value is None:
         return 'n/a'
     
+    ANSI_RED = '\x1b[0;31m'
+    ANSI_GREEN = '\x1b[0;32m'
+    ANSI_RESET = '\x1b[0m'
     prefix = ''
     if baseline is not None:
         delta = value - baseline
         if delta >= 0.0:
-            prefix = '\x1b[0;31m▴\x1b[0m'
+            prefix = ANSI_RED + '▴' + ANSI_RESET
         else:
-            prefix = '\x1b[0;32m▾\x1b[0m'
+            prefix = ANSI_GREEN + '▾' + ANSI_RESET
     
     def to_pretty_value():
         if isinstance(value, int):
