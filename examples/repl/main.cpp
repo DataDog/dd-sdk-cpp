@@ -335,7 +335,7 @@ int main(int argc, char* argv[]) {  // NOLINT
       }
     }
 
-    // Prepare an SDK instance with all features and start it
+    // Prepare an SDK instance with all features, then start it
     if (!Run(state, "set-config tracking-consent granted")) {
       return 1;
     }
