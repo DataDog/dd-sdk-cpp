@@ -4,6 +4,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <optional>
+
 #include "datadog.hpp"
 #include "repl/commands.hpp"
 #include "repl/state.hpp"
