@@ -44,7 +44,7 @@ def check_repl_env():
         print('This file must exist and must be populated with:')
         print(' set-config client-token <client-token-value>')
         print(' set-config rum-application-id <application-id-value>')
-        sys.exit()
+        sys.exit(1)
 
 
 def run_repl(custom_endpoint_url: str, sdk_id: int, script: str) -> ReplResult:
