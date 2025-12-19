@@ -327,7 +327,7 @@ int main(int argc, char* argv[]) {  // NOLINT
   // gives us all features and a running SDK ready to receive API calls that generate
   // events
   if (args.autostart) {
-    // If we weren't given both --client-token and --rum-application-id args, source a
+    // If we were given neither --client-token nor --rum-application-id args, source a
     // file called .repl-env
     if (args.client_token.empty() || args.rum_application_id.empty()) {
       if (!RunFile(state, ".repl-env")) {
