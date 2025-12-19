@@ -18,6 +18,9 @@
 
 #if WITH_DATADOG_ALLOCATION_TRACKING
 
+// This file implements a custom heap allocator: it consists of memory management code
+// that is necessarily low-level.
+//
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
