@@ -236,7 +236,8 @@ build-windows:
 
 # Stage 'integration' runs integration tests on all supported platforms
 
-# TEMP: For now, just verify that we have the vault CLI installed on all platforms
+# TEMP: For now, just verify that we have the vault CLI installed on all platforms, and
+# examine basic vault state
 
 integration-test-linux:
   stage: integration
@@ -244,14 +245,20 @@ integration-test-linux:
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
   script:
+    - echo "VAULT_ADDR is $VAULT_ADDR"
     - vault --version
+    - vault status
+    - vault token lookup || echo 'no vault token'
 
 integration-test-macos:
   stage: integration
   dependencies: []
   tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ Xcode 15.3.0, AppleClang 15
   script:
+    - echo "VAULT_ADDR is %VAULT_ADDR"
     - vault --version
+    - vault status
+    - vault token lookup || echo 'no vault token'
 
 integration-test-windows:
   stage: integration
@@ -269,7 +276,7 @@ integration-test-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "vault --version"
+      cmd /S /C "echo VAULT_ADDR is %VAULT_ADDR% && vault --version && vault status && vault token lookup || echo no vault token"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake test) returned $LASTEXITCODE" }
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
