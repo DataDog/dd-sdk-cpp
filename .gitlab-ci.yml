@@ -245,6 +245,9 @@ integration-test-linux:
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
   script:
+    - echo "CI is $CI"
+    - echo "CI_RUNNER_TAGS is $CI_RUNNER_TAGS"
+    - echo "KUBERNETES_SERVICE_HOST is $KUBERNETES_SERVICE_HOST"
     - echo "VAULT_ADDR is $VAULT_ADDR"
     - vault --version
     - vault status
@@ -255,9 +258,13 @@ integration-test-macos:
   dependencies: []
   tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ Xcode 15.3.0, AppleClang 15
   script:
-    - echo "VAULT_ADDR is %VAULT_ADDR"
+    - echo "CI is $CI"
+    - echo "CI_RUNNER_TAGS is $CI_RUNNER_TAGS"
+    - echo "KUBERNETES_SERVICE_HOST is $KUBERNETES_SERVICE_HOST"
+    - echo "VAULT_ADDR is $VAULT_ADDR"
     - vault --version
     - vault status
+    - vault login -method=aws -no-print  # macOS runners must obtain a Vault token using AWS IAM authentication
     - vault token lookup || echo 'no vault token'
 
 integration-test-windows:
