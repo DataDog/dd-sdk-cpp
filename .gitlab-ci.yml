@@ -272,23 +272,16 @@ integration-test-windows:
   dependencies: []
   tags: [windows-v2:2022]
   id_tokens:
-    CI_IDENTITY_GITLAB_JWT:
-      aud: https://vault.us1.ddbuild.io  # Required for vault auth
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
   variables:
-    CI_IDENTITY_ROLE_NAME_OVERRIDE: windows-ci-tmp-gitlab-id-token-dd-sdk-cpp-all-refs  # Required for vault auth
+    CI_IDENTITIES_CLIENT_VERSION: v0.1.0
     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
     TOOLCHAIN_TARGET: vs2022
   script:
     - $ErrorActionPreference = "Stop"
-    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-    - >
-      docker run --rm
-      -m 8192M
-      -v "$(Get-Location):C:\mnt"
-      -w C:\mnt
-      ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "echo CI is %CI% && echo CI_RUNNER_TAGS is %CI_RUNNER_TAGS% && echo KUBERNETES_SERVICE_HOST IS %KUBERNETES_SERVICE_HOST% && C:\devtools\ddbuild\ci-identities-gitlab-job-client-windows-amd64.exe assume-role && echo VAULT_ADDR is %VAULT_ADDR% && vault --version && vault status && vault token lookup || echo no vault token"
-    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake test) returned $LASTEXITCODE" }
+    - aws s3 cp "s3://binaries-ddbuild-io-prod/ci-identities/ci-identities-gitlab-job-client/versions/${env:CI_IDENTITIES_CLIENT_VERSION}/ci-identities-gitlab-job-client-windows-amd64.exe" ./ci-identities-gitlab-job-client.exe
+    - .\ci-identities-gitlab-job-client.exe assume-role
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
 # support with precompiled binaries
