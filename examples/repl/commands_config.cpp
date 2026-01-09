@@ -108,6 +108,16 @@ CommandResult HandleSetConfig(State& state, const CommandInput& args) {
     return CommandResult::Error("Invalid tracking consent!");
   }
 
+  // set-config event-storage-location <value>
+  if (args.Peek() == "event-storage-location") {
+    std::string_view value_str = Unquote(args[1]);
+    if (value_str.empty()) {
+      return CommandResult::Error("No value supplied for event-storage-location!");
+    }
+    state.config.SetEventStorageLocation(value_str);
+    return CommandResult::OK("CoreConfig::SetEventStorageLocation()");
+  }
+
   // set-config site <value>
   if (args.Peek() == "site") {
     std::string_view value_str = args[1];

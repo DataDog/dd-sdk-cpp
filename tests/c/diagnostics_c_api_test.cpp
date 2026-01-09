@@ -21,6 +21,7 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
     // diagnostic error before the Core can be initialized
     dd_core_config_t config;
     dd_core_config_init(&config, "", "my-service", "my-env");
+    dd_core_config_set_event_storage_location(&config, ".");
 
     // And a user-supplied diagnostic message handler callback that will validate the
     // expected message and increment a count so we can verify that it was called
@@ -53,6 +54,7 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
     // Given a valid core config
     dd_core_config_t config;
     dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
+    dd_core_config_set_event_storage_location(&config, ".");
 
     // And a RUM config that will cause RUM initialization to fail and produce a
     // diagnostic error
@@ -98,6 +100,7 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
     // Given a valid core config and a valid RUM config
     dd_core_config_t config;
     dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
+    dd_core_config_set_event_storage_location(&config, ".");
     dd_rum_config_t rum_config;
     dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
 
@@ -147,6 +150,7 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
     // Given a valid core config and a valid RUM config
     dd_core_config_t config;
     dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
+    dd_core_config_set_event_storage_location(&config, ".");
     dd_rum_config_t rum_config;
     dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
 
@@ -189,6 +193,7 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
     // Given a valid core config
     dd_core_config_t config;
     dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
+    dd_core_config_set_event_storage_location(&config, ".");
 
     // And a handler callback that will increment callback_count and validate that we
     // get the expected error on SDK start

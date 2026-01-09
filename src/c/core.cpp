@@ -25,6 +25,7 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     nullptr,                           // diagnostic_handler_userdata
     DD_DIAGNOSTIC_LEVEL_WARNING,       // diagnostic_threshold
     DD_TRACKING_CONSENT_PENDING,       // tracking_consent
+    {0},                               // event_storage_location
     DD_SITE_US1,                       // site
     nullptr,                           // client_token
     nullptr,                           // service
@@ -97,6 +98,33 @@ void dd_core_config_set_initial_tracking_consent(
     return;
   }
   config->tracking_consent = value;
+}
+
+void dd_core_config_set_event_storage_location(
+    dd_core_config_t* config, const char* value
+) {
+  if (!config) {
+    return;
+  }
+  const size_t len = std::strlen(value);
+  const size_t max_len = std::size(config->event_storage_location) - 1;
+  if (len > max_len) {
+    auto diagnostic_logger = datadog::impl::DiagnosticLogger::FromC(
+        config->diagnostic_handler,
+        config->diagnostic_handler_userdata,
+        config->diagnostic_threshold
+    );
+    diagnostic_logger.Error(
+        "Unable to accept value passed to dd_core_config_set_event_storage_location: "
+        "length limit exceeded"
+    );
+    return;
+  }
+  std::strncpy(
+      static_cast<char*>(config->event_storage_location),
+      value,
+      std::size(config->event_storage_location)
+  );
 }
 
 void dd_core_config_set_site(dd_core_config_t* config, dd_site_t value) {

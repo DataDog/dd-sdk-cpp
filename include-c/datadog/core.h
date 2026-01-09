@@ -44,6 +44,9 @@ typedef enum {
  * Use dd_core_config_set_diagnostic_handler() to specify how emitted messages should be
  * handled. Supply your own callback to override the default behavior of printing to
  * stderr; supply NULL to entirely suppress all diagnostic output.
+ *
+ * Note that message->text is only valid during the handler invocation. If you need to
+ * store the text of message persistently, you must make a copy.
  */
 typedef struct dd_diagnostic_message {
   dd_diagnostic_level_t level;
@@ -138,6 +141,7 @@ typedef struct dd_core_config {
   void* diagnostic_handler_userdata;
   dd_diagnostic_level_t diagnostic_threshold;
   dd_tracking_consent_t tracking_consent;
+  char event_storage_location[512];
   dd_site_t site;
   const char* client_token;
   const char* service;
@@ -204,6 +208,32 @@ DATADOG_API void dd_core_config_set_diagnostic_threshold(
  */
 DATADOG_API void dd_core_config_set_initial_tracking_consent(
     dd_core_config_t* config, dd_tracking_consent_t value
+);
+
+/**
+ * Sets the directory path where the Datadog SDK will create a subdirectory to store all
+ * of the transient data it creates during normal operation.
+ *
+ * The directory you provide must be a location that is unique to your application,
+ * where the current process will be permitted to create directories, write files, and
+ * delete files. No shell expansions (e.g. ~, environment variables) are performed.
+ *
+ * Upon SDK start, the SDK will attempt to create a .datadog/ subdirectory within the
+ * event storage location you provided. If unsuccessful, the SDK will print a diagnostic
+ * error and fail to start.
+ *
+ * During normal operation, the SDK will assume exclusive ownership of all files within
+ * the .datadog/ directory; freely creating and deleting files as needed. It will NOT
+ * read or modify any other path within the event storage location.
+ *
+ * It is highly recommended that you explicitly specify an event storage location when
+ * configuring an instance of the SDK. If you do not, the SDK will print a warning, but
+ * it will attempt to create a .datadog/ subdirectory within the working directory for
+ * the current process. If you prefer to use the current working directory, explicitly
+ * configure the SDK with dd_core_config_set_event_storage_location(&config, ".").
+ */
+DATADOG_API void dd_core_config_set_event_storage_location(
+    dd_core_config_t* config, const char* value
 );
 
 /**

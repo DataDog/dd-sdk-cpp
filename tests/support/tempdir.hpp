@@ -15,6 +15,7 @@
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -111,6 +112,16 @@ struct TempDirectory {
     return std::filesystem::exists(dir_path) && std::filesystem::is_directory(dir_path);
   }
 
+  std::vector<std::string> ReadDirectoryContents(std::string_view dirname) const {
+    std::vector<std::string> results;
+    std::filesystem::path dir_path = std::filesystem::path(path) / dirname;
+    std::error_code ec;
+    for (const auto& entry : std::filesystem::directory_iterator(dir_path, ec)) {
+      results.push_back(entry.path().filename());
+    }
+    return results;
+  }
+
   std::string ReadFileContents(std::string_view filename) const {
     std::filesystem::path file_path = std::filesystem::path(path) / filename;
     std::ifstream file(file_path, std::ios::binary);
@@ -120,6 +131,13 @@ struct TempDirectory {
     std::ostringstream contents;
     contents << file.rdbuf();
     return contents.str();
+  }
+
+  void Mkdirs(std::string_view dirname) const {
+    std::filesystem::path file_path = std::filesystem::path(path) / dirname;
+    std::error_code ec;
+    std::filesystem::create_directories(file_path, ec);
+    DATADOG_ASSERT(ec == std::errc{}, "failed to create temp directories");
   }
 
   void WriteFile(std::string_view filename, std::string_view contents) const {

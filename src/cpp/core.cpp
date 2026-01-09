@@ -49,6 +49,11 @@ CoreConfig& CoreConfig::SetInitialTrackingConsent(TrackingConsent value) {
   return *this;
 }
 
+CoreConfig& CoreConfig::SetEventStorageLocation(std::string_view value) {
+  event_storage_location = value;
+  return *this;
+}
+
 CoreConfig& CoreConfig::SetSite(Site value) {
   site = value;
   return *this;
