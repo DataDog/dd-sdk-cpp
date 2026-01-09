@@ -200,7 +200,7 @@ struct MockFilesystem {
   size_t num_files_deleted{0};
 
   // Synchronize access to the above (separate from file-level synchronization)
-  std::mutex mutex;
+  mutable std::mutex mutex;
 
   /**
    * Creates directory entries for all path components in relpath. For example,
@@ -238,7 +238,7 @@ struct MockFilesystem {
    */
   platform::FilesystemResult<void> HandleListFiles(
       std::filesystem::path relpath, std::vector<std::string>& out_names
-  ) {
+  ) const {
     std::scoped_lock lock(mutex);
 
     // Simulate error if directory is flagged bad or fail
@@ -266,7 +266,7 @@ struct MockFilesystem {
   }
 
   /**
-   * Handles IDirectory::RemoveFile given the relevant directory path.
+   * Handles IDirectory::RemoveFile given the relevant file path.
    */
   platform::FilesystemResult<void> HandleRemoveFile(std::filesystem::path relpath) {
     // Acquire filesystem mutex
@@ -305,6 +305,75 @@ struct MockFilesystem {
     // Remove the file entry and return success
     file_lock.release();
     files.erase(relpath);
+    num_files_deleted++;
+    return {};
+  }
+
+  /**
+   * Handles IDirectory::MoveFile given the relevant filepath.
+   */
+  platform::FilesystemResult<void> HandleMoveFile(
+      std::filesystem::path src_relpath, std::filesystem::path dst_dir_relpath
+  ) {
+    // Acquire filesystem mutex
+    std::scoped_lock lock(mutex);
+
+    // Check for an existing source file entry, propagating IOError from bad directory
+    auto src_file_result = GetFileEntry(src_relpath);
+    if (!src_file_result.has_value()) {
+      return nonstd::make_unexpected(src_file_result.error());
+    }
+
+    // If src FileEntry is null, src file does not exist
+    auto src_file = *src_file_result;
+    if (!src_file) {
+      return nonstd::make_unexpected(platform::FilesystemError::DoesNotExist);
+    }
+
+    // If the destination directory does not exist, any attempt to move a file into that
+    // directory will fail
+    auto found_dst_dir = dirs.find(dst_dir_relpath);
+    if (found_dst_dir == dirs.end()) {
+      return nonstd::make_unexpected(platform::FilesystemError::Failed);
+    }
+
+    // Check for an existing destination file entry, propagating IOError from bad dir
+    auto dst_file_relpath = dst_dir_relpath / src_relpath.filename();
+    auto dst_file_result = GetFileEntry(dst_file_relpath);
+    if (!dst_file_result.has_value()) {
+      return nonstd::make_unexpected(dst_file_result.error());
+    }
+
+    // If dst FileEntry is not null, dst file already exists and the move should fail
+    if (dst_file_result.value()) {
+      return nonstd::make_unexpected(platform::FilesystemError::AlreadyExists);
+    }
+
+    // Acquire file-level mutex for source file
+    std::unique_lock src_file_lock(src_file->mutex);
+
+    // If src file is flagged bad, fail with I/O error
+    if (src_file->bad) {
+      return nonstd::make_unexpected(platform::FilesystemError::IOError);
+    }
+
+    // If src file is flagged fail, fail
+    if (src_file->fail) {
+      return nonstd::make_unexpected(platform::FilesystemError::Failed);
+    }
+
+    // If any handles to the src file are open, fail
+    if (src_file->reader_fd != 0 || src_file->writer_fd != 0) {
+      return nonstd::make_unexpected(platform::FilesystemError::Failed);
+    }
+
+    // Create a new entry for the dst file, containing the contents of the src file,
+    // then release the lock on the source file and remove its file entry
+    files[dst_file_relpath] = std::make_shared<MockFileEntry>(src_file->data);
+    src_file_lock.release();
+    files.erase(src_relpath);
+
+    // Release filesystem lock and return success
     num_files_deleted++;
     return {};
   }
@@ -437,12 +506,18 @@ class MockDirectory : public platform::IDirectory {
 
   virtual platform::FilesystemResult<void> ListFiles(
       std::vector<std::string>& out_names
-  ) override {
+  ) const override {
     return fs.HandleListFiles(relpath, out_names);
   }
 
   virtual platform::FilesystemResult<void> RemoveFile(std::string_view name) override {
     return fs.HandleRemoveFile(relpath / name);
+  }
+
+  virtual platform::FilesystemResult<void> MoveFile(
+      std::string_view name, std::string_view dst_directory_path
+  ) override {
+    return fs.HandleMoveFile(relpath / name, dst_directory_path);
   }
 
   virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>
@@ -474,12 +549,18 @@ class MockStorageDirectory : public platform::IStorageDirectory {
   // IDirectory interface implementation - delegate to MockFilesystem
   virtual platform::FilesystemResult<void> ListFiles(
       std::vector<std::string>& out_names
-  ) override {
+  ) const override {
     return fs.HandleListFiles("", out_names);
   }
 
   virtual platform::FilesystemResult<void> RemoveFile(std::string_view name) override {
     return fs.HandleRemoveFile(name);
+  }
+
+  virtual platform::FilesystemResult<void> MoveFile(
+      std::string_view name, std::string_view dst_directory_path
+  ) override {
+    return fs.HandleMoveFile(name, dst_directory_path);
   }
 
   virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>

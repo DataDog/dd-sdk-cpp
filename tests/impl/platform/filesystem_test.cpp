@@ -86,6 +86,100 @@ TEST_CASE("IStorageDirectory", "[unit][platform-filesystem]") {
     REQUIRE(result.error() == platform::FilesystemError::DoesNotExist);
   }
 
+  SECTION("M move file to dst dir W MoveFile is called with valid destination") {
+    // Given a couple of files in the source directory
+    tempdir.WriteFile("file1", "content1");
+    tempdir.WriteFile("file2", "content2");
+
+    // And a separate, empty directory that we want to move files into
+    TempDirectory other;
+    auto other_storage_result = platform::Filesystem::Init(other.path);
+    auto other_storage = std::move(*other_storage_result);
+
+    // When we attempt to move file1 into our new directory
+    auto result = storage->MoveFile("file1", other.path);
+
+    // Then the move operation is successful
+    REQUIRE(result.has_value());
+
+    // And file1 is no longer present in the original directory, as reported by the
+    // IDirectory interface
+    std::vector<std::string> filenames;
+    storage->ListFiles(filenames);
+    REQUIRE(filenames.size() == 1);
+    REQUIRE(filenames[0] == "file2");
+
+    // And file1 *is* present in the new directory, as reported by the IDirectory
+    // interface
+    auto file_reader = other_storage->OpenForRead("file1");
+    REQUIRE(file_reader);
+    char buf[32];
+    auto read_result = (*file_reader)->Read(buf, sizeof(buf));
+    REQUIRE(read_result.has_value());
+    REQUIRE(*read_result == 8);
+    REQUIRE(std::memcmp(buf, "content1", 8) == 0);
+  }
+
+  SECTION(
+      "M fail with AlreadyExists W MoveFile is called with a destination directory "
+      "that already contains a file matching the src filename"
+  ) {
+    // Given a file in the source directory
+    tempdir.WriteFile("file1", "content1");
+
+    // And a separate, empty directory that we want to move files into, where a file
+    // named 'file1 already exists
+    TempDirectory other;
+    other.WriteFile("file1", "pre-existing");
+    auto other_storage_result = platform::Filesystem::Init(other.path);
+    auto other_storage = std::move(*other_storage_result);
+
+    // When we attempt to move file1 into our new directory
+    auto result = storage->MoveFile("file1", other.path);
+
+    // Then the move operation fails with AlreadyExists
+    REQUIRE(!result.has_value());
+    REQUIRE(result.error() == platform::FilesystemError::AlreadyExists);
+
+    // And file1 remains present in the original directory
+    std::vector<std::string> filenames;
+    storage->ListFiles(filenames);
+    REQUIRE(filenames.size() == 1);
+    REQUIRE(filenames[0] == "file1");
+
+    // And the original copy of file1 in the destination directory is unmodified
+    auto file_reader = other_storage->OpenForRead("file1");
+    REQUIRE(file_reader);
+    char buf[32];
+    auto read_result = (*file_reader)->Read(buf, sizeof(buf));
+    REQUIRE(read_result.has_value());
+    REQUIRE(*read_result == 12);
+    REQUIRE(std::memcmp(buf, "pre-existing", 12) == 0);
+  }
+
+  SECTION(
+      "M fail with DoesNotExist W MoveFile is called with source filename that does "
+      "not exist"
+  ) {
+    // Given a separate, empty directory that we want to move files into
+    TempDirectory other;
+    auto other_storage_result = platform::Filesystem::Init(other.path);
+    auto other_storage = std::move(*other_storage_result);
+
+    // When we attempt to move file1, which does not exist in the source directory, into
+    // our new directory
+    auto result = storage->MoveFile("file1", other.path);
+
+    // Then the move operation fails with DoesNotExist
+    REQUIRE(!result.has_value());
+    REQUIRE(result.error() == platform::FilesystemError::DoesNotExist);
+
+    // And the destination directory remains empty
+    std::vector<std::string> filenames;
+    other_storage->ListFiles(filenames);
+    REQUIRE(filenames.size() == 0);
+  }
+
   SECTION("M create subdirectory W PrepareSubdirectory is called") {
     // When preparing a subdirectory
     auto result = storage->PrepareSubdirectory("testdir");
