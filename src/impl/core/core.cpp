@@ -47,7 +47,7 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
 
   // Initialize filesystem storage, creating a Datadog-SDK-managed subdirectory beneath
   // the configured path
-  auto filesystem_result = platform::Filesystem::Init(storage_root_path.c_str());
+  auto filesystem_result = platform::Filesystem::Init(storage_root_path.string());
   if (!filesystem_result) {
     return nonstd::make_unexpected(filesystem_result.error().AddPrefix(
         "event storage subsystem could not be initialized"
