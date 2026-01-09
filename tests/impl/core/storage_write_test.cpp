@@ -21,20 +21,30 @@ using namespace datadog::impl;
 TEST_CASE("BatchWriter", "[unit]") {
   auto init_writer = [](MockClock& clock,
                         MockStorageDirectory& storage,
-                        const BatchWriterConfig config) {
+                        const BatchWriterConfig config,
+                        TrackingConsent initial_consent = TrackingConsent::Pending) {
     // Set the system clock to a known timestamp
     clock.FreezeAtMilliseconds(1700000000000);
 
     // Prepare a mock directory to contain events
-    auto directory = storage.PrepareSubdirectory("events");
-    REQUIRE(directory.has_value());
+    auto pending_directory = storage.PrepareSubdirectory("pending");
+    auto granted_directory = storage.PrepareSubdirectory("granted");
+    REQUIRE(pending_directory.has_value());
+    REQUIRE(granted_directory.has_value());
 
     // Return an initialized writer
-    return BatchWriter(DiagnosticLogger{}, std::move(*directory), clock, config);
+    return BatchWriter(
+        DiagnosticLogger{},
+        initial_consent,
+        std::move(*pending_directory),
+        std::move(*granted_directory),
+        clock,
+        config
+    );
   };
 
   SECTION("M successfully write event W valid event data provided") {
-    // Given a BatchWriter configured to write to 'events/'
+    // Given a BatchWriter configured to write to 'pending/'
     MockClock clock;
     MockStorageDirectory storage;
     auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
@@ -47,7 +57,7 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And our event storage directory contains a single batch file with all of our
     // event data serialized to it, TLV-encoded
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     REQUIRE(relpaths.size() == 1);
     std::string expected = MockTLVFile()
                                .AppendEvent("event-0")
@@ -58,7 +68,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(storage.Cat(relpaths.front()) == expected);
 
     // And the name of that file matches the system time when it was created
-    REQUIRE(relpaths.front() == "events/1700000000000");
+    REQUIRE(relpaths.front() == "pending/1700000000000");
   }
 
   SECTION("M handle successive writes in the same file W limits are not met") {
@@ -82,9 +92,9 @@ TEST_CASE("BatchWriter", "[unit]") {
     }
 
     // Then all of those events are contained in a single batch file
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     REQUIRE(relpaths.size() == 1);
-    REQUIRE(relpaths.front() == "events/1700000000000");
+    REQUIRE(relpaths.front() == "pending/1700000000000");
     REQUIRE(storage.Cat(relpaths.front()) == want.ToString());
   }
 
@@ -108,13 +118,13 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("event-2", {}));
 
     // Then our event storage directory contains two batches
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 2);
 
     // And the first file contains the first two events and has a name matching our
     // start timestamp
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) ==
         MockTLVFile().AppendEvent("event-0").AppendEvent("event-1").ToString()
@@ -122,7 +132,7 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And the second file contains the last event and has a name matches the time
     // four seconds later
-    REQUIRE(relpaths[1] == "events/1700000004000");
+    REQUIRE(relpaths[1] == "pending/1700000004000");
     REQUIRE(
         storage.Cat(relpaths[1]) == MockTLVFile().AppendEvent("event-2").ToString()
     );
@@ -144,19 +154,19 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("event-2", {}));
 
     // Then our event storage directory contains two batches
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 2);
 
     // And the first file matches our start time and has the first two events
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) ==
         MockTLVFile().AppendEvent("event-0").AppendEvent("event-1").ToString()
     );
 
     // And the second file matches our end time and has the last event
-    REQUIRE(relpaths[1] == "events/1700000010000");
+    REQUIRE(relpaths[1] == "pending/1700000010000");
     REQUIRE(
         storage.Cat(relpaths[1]) == MockTLVFile().AppendEvent("event-2").ToString()
     );
@@ -178,19 +188,19 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("event-2", {}));
 
     // Then our event storage directory contains two batches
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 2);
 
     // And the first file matches our start time and has the first two events
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) ==
         MockTLVFile().AppendEvent("event-0").AppendEvent("event-1").ToString()
     );
 
     // And the second file matches our end time and has the last event
-    REQUIRE(relpaths[1] == "events/1700000035000");
+    REQUIRE(relpaths[1] == "pending/1700000035000");
     REQUIRE(
         storage.Cat(relpaths[1]) == MockTLVFile().AppendEvent("event-2").ToString()
     );
@@ -215,12 +225,12 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("twenty-bytes-3", {}));
 
     // Then our event storage directory contains two batches
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 2);
 
     // And the first file matches our start time and has the first three events
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) == MockTLVFile()
                                         .AppendEvent("twenty-bytes-0")
@@ -230,7 +240,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     );
 
     // And the second file matches our end time and has the last event
-    REQUIRE(relpaths[1] == "events/1700000000030");
+    REQUIRE(relpaths[1] == "pending/1700000000030");
     REQUIRE(
         storage.Cat(relpaths[1]) ==
         MockTLVFile().AppendEvent("twenty-bytes-3").ToString()
@@ -251,13 +261,13 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("twenty-bytes-1", "twenty-bytes-b"));
 
     // Then our event storage directory contains two batches
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 2);
 
     // And the first file matches our start time and has the event and metadata
     // blocks for our first event
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) == MockTLVFile()
                                         .AppendMetadata("twenty-bytes-a")
@@ -267,7 +277,7 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And the second file matches our end time and has the event and metadata
     // blocks for the second event
-    REQUIRE(relpaths[1] == "events/1700000000010");
+    REQUIRE(relpaths[1] == "pending/1700000000010");
     REQUIRE(
         storage.Cat(relpaths[1]) == MockTLVFile()
                                         .AppendMetadata("twenty-bytes-b")
@@ -289,9 +299,9 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("twenty-bytes-1", {}));
 
     // Then they end up in the same file
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     REQUIRE(relpaths.size() == 1);
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) == MockTLVFile()
                                         .AppendEvent("twenty-bytes-0")
@@ -314,15 +324,15 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("twenty-bytes-1", {}));
 
     // Then they end up in separate files
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 2);
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) ==
         MockTLVFile().AppendEvent("twenty-bytes-0").ToString()
     );
-    REQUIRE(relpaths[1] == "events/1700000000010");
+    REQUIRE(relpaths[1] == "pending/1700000000010");
     REQUIRE(
         storage.Cat(relpaths[1]) ==
         MockTLVFile().AppendEvent("twenty-bytes-1").ToString()
@@ -345,7 +355,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(write_ok == false);
 
     // And nothing is written to disk
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     REQUIRE(relpaths.empty());
   }
 
@@ -365,15 +375,15 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("event-2", {}));
 
     // Then they're split into two files
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 2);
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) ==
         MockTLVFile().AppendEvent("event-0").AppendEvent("event-1").ToString()
     );
-    REQUIRE(relpaths[1] == "events/1700000000020");
+    REQUIRE(relpaths[1] == "pending/1700000000020");
     REQUIRE(
         storage.Cat(relpaths[1]) == MockTLVFile().AppendEvent("event-2").ToString()
     );
@@ -395,10 +405,10 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(writer.HandleWrite("event-2", "metadata-2"));
 
     // Then they're split into two files just the same
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 2);
-    REQUIRE(relpaths[0] == "events/1700000000000");
+    REQUIRE(relpaths[0] == "pending/1700000000000");
     REQUIRE(
         storage.Cat(relpaths[0]) == MockTLVFile()
                                         .AppendMetadata("metadata-0")
@@ -407,7 +417,7 @@ TEST_CASE("BatchWriter", "[unit]") {
                                         .AppendEvent("event-1")
                                         .ToString()
     );
-    REQUIRE(relpaths[1] == "events/1700000000020");
+    REQUIRE(relpaths[1] == "pending/1700000000020");
     REQUIRE(
         storage.Cat(relpaths[1]) ==
         MockTLVFile().AppendMetadata("metadata-2").AppendEvent("event-2").ToString()
@@ -429,7 +439,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(write_ok == false);
 
     // And nothing is written to disk
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     REQUIRE(relpaths.empty());
   }
 
@@ -448,7 +458,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(write_ok == false);
 
     // And nothing is written to disk
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     REQUIRE(relpaths.empty());
   }
 
@@ -461,20 +471,20 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And an event directory that already contains files named '1700000000000',
     // '1700000000001', and '1700000000002'
-    storage.WithExistingFile("events/1700000000000", "non");
-    storage.WithExistingFile("events/1700000000001", "net");
-    storage.WithExistingFile("events/1700000000002", "nie");
-    storage.WithExistingFile("events/1700000000004", "nope");
+    storage.WithExistingFile("pending/1700000000000", "non");
+    storage.WithExistingFile("pending/1700000000001", "net");
+    storage.WithExistingFile("pending/1700000000002", "nie");
+    storage.WithExistingFile("pending/1700000000004", "nope");
 
     // When we write an event, Then it succeeds
     REQUIRE(writer.HandleWrite("event-0", {}));
 
     // And the newly-written event is stored in a file whose name reflects the next
     // available timestamp value
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     std::sort(relpaths.begin(), relpaths.end());
     REQUIRE(relpaths.size() == 5);
-    REQUIRE(relpaths[3] == "events/1700000000003");
+    REQUIRE(relpaths[3] == "pending/1700000000003");
     REQUIRE(
         storage.Cat(relpaths[3]) == MockTLVFile().AppendEvent("event-0").ToString()
     );
@@ -491,7 +501,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     // millisecond-precision timestamp value between now and 100ms from now
     for (uint64_t i = 0; i < 100; i++) {
       const uint64_t timestamp_ms = 1700000000000 + i;
-      const std::string relpath = "events/" + std::to_string(timestamp_ms);
+      const std::string relpath = "pending/" + std::to_string(timestamp_ms);
       storage.WithExistingFile(relpath, "no dice");
     }
 
@@ -502,7 +512,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(write_ok == false);
 
     // And no files are modified
-    std::vector<std::string> relpaths = storage.FindFiles("events");
+    std::vector<std::string> relpaths = storage.FindFiles("pending");
     REQUIRE(relpaths.size() == 100);
     const std::string expected = MockTLVFile().AppendBytes("no dice").ToString();
     for (const std::string& relpath : relpaths) {
@@ -517,123 +527,16 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(write_ok == true);
 
     // And a new batch file is created
-    relpaths = storage.FindFiles("events");
+    relpaths = storage.FindFiles("pending");
     REQUIRE(relpaths.size() == 101);
     REQUIRE(
-        std::find(relpaths.begin(), relpaths.end(), "events/1700000000100") !=
+        std::find(relpaths.begin(), relpaths.end(), "pending/1700000000100") !=
         relpaths.end()
     );
   }
 
-  // TODO: Test Delete/MigrateTo once implemented
-}
-
-TEST_CASE("EventStorage", "[unit]") {
-  // Common test setup logic
-  auto prepare_storage = [](MockStorageDirectory& mock_storage,
-                            MockClock& clock,
-                            TrackingConsent consent) -> EventStorage {
-    // 'events/no-upload' contains pending events; 'events/yes-upload' for granted
-    auto directory = mock_storage.PrepareSubdirectory("events");
-    REQUIRE(directory.has_value());
-    auto pending_subdir = (*directory)->PrepareSubdirectory("no-upload");
-    REQUIRE(pending_subdir.has_value());
-    auto granted_subdir = (*directory)->PrepareSubdirectory("yes-upload");
-    REQUIRE(granted_subdir.has_value());
-
-    // Make two BatchWriters, one to handle writes for each directory
-    auto writer_config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
-    auto pending_writer = std::make_unique<BatchWriter>(
-        DiagnosticLogger{}, std::move(*pending_subdir), clock, writer_config
-    );
-    auto granted_writer = std::make_unique<BatchWriter>(
-        DiagnosticLogger{}, std::move(*granted_subdir), clock, writer_config
-    );
-
-    // Create an EventStorage interface to sit in front of them, using the desired
-    // value for our initial tracking consent
-    return EventStorage(consent, std::move(pending_writer), std::move(granted_writer));
-  };
-
-  SECTION("M write events to pending subdir W initial tracking consent is pending") {
-    // Given an EventStorage whose tracking consent is initially pending
-    MockStorageDirectory mock_storage;
-    MockClock clock;
-    EventStorage storage =
-        prepare_storage(mock_storage, clock, TrackingConsent::Pending);
-
-    // When we write an event
-    const bool ok = storage.HandleWrite("while-pending", {});
-
-    // Then the write should succeed
-    REQUIRE(ok);
-
-    // And the file containing that event should be created in our pending subdir
-    auto pending_relpaths = mock_storage.FindFiles("events/no-upload");
-    REQUIRE(pending_relpaths.size() == 1);
-    REQUIRE(
-        mock_storage.Cat(pending_relpaths.front()) ==
-        MockTLVFile().AppendEvent("while-pending").ToString()
-    );
-
-    // And our granted subdir should remain empty
-    auto granted_relpaths = mock_storage.FindFiles("events/yes-upload");
-    REQUIRE(granted_relpaths.size() == 0);
-  }
-
-  SECTION("M write events to granted subdir W initial tracking consent is granted") {
-    // Given an EventStorage whose tracking consent is initially granted
-    MockStorageDirectory mock_storage;
-    MockClock clock;
-    EventStorage storage =
-        prepare_storage(mock_storage, clock, TrackingConsent::Granted);
-
-    // When we write an event
-    const bool ok = storage.HandleWrite("while-granted", {});
-
-    // Then the write should succeed
-    REQUIRE(ok);
-
-    // And our pending subdir should remain empty
-    auto pending_relpaths = mock_storage.FindFiles("events/no-upload");
-    REQUIRE(pending_relpaths.size() == 0);
-
-    // And our granted subdir should contain the file with our event
-    auto granted_relpaths = mock_storage.FindFiles("events/yes-upload");
-    REQUIRE(granted_relpaths.size() == 1);
-    REQUIRE(
-        mock_storage.Cat(granted_relpaths.front()) ==
-        MockTLVFile().AppendEvent("while-granted").ToString()
-    );
-  }
-
-  SECTION("M write events nowhere W initial tracking consent is not granted") {
-    // Given an EventStorage whose tracking consent is initially granted
-    MockStorageDirectory mock_storage;
-    MockClock clock;
-    EventStorage storage =
-        prepare_storage(mock_storage, clock, TrackingConsent::NotGranted);
-
-    // When we write an event
-    const bool ok = storage.HandleWrite("while-not-granted", {});
-
-    // Then the write should _still_ succeed, because we've successfully handled the
-    // event by dropping it in accordance with the user's tracking preferences
-    REQUIRE(ok);
-
-    // And both pending and granted subdirs should remain empty
-    auto pending_relpaths = mock_storage.FindFiles("events/no-upload");
-    REQUIRE(pending_relpaths.size() == 0);
-    auto granted_relpaths = mock_storage.FindFiles("events/yes-upload");
-    REQUIRE(granted_relpaths.size() == 0);
-  }
-
-  // TODO: Test SetTrackingConsent once Delete/MigrateTo are implemented:
-  // - Verify that events previously written to pending appear in granted when consent
-  //   is granted
-  // - Verify that events previously written to pending are deleted when consent is
-  //   revoked
-  // - Verify whatever synchronization is involved in migrating pending -> granted
-  // - Verify that events already in granted are not changed or removed in any case
-  // - Verify that writes made after tracking consent change reflect the new value
+  // TODO(RUM-11356): M remove all files in pending W tracking consent changes to not
+  // granted
+  // TODO(RUM-11356): M move all files from pending to granted W tracking consent
+  // changes to granted
 }

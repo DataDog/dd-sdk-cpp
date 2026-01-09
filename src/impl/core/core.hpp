@@ -134,7 +134,7 @@ struct RegisteredFeature {
   /**
    * Interface used by the storage thread to write event data to persistent storage.
    */
-  std::unique_ptr<EventStorage> event_storage;
+  std::unique_ptr<BatchWriter> batch_writer;
 
   /**
    * Wrapper for the directory that the upload thread will scan for batches of event
@@ -153,7 +153,7 @@ struct RegisteredFeature {
       std::string_view in_name,
       const std::shared_ptr<Feature>& in_impl,
       std::unique_ptr<platform::IDirectory>&& in_directory,
-      std::unique_ptr<EventStorage>&& in_event_storage,
+      std::unique_ptr<BatchWriter>&& in_batch_writer,
       std::unique_ptr<platform::IDirectory>&& in_event_read_directory,
       std::unique_ptr<UploadThreadState>&& in_upload_state
   )
@@ -161,7 +161,7 @@ struct RegisteredFeature {
         name(in_name),
         impl(in_impl),
         directory(std::move(in_directory)),
-        event_storage(std::move(in_event_storage)),
+        batch_writer(std::move(in_batch_writer)),
         event_read_directory(std::move(in_event_read_directory)),
         upload_state(std::move(in_upload_state)) {}
 };
@@ -282,7 +282,7 @@ struct RegisteredFeature {
  * The Core guarantees that this vector and all its RegisteredFeature objects will
  * remain immutable for the lifetime of all threads, and each thread treats these
  * state objects as read-only, obviating the need for synchronization. The storage
- * thread has exclusive access to a feature's `EventStorage` interface, and the upload
+ * thread has exclusive access to a feature's `BatchWriter` interface, and the upload
  * thread has exclusive access to a feature's `UploadThreadState` and
  * `event_read_directory`.
  */

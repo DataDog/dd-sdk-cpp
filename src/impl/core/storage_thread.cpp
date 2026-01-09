@@ -32,7 +32,7 @@ static void _handle_tracking_consent_changed(
     const StorageMessage_TrackingConsentChanged& m
 ) {
   for (auto& feature : features) {
-    if (!feature.event_storage->SetTrackingConsent(m.value)) {
+    if (!feature.batch_writer->SetTrackingConsent(m.value)) {
       diagnostic_logger.Error(
           "Failed to handle tracking consent change", {{"feature", feature.name}}
       );
@@ -59,15 +59,15 @@ static void _handle_event_generated(
     return;
   }
 
-  // No RegisteredFeature should ever be initialized without a valid EventStorage
+  // No RegisteredFeature should ever be initialized without a valid BatchWriter
   DATADOG_ASSERT(
-      feature->event_storage,
-      "feature identified by generated event does not have a valid EventStorage"
+      feature->batch_writer,
+      "feature identified by generated event does not have a valid BatchWriter"
   );
 
-  // Use the RegisteredFeature's EventStorage to process the write operation, only
+  // Use the RegisteredFeature's BatchWriter to process the write operation, only
   // continuing once the filesystem write operations return
-  const bool write_ok = feature->event_storage->HandleWrite(
+  const bool write_ok = feature->batch_writer->HandleWrite(
       Block(reinterpret_cast<const char*>(m.event.data()), m.event.size()),  // NOLINT
       Block(
           reinterpret_cast<const char*>(m.event_metadata.data()),  // NOLINT
