@@ -330,11 +330,13 @@ struct MockFilesystem {
       return nonstd::make_unexpected(platform::FilesystemError::DoesNotExist);
     }
 
-    // If the destination directory does not exist, any attempt to move a file into that
-    // directory will fail
-    auto found_dst_dir = dirs.find(dst_dir_relpath);
-    if (found_dst_dir == dirs.end()) {
-      return nonstd::make_unexpected(platform::FilesystemError::Failed);
+    // If the destination directory does not exist, implicitly create it
+    std::filesystem::path current_path;
+    for (const auto& component : dst_dir_relpath) {
+      current_path /= component;
+      if (dirs.find(current_path) == dirs.end()) {
+        dirs[current_path] = std::make_shared<MockDirEntry>();
+      }
     }
 
     // Check for an existing destination file entry, propagating IOError from bad dir

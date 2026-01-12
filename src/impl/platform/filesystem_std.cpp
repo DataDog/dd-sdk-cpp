@@ -276,6 +276,12 @@ class StdDirectory : public virtual IDirectory {
       return nonstd::make_unexpected(FilesystemError::Failed);
     }
 
+    // Preemptively create the destination directory in case it doesn't yet exist
+    std::filesystem::create_directories(dst_file_path.parent_path(), ec);
+    if (ec) {
+      return nonstd::make_unexpected(FilesystemError::Failed);
+    }
+
     // Perform a rename to move from src to dst
     std::filesystem::rename(src_file_path, dst_file_path, ec);
     if (ec == std::errc{}) {

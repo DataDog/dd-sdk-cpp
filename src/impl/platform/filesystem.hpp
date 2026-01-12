@@ -152,9 +152,12 @@ class IDirectory {
 
   /**
    * Given a source file in this directory with the given name, attempts to move that
-   * file into the destination directory given as `dst_directory_path`. If the source
-   * file does not exist, returns FilesystemError::DoesNotExist. If the destination
-   * directory already contains a file with the given name, returns
+   * file into the destination directory given as `dst_directory_path`. If the
+   * destination directory does not yet exist, this operation will attempt to create it
+   * implicitly.
+   *
+   * If the source file does not exist, returns FilesystemError::DoesNotExist. If the
+   * destination directory already contains a file with the given name, returns
    * FilesystemError::AlreadyExists.
    */
   virtual FilesystemResult<void> MoveFile(
