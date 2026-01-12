@@ -535,8 +535,247 @@ TEST_CASE("BatchWriter", "[unit]") {
     );
   }
 
-  // TODO(RUM-11356): M remove all files in pending W tracking consent changes to not
-  // granted
-  // TODO(RUM-11356): M move all files from pending to granted W tracking consent
-  // changes to granted
+  SECTION("M remove all files in pending W tracking consent changes to NotGranted") {
+    // Given a BatchWriter configured to write to 'pending/'
+    MockClock clock;
+    MockStorageDirectory storage;
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(clock, storage, config);
+
+    // And a succession of event writes that should result in two batch files being
+    // written
+    REQUIRE(writer.HandleWrite("event-0", {}));
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    clock.Tick(std::chrono::seconds(60));
+    REQUIRE(writer.HandleWrite("event-2", {}));
+
+    // Then we have two batch files in our directory, as expected
+    auto relpaths = storage.FindFiles("pending");
+    std::sort(relpaths.begin(), relpaths.end());
+    REQUIRE(relpaths.size() == 2);
+    REQUIRE(relpaths[0] == "pending/1700000000000");
+    REQUIRE(relpaths[1] == "pending/1700000060100");
+
+    // Next: When we call SetTrackingConsent() to notify the BatchWriter that the user's
+    // tracking consent has been revoked
+    const bool ok = writer.SetTrackingConsent(TrackingConsent::NotGranted);
+
+    // Then the operation succeeds
+    REQUIRE(ok);
+
+    // And our pending directory is now empty
+    relpaths = storage.FindFiles("pending");
+    REQUIRE(relpaths.size() == 0);
+
+    // And our granted directory is empty as ever
+    relpaths = storage.FindFiles("granted");
+    REQUIRE(relpaths.size() == 0);
+
+    // And if we subsequently write an event, it is dropped rather than being flushed to
+    // storage, since tracking consent is explicitly revoked
+    REQUIRE(writer.HandleWrite("event-3", {}));
+    REQUIRE(storage.FindFiles("pending").size() == 0);
+    REQUIRE(storage.FindFiles("granted").size() == 0);
+  }
+
+  SECTION(
+      "M move all files from pending to granted W tracking consent changes to Granted"
+  ) {
+    // Given a BatchWriter configured to write to 'pending/'
+    MockClock clock;
+    MockStorageDirectory storage;
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(clock, storage, config);
+
+    // And a succession of event writes that should result in two batch files being
+    // written
+    REQUIRE(writer.HandleWrite("event-0", {}));
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    clock.Tick(std::chrono::seconds(60));
+    REQUIRE(writer.HandleWrite("event-2", {}));
+
+    // Then we have two batch files in our directory, as expected
+    auto relpaths = storage.FindFiles("pending");
+    std::sort(relpaths.begin(), relpaths.end());
+    REQUIRE(relpaths.size() == 2);
+    REQUIRE(relpaths[0] == "pending/1700000000000");
+    REQUIRE(relpaths[1] == "pending/1700000060100");
+
+    // Next: When we call SetTrackingConsent() to notify the BatchWriter that the user's
+    // tracking consent is now granted
+    const bool ok = writer.SetTrackingConsent(TrackingConsent::Granted);
+
+    // Then the operation succeeds
+    REQUIRE(ok);
+
+    // And our pending directory is now empty
+    relpaths = storage.FindFiles("pending");
+    REQUIRE(relpaths.size() == 0);
+
+    // And our granted directory now contains the two batches that were previously
+    // written to pending
+    relpaths = storage.FindFiles("granted");
+    std::sort(relpaths.begin(), relpaths.end());
+    REQUIRE(relpaths.size() == 2);
+    REQUIRE(relpaths[0] == "granted/1700000000000");
+    REQUIRE(relpaths[1] == "granted/1700000060100");
+
+    // And if we subsequently write an event, it's flushed to storage directly to the
+    // 'granted' directory
+    REQUIRE(writer.HandleWrite("event-3", {}));
+    REQUIRE(storage.FindFiles("pending").size() == 0);
+    relpaths = storage.FindFiles("granted");
+    std::sort(relpaths.begin(), relpaths.end());
+    REQUIRE(relpaths.size() == 3);
+    REQUIRE(relpaths[0] == "granted/1700000000000");
+    REQUIRE(relpaths[1] == "granted/1700000060100");
+
+    // And we've create a brand new batch file to contain our new data; we don't
+    // continue writing to the old file post-move
+    REQUIRE(relpaths[2] == "granted/1700000060101");
+  }
+
+  SECTION(
+      "M handle conflict by deleting file from pending W both pending and granted "
+      "contain a file by that name"
+  ) {
+    // Given a 'granted/' directory that already contains a file named '1700000000000'
+    MockClock clock;
+    MockStorageDirectory storage;
+    storage.WithExistingFile("granted/1700000000000", "existing-contents");
+
+    // And a BatchWriter configured to write to 'pending/'
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(clock, storage, config);
+
+    // And a succession of event writes that should result in two batch files being
+    // written
+    REQUIRE(writer.HandleWrite("event-0", {}));
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    clock.Tick(std::chrono::seconds(60));
+    REQUIRE(writer.HandleWrite("event-2", {}));
+
+    // Then we have two batch files in our directory, as expected
+    auto relpaths = storage.FindFiles("pending");
+    std::sort(relpaths.begin(), relpaths.end());
+    REQUIRE(relpaths.size() == 2);
+    REQUIRE(relpaths[0] == "pending/1700000000000");
+    REQUIRE(relpaths[1] == "pending/1700000060100");
+
+    // Next: When we call SetTrackingConsent() to notify the BatchWriter that the user's
+    // tracking consent is now granted
+    const bool ok = writer.SetTrackingConsent(TrackingConsent::Granted);
+
+    // Then the operation succeeds
+    REQUIRE(ok);
+
+    // And our pending directory is now empty
+    relpaths = storage.FindFiles("pending");
+    REQUIRE(relpaths.size() == 0);
+
+    // And our granted directory now contains the two batches that were previously
+    // written to pending
+    relpaths = storage.FindFiles("granted");
+    std::sort(relpaths.begin(), relpaths.end());
+    REQUIRE(relpaths.size() == 2);
+    REQUIRE(relpaths[0] == "granted/1700000000000");
+    REQUIRE(relpaths[1] == "granted/1700000060100");
+
+    // But granted/1700000000000 contains the original, unmodified contents that were
+    // present initially, while granted/1700000060100 has been newly moved
+    REQUIRE(storage.Cat("granted/1700000000000") == "existing-contents");
+    REQUIRE(
+        storage.Cat("granted/1700000060100") ==
+        MockTLVFile().AppendEvent("event-2").ToString()
+    );
+  }
+
+  SECTION("M fail W unable to move files from pending dir to granted dir") {
+    // Given a BatchWriter and an event in 'pending/'
+    MockClock clock;
+    MockStorageDirectory storage;
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(clock, storage, config);
+    REQUIRE(writer.HandleWrite("event-0", {}));
+    clock.TickMilliseconds(100);
+
+    // And a 'granted/' directory that can not be written to
+    storage.WithExistingFile("granted/.dummy", "ensures-that-granted-dir-exists");
+    storage.SetFail("granted", true);
+
+    // Next: When we call SetTrackingConsent() to notify the BatchWriter that the user's
+    // tracking consent is now granted
+    const bool ok = writer.SetTrackingConsent(TrackingConsent::Granted);
+
+    // Then the operation fails
+    REQUIRE(!ok);
+
+    // And our pending directory retains its original contents, unmodified
+    REQUIRE(storage.FindFiles("pending").size() == 1);
+    REQUIRE(
+        storage.Cat("pending/1700000000000") ==
+        MockTLVFile().AppendEvent("event-0").ToString()
+    );
+
+    // And our granted directory contains no event batches
+    auto relpaths = storage.FindFiles("granted");
+    REQUIRE(relpaths.size() == 1);
+    REQUIRE(relpaths[0] == "granted/.dummy");
+  }
+
+  SECTION(
+      "M move no files but begin writing to pending dir W tracking consent changes to "
+      "Pending"
+  ) {
+    // Given a batch writer configured to write to granted/
+    MockClock clock;
+    MockStorageDirectory storage;
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(clock, storage, config, TrackingConsent::Granted);
+
+    // And a succession of event writes that should result in two batch files being
+    // written
+    REQUIRE(writer.HandleWrite("event-0", {}));
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    clock.Tick(std::chrono::seconds(60));
+    REQUIRE(writer.HandleWrite("event-2", {}));
+
+    // Then we have two batch files in our directory, as expected
+    auto relpaths = storage.FindFiles("granted");
+    std::sort(relpaths.begin(), relpaths.end());
+    REQUIRE(relpaths.size() == 2);
+    REQUIRE(relpaths[0] == "granted/1700000000000");
+    REQUIRE(relpaths[1] == "granted/1700000060100");
+
+    // Next: When we call SetTrackingConsent() to notify the BatchWriter that the user's
+    // tracking consent is once again pending
+    const bool ok = writer.SetTrackingConsent(TrackingConsent::Pending);
+
+    // Then the operation succeeds
+    REQUIRE(ok);
+
+    // And our pending directory remains empty
+    relpaths = storage.FindFiles("pending");
+    REQUIRE(relpaths.size() == 0);
+
+    // And our granted directory still contains the two batches that were placed there
+    // while consent was granted
+    relpaths = storage.FindFiles("granted");
+    std::sort(relpaths.begin(), relpaths.end());
+    REQUIRE(relpaths.size() == 2);
+    REQUIRE(relpaths[0] == "granted/1700000000000");
+    REQUIRE(relpaths[1] == "granted/1700000060100");
+
+    // And if we subsequently write an event, it's flushed to the 'pending' directory
+    clock.TickMilliseconds(5);
+    REQUIRE(writer.HandleWrite("event-3", {}));
+    REQUIRE(storage.FindFiles("granted").size() == 2);
+    relpaths = storage.FindFiles("pending");
+    REQUIRE(relpaths.size() == 1);
+    REQUIRE(relpaths[0] == "pending/1700000060105");
+  }
 }

@@ -97,6 +97,11 @@ class BatchWriter {
   std::unique_ptr<platform::IDirectory> _granted_directory;
 
   /**
+   * Path to _granted_directory; used for efficient renames when migrating files.
+   */
+  std::string_view _granted_directory_path;
+
+  /**
    * Clock used to determine file names and make decisions based on file age. MUST be
    * the same clock used by the upload thread.
    */
@@ -187,12 +192,16 @@ class BatchWriter {
 
  private:
   /**
-   * Attempts to delete all batch files in _pending_directory.
+   * Attempts to delete all batch files in _pending_directory. Returns true if all files
+   * were deleted successfully.
    */
   bool DeletePendingBatches();
 
   /**
-   * Attempts to move all batch files from _pending_directory to _granted_directory.
+   * Attempts to move all batch files from _pending_directory to _granted_directory. In
+   * the event of a filename conflict, the copy of the file in _pending_directory is
+   * deleted, leaving the file in _granted_directory untouched. Returns true if all
+   * files were moved (or deleted in case of conflict) successfully.
    */
   bool MigratePendingBatchesToGranted();
 
