@@ -502,9 +502,12 @@ class MockDirectory : public platform::IDirectory {
  public:
   MockFilesystem& fs;
   std::filesystem::path relpath;
+  std::string relpath_str;
 
   MockDirectory(MockFilesystem& in_fs, std::filesystem::path in_relpath)
-      : fs(in_fs), relpath(in_relpath) {}
+      : fs(in_fs), relpath(in_relpath), relpath_str(relpath.string()) {}
+
+  virtual std::string_view GetPath() const override { return relpath_str; }
 
   virtual platform::FilesystemResult<void> ListFiles(
       std::vector<std::string>& out_names
@@ -547,6 +550,8 @@ class MockStorageDirectory : public platform::IStorageDirectory {
   MockFilesystem fs;
 
   MockStorageDirectory() {}
+
+  virtual std::string_view GetPath() const override { return ""; }
 
   // IDirectory interface implementation - delegate to MockFilesystem
   virtual platform::FilesystemResult<void> ListFiles(

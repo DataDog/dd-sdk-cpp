@@ -135,6 +135,11 @@ class IDirectory {
   IDirectory& operator=(IDirectory&&) = default;
 
   /**
+   * Returns the path to this directory as a string.
+   */
+  virtual std::string_view GetPath() const = 0;
+
+  /**
    * Populates the provided vector with the names of all regular files that exist in
    * this directory.
    *
