@@ -1,5 +1,6 @@
 stages:
   - build-toolchain-images
+  - crashpad-test
   - validate
   - build
   - package
@@ -31,7 +32,7 @@ variables:
   # Our Linux toolchain images are tagged with this version, e.g.
   # 'ci/dd-sdk-cpp:clang15-v2': bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
-  LINUX_TOOLCHAIN_IMAGE_VERSION: v6
+  LINUX_TOOLCHAIN_IMAGE_VERSION: v6-crashpad
 
   # The Windows (MSVC) toolchain image is built separately: since Windows images tend to
   # be large, they are also tagged '<toolchain>-latest' on push, and then the AMI build
@@ -91,6 +92,43 @@ build-toolchain-image-windows:
     - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
     - docker push ${env:TOOLCHAIN_IMAGE_LATEST}
     - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
+
+# Stage 'crashpad-test' is a set of temporary CI jobs used to test whether we can
+# integrate Crashpad into our CI builds
+
+bootstrap-crashpad-linux:
+  stage: crashpad-test
+  dependencies: []
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  script:
+    - python3 tools/bootstrap-crashpad/main.py
+
+bootstrap-crashpad-macos:
+  stage: crashpad-test
+  dependencies: []
+  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ Xcode 15.3.0, AppleClang 15
+  script:
+    - python3 tools/bootstrap-crashpad/main.py
+
+bootstrap-crashpad-windows:
+  stage: crashpad-test
+  dependencies: []
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - >
+      docker run --rm
+      -m 8192M
+      -v "$(Get-Location):C:\mnt"
+      -w C:\mnt
+      ${env:TOOLCHAIN_IMAGE}
+      cmd /S /C "python tools\bootstrap-crashpad\main.py"
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (bootstrap-crashpad) returned $LASTEXITCODE" }
 
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support
 # for clang-format and clang-tidy
