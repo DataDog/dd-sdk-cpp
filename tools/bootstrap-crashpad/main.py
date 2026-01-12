@@ -95,11 +95,14 @@ def build_crashpad(num_parallel_jobs: int):
 def run_crashpad_tests():
     for binary_name in __crashpad_test_binaries__:
         binary_path = os.path.join(__crashpad_repo_root__, 'out', 'Default', binary_name)
+        env = os.environ.copy()
         if sys.platform == 'win32':
             binary_path += '.exe'
+            # Skip timezone tests; they don't work in Windows Docker containers
+            env['GTEST_FILTER'] = '-SystemSnapshotWinTest.TimeZone'
         assert os.path.isfile(binary_path)
         print(f'Running {binary_name}...')
-        subprocess.check_call([binary_path])
+        subprocess.check_call([binary_path], env=env)
     print('All crashpad tests passed.')
 
 
