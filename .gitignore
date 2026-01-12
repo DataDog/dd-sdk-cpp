@@ -5,4 +5,10 @@ Testing/
 *.profraw
 .DS_Store
 .repl-env
-chromium/
+chromium/depot_tools/
+chromium/crashpad/.cipd/
+chromium/crashpad/buildtools/
+chromium/crashpad/crashpad/
+chromium/crashpad/.gclient_previous_sync_commits
+chromium/crashpad/.gcs_entries
+

@@ -71,13 +71,13 @@ def fetch_crashpad(update=True):
     # If crashpad is not present, use chromium/depot_tools/fetch to clone it: note that
     # chromium/crashpad is the root directory for the build (containing metadata files
     # like `.gclient`) while chromium/crashpad/crashpad is the root of the repo
-    if not os.path.isdir(__crashpad_repo_root__):
+    if not os.path.isfile(os.path.join(__crashpad_build_root__, '.gclient')):
         print('Fetching crashpad...')
         os.makedirs(__crashpad_build_root__, exist_ok=True)
         _run_depot_tool(['fetch', 'crashpad'], __crashpad_build_root__)
         assert os.path.isdir(__crashpad_repo_root__)
     elif update:
-        _run_depot_tool(['gclient', 'sync'], __crashpad_repo_root__)
+        _run_depot_tool(['gclient', 'sync'], __crashpad_build_root__)
     print(f'Crashpad is present at: {__crashpad_repo_root__}')
 
 
