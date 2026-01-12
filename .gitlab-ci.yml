@@ -102,14 +102,14 @@ bootstrap-crashpad-linux:
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
   script:
-    - python3 tools/bootstrap-crashpad/main.py
+    - python3 tools/bootstrap-crashpad/main.py --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
 bootstrap-crashpad-macos:
   stage: crashpad-test
   dependencies: []
   tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ Xcode 15.3.0, AppleClang 15
   script:
-    - python3 tools/bootstrap-crashpad/main.py
+    - python3 tools/bootstrap-crashpad/main.py --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
 bootstrap-crashpad-windows:
   stage: crashpad-test
@@ -127,7 +127,7 @@ bootstrap-crashpad-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "python tools\bootstrap-crashpad\main.py"
+      cmd /S /C "python tools\bootstrap-crashpad\main.py --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (bootstrap-crashpad) returned $LASTEXITCODE" }
 
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support

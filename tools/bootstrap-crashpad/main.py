@@ -25,6 +25,7 @@ https://chromium.googlesource.com/crashpad/crashpad/+/HEAD/doc/developing.md
 import os
 import sys
 import subprocess
+import argparse
 from typing import Dict, List
 
 __repo_root__ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
@@ -80,7 +81,7 @@ def fetch_crashpad(update=True):
     print(f'Crashpad is present at: {__crashpad_repo_root__}')
 
 
-def build_crashpad():
+def build_crashpad(num_parallel_jobs: int):
     # depot-tools and crashpad must be present within chromium/
     assert os.path.isdir(__depot_tools_root__)
     assert os.path.isdir(__crashpad_repo_root__)
@@ -88,7 +89,7 @@ def build_crashpad():
     # Use gn gen to create Ninja build files
     relpath = os.path.join('out', 'Default')
     _run_depot_tool(['gn', 'gen', relpath], __crashpad_repo_root__)
-    _run_depot_tool(['ninja', '-C', relpath], __crashpad_repo_root__)
+    _run_depot_tool(['ninja', '-C', relpath, '-j', str(num_parallel_jobs)], __crashpad_repo_root__)
 
 
 def run_crashpad_tests():
@@ -103,7 +104,11 @@ def run_crashpad_tests():
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--parallel', '-j', type=int, default=os.cpu_count() - 1, help='Number of parallel build jobs to use when invoking ninja')
+    args = parser.parse_args()
+
     clone_depot_tools()
     fetch_crashpad(update=True)
-    build_crashpad()
+    build_crashpad(num_parallel_jobs=args.parallel)
     run_crashpad_tests()
