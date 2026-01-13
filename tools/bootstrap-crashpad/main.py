@@ -138,8 +138,7 @@ class GnArgs:
         dd_compile_options_encoded = vars.get('DD_COMPILE_OPTIONS', '')
         dd_compile_options = {x.strip() for x in dd_compile_options_encoded.split('|') if x.strip()}
         for opt in dd_compile_options:
-            # TODO(RUM-12207): Filtering for MSVC args
-            if opt.startswith('-W'):
+            if opt.startswith('-W') or opt.startswith('/W'):
                 continue
             args.extra_cflags.add(opt)
             args.extra_cflags_cc.add(opt)
@@ -254,8 +253,6 @@ def build_main(args: argparse.Namespace):
     gn_args = GnArgs()
     if cmake_vars:
         gn_args = GnArgs.from_cmake(cmake_vars)
-
-    print(f'PARALLEL JOB COUNT IS: {args.parallel}')
 
     # Use gn and ninja to produce a build of crashpad
     build_crashpad(gn_args, args.parallel)
