@@ -26,16 +26,20 @@ else()
     set(DD_LINK_OPTIONS_ENCODED "")
 endif()
 
+# Our bootstrap script requires Python3: any interpreter version will do, since we don't
+# require any pip packages, and since the crashpad build itself will use the python
+# interpreter bundled with depot_tools
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
 # Declare an ExternalProject target, which we can build in order to bootstrap the
 # crashpad repo with all required tools and then build the static library. Note that
 # crashpad_external only encapsulates the commands required to download and build
 # crashpad; it doesn't tell CMake anything about that build's artifacts or dependencies
 # TODO(RUM-12207): Better support for incremental builds
 ExternalProject_Add(crashpad_external
-    #SOURCE_DIR ${CMAKE_SOURCE_DIR}/chromium/crashpad/crashpad
-    DOWNLOAD_COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py install
+    DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py install
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND python3 ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py build
+    BUILD_COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py build
         --no-install
         -c CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
         -c CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
