@@ -1,4 +1,11 @@
 cmake_minimum_required(VERSION 3.21)
+
+# Default to targeting macOS v15: this must appear before project() as it affects
+# toolchain selection
+if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
+  set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum macOS version")
+endif()
+
 project(ddsdkcpp VERSION 0.2.0 LANGUAGES C CXX)
 
 # If we're the top-level project, we're being built in the original source repo, where
@@ -10,14 +17,6 @@ else()
     set(DD_IS_TOP_LEVEL OFF)
 endif()
 
-# Library implementation uses C++17; C API expects C99
-if(DD_IS_TOP_LEVEL)
-    set(CMAKE_C_STANDARD 99)
-    set(CMAKE_CXX_STANDARD 17)
-    set(CMAKE_CXX_STANDARD_REQUIRED ON)
-    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-endif()
-
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
 option(DD_DEVELOPMENT "Enable development mode (examples, tests, analysis, asserts)" OFF)
@@ -25,6 +24,7 @@ option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools
 
 # Top-level options for the build
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
+option(DD_ENABLE_CRASHPAD "Enable crash reporting support via Crashpad" ${DD_DEVELOPMENT})
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
 option(DD_BUILD_INSTALL "Enable install targets" ${DD_IS_TOP_LEVEL})
@@ -43,6 +43,20 @@ endif()
 set(DD_ENABLE_SANITIZERS "${DD_ENABLE_SANITIZERS}" CACHE STRING "Comma-separated list of sanitizers to enable, e.g. 'ASan,UBSan', 'MSan,UBSan', 'TSan'")
 option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_DEVELOPMENT})
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
+
+# C API targets C99; C++ API targets C++17
+if(DD_IS_TOP_LEVEL)
+    set(CMAKE_C_STANDARD 99)
+    set(CMAKE_CXX_STANDARD 17)
+    set(CMAKE_CXX_STANDARD_REQUIRED ON)
+    set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+    # Crashpad requires C++20, so building the SDK with crashpad support requires
+    # targeting C++20
+    if(DD_ENABLE_CRASHPAD)
+        set(CMAKE_CXX_STANDARD 20)
+    endif()
+endif()
 
 # Set the root directory for the project: this is build/ when building the library;
 # build/_deps/datadog-build (or something similar) when included in another project via

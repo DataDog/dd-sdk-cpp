@@ -1,6 +1,5 @@
 stages:
   - build-toolchain-images
-  - crashpad-test
   - validate
   - build
   - package
@@ -93,43 +92,6 @@ build-toolchain-image-windows:
     - docker push ${env:TOOLCHAIN_IMAGE_LATEST}
     - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
 
-# Stage 'crashpad-test' is a set of temporary CI jobs used to test whether we can
-# integrate Crashpad into our CI builds
-
-bootstrap-crashpad-linux:
-  stage: crashpad-test
-  dependencies: []
-  tags: [arch:amd64]
-  image: ${GOLDEN_LINUX_IMAGE}
-  script:
-    - python3 tools/bootstrap-crashpad/main.py --parallel ${NUM_PARALLEL_BUILD_JOBS}
-
-bootstrap-crashpad-macos:
-  stage: crashpad-test
-  dependencies: []
-  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ Xcode 15.3.0, AppleClang 15
-  script:
-    - python3 tools/bootstrap-crashpad/main.py --parallel ${NUM_PARALLEL_BUILD_JOBS}
-
-bootstrap-crashpad-windows:
-  stage: crashpad-test
-  dependencies: []
-  tags: [windows-v2:2022]
-  variables:
-    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-    TOOLCHAIN_TARGET: vs2022
-  script:
-    - $ErrorActionPreference = "Stop"
-    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-    - >
-      docker run --rm
-      -m 8192M
-      -v "$(Get-Location):C:\mnt"
-      -w C:\mnt
-      ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "python tools\bootstrap-crashpad\main.py --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
-    - If ($LASTEXITCODE -ne "0") { throw "docker run (bootstrap-crashpad) returned $LASTEXITCODE" }
-
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support
 # for clang-format and clang-tidy
 
@@ -216,6 +178,7 @@ build-linux:
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
+      -DDD_ENABLE_CRASHPAD=ON
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
@@ -241,6 +204,7 @@ build-macos:
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
+      -DDD_ENABLE_CRASHPAD=ON
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
@@ -268,7 +232,7 @@ build-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=ON -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 
