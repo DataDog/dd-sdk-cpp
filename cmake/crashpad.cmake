@@ -39,7 +39,7 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 ExternalProject_Add(crashpad_external
     DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py install
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py build
+    BUILD_COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py build
         --no-install
         -c CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
         -c CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
