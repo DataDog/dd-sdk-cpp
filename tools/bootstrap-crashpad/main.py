@@ -211,8 +211,12 @@ def run_crashpad_tests():
         env = os.environ.copy()
         if sys.platform == 'win32':
             binary_path += '.exe'
-            # Skip timezone tests; they don't work in Windows Docker containers
-            env['GTEST_FILTER'] = '-SystemSnapshotWinTest.TimeZone'
+            # Skip a handful of tests that cause issues in Windows CI builds
+            excluded_tests = [
+                'SystemSnapshotWinTest.TimeZone',  # Windows Docker containers don't have timezone info
+                'WinMultiprocessChildFails.*',     # Despite passing, these tests print 'error:' output which MSBuild interprets as build failure
+            ]
+            env['GTEST_FILTER'] = '-' + ':'.join(excluded_tests)
         assert os.path.isfile(binary_path)
         print(f'Running {binary_name}...')
         subprocess.check_call([binary_path], env=env)
