@@ -149,3 +149,8 @@ target_include_directories(dd_native PRIVATE
     ${CMAKE_SOURCE_DIR}/chromium/crashpad/crashpad/third_party/mini_chromium/mini_chromium
 )
 target_link_libraries(dd_native PRIVATE crashpad::client)
+
+# Establish a direct dependency between dd_native and crashpad_external: this ensures
+# that CMake will download and build the crashpad source before attempting to compile
+# dd_native
+add_dependencies(dd_native crashpad_external)
