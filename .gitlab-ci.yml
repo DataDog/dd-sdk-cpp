@@ -233,6 +233,7 @@ build-windows:
     - >
       docker run --rm
       -m 8192M
+      -e NUM_PARALLEL_BUILD_JOBS
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
