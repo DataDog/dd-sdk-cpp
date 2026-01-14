@@ -9,8 +9,16 @@
 #include <mutex>
 #include <shared_mutex>
 
+// TODO(RUM-12207): Do this elsewhere
+#ifndef DATADOG_WITH_CRASHPAD
+#define DATADOG_WITH_CRASHPAD 0
+#endif
+
 // TODO(RUM-12207): We're directly including crashpad headers for a quick test
+#if DATADOG_WITH_CRASHPAD
 #include "client/crashpad_client.h"
+#endif
+
 #include "core/writer.hpp"
 
 namespace datadog::impl {
@@ -58,7 +66,9 @@ void Rum::Start() {
   // TODO(RUM-12207): Compile crash reporting
   // TODO(RUM-12207): Don't call Crashpad directly; define an abstract interface for
   //  high-level crash reporting setup operations in all configurations
+#if DATADOG_WITH_CRASHPAD
   crashpad::CrashpadClient crashpad_client;
+#endif
 
   // Inject a reference to our FeatureScope interface into the RumScopeDependencies that
   // will be provided to all scopes, so they can generate events etc.

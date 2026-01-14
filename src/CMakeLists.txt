@@ -179,6 +179,7 @@ endif()
 # after compile/link options for dd_native are fully configured.
 if(DD_ENABLE_CRASHPAD)
     include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
+    target_compile_definitions(dd_native PUBLIC DATADOG_WITH_CRASHPAD=1)
 endif()
 
 # Install configuration
