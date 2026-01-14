@@ -221,11 +221,12 @@ build-windows:
     TOOLCHAIN_TARGET: vs2022
   parallel:
     matrix:
-      # Visual Studio 2022 (17.14, vc143): md-static-debug, w/ bundled libcurl
+      # Visual Studio 2022 (17.14, vc143): md-static-release, w/ bundled libcurl
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
-        MSVC_RUNTIME_LIBRARY: MultiThreadedDebugDLL
+        DD_ENABLE_CRASHPAD: "ON"
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
@@ -237,7 +238,7 @@ build-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=ON -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=${env:DD_ENABLE_CRASHPAD} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 
