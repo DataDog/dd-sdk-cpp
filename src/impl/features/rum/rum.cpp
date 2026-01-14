@@ -9,6 +9,8 @@
 #include <mutex>
 #include <shared_mutex>
 
+// TODO(RUM-12207): We're directly including crashpad headers for a quick test
+#include "client/crashpad_client.h"
 #include "core/writer.hpp"
 
 namespace datadog::impl {
@@ -49,6 +51,15 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
 }
 
 void Rum::Start() {
+  // Instantiate a crashpad client to ensure we can successfully link against crashpad
+  // TODO(RUM-12207): Should crash reporting be a separate feature module?
+  // TODO(RUM-12207): This should probably happen earlier than SDK start
+  // TODO(RUM-12207): Respect crash-reporting-enabled switch from SDK config
+  // TODO(RUM-12207): Compile crash reporting
+  // TODO(RUM-12207): Don't call Crashpad directly; define an abstract interface for
+  //  high-level crash reporting setup operations in all configurations
+  crashpad::CrashpadClient crashpad_client;
+
   // Inject a reference to our FeatureScope interface into the RumScopeDependencies that
   // will be provided to all scopes, so they can generate events etc.
   if (_scope) {
