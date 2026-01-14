@@ -149,12 +149,6 @@ class GnArgs:
         for opt in dd_link_options:
             args.extra_ldflags.add(opt)
 
-        # If building shared library, ensure PIC is enabled
-        dd_build_shared = vars.get('DD_BUILD_SHARED', 'OFF')
-        if dd_build_shared not in ('OFF', 'FALSE', '0', ''):
-            args.extra_cflags.add('-fPIC')
-            args.extra_cflags_cc.add('-fPIC')
-
         # TODO(RUM-12207): MSVC /MT, /MD, /MTd, /MDd
         # TODO(RUM-12207): Validate compiler/linker binary?
 
