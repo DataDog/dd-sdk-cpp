@@ -36,11 +36,13 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # crashpad_external only encapsulates the commands required to download and build
 # crashpad; it doesn't tell CMake anything about that build's artifacts or dependencies
 # TODO(RUM-12207): Better support for incremental builds
+# TODO(RUM-12207): Run crashpad tests in CI, yeah? [remove --no-test]
 ExternalProject_Add(crashpad_external
     DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py install
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py build
         --no-install
+        --no-test
         -c CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
         -c CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -c CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
