@@ -134,15 +134,6 @@ set_target_properties(crashpad::handler PROPERTIES
     IMPORTED_LOCATION ${CRASHPAD_HANDLER_EXE_PATH}
 )
 
-# Add custom targets to establish that depending on crashpad::client or
-# crashpad::handler requires producing the associated build artifacts: this lets CMake
-# know that it has to build the crashpad_external target as a prerequisite for any
-# target that depends on our IMPORTED targets
-# TODO(RUM-12207): This may or may not be necessary (for all custom targets defined via
-# register_crashpad_artifact)
-#add_dependencies(crashpad::client crashpad_client_lib_file)
-#add_dependencies(crashpad::handler crashpad_handler_exe_file)
-
 # Update the main library target for the SDK to link against the crashpad client
 target_include_directories(dd_native PRIVATE
     ${CMAKE_SOURCE_DIR}/chromium/crashpad/crashpad
