@@ -128,7 +128,7 @@ endif()
 # Create an IMPORTED CMake target for the client library: depending on crashpad::client
 # via target_link_libraries will ensure that the target links against libclient.a and
 # all its linker dependencies
-add_library(crashpad::client STATIC IMPORTED)
+add_library(crashpad::client STATIC IMPORTED GLOBAL)
 set_target_properties(crashpad::client PROPERTIES
     IMPORTED_LOCATION ${CRASHPAD_CLIENT_LIB_PATH}
     INTERFACE_LINK_LIBRARIES "${CRASHPAD_CLIENT_LINK_LIBRARIES}"
@@ -154,3 +154,32 @@ target_link_libraries(dd_native PRIVATE crashpad::client)
 # that CMake will download and build the crashpad source before attempting to compile
 # dd_native
 add_dependencies(dd_native crashpad_external)
+
+# Install configuration for Crashpad artifacts
+if(DD_BUILD_INSTALL)
+    # Install all Crashpad static libraries that are required by crashpad::client
+    install(FILES ${CRASHPAD_CLIENT_LIB_PATH} DESTINATION lib)
+    install(FILES ${CRASHPAD_UTIL_LIB_PATH} DESTINATION lib)
+    install(FILES ${CRASHPAD_BASE_LIB_PATH} DESTINATION lib)
+    if(APPLE)
+        install(FILES ${CRASHPAD_MIG_OUTPUT_LIB_PATH} DESTINATION lib)
+    endif()
+
+    # Note: We don't install Crashpad headers since they're not part of the public API.
+    # Crashpad is only used internally by dd_native, and consumers link against the
+    # already-compiled dd_native library.
+
+    # Install the crashpad_handler executable
+    install(PROGRAMS ${CRASHPAD_HANDLER_EXE_PATH} DESTINATION bin)
+
+    # Generate and install CrashpadConfig.cmake
+    set(CRASHPAD_CONFIG_INSTALL_DIR lib/cmake/Crashpad)
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/cmake/CrashpadConfig.cmake.in
+        ${CMAKE_BINARY_DIR}/CrashpadConfig.cmake
+        @ONLY
+    )
+    install(FILES ${CMAKE_BINARY_DIR}/CrashpadConfig.cmake
+        DESTINATION ${CRASHPAD_CONFIG_INSTALL_DIR}
+    )
+endif()

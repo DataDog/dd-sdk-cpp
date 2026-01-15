@@ -1,0 +1,74 @@
+# CrashpadConfig.cmake - CMake configuration for Crashpad crash reporting library
+# This file defines imported targets for the Crashpad libraries bundled with the Datadog SDK
+
+@PACKAGE_INIT@
+
+# Get the directory where this config file is located
+get_filename_component(CRASHPAD_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+get_filename_component(CRASHPAD_INSTALL_PREFIX "${CRASHPAD_CMAKE_DIR}/../../.." ABSOLUTE)
+
+# Define the imported target for crashpad::client
+add_library(crashpad::client STATIC IMPORTED)
+
+# Set the location of the client library
+if(WIN32)
+    set_target_properties(crashpad::client PROPERTIES
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/lib/client.lib"
+    )
+else()
+    set_target_properties(crashpad::client PROPERTIES
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/lib/libclient.a"
+    )
+endif()
+
+# Set include directories for crashpad headers
+set_target_properties(crashpad::client PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES "${CRASHPAD_INSTALL_PREFIX}/include"
+)
+
+# Build the list of link libraries required by crashpad::client
+set(CRASHPAD_CLIENT_LINK_LIBRARIES "")
+
+# Add util library
+if(WIN32)
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "${CRASHPAD_INSTALL_PREFIX}/lib/util.lib")
+else()
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "${CRASHPAD_INSTALL_PREFIX}/lib/libutil.a")
+endif()
+
+# Add base library (from mini_chromium)
+if(WIN32)
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "${CRASHPAD_INSTALL_PREFIX}/lib/base.lib")
+else()
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "${CRASHPAD_INSTALL_PREFIX}/lib/libbase.a")
+endif()
+
+# On macOS, add mig_output library and system frameworks
+if(APPLE)
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "${CRASHPAD_INSTALL_PREFIX}/lib/libmig_output.a")
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "-framework CoreFoundation")
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "-framework CoreGraphics")
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "-framework CoreText")
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "-framework IOKit")
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "-framework Foundation")
+    list(APPEND CRASHPAD_CLIENT_LINK_LIBRARIES "-lbsm")
+endif()
+
+# Set the interface link libraries
+set_target_properties(crashpad::client PROPERTIES
+    INTERFACE_LINK_LIBRARIES "${CRASHPAD_CLIENT_LINK_LIBRARIES}"
+)
+
+# Define the imported target for crashpad::handler executable
+add_executable(crashpad::handler IMPORTED)
+if(WIN32)
+    set_target_properties(crashpad::handler PROPERTIES
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/bin/crashpad_handler.exe"
+    )
+else()
+    set_target_properties(crashpad::handler PROPERTIES
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/bin/crashpad_handler"
+    )
+endif()
+
+check_required_components(Crashpad)

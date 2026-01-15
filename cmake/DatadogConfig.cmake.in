@@ -8,6 +8,13 @@ if(DATADOG_USE_SYSTEM_CURL)
     find_dependency(CURL REQUIRED)
 endif()
 
+# If the library was built with Crashpad support, load the Crashpad config
+set(DATADOG_WITH_CRASHPAD @DD_ENABLE_CRASHPAD@)
+if(DATADOG_WITH_CRASHPAD)
+    # Include the Crashpad config to define crashpad::client and crashpad::handler targets
+    include("${CMAKE_CURRENT_LIST_DIR}/../Crashpad/CrashpadConfig.cmake")
+endif()
+
 # Include the exported targets
 include("${CMAKE_CURRENT_LIST_DIR}/DatadogTargets.cmake")
 
