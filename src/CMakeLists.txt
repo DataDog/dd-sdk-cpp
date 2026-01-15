@@ -99,7 +99,7 @@ target_include_directories(dd_native
     PUBLIC 
         $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-c>
         $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-cpp>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        $<INSTALL_INTERFACE:include>
     PRIVATE
         c
         cpp
