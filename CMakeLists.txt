@@ -63,6 +63,16 @@ endif()
 # FetchContent
 set(DD_SDK_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 
+# Install opt-in convenience helpers, allowing typical applications to just call
+# datadog_enable(primary_executable_target) in their CMake builds
+include("${DD_SDK_ROOT_DIR}/cmake/DatadogConvenience.cmake")
+if(DD_BUILD_INSTALL)
+    install(FILES
+        "${CMAKE_CURRENT_SOURCE_DIR}/cmake/DatadogConvenience.cmake"
+        DESTINATION lib/cmake/Datadog
+    )
+endif()
+
 # Modules for project build configuration
 include(${DD_SDK_ROOT_DIR}/cmake/llvm-tools.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/clang-format.cmake)
