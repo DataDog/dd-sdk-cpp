@@ -38,8 +38,7 @@ __crashpad_test_binaries__ = [
     'crashpad_test_test',
     'crashpad_util_test',
 ]
-__crashpad_out_relpath__ = os.path.join('out', 'Default')
-__crashpad_out_abspath__ = os.path.join(__crashpad_repo_root__, __crashpad_out_relpath__)
+__default_crashpad_out_dir__ = os.path.join(__crashpad_repo_root__, 'out', 'Default')
 
 
 def _default_parallel_job_count() -> int:
@@ -193,21 +192,21 @@ def fetch_crashpad():
     print(f'Crashpad is present at: {__crashpad_repo_root__}')
 
 
-def build_crashpad(gn_args: GnArgs, num_parallel_jobs: int):
+def build_crashpad(out_dir: str, gn_args: GnArgs, num_parallel_jobs: int):
     # depot-tools and crashpad must be present within chromium/
     assert os.path.isdir(__depot_tools_root__)
     assert os.path.isdir(__crashpad_repo_root__)
 
     # Use gn gen to create Ninja build files
     print('Invoking GN to generate Ninja build files for crashpad...')
-    _run_depot_tool(['gn', 'gen', __crashpad_out_relpath__, f'--args={str(gn_args)}'], __crashpad_repo_root__)
+    _run_depot_tool(['gn', 'gen', out_dir, f'--args={str(gn_args)}'], __crashpad_repo_root__)
     print('Invoking Ninja to build crashpad...')
-    _run_depot_tool(['ninja', '-C', __crashpad_out_relpath__, '-j', str(num_parallel_jobs)], __crashpad_repo_root__)
+    _run_depot_tool(['ninja', '-C', out_dir, '-j', str(num_parallel_jobs)], __crashpad_repo_root__)
 
 
-def run_crashpad_tests():
+def run_crashpad_tests(out_dir: str):
     for binary_name in __crashpad_test_binaries__:
-        binary_path = os.path.join(__crashpad_out_abspath__, binary_name)
+        binary_path = os.path.join(out_dir, binary_name)
         env = os.environ.copy()
         if sys.platform == 'win32':
             binary_path += '.exe'
@@ -229,7 +228,7 @@ def install_main(args: argparse.Namespace):
 
 
 def gn_args_main(args: argparse.Namespace):
-    _run_depot_tool(['gn', 'args', __crashpad_out_relpath__, '--list'], __crashpad_repo_root__)
+    _run_depot_tool(['gn', 'args', args.out_dir, '--list'], __crashpad_repo_root__)
 
 
 def build_main(args: argparse.Namespace):
@@ -253,11 +252,11 @@ def build_main(args: argparse.Namespace):
         gn_args = GnArgs.from_cmake(cmake_vars)
 
     # Use gn and ninja to produce a build of crashpad
-    build_crashpad(gn_args, args.parallel)
+    build_crashpad(args.out_dir, gn_args, args.parallel)
 
     # Run crashpad tests to validate the build, unless instructed not to
     if not args.no_test:
-        run_crashpad_tests()
+        run_crashpad_tests(args.out_dir)
 
 
 if __name__ == '__main__':
@@ -271,6 +270,7 @@ if __name__ == '__main__':
     gn_args_parser.set_defaults(func=gn_args_main)
 
     build_parser = subparsers.add_parser('build')
+    build_parser.add_argument('--out-dir', '-o', default=__default_crashpad_out_dir__, help='Output directory for crashpad build files and artifacts')
     build_parser.add_argument('--no-install', '-I', action='store_true', help='If set, skip install/sync of crashpad and depot_tools')
     build_parser.add_argument('--no-test', '-T', action='store_true', help='If set, skip running crashpad tests post-build')
     build_parser.add_argument('--cmake-var', '-c', action='append', dest='cmake_vars', default=[], help='CMake var in KEY=VALUE format; used to configure GN build')

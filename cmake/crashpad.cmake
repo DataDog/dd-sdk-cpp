@@ -5,6 +5,10 @@
 # integrate that build process into our CMake build.
 include(ExternalProject)
 
+# We'll write Crashpad build files and artifacts to a dedicated directory within the
+# current CMake build directory
+set(CRASHPAD_BUILD_DIR ${CMAKE_BINARY_DIR}/_deps/crashpad-build)
+
 # Our main library target for the C++ SDK (dd_native) will need to link against the
 # crashpad_client static lib once it's built. To ensure binary compatibility, we need to
 # resolve the relevant details of our CMake build configuration, so that we can produce
@@ -38,9 +42,10 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # TODO(RUM-12207): Better support for incremental builds
 # TODO(RUM-12207): Run crashpad tests in CI, yeah? [remove --no-test]
 ExternalProject_Add(crashpad_external
-    DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py install
+    DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py install
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND ${Python3_EXECUTABLE} -u ${CMAKE_SOURCE_DIR}/tools/bootstrap-crashpad/main.py build
+    BUILD_COMMAND ${Python3_EXECUTABLE} -u ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py build
+        --out-dir ${CRASHPAD_BUILD_DIR}
         --no-install
         --no-test
         -c CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
@@ -61,7 +66,7 @@ endfunction()
 
 # Resolve the expected path to crashpad build artifacts that we'll need to consume later
 # in the build
-set(CRASHPAD_ARTIFACTS_PATH ${CMAKE_SOURCE_DIR}/chromium/crashpad/crashpad/out/Default/obj)
+set(CRASHPAD_ARTIFACTS_PATH ${CRASHPAD_BUILD_DIR}/obj)
 function(set_crashpad_lib_path OUT_VAR relpath name)
   if(WIN32)
     set(${OUT_VAR} "${CRASHPAD_ARTIFACTS_PATH}/${relpath}/${name}.lib" PARENT_SCOPE)
@@ -71,9 +76,9 @@ function(set_crashpad_lib_path OUT_VAR relpath name)
 endfunction()
 function(set_crashpad_exe_path OUT_VAR name)
   if(WIN32)
-    set(${OUT_VAR} "${CRASHPAD_ARTIFACTS_PATH}/${name}.exe" PARENT_SCOPE)
+    set(${OUT_VAR} "${CRASHPAD_BUILD_DIR}/${name}.exe" PARENT_SCOPE)
   else()
-    set(${OUT_VAR} "${CRASHPAD_ARTIFACTS_PATH}/${name}" PARENT_SCOPE)
+    set(${OUT_VAR} "${CRASHPAD_BUILD_DIR}/${name}" PARENT_SCOPE)
   endif()
 endfunction()
 
@@ -128,18 +133,20 @@ set_target_properties(crashpad::client PROPERTIES
     IMPORTED_LOCATION ${CRASHPAD_CLIENT_LIB_PATH}
     INTERFACE_LINK_LIBRARIES "${CRASHPAD_CLIENT_LINK_LIBRARIES}"
 )
+add_dependencies(crashpad::client crashpad_client_lib_file)
 
 # Create an IMPORTED CMake target for the handler executable: we'll use this later in
 # order to ensure that the handler is bundled with the application executable
-add_executable(crashpad::handler IMPORTED)
+add_executable(crashpad::handler IMPORTED GLOBAL)
 set_target_properties(crashpad::handler PROPERTIES
     IMPORTED_LOCATION ${CRASHPAD_HANDLER_EXE_PATH}
 )
+add_dependencies(crashpad::handler crashpad_handler_exe_file)
 
 # Update the main library target for the SDK to link against the crashpad client
 target_include_directories(dd_native PRIVATE
-    ${CMAKE_SOURCE_DIR}/chromium/crashpad/crashpad
-    ${CMAKE_SOURCE_DIR}/chromium/crashpad/crashpad/third_party/mini_chromium/mini_chromium
+    ${DD_SDK_ROOT_DIR}/chromium/crashpad/crashpad
+    ${DD_SDK_ROOT_DIR}/chromium/crashpad/crashpad/third_party/mini_chromium/mini_chromium
 )
 target_link_libraries(dd_native PRIVATE crashpad::client)
 
