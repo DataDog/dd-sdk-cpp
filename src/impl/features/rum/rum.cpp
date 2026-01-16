@@ -6,75 +6,13 @@
 
 #include "features/rum/rum.hpp"
 
-#include <filesystem>
 #include <iostream>
-#include <map>
 #include <mutex>
 #include <shared_mutex>
-#include <string>
 #include <string_view>
-#include <vector>
-
-// TODO(RUM-12207): Do this elsewhere
-#ifndef DATADOG_WITH_CRASHPAD
-#define DATADOG_WITH_CRASHPAD 0
-#endif
-
-// TODO(RUM-12207): We're directly including crashpad headers for a quick test
-#if DATADOG_WITH_CRASHPAD
-#include "client/crashpad_client.h"
-// TODO(RUM-12207): Includes for resolving current executable path
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
-#include <limits.h>
-#ifdef __APPLE__
-#include <mach-o/dyld.h>
-#endif  // __APPLE__
-#endif  // _WIN32 / else
-#endif  // DATADOG_WITH_CRASHPAD
 
 #include "core/writer.hpp"
-
-// TODO(RUM-12207): Helper function for resolving current executable path
-#if DATADOG_WITH_CRASHPAD
-static std::filesystem::path get_current_executable_path() {
-  // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-#ifdef _WIN32
-  char result[MAX_PATH];
-  int length = GetModuleFileName(NULL, result, MAX_PATH);
-  if (length == 0 || length == MAX_PATH) {
-    return "";
-  }
-  return std::filesystem::path(result);
-#elif __APPLE__
-  char buf[PATH_MAX];
-  uint32_t bufsize = PATH_MAX;
-  if (!_NSGetExecutablePath(buf, &bufsize)) {
-    return std::filesystem::path(buf);
-  }
-  return "";
-#else
-  char result[PATH_MAX];
-  ssize_t count = readlink("/proc/self/exe", result, PATH_MAX);
-  if (count == -1) {
-    return "";
-  }
-  return std::filesystem::path(std::string(result, count));
-#endif
-  // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-}
-
-static std::filesystem::path get_crashpad_handler_path() {
-  auto current_exe_path = get_current_executable_path();
-#ifdef _WIN32
-  return current_exe_path.parent_path() / "crashpad_handler.exe";
-#else
-  return current_exe_path.parent_path() / "crashpad_handler";
-#endif
-}
-#endif  // DATADOG_WITH_CRASHPAD
+#include "features/rum/temp_crashpad.hpp"
 
 namespace datadog::impl {
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
@@ -113,43 +51,34 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
 }
 
 void Rum::Start() {
-  // Instantiate a crashpad client to ensure we can successfully link against crashpad
-  // TODO(RUM-12207): Should crash reporting be a separate feature module?
-  // TODO(RUM-12207): This should probably happen earlier than SDK start
-  // TODO(RUM-12207): Respect crash-reporting-enabled switch from SDK config
-  // TODO(RUM-12207): Don't call Crashpad directly; define an abstract interface for
-  //  high-level crash reporting setup operations in all configurations
+  // Attempt to start Crashpad so we can verify that our build process has successfully
+  // linked the Crashpad client library and bundled the crashpad_handler executable
+  // TODO(RUM-12207): Run this code earlier in the SDK lifecycle
+  // TODO(RUM-12207): Only initialize crash handling if SDK config indicates that the
+  //  application wants it enabled
+  // TODO(RUM-12207): Consider whether crash reporting should be its own modular
+  //  Feature that can be independently toggled, rather than being directly integrated
+  //  into RUM
+  // TODO(RUM-12207): Define a proper (Crashpad-agnostic) interface for initializing,
+  //  configuring, and controlling crash-reporting functionality within the SDK
+  static bool has_called_initialize_crash_handler = false;
+  if (!has_called_initialize_crash_handler) {
+    // Ensure that we only initialize Crashpad once in any given process
+    const bool handler_initialized = InitializeCrashHandler();
+    has_called_initialize_crash_handler = true;
+
+    // For now, print result to stdout for easy verification: this should ultimately use
+    // DiagnosticLogger, but this code will end up living somewhere else
+    if (handler_initialized) {
 #if DATADOG_WITH_CRASHPAD
-  std::filesystem::path crashpad_handler_path = get_crashpad_handler_path();
-  std::filesystem::path crashpad_database_path = ".crashpad";
-  const std::string url;
-  std::map<std::string, std::string> annotations;
-  std::vector<std::string> arguments;
-  const bool restartable = false;
-  const bool asynchronous_start = false;
-  std::vector<base::FilePath> attachments;
-
-  std::cout << "crashpad_database_path: " << crashpad_database_path << "\n";
-
-  crashpad::CrashpadClient crashpad_client;
-  const bool started = crashpad_client.StartHandler(
-      base::FilePath(crashpad_handler_path),
-      base::FilePath(crashpad_database_path),
-      base::FilePath(crashpad_database_path),
-      url,
-      annotations,
-      arguments,
-      restartable,
-      asynchronous_start,
-      attachments
-  );
-
-  if (started) {
-    std::cout << "crashpad_client started ok\n";
-  } else {
-    std::cout << "crashpad_client failed to start\n";
-  }
+      // Suppress output in normal builds; we only want to see this temporary output
+      // when testing Crashpad
+      std::cout << "Crash handler initialized.\n";
 #endif
+    } else {
+      std::cout << "Failed to initialize crash handler.\n";
+    }
+  }
 
   // Inject a reference to our FeatureScope interface into the RumScopeDependencies that
   // will be provided to all scopes, so they can generate events etc.

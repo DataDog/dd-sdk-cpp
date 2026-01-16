@@ -46,6 +46,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/features/rum/context.cpp
     impl/features/rum/rum.cpp
     impl/features/rum/scope.cpp
+    impl/features/rum/temp_crashpad.cpp
     impl/json/primitives/bool.cpp
     impl/json/primitives/float.cpp
     impl/json/primitives/integer.cpp
