@@ -111,30 +111,29 @@ validate-event-types:
     - cmake -DDD_ENABLE_EVENT_VALIDATION=ON -S . -B build
     - cmake --build build --target validate-event-types
 
-# TODO(RUM-12207): Re-enable unit tests in CI
-#unit-test:
-#  stage: validate
-#  tags: [arch:amd64]
-#  image: ${GOLDEN_LINUX_IMAGE}
-#  parallel:
-#    matrix:
-#      - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
-#  script:
-#    - >
-#      cmake
-#      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
-#      -DDD_ENABLE_ASSERTS=ON
-#      -DDD_ENABLE_CLANG_TIDY=ON
-#      -DDD_BUILD_EXAMPLES=ON
-#      -DDD_BUILD_TESTING=ON
-#      -S . -B build
-#    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-#    - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
-#  artifacts:
-#    when: always
-#    expire_in: "30 days"
-#    reports:
-#      junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
+unit-test:
+  stage: validate
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  parallel:
+    matrix:
+      - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_ENABLE_CLANG_TIDY=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
+  artifacts:
+    when: always
+    expire_in: "30 days"
+    reports:
+      junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
 
 # Stage 'build' performs a more exhaustive set of library builds to validate that our
 # library builds successfully on all supported compilers in all configurations.
