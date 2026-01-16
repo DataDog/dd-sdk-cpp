@@ -20,13 +20,14 @@ https://chromium.googlesource.com/crashpad/crashpad/+/HEAD/doc/developing.md
 Commands:
 
 - `main.py install`: clones depot_tools, runs `gclient sync` for crashpad source
+- `main.py gn args --list`: Lists all input args for the generate gn build
+- `main.py gn ls`: Lists all targets in the generated gn build
+- `main.py gn desc //client:client --format=json`: Inspects gn build config for a target
 - `main.py build`: runs install, builds with `gn gen` and `ninja build`, runs tests
     - add `--out-dir <path>` to specify a build directory
     - add `--no-install` to skip the install steps
     - add `--no-test` to skip running Crashpad's test suite
-- `main.py gn args --list`: Lists all input args for the generate gn build
-- `main.py gn ls`: Lists all targets in the generated gn build
-- `main.py gn desc //client:client --format=json`: Inspects gn build config for a target
+- `main.py test`: runs crashpad tests
 
 When building, relevant CMake options can be specified with `-c`, e.g.:
 
@@ -208,7 +209,15 @@ class GnArgs:
             args.extra_cflags.add(crt_flag)
             args.extra_cflags_cc.add(crt_flag)
 
-        # TODO(RUM-12207): Validate compiler/linker binary?
+        # The Crashpad build will resolve the appropriate toolchain based on platform
+        # (e.g. "gcc_like_toolchain" on macOS/Linux; "msvc_toolchain_x64" on Windows),
+        # following the rules defined for that toolchain as defined in:
+        #
+        # - chromium/crashpad/crashpad/third_party/mini_chromium/build/config/BUILD.gn
+        #
+        # It's not strictly guaranteed that this will end up being the same compiler and
+        # linker used by the CMake build. For better compatibility guarantees, we may
+        # want to add some additional validation/configuration here.
 
         return args
 
@@ -318,6 +327,10 @@ def build_main(args: argparse.Namespace):
         run_crashpad_tests(args.out_dir)
 
 
+def test_main(args: argparse.Namespace):
+    run_crashpad_tests(args.out_dir)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='command', required=True)
@@ -338,6 +351,10 @@ if __name__ == '__main__':
     build_parser.add_argument('--cmake-var', '-c', action='append', dest='cmake_vars', default=[], help='CMake var in KEY=VALUE format; used to configure GN build')
     build_parser.add_argument('--parallel', '-j', type=int, default=_default_parallel_job_count(), help='Number of parallel build jobs to use when invoking ninja')
     build_parser.set_defaults(func=build_main)
+
+    test_parser = subparsers.add_parser('test')
+    test_parser.add_argument('--out-dir', '-o', default=__default_crashpad_out_dir__, help='Output directory where crashpad test binaries are located')
+    test_parser.set_defaults(func=test_main)
 
     args = parser.parse_args()
     args.func(args)

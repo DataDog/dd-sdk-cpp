@@ -39,8 +39,6 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 # crashpad repo with all required tools and then build the static library. Note that
 # crashpad_external only encapsulates the commands required to download and build
 # crashpad; it doesn't tell CMake anything about that build's artifacts or dependencies
-# TODO(RUM-12207): Better support for incremental builds
-# TODO(RUM-12207): Run crashpad tests in CI, yeah? [remove --no-test]
 ExternalProject_Add(crashpad_external
     DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py install
     CONFIGURE_COMMAND ""
