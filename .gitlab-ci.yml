@@ -168,11 +168,11 @@ build-linux:
         USE_SYSTEM_LIBCURL: "ON"
         DD_ENABLE_CRASHPAD: "ON"
 
-      # clang15: shared-debug, w/ runtime dependency on libcurl.so
+      # clang15: shared-debug, w/ bundled libcurl
       - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
-        USE_SYSTEM_LIBCURL: "ON"
+        USE_SYSTEM_LIBCURL: "OFF"
         DD_ENABLE_CRASHPAD: "ON"
 
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
