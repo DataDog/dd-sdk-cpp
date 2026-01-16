@@ -47,7 +47,7 @@ static std::filesystem::path get_current_executable_path() {
   if (length == 0 || length == MAX_PATH) {
     return "";
   }
-  return fs::path(result);
+  return std::filesystem::path(result);
 #elif __APPLE__
   char buf[PATH_MAX];
   uint32_t bufsize = PATH_MAX;
@@ -61,7 +61,7 @@ static std::filesystem::path get_current_executable_path() {
   if (count == -1) {
     return "";
   }
-  return fs::path(std::string(result, count));
+  return std::filesystem::path(std::string(result, count));
 #endif
   // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 }
