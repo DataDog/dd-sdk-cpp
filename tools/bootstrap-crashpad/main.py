@@ -162,6 +162,7 @@ class GnArgs:
         dd_compile_options_encoded = vars.get('DD_COMPILE_OPTIONS', '')
         dd_compile_options = {x.strip() for x in dd_compile_options_encoded.split('|') if x.strip()}
         for opt in dd_compile_options:
+            print(f'- in DD_COMPILE_OPTIONS: {opt}')
             if opt.startswith('-W') or opt.startswith('/W'):
                 continue
             args.extra_cflags.add(opt)
@@ -171,21 +172,12 @@ class GnArgs:
         dd_link_options_encoded = vars.get('DD_LINK_OPTIONS', '')
         dd_link_options = {x.strip() for x in dd_link_options_encoded.split('|') if x.strip()}
         for opt in dd_link_options:
+            print(f'- in DD_LINK_OPTIONS: {opt}')
             args.extra_ldflags.add(opt)
 
         # On Windows, require CMAKE_MSVC_RUNTIME_LIBRARY and ensure that we're building
         # crashpad with the appropriate CRT binary
         if sys.platform == 'win32':
-            print('cflags:')
-            for arg in args.extra_cflags:
-                print(f'- {arg}')
-            print('cflags_cc:')
-            for arg in args.extra_cflags_cc:
-                print(f'- {arg}')
-            print('ldflags:')
-            for arg in args.extra_ldflags:
-                print(f'- {arg}')
-
             # Map CMake options to the corresponding switches provided to cl.exe
             crt_flags = {
                 'MultiThreaded': '/MT',
@@ -202,12 +194,17 @@ class GnArgs:
                 crt_flag = __crt_flags__[cmake_msvc_runtime_library]
             except KeyError:
                 raise ValueError(f"Unsupported CMAKE_MSVC_RUNTIME_LIBRARY: '{cmake_msvc_runtime_library}'")
+
+            # Discard any CRT flags that were previously set via DD_COMPILE_OPTIONS, to
+            # ensure that we provide a single, unambiguous value
+            for flag_to_discard in crt_flags.values():
+                args.extra_cflags.remove(flag_to_discard)
+                args.extra_cflags_cc.remove(flag_to_discard)
             
-            # CMake should already be setting the appropriate compiler options, which we
-            # should have parsed from DD_COMPILE_OPTIONS, so this is just an extra
-            # precaution; we shouldn't need to modify anything
-            if crt_flag not in args.extra_cflags or crt_flag not in args.extra_cflags_cc:
-                raise ValueError(f"Got CMAKE_MSVC_RUNTIME_LIBRARY={cmake_msvc_runtime_library} but {crt_flag} not present in DD_COMPILE_OPTIONS")
+            # Supply the appropriate CRT flag (/MT, /MD, etc.) to cl.exe to ensure that
+            # crashpad binaries will be compatible with artifacts from the CMake build
+            args.extra_cflags.add(crt_flag)
+            args.extra_cflags_cc.add(crt_flag)
 
         # TODO(RUM-12207): Validate compiler/linker binary?
 
