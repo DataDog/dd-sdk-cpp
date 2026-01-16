@@ -168,10 +168,10 @@ build-linux:
         USE_SYSTEM_LIBCURL: "ON"
         DD_ENABLE_CRASHPAD: "ON"
 
-      # clang15: shared-release, w/ bundled libcurl
+      # clang15: static-debug, w/ bundled libcurl
       - TOOLCHAIN_TARGET: clang15
-        BUILD_CONFIGURATION: Release
-        BUILD_SHARED_LIBS: "ON"
+        BUILD_CONFIGURATION: Debug
+        BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
         DD_ENABLE_CRASHPAD: "ON"
 
