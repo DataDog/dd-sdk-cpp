@@ -1,0 +1,13 @@
+# depot_tools is cloned via the bootstrap-crashpad script when crashpad support is
+# enabled; don't version these tools
+depot_tools/
+
+# Within crashpad/, we only version the .gclient and and .gclient_entries files that
+# specify the versions of crashpad and its dependencies to build against: everything
+# else is pulled into your workspace by gclient sync et al. (via the bootstrap-crashpad
+# script) when crashpad is first built
+crashpad/.gclient_previous_sync_commits
+crashpad/.gcs_entries
+crashpad/.cipd/
+crashpad/buildtools/
+crashpad/crashpad/
