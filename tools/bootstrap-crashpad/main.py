@@ -190,9 +190,8 @@ class GnArgs:
             msvc_runtime_library = vars.get('MSVC_RUNTIME_LIBRARY', '')
             if not msvc_runtime_library:
                 raise ValueError('MSVC_RUNTIME_LIBRARY must be specified for Windows builds')
-            try:
-                crt_flag = __crt_flags__[msvc_runtime_library]
-            except KeyError:
+            crt_flag = crt_flags.get(msvc_runtime_library)
+            if not crt_flag:
                 raise ValueError(f"Unsupported MSVC_RUNTIME_LIBRARY: '{msvc_runtime_library}'")
 
             # Discard any CRT flags that were previously set via DD_COMPILE_OPTIONS, to
