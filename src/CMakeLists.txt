@@ -175,7 +175,7 @@ else()
 endif()
 
 # If building with crashpad support, integrate crashpad as a dependency: this adds an
-# ExternalProject target that will build crashpad, then add the resulting static lib as
+# ExternalProject target that will build crashpad, then adds the resulting static lib as
 # a dependency for dd_native. To ensure binary-compatible builds, this script must run
 # after compile/link options for dd_native are fully configured.
 if(DD_ENABLE_CRASHPAD)

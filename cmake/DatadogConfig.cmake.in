@@ -1,24 +1,46 @@
+# When the SDK is built to an installable package, this file is distributed in
+# lib/cmake/Datadog, allowing consumers of the SDK to integrate the SDK into their
+# builds using `find_package(Datadog)`.
+#
+# Once `DatadogConfig.cmake` is included via `find_package(Datadog)`, these targets will
+# be defined:
+#
+# - `Datadog::dd_native`: The primary library for the Datadog C++ SDK.
+#
+# The following convenience function is also provided:
+#
+# - `datadog_enable(app)`: Given an executable target `app`, adds dd_native as a linker
+#    dependency for that target, ensuring that its source can include datadog headers
+#    (from either the C or C++ API) and call functions from those headers. If the SDK
+#    build includes crash reporting support via Crashpad, also adds a post-build step to
+#    copy the `crashpad_handler` executable to the directory where the `app` binary is
+#    built.
+
 @PACKAGE_INIT@
 
 include(CMakeFindDependencyMacro)
 
-# Find required dependencies based on how the library was built
-set(DATADOG_USE_SYSTEM_CURL @DD_HTTP_USE_SYSTEM_LIBCURL@)
-if(DATADOG_USE_SYSTEM_CURL)
+# If the SDK was built to link against a system-installed libcurl (rather than compiling
+# libcurl from source), ensure that libcurl is available
+set(DATADOG_BUILT_WITH_DD_HTTP_USE_SYSTEM_LIBCURL @DD_HTTP_USE_SYSTEM_LIBCURL@)
+if(DATADOG_BUILT_WITH_DD_HTTP_USE_SYSTEM_LIBCURL)
     find_dependency(CURL REQUIRED)
 endif()
 
-# If the library was built with Crashpad support, load the Crashpad config
-set(DATADOG_WITH_CRASHPAD @DD_ENABLE_CRASHPAD@)
-if(DATADOG_WITH_CRASHPAD)
-    # Include the Crashpad config to define crashpad::client and crashpad::handler targets
+# If the SDK was built with Crashpad support, include CrashpadConfig.cmake, ensuring
+# that crashpad::client and crashpad::handler targets are defined
+set(DATADOG_BUILT_WITH_DD_ENABLE_CRASHPAD @DD_ENABLE_CRASHPAD@)
+if(DATADOG_BUILT_WITH_DD_ENABLE_CRASHPAD)
     include("${CMAKE_CURRENT_LIST_DIR}/../Crashpad/CrashpadConfig.cmake")
 endif()
 
-# Include the exported targets
+# Include DatadogTargets.cmake, which is generated from our build-time CMake
+# configuration and includes all exported targets with the relevant details of how to
+# link them into an application along with all their dependencies
 include("${CMAKE_CURRENT_LIST_DIR}/DatadogTargets.cmake")
 
 # Include convenience functions to allow easy configuration in typical cases
 include("${CMAKE_CURRENT_LIST_DIR}/DatadogConvenience.cmake")
 
+# Set Datadog_FOUND to indicate whether package loading was successful
 check_required_components(Datadog)

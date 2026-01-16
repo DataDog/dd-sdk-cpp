@@ -59,6 +59,9 @@ ExternalProject_Add(crashpad_external
     BUILD_ALWAYS TRUE
 )
 
+# Given the path to a file that's produced from the crashpad build, creates a custom
+# target to represent that file and establishes a dependency so that CMake recognizes
+# that the file can be produced by building the crashpad_external target
 function(register_crashpad_artifact custom_target_name path)
     add_custom_command(OUTPUT ${path} DEPENDS crashpad_external)
     add_custom_target(${custom_target_name} DEPENDS ${path})
@@ -155,9 +158,14 @@ target_link_libraries(dd_native PRIVATE crashpad::client)
 # dd_native
 add_dependencies(dd_native crashpad_external)
 
-# Install configuration for Crashpad artifacts
+# When generating an installed build of the SDK, include headers, artifacts, and CMake
+# scripts for Crashpad as well
 if(DD_BUILD_INSTALL)
-    # Install all Crashpad static libraries that are required by crashpad::client
+    # Crashpad headers don't need to be distributed in include/, as they're only used
+    # internally within the implementation layer of the SDK
+
+    # Crashpad static libs should be distributed in lib/, as an application that links
+    # against Datadog::dd_native will be linked against crashpad::client transitively
     install(FILES ${CRASHPAD_CLIENT_LIB_PATH} DESTINATION lib)
     install(FILES ${CRASHPAD_UTIL_LIB_PATH} DESTINATION lib)
     install(FILES ${CRASHPAD_BASE_LIB_PATH} DESTINATION lib)
@@ -165,14 +173,11 @@ if(DD_BUILD_INSTALL)
         install(FILES ${CRASHPAD_MIG_OUTPUT_LIB_PATH} DESTINATION lib)
     endif()
 
-    # Note: We don't install Crashpad headers since they're not part of the public API.
-    # Crashpad is only used internally by dd_native, and consumers link against the
-    # already-compiled dd_native library.
-
-    # Install the crashpad_handler executable
+    # The Crashpad handler executable should be distributed in bin/
     install(PROGRAMS ${CRASHPAD_HANDLER_EXE_PATH} DESTINATION bin)
 
-    # Generate and install CrashpadConfig.cmake
+    # CrashpadConfig.cmake should be generated from the .cmake.in template and
+    # distributed in lib/cmake/Crashpad so that DatadogConfig.cmake can include it
     set(CRASHPAD_CONFIG_INSTALL_DIR lib/cmake/Crashpad)
     configure_file(
         ${CMAKE_SOURCE_DIR}/cmake/CrashpadConfig.cmake.in
