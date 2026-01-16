@@ -24,6 +24,9 @@ Commands:
     - add `--out-dir <path>` to specify a build directory
     - add `--no-install` to skip the install steps
     - add `--no-test` to skip running Crashpad's test suite
+- `main.py gn args --list`: Lists all input args for the generate gn build
+- `main.py gn ls`: Lists all targets in the generated gn build
+- `main.py gn desc //client:client --format=json`: Inspects gn build config for a target
 
 When building, relevant CMake options can be specified with `-c`, e.g.:
 
@@ -283,8 +286,8 @@ def install_main(args: argparse.Namespace):
     fetch_crashpad()
 
 
-def gn_args_main(args: argparse.Namespace):
-    _run_depot_tool(['gn', 'args', args.out_dir, '--list'], __crashpad_repo_root__)
+def gn_main(args: argparse.Namespace):
+    _run_depot_tool(['gn', args.command, args.out_dir] + args.command_args, __crashpad_repo_root__)
 
 
 def build_main(args: argparse.Namespace):
@@ -322,8 +325,11 @@ if __name__ == '__main__':
     install_parser = subparsers.add_parser('install')
     install_parser.set_defaults(func=install_main)
 
-    gn_args_parser = subparsers.add_parser('gn-args')
-    gn_args_parser.set_defaults(func=gn_args_main)
+    gn_parser = subparsers.add_parser('gn')
+    gn_parser.set_defaults(func=gn_main)
+    gn_parser.add_argument('command', default='args', help='gn subcommand to invoke, e.g. args, ls, desc')
+    gn_parser.add_argument('--out-dir', '-o', default=__default_crashpad_out_dir__, help='Output directory whose gn configuration should be inspected')
+    gn_parser.add_argument('command_args', nargs=argparse.REMAINDER, help='Additional args to pass to the gn subcommand')
 
     build_parser = subparsers.add_parser('build')
     build_parser.add_argument('--out-dir', '-o', default=__default_crashpad_out_dir__, help='Output directory for crashpad build files and artifacts')
