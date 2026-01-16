@@ -8,13 +8,38 @@ bootstrap-crashpad
 Usage: python3 tools/bootstrap-crashpad/main.py
 
 This script is used to pull crashpad into the build, placing its source tree at
-chromium/crashpad/crashpad and building it to chromium/crashpad/crashpad/out/Default.
+chromium/crashpad/crashpad and building it to chromium/crashpad/crashpad/out/Default,
+or to the directory specified via --out-dir.
 
 As part of the Chromium project, Crashpad uses `BUILD.gn` files to describe its build
 configuration. Those files are fed into GN in order to generate Ninja build files. For
 more information, see:
 
 https://chromium.googlesource.com/crashpad/crashpad/+/HEAD/doc/developing.md
+
+Commands:
+
+- `main.py install`: clones depot_tools, runs `gclient sync` for crashpad source
+- `main.py build`: runs install, builds with `gn gen` and `ninja build`, runs tests
+    - add `--out-dir <path>` to specify a build directory
+    - add `--no-install` to skip the install steps
+    - add `--no-test` to skip running Crashpad's test suite
+
+When building, relevant CMake options can be specified with `-c`, e.g.:
+
+- `-c CMAKE_CXX_STANDARD=20 -c CMAKE_BUILD_TYPE=Release -c DD_COMPILE_OPTIONS="/W4|/Wx"`
+
+If any CMake options are specified, the script will validate them and attempt to
+configure the Crashpad build (via gn args) to produce libraries that are
+binary-compatible with the encompassing CMake build. If any CMake options are specified,
+the following values MUST be provided:
+
+- CMAKE_CXX_STANDARD
+- CMAKE_BUILD_TYPE
+- (macOS only): CMAKE_OSX_DEPLOYMENT_TARGET
+    - Note that this value must be set in CMakeLists.txt before ANY project()
+        directive is processed
+- (MSVC only): MSVC_RUNTIME_LIBRARY
 """
 import os
 import sys
@@ -121,7 +146,7 @@ class GnArgs:
             args.is_debug = False
         else:
             raise ValueError(f"Unsupported CMAKE_BUILD_TYPE: '{cmake_build_type}'")
-        
+
         # target_cpu: Assume target arch is host arch (cross-compilation not supported)
         args.target_cpu = _gn_default_target_cpu()
 
@@ -148,7 +173,42 @@ class GnArgs:
         for opt in dd_link_options:
             args.extra_ldflags.add(opt)
 
-        # TODO(RUM-12207): MSVC /MT, /MD, /MTd, /MDd
+        # On Windows, require CMAKE_MSVC_RUNTIME_LIBRARY and ensure that we're building
+        # crashpad with the appropriate CRT binary
+        if sys.platform == 'win32':
+            print('cflags:')
+            for arg in args.extra_cflags:
+                print(f'- {arg}')
+            print('cflags_cc:')
+            for arg in args.extra_cflags_cc:
+                print(f'- {arg}')
+            print('ldflags:')
+            for arg in args.extra_ldflags:
+                print(f'- {arg}')
+
+            # Map CMake options to the corresponding switches provided to cl.exe
+            crt_flags = {
+                'MultiThreaded': '/MT',
+                'MultiThreadedDLL': '/MD',
+                'MultiThreadedDebug': '/MTd',
+                'MultiThreadedDebugDLL': '/MDd',
+            }
+
+            # Identify the CRT flag that we should be passing to the compiler
+            cmake_msvc_runtime_library = vars.get('CMAKE_MSVC_RUNTIME_LIBRARY', '')
+            if not cmake_msvc_runtime_library:
+                raise ValueError('CMAKE_MSVC_RUNTIME_LIBRARY must be specified for Windows builds')
+            try:
+                crt_flag = __crt_flags__[cmake_msvc_runtime_library]
+            except KeyError:
+                raise ValueError(f"Unsupported CMAKE_MSVC_RUNTIME_LIBRARY: '{cmake_msvc_runtime_library}'")
+            
+            # CMake should already be setting the appropriate compiler options, which we
+            # should have parsed from DD_COMPILE_OPTIONS, so this is just an extra
+            # precaution; we shouldn't need to modify anything
+            if crt_flag not in args.extra_cflags or crt_flag not in args.extra_cflags_cc:
+                raise ValueError(f"Got CMAKE_MSVC_RUNTIME_LIBRARY={cmake_msvc_runtime_library} but {crt_flag} not present in DD_COMPILE_OPTIONS")
+
         # TODO(RUM-12207): Validate compiler/linker binary?
 
         return args
