@@ -197,8 +197,8 @@ class GnArgs:
             # Discard any CRT flags that were previously set via DD_COMPILE_OPTIONS, to
             # ensure that we provide a single, unambiguous value
             for flag_to_discard in crt_flags.values():
-                args.extra_cflags.remove(flag_to_discard)
-                args.extra_cflags_cc.remove(flag_to_discard)
+                args.extra_cflags.discard(flag_to_discard)
+                args.extra_cflags_cc.discard(flag_to_discard)
             
             # Supply the appropriate CRT flag (/MT, /MD, etc.) to cl.exe to ensure that
             # crashpad binaries will be compatible with artifacts from the CMake build
