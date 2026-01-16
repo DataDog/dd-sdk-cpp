@@ -166,7 +166,6 @@ class GnArgs:
         dd_compile_options_encoded = vars.get('DD_COMPILE_OPTIONS', '')
         dd_compile_options = {x.strip() for x in dd_compile_options_encoded.split('|') if x.strip()}
         for opt in dd_compile_options:
-            print(f'- in DD_COMPILE_OPTIONS: {opt}')
             if opt.startswith('-W') or opt.startswith('/W'):
                 continue
             args.extra_cflags.add(opt)
@@ -176,7 +175,6 @@ class GnArgs:
         dd_link_options_encoded = vars.get('DD_LINK_OPTIONS', '')
         dd_link_options = {x.strip() for x in dd_link_options_encoded.split('|') if x.strip()}
         for opt in dd_link_options:
-            print(f'- in DD_LINK_OPTIONS: {opt}')
             args.extra_ldflags.add(opt)
 
         # On Windows, require MSVC_RUNTIME_LIBRARY and ensure that we're building
@@ -211,7 +209,7 @@ class GnArgs:
 
         # The Crashpad build will resolve the appropriate toolchain based on platform
         # (e.g. "gcc_like_toolchain" on macOS/Linux; "msvc_toolchain_x64" on Windows),
-        # following the rules defined for that toolchain as defined in:
+        # following the rules defined for that toolchain in:
         #
         # - chromium/crashpad/crashpad/third_party/mini_chromium/build/config/BUILD.gn
         #
@@ -273,17 +271,28 @@ def build_crashpad(out_dir: str, gn_args: GnArgs, num_parallel_jobs: int):
 
 
 def run_crashpad_tests(out_dir: str):
+    env = os.environ.copy()
+    
+    # Some Crashpad tests need to resolve files from crashpad/test/ (within the source
+    # tree): by default, these tests assume they've been built to `out/{Debug,Release}`
+    # and search in `../..` to resolve the root crashpad source directory. Since we may
+    # build Crashpad in a different directory altogether (out_dir), we need to
+    # explicitly point the tests to the crashpad source dir so they can locate the
+    # necessary test data files.
+    env['CRASHPAD_TEST_DATA_ROOT'] = __crashpad_repo_root__
+
+    # On Windows, a few problematic tests need to be skipped
+    if sys.platform == 'win32':
+        excluded_tests = [
+            'SystemSnapshotWinTest.TimeZone',  # Windows Docker containers don't have timezone info
+            'WinMultiprocessChildFails.*',     # Despite passing, these tests print 'error:' output which MSBuild interprets as build failure
+        ]
+        env['GTEST_FILTER'] = '-' + ':'.join(excluded_tests)
+
     for binary_name in __crashpad_test_binaries__:
         binary_path = os.path.join(out_dir, binary_name)
-        env = os.environ.copy()
         if sys.platform == 'win32':
             binary_path += '.exe'
-            # Skip a handful of tests that cause issues in Windows CI builds
-            excluded_tests = [
-                'SystemSnapshotWinTest.TimeZone',  # Windows Docker containers don't have timezone info
-                'WinMultiprocessChildFails.*',     # Despite passing, these tests print 'error:' output which MSBuild interprets as build failure
-            ]
-            env['GTEST_FILTER'] = '-' + ':'.join(excluded_tests)
         assert os.path.isfile(binary_path)
         print(f'Running {binary_name}...')
         subprocess.check_call([binary_path], env=env)
