@@ -183,6 +183,7 @@ build-linux:
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
       -DDD_ENABLE_CRASHPAD=${DD_ENABLE_CRASHPAD}
+      -DDD_RUN_CRASHPAD_TESTS=${DD_ENABLE_CRASHPAD}
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
@@ -197,18 +198,21 @@ build-macos:
       - BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
+        DD_ENABLE_CRASHPAD: "ON"
 
       # clang15 (Apple): static-release, w/ bundled libcurl
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
+        DD_ENABLE_CRASHPAD: "ON"
   script:
     - >
       cmake
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
-      -DDD_ENABLE_CRASHPAD=ON
+      -DDD_ENABLE_CRASHPAD=${DD_ENABLE_CRASHPAD}
+      -DDD_RUN_CRASHPAD_TESTS=${DD_ENABLE_CRASHPAD}
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
@@ -238,7 +242,7 @@ build-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=${env:DD_ENABLE_CRASHPAD} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=${env:DD_ENABLE_CRASHPAD} -DDD_RUN_CRASHPAD_TESTS=${env:DD_ENABLE_CRASHPAD} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 

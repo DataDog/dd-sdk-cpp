@@ -35,6 +35,15 @@ endif()
 # interpreter bundled with depot_tools
 find_package(Python3 REQUIRED COMPONENTS Interpreter)
 
+# Under normal circumstances, just build Crashpad without running its test suite, but
+# allow tests to be run (in CI etc.) by supplying DD_RUN_CRASHPAD_TESTS=ON
+option(DD_RUN_CRASHPAD_TESTS "Run Crashpad tests during build" OFF)
+if(DD_RUN_CRASHPAD_TESTS)
+    set(CRASHPAD_NO_TEST_ARG "")
+else()
+    set(CRASHPAD_NO_TEST_ARG "--no-test")
+endif()
+
 # Declare an ExternalProject target, which we can build in order to bootstrap the
 # crashpad repo with all required tools and then build the static library. Note that
 # crashpad_external only encapsulates the commands required to download and build
@@ -45,7 +54,7 @@ ExternalProject_Add(crashpad_external
     BUILD_COMMAND ${Python3_EXECUTABLE} -u ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py build
         --out-dir ${CRASHPAD_BUILD_DIR}
         --no-install
-        --no-test
+        ${CRASHPAD_NO_TEST_ARG}
         -c CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
         -c CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -c CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
