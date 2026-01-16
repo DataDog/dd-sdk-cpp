@@ -175,7 +175,7 @@ class GnArgs:
             print(f'- in DD_LINK_OPTIONS: {opt}')
             args.extra_ldflags.add(opt)
 
-        # On Windows, require CMAKE_MSVC_RUNTIME_LIBRARY and ensure that we're building
+        # On Windows, require MSVC_RUNTIME_LIBRARY and ensure that we're building
         # crashpad with the appropriate CRT binary
         if sys.platform == 'win32':
             # Map CMake options to the corresponding switches provided to cl.exe
@@ -187,13 +187,13 @@ class GnArgs:
             }
 
             # Identify the CRT flag that we should be passing to the compiler
-            cmake_msvc_runtime_library = vars.get('CMAKE_MSVC_RUNTIME_LIBRARY', '')
-            if not cmake_msvc_runtime_library:
-                raise ValueError('CMAKE_MSVC_RUNTIME_LIBRARY must be specified for Windows builds')
+            msvc_runtime_library = vars.get('MSVC_RUNTIME_LIBRARY', '')
+            if not msvc_runtime_library:
+                raise ValueError('MSVC_RUNTIME_LIBRARY must be specified for Windows builds')
             try:
-                crt_flag = __crt_flags__[cmake_msvc_runtime_library]
+                crt_flag = __crt_flags__[msvc_runtime_library]
             except KeyError:
-                raise ValueError(f"Unsupported CMAKE_MSVC_RUNTIME_LIBRARY: '{cmake_msvc_runtime_library}'")
+                raise ValueError(f"Unsupported MSVC_RUNTIME_LIBRARY: '{msvc_runtime_library}'")
 
             # Discard any CRT flags that were previously set via DD_COMPILE_OPTIONS, to
             # ensure that we provide a single, unambiguous value
