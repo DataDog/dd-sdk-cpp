@@ -1,4 +1,18 @@
-# Convenience function to enable the Datadog SDK for a given executable target
+# This file defines convenience functions that aim to streamline the CMake configuration
+# required in order to add the Datadog C++ SDK as a dependency for an executable target,
+# configured as needed based on the set of features and options used to build the SDK.
+
+# datadog_enable(my-app):
+#
+# - adds the Datadog SDK as a linker dependency for my-app, allowing you to call SDK
+#   functions.
+# - (if Crashpad support is enabled): copies the crashpad_handler executable alongside
+#   the binary for my-app, ensuring that crash reporting will work without explicitly
+#   configuring a handler path in development builds of my-app.
+#
+# Call this function after including the SDK via FetchContent or find_package(Datadog).
+# If you need finer-grained control, link against `Datadog::dd_native` directly instead.
+#
 function(datadog_enable target)
     # Require that the target exists
     if(NOT TARGET ${target})
@@ -22,7 +36,31 @@ function(datadog_enable target)
                 COMMENT "Copying crashpad_handler executable to $<TARGET_FILE_DIR:${target}>"
             )
         else()
-            message(FATAL_ERROR "Target crashpad::handler does not exist")
+            message(FATAL_ERROR "datadog_enable(): target crashpad::handler does not exist")
+        endif()
+    endif()
+endfunction()
+
+# datadog_install(bin):
+#
+# - (if Crashpad support is enabled) ensures that the crashpad_handler executable will
+#   be copied to bin/ alongside your application
+#
+# Call this function after defining `install(TARGETS my-app ...)` for your app,
+# specifying the destination directory for your application's binaries in lieu of `bin`.
+# You may elect not to call this function if a.) your project does not use CMake
+# installation rules, b.) you don't need Crashpad support, or c.) you are ensuring that
+# the crashpad_handler exectuable makes its way into your builds through other means.
+#
+function(datadog_install destination)
+    # If the SDK was built with crashpad support, install the crashpad_handler
+    # executable to the destination directory
+    if(DD_ENABLE_CRASHPAD OR DATADOG_BUILT_WITH_DD_ENABLE_CRASHPAD)
+        if(TARGET crashpad::handler)
+            get_target_property(CRASHPAD_HANDLER_PATH crashpad::handler IMPORTED_LOCATION)
+            install(PROGRAMS ${CRASHPAD_HANDLER_PATH} DESTINATION ${destination})
+        else()
+            message(FATAL_ERROR "datadog_install(): target crashpad::handler does not exist")
         endif()
     endif()
 endfunction()
