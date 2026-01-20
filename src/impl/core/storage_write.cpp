@@ -295,13 +295,13 @@ bool BatchWriter::MigratePendingBatchesToGranted() {
         continue;
       }
 
-      // Otherwise, we have a file conflict and we're unable to delete the source file,
-      // so abort the migration
-      _diagnostic_logger.Error(
+      // Otherwise, we have a file conflict and we're unable to delete the source file:
+      // leave the file in place, but log a warning and carry on with the migration
+      _diagnostic_logger.Warning(
           "Could not delete pending-directory copy of duplicate batch file",
           {{"filename", filename}, {"error", _fs_error_string(delete_result.error())}}
       );
-      return false;
+      continue;
     }
 
     // If the move failed for any other reason, abort the migration operation
@@ -312,7 +312,8 @@ bool BatchWriter::MigratePendingBatchesToGranted() {
     return false;
   }
 
-  // All files moved (or deleted in case of conflict)
+  // We were able to list batch files, and all batch files with non-conflicting names
+  // were successfully moved
   return true;
 }
 

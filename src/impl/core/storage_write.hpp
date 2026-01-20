@@ -200,8 +200,12 @@ class BatchWriter {
   /**
    * Attempts to move all batch files from _pending_directory to _granted_directory. In
    * the event of a filename conflict, the copy of the file in _pending_directory is
-   * deleted, leaving the file in _granted_directory untouched. Returns true if all
-   * files were moved (or deleted in case of conflict) successfully.
+   * deleted, leaving the file in _granted_directory untouched.
+   *
+   * Failure to delete the pending-directory file in case of conflict does not halt the
+   * process; the file will be left in place and migration will continue.
+   *
+   * Returns true if all files with non-conflicting names were moved successfully.
    */
   bool MigratePendingBatchesToGranted();
 
