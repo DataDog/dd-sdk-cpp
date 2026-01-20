@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <filesystem>
 #include <memory>
 #include <string_view>
 
@@ -135,9 +136,9 @@ class IDirectory {
   IDirectory& operator=(IDirectory&&) = default;
 
   /**
-   * Returns the path to this directory as a string.
+   * Returns the path to this directory.
    */
-  virtual std::string_view GetPath() const = 0;
+  virtual const std::filesystem::path& GetPath() const = 0;
 
   /**
    * Populates the provided vector with the names of all regular files that exist in
@@ -166,7 +167,7 @@ class IDirectory {
    * FilesystemError::AlreadyExists.
    */
   virtual FilesystemResult<void> MoveFile(
-      std::string_view name, std::string_view dst_directory_path
+      std::string_view name, const std::filesystem::path& dst_directory_path
   ) = 0;
 
   /**

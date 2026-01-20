@@ -313,7 +313,7 @@ struct MockFilesystem {
    * Handles IDirectory::MoveFile given the relevant filepath.
    */
   platform::FilesystemResult<void> HandleMoveFile(
-      std::filesystem::path src_relpath, std::filesystem::path dst_dir_relpath
+      std::filesystem::path src_relpath, const std::filesystem::path& dst_dir_relpath
   ) {
     // Acquire filesystem mutex
     std::scoped_lock lock(mutex);
@@ -502,12 +502,11 @@ class MockDirectory : public platform::IDirectory {
  public:
   MockFilesystem& fs;
   std::filesystem::path relpath;
-  std::string relpath_str;
 
   MockDirectory(MockFilesystem& in_fs, std::filesystem::path in_relpath)
-      : fs(in_fs), relpath(in_relpath), relpath_str(relpath.string()) {}
+      : fs(in_fs), relpath(in_relpath) {}
 
-  virtual std::string_view GetPath() const override { return relpath_str; }
+  virtual const std::filesystem::path& GetPath() const override { return relpath; }
 
   virtual platform::FilesystemResult<void> ListFiles(
       std::vector<std::string>& out_names
@@ -520,7 +519,7 @@ class MockDirectory : public platform::IDirectory {
   }
 
   virtual platform::FilesystemResult<void> MoveFile(
-      std::string_view name, std::string_view dst_directory_path
+      std::string_view name, const std::filesystem::path& dst_directory_path
   ) override {
     return fs.HandleMoveFile(relpath / name, dst_directory_path);
   }
@@ -551,7 +550,10 @@ class MockStorageDirectory : public platform::IStorageDirectory {
 
   MockStorageDirectory() {}
 
-  virtual std::string_view GetPath() const override { return ""; }
+  virtual const std::filesystem::path& GetPath() const override {
+    static std::filesystem::path path{};
+    return path;
+  }
 
   // IDirectory interface implementation - delegate to MockFilesystem
   virtual platform::FilesystemResult<void> ListFiles(
@@ -565,7 +567,7 @@ class MockStorageDirectory : public platform::IStorageDirectory {
   }
 
   virtual platform::FilesystemResult<void> MoveFile(
-      std::string_view name, std::string_view dst_directory_path
+      std::string_view name, const std::filesystem::path& dst_directory_path
   ) override {
     return fs.HandleMoveFile(name, dst_directory_path);
   }
