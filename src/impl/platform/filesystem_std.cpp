@@ -204,7 +204,7 @@ class StdDirectory : public virtual IDirectory {
  public:
   explicit StdDirectory(const std::filesystem::path& path) : _path(path) {}
 
-  FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) override {
+  FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) const override {
     // Result vector should be cleared by the caller
     DATADOG_ASSERT(out_names.empty(), "ListFiles called with non-empty result vector");
 
@@ -255,6 +255,42 @@ class StdDirectory : public virtual IDirectory {
 
     // No error; return default expected<void>
     return {};
+  }
+
+  FilesystemResult<void> MoveFile(
+      std::string_view name, std::string_view dst_directory_path
+  ) override {
+    // Build the source and destination file paths
+    DATADOG_ASSERT(_is_clean_basename(name), "invalid filename");
+    const std::filesystem::path src_file_path = _path / name;
+    const std::filesystem::path dst_file_path =
+        std::filesystem::path(dst_directory_path) / name;
+
+    // Explicitly check whether the destination file already exists, as conflict
+    // handling is platform-dependent and we never want to clobber an existing file
+    std::error_code ec;
+    if (std::filesystem::exists(dst_file_path, ec)) {
+      return nonstd::make_unexpected(FilesystemError::AlreadyExists);
+    }
+    if (ec) {
+      return nonstd::make_unexpected(FilesystemError::Failed);
+    }
+
+    // Preemptively create the destination directory in case it doesn't yet exist
+    std::filesystem::create_directories(dst_file_path.parent_path(), ec);
+    if (ec) {
+      return nonstd::make_unexpected(FilesystemError::Failed);
+    }
+
+    // Perform a rename to move from src to dst
+    std::filesystem::rename(src_file_path, dst_file_path, ec);
+    if (ec == std::errc{}) {
+      return {};
+    }
+    if (ec == std::errc::no_such_file_or_directory) {
+      return nonstd::make_unexpected(FilesystemError::DoesNotExist);
+    }
+    return nonstd::make_unexpected(FilesystemError::Failed);
   }
 
   FilesystemResult<std::unique_ptr<IFileReader>> OpenForRead(

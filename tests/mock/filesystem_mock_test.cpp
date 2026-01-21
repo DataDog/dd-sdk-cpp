@@ -456,6 +456,266 @@ TEST_CASE("MockFilesystem Error Simulation", "[unit][mock-filesystem]") {
   }
 }
 
+TEST_CASE("MockFilesystem MoveFile Operations", "[unit][mock-filesystem]") {
+  MockStorageDirectory storage;
+
+  SECTION("M move file successfully W source exists and destination does not") {
+    // Given source file exists in directory
+    storage.WithExistingFile("srcdir/file.txt", "test content");
+
+    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    // And destination directory exists
+    storage.fs.Mkdirs("dstdir");
+    auto dstdir_result = storage.PrepareSubdirectory("dstdir");
+    REQUIRE(dstdir_result.has_value());
+    auto dstdir = std::move(dstdir_result.value());
+
+    // When moving file from source to destination
+    auto move_result = srcdir->MoveFile("file.txt", "dstdir");
+
+    // Then operation succeeds
+    REQUIRE(move_result.has_value());
+
+    // And file no longer exists in source directory
+    std::vector<std::string> src_files;
+    srcdir->ListFiles(src_files);
+    REQUIRE(src_files.empty());
+
+    // And file exists in destination directory with same content
+    std::vector<std::string> dst_files;
+    dstdir->ListFiles(dst_files);
+    REQUIRE(dst_files.size() == 1);
+    REQUIRE(dst_files[0] == "file.txt");
+
+    auto reader_result = dstdir->OpenForRead("file.txt");
+    REQUIRE(reader_result.has_value());
+    auto reader = std::move(reader_result.value());
+
+    char buffer[20];
+    auto read_result = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(read_result.has_value());
+    REQUIRE(read_result.value() == 12);
+    REQUIRE(std::memcmp(buffer, "test content", 12) == 0);
+  }
+
+  SECTION("M return DoesNotExist W source file does not exist") {
+    // Given source directory exists but file does not
+    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    // When attempting to move non-existent file
+    auto move_result = srcdir->MoveFile("nonexistent.txt", "dstdir");
+
+    // Then operation fails with DoesNotExist error
+    REQUIRE_FALSE(move_result.has_value());
+    REQUIRE(move_result.error() == platform::FilesystemError::DoesNotExist);
+  }
+
+  SECTION("M return AlreadyExists W destination file already exists") {
+    // Given source file exists
+    storage.WithExistingFile("srcdir/file.txt", "source content");
+
+    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    // And destination file already exists
+    storage.WithExistingFile("dstdir/file.txt", "destination content");
+
+    auto dstdir_result = storage.PrepareSubdirectory("dstdir");
+    REQUIRE(dstdir_result.has_value());
+    auto dstdir = std::move(dstdir_result.value());
+
+    // When attempting to move file to destination
+    auto move_result = srcdir->MoveFile("file.txt", "dstdir");
+
+    // Then operation fails with AlreadyExists error
+    REQUIRE_FALSE(move_result.has_value());
+    REQUIRE(move_result.error() == platform::FilesystemError::AlreadyExists);
+
+    // And both files remain unchanged
+    auto src_reader = srcdir->OpenForRead("file.txt");
+    REQUIRE(src_reader.has_value());
+    char src_buffer[20];
+    auto src_read = src_reader.value()->Read(src_buffer, sizeof(src_buffer));
+    REQUIRE(std::memcmp(src_buffer, "source content", 14) == 0);
+
+    auto dst_reader = dstdir->OpenForRead("file.txt");
+    REQUIRE(dst_reader.has_value());
+    char dst_buffer[25];
+    auto dst_read = dst_reader.value()->Read(dst_buffer, sizeof(dst_buffer));
+    REQUIRE(std::memcmp(dst_buffer, "destination content", 19) == 0);
+  }
+
+  SECTION("M return IOError W source file marked as bad") {
+    // Given source file exists but is corrupted
+    storage.WithExistingFile("srcdir/bad.txt", "test");
+    storage.Corrupt("srcdir/bad.txt");
+
+    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    // And destination directory exists
+    storage.fs.Mkdirs("dstdir");
+
+    // When attempting to move corrupted file
+    auto move_result = srcdir->MoveFile("bad.txt", "dstdir");
+
+    // Then operation fails with IOError
+    REQUIRE_FALSE(move_result.has_value());
+    REQUIRE(move_result.error() == platform::FilesystemError::IOError);
+  }
+
+  SECTION("M return Failed W source file has open handles") {
+    // Given source file exists and is open for read
+    storage.WithExistingFile("srcdir/locked.txt", "test content");
+
+    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    auto reader_result = srcdir->OpenForRead("locked.txt");
+    REQUIRE(reader_result.has_value());
+    auto reader = std::move(reader_result.value());
+
+    // And destination directory exists
+    storage.fs.Mkdirs("dstdir");
+
+    // When attempting to move file while it's open
+    auto move_result = srcdir->MoveFile("locked.txt", "dstdir");
+
+    // Then operation fails with Failed error
+    REQUIRE_FALSE(move_result.has_value());
+    REQUIRE(move_result.error() == platform::FilesystemError::Failed);
+
+    // And file remains in source location
+    reader.reset();
+    std::vector<std::string> files;
+    srcdir->ListFiles(files);
+    REQUIRE(files.size() == 1);
+    REQUIRE(files[0] == "locked.txt");
+  }
+
+  SECTION("M return IOError W source directory marked as bad") {
+    // Given source directory is corrupted
+    storage.WithExistingFile("baddir/file.txt", "test");
+    storage.Corrupt("baddir");
+
+    auto srcdir_result = storage.PrepareSubdirectory("baddir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    // And destination directory exists
+    storage.fs.Mkdirs("dstdir");
+
+    // When attempting to move file from corrupted directory
+    auto move_result = srcdir->MoveFile("file.txt", "dstdir");
+
+    // Then operation fails with IOError
+    REQUIRE_FALSE(move_result.has_value());
+    REQUIRE(move_result.error() == platform::FilesystemError::IOError);
+  }
+
+  SECTION("M return IOError W destination directory marked as bad") {
+    // Given source file exists
+    storage.WithExistingFile("srcdir/file.txt", "test");
+
+    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    // And destination directory is corrupted
+    storage.WithExistingFile("baddir/dummy.txt", "dummy");
+    storage.Corrupt("baddir");
+
+    // When attempting to move file to corrupted directory
+    auto move_result = srcdir->MoveFile("file.txt", "baddir");
+
+    // Then operation fails with IOError
+    REQUIRE_FALSE(move_result.has_value());
+    REQUIRE(move_result.error() == platform::FilesystemError::IOError);
+  }
+
+  SECTION("M preserve file content W successful move") {
+    // Given source file with specific binary content
+    const char binary_data[] = {
+        0x00, 0x01, 0x02, static_cast<char>(0xFF), static_cast<char>(0xFE), 0x00, 0x03
+    };
+    storage.WithExistingFile(
+        "srcdir/binary.dat", std::string_view(binary_data, sizeof(binary_data))
+    );
+
+    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    // And destination directory exists
+    storage.fs.Mkdirs("dstdir");
+
+    // When moving file
+    auto move_result = srcdir->MoveFile("binary.dat", "dstdir");
+    REQUIRE(move_result.has_value());
+
+    // Then binary content is preserved exactly
+    auto dstdir_result = storage.PrepareSubdirectory("dstdir");
+    REQUIRE(dstdir_result.has_value());
+    auto dstdir = std::move(dstdir_result.value());
+
+    auto reader_result = dstdir->OpenForRead("binary.dat");
+    REQUIRE(reader_result.has_value());
+    auto reader = std::move(reader_result.value());
+
+    char buffer[10];
+    auto read_result = reader->Read(buffer, sizeof(buffer));
+    REQUIRE(read_result.has_value());
+    REQUIRE(read_result.value() == sizeof(binary_data));
+    REQUIRE(std::memcmp(buffer, binary_data, sizeof(binary_data)) == 0);
+  }
+
+  SECTION("M move multiple files sequentially W different filenames") {
+    // Given multiple files in source directory
+    storage.WithExistingFile("srcdir/file1.txt", "content1");
+    storage.WithExistingFile("srcdir/file2.txt", "content2");
+    storage.WithExistingFile("srcdir/file3.txt", "content3");
+
+    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
+    REQUIRE(srcdir_result.has_value());
+    auto srcdir = std::move(srcdir_result.value());
+
+    // And destination directory exists
+    storage.fs.Mkdirs("dstdir");
+
+    // When moving all files one by one
+    auto move1 = srcdir->MoveFile("file1.txt", "dstdir");
+    auto move2 = srcdir->MoveFile("file2.txt", "dstdir");
+    auto move3 = srcdir->MoveFile("file3.txt", "dstdir");
+
+    // Then all operations succeed
+    REQUIRE(move1.has_value());
+    REQUIRE(move2.has_value());
+    REQUIRE(move3.has_value());
+
+    // And all files are in destination
+    auto dstdir_result = storage.PrepareSubdirectory("dstdir");
+    REQUIRE(dstdir_result.has_value());
+    auto dstdir = std::move(dstdir_result.value());
+
+    std::vector<std::string> dst_files;
+    dstdir->ListFiles(dst_files);
+    REQUIRE(dst_files.size() == 3);
+
+    // And source is empty
+    std::vector<std::string> src_files;
+    srcdir->ListFiles(src_files);
+    REQUIRE(src_files.empty());
+  }
+}
+
 TEST_CASE("MockFilesystem Subdirectories", "[unit][mock-filesystem]") {
   MockStorageDirectory storage;
 

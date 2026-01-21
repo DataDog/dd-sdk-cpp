@@ -21,6 +21,10 @@ enum class FilesystemError : uint8_t {
    */
   DoesNotExist,
   /**
+   * The target file or directory already exists.
+   */
+  AlreadyExists,
+  /**
    * The operation failed, but the target file or directory is stil in a usable state.
    */
   Failed,
@@ -136,13 +140,29 @@ class IDirectory {
    *
    * @param out_names Reference to an empty vector to be populated with filenames.
    */
-  virtual FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) = 0;
+  virtual FilesystemResult<void> ListFiles(
+      std::vector<std::string>& out_names
+  ) const = 0;
 
   /**
    * Deletes the file with the given name. If the file does not exist, returns
    * FilesystemError::DoesNotExist.
    */
   virtual FilesystemResult<void> RemoveFile(std::string_view name) = 0;
+
+  /**
+   * Given a source file in this directory with the given name, attempts to move that
+   * file into the destination directory given as `dst_directory_path`. If the
+   * destination directory does not yet exist, this operation will attempt to create it
+   * implicitly.
+   *
+   * If the source file does not exist, returns FilesystemError::DoesNotExist. If the
+   * destination directory already contains a file with the given name, returns
+   * FilesystemError::AlreadyExists.
+   */
+  virtual FilesystemResult<void> MoveFile(
+      std::string_view name, std::string_view dst_directory_path
+  ) = 0;
 
   /**
    * Opens an existing file for read, in binary mode, a la `fopen(name, "rb")`. If the
