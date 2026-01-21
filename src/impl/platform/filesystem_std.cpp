@@ -204,6 +204,8 @@ class StdDirectory : public virtual IDirectory {
  public:
   explicit StdDirectory(const std::filesystem::path& path) : _path(path) {}
 
+  const std::filesystem::path& GetPath() const override { return _path; }
+
   FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) const override {
     // Result vector should be cleared by the caller
     DATADOG_ASSERT(out_names.empty(), "ListFiles called with non-empty result vector");
@@ -258,13 +260,12 @@ class StdDirectory : public virtual IDirectory {
   }
 
   FilesystemResult<void> MoveFile(
-      std::string_view name, std::string_view dst_directory_path
+      std::string_view name, const std::filesystem::path& dst_directory_path
   ) override {
     // Build the source and destination file paths
     DATADOG_ASSERT(_is_clean_basename(name), "invalid filename");
     const std::filesystem::path src_file_path = _path / name;
-    const std::filesystem::path dst_file_path =
-        std::filesystem::path(dst_directory_path) / name;
+    const std::filesystem::path dst_file_path = dst_directory_path / name;
 
     // Explicitly check whether the destination file already exists, as conflict
     // handling is platform-dependent and we never want to clobber an existing file
