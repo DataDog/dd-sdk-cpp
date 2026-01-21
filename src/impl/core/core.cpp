@@ -7,6 +7,7 @@
 #include "core/core.hpp"
 
 #include <algorithm>
+#include <filesystem>
 #include <iostream>
 #include <sstream>
 
@@ -23,10 +24,6 @@ namespace datadog::impl {
 nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
     const CoreConfig& config
 ) {
-  // TODO(RUM-11360): Allow configuration of storage path via core; use sensible default
-  // per-platform
-  (void)config;
-
   // Prepare a wrapper object that can read from the system clock
   auto clock = platform::Clock::Init();
   if (!clock) {
@@ -35,9 +32,22 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
     );
   }
 
-  // Store event data in "$(pwd)/.datadog/<feature>" by default
-  const std::string_view DEFAULT_STORAGE_DIR = ".datadog";
-  auto filesystem_result = platform::Filesystem::Init(DEFAULT_STORAGE_DIR);
+  std::filesystem::path storage_root_path = ".datadog";
+  if (!config.event_storage_location.empty()) {
+    storage_root_path =
+        std::filesystem::path(config.event_storage_location) / ".datadog";
+  } else {
+    impl::DiagnosticLogger{config.diagnostic_handler, config.diagnostic_threshold}
+        .Warning(
+            "Events will be stored within .datadog/ in the current working directory: "
+            "application should call SetEventStorageLocation to specify a suitable "
+            "application-specific directory where .datadog/ can be created"
+        );
+  }
+
+  // Initialize filesystem storage, creating a Datadog-SDK-managed subdirectory beneath
+  // the configured path
+  auto filesystem_result = platform::Filesystem::Init(storage_root_path.string());
   if (!filesystem_result) {
     return nonstd::make_unexpected(filesystem_result.error().AddPrefix(
         "event storage subsystem could not be initialized"

@@ -242,6 +242,7 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
           ))
           .SetDiagnosticThreshold(DiagnosticLevel_FromC(config.diagnostic_threshold))
           .SetInitialTrackingConsent(TrackingConsent_FromC(config.tracking_consent))
+          .SetEventStorageLocation(config.event_storage_location)
           .SetSite(Site_FromC(config.site))
           .SetApplicationVersion(application_version)
           .SetBatchSize(BatchSize_FromC(config.batch_size))

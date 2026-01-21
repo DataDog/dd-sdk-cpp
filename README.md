@@ -47,8 +47,12 @@ You can peruse the public C++ headers [here](./include-cpp/datadog/).
 #include "datadog.hpp"
 
 void your_application_code() {
-  // Create the core, set tracking consent based on user input
+  // Initialize SDK configuration, specifying the path to a directory where your
+  // application can store transient files: the SDK will create .datadog/ there
   auto config = datadog::CoreConfig("<your-client-id>", "<your-service>", "<your-env>");
+  config.SetEventStorageLocation("<your-storage-directory>");
+
+  // Create the core, set tracking consent based on user input
   auto core = datadog::Core::Create(config);
   core->SetTrackingConsent(datadog::TrackingConsent::Granted);
 
@@ -75,9 +79,13 @@ You can peruse the public C headers [here](./include-c/datadog/).
 #include "datadog.h"
 
 void your_application_code() {
-  // Create the core, set tracking consent based on user input
+  // Initialize SDK configuration, specifying the path to a directory where your
+  // application can store transient files: the SDK will create .datadog/ there
   dd_core_config_t config;
-  dd_core_config_init(&config, "your-client-id", "your-service", "your-env");
+  dd_core_config_init(&config, "<your-client-id>", "<your-service>", "<your-env>");
+  dd_core_config_set_event_storage_location(&config, "<your-storage-directory>");
+
+  // Create the core, set tracking consent based on user input
   dd_core_t* core = dd_core_create(&config);
   dd_core_set_tracking_consent(core, DD_TRACKING_CONSENT_GRANTED);
 

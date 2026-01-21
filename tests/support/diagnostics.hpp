@@ -78,3 +78,71 @@ struct DiagnosticAsserts {
 
   const DiagnosticAsserts& RequireNoErrors() const { return RequireErrors({}); }
 };
+
+/**
+ * Helper struct for use in API-layer tests: buffers all diagnostic messages emitted by
+ * a fully-functional SDK instance.
+ */
+struct DiagnosticMessageBuffer {
+  std::vector<std::string> debug;
+  std::vector<std::string> status;
+  std::vector<std::string> warning;
+  std::vector<std::string> error;
+
+  /**
+   * Returns the total number of diagnostic messages contained in the buffer.
+   */
+  size_t TotalSize() const {
+    return debug.size() + status.size() + warning.size() + error.size();
+  }
+
+  /**
+   * Configures an SDK instance initialized via the C API to route all diagnostic
+   * messages to this struct.
+   */
+  void ConfigureC(dd_core_config_t* config) {
+    dd_core_config_set_diagnostic_handler_userdata(config, this);
+    dd_core_config_set_diagnostic_handler(
+        config, [](const dd_diagnostic_message_t* message, void* userdata) {
+          auto buf_ptr = reinterpret_cast<DiagnosticMessageBuffer*>(userdata);
+          switch (message->level) {
+            case DD_DIAGNOSTIC_LEVEL_DEBUG:
+              buf_ptr->debug.emplace_back(message->text);
+              break;
+            case DD_DIAGNOSTIC_LEVEL_STATUS:
+              buf_ptr->status.emplace_back(message->text);
+              break;
+            case DD_DIAGNOSTIC_LEVEL_WARNING:
+              buf_ptr->warning.emplace_back(message->text);
+              break;
+            case DD_DIAGNOSTIC_LEVEL_ERROR:
+              buf_ptr->error.emplace_back(message->text);
+              break;
+          }
+        }
+    );
+  }
+
+  /**
+   * Configures an SDK instance initialized via the C++ API to route all diagnostic
+   * messages to this struct.
+   */
+  void ConfigureCpp(datadog::CoreConfig& config) {
+    config.SetDiagnosticHandler([&](const datadog::DiagnosticMessage& message) {
+      switch (message.level) {
+        case datadog::DiagnosticLevel::Debug:
+          debug.emplace_back(message.text);
+          break;
+        case datadog::DiagnosticLevel::Status:
+          status.emplace_back(message.text);
+          break;
+        case datadog::DiagnosticLevel::Warning:
+          warning.emplace_back(message.text);
+          break;
+        case datadog::DiagnosticLevel::Error:
+          error.emplace_back(message.text);
+          break;
+      }
+    });
+  }
+};

@@ -21,6 +21,7 @@ namespace datadog {
 
 namespace impl {
 class Core;
+struct CoreSubsystems;
 struct HttpContext;
 }  // namespace impl
 
@@ -42,6 +43,9 @@ enum class DiagnosticLevel : uint8_t { Debug, Status, Warning, Error };
  * Use CoreConfig::SetDiagnosticHandler() to specify how emitted messages should be
  * handled. Supply your own callback to override the default behavior of printing to
  * stderr; supply nullptr to entirely suppress all diagnostic output.
+ *
+ * Note that message.text is only valid during the handler invocation. If you need to
+ * store the text of message persistently, you must make a copy.
  */
 struct DiagnosticMessage {
   DiagnosticLevel level;
@@ -165,12 +169,14 @@ enum class BatchProcessingLevel : uint8_t {
 struct CoreConfig {
   friend class Core;
   friend class impl::Core;
+  friend struct impl::CoreSubsystems;
   friend struct impl::HttpContext;
 
  private:
   DiagnosticHandler diagnostic_handler{StderrDiagnosticHandler};
   DiagnosticLevel diagnostic_threshold{DiagnosticLevel::Warning};
   TrackingConsent tracking_consent{TrackingConsent::Pending};
+  std::string event_storage_location;
   Site site{Site::us1};
   std::string client_token;
   std::string service;
@@ -239,6 +245,30 @@ struct CoreConfig {
    * @ref datadog::Core::SetTrackingConsent() to update it at runtime.
    */
   DATADOG_API CoreConfig& SetInitialTrackingConsent(TrackingConsent value);
+
+  /**
+   * Sets the directory path where the Datadog SDK will create a subdirectory to store
+   * all of the transient data it creates during normal operation.
+   *
+   * The directory you provide must be a location that is unique to your application,
+   * where the current process will be permitted to create directories, write files, and
+   * delete files. No shell expansions (e.g. ~, environment variables) are performed.
+   *
+   * Upon SDK start, the SDK will attempt to create a .datadog/ subdirectory within the
+   * event storage location you provided. If unsuccessful, the SDK will print a
+   * diagnostic error and fail to start.
+   *
+   * During normal operation, the SDK will assume exclusive ownership of all files
+   * within the .datadog/ directory; freely creating and deleting files as needed. It
+   * will NOT read or modify any other path within the event storage location.
+   *
+   * It is highly recommended that you explicitly specify an event storage location when
+   * configuring an instance of the SDK. If you do not, the SDK will print a warning,
+   * but it will attempt to create a .datadog/ subdirectory within the working directory
+   * for the current process. If you prefer to use the current working directory,
+   * explicitly configure the SDK with config.SetEventStorageLocation(".").
+   */
+  DATADOG_API CoreConfig& SetEventStorageLocation(std::string_view value);
 
   /**
    * Sets the site (i.e. Datadog datacenter) where data for your organization is stored.
