@@ -77,6 +77,20 @@ static uint64_t _timestamp_to_ms(Timestamp timestamp) {
   return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
+static constexpr std::string_view _fs_error_string(platform::FilesystemError err) {
+  switch (err) {
+    case platform::FilesystemError::DoesNotExist:
+      return "target/source file does not exist";
+    case platform::FilesystemError::AlreadyExists:
+      return "destination file already exists";
+    case platform::FilesystemError::Failed:
+      return "operation failed";
+    case platform::FilesystemError::IOError:
+      return "low-level I/O error";
+  }
+  return "unknown error";
+}
+
 BatchWriterConfig BatchWriterConfig::FromBatchSize(BatchSize batch_size) {
   const Duration max_file_age = BatchSize_ToMaxFileAgeForWrite(batch_size);
   return BatchWriterConfig(max_file_age);
@@ -94,6 +108,7 @@ BatchWriter::BatchWriter(
       _consent(consent),
       _pending_directory(std::move(pending_directory)),
       _granted_directory(std::move(granted_directory)),
+      _granted_directory_path(_granted_directory ? _granted_directory->GetPath() : ""),
       _clock(clock),
       _config(config) {}
 
@@ -156,16 +171,150 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
 }
 
 bool BatchWriter::DeletePendingBatches() {
-  // TODO(RUM-11356): Use RemoveFile to delete all batches in _pending_directory
-  _diagnostic_logger.Debug("BatchWriter::DeletePendingBatches NYI");
-  return false;
+  // Thread-safety/synchronization considerations:
+  //
+  // 1. We only delete from _pending_directory, which the upload thread never reads
+  //    from, so we don't have to worry about contention with other threads
+  // 2. The storage thread performs deletion synchronously, i.e. there can be no file
+  //    writes happening concurrently during deletion
+  // 3. When the storage thread _does_ perform writes, it does so atomically and closes
+  //    the file, so there are no open handles to any of the files we're deleting
+  //
+  // Therefore, we can safely assume that we have exclusive access to _pending_directory
+  // during this function call.
+
+  // Retrieve an up-to-date list of filenames in the target directory: we assume
+  // exclusive access to _pending_directory for the duration of this operation, so this
+  // set of files should not change on disk except in response to our RemoveFile calls
+  if (!CacheKnownFilenames(*_pending_directory)) {
+    // If we're unable to read filenames from the directory, we can't proceed: consider
+    // the delete operation failed and leave the SDK nonfunctional
+    _diagnostic_logger.Error(
+        "Could not delete batch files on consent change: failed to read filenames from "
+        "directory"
+    );
+    return false;
+  }
+
+  // Iterate over all filenames, attempting to delete each file
+  for (const std::string& filename : _last_known_filenames) {
+    // Call RemoveFile, and continue if successfully deleted
+    auto result = _pending_directory->RemoveFile(filename);
+    if (result.has_value()) {
+      _diagnostic_logger.Debug(
+          "Deleted batch file due to consent change", {{"filename", filename}}
+      );
+      continue;
+    }
+
+    // If we couldn't delete the the file, abort the operation
+    const platform::FilesystemError err = result.error();
+    _diagnostic_logger.Error(
+        "Could not delete batch file on consent change",
+        {{"filename", filename}, {"error", _fs_error_string(err)}}
+    );
+    return false;
+  }
+
+  // All files deleted
+  return true;
 }
 
 bool BatchWriter::MigratePendingBatchesToGranted() {
-  // TODO(RUM-11356): Use MoveFile to move all batches from _pending_directory to
-  // _granted_directory
-  _diagnostic_logger.Debug("BatchWriter::MigratePendingBatchesToGranted NYI");
-  return false;
+  // Thread-safety/synchronization considerations:
+  //
+  // 1. We move files *from* _pending_directory: as with DeletePendingBatches(), this
+  //    function call happens synchronously on the storage thread, so we don't have to
+  //    worry about concurrent writes or open file handles
+  // 2. We move files *into* _granted_directory: we need to consider that the upload
+  //    thread may be reading from this directory while we're moving files into it.
+  //    However:
+  // 3. _pending_directory and _granted_directory are guaranteed to be on the same
+  //    filesystem (since they're subdirectories within an SDK-controlled directory),
+  //    and therefore a file rename operation is atomic on both POSIX and Windows: the
+  //    upload thread will never see a "partially-moved" file.
+  //
+  // Additional considerations re: filename conflicts:
+  //
+  // - The files we're moving are named with timestamps indicating file creation time,
+  //   so if we're switching from pending to granted, it's extremely unlikely that
+  //   _granted_directory will already contain a file with the same name as a file being
+  //   moved from _pending_directory. However, it _is_ technically possibly in the event
+  //   of system clock adjustments, external filesystem tampering, or extremely rapid
+  //   tracking consent changes.
+  //
+  // - In the unlikely event of a conflict, we leave the file in _granted_directory
+  //   intact, and we delete the file from _pending_directory. As long as we either move
+  //   the file or delete it in response to a conflict, the operation continues
+  //   successfully.
+
+  // We should have cached the path to _granted_directory on construction: directory
+  // paths never change once the IDirectory handle is constructed
+  DATADOG_ASSERT(
+      !_granted_directory_path.empty(),
+      "empty destination directory path on batch file migration"
+  );
+
+  // Retrieve an up-to-date list of filenames in the source directory: we assume
+  // exclusive access to _pending_directory for the duration of this operation, so
+  // this set of files should not change on disk except in response to our MoveFile
+  // and RemoveFile calls
+  if (!CacheKnownFilenames(*_pending_directory)) {
+    // If we're unable to read filenames from the directory, we can't proceed: consider
+    // the move operation failed and leave the SDK nonfunctional
+    _diagnostic_logger.Error(
+        "Could not migrate batch files on consent change: failed to read filenames "
+        "from source directory"
+    );
+    return false;
+  }
+
+  // Iterate over all filenames, attempting to move each file
+  for (const std::string& filename : _last_known_filenames) {
+    // If MoveFile succeeds, we've successfully migrated this file and we can continue
+    // to the next one
+    auto move_result = _pending_directory->MoveFile(filename, _granted_directory_path);
+    if (move_result.has_value()) {
+      _diagnostic_logger.Debug(
+          "Migrated batch file due to consent change", {{"filename", filename}}
+      );
+      continue;
+    }
+
+    // If the move failed because a destination file exists with the same name, attempt
+    // to resolve the conflict by deleting the source file and proceeding
+    if (move_result.error() == platform::FilesystemError::AlreadyExists) {
+      // If we can successfully delete the source file (leaving the existing destination
+      // file as-is), we can continue with the operation
+      auto delete_result = _pending_directory->RemoveFile(filename);
+      if (delete_result.has_value()) {
+        _diagnostic_logger.Debug(
+            "Deleted pending-directory copy of duplicate batch file",
+            {{"filename", filename}}
+        );
+        continue;
+      }
+
+      // Otherwise, we have a file conflict and we're unable to delete the source file:
+      // leave the file in place, but log a warning and carry on with the migration
+      _diagnostic_logger.Warning(
+          "Could not delete pending-directory copy of duplicate batch file",
+          {{"filename", filename}, {"error", _fs_error_string(delete_result.error())}}
+      );
+      continue;
+    }
+
+    // If the move failed for any other reason, abort the migration operation
+    _diagnostic_logger.Error(
+        "Could not migrate batch file on consent change",
+        {{"filename", filename}, {"error", _fs_error_string(move_result.error())}}
+    );
+    return false;
+  }
+
+  // We were able to list batch files, and all batch files with non-conflicting names
+  // were successfully moved
+  return true;
 }
 
 bool BatchWriter::WriteEventTo(
