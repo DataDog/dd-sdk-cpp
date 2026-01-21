@@ -69,14 +69,13 @@ TEST_CASE("StorageThreadMain", "[unit]") {
         "alpha",
         std::make_shared<FeatureAlpha>(),
         std::move(*alpha),
-        std::make_unique<EventStorage>(
+        std::make_unique<BatchWriter>(
+            DiagnosticLogger{},
             alpha_consent,
-            std::make_unique<BatchWriter>(
-                DiagnosticLogger{}, std::move(*alpha_pending), clock, writer_config
-            ),
-            std::make_unique<BatchWriter>(
-                DiagnosticLogger{}, std::move(*alpha_granted), clock, writer_config
-            )
+            std::move(*alpha_pending),
+            std::move(*alpha_granted),
+            clock,
+            writer_config
         ),
         nullptr,  // event_read_directory is exclusive to upload thread
         nullptr   // upload_state is exclusive to upload thread
@@ -88,14 +87,13 @@ TEST_CASE("StorageThreadMain", "[unit]") {
         "bravo",
         std::make_shared<FeatureBravo>(),
         std::move(*bravo),
-        std::make_unique<EventStorage>(
+        std::make_unique<BatchWriter>(
+            DiagnosticLogger{},
             bravo_consent,
-            std::make_unique<BatchWriter>(
-                DiagnosticLogger{}, std::move(*bravo_pending), clock, writer_config
-            ),
-            std::make_unique<BatchWriter>(
-                DiagnosticLogger{}, std::move(*bravo_granted), clock, writer_config
-            )
+            std::move(*bravo_pending),
+            std::move(*bravo_granted),
+            clock,
+            writer_config
         ),
         nullptr,  // event_read_directory is exclusive to upload thread
         nullptr   // upload_state is exclusive to upload thread

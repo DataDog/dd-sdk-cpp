@@ -33,9 +33,9 @@ namespace datadog::impl {
 
 // Use (e.g.) 'v1' to store events gathered while tracking consent is granted;
 // 'intermediate-v1' for events gathered while tracking consent is pending
-const char* EventStorage::PENDING_SUBDIRECTORY_NAME =
+const char* BatchWriter::PENDING_SUBDIRECTORY_NAME =
     "intermediate-v" DATADOG_EVENT_STORAGE_VERSION;
-const char* EventStorage::GRANTED_SUBDIRECTORY_NAME = "v" DATADOG_EVENT_STORAGE_VERSION;
+const char* BatchWriter::GRANTED_SUBDIRECTORY_NAME = "v" DATADOG_EVENT_STORAGE_VERSION;
 
 // Maximum possible base-10 digits in a uint64_t, without null terminator
 static const size_t MAX_UINT64_DECIMAL_DIGITS = 20;
@@ -84,36 +84,93 @@ BatchWriterConfig BatchWriterConfig::FromBatchSize(BatchSize batch_size) {
 
 BatchWriter::BatchWriter(
     const DiagnosticLogger& diagnostic_logger,
-    std::unique_ptr<platform::IDirectory>&& directory,
+    TrackingConsent consent,
+    std::unique_ptr<platform::IDirectory>&& pending_directory,
+    std::unique_ptr<platform::IDirectory>&& granted_directory,
     const platform::IClock& clock,
     BatchWriterConfig config
 )
     : _diagnostic_logger(diagnostic_logger),
-      _directory(std::move(directory)),
+      _consent(consent),
+      _pending_directory(std::move(pending_directory)),
+      _granted_directory(std::move(granted_directory)),
       _clock(clock),
       _config(config) {}
 
-bool BatchWriter::Delete()  // NOLINT (TODO)
-{
-  // TODO: Delete all files in our directory, with appropriate synchronization and
-  // filesystem error handling
-  _diagnostic_logger.Debug("BatchWriter::Delete NYI");
-  return false;
-}
+bool BatchWriter::SetTrackingConsent(TrackingConsent value) {
+  // Ignore spurious change events
+  if (_consent == value) {
+    // Value change accepted successfully as a no-op
+    return true;
+  }
 
-bool BatchWriter::MigrateTo(BatchWriter& other)  // NOLINT (TODO)
-{
-  // TODO: Move all files from our directory to the directory owned by `other`, with
-  // appropriate synchronization, filesystem error handling, and file name conflict
-  // handling
-  (void)other;
-  _diagnostic_logger.Debug("BatchWriter::MigrateTo NYI");
-  return false;
+  // Store the new value
+  _consent = value;
+
+  // Clear all state that pertains to the directory where we've been writing files, as
+  // we may be switching to a new directory
+  _last_known_filenames.clear();
+  _last_file.reset();
+  _last_file_details.Reset(0);
+
+  // If tracking consent has been revoked, delete all pending data
+  if (value == TrackingConsent::NotGranted) {
+    // Allow data that was collected while consent was granted to be drained and
+    // uploaded; no new data will be fed in
+    return DeletePendingBatches();
+  }
+
+  // If tracking consent has been granted, migrate all event data from the pending
+  // directory to the granted directory, so the upload thread will be able to read it
+  if (value == TrackingConsent::Granted) {
+    return MigratePendingBatchesToGranted();
+  }
+
+  // If tracking consent has been changed back to pending, do nothing: the storage
+  // thread will write future events to the pending directory, and the upload thread
+  // will drain the granted directory
+  return true;
 }
 
 bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
   DATADOG_ASSERT(!event.empty(), "HandleWrite received empty event");
 
+  // Branch on tracking consent to determine the appropriate place for the new event
+  switch (_consent) {
+    // If consent has been granted, write to the directory that the upload thread is
+    // reading from
+    case TrackingConsent::Granted:
+      return WriteEventTo(*_granted_directory, event, event_metadata);
+
+    // If consent is pending, write to an intermediate directory so that data is
+    // captured locally but not yet uploaded
+    case TrackingConsent::Pending:
+      return WriteEventTo(*_pending_directory, event, event_metadata);
+
+    // If consent has been explicitly revoked, store no data
+    case TrackingConsent::NotGranted:
+      return true;  // Event successfully handled as a no-op
+  }
+  DATADOG_ASSERT(false, "unhandled TrackingConsent enum value");
+  return false;
+}
+
+bool BatchWriter::DeletePendingBatches() {
+  // TODO(RUM-11356): Use RemoveFile to delete all batches in _pending_directory
+  _diagnostic_logger.Debug("BatchWriter::DeletePendingBatches NYI");
+  return false;
+}
+
+bool BatchWriter::MigratePendingBatchesToGranted() {
+  // TODO(RUM-11356): Use MoveFile to move all batches from _pending_directory to
+  // _granted_directory
+  _diagnostic_logger.Debug("BatchWriter::MigratePendingBatchesToGranted NYI");
+  return false;
+}
+
+bool BatchWriter::WriteEventTo(
+    platform::IDirectory& directory, Block event, Block event_metadata
+) {
   // If we don't permit at least 1 write per file, reject all writes
   if (_config.max_writes_per_file <= 0) {
     return false;
@@ -130,12 +187,16 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
   // maximum configured size for a single batch file, reject the event outright: even a
   // brand new batch file could not contain it
   if (num_bytes > _config.max_file_size) {
+    _diagnostic_logger.Error(
+        "Event dropped; size of single event exceeds max batch file size"
+    );
     return false;
   }
 
   // Determine which file we should write to, and abort if we were unable to resolve an
   // appropriate writable file
-  platform::IFileWriter* file = PrepareFileForNextWrite(event, event_metadata);
+  platform::IFileWriter* file =
+      PrepareFileForNextWrite(directory, event, event_metadata);
   if (!file) {
     // If this error occurs, it's likely due to an underlying I/O error, or else we're
     // flooding the storage thread with 100+ batches worth of event data in a very small
@@ -194,7 +255,7 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
 }
 
 platform::IFileWriter* BatchWriter::PrepareFileForNextWrite(
-    Block event, Block event_metadata
+    platform::IDirectory& directory, Block event, Block event_metadata
 ) {
   // Check our last-used file's age, size, etc. to see if we can reuse it
   const Timestamp current_time = _clock.Now();
@@ -203,7 +264,7 @@ platform::IFileWriter* BatchWriter::PrepareFileForNextWrite(
   }
 
   // If not, prepare to write a new file: start by figuring out what to name it
-  const auto next = GetFilenameForNextWrite(current_time);
+  const auto next = GetFilenameForNextWrite(directory, current_time);
   if (!next) {
     // Failed to resolve new filename (i.e. listing directory contents failed, or all
     // potential filenames are in use); can't proceed with file creation
@@ -212,7 +273,7 @@ platform::IFileWriter* BatchWriter::PrepareFileForNextWrite(
   }
 
   // Defer to our filesystem implementation to get an interface for writing to this file
-  auto file = _directory->PrepareForWrite(next->second);
+  auto file = directory.PrepareForWrite(next->second);
   if (!file) {
     // Failed to prepare file; can't proceed with write
     _last_file = nullptr;
@@ -271,13 +332,13 @@ bool BatchWriter::CanReuseFileForNextWrite(
 }
 
 std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextWrite(
-    Timestamp current_time
+    const platform::IDirectory& directory, Timestamp current_time
 ) const {
   // Our new file will use a filename that reflects the current timestamp, but it's
   // possible that a file already exists with that name, and we don't want to reuse any
   // existing files that we didn't create ourselves: so start by retrieving the list of
   // existing filenames in our target directory
-  if (!CacheKnownFilenames()) {
+  if (!CacheKnownFilenames(directory)) {
     // Failed to list directory contents; can't proceed with file creation
     return std::nullopt;
   }
@@ -329,72 +390,13 @@ std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextW
   return std::nullopt;
 }
 
-bool BatchWriter::CacheKnownFilenames() const {
+bool BatchWriter::CacheKnownFilenames(const platform::IDirectory& directory) const {
   _last_known_filenames.clear();
-  if (!_directory->ListFiles(_last_known_filenames)) {
+  if (!directory.ListFiles(_last_known_filenames)) {
     return false;
   }
   std::sort(_last_known_filenames.begin(), _last_known_filenames.end());
   return true;
-}
-
-EventStorage::EventStorage(
-    TrackingConsent consent,
-    std::unique_ptr<BatchWriter>&& pending,
-    std::unique_ptr<BatchWriter>&& granted
-)
-    : _consent(consent), _pending(std::move(pending)), _granted(std::move(granted)) {}
-
-bool EventStorage::SetTrackingConsent(TrackingConsent value) {
-  // Ignore spurious change events
-  if (_consent == value) {
-    // Value change accepted successfully as a no-op
-    return true;
-  }
-
-  // Store the new value
-  _consent = value;
-
-  // If tracking consent has been revoked, delete all pending data
-  if (value == TrackingConsent::NotGranted) {
-    // Allow data that was collected while consent was granted to be drained and
-    // uploaded; no new data will be fed in
-    return _pending->Delete();
-  }
-
-  // If tracking consent has been granted, migrate all event data from the pending
-  // directory to the granted directory, so the upload thread will be able to read it
-  if (value == TrackingConsent::Granted) {
-    return _pending->MigrateTo(*_granted);
-  }
-
-  // If tracking consent has been changed back to pending, do nothing: the storage
-  // thread will write future events to the pending directory, and the upload thread
-  // will drain the granted directory
-  return true;
-}
-
-bool EventStorage::HandleWrite(Block event, Block event_metadata) {
-  DATADOG_ASSERT(!event.empty(), "HandleWrite received empty event");
-
-  // Branch on tracking consent to determine the appropriate place for the new event
-  switch (_consent) {
-    // If consent has been granted, write to the directory that the upload thread is
-    // reading from
-    case TrackingConsent::Granted:
-      return _granted->HandleWrite(event, event_metadata);
-
-    // If consent is pending, write to an intermediate directory so that data is
-    // captured locally but not yet uploaded
-    case TrackingConsent::Pending:
-      return _pending->HandleWrite(event, event_metadata);
-
-    // If consent has been explicitly revoked, store no data
-    case TrackingConsent::NotGranted:
-      return true;  // Event successfully handled as a no-op
-  }
-  DATADOG_ASSERT(false, "unhandled TrackingConsent enum value");
-  return false;
 }
 
 }  // namespace datadog::impl
