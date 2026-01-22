@@ -9,6 +9,8 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 # Install required tools and libraries
 # - ca-certificates, gpg, gpg-agent, wget: For third-party apt repositories
 # - libcurl4-openssl-dev, libssl-dev:      For default libcurl HTTP client impl
+# - zlib1g-dev:                            Required by crashpad (along with libcurl)
+# - tzdata:                                Required for crashpad TimeZone tests
 # - uuid-dev:                              uuid/uuid.h, for datadog::UUID on Linux
 # - git && python3.10-venv:                For tools/validate-event-types
 # - ninja-build:                           Build system for use as CMake generator
@@ -19,6 +21,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   wget \
   libcurl4-openssl-dev \
   libssl-dev \
+  zlib1g-dev \
+  tzdata \
   uuid-dev \
   git \
   python3.10-venv \

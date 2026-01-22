@@ -31,7 +31,7 @@ variables:
   # Our Linux toolchain images are tagged with this version, e.g.
   # 'ci/dd-sdk-cpp:clang15-v2': bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
-  LINUX_TOOLCHAIN_IMAGE_VERSION: v6
+  LINUX_TOOLCHAIN_IMAGE_VERSION: v7
 
   # The Windows (MSVC) toolchain image is built separately: since Windows images tend to
   # be large, they are also tagged '<toolchain>-latest' on push, and then the AMI build
@@ -152,24 +152,28 @@ build-linux:
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
+        DD_ENABLE_CRASHPAD: "OFF"  # Crashpad does not support GCC out of the box
 
       # gcc13: static-release, w/ bundled libcurl
       - TOOLCHAIN_TARGET: gcc13
         BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
+        DD_ENABLE_CRASHPAD: "OFF"  # Crashpad does not support GCC out of the box
 
       # clang15: static-release, w/ runtime dependency on libcurl.so
       - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "ON"
+        DD_ENABLE_CRASHPAD: "ON"
 
       # clang15: shared-debug, w/ bundled libcurl
       - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "OFF"
+        DD_ENABLE_CRASHPAD: "ON"
 
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
@@ -178,6 +182,8 @@ build-linux:
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
+      -DDD_ENABLE_CRASHPAD=${DD_ENABLE_CRASHPAD}
+      -DDD_RUN_CRASHPAD_TESTS=${DD_ENABLE_CRASHPAD}
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
@@ -192,17 +198,21 @@ build-macos:
       - BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
+        DD_ENABLE_CRASHPAD: "ON"
 
       # clang15 (Apple): static-release, w/ bundled libcurl
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
+        DD_ENABLE_CRASHPAD: "ON"
   script:
     - >
       cmake
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
+      -DDD_ENABLE_CRASHPAD=${DD_ENABLE_CRASHPAD}
+      -DDD_RUN_CRASHPAD_TESTS=${DD_ENABLE_CRASHPAD}
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
@@ -215,11 +225,12 @@ build-windows:
     TOOLCHAIN_TARGET: vs2022
   parallel:
     matrix:
-      # Visual Studio 2022 (17.14, vc143): md-static-debug, w/ bundled libcurl
+      # Visual Studio 2022 (17.14, vc143): md-static-release, w/ bundled libcurl
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
-        MSVC_RUNTIME_LIBRARY: MultiThreadedDebugDLL
+        DD_ENABLE_CRASHPAD: "ON"
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
@@ -227,10 +238,11 @@ build-windows:
     - >
       docker run --rm
       -m 8192M
+      -e NUM_PARALLEL_BUILD_JOBS
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=${env:DD_ENABLE_CRASHPAD} -DDD_RUN_CRASHPAD_TESTS=${env:DD_ENABLE_CRASHPAD} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 

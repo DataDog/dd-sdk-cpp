@@ -39,6 +39,9 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "nop") {
     return HandleNop(state, input.Shift());
   }
+  if (input.Peek() == "crash") {
+    return HandleCrash(state, input.Shift());
+  }
 
   // Profile
   if (input.Peek() == "start-profile") {

@@ -46,6 +46,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     impl/features/rum/context.cpp
     impl/features/rum/rum.cpp
     impl/features/rum/scope.cpp
+    impl/features/rum/temp_crashpad.cpp
     impl/json/primitives/bool.cpp
     impl/json/primitives/float.cpp
     impl/json/primitives/integer.cpp
@@ -99,7 +100,7 @@ target_include_directories(dd_native
     PUBLIC 
         $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-c>
         $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-cpp>
-        $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        $<INSTALL_INTERFACE:include>
     PRIVATE
         c
         cpp
@@ -171,6 +172,15 @@ else()
     if(DD_HTTP_SRC)
         target_sources(dd_native PRIVATE ${DD_HTTP_SRC})
     endif()
+endif()
+
+# If building with crashpad support, integrate crashpad as a dependency: this adds an
+# ExternalProject target that will build crashpad, then adds the resulting static lib as
+# a dependency for dd_native. To ensure binary-compatible builds, this script must run
+# after compile/link options for dd_native are fully configured.
+if(DD_ENABLE_CRASHPAD)
+    include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
+    target_compile_definitions(dd_native PUBLIC DATADOG_WITH_CRASHPAD=1)
 endif()
 
 # Install configuration

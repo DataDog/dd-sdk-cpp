@@ -5,8 +5,7 @@ add_executable(dd_native_c_example
 target_enable_strict_warnings(dd_native_c_example)
 target_enable_coverage(dd_native_c_example)
 target_enable_sanitizers(dd_native_c_example)
-
-target_link_libraries(dd_native_c_example PRIVATE dd_native)
+datadog_enable(dd_native_c_example)
 
 # C++ example
 add_executable(dd_native_cpp_example
@@ -15,8 +14,7 @@ add_executable(dd_native_cpp_example
 target_enable_strict_warnings(dd_native_cpp_example)
 target_enable_coverage(dd_native_cpp_example)
 target_enable_sanitizers(dd_native_cpp_example)
-
-target_link_libraries(dd_native_cpp_example PRIVATE dd_native)
+datadog_enable(dd_native_cpp_example)
 
 # REPL
 add_executable(dd_native_repl
@@ -37,5 +35,5 @@ target_enable_strict_warnings(dd_native_repl)
 target_enable_clang_tidy(dd_native_repl)
 target_enable_coverage(dd_native_repl)
 target_enable_sanitizers(dd_native_repl)
-target_link_libraries(dd_native_repl PRIVATE dd_native)
 target_include_directories(dd_native_repl PRIVATE .)
+datadog_enable(dd_native_repl)

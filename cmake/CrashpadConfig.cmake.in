@@ -1,0 +1,70 @@
+# When the SDK is built to an installable package with DD_ENABLE_CRASHPAD, this file is
+# distributed in lib/cmake/Crashpad, and DatadogConfig.cmake will automatically import
+# it from that location.
+#
+# Once `CrashpadConfig.cmake` is included, these targets will be defined:
+#
+# - `crashpad::client`: The static library built from crashpad alongside the SDK build,
+#     e.g. `libclient.a` or `client.lib`, with all its linker dependencies defined. The
+#     generated `DatadogTargets.cmake` file implicitly establishes the dependency
+#     between dd_native and crashpad::client.
+#     
+# - `crashpad::handler`: The crashpad_handler executable built from crashpad, which must
+#     be distributed alongside the final application. Using `datadog_enable(executable)`
+#     ensures that this file will be copied to the output directory for any target
+#     `executable` when that target is built.
+
+@PACKAGE_INIT@
+
+# CMAKE_CURRENT_LIST_FILE is lib/cmake/Crashpad; resolve the absolute path to the root
+# install directory (containing include, lib, etc.)
+get_filename_component(CRASHPAD_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
+get_filename_component(CRASHPAD_INSTALL_PREFIX "${CRASHPAD_CMAKE_DIR}/../../.." ABSOLUTE)
+
+# dd_native depends on crashpad::client, the binaries for which are precompiled and
+# distributed in lib/
+add_library(crashpad::client STATIC IMPORTED)
+if (WIN32)
+    set_target_properties(crashpad::client PROPERTIES
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/lib/client.lib"
+    )
+    set_property(TARGET crashpad::client PROPERTY INTERFACE_LINK_LIBRARIES
+        "${CRASHPAD_INSTALL_PREFIX}/lib/util.lib"
+        "${CRASHPAD_INSTALL_PREFIX}/lib/base.lib"
+    )
+else()
+    set_target_properties(crashpad::client PROPERTIES
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/lib/libclient.a"
+    )
+    set_property(TARGET crashpad::client PROPERTY INTERFACE_LINK_LIBRARIES
+        "${CRASHPAD_INSTALL_PREFIX}/lib/libutil.a"
+        "${CRASHPAD_INSTALL_PREFIX}/lib/libbase.a"
+    )
+    if(APPLE)
+        set_property(TARGET crashpad::client APPEND PROPERTY INTERFACE_LINK_LIBRARIES
+            "${CRASHPAD_INSTALL_PREFIX}/lib/libmig_output.a"
+            "-framework CoreFoundation"
+            "-framework CoreGraphics"
+            "-framework CoreText"
+            "-framework IOKit"
+            "-framework Foundation"
+            "-lbsm"
+        )
+    endif()
+endif()
+
+# crashpad::handler must be defined so that it can be referenced as needed to deploy it
+# with the application (including via `datadog_enable`)
+add_executable(crashpad::handler IMPORTED)
+if(WIN32)
+    set_target_properties(crashpad::handler PROPERTIES
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/bin/crashpad_handler.exe"
+    )
+else()
+    set_target_properties(crashpad::handler PROPERTIES
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/bin/crashpad_handler"
+    )
+endif()
+
+# Set Crashpad_FOUND if successful
+check_required_components(Crashpad)
