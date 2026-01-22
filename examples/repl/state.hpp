@@ -11,6 +11,7 @@
 #include <memory>
 
 #include "datadog.hpp"
+
 #include "repl/buffer.hpp"
 
 static constexpr const char* DEFAULT_SERVICE = "dd-sdk-cpp-repl";

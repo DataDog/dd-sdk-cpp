@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "json.hpp"
+#include "datadog/impl/json.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cinttypes>
@@ -12,7 +12,8 @@
 #include <vector>
 
 #include "datadog/uuid.hpp"
-#include "events/struct.hpp"
+
+#include "datadog/impl/events/struct.hpp"
 
 namespace datadog::impl {
 struct JsonTestEvent {

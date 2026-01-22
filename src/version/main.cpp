@@ -8,7 +8,7 @@
 #include <cstring>
 #include <iostream>
 
-#include "core/version.hpp"
+#include "datadog/impl/core/version.hpp"
 
 /**
  * This program is an internal tool used in the release process: it prints information

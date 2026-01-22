@@ -11,6 +11,7 @@
 #include <vector>
 
 #include "datadog/rum.hpp"
+
 #include "support/core.hpp"
 #include "support/json_serialization.hpp"
 #include "support/json_validation.hpp"

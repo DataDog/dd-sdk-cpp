@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/queue.hpp"
+#include "datadog/impl/core/queue.hpp"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>

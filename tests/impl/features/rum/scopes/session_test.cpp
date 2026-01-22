@@ -4,15 +4,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "features/rum/scopes/session.hpp"
+#include "datadog/impl/features/rum/scopes/session.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 #include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
-#include "features/rum/context.hpp"
-#include "features/rum/scopes/application.hpp"
-#include "features/rum/scopes/view.hpp"
+
+#include "datadog/impl/features/rum/context.hpp"
+#include "datadog/impl/features/rum/scopes/application.hpp"
+#include "datadog/impl/features/rum/scopes/view.hpp"
+
 #include "mock/clock.hpp"
 
 using namespace datadog;

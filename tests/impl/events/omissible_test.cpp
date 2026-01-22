@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "events/omissible.hpp"
+#include "datadog/impl/events/omissible.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cinttypes>
@@ -13,8 +13,10 @@
 
 #include "datadog/timestamp.hpp"
 #include "datadog/uuid.hpp"
-#include "events/struct.hpp"
-#include "events/timestamp.hpp"
+
+#include "datadog/impl/events/struct.hpp"
+#include "datadog/impl/events/timestamp.hpp"
+
 #include "support/json_serialization.hpp"
 
 using namespace datadog;

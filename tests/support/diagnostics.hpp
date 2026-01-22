@@ -12,6 +12,7 @@
 
 #include "datadog/core.h"
 #include "datadog/core.hpp"
+
 #include "support/catch.hpp"
 
 using namespace datadog;

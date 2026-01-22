@@ -4,16 +4,17 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/writer.hpp"
+#include "datadog/impl/core/writer.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstring>
 
-#include "core/feature_read.hpp"
-#include "core/tlv.hpp"
+#include "datadog/impl/core/feature_read.hpp"
+#include "datadog/impl/core/tlv.hpp"
+#include "datadog/impl/platform/http.hpp"
+
 #include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
-#include "platform/http.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;

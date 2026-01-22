@@ -6,6 +6,7 @@
 
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
+
 #include "support/catch.hpp"
 #include "support/diagnostics.hpp"
 #include "support/tempdir.hpp"

@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "error_message.hpp"
+#include "datadog/impl/error_message.hpp"
 
 #include "support/catch.hpp"
 

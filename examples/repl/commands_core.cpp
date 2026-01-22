@@ -5,6 +5,7 @@
 // Copyright 2025-Present Datadog, Inc.
 
 #include "datadog.hpp"
+
 #include "repl/commands.hpp"
 #include "repl/state.hpp"
 

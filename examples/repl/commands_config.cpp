@@ -7,6 +7,7 @@
 #include <optional>
 
 #include "datadog.hpp"
+
 #include "repl/commands.hpp"
 #include "repl/state.hpp"
 

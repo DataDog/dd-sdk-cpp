@@ -76,9 +76,9 @@ ctest --test-dir build
 
 - [`include-c/`][include-c] contains public headers for the C API.
 - [`include-cpp/`][include-cpp] contains public headers for the C++ API.
-- [`src/c/`][src-c] implements the C API, binding it to `src/impl/`.
-- [`src/cpp/`][src-cpp] implements the C++ API, binding it to `src/impl/`.
-- [`src/impl/`][src-impl] implements the core business logic of the library, split into:
+- [`src/datadog/c/`][src-c] implements the C API.
+- [`src/datadog/cpp/`][src-cpp] implements the C++ API.
+- [`src/datadog/impl/`][src-impl] implements the core business logic of the library, split into:
     - [`core/`][impl-core]: Implements the primary business logic of the SDK, including:
         - [`core.hpp`][core-hpp]: Internal core of the SDK, which handles initialization, feature registration, and which runs the storage and upload threads.
         - [`feature.hpp`][feature-hpp]: Interfaces used to implement specific features, allowing a feature implementation to register itself with the core, define how it generates events for storage and processes them for upload, and implement its user-facing API.
@@ -93,18 +93,18 @@ ctest --test-dir build
 
 [include-c]: ./include-c/
 [include-cpp]: ./include-cpp/
-[src-c]: ./src/c/
-[src-cpp]: ./src/cpp/
-[src-impl]: ./src/impl/
-[impl-core]: ./src/impl/core/
-[core-hpp]: ./src/impl/core/core.hpp
-[feature-hpp]: ./src/impl/core/feature.hpp
-[storage-thread-hpp]: ./src/impl/core/storage_thread.hpp
-[upload-thread-hpp]: ./src/impl/core/upload_thread.hpp
-[impl-feature-types]: ./src/impl/core/feature_types/
-[impl-features]: ./src/impl/features/
-[impl-logging]: ./src/impl/features/logging/
-[impl-platform]: ./src/impl/platform/
+[src-c]: ./src/datadog/c/
+[src-cpp]: ./src/datadog/cpp/
+[src-impl]: ./src/datadog/impl/
+[impl-core]: ./src/datadog/impl/core/
+[core-hpp]: ./src/datadog/impl/core/core.hpp
+[feature-hpp]: ./src/datadog/impl/core/feature.hpp
+[storage-thread-hpp]: ./src/datadog/impl/core/storage_thread.hpp
+[upload-thread-hpp]: ./src/datadog/impl/core/upload_thread.hpp
+[impl-feature-types]: ./src/datadog/impl/core/feature_types/
+[impl-features]: ./src/datadog/impl/features/
+[impl-logging]: ./src/datadog/impl/features/logging/
+[impl-platform]: ./src/datadog/impl/platform/
 [tests]: ./tests/
 [examples]: ./examples/
 

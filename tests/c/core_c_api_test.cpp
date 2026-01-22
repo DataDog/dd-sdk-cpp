@@ -11,6 +11,7 @@
 
 #include "datadog/core.h"
 #include "datadog/logging.h"
+
 #include "support/catch.hpp"
 #include "support/diagnostics.hpp"
 #include "support/tempdir.hpp"

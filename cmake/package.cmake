@@ -5,7 +5,7 @@ target_enable_strict_warnings(dd_native_version)
 target_enable_coverage(dd_native_version)
 target_enable_sanitizers(dd_native_version)
 target_link_libraries(dd_native_version PRIVATE dd_native)
-target_include_directories(dd_native_version PRIVATE ${DD_SDK_ROOT_DIR}/src/impl)
+target_include_directories(dd_native_version PRIVATE ${DD_SDK_ROOT_DIR}/src)
 
 # When that target is finished building, run `dd_native_version artifact` to write the
 # artifact name (e.g. 'ddsdkcpp-v0.2.0-macos-arm64-clang-libc++-static-release') to a

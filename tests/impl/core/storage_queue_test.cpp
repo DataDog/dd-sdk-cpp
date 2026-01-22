@@ -4,13 +4,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/storage_queue.hpp"
+#include "datadog/impl/core/storage_queue.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <vector>
 
-#include "core/core.hpp"
+#include "datadog/impl/core/core.hpp"
+
 #include "mock/feature.hpp"
 
 using namespace datadog;

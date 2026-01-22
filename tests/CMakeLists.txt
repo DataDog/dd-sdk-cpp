@@ -102,9 +102,7 @@ if(DD_ENABLE_STRICT_THREADING_CHECKS)
 endif()
 
 target_include_directories(dd_native_tests
-    PRIVATE ${DD_SDK_ROOT_DIR}/src/c
-    PRIVATE ${DD_SDK_ROOT_DIR}/src/cpp
-    PRIVATE ${DD_SDK_ROOT_DIR}/src/impl
+    PRIVATE ${DD_SDK_ROOT_DIR}/src
     PRIVATE .
 )
 

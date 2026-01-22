@@ -7,57 +7,57 @@ endif()
 
 # Main library target, with both C and C++ APIs
 add_library(dd_native ${DD_LIBRARY_TYPE}
-    c/attribute.cpp
-    c/core.cpp
-    c/logging.cpp
-    c/rum.cpp
-    c/timestamp.cpp
-    c/uuid.cpp
-    c/version.cpp
-    cpp/attribute.cpp
-    cpp/core.cpp
-    cpp/logging.cpp
-    cpp/rum.cpp
-    cpp/uuid.cpp
-    cpp/version.cpp
-    impl/attribute/cow.cpp
-    impl/attribute/merge.cpp
-    impl/core/context.cpp
-    impl/core/core.cpp
-    impl/core/feature_read.cpp
-    impl/core/feature_scope.cpp
-    impl/core/feature.cpp
-    impl/core/storage_write.cpp
-    impl/core/storage_queue.cpp
-    impl/core/storage_thread.cpp
-    impl/core/tlv.cpp
-    impl/core/upload_scheduler.cpp
-    impl/core/upload_thread.cpp
-    impl/core/writer.cpp
-    impl/features/logging/logger.cpp
-    impl/features/logging/logging.cpp
-    impl/features/rum/containers/resource_map.cpp
-    impl/features/rum/containers/view_array.cpp
-    impl/features/rum/scopes/action.cpp
-    impl/features/rum/scopes/application.cpp
-    impl/features/rum/scopes/resource.cpp
-    impl/features/rum/scopes/session.cpp
-    impl/features/rum/scopes/view.cpp
-    impl/features/rum/context.cpp
-    impl/features/rum/rum.cpp
-    impl/features/rum/scope.cpp
-    impl/features/rum/temp_crashpad.cpp
-    impl/json/primitives/bool.cpp
-    impl/json/primitives/float.cpp
-    impl/json/primitives/integer.cpp
-    impl/json/primitives/null.cpp
-    impl/json/primitives/string.cpp
-    impl/json/primitives/timestamp.cpp
-    impl/json/primitives/uuid.cpp
-    impl/json/attribute.cpp
-    impl/json/diagnostic_attribute.cpp
-    impl/diagnostics.cpp
-    impl/error_message.cpp
+    datadog/c/attribute.cpp
+    datadog/c/core.cpp
+    datadog/c/logging.cpp
+    datadog/c/rum.cpp
+    datadog/c/timestamp.cpp
+    datadog/c/uuid.cpp
+    datadog/c/version.cpp
+    datadog/cpp/attribute.cpp
+    datadog/cpp/core.cpp
+    datadog/cpp/logging.cpp
+    datadog/cpp/rum.cpp
+    datadog/cpp/uuid.cpp
+    datadog/cpp/version.cpp
+    datadog/impl/attribute/cow.cpp
+    datadog/impl/attribute/merge.cpp
+    datadog/impl/core/context.cpp
+    datadog/impl/core/core.cpp
+    datadog/impl/core/feature_read.cpp
+    datadog/impl/core/feature_scope.cpp
+    datadog/impl/core/feature.cpp
+    datadog/impl/core/storage_write.cpp
+    datadog/impl/core/storage_queue.cpp
+    datadog/impl/core/storage_thread.cpp
+    datadog/impl/core/tlv.cpp
+    datadog/impl/core/upload_scheduler.cpp
+    datadog/impl/core/upload_thread.cpp
+    datadog/impl/core/writer.cpp
+    datadog/impl/features/logging/logger.cpp
+    datadog/impl/features/logging/logging.cpp
+    datadog/impl/features/rum/containers/resource_map.cpp
+    datadog/impl/features/rum/containers/view_array.cpp
+    datadog/impl/features/rum/scopes/action.cpp
+    datadog/impl/features/rum/scopes/application.cpp
+    datadog/impl/features/rum/scopes/resource.cpp
+    datadog/impl/features/rum/scopes/session.cpp
+    datadog/impl/features/rum/scopes/view.cpp
+    datadog/impl/features/rum/context.cpp
+    datadog/impl/features/rum/rum.cpp
+    datadog/impl/features/rum/scope.cpp
+    datadog/impl/features/rum/temp_crashpad.cpp
+    datadog/impl/json/primitives/bool.cpp
+    datadog/impl/json/primitives/float.cpp
+    datadog/impl/json/primitives/integer.cpp
+    datadog/impl/json/primitives/null.cpp
+    datadog/impl/json/primitives/string.cpp
+    datadog/impl/json/primitives/timestamp.cpp
+    datadog/impl/json/primitives/uuid.cpp
+    datadog/impl/json/attribute.cpp
+    datadog/impl/json/diagnostic_attribute.cpp
+    datadog/impl/diagnostics.cpp
+    datadog/impl/error_message.cpp
 )
 
 # Inject version number from CMake project config
@@ -102,9 +102,7 @@ target_include_directories(dd_native
         $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-cpp>
         $<INSTALL_INTERFACE:include>
     PRIVATE
-        c
-        cpp
-        impl
+        .
 )
 
 # On Win32, we implement UUID generation via CoCreateGuid from objbase.h; on other
@@ -135,7 +133,7 @@ endif()
 # Platform-specific support for system clock functionality
 option(DD_CLOCK_USE_DEFAULT "Use default clock implementation. If disabled, you must supply an implementation of platform/clock.hpp in a file specified as DD_CLOCK_SRC" ON)
 if(DD_CLOCK_USE_DEFAULT)
-    target_sources(dd_native PRIVATE impl/platform/clock_std.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/platform/clock_std.cpp)
 else()
     set(DD_CLOCK_SRC "" CACHE STRING "Path to custom implementation of platform/clock.hpp")
     if(DD_CLOCK_SRC)
@@ -146,7 +144,7 @@ endif()
 # Platform-specific support for file I/O
 option(DD_FILESYSTEM_USE_DEFAULT "Use default filesystem implementation. If disabled, you must supply an implementation of platform/filesystem.hpp in a file specified as DD_FILESYSTEM_SRC" ON)
 if(DD_FILESYSTEM_USE_DEFAULT)
-    target_sources(dd_native PRIVATE impl/platform/filesystem_std.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/platform/filesystem_std.cpp)
 else()
     set(DD_FILESYSTEM_SRC "" CACHE STRING "Path to custom implementation of platform/filesystem.hpp")
     if(DD_FILESYSTEM_SRC)
@@ -166,7 +164,7 @@ if(DD_HTTP_USE_DEFAULT)
     target_link_libraries(dd_native PRIVATE CURL::libcurl)
     get_target_property(CURL_INCLUDE_DIRS CURL::libcurl INTERFACE_INCLUDE_DIRECTORIES)
     target_include_directories(dd_native SYSTEM PRIVATE ${CURL_INCLUDE_DIRS})
-    target_sources(dd_native PRIVATE impl/platform/http_curl.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/platform/http_curl.cpp)
 else()
     set(DD_HTTP_SRC "" CACHE STRING "Path to custom implementation of platform/http.hpp")
     if(DD_HTTP_SRC)

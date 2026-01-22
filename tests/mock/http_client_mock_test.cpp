@@ -8,8 +8,9 @@
 #include <string>
 #include <vector>
 
+#include "datadog/impl/platform/http.hpp"
+
 #include "mock/http_client.hpp"
-#include "platform/http.hpp"
 
 using namespace datadog::platform;
 

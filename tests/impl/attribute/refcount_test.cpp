@@ -9,6 +9,7 @@
 #include <string>
 
 #include "datadog/attribute.hpp"
+
 #include "impl/attribute/reference.hpp"
 #include "support/attribute_debug.hpp"
 

@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/feature_scope.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
 
 #include <array>
 #include <atomic>
@@ -13,9 +13,11 @@
 #include <cinttypes>
 #include <utility>
 
-#include "core/context.hpp"
-#include "core/feature_types/rum.hpp"
 #include "datadog/core.hpp"
+
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_types/rum.hpp"
+
 #include "support/threading.hpp"
 
 using namespace datadog;

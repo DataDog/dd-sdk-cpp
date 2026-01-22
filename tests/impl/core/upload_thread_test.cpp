@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/upload_thread.hpp"
+#include "datadog/impl/core/upload_thread.hpp"
 
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
@@ -14,8 +14,9 @@
 #include <thread>
 #include <utility>
 
-#include "core/context.hpp"
-#include "core/core.hpp"
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/core.hpp"
+
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
 #include "mock/filesystem.hpp"

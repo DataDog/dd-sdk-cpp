@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "datadog/version.hpp"
+
 #include "support/catch.hpp"
 
 using namespace datadog;

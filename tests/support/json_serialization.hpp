@@ -11,7 +11,7 @@
 #include <string_view>
 #include <vector>
 
-#include "json.hpp"
+#include "datadog/impl/json.hpp"
 
 /**
  * Given a value of any JSON-serializable type T, serializes it with `EncodeJson` and

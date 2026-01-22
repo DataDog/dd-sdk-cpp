@@ -10,7 +10,9 @@
 
 #include "datadog/attribute.hpp"
 #include "datadog/uuid.hpp"
-#include "json.hpp"
+
+#include "datadog/impl/json.hpp"
+
 #include "support/catch.hpp"
 
 using namespace datadog;

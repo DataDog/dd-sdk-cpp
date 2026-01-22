@@ -9,7 +9,7 @@
 #include <sstream>
 #include <unordered_set>
 
-#include "attribute/cow.hpp"
+#include "datadog/impl/attribute/cow.hpp"
 
 namespace datadog::impl {
 
