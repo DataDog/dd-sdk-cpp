@@ -97,11 +97,6 @@ class BatchWriter {
   std::unique_ptr<platform::IDirectory> _granted_directory;
 
   /**
-   * Path to _granted_directory; used for efficient renames when migrating files.
-   */
-  std::string_view _granted_directory_path;
-
-  /**
    * Clock used to determine file names and make decisions based on file age. MUST be
    * the same clock used by the upload thread.
    */

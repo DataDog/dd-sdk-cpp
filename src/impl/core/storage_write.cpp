@@ -108,7 +108,6 @@ BatchWriter::BatchWriter(
       _consent(consent),
       _pending_directory(std::move(pending_directory)),
       _granted_directory(std::move(granted_directory)),
-      _granted_directory_path(_granted_directory ? _granted_directory->GetPath() : ""),
       _clock(clock),
       _config(config) {}
 
@@ -248,12 +247,22 @@ bool BatchWriter::MigratePendingBatchesToGranted() {
   //   the file or delete it in response to a conflict, the operation continues
   //   successfully.
 
-  // We should have cached the path to _granted_directory on construction: directory
-  // paths never change once the IDirectory handle is constructed
+  // We should have a valid interface to the destination directory: get its path so we
+  // can efficiently move files into it
   DATADOG_ASSERT(
-      !_granted_directory_path.empty(),
-      "empty destination directory path on batch file migration"
+      _granted_directory, "invalid granted directory on batch file migration"
   );
+  const std::filesystem::path& granted_directory_path = _granted_directory->GetPath();
+  if (granted_directory_path.empty()) {
+    // Migrating to an destination directory of "" could potentially move batch files
+    // into the current working directory, which we don't want to allow
+    DATADOG_ASSERT(false, "empty granted directory path on batch file migration");
+    _diagnostic_logger.Error(
+        "Could not migrate batch files on consent change: unable to determine "
+        "destination directory path"
+    );
+    return false;
+  }
 
   // Retrieve an up-to-date list of filenames in the source directory: we assume
   // exclusive access to _pending_directory for the duration of this operation, so
@@ -273,7 +282,7 @@ bool BatchWriter::MigratePendingBatchesToGranted() {
   for (const std::string& filename : _last_known_filenames) {
     // If MoveFile succeeds, we've successfully migrated this file and we can continue
     // to the next one
-    auto move_result = _pending_directory->MoveFile(filename, _granted_directory_path);
+    auto move_result = _pending_directory->MoveFile(filename, granted_directory_path);
     if (move_result.has_value()) {
       _diagnostic_logger.Debug(
           "Migrated batch file due to consent change", {{"filename", filename}}
