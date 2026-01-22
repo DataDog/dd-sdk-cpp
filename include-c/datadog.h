@@ -10,6 +10,7 @@
 #include "datadog/api.h"
 #include "datadog/attribute.h"
 #include "datadog/core.h"
+#include "datadog/crash_reporting.h"
 #include "datadog/logging.h"
 #include "datadog/rum.h"
 #include "datadog/timestamp.h"

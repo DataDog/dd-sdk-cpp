@@ -35,6 +35,7 @@ struct State {
   // SDK config (any changes made after create-core do nothing)
   datadog::CoreConfig config{"", DEFAULT_SERVICE, DEFAULT_ENV};
   datadog::RumConfig rum_config{datadog::UUID::Zero};
+  datadog::CrashReportingConfig crash_reporting_config{};
   bool has_client_token{false};
   bool has_rum_application_id{false};
   datadog::UUID application_id;
@@ -50,4 +51,7 @@ struct State {
 
   // Rum API
   std::shared_ptr<datadog::Rum> rum;
+
+  // Crash Reporting API
+  std::shared_ptr<datadog::CrashReporting> crash_reporting;
 };

@@ -12,7 +12,6 @@
 #include <string_view>
 
 #include "datadog/impl/core/writer.hpp"
-#include "datadog/impl/features/rum/temp_crashpad.hpp"
 
 namespace datadog::impl {
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
@@ -51,35 +50,6 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
 }
 
 void Rum::Start() {
-  // Attempt to start Crashpad so we can verify that our build process has successfully
-  // linked the Crashpad client library and bundled the crashpad_handler executable
-  // TODO(RUM-12207): Run this code earlier in the SDK lifecycle
-  // TODO(RUM-12207): Only initialize crash handling if SDK config indicates that the
-  //  application wants it enabled
-  // TODO(RUM-12207): Consider whether crash reporting should be its own modular
-  //  Feature that can be independently toggled, rather than being directly integrated
-  //  into RUM
-  // TODO(RUM-12207): Define a proper (Crashpad-agnostic) interface for initializing,
-  //  configuring, and controlling crash-reporting functionality within the SDK
-  static bool has_called_initialize_crash_handler = false;
-  if (!has_called_initialize_crash_handler) {
-    // Ensure that we only initialize Crashpad once in any given process
-    const bool handler_initialized = InitializeCrashHandler();
-    has_called_initialize_crash_handler = true;
-
-    // For now, print result to stdout for easy verification: this should ultimately use
-    // DiagnosticLogger, but this code will end up living somewhere else
-    if (handler_initialized) {
-#if DATADOG_WITH_CRASHPAD
-      // Suppress output in normal builds; we only want to see this temporary output
-      // when testing Crashpad
-      std::cout << "Crash handler initialized.\n";
-#endif
-    } else {
-      std::cout << "Failed to initialize crash handler.\n";
-    }
-  }
-
   // Inject a reference to our FeatureScope interface into the RumScopeDependencies that
   // will be provided to all scopes, so they can generate events etc.
   if (_scope) {
