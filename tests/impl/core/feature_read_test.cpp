@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/feature_read.hpp"
+#include "datadog/impl/core/feature_read.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <string_view>

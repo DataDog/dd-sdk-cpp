@@ -13,8 +13,9 @@
 #include <thread>
 #include <vector>
 
+#include "datadog/impl/platform/filesystem.hpp"
+
 #include "mock/filesystem.hpp"
-#include "platform/filesystem.hpp"
 
 using namespace datadog;
 

@@ -4,12 +4,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "features/rum/scope.hpp"
+#include "datadog/impl/features/rum/scope.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <map>
 
 #include "datadog/rum.hpp"
+
 #include "mock/clock.hpp"
 
 using namespace datadog;

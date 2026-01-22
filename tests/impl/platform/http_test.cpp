@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "platform/http.hpp"
+#include "datadog/impl/platform/http.hpp"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -14,7 +14,8 @@
 #include <iomanip>
 #include <sstream>
 
-#include "core/writer.hpp"
+#include "datadog/impl/core/writer.hpp"
+
 #include "support/http_server.hpp"
 
 using namespace datadog;

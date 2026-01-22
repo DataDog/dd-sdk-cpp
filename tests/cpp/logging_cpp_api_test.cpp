@@ -9,9 +9,11 @@
 #include <nlohmann/json.hpp>
 #include <vector>
 
-#include "core/version.hpp"
 #include "datadog/logging.hpp"
-#include "features/logging/logging.hpp"
+
+#include "datadog/impl/core/version.hpp"
+#include "datadog/impl/features/logging/logging.hpp"
+
 #include "support/core.hpp"
 #include "support/json_validation.hpp"
 #include "support/threading.hpp"

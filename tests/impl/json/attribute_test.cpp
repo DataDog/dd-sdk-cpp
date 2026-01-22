@@ -14,7 +14,8 @@
 #include <vector>
 
 #include "datadog/uuid.hpp"
-#include "json.hpp"
+
+#include "datadog/impl/json.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;

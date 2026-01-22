@@ -4,13 +4,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "core/context.hpp"
+#include "datadog/impl/core/context.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <optional>
 
-#include "core/version.hpp"
 #include "datadog/uuid.hpp"
+
+#include "datadog/impl/core/version.hpp"
 
 using namespace datadog::impl;
 using namespace datadog;

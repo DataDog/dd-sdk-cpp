@@ -12,9 +12,10 @@
 #include <string_view>
 #include <vector>
 
-#include "attribute/types.hpp"
 #include "datadog/attribute.h"
-#include "json.hpp"
+
+#include "datadog/impl/attribute/types.hpp"
+#include "datadog/impl/json.hpp"
 
 static const uint8_t bytes_ccb7[16] = {
     204, 183, 144, 132, 188, 43, 69, 73, 187, 199, 242, 126, 21, 63, 212, 182

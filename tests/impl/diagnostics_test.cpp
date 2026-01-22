@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "diagnostics.hpp"
+#include "datadog/impl/diagnostics.hpp"
 
 #include <string>
 #include <string_view>
@@ -13,6 +13,7 @@
 
 #include "datadog/core.h"
 #include "datadog/core.hpp"
+
 #include "support/catch.hpp"
 
 using namespace datadog;

@@ -4,17 +4,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "features/logging/logger.hpp"
+#include "datadog/impl/features/logging/logger.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 
-#include "core/context.hpp"
-#include "core/feature_scope.hpp"
-#include "core/feature_types/rum.hpp"
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
-#include "features/logging/logging.hpp"
+
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
+#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/features/logging/logging.hpp"
+
 #include "mock/clock.hpp"
 #include "support/feature.hpp"
 

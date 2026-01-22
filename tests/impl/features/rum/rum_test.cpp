@@ -10,7 +10,9 @@
 #include <memory>
 
 #include "datadog/core.hpp"
-#include "features/rum/rum.hpp"
+
+#include "datadog/impl/features/rum/rum.hpp"
+
 #include "mock/clock.hpp"
 #include "support/feature.hpp"
 

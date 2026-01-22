@@ -9,10 +9,12 @@
 #include <limits>
 #include <memory>
 
-#include "core/core.hpp"
-#include "core_glue.hpp"
 #include "datadog/core.h"
 #include "datadog/core.hpp"
+
+#include "datadog/c/core_glue.hpp"
+#include "datadog/impl/core/core.hpp"
+
 #include "mock/clock.hpp"
 #include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"

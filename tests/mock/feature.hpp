@@ -12,9 +12,9 @@
 #include <string_view>
 #include <vector>
 
-#include "core/core.hpp"
-#include "core/feature_read.hpp"
-#include "core/writer.hpp"
+#include "datadog/impl/core/core.hpp"
+#include "datadog/impl/core/feature_read.hpp"
+#include "datadog/impl/core/writer.hpp"
 
 using namespace datadog;
 

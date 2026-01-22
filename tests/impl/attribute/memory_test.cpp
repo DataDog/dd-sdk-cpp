@@ -10,8 +10,10 @@
 #include <functional>
 #include <string>
 
-#include "attribute/cow.hpp"
 #include "datadog/attribute.hpp"
+
+#include "datadog/impl/attribute/cow.hpp"
+
 #include "impl/attribute/reference.hpp"
 #include "support/allocation_tracker.hpp"
 #include "support/attribute_debug.hpp"

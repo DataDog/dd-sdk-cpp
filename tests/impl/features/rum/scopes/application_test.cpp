@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "features/rum/scopes/application.hpp"
+#include "datadog/impl/features/rum/scopes/application.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -12,7 +12,9 @@
 #include <string_view>
 
 #include "datadog/rum.hpp"
-#include "features/rum/context.hpp"
+
+#include "datadog/impl/features/rum/context.hpp"
+
 #include "mock/clock.hpp"
 
 using namespace datadog;

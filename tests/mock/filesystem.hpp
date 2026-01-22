@@ -18,7 +18,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "platform/filesystem.hpp"
+#include "datadog/impl/platform/filesystem.hpp"
 
 using namespace datadog;
 

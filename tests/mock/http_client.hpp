@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "platform/http.hpp"
+#include "datadog/impl/platform/http.hpp"
 
 using namespace datadog;
 

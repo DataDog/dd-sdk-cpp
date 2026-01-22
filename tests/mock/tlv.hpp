@@ -9,7 +9,8 @@
 #include <string_view>
 #include <vector>
 
-#include "core/tlv.hpp"
+#include "datadog/impl/core/tlv.hpp"
+
 #include "mock/filesystem.hpp"
 
 using namespace datadog;

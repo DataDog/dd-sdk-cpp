@@ -9,6 +9,7 @@
 #include <vector>
 
 #include "datadog/version.h"
+
 #include "support/catch.hpp"
 
 TEST_CASE("dd_get_version_info", "[unit][version][c-api]") {
