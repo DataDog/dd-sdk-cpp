@@ -966,7 +966,8 @@ TEST_CASE("Attribute memory", "[unit][attribute]") {
           //  32 from CowValue::String()
           //  32 from CowValue::String()
           //  32 from CowValue::Object()
-          // 120 from vector<pair<string,Attribute>>::reserve()
+          // 160 from vector<pair<string,Attribute>>::reserve()
+          //  32 from CowValue::UUID()
           //  32 from CowValue::String()
           //  32 from CowValue::Object()
           // 160 from vector<pair<string,Attribute>>::reserve()
@@ -983,11 +984,11 @@ TEST_CASE("Attribute memory", "[unit][attribute]") {
           //  48 from vector<Attribute>::reserve()
           //  32 from CowValue::String()
           //  32 from CowValue::String()
-          REQUIRE(stats.num_allocs == 24);
+          REQUIRE(stats.num_allocs == 25);
           REQUIRE(stats.min_alloc_size == 16);
-          REQUIRE(stats.mean_alloc_size == 44);
+          REQUIRE(stats.mean_alloc_size == 45);
           REQUIRE(stats.max_alloc_size == 160);
-          REQUIRE(stats.num_bytes_allocated == 1072);
+          REQUIRE(stats.num_bytes_allocated == 1144);
         }
     );
   }
@@ -1004,8 +1005,8 @@ TEST_CASE("Attribute memory", "[unit][attribute]") {
           // Observed allocation stats are exactly identical; copying our value
           // just involved incrementing a reference count and populating 16 bytes
           // on the stack
-          REQUIRE(stats.num_allocs == 24);
-          REQUIRE(stats.num_bytes_allocated == 1072);
+          REQUIRE(stats.num_allocs == 25);
+          REQUIRE(stats.num_bytes_allocated == 1144);
         }
     );
   }
