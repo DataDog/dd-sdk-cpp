@@ -29,6 +29,7 @@ if (WIN32)
         IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/lib/client.lib"
     )
     set_property(TARGET crashpad::client PROPERTY INTERFACE_LINK_LIBRARIES
+        "${CRASHPAD_INSTALL_PREFIX}/lib/common.lib"
         "${CRASHPAD_INSTALL_PREFIX}/lib/util.lib"
         "${CRASHPAD_INSTALL_PREFIX}/lib/base.lib"
     )
@@ -37,6 +38,7 @@ else()
         IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/lib/libclient.a"
     )
     set_property(TARGET crashpad::client PROPERTY INTERFACE_LINK_LIBRARIES
+        "${CRASHPAD_INSTALL_PREFIX}/lib/libcommon.a"
         "${CRASHPAD_INSTALL_PREFIX}/lib/libutil.a"
         "${CRASHPAD_INSTALL_PREFIX}/lib/libbase.a"
     )

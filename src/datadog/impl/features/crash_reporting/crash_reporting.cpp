@@ -34,12 +34,12 @@ void CrashReporting::Start() {
   // Attempt to start Crashpad so we can verify that our build process has successfully
   // linked the Crashpad client library and bundled the crashpad_handler executable
 
-  // TODO(RUM-12207): Should this run on feature registration instead of on SDK start?
+  // TODO(RUM-14033): Should this run on feature registration instead of on SDK start?
   //  Crashpad init is necessarily static (it happens once per process and can't be
   //  undone), and starting the handler as early as possible seems ideal for having the
   //  best chance of catching early crashes.
 
-  // TODO(RUM-12207): Define a proper (Crashpad-agnostic) interface for initializing,
+  // TODO(RUM-14033): Define a proper (Crashpad-agnostic) interface for initializing,
   //  configuring, and controlling crash-reporting functionality within the SDK
 
   static bool has_called_initialize_crash_handler = false;
@@ -53,7 +53,7 @@ void CrashReporting::Start() {
     if (_initialized) {
       _scope->diagnostic_logger.Status("Crash handler initialized");
     } else {
-      // TODO(RUM-12207): Surface errors from function return, and/or capture and
+      // TODO(RUM-14024): Surface errors from function return, and/or capture and
       // redirect log output from Crashpad?
       _scope->diagnostic_logger.Error("Crash handler initialization failed");
     }
