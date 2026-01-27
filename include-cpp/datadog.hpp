@@ -9,6 +9,7 @@
 #include "datadog/api.hpp"
 #include "datadog/attribute.hpp"
 #include "datadog/core.hpp"
+#include "datadog/crash_reporting.hpp"
 #include "datadog/logging.hpp"
 #include "datadog/rum.hpp"
 #include "datadog/timestamp.hpp"

@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/features/rum/temp_crashpad.hpp"
+#include "datadog/impl/features/crash_reporting/temp_crashpad.hpp"
 
 #if DATADOG_WITH_CRASHPAD
 #include <filesystem>
@@ -80,10 +80,14 @@ static std::filesystem::path get_crashpad_database_path() {
 
 namespace datadog::impl {
 
-bool InitializeCrashHandler() {
+bool InitializeCrashHandler(std::string_view handler_exe_path) {
 #if DATADOG_WITH_CRASHPAD
   // Prepare Crashpad client options
-  std::filesystem::path crashpad_handler_path = get_crashpad_handler_path();
+  std::filesystem::path crashpad_handler_path = handler_exe_path;
+  if (crashpad_handler_path.empty()) {
+    crashpad_handler_path = get_crashpad_handler_path();
+  }
+  // TODO(RUM-12207): Figure out where Crashpad should store files
   std::filesystem::path crashpad_database_path = get_crashpad_database_path();
   const std::string url;  // An empty URL disables uploads
   std::map<std::string, std::string> annotations;
@@ -107,6 +111,7 @@ bool InitializeCrashHandler() {
   );
 #else
   // The SDK was compiled without Crashpad support; our crash-handling code is inert
+  (void)handler_exe_path;
   return true;
 #endif  // DATADOG_WITH_CRASHPAD
 }

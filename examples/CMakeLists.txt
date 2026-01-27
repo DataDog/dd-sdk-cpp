@@ -25,6 +25,7 @@ add_executable(dd_native_repl
     repl/command.cpp
     repl/commands_config.cpp
     repl/commands_core.cpp
+    repl/commands_crash.cpp
     repl/commands_logging.cpp
     repl/commands_profile.cpp
     repl/commands_rum.cpp

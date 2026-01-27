@@ -39,9 +39,6 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "nop") {
     return HandleNop(state, input.Shift());
   }
-  if (input.Peek() == "crash") {
-    return HandleCrash(state, input.Shift());
-  }
 
   // Profile
   if (input.Peek() == "start-profile") {
@@ -117,6 +114,14 @@ CommandResult Handle(State& state, const CommandInput& input) {
   }
   if (input.Peek() == "add-error") {
     return HandleAddError(state, input.Shift());
+  }
+
+  // datadog::CrashReporting
+  if (input.Peek() == "register-crash-reporting") {
+    return HandleRegisterCrashReporting(state, input.Shift());
+  }
+  if (input.Peek() == "crash") {
+    return HandleCrash(state, input.Shift());
   }
 
   return CommandResult::Error("Unrecognized command.");

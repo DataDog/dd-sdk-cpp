@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <string_view>
+
 // When the SDK is built with the CMake option DD_ENABLE_CRASHPAD, we'll be compiled
 // with DATADOG_WITH_CRASHPAD=1. If enabled, we can use the crashpad client library, and
 // we can expect the crashpad_handler executable to be deployed alongside the
@@ -20,9 +22,13 @@ namespace datadog::impl {
  * Entry point for temporary Crashpad code, intended to verify that we can successfully
  * call the Crashpad client library and launch the handler process.
  *
+ * If handler_exe_path is empty, we'll fall back to the default (expecting the
+ * crashpad_handler executable to be present in the same directory as the application
+ * binary).
+ *
  * If DATADOG_WITH_CRASHPAD=1, returns whether the handler process was started.
  * If DATADOG_WITH_CRASHPAD=0, does nothing and returns true.
  */
-bool InitializeCrashHandler();
+bool InitializeCrashHandler(std::string_view handler_exe_path);
 
 }  // namespace datadog::impl

@@ -248,5 +248,17 @@ CommandResult HandleSetConfig(State& state, const CommandInput& args) {
     return CommandResult::OK("RumConfig::SetApplicationId()");
   }
 
+  // set-config crash-reporting-handler-exe-path <value>
+  if (args.Peek() == "crash-reporting-handler-exe-path") {
+    std::string_view value = args[1];
+    if (value.empty()) {
+      return CommandResult::Error(
+          "No value supplied for crash-reporting-handler-exe-path!"
+      );
+    }
+    state.crash_reporting_config.SetHandlerExePath(value);
+    return CommandResult::OK("CrashReportingConfig::SetHandlerExePath()");
+  }
+
   return CommandResult::Error("Unrecognized config option!");
 }

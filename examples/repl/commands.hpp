@@ -15,7 +15,6 @@ CommandResult HandleSource(State& state, const CommandInput& args);
 CommandResult HandleSleep(State& state, const CommandInput& args);
 CommandResult HandleUrl(State& state, const CommandInput& args);
 CommandResult HandleNop(State& state, const CommandInput& args);
-CommandResult HandleCrash(State& state, const CommandInput& args);
 
 // profile
 CommandResult HandleStartProfile(State& state, const CommandInput& args);
@@ -48,3 +47,7 @@ CommandResult HandleStartResource(State& state, const CommandInput& args);
 CommandResult HandleStopResource(State& state, const CommandInput& args);
 CommandResult HandleStopResourceWithError(State& state, const CommandInput& args);
 CommandResult HandleAddError(State& state, const CommandInput& args);
+
+// crash
+CommandResult HandleRegisterCrashReporting(State& state, const CommandInput& args);
+CommandResult HandleCrash(State& state, const CommandInput& args);

@@ -9,6 +9,7 @@ endif()
 add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/c/attribute.cpp
     datadog/c/core.cpp
+    datadog/c/crash_reporting.cpp
     datadog/c/logging.cpp
     datadog/c/rum.cpp
     datadog/c/timestamp.cpp
@@ -16,6 +17,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/c/version.cpp
     datadog/cpp/attribute.cpp
     datadog/cpp/core.cpp
+    datadog/cpp/crash_reporting.cpp
     datadog/cpp/logging.cpp
     datadog/cpp/rum.cpp
     datadog/cpp/uuid.cpp
@@ -36,6 +38,8 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/core/writer.cpp
     datadog/impl/features/logging/logger.cpp
     datadog/impl/features/logging/logging.cpp
+    datadog/impl/features/crash_reporting/crash_reporting.cpp
+    datadog/impl/features/crash_reporting/temp_crashpad.cpp
     datadog/impl/features/rum/containers/resource_map.cpp
     datadog/impl/features/rum/containers/view_array.cpp
     datadog/impl/features/rum/scopes/action.cpp
@@ -46,7 +50,6 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/features/rum/context.cpp
     datadog/impl/features/rum/rum.cpp
     datadog/impl/features/rum/scope.cpp
-    datadog/impl/features/rum/temp_crashpad.cpp
     datadog/impl/json/primitives/bool.cpp
     datadog/impl/json/primitives/float.cpp
     datadog/impl/json/primitives/integer.cpp
