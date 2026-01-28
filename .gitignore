@@ -5,3 +5,5 @@ Testing/
 *.profraw
 .DS_Store
 .repl-env
+.plans/
+.crashpad/
