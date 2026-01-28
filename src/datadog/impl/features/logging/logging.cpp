@@ -110,17 +110,26 @@ void Logging::OnLoggerEmit(
   ev.date = _clock.Now();
   ev.message = message;
 
-  // If the logger is configured to enrich messages with context from other features,
-  // obtain up-to-date values from the CoreContext, store them in LoggerState
-  // attributes, and update the internal_attributes object
-  if (enrichment.enable_rum && _scope) {
-    // Get an immutable, thread-safe snapshot of the current context, and get RUM values
-    const CoreContext context = _scope->GetContext();
-    if (context.rum) {
-      ev.rum_application_id = context.rum->application_id;
-      ev.rum_session_id = context.rum->session_id;
-      ev.rum_view_id = context.rum->view_id;
-      ev.rum_action_id = context.rum->action_id;
+  // Read CoreContext if available, so we can enrich events with additional SDK state
+  if (_scope) {
+    // Obtain a read-only copy of the context
+    const CoreContext ctx = _scope->GetContext();
+
+    // If we're configured to enrich log events with RUM context, write all RUM IDs into
+    // the event (UUID::Zero values will be omitted from the JSON payload)
+    if (enrichment.enable_rum && ctx.rum) {
+      ev.rum_application_id = ctx.rum->application_id;
+      ev.rum_session_id = ctx.rum->session_id;
+      ev.rum_view_id = ctx.rum->view_id;
+      ev.rum_action_id = ctx.rum->action_id;
+    }
+
+    // If we have OS properties, add them to the event payload
+    if (ctx.os) {
+      ev.os = RumOSProperties(ctx.os->name, ctx.os->version, ctx.os->version_major);
+      if (!ctx.os->build.empty() && ev.os.value.has_value()) {
+        ev.os.value->build = ctx.os->build;
+      }
     }
   }
 

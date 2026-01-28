@@ -12,6 +12,7 @@
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/features/rum/context.hpp"
 #include "datadog/impl/features/rum/scopes/session.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 namespace datadog::impl {
 
@@ -536,6 +537,20 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
     ev.context.value = _global_and_view_attributes.attribute;
   }
 
+  // Read CoreContext if available, so we can enrich events with additional SDK state
+  if (deps.scope) {
+    // Obtain a read-only copy of the context
+    const CoreContext ctx = deps.scope->GetContext();
+
+    // If we have OS properties, add them to the event payload
+    if (ctx.os) {
+      ev.os = RumOSProperties(ctx.os->name, ctx.os->version, ctx.os->version_major);
+      if (!ctx.os->build.empty() && ev.os.value.has_value()) {
+        ev.os.value->build = ctx.os->build;
+      }
+    }
+  }
+
   // Serialize the event to JSON in a shared buffer, then copy that raw event payload
   // onto the storage thread
   deps.ProduceEvent(ev);
@@ -590,6 +605,20 @@ void RumViewScope::SendErrorEvent(
   );
   if (merged_error_attributes.GetObjectPropertyCount() > 0) {
     ev.context.value = merged_error_attributes;
+  }
+
+  // Read CoreContext if available, so we can enrich events with additional SDK state
+  if (deps.scope) {
+    // Obtain a read-only copy of the context
+    const CoreContext ctx = deps.scope->GetContext();
+
+    // If we have OS properties, add them to the event payload
+    if (ctx.os) {
+      ev.os = RumOSProperties(ctx.os->name, ctx.os->version, ctx.os->version_major);
+      if (!ctx.os->build.empty() && ev.os.value.has_value()) {
+        ev.os.value->build = ctx.os->build;
+      }
+    }
   }
 
   deps.ProduceEvent(ev);
