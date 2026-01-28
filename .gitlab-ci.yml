@@ -143,7 +143,7 @@ system-info-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DDD_BUILD_TOOLS=ON -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && C:\mnt\build\dd_system_info.exe"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DDD_BUILD_TOOLS=ON -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && C:\mnt\build\Debug\dd_system_info.exe"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support
