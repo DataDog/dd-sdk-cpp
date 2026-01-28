@@ -138,7 +138,7 @@ class LinuxSystemInfo final : public ISystemInfo {
     // Get kernel build string using uname
     struct utsname uname_data = {};
     if (uname(&uname_data) == 0) {
-      _os_info.build = uname_data.version;
+      _os_info.build = static_cast<const char*>(uname_data.version);
     } else {
       int err = errno;
       logger.Debug(
