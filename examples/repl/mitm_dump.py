@@ -99,14 +99,11 @@ def request(flow: http.HTTPFlow):
     # In testing, we may configure the Crashpad handler to upload via our proxy, so that
     # we can intercept requests and dump them. These requests use multipart/form-data,
     # and they are _not_ forwarded to Datadog intake if running in reverse-proxy mode.
-
-
-    # For all other requests, dump the JSON payload and forward them to intake
     if "multipart/form-data" in content_type:
         _dump_crashpad_handler_request(req, content_type)
         flow.response = http.Response.make(204, b"")
 
-    # Try JSON first
+    # For all other requests, dump the JSON payload and forward them to intake
     elif "application/json" in content_type:
         _dump_sdk_request(req, content_type)
         # flow.response remains unset; mitmproxy will forward the request
