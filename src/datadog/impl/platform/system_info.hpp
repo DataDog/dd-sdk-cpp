@@ -34,7 +34,34 @@ struct OsInfo {
   std::string version_major;
 };
 
-// TODO(RUM-14016): Add DeviceInfo struct for device metadata collection
+/**
+ * Device information collected at SDK startup.
+ *
+ * All fields are pre-formatted as strings for direct inclusion in events.
+ * Empty strings indicate unavailable values and will be omitted from JSON.
+ */
+struct DeviceInfo {
+  /** Device type (e.g., "desktop") */
+  std::string type;
+
+  /** Device name (e.g., "MacBookPro", "Latitude 7420", "ThinkPad X1 Carbon") */
+  std::string name;
+
+  /** Device model (e.g., "MacBookPro16,1", "Z790 UC AC", "1.0") */
+  std::string model;
+
+  /** Device brand/manufacturer (e.g., "Apple", "Dell Inc.", "LENOVO") */
+  std::string brand;
+
+  /** CPU architecture (e.g., "x86_64", "arm64", "x86") */
+  std::string architecture;
+
+  /** User locale (e.g., "en-US", "fr-FR") */
+  std::string locale;
+
+  /** IANA timezone (e.g., "America/New_York", "Europe/Berlin") */
+  std::string time_zone;
+};
 
 /**
  * Interface for accessing system information.
@@ -62,18 +89,22 @@ class ISystemInfo {
    */
   virtual const OsInfo& GetOsInfo() const = 0;
 
-  // TODO(RUM-14016): Add GetDeviceInfo() method to return device metadata
+  /**
+   * Returns device information collected at initialization.
+   *
+   * The returned reference remains valid for the lifetime of the ISystemInfo instance.
+   */
+  virtual const DeviceInfo& GetDeviceInfo() const = 0;
 };
 
 namespace SystemInfo {
 /**
- * Creates an ISystemInfo instance, collecting system information from the platform.
+ * Constructs an ISystemInfo instance, collecting system information from the machine on
+ * which the application is running. The resulting ISystemInfo value, if valid, will be
+ * fully initialized with all available OS and device information.
  *
- * Platform-specific implementations use native APIs to gather OS metadata.
- * If collection fails, diagnostic warnings are emitted and default values are used.
- *
- * @param logger Diagnostic logger for emitting warnings on collection failures
- * @return Platform-specific ISystemInfo implementation
+ * If the SDK is unable to resolve values, it will emit diagnostic messages with
+ * DiagnosticLevel::Debug, and default/fallback values will be used.
  */
 std::unique_ptr<ISystemInfo> Init(impl::DiagnosticLogger& logger);
 };  // namespace SystemInfo
