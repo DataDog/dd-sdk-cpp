@@ -126,8 +126,8 @@ void Logging::OnLoggerEmit(
 
     // If we have OS properties, add them to the event payload
     if (ctx.os) {
-      ev.os = RumOSProperties(ctx.os->name, ctx.os->version, ctx.os->version_major);
-      if (!ctx.os->build.empty() && ev.os.value.has_value()) {
+      ev.os.value.emplace(ctx.os->name, ctx.os->version, ctx.os->version_major);
+      if (!ctx.os->build.empty()) {
         ev.os.value->build = ctx.os->build;
       }
     }

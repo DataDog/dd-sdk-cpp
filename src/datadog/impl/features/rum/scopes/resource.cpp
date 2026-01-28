@@ -9,9 +9,9 @@
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/attribute/merge.hpp"
 #include "datadog/impl/features/rum/context.hpp"
+#include "datadog/impl/features/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/features/rum/scopes/session.hpp"
 #include "datadog/impl/features/rum/scopes/view.hpp"
-#include "datadog/impl/platform/system_info.hpp"
 
 namespace datadog::impl {
 
@@ -152,19 +152,8 @@ void RumResourceScope::SendResourceEvent(
     ev.context.value = context;
   }
 
-  // Read CoreContext if available, so we can enrich events with additional SDK state
-  if (deps.scope) {
-    // Obtain a read-only copy of the context
-    const CoreContext ctx = deps.scope->GetContext();
-
-    // If we have OS properties, add them to the event payload
-    if (ctx.os) {
-      ev.os = RumOSProperties(ctx.os->name, ctx.os->version, ctx.os->version_major);
-      if (!ctx.os->build.empty() && ev.os.value.has_value()) {
-        ev.os.value->build = ctx.os->build;
-      }
-    }
-  }
+  // Enrich event with OS properties from CoreContext
+  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _result = Result::SentResourceEvent;
@@ -234,19 +223,8 @@ void RumResourceScope::SendErrorEvent(
     ev.context.value = context;
   }
 
-  // Read CoreContext if available, so we can enrich events with additional SDK state
-  if (deps.scope) {
-    // Obtain a read-only copy of the context
-    const CoreContext ctx = deps.scope->GetContext();
-
-    // If we have OS properties, add them to the event payload
-    if (ctx.os) {
-      ev.os = RumOSProperties(ctx.os->name, ctx.os->version, ctx.os->version_major);
-      if (!ctx.os->build.empty() && ev.os.value.has_value()) {
-        ev.os.value->build = ctx.os->build;
-      }
-    }
-  }
+  // Enrich event with OS properties from CoreContext
+  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _result = Result::SentErrorEvent;
