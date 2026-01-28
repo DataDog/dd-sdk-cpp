@@ -168,8 +168,8 @@ void HttpContext::BuildRequestHeaders(
   out_headers += feature_headers;
 }
 
-CoreContext::CoreContext(const CoreConfig& config)
-    : http(std::make_shared<HttpContext>(config)) {}
+CoreContext::CoreContext(const CoreConfig& config, const platform::OsInfo& os_info)
+    : http(std::make_shared<HttpContext>(config)), os(&os_info) {}
 
 CoreContextProvider::CoreContextProvider(const CoreContext& context)
     : _context(context) {}

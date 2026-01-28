@@ -12,6 +12,7 @@
 #include "mock/feature.hpp"
 #include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
+#include "mock/system_info.hpp"
 #include "support/core.hpp"
 
 using namespace datadog;
@@ -28,7 +29,8 @@ static impl::Core _make_core() {
       CoreSubsystems(
           std::make_unique<MockClock>(),
           std::make_unique<MockStorageDirectory>(),
-          std::make_unique<MockHttpSubsystem>()
+          std::make_unique<MockHttpSubsystem>(),
+          std::make_unique<MockSystemInfo>()
       )
   );
 }

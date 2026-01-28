@@ -18,6 +18,7 @@
 #include "datadog/impl/platform/clock.hpp"
 #include "datadog/impl/platform/filesystem.hpp"
 #include "datadog/impl/platform/http.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 namespace datadog::impl {
 
@@ -64,19 +65,32 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
   }
   auto http = std::move(*http_result);
 
+  // Initialize system information collection
+  impl::DiagnosticLogger diagnostic_logger{
+      config.diagnostic_handler, config.diagnostic_threshold
+  };
+  auto system_info = platform::SystemInfo::Init(diagnostic_logger);
+
   // Return our newly-created subsystems, to be transferred into the Core
-  return CoreSubsystems(std::move(clock), std::move(storage_root), std::move(http));
+  return CoreSubsystems(
+      std::move(clock), std::move(storage_root), std::move(http), std::move(system_info)
+  );
 }
 
 Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
     : _config(config),
       _diagnostic_logger(config.diagnostic_handler, config.diagnostic_threshold),
-      _context_provider(std::make_unique<CoreContextProvider>(CoreContext(config))),
+      _context_provider(
+          std::make_unique<CoreContextProvider>(
+              CoreContext(config, subsystems.system_info->GetOsInfo())
+          )
+      ),
       _subsystems(std::move(subsystems)) {
   DATADOG_ASSERT(
       _subsystems.storage_root, "Core created with no root storage directory"
   );
   DATADOG_ASSERT(_subsystems.http, "Core created with no HTTP subsystem");
+  DATADOG_ASSERT(_subsystems.system_info, "Core created with no system info subsystem");
 
   _features.reserve(16);
 }

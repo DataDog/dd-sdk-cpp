@@ -19,6 +19,7 @@
 #include "datadog/impl/features/rum/scopes/application.hpp"
 #include "datadog/impl/features/rum/scopes/session.hpp"
 #include "datadog/impl/features/rum/scopes/view.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 #include "mock/clock.hpp"
 
@@ -39,6 +40,7 @@ class ActionFixture {
   static constexpr const char* ACTION_ID = "4c10171e-4334-4334-4334-b0000eeeefff";
 
   MockClock clock;
+  platform::OsInfo os_info;
 
   RumConfig config;
   RumScopeDependencies deps;
@@ -94,9 +96,9 @@ class ActionFixture {
             std::chrono::milliseconds(100),
             Attribute()
         ),
-        context_provider(
-            CoreContext(CoreConfig{"fake-client-token", "fake-service", "fake-env"})
-        ),
+        context_provider(CoreContext(
+            CoreConfig{"fake-client-token", "fake-service", "fake-env"}, os_info
+        )),
         feature_scope(
             context_provider,
             [this](Block event, Block event_metadata) {

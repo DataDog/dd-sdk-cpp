@@ -12,6 +12,7 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/version.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 using namespace datadog::impl;
 using namespace datadog;
@@ -170,5 +171,41 @@ TEST_CASE("HttpContext BuildRequestHeaders", "[unit]") {
     // Then no second allocation should occur
     REQUIRE(result_headers.capacity() >= first_capacity);  // Memory reused
     REQUIRE(result_headers.back() == '\n');
+  }
+}
+
+TEST_CASE("CoreContext with OS information", "[unit]") {
+  SECTION("M initialize with valid OsInfo W OsInfo provided") {
+    // Given valid OS info
+    platform::OsInfo os_info{"TestOS", "1.2.3", "12345", "1"};
+
+    // When CoreContext is constructed with OS info
+    CoreConfig config("token", "service", "env");
+    CoreContext ctx(config, os_info);
+
+    // Then OS info is accessible and matches
+    REQUIRE(ctx.os != nullptr);
+    REQUIRE(ctx.os->name == "TestOS");
+    REQUIRE(ctx.os->version == "1.2.3");
+    REQUIRE(ctx.os->build == "12345");
+    REQUIRE(ctx.os->version_major == "1");
+  }
+}
+
+TEST_CASE("CoreContextProvider with OS information", "[unit]") {
+  SECTION("M provide OS info via Get W CoreContext has OS info") {
+    // Given a CoreContext with OS info
+    platform::OsInfo os_info{"ProviderTestOS", "2.0.0", "", "2"};
+    CoreConfig config("token", "service", "env");
+    CoreContext ctx(config, os_info);
+
+    // When CoreContextProvider is created and Get() is called
+    CoreContextProvider provider(ctx);
+    CoreContext retrieved_ctx = provider.Get();
+
+    // Then OS info is accessible via the retrieved context
+    REQUIRE(retrieved_ctx.os != nullptr);
+    REQUIRE(retrieved_ctx.os->name == "ProviderTestOS");
+    REQUIRE(retrieved_ctx.os->version == "2.0.0");
   }
 }

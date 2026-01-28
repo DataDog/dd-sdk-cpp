@@ -17,6 +17,7 @@
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 #include "support/threading.hpp"
 
@@ -80,7 +81,8 @@ struct FeatureState {
 
 TEST_CASE("FeatureScope thread safety", "[unit][core][thread-safety]") {
   // Given a CoreContextProvider
-  CoreContext initial_context(CoreConfig("client-token", "service", "env"));
+  platform::OsInfo os_info{"mock-os", "2.3.4", "mock-build-number", "2"};
+  CoreContext initial_context(CoreConfig("client-token", "service", "env"), os_info);
   CoreContextProvider context_provider(initial_context);
 
   // And three independent features that will handle API calls from different threads
