@@ -12,7 +12,10 @@
 #include <string>
 #include <vector>
 
+#include "client/annotation.h"
+#include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
+#include "client/settings.h"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -23,6 +26,14 @@
 #include <mach-o/dyld.h>  // _NSGetExecutablePath
 #endif
 #endif
+
+// Crashpad Annotations: these values are stored in static, fixed-size buffers, making
+// them safe to read during a crash. The Crashpad handler will automatically resolve
+// these values and include them as annotations when the crash dump is uploaded.
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+static crashpad::StringAnnotation<64> s_test_annotation1("test_annotation1");
+static crashpad::StringAnnotation<64> s_test_annotation2("test_annotation2");
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
  * Returns the path to the executable that is currently running this code, or an empty
@@ -87,9 +98,9 @@ bool InitializeCrashHandler(std::string_view handler_exe_path) {
   if (crashpad_handler_path.empty()) {
     crashpad_handler_path = get_crashpad_handler_path();
   }
-  // TODO(RUM-12207): Figure out where Crashpad should store files
+  // TODO(RUM-14020): Figure out where Crashpad should store files
   std::filesystem::path crashpad_database_path = get_crashpad_database_path();
-  const std::string url;  // An empty URL disables uploads
+  const std::string url = "http://127.0.0.1:8080";
   std::map<std::string, std::string> annotations;
   std::vector<std::string> arguments;
   const bool restartable = false;
@@ -98,7 +109,7 @@ bool InitializeCrashHandler(std::string_view handler_exe_path) {
 
   // Attempt to start the Crashpad handler process and initialize the client library
   crashpad::CrashpadClient crashpad_client;
-  return crashpad_client.StartHandler(
+  const bool started = crashpad_client.StartHandler(
       base::FilePath(crashpad_handler_path),
       base::FilePath(crashpad_database_path),
       base::FilePath(crashpad_database_path),
@@ -109,6 +120,22 @@ bool InitializeCrashHandler(std::string_view handler_exe_path) {
       asynchronous_start,
       attachments
   );
+  if (!started) {
+    return false;
+  }
+
+  s_test_annotation1.Set("foo");
+  s_test_annotation2.Set("bar");
+
+  auto db =
+      crashpad::CrashReportDatabase::Initialize(base::FilePath(crashpad_database_path));
+  if (db) {
+    if (auto* settings = db->GetSettings(); settings) {
+      settings->SetUploadsEnabled(true);
+    }
+  }
+  return started;
+
 #else
   // The SDK was compiled without Crashpad support; our crash-handling code is inert
   (void)handler_exe_path;
