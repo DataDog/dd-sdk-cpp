@@ -1,5 +1,6 @@
 stages:
   - build-toolchain-images
+  - system-info-test
   - validate
   - build
   - package
@@ -91,6 +92,58 @@ build-toolchain-image-windows:
     - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
     - docker push ${env:TOOLCHAIN_IMAGE_LATEST}
     - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
+
+# Stage 'system-info-test' is a set of temporary CI jobs used to validate the results of
+# resolving system info on each platform
+
+system-info-linux:
+  stage: system-info-test
+  dependencies: []
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=Debug
+      -DDD_HTTP_USE_SYSTEM_LIBCURL=ON
+      -DDD_BUILD_TOOLS=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - build/dd_system_info
+
+system-info-macos:
+  stage: system-info-test
+  dependencies: []
+  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ Xcode 15.3.0, AppleClang 15
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=Debug
+      -DDD_HTTP_USE_SYSTEM_LIBCURL=ON
+      -DDD_BUILD_TOOLS=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+
+system-info-windows:
+  stage: system-info-test
+  dependencies: []
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path build) { remove-item -recurse -force build }
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - >
+      docker run --rm
+      -m 8192M
+      -e NUM_PARALLEL_BUILD_JOBS
+      -v "$(Get-Location):C:\mnt"
+      -w C:\mnt
+      ${env:TOOLCHAIN_IMAGE}
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DDD_BUILD_TOOLS=ON -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && build\dd_system_info.exe"
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 # Stage 'validate' performs quick up-front validation, using clang-20 with full support
 # for clang-format and clang-tidy
@@ -244,7 +297,6 @@ build-windows:
       ${env:TOOLCHAIN_IMAGE}
       cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=${env:DD_ENABLE_CRASHPAD} -DDD_RUN_CRASHPAD_TESTS=${env:DD_ENABLE_CRASHPAD} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
-
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
 # support with precompiled binaries
