@@ -154,14 +154,25 @@ class WmiQueryContext {
 
     // Initialize COM
     hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    if (FAILED(hr)) {
+    if (hr == S_OK) {
+      // We successfully initialized COM, we own it and must call CoUninitialize
+      com_initialized_ = true;
+    } else if (hr == S_FALSE) {
+      // COM already initialized with compatible settings (MTA), don't uninitialize
+      // later
+      com_initialized_ = false;
+    } else if (hr == RPC_E_CHANGED_MODE) {
+      // COM initialized with different apartment model (probably STA on UI thread)
+      // This is fine, we can still use COM on this thread
+      com_initialized_ = false;
+    } else {
+      // Actual failure
       logger_.Debug(
           "Failed to initialize COM for WMI query",
           {{"hresult", static_cast<int64_t>(hr)}}
       );
       return false;
     }
-    com_initialized_ = true;
 
     // Initialize COM security
     hr = CoInitializeSecurity(
