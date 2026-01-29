@@ -385,13 +385,14 @@ std::string_view MapWindowsTimezoneToIANA(std::string_view windows_tz) {
   }
 
   // Define a string comparison function for our binary search
-  auto comparator = [](const impl::platform::WindowsTimezoneMapping& mapping,
-                       std::string_view value) { return mapping.windows_tz < value; };
+  auto comparator = [](const WindowsTimezoneMapping& mapping, std::string_view value) {
+    return mapping.windows_tz < value;
+  };
 
   // Run a binary search in our sorted timezone table, using std::lower_bound to return
   // the first element that's equal to or greater than our search value
-  const auto* begin = impl::platform::WINDOWS_TIMEZONE_LOOKUP;
-  const auto* end = begin + std::size(impl::platform::WINDOWS_TIMEZONE_LOOKUP);
+  const auto* begin = WINDOWS_TIMEZONE_LOOKUP;
+  const auto* end = begin + std::size(WINDOWS_TIMEZONE_LOOKUP);
   auto it = std::lower_bound(begin, end, windows_tz, comparator);
 
   // If we matched an exact Windows timezone name value, return the corresponding IANA
@@ -444,8 +445,6 @@ std::string GetDeviceTimezone(impl::DiagnosticLogger& logger) {
   std::string windows_tz_utf8 = WideToUtf8(tz_name);
   return MapWindowsTimezoneToIANA(windows_tz_utf8);
 }
-
-}  // namespace
 
 /**
  * Windows implementation of ISystemInfo.

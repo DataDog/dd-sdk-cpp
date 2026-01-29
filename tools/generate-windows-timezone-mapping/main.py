@@ -84,7 +84,7 @@ def generate_header_file(mappings: List[Tuple[str, str]], output_path: Path) -> 
 #include <cstddef>
 #include <string_view>
 
-namespace datadog::impl::platform {{
+namespace datadog::platform {{
 
 /**
  * Description of a Windows-specific timezone name and an equivalent IANA timezone name.
@@ -107,7 +107,7 @@ static constexpr WindowsTimezoneMapping WINDOWS_TIMEZONE_LOOKUP[] = {{
         header_content += f'  {{"{windows_escaped}", "{iana_escaped}"}},\n'
 
     header_content += f"""}};\n
-}}  // namespace datadog::impl::platform
+}}  // namespace datadog::platform
 """
 
     # Ensure output directory exists

@@ -15,7 +15,7 @@
 #include <cstddef>
 #include <string_view>
 
-namespace datadog::impl::platform {
+namespace datadog::platform {
 
 /**
  * Description of a Windows-specific timezone name and an equivalent IANA timezone name.
@@ -169,4 +169,4 @@ static constexpr WindowsTimezoneMapping WINDOWS_TIMEZONE_LOOKUP[] = {
     {"Yukon Standard Time", "America/Whitehorse"},
 };
 
-}  // namespace datadog::impl::platform
+}  // namespace datadog::platform

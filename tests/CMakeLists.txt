@@ -78,6 +78,14 @@ add_executable(dd_native_tests
     support/allocation_tracker.cpp
     support/attribute_debug.cpp
 )
+
+# Add Windows-specific tests
+if(WIN32)
+    target_sources(dd_native_tests PRIVATE
+        impl/platform/windows_timezone_mapping_test.cpp
+    )
+endif()
+
 target_include_external_deps(dd_native_tests)
 target_enable_strict_warnings(dd_native_tests)
 target_enable_datadog_assert(dd_native_tests)
