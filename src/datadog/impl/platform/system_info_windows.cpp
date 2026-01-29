@@ -420,7 +420,7 @@ class WindowsSystemInfo final : public ISystemInfo {
     // Collect OS information
     OSVERSIONINFOEXW version_info = {};
 
-    if (!GetWindowsVersion(version_info)) {
+    if (!GetWindowsVersion(version_info, logger)) {
       // Use defaults
       _os_info.name = "Windows";
       _os_info.version = "0";
