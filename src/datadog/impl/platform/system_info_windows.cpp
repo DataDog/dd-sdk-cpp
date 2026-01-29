@@ -26,23 +26,32 @@ typedef LONG(WINAPI* RtlGetVersionFunc)(OSVERSIONINFOEXW*);
  * This is the recommended approach as it bypasses GetVersionEx compatibility shims.
  *
  * @param info Output structure to populate
+ * @param logger Logger for emitting debug messages on failure
  * @return true if successful, false otherwise
  */
-bool GetWindowsVersion(OSVERSIONINFOEXW& info) {
+bool GetWindowsVersion(OSVERSIONINFOEXW& info, impl::DiagnosticLogger& logger) {
   // Load ntdll.dll and get RtlGetVersion function pointer
   HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
   if (!ntdll) {
+    logger.Debug("Unable to resolve OS version: failed to resolve ntdll.dll");
     return false;
   }
 
   auto RtlGetVersion =
       reinterpret_cast<RtlGetVersionFunc>(GetProcAddress(ntdll, "RtlGetVersion"));
   if (!RtlGetVersion) {
+    logger.Debug(
+        "Unable to resolve OS version: failed to resolve RtlGetVersion in ntdll.dll"
+    );
     return false;
   }
 
   info.dwOSVersionInfoSize = sizeof(OSVERSIONINFOEXW);
-  return RtlGetVersion(&info) == 0;  // 0 indicates success (STATUS_SUCCESS)
+  if (RtlGetVersion(&info) != ERROR_SUCCESS) {
+    logger.Debug("Unable to resolve OS version: RtlGetVersion failed");
+    return false;
+  }
+  return true;
 }
 
 /**
@@ -294,7 +303,8 @@ std::string GetDeviceLocale(impl::DiagnosticLogger& logger) {
   if (result == 0) {
     DWORD err = GetLastError();
     logger.Debug(
-        "Failed to get user default locale", {{"error", static_cast<int64_t>(err)}}
+        "Unable to resolve device locale: GetUserDefaultLocaleName failed",
+        {{"error", static_cast<int64_t>(err)}}
     );
     return "";
   }
@@ -318,7 +328,7 @@ std::string GetDeviceTimezone(impl::DiagnosticLogger& logger) {
   if (result == TIME_ZONE_ID_INVALID) {
     DWORD err = GetLastError();
     logger.Debug(
-        "Failed to get dynamic timezone information",
+        "Unable to resolve device timezone: GetDynamicTimeZoneInformation failed",
         {{"error", static_cast<int64_t>(err)}}
     );
     return "";
@@ -331,7 +341,10 @@ std::string GetDeviceTimezone(impl::DiagnosticLogger& logger) {
   } else if (tz_info.StandardName[0] != L'\0') {
     tz_name = tz_info.StandardName;
   } else {
-    logger.Debug("No timezone name available from GetDynamicTimeZoneInformation");
+    logger.Debug(
+        "Unable to resolve device timezone: no timezone name available from "
+        "GetDynamicTimeZoneInformation"
+    );
     return "";
   }
 
@@ -356,9 +369,6 @@ class WindowsSystemInfo final : public ISystemInfo {
     OSVERSIONINFOEXW version_info = {};
 
     if (!GetWindowsVersion(version_info)) {
-      logger.Debug(
-          "Failed to retrieve Windows version information using RtlGetVersion"
-      );
       // Use defaults
       _os_info.name = "Windows";
       _os_info.version = "0";
@@ -392,18 +402,27 @@ class WindowsSystemInfo final : public ISystemInfo {
     // Query WMI for device information
     _device_info.name = QueryWmiString(L"Win32_ComputerSystemProduct", L"Name", logger);
     if (_device_info.name.empty()) {
-      logger.Debug("Failed to retrieve device name from WMI");
+      logger.Debug(
+          "Unable to resolve device name: got no value from WMI query for "
+          "Win32_ComputerSystemProduct.Name"
+      );
     }
 
     _device_info.model = QueryWmiString(L"Win32_ComputerSystem", L"Model", logger);
     if (_device_info.model.empty()) {
-      logger.Debug("Failed to retrieve device model from WMI");
+      logger.Debug(
+          "Unable to resolve device model: got no value from WMI query for "
+          "Win32_ComputerSystem.Model"
+      );
     }
 
     _device_info.brand =
         QueryWmiString(L"Win32_ComputerSystem", L"Manufacturer", logger);
     if (_device_info.brand.empty()) {
-      logger.Debug("Failed to retrieve device brand from WMI");
+      logger.Debug(
+          "Unable to resolve device brand: got no value from WMI query for "
+          "Win32_ComputerSystem.Manufacturer"
+      );
     }
 
     // Get processor architecture
@@ -413,22 +432,17 @@ class WindowsSystemInfo final : public ISystemInfo {
         MapProcessorArchitecture(sys_info.wProcessorArchitecture);
     if (_device_info.architecture.empty()) {
       logger.Debug(
-          "Unknown processor architecture",
+          "Unable to resolve device architecture: GetNativeSystemInfo returned "
+          "unrecognized architecture enum",
           {{"arch", static_cast<int64_t>(sys_info.wProcessorArchitecture)}}
       );
     }
 
     // Get user locale
     _device_info.locale = GetDeviceLocale(logger);
-    if (_device_info.locale.empty()) {
-      logger.Debug("Failed to retrieve device locale");
-    }
 
     // Get timezone (Phase 1: Windows name; Phase 2 will add IANA mapping)
     _device_info.time_zone = GetDeviceTimezone(logger);
-    if (_device_info.time_zone.empty()) {
-      logger.Debug("Failed to retrieve device timezone");
-    }
   }
 
   const OsInfo& GetOsInfo() const override { return _os_info; }

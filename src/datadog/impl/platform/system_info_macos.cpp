@@ -21,29 +21,18 @@ namespace {
  * Retrieves a string value from sysctl by name.
  *
  * @param name sysctl variable name (e.g., "kern.osproductversion")
- * @param logger Diagnostic logger for warnings
  * @return Retrieved string value, or empty string on failure
  */
-std::string GetSysctlString(const char* name, impl::DiagnosticLogger& logger) {
+std::string GetSysctlString(const char* name) {
   // First call: determine required buffer size
   size_t size = 0;
   if (sysctlbyname(name, nullptr, &size, nullptr, 0) != 0) {
-    int err = errno;
-    logger.Debug(
-        "Failed to query sysctl size",
-        {{"sysctl_name", name}, {"errno", static_cast<int64_t>(err)}}
-    );
     return "";
   }
 
   // Second call: retrieve the actual value
   std::string result(size, '\0');
   if (sysctlbyname(name, result.data(), &size, nullptr, 0) != 0) {
-    int err = errno;
-    logger.Debug(
-        "Failed to retrieve sysctl value",
-        {{"sysctl_name", name}, {"errno", static_cast<int64_t>(err)}}
-    );
     return "";
   }
 
@@ -106,7 +95,7 @@ std::string ExtractDeviceName(const std::string& model) {
 std::string GetUserLocale(impl::DiagnosticLogger& logger) {
   CFLocaleRef locale = CFLocaleCopyCurrent();
   if (!locale) {
-    logger.Debug("Failed to get current locale via CFLocaleCopyCurrent");
+    logger.Debug("Unable to resolve device locale: CFLocaleCopyCurrent failed");
     return "";
   }
 
@@ -114,7 +103,9 @@ std::string GetUserLocale(impl::DiagnosticLogger& logger) {
       static_cast<CFStringRef>(CFLocaleGetValue(locale, kCFLocaleIdentifier));
   if (!locale_id) {
     CFRelease(locale);
-    logger.Debug("Failed to get locale identifier from CFLocale");
+    logger.Debug(
+        "Unable to resolve device locale: failed to get locale identifier from CFLocale"
+    );
     return "";
   }
 
@@ -157,14 +148,16 @@ std::string GetUserLocale(impl::DiagnosticLogger& logger) {
 std::string GetSystemTimezone(impl::DiagnosticLogger& logger) {
   CFTimeZoneRef tz = CFTimeZoneCopySystem();
   if (!tz) {
-    logger.Debug("Failed to get system timezone via CFTimeZoneCopySystem");
+    logger.Debug("Unable to resolve device timezone: CFTimeZoneCopySystem failed");
     return "";
   }
 
   CFStringRef tz_name = CFTimeZoneGetName(tz);
   if (!tz_name) {
     CFRelease(tz);
-    logger.Debug("Failed to get timezone name from CFTimeZone");
+    logger.Debug(
+        "Unable to resolve device timezone: failed to get timezone name from CFTimeZone"
+    );
     return "";
   }
 
@@ -200,7 +193,10 @@ std::string GetArchitecture(impl::DiagnosticLogger& logger) {
   struct utsname uts{};
   if (uname(&uts) != 0) {
     int err = errno;
-    logger.Debug("Failed to call uname", {{"errno", static_cast<int64_t>(err)}});
+    logger.Debug(
+        "Unable to resolve device architecture: uname failed",
+        {{"errno", static_cast<int64_t>(err)}}
+    );
     return "";
   }
 
@@ -225,9 +221,12 @@ class MacOSSystemInfo final : public ISystemInfo {
     _os_info.name = "macOS";
 
     // Get product version (e.g., "14.2.1")
-    _os_info.version = GetSysctlString("kern.osproductversion", logger);
+    _os_info.version = GetSysctlString("kern.osproductversion");
     if (_os_info.version.empty()) {
-      logger.Debug("Failed to retrieve macOS product version; using defaults");
+      logger.Debug(
+          "Unable to resolve OS version: failed to get kern.osproductversion from "
+          "sysctl"
+      );
       _os_info.version = "0";
       _os_info.version_major = "0";
       _os_info.build = "";
@@ -236,10 +235,11 @@ class MacOSSystemInfo final : public ISystemInfo {
       _os_info.version_major = ParseMajorVersion(_os_info.version);
 
       // Get build version (e.g., "23C71")
-      _os_info.build = GetSysctlString("kern.osversion", logger);
+      _os_info.build = GetSysctlString("kern.osversion");
       if (_os_info.build.empty()) {
-        logger.Debug("Failed to retrieve macOS build version");
-        // Continue with empty build; version information is still valid
+        logger.Debug(
+            "Unable to resolve OS version: failed to get kern.osversion from sysctl"
+        );
       }
     }
 
@@ -248,9 +248,11 @@ class MacOSSystemInfo final : public ISystemInfo {
     _device_info.brand = "Apple";
 
     // Get model (e.g., "MacBookPro16,1")
-    _device_info.model = GetSysctlString("hw.model", logger);
+    _device_info.model = GetSysctlString("hw.model");
     if (_device_info.model.empty()) {
-      logger.Debug("Failed to retrieve device model");
+      logger.Debug(
+          "Unable to resolve device model: failed to get hw.model from sysctl"
+      );
     }
 
     // Extract device name from model (e.g., "MacBookPro16,1" -> "MacBookPro")
@@ -258,21 +260,12 @@ class MacOSSystemInfo final : public ISystemInfo {
 
     // Get architecture (e.g., "arm64", "x86_64")
     _device_info.architecture = GetArchitecture(logger);
-    if (_device_info.architecture.empty()) {
-      logger.Debug("Failed to retrieve device architecture");
-    }
 
     // Get user locale (e.g., "en-US")
     _device_info.locale = GetUserLocale(logger);
-    if (_device_info.locale.empty()) {
-      logger.Debug("Failed to retrieve user locale");
-    }
 
     // Get timezone (e.g., "America/Halifax")
     _device_info.time_zone = GetSystemTimezone(logger);
-    if (_device_info.time_zone.empty()) {
-      logger.Debug("Failed to retrieve system timezone");
-    }
   }
 
   const OsInfo& GetOsInfo() const override { return _os_info; }

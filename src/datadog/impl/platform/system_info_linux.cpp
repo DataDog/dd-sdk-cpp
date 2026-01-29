@@ -63,7 +63,10 @@ bool ParseOsRelease(
 ) {
   std::ifstream file("/etc/os-release");
   if (!file.is_open()) {
-    logger.Debug("Failed to open /etc/os-release");
+    logger.Debug(
+        "Unable to resolve distribution information for OS name and version: failed to "
+        "open /etc/os-release"
+    );
     return false;
   }
 
@@ -161,7 +164,10 @@ std::string ParseLinuxLocale(impl::DiagnosticLogger& logger) {
   }
 
   if (!locale_env || locale_env[0] == '\0') {
-    logger.Debug("No locale environment variables found (LC_ALL, LANG)");
+    logger.Debug(
+        "Unable to resolve device locale: no locale environment variables found "
+        "(LC_ALL, LANG)"
+    );
     return "";
   }
 
@@ -169,7 +175,10 @@ std::string ParseLinuxLocale(impl::DiagnosticLogger& logger) {
 
   // Reject non-language values
   if (locale == "C" || locale == "POSIX") {
-    logger.Debug("Locale is non-language value, rejecting", {{"locale", locale}});
+    logger.Debug(
+        "Unable to resolve device locale: nonstandard LANG value rejected",
+        {{"locale", locale}}
+    );
     return "";
   }
 
@@ -208,7 +217,8 @@ std::string GetLinuxTimezone(impl::DiagnosticLogger& logger) {
   if (len == -1) {
     int err = errno;
     logger.Debug(
-        "Failed to read /etc/localtime symlink", {{"errno", static_cast<int64_t>(err)}}
+        "Unable to resolve device timezone: failed to read /etc/localtime symlink",
+        {{"errno", static_cast<int64_t>(err)}}
     );
     return "";
   }
@@ -222,8 +232,14 @@ std::string GetLinuxTimezone(impl::DiagnosticLogger& logger) {
     return tz_path.substr(prefix.length());
   }
 
-  // If prefix not found, return as-is (might be a different format)
-  return tz_path;
+  // If prefix not found, we just have a mystery path that we can't confidently treat as
+  // a timezone, so ignore it
+  logger.Debug(
+      "Unable to resolve device timezone: /etc/localtime symlink does not point to a "
+      "path in /usr/share/zoneinfo/",
+      {{"path", tz_path}}
+  );
+  return "";
 }
 
 }  // namespace
@@ -243,7 +259,6 @@ class LinuxSystemInfo final : public ISystemInfo {
     // Collect OS information
     // Parse /etc/os-release for name and version
     if (!ParseOsRelease(_os_info.name, _os_info.version, logger)) {
-      logger.Debug("Failed to parse /etc/os-release; using defaults");
       _os_info.name = "Linux";
       _os_info.version = "0";
     }
@@ -261,7 +276,7 @@ class LinuxSystemInfo final : public ISystemInfo {
     } else {
       int err = errno;
       logger.Debug(
-          "Failed to retrieve kernel version using uname",
+          "Unable resolve OS build and device architecture: uname failed",
           {{"errno", static_cast<int64_t>(err)}}
       );
       _os_info.build = "";
@@ -274,34 +289,33 @@ class LinuxSystemInfo final : public ISystemInfo {
     // Read device info from DMI files
     _device_info.name = ReadDmiFile("/sys/devices/virtual/dmi/id/product_name");
     if (_device_info.name.empty()) {
-      logger.Debug("Failed to read device name from DMI");
+      logger.Debug(
+          "Unable to resolve device name: failed to read from "
+          "/sys/devices/virtual/dmi/id/product_name"
+      );
     }
 
     _device_info.model = ReadDmiFile("/sys/devices/virtual/dmi/id/product_version");
     if (_device_info.model.empty()) {
-      logger.Debug("Failed to read device model from DMI");
+      logger.Debug(
+          "Unable to resolve device model: failed to read from "
+          "/sys/devices/virtual/dmi/id/product_version"
+      );
     }
 
     _device_info.brand = ReadDmiFile("/sys/devices/virtual/dmi/id/sys_vendor");
     if (_device_info.brand.empty()) {
-      logger.Debug("Failed to read device brand from DMI");
-    }
-
-    if (_device_info.architecture.empty()) {
-      logger.Debug("Failed to retrieve device architecture");
+      logger.Debug(
+          "Unable to resolve device brand: failed to read from "
+          "/sys/devices/virtual/dmi/id/sys_vendor"
+      );
     }
 
     // Parse locale from environment variables
     _device_info.locale = ParseLinuxLocale(logger);
-    if (_device_info.locale.empty()) {
-      logger.Debug("Failed to parse device locale");
-    }
 
     // Get timezone from /etc/localtime
     _device_info.time_zone = GetLinuxTimezone(logger);
-    if (_device_info.time_zone.empty()) {
-      logger.Debug("Failed to resolve device timezone");
-    }
   }
 
   const OsInfo& GetOsInfo() const override { return _os_info; }
