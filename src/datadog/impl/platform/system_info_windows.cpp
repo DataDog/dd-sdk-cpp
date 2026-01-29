@@ -8,11 +8,13 @@
 #include <wbemidl.h>
 #include <windows.h>
 
+#include <algorithm>
 #include <string>
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/platform/windows_timezone_mapping.hpp"
 
 #pragma comment(lib, "wbemuuid.lib")
 
@@ -369,13 +371,47 @@ std::string GetDeviceLocale(impl::DiagnosticLogger& logger) {
 }
 
 /**
+ * Maps a Windows timezone name to an IANA timezone ID.
+ *
+ * Uses binary search on the sorted WINDOWS_TIMEZONE_LOOKUP to find the IANA equivalent.
+ * If no mapping is found, returns the Windows timezone name as-is.
+ *
+ * @param windows_tz Windows timezone name (e.g., "Pacific Standard Time")
+ * @return IANA timezone ID (e.g., "America/Los_Angeles") or original name if not found
+ */
+std::string_view MapWindowsTimezoneToIANA(std::string_view windows_tz) {
+  if (windows_tz.empty()) {
+    return "";
+  }
+
+  // Define a string comparison function for our binary search
+  auto comparator = [](const impl::platform::WindowsTimezoneMapping& mapping,
+                       std::string_view value) { return mapping.windows_tz < value; };
+
+  // Run a binary search in our sorted timezone table, using std::lower_bound to return
+  // the first element that's equal to or greater than our search value
+  const auto* begin = impl::platform::WINDOWS_TIMEZONE_LOOKUP;
+  const auto* end = begin + std::size(impl::platform::WINDOWS_TIMEZONE_LOOKUP);
+  auto it = std::lower_bound(begin, end, windows_tz, comparator);
+
+  // If we matched an exact Windows timezone name value, return the corresponding IANA
+  // value
+  if (it != end && windows_tz == it->windows_tz) {
+    return it->iana_tz;
+  }
+
+  // If we found no match for the given Windows timezone name, return the input value
+  // unchanged
+  return windows_tz;
+}
+
+/**
  * Retrieves the system timezone using GetDynamicTimeZoneInformation.
  *
- * For Phase 1, returns Windows timezone name as-is.
- * Phase 2 will add IANA mapping.
+ * Returns IANA timezone ID by mapping Windows timezone name via CLDR mapping table.
  *
  * @param logger Diagnostic logger for warnings
- * @return Timezone name (e.g., "Pacific Standard Time"), or empty on failure
+ * @return IANA timezone ID (e.g., "America/Los_Angeles"), or empty on failure
  */
 std::string GetDeviceTimezone(impl::DiagnosticLogger& logger) {
   DYNAMIC_TIME_ZONE_INFORMATION tz_info;
@@ -404,7 +440,9 @@ std::string GetDeviceTimezone(impl::DiagnosticLogger& logger) {
     return "";
   }
 
-  return WideToUtf8(tz_name);
+  // Convert Windows timezone name to UTF-8 and map to IANA
+  std::string windows_tz_utf8 = WideToUtf8(tz_name);
+  return MapWindowsTimezoneToIANA(windows_tz_utf8);
 }
 
 }  // namespace
@@ -510,7 +548,7 @@ class WindowsSystemInfo final : public ISystemInfo {
     // Get user locale
     _device_info.locale = GetDeviceLocale(logger);
 
-    // Get timezone (Phase 1: Windows name; Phase 2 will add IANA mapping)
+    // Get timezone (mapped to IANA timezone ID)
     _device_info.time_zone = GetDeviceTimezone(logger);
   }
 
