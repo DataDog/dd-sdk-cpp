@@ -118,162 +118,200 @@ std::string WideToUtf8(const std::wstring& wstr) {
 }
 
 /**
- * Queries a WMI property value via COM.
- *
- * @param wmi_class WMI class name (e.g., L"Win32_ComputerSystem")
- * @param property Property name (e.g., L"Manufacturer")
- * @param logger Diagnostic logger for warnings
- * @return Property value as UTF-8 string, or empty on failure
+ * RAII wrapper for WMI queries that manages COM lifecycle.
+ * Allows multiple queries with a single COM initialization/teardown cycle.
  */
-std::string QueryWmiString(
-    const wchar_t* wmi_class, const wchar_t* property, impl::DiagnosticLogger& logger
-) {
-  HRESULT hr;
+class WmiQueryContext {
+  IWbemLocator* locator_ = nullptr;
+  IWbemServices* services_ = nullptr;
+  impl::DiagnosticLogger& logger_;
+  bool initialized_ = false;
+  bool com_initialized_ = false;
 
-  // Initialize COM
-  hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-  if (FAILED(hr)) {
-    logger.Debug(
-        "Failed to initialize COM for WMI query",
-        {{"hresult", static_cast<int64_t>(hr)}}
-    );
-    return "";
+ public:
+  explicit WmiQueryContext(impl::DiagnosticLogger& logger) : logger_(logger) {}
+
+  ~WmiQueryContext() {
+    if (services_) {
+      services_->Release();
+    }
+    if (locator_) {
+      locator_->Release();
+    }
+    if (com_initialized_) {
+      CoUninitialize();
+    }
   }
 
-  // Initialize COM security
-  hr = CoInitializeSecurity(
-      nullptr,
-      -1,
-      nullptr,
-      nullptr,
-      RPC_C_AUTHN_LEVEL_DEFAULT,
-      RPC_C_IMP_LEVEL_IMPERSONATE,
-      nullptr,
-      EOAC_NONE,
-      nullptr
-  );
-  if (FAILED(hr) && hr != RPC_E_TOO_LATE) {
-    logger.Debug(
-        "Failed to initialize COM security for WMI query",
-        {{"hresult", static_cast<int64_t>(hr)}}
-    );
-    CoUninitialize();
-    return "";
-  }
+  /**
+   * Initialize COM and connect to WMI.
+   * Must be called before QueryStringValue().
+   *
+   * @return true if initialization succeeded, false otherwise
+   */
+  bool Init() {
+    HRESULT hr;
 
-  std::string result;
-  IWbemLocator* locator = nullptr;
-  IWbemServices* services = nullptr;
-  IEnumWbemClassObject* enumerator = nullptr;
-
-  // Enter a `do { ... } while (false)` loop, so that `break` will jump to common
-  // cleanup routine after the loop: this is a common COM idiom that's effectively
-  // equivalent to `goto cleanup`
-  do {
-    // Create WMI locator
-    hr = CoCreateInstance(
-        CLSID_WbemLocator,
-        nullptr,
-        CLSCTX_INPROC_SERVER,
-        IID_IWbemLocator,
-        reinterpret_cast<void**>(&locator)
-    );
+    // Initialize COM
+    hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (FAILED(hr)) {
-      logger.Debug(
-          "Failed to create WMI locator", {{"hresult", static_cast<int64_t>(hr)}}
+      logger_.Debug(
+          "Failed to initialize COM for WMI query",
+          {{"hresult", static_cast<int64_t>(hr)}}
       );
-      break;
+      return false;
     }
+    com_initialized_ = true;
 
-    // Connect to WMI
-    hr = locator->ConnectServer(
-        _bstr_t(L"ROOT\\CIMV2"),
+    // Initialize COM security
+    hr = CoInitializeSecurity(
+        nullptr,
+        -1,
         nullptr,
         nullptr,
-        nullptr,
-        0,
-        nullptr,
-        nullptr,
-        &services
-    );
-    if (FAILED(hr)) {
-      logger.Debug("Failed to connect to WMI", {{"hresult", static_cast<int64_t>(hr)}});
-      break;
-    }
-
-    // Set security on the proxy
-    hr = CoSetProxyBlanket(
-        services,
-        RPC_C_AUTHN_WINNT,
-        RPC_C_AUTHZ_NONE,
-        nullptr,
-        RPC_C_AUTHN_LEVEL_CALL,
+        RPC_C_AUTHN_LEVEL_DEFAULT,
         RPC_C_IMP_LEVEL_IMPERSONATE,
         nullptr,
-        EOAC_NONE
+        EOAC_NONE,
+        nullptr
     );
-    if (FAILED(hr)) {
-      logger.Debug(
-          "Failed to set WMI proxy blanket", {{"hresult", static_cast<int64_t>(hr)}}
+    if (FAILED(hr) && hr != RPC_E_TOO_LATE) {
+      logger_.Debug(
+          "Failed to initialize COM security for WMI query",
+          {{"hresult", static_cast<int64_t>(hr)}}
       );
-      break;
+      return false;
     }
 
-    // Execute WMI query
-    std::wstring query =
-        L"SELECT " + std::wstring(property) + L" FROM " + std::wstring(wmi_class);
-    hr = services->ExecQuery(
-        _bstr_t(L"WQL"),
-        _bstr_t(query.c_str()),
-        WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-        nullptr,
-        &enumerator
-    );
-    if (FAILED(hr)) {
-      logger.Debug(
-          "Failed to execute WMI query", {{"hresult", static_cast<int64_t>(hr)}}
+    // Enter a `do { ... } while (false)` loop for common cleanup pattern
+    do {
+      // Create WMI locator
+      hr = CoCreateInstance(
+          CLSID_WbemLocator,
+          nullptr,
+          CLSCTX_INPROC_SERVER,
+          IID_IWbemLocator,
+          reinterpret_cast<void**>(&locator_)
       );
-      break;
-    }
-
-    // Get the first result
-    IWbemClassObject* obj = nullptr;
-    ULONG returned = 0;
-    hr = enumerator->Next(WBEM_INFINITE, 1, &obj, &returned);
-    if (FAILED(hr) || returned == 0) {
-      if (obj) {
-        obj->Release();
+      if (FAILED(hr)) {
+        logger_.Debug(
+            "Failed to create WMI locator", {{"hresult", static_cast<int64_t>(hr)}}
+        );
+        break;
       }
-      break;
+
+      // Connect to WMI
+      hr = locator_->ConnectServer(
+          _bstr_t(L"ROOT\\CIMV2"),
+          nullptr,
+          nullptr,
+          nullptr,
+          0,
+          nullptr,
+          nullptr,
+          &services_
+      );
+      if (FAILED(hr)) {
+        logger_.Debug(
+            "Failed to connect to WMI", {{"hresult", static_cast<int64_t>(hr)}}
+        );
+        break;
+      }
+
+      // Set security on the proxy
+      hr = CoSetProxyBlanket(
+          services_,
+          RPC_C_AUTHN_WINNT,
+          RPC_C_AUTHZ_NONE,
+          nullptr,
+          RPC_C_AUTHN_LEVEL_CALL,
+          RPC_C_IMP_LEVEL_IMPERSONATE,
+          nullptr,
+          EOAC_NONE
+      );
+      if (FAILED(hr)) {
+        logger_.Debug(
+            "Failed to set WMI proxy blanket", {{"hresult", static_cast<int64_t>(hr)}}
+        );
+        break;
+      }
+
+      initialized_ = true;
+      return true;
+
+    } while (false);
+
+    return false;
+  }
+
+  /**
+   * Query a WMI property value.
+   * Init() must be called successfully before calling this method.
+   *
+   * @param wmi_class WMI class name (e.g., L"Win32_ComputerSystem")
+   * @param property Property name (e.g., L"Manufacturer")
+   * @return Property value as UTF-8 string, or empty on failure
+   */
+  std::string QueryStringValue(const wchar_t* wmi_class, const wchar_t* property) {
+    if (!initialized_) {
+      return "";
     }
 
-    // Get the property value
-    VARIANT variant;
-    VariantInit(&variant);
-    hr = obj->Get(property, 0, &variant, nullptr, nullptr);
-    if (SUCCEEDED(hr) && variant.vt == VT_BSTR && variant.bstrVal) {
-      result = WideToUtf8(variant.bstrVal);
+    HRESULT hr;
+    std::string result;
+    IEnumWbemClassObject* enumerator = nullptr;
+
+    // Enter a `do { ... } while (false)` loop for common cleanup pattern
+    do {
+      // Execute WMI query
+      std::wstring query =
+          L"SELECT " + std::wstring(property) + L" FROM " + std::wstring(wmi_class);
+      hr = services_->ExecQuery(
+          _bstr_t(L"WQL"),
+          _bstr_t(query.c_str()),
+          WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+          nullptr,
+          &enumerator
+      );
+      if (FAILED(hr)) {
+        logger_.Debug(
+            "Failed to execute WMI query", {{"hresult", static_cast<int64_t>(hr)}}
+        );
+        break;
+      }
+
+      // Get the first result
+      IWbemClassObject* obj = nullptr;
+      ULONG returned = 0;
+      hr = enumerator->Next(WBEM_INFINITE, 1, &obj, &returned);
+      if (FAILED(hr) || returned == 0) {
+        if (obj) {
+          obj->Release();
+        }
+        break;
+      }
+
+      // Get the property value
+      VARIANT variant;
+      VariantInit(&variant);
+      hr = obj->Get(property, 0, &variant, nullptr, nullptr);
+      if (SUCCEEDED(hr) && variant.vt == VT_BSTR && variant.bstrVal) {
+        result = WideToUtf8(variant.bstrVal);
+      }
+
+      VariantClear(&variant);
+      obj->Release();
+
+    } while (false);
+
+    // Clean up query-specific resources
+    if (enumerator) {
+      enumerator->Release();
     }
 
-    VariantClear(&variant);
-    obj->Release();
-
-  } while (false);
-
-  // Clean up
-  if (enumerator) {
-    enumerator->Release();
+    return result;
   }
-  if (services) {
-    services->Release();
-  }
-  if (locator) {
-    locator->Release();
-  }
-
-  CoUninitialize();
-  return result;
-}
+};
 
 /**
  * Maps Windows processor architecture to string representation.
@@ -403,28 +441,36 @@ class WindowsSystemInfo final : public ISystemInfo {
     _device_info.type = "desktop";
 
     // Query WMI for device information
-    _device_info.name = QueryWmiString(L"Win32_ComputerSystemProduct", L"Name", logger);
-    if (_device_info.name.empty()) {
-      logger.Debug(
-          "Unable to resolve device name: got no value from WMI query for "
-          "Win32_ComputerSystemProduct.Name"
-      );
-    }
+    WmiQueryContext wmi(logger);
+    if (wmi.Init()) {
+      _device_info.name = wmi.QueryStringValue(L"Win32_ComputerSystemProduct", L"Name");
+      if (_device_info.name.empty()) {
+        logger.Debug(
+            "Unable to resolve device name: got no value from WMI query for "
+            "Win32_ComputerSystemProduct.Name"
+        );
+      }
 
-    _device_info.model = QueryWmiString(L"Win32_ComputerSystem", L"Model", logger);
-    if (_device_info.model.empty()) {
-      logger.Debug(
-          "Unable to resolve device model: got no value from WMI query for "
-          "Win32_ComputerSystem.Model"
-      );
-    }
+      _device_info.model = wmi.QueryStringValue(L"Win32_ComputerSystem", L"Model");
+      if (_device_info.model.empty()) {
+        logger.Debug(
+            "Unable to resolve device model: got no value from WMI query for "
+            "Win32_ComputerSystem.Model"
+        );
+      }
 
-    _device_info.brand =
-        QueryWmiString(L"Win32_ComputerSystem", L"Manufacturer", logger);
-    if (_device_info.brand.empty()) {
+      _device_info.brand =
+          wmi.QueryStringValue(L"Win32_ComputerSystem", L"Manufacturer");
+      if (_device_info.brand.empty()) {
+        logger.Debug(
+            "Unable to resolve device brand: got no value from WMI query for "
+            "Win32_ComputerSystem.Manufacturer"
+        );
+      }
+    } else {
       logger.Debug(
-          "Unable to resolve device brand: got no value from WMI query for "
-          "Win32_ComputerSystem.Manufacturer"
+          "Unable to resolve device name, model, and brand: WMI COM initialization "
+          "failed"
       );
     }
 
