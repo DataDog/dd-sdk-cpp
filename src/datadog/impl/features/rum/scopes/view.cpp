@@ -539,6 +539,7 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
 
   // Enrich event with OS properties from CoreContext
   RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateDeviceProperties(deps.scope, ev);
 
   // Serialize the event to JSON in a shared buffer, then copy that raw event payload
   // onto the storage thread
@@ -598,6 +599,7 @@ void RumViewScope::SendErrorEvent(
 
   // Enrich event with OS properties from CoreContext
   RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateDeviceProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _num_errors_reported++;

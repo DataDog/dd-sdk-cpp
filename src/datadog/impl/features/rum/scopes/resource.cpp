@@ -154,6 +154,7 @@ void RumResourceScope::SendResourceEvent(
 
   // Enrich event with OS properties from CoreContext
   RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateDeviceProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _result = Result::SentResourceEvent;
@@ -225,6 +226,7 @@ void RumResourceScope::SendErrorEvent(
 
   // Enrich event with OS properties from CoreContext
   RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateDeviceProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _result = Result::SentErrorEvent;

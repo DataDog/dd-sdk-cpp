@@ -131,6 +131,25 @@ void Logging::OnLoggerEmit(
         ev.os.value->build = ctx.os->build;
       }
     }
+
+    // If we have device properties, add them to the event payload
+    if (ctx.device) {
+      RumDeviceProperties& device = ev.device.value.emplace();
+      if (!ctx.device->type.empty()) {
+        DATADOG_ASSERT(
+            ctx.device->type == "desktop",
+            "DeviceInfo specifies non-desktop platform; log event serialization code "
+            "must be updated"
+        );
+        device.type = RumDeviceType::Desktop;
+      }
+      device.name = ctx.device->name;
+      device.model = ctx.device->model;
+      device.brand = ctx.device->brand;
+      device.architecture = ctx.device->architecture;
+      device.locale = ctx.device->locale;
+      device.time_zone = ctx.device->time_zone;
+    }
   }
 
   // Create a shallow copy of the Logging feature's global attributes, so we don't need
