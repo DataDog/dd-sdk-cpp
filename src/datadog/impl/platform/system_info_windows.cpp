@@ -166,6 +166,9 @@ std::string QueryWmiString(
   IWbemServices* services = nullptr;
   IEnumWbemClassObject* enumerator = nullptr;
 
+  // Enter a `do { ... } while (false)` loop, so that `break` will jump to common
+  // cleanup routine after the loop: this is a common COM idiom that's effectively
+  // equivalent to `goto cleanup`
   do {
     // Create WMI locator
     hr = CoCreateInstance(
