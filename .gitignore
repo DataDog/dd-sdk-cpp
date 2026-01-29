@@ -3,6 +3,7 @@ install/
 llvm-bin/
 Testing/
 *.profraw
+.cache/
 .DS_Store
 .repl-env
 .plans/

@@ -176,12 +176,21 @@ TEST_CASE("HttpContext BuildRequestHeaders", "[unit]") {
 
 TEST_CASE("CoreContext with OS information", "[unit]") {
   SECTION("M initialize with valid OsInfo W OsInfo provided") {
-    // Given valid OS info
+    // Given valid OS info and device info
     platform::OsInfo os_info{"TestOS", "1.2.3", "12345", "1"};
+    platform::DeviceInfo device_info{
+        "desktop",
+        "test-device",
+        "test-model",
+        "test-brand",
+        "x86_64",
+        "en-US",
+        "America/New_York"
+    };
 
-    // When CoreContext is constructed with OS info
+    // When CoreContext is constructed with OS info and device info
     CoreConfig config("token", "service", "env");
-    CoreContext ctx(config, os_info);
+    CoreContext ctx(config, os_info, device_info);
 
     // Then OS info is accessible and matches
     REQUIRE(ctx.os != nullptr);
@@ -189,15 +198,34 @@ TEST_CASE("CoreContext with OS information", "[unit]") {
     REQUIRE(ctx.os->version == "1.2.3");
     REQUIRE(ctx.os->build == "12345");
     REQUIRE(ctx.os->version_major == "1");
+
+    // And device info is accessible and matches
+    REQUIRE(ctx.device != nullptr);
+    REQUIRE(ctx.device->type == "desktop");
+    REQUIRE(ctx.device->name == "test-device");
+    REQUIRE(ctx.device->model == "test-model");
+    REQUIRE(ctx.device->brand == "test-brand");
+    REQUIRE(ctx.device->architecture == "x86_64");
+    REQUIRE(ctx.device->locale == "en-US");
+    REQUIRE(ctx.device->time_zone == "America/New_York");
   }
 }
 
 TEST_CASE("CoreContextProvider with OS information", "[unit]") {
   SECTION("M provide OS info via Get W CoreContext has OS info") {
-    // Given a CoreContext with OS info
+    // Given a CoreContext with OS info and device info
     platform::OsInfo os_info{"ProviderTestOS", "2.0.0", "", "2"};
+    platform::DeviceInfo device_info{
+        "desktop",
+        "test-device",
+        "test-model",
+        "test-brand",
+        "x86_64",
+        "en-US",
+        "America/New_York"
+    };
     CoreConfig config("token", "service", "env");
-    CoreContext ctx(config, os_info);
+    CoreContext ctx(config, os_info, device_info);
 
     // When CoreContextProvider is created and Get() is called
     CoreContextProvider provider(ctx);
@@ -207,5 +235,15 @@ TEST_CASE("CoreContextProvider with OS information", "[unit]") {
     REQUIRE(retrieved_ctx.os != nullptr);
     REQUIRE(retrieved_ctx.os->name == "ProviderTestOS");
     REQUIRE(retrieved_ctx.os->version == "2.0.0");
+
+    // And device info is accessible via the retrieved context
+    REQUIRE(retrieved_ctx.device != nullptr);
+    REQUIRE(retrieved_ctx.device->type == "desktop");
+    REQUIRE(retrieved_ctx.device->name == "test-device");
+    REQUIRE(retrieved_ctx.device->model == "test-model");
+    REQUIRE(retrieved_ctx.device->brand == "test-brand");
+    REQUIRE(retrieved_ctx.device->architecture == "x86_64");
+    REQUIRE(retrieved_ctx.device->locale == "en-US");
+    REQUIRE(retrieved_ctx.device->time_zone == "America/New_York");
   }
 }

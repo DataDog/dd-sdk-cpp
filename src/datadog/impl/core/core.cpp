@@ -81,9 +81,11 @@ Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
     : _config(config),
       _diagnostic_logger(config.diagnostic_handler, config.diagnostic_threshold),
       _context_provider(
-          std::make_unique<CoreContextProvider>(
-              CoreContext(config, subsystems.system_info->GetOsInfo())
-          )
+          std::make_unique<CoreContextProvider>(CoreContext(
+              config,
+              subsystems.system_info->GetOsInfo(),
+              subsystems.system_info->GetDeviceInfo()
+          ))
       ),
       _subsystems(std::move(subsystems)) {
   DATADOG_ASSERT(
