@@ -13,29 +13,22 @@ using namespace datadog;
 TEST_CASE("MapWindowsTimezoneToIANA", "[unit][platform-windows-timezone]") {
   SECTION("M return equivalent IANA timezone W input value is known Windows timezone") {
     REQUIRE(
-        impl::platform::MapWindowsTimezoneToIANA("Pacific Standard Time") ==
-        "America/Los_Angeles"
+        impl::MapWindowsTimezoneToIANA("Pacific Standard Time") == "America/Los_Angeles"
     );
     REQUIRE(
-        impl::platform::MapWindowsTimezoneToIANA("Eastern Standard Time") ==
-        "America/New_York"
+        impl::MapWindowsTimezoneToIANA("Eastern Standard Time") == "America/New_York"
     );
-    REQUIRE(impl::platform::MapWindowsTimezoneToIANA("UTC") == "Etc/UTC");
-    REQUIRE(
-        impl::platform::MapWindowsTimezoneToIANA("GMT Standard Time") == "Europe/London"
-    );
+    REQUIRE(impl::MapWindowsTimezoneToIANA("UTC") == "Etc/UTC");
+    REQUIRE(impl::MapWindowsTimezoneToIANA("GMT Standard Time") == "Europe/London");
   }
 
   SECTION(
       "M return value unchanged W input value is not a recognized Windows timezone"
   ) {
-    REQUIRE(
-        impl::platform::MapWindowsTimezoneToIANA("Unknown Timezone") ==
-        "Unknown Timezone"
-    );
+    REQUIRE(impl::MapWindowsTimezoneToIANA("Unknown Timezone") == "Unknown Timezone");
   }
 
   SECTION("M return empty string W input value is empty string") {
-    REQUIRE(impl::platform::MapWindowsTimezoneToIANA("").empty());
+    REQUIRE(impl::MapWindowsTimezoneToIANA("").empty());
   }
 }

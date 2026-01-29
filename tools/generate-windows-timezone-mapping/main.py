@@ -107,6 +107,9 @@ static constexpr WindowsTimezoneMapping WINDOWS_TIMEZONE_LOOKUP[] = {{
         header_content += f'  {{"{windows_escaped}", "{iana_escaped}"}},\n'
 
     header_content += f"""}};\n
+
+std::string_view MapWindowsTimezoneToIANA(std::string_view windows_tz);
+
 }}  // namespace datadog::platform
 """
 

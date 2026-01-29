@@ -154,7 +154,8 @@ static _process_and_upload_batch_result _process_and_upload_batch(
       break;
     case platform::HttpResultType::GotResponse:
       diagnostic_logger.Debug(
-          "Got HTTP response", {{"url", report->url}, {"status_code", res.status_code}}
+          "Got HTTP response",
+          {{"url", report->url}, {"status_code", static_cast<int64_t>(res.status_code)}}
       );
       break;
   }

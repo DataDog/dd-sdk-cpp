@@ -169,4 +169,6 @@ static constexpr WindowsTimezoneMapping WINDOWS_TIMEZONE_LOOKUP[] = {
     {"Yukon Standard Time", "America/Whitehorse"},
 };
 
+std::string_view MapWindowsTimezoneToIANA(std::string_view windows_tz);
+
 }  // namespace datadog::platform
