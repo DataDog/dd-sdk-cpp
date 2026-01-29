@@ -537,9 +537,8 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
     ev.context.value = _global_and_view_attributes.attribute;
   }
 
-  // Enrich event with OS properties from CoreContext
-  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
-  RumEventEnrichment::PopulateDeviceProperties(deps.scope, ev);
+  // Enrich event with OS and device properties from CoreContext
+  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
 
   // Serialize the event to JSON in a shared buffer, then copy that raw event payload
   // onto the storage thread
@@ -597,9 +596,8 @@ void RumViewScope::SendErrorEvent(
     ev.context.value = merged_error_attributes;
   }
 
-  // Enrich event with OS properties from CoreContext
-  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
-  RumEventEnrichment::PopulateDeviceProperties(deps.scope, ev);
+  // Enrich event with OS and device properties from CoreContext
+  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _num_errors_reported++;

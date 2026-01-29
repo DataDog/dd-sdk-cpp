@@ -17,23 +17,42 @@ namespace datadog::impl {
  * Utilities for enriching RUM event payloads with context from CoreContext.
  */
 struct RumEventEnrichment {
+ public:
   /**
-   * Populates a RUM event's `os` field with OS properties retrieved from CoreContext.
+   * Populates a RUM event's `os` and `device` fields with properties retrieved from
+   * CoreContext.
    *
    * @param scope FeatureScope from which to access CoreContext. If null or if
-   *  CoreContext lacks OS info, ev.os remains unchanged.
-   * @param ev RUM event with an `OmitIfNoValue<RumOSProperties> os` field, to be
-   *  modified in-place.
+   *  CoreContext lacks OS/device info, corresponding event fields remain unchanged.
+   * @param ev RUM event with `OmitIfNoValue<RumOSProperties> os` and
+   *  `OmitIfNoValue<RumDeviceProperties> device` fields, to be modified in-place.
    */
   template <typename T>
-  static void PopulateOsProperties(const FeatureScope* scope, T& ev) {
+  static void PopulateCommonProperties(const FeatureScope* scope, T& ev) {
     // Abort if no scope (SDK is not active)
     if (!scope) {
       return;
     }
 
-    // Obtain a read-only copy of the context
+    // Obtain an immutable, thread-safe copy of the SDK's core context
     const CoreContext ctx = scope->GetContext();
+
+    // If SystemInfo details are available, populate 'os' and 'device' properties
+    PopulateOsProperties(ctx, ev);
+    PopulateDeviceProperties(ctx, ev);
+  }
+
+ private:
+  /**
+   * Populates a RUM event's `os` field with OS properties from CoreContext.
+   *
+   * @param ctx CoreContext containing OS info. If ctx.os is null, ev.os remains
+   *  unchanged.
+   * @param ev RUM event with an `OmitIfNoValue<RumOSProperties> os` field, to be
+   *  modified in-place.
+   */
+  template <typename T>
+  static void PopulateOsProperties(const CoreContext& ctx, T& ev) {
     if (!ctx.os) {
       return;
     }
@@ -47,23 +66,15 @@ struct RumEventEnrichment {
   }
 
   /**
-   * Populates a RUM event's `device` field with device properties retrieved from
-   * CoreContext.
+   * Populates a RUM event's `device` field with device properties from CoreContext.
    *
-   * @param scope FeatureScope from which to access CoreContext. If null or if
-   *  CoreContext lacks device info, ev.device remains unchanged.
+   * @param ctx CoreContext containing device info. If ctx.device is null, ev.device
+   *  remains unchanged.
    * @param ev RUM event with an `OmitIfNoValue<RumDeviceProperties> device` field, to
    * be modified in-place.
    */
   template <typename T>
-  static void PopulateDeviceProperties(const FeatureScope* scope, T& ev) {
-    // Abort if no scope (SDK is not active)
-    if (!scope) {
-      return;
-    }
-
-    // Obtain a read-only copy of the context
-    const CoreContext ctx = scope->GetContext();
+  static void PopulateDeviceProperties(const CoreContext& ctx, T& ev) {
     if (!ctx.device) {
       return;
     }
@@ -74,8 +85,7 @@ struct RumEventEnrichment {
       DATADOG_ASSERT(
           ctx.device->type == "desktop",
           "DeviceInfo specifies non-desktop platform; RUM event serialization code "
-          "must "
-          "be updated"
+          "must be updated"
       );
       device.type = RumDeviceType::Desktop;
     }
