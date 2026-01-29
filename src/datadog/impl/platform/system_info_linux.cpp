@@ -27,7 +27,7 @@ namespace {
  * @param key Key to search for
  * @return Value if key matches, empty string otherwise
  */
-std::string ParseOsReleaseValue(const std::string& line, const std::string& key) {
+std::string ParseOsReleaseValue(std::string_view line, std::string_view key) {
   // Check if line starts with the key
   if (line.find(key) != 0) {
     return "";
@@ -35,19 +35,19 @@ std::string ParseOsReleaseValue(const std::string& line, const std::string& key)
 
   // Find the equals sign
   size_t equals_pos = line.find('=');
-  if (equals_pos == std::string::npos || equals_pos != key.length()) {
+  if (equals_pos == std::string_view::npos || equals_pos != key.length()) {
     return "";
   }
 
   // Extract value after '='
-  std::string value = line.substr(equals_pos + 1);
+  std::string_view value = line.substr(equals_pos + 1);
 
   // Remove surrounding quotes if present
   if (value.length() >= 2 && value.front() == '"' && value.back() == '"') {
     value = value.substr(1, value.length() - 2);
   }
 
-  return value;
+  return std::string(value);
 }
 
 /**
@@ -134,10 +134,12 @@ std::string ReadDmiFile(const char* filename) {
   std::string result;
   std::getline(file, result);
 
-  // Trim trailing whitespace
-  while (!result.empty() && std::isspace(static_cast<unsigned char>(result.back()))) {
-    result.pop_back();
+  // Trim trailing whitespace - find position, then resize once
+  size_t end = result.length();
+  while (end > 0 && std::isspace(static_cast<unsigned char>(result[end - 1]))) {
+    --end;
   }
+  result.resize(end);
 
   return result;
 }
@@ -185,13 +187,13 @@ std::string ParseLinuxLocale(impl::DiagnosticLogger& logger) {
   // Strip .-delimited suffix (e.g., "en_US.UTF-8" -> "en_US")
   size_t dot_pos = locale.find('.');
   if (dot_pos != std::string::npos) {
-    locale = locale.substr(0, dot_pos);
+    locale.resize(dot_pos);
   }
 
   // Strip @-delimited suffix (e.g., "de_DE@euro" -> "de_DE")
   size_t at_pos = locale.find('@');
   if (at_pos != std::string::npos) {
-    locale = locale.substr(0, at_pos);
+    locale.resize(at_pos);
   }
 
   // Replace _ with - (e.g., "en_US" -> "en-US")

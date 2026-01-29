@@ -273,8 +273,12 @@ class WmiQueryContext {
     IEnumWbemClassObject* enumerator = nullptr;  // Must be released once initialized
 
     // Execute WMI query, populating enumerator on success
-    std::wstring query =
-        L"SELECT " + std::wstring(property) + L" FROM " + std::wstring(wmi_class);
+    std::wstring query;
+    query.reserve(8 + wcslen(property) + 6 + wcslen(wmi_class));
+    query = L"SELECT ";
+    query += property;
+    query += L" FROM ";
+    query += wmi_class;
     hr = services_->ExecQuery(
         _bstr_t(L"WQL"),
         _bstr_t(query.c_str()),
@@ -435,17 +439,22 @@ class WindowsSystemInfo final : public ISystemInfo {
       _os_info.version_major = std::to_string(version_info.dwMajorVersion);
 
       // Build string: "build" or "build.ubr" if UBR is available
+      _os_info.build.reserve(20);  // Conservative estimate for build numbers
       if (ubr > 0) {
-        _os_info.build =
-            std::to_string(version_info.dwBuildNumber) + "." + std::to_string(ubr);
+        _os_info.build = std::to_string(version_info.dwBuildNumber);
+        _os_info.build += '.';
+        _os_info.build += std::to_string(ubr);
       } else {
         _os_info.build = std::to_string(version_info.dwBuildNumber);
       }
 
       // Version string: "major.minor.build" (with UBR included in build if available)
-      _os_info.version = std::to_string(version_info.dwMajorVersion) + "." +
-                         std::to_string(version_info.dwMinorVersion) + "." +
-                         _os_info.build;
+      _os_info.version.reserve(30);  // Conservative estimate for full version string
+      _os_info.version = std::to_string(version_info.dwMajorVersion);
+      _os_info.version += '.';
+      _os_info.version += std::to_string(version_info.dwMinorVersion);
+      _os_info.version += '.';
+      _os_info.version += _os_info.build;
     }
 
     // Collect device information
