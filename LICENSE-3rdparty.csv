@@ -4,3 +4,4 @@ curl,"https://github.com/curl/curl/",curl,Copyright (c) 1996 - 2025 Daniel Stenb
 date,"https://github.com/HowardHinnant/date/",MIT,"Copyright (c) 2015, 2016, 2017 Howard Hinnant et al."
 expected-lite,"https://github.com/martinmoene/expected-lite/",BSL-1.0,Copyright (C) 2016-2025 Martin Moene
 nlohmann/json,"https://github.com/nlohmann/json",MIT,Copyright (c) 2013-2025 Niels Lohmann
+Unicode CLDR,"https://github.com/unicode-org/cldr",Unicode License,"Copyright © Unicode, Inc."
