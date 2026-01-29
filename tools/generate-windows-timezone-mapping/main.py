@@ -16,6 +16,7 @@ Usage:
 Output:
     src/datadog/impl/platform/windows_timezone_mapping.hpp
 """
+import sys
 import subprocess
 import urllib.request
 import xml.etree.ElementTree as ET
@@ -122,7 +123,6 @@ std::string_view MapWindowsTimezoneToIANA(std::string_view windows_tz);
 
 
 def main():
-    """Main entry point."""
     try:
         # Fetch and parse the XML
         xml_content = fetch_windows_zones_xml()
@@ -149,4 +149,4 @@ def main():
 
 
 if __name__ == "__main__":
-    exit(main())
+    sys.exit(main())
