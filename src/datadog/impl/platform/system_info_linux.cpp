@@ -150,9 +150,14 @@ std::string ReadDmiFile(const char* filename) {
  */
 std::string ParseLinuxLocale(impl::DiagnosticLogger& logger) {
   // Check LC_ALL first, then LANG
-  const char* locale_env = std::getenv("LC_ALL");
+  // NOTE: getenv is not thread-safe with concurrent *modifications* to environment
+  // variables. This would technically be a race condition if the client application
+  // decided to call putenv/unsetenv in another thread while concurrently initializing
+  // the SDK, but that's very unlikely. The SDK guarantees that this code runs once,
+  // synchronously, at SDK startup.
+  const char* locale_env = std::getenv("LC_ALL");  // NOLINT(concurrency-mt-unsafe)
   if (!locale_env || locale_env[0] == '\0') {
-    locale_env = std::getenv("LANG");
+    locale_env = std::getenv("LANG");  // NOLINT(concurrency-mt-unsafe)
   }
 
   if (!locale_env || locale_env[0] == '\0') {
@@ -198,7 +203,8 @@ std::string ParseLinuxLocale(impl::DiagnosticLogger& logger) {
  */
 std::string GetLinuxTimezone(impl::DiagnosticLogger& logger) {
   char buffer[PATH_MAX];
-  ssize_t len = readlink("/etc/localtime", buffer, sizeof(buffer) - 1);
+  ssize_t len =
+      readlink("/etc/localtime", static_cast<char*>(buffer), sizeof(buffer) - 1);
   if (len == -1) {
     int err = errno;
     logger.Debug(
@@ -207,8 +213,8 @@ std::string GetLinuxTimezone(impl::DiagnosticLogger& logger) {
     return "";
   }
 
-  buffer[len] = '\0';
-  std::string tz_path = buffer;
+  buffer[len] = '\0';  // NOLINT(cppcoreguidelines-pro-bounds-constant-array-index)
+  std::string tz_path{static_cast<const char*>(buffer)};
 
   // Strip /usr/share/zoneinfo/ prefix if present
   const std::string prefix = "/usr/share/zoneinfo/";
