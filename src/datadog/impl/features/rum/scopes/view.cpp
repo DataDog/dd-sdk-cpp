@@ -11,6 +11,7 @@
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/features/rum/context.hpp"
+#include "datadog/impl/features/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/features/rum/scopes/session.hpp"
 
 namespace datadog::impl {
@@ -536,6 +537,9 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
     ev.context.value = _global_and_view_attributes.attribute;
   }
 
+  // Enrich event with OS properties from CoreContext
+  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
+
   // Serialize the event to JSON in a shared buffer, then copy that raw event payload
   // onto the storage thread
   deps.ProduceEvent(ev);
@@ -591,6 +595,9 @@ void RumViewScope::SendErrorEvent(
   if (merged_error_attributes.GetObjectPropertyCount() > 0) {
     ev.context.value = merged_error_attributes;
   }
+
+  // Enrich event with OS properties from CoreContext
+  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _num_errors_reported++;

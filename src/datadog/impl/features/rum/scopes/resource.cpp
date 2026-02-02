@@ -9,6 +9,7 @@
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/attribute/merge.hpp"
 #include "datadog/impl/features/rum/context.hpp"
+#include "datadog/impl/features/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/features/rum/scopes/session.hpp"
 #include "datadog/impl/features/rum/scopes/view.hpp"
 
@@ -151,6 +152,9 @@ void RumResourceScope::SendResourceEvent(
     ev.context.value = context;
   }
 
+  // Enrich event with OS properties from CoreContext
+  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
+
   deps.ProduceEvent(ev);
   _result = Result::SentResourceEvent;
 }
@@ -218,6 +222,9 @@ void RumResourceScope::SendErrorEvent(
   if (context.GetObjectPropertyCount() > 0) {
     ev.context.value = context;
   }
+
+  // Enrich event with OS properties from CoreContext
+  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _result = Result::SentErrorEvent;

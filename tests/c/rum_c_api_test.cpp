@@ -711,6 +711,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(events[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "view",
             "date": 1700000000000,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -752,6 +758,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(events[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "view",
             "date": 1700000000000,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -780,6 +792,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(events[1], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "view",
             "date": 1700000000000,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -1697,6 +1715,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(actions[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "action",
             "date": 1700000000000,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -1817,6 +1841,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(actions[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "action",
             "date": 1700000000000,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -2222,6 +2252,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(resources[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "resource",
             "date": 1700000000000,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -2288,6 +2324,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "error",
             "date": 1700000002400,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -2358,6 +2400,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "error",
             "date": 1700000002400,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -2413,6 +2461,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "error",
             "date": 1700000000005,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -2479,6 +2533,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "error",
             "date": 1700000000005,
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },

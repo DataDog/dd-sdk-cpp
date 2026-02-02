@@ -8,6 +8,7 @@
 
 #include "datadog/logging.hpp"
 
+#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/events/enum.hpp"
 #include "datadog/impl/events/omissible.hpp"
 #include "datadog/impl/events/struct.hpp"
@@ -43,6 +44,8 @@ struct LogEvent {
   OmitIfZero<UUID> rum_view_id;
   OmitIfZero<UUID> rum_action_id;
 
+  OmitIfNoValue<RumOSProperties> os;
+
   explicit LogEvent(
       std::string_view in_service_name,
       std::string_view in_logger_name,
@@ -62,6 +65,7 @@ struct LogEvent {
     rum_session_id = UUID::Zero;
     rum_view_id = UUID::Zero;
     rum_action_id = UUID::Zero;
+    os = std::nullopt;
   }
 };
 
@@ -79,7 +83,9 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD_NAME(rum_application_id, "application_id"),
     DATADOG_JSON_FIELD_NAME(rum_session_id, "session_id"),
     DATADOG_JSON_FIELD_NAME(rum_view_id, "view.id"),
-    DATADOG_JSON_FIELD_NAME(rum_action_id, "user_action.id")
+    DATADOG_JSON_FIELD_NAME(rum_action_id, "user_action.id"),
+
+    DATADOG_JSON_FIELD(os)
 
     // All user-specified attribute values are merged into the JSON object at top-level
     // and appended after these fields, with the exception of any property values whose
@@ -98,6 +104,7 @@ constexpr bool LogEvent_CanMergeUserAttribute(std::string_view name) {
   if (name == "session_id") { return false; }
   if (name == "view.id") { return false; }
   if (name == "user_action.id") { return false; }
+  if (name == "os") { return false; }
   // Reserved for future use:
   if (name == "_dd") { return false; }
   if (name == "usr") { return false; }

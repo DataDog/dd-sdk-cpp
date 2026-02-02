@@ -8,6 +8,7 @@
 
 #include "datadog/impl/attribute/merge.hpp"
 #include "datadog/impl/features/rum/context.hpp"
+#include "datadog/impl/features/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/features/rum/scopes/session.hpp"
 #include "datadog/impl/features/rum/scopes/view.hpp"
 
@@ -201,6 +202,9 @@ void RumActionScope::SendActionEvent(
   if (context && context->GetObjectPropertyCount() > 0) {
     ev.context.value = *context;
   }
+
+  // Enrich event with OS properties from CoreContext
+  RumEventEnrichment::PopulateOsProperties(deps.scope, ev);
 
   deps.ProduceEvent(ev);
   _has_sent_action_event = true;
