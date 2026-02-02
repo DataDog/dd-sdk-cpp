@@ -34,10 +34,9 @@ struct LoggerState {
   // global and log-event-level attributes
   ObjectAttribute user_attributes;
 
-  // Working memory for storing the essential details of the log event prior to
-  // serialization, along with the final set of merged user attributes for that event
+  // In-memory representation of the event payload that will be emitted whenever a
+  // message is logged; reused between log calls
   LogEvent event;
-  ObjectAttribute merged_attributes;
 
   // Reusable buffer where the final JSON payload will be encoded prior to being
   // copied onto the storage thread's queue

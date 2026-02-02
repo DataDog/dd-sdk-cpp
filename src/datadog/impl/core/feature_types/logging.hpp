@@ -54,7 +54,8 @@ struct LogEvent {
   explicit LogEvent(
       std::string_view in_service_name,
       std::string_view in_logger_name,
-      std::string_view in_logger_version
+      std::string_view in_logger_version,
+      size_t initial_attribute_capacity
   )
       : status(LogLevel::Debug),
         service(in_service_name),
@@ -62,7 +63,7 @@ struct LogEvent {
         message(""),
         logger_name(in_logger_name),
         logger_version(in_logger_version),
-        user_attributes(Attribute::Object()) {
+        user_attributes(Attribute::Object(initial_attribute_capacity)) {
     message.reserve(256);
   }
 

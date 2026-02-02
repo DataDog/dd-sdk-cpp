@@ -160,7 +160,7 @@ void Logging::OnLoggerEmit(
     global_attributes = _global_attributes.attribute;
   }
 
-  // Merge the full set custom, user-specified attribute values into the LogEvent
+  // Merge the full set of custom, user-specified attribute values into the LogEvent
   // payload's 'user_attributes' member. User attributes are merged into the event at
   // top-level, with the following order:
   //

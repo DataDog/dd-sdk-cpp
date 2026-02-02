@@ -19,8 +19,12 @@ LoggerState::LoggerState(
     size_t initial_attribute_capacity
 )
     : user_attributes(initial_attribute_capacity),
-      event(in_service_name.value_or(""), in_logger_name.value_or(""), SDK_VERSION),
-      merged_attributes(initial_attribute_capacity * 2) {}
+      event(
+          in_service_name.value_or(""),
+          in_logger_name.value_or(""),
+          SDK_VERSION,
+          initial_attribute_capacity
+      ) {}
 
 LoggerEnrichmentConfig::LoggerEnrichmentConfig(bool in_enable_rum)
     : enable_rum(in_enable_rum) {}
