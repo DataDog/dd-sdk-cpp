@@ -13,6 +13,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <variant>
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/json.hpp"
@@ -83,6 +84,14 @@ namespace datadog::impl {
  * variables whose names exactly match the desired JSON property name.
  */
 #define DATADOG_JSON_FIELD(Member) DATADOG_JSON_FIELD_NAME(Member, #Member)
+
+/**
+ * May be added to a field list within `DATADOG_JSON_STRUCT` in order to reserve a field
+ * name for future use. When used within `DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES`,
+ * any extra attributes with this field's name will be filtered out of the final object.
+ */
+#define DATADOG_JSON_RESERVED_FIELD(Member) \
+  std::make_pair(std::string_view(#Member), std::monostate{})
 
 /**
  * Defines the JSON object format used to serialize a value of type `Type`.
