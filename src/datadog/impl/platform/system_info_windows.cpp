@@ -10,6 +10,7 @@
 
 #include <string>
 
+#include "datadog/impl/assert.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
 
@@ -152,6 +153,12 @@ class WmiQueryContext {
   bool Init() {
     HRESULT hr;
 
+    // Init() should only be called once for any given WmiQueryContext
+    if (initialized_) {
+      DATADOG_ASSERT(false, "WmiQueryContext::Init() called twice");
+      return false;
+    }
+
     // Initialize COM
     hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     if (hr == S_OK) {
@@ -194,65 +201,59 @@ class WmiQueryContext {
       return false;
     }
 
-    // Enter a `do { ... } while (false)` loop for common cleanup pattern
-    do {
-      // Create WMI locator
-      hr = CoCreateInstance(
-          CLSID_WbemLocator,
-          nullptr,
-          CLSCTX_INPROC_SERVER,
-          IID_IWbemLocator,
-          reinterpret_cast<void**>(&locator_)
+    // Create WMI locator
+    hr = CoCreateInstance(
+        CLSID_WbemLocator,
+        nullptr,
+        CLSCTX_INPROC_SERVER,
+        IID_IWbemLocator,
+        reinterpret_cast<void**>(&locator_)
+    );
+    if (FAILED(hr)) {
+      logger_.Debug(
+          "Failed to create WMI locator", {{"hresult", static_cast<int64_t>(hr)}}
       );
-      if (FAILED(hr)) {
-        logger_.Debug(
-            "Failed to create WMI locator", {{"hresult", static_cast<int64_t>(hr)}}
-        );
-        break;
-      }
+      return false;
+    }
 
-      // Connect to WMI
-      hr = locator_->ConnectServer(
-          _bstr_t(L"ROOT\\CIMV2"),
-          nullptr,
-          nullptr,
-          nullptr,
-          0,
-          nullptr,
-          nullptr,
-          &services_
+    // Connect to WMI
+    hr = locator_->ConnectServer(
+        _bstr_t(L"ROOT\\CIMV2"),
+        nullptr,
+        nullptr,
+        nullptr,
+        0,
+        nullptr,
+        nullptr,
+        &services_
+    );
+    if (FAILED(hr)) {
+      logger_.Debug(
+          "Failed to connect to WMI", {{"hresult", static_cast<int64_t>(hr)}}
       );
-      if (FAILED(hr)) {
-        logger_.Debug(
-            "Failed to connect to WMI", {{"hresult", static_cast<int64_t>(hr)}}
-        );
-        break;
-      }
+      return false;
+    }
 
-      // Set security on the proxy
-      hr = CoSetProxyBlanket(
-          services_,
-          RPC_C_AUTHN_WINNT,
-          RPC_C_AUTHZ_NONE,
-          nullptr,
-          RPC_C_AUTHN_LEVEL_CALL,
-          RPC_C_IMP_LEVEL_IMPERSONATE,
-          nullptr,
-          EOAC_NONE
+    // Set security on the proxy
+    hr = CoSetProxyBlanket(
+        services_,
+        RPC_C_AUTHN_WINNT,
+        RPC_C_AUTHZ_NONE,
+        nullptr,
+        RPC_C_AUTHN_LEVEL_CALL,
+        RPC_C_IMP_LEVEL_IMPERSONATE,
+        nullptr,
+        EOAC_NONE
+    );
+    if (FAILED(hr)) {
+      logger_.Debug(
+          "Failed to set WMI proxy blanket", {{"hresult", static_cast<int64_t>(hr)}}
       );
-      if (FAILED(hr)) {
-        logger_.Debug(
-            "Failed to set WMI proxy blanket", {{"hresult", static_cast<int64_t>(hr)}}
-        );
-        break;
-      }
+      return false;
+    }
 
-      initialized_ = true;
-      return true;
-
-    } while (false);
-
-    return false;
+    initialized_ = true;
+    return true;
   }
 
   /**
@@ -269,57 +270,56 @@ class WmiQueryContext {
     }
 
     HRESULT hr;
-    std::string result;
-    IEnumWbemClassObject* enumerator = nullptr;
+    IEnumWbemClassObject* enumerator = nullptr;  // Must be released once initialized
 
-    // Enter a `do { ... } while (false)` loop for common cleanup pattern
-    do {
-      // Execute WMI query
-      std::wstring query =
-          L"SELECT " + std::wstring(property) + L" FROM " + std::wstring(wmi_class);
-      hr = services_->ExecQuery(
-          _bstr_t(L"WQL"),
-          _bstr_t(query.c_str()),
-          WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
-          nullptr,
-          &enumerator
+    // Execute WMI query, populating enumerator on success
+    std::wstring query =
+        L"SELECT " + std::wstring(property) + L" FROM " + std::wstring(wmi_class);
+    hr = services_->ExecQuery(
+        _bstr_t(L"WQL"),
+        _bstr_t(query.c_str()),
+        WBEM_FLAG_FORWARD_ONLY | WBEM_FLAG_RETURN_IMMEDIATELY,
+        nullptr,
+        &enumerator
+    );
+    if (FAILED(hr)) {
+      DATADOG_ASSERT(
+          enumerator == nullptr,
+          "IWbemServices::ExecQuery returned valid enumerator on failure"
       );
-      if (FAILED(hr)) {
-        logger_.Debug(
-            "Failed to execute WMI query", {{"hresult", static_cast<int64_t>(hr)}}
-        );
-        break;
-      }
-
-      // Get the first result
-      IWbemClassObject* obj = nullptr;
-      ULONG returned = 0;
-      hr = enumerator->Next(WBEM_INFINITE, 1, &obj, &returned);
-      if (FAILED(hr) || returned == 0) {
-        if (obj) {
-          obj->Release();
-        }
-        break;
-      }
-
-      // Get the property value
-      VARIANT variant;
-      VariantInit(&variant);
-      hr = obj->Get(property, 0, &variant, nullptr, nullptr);
-      if (SUCCEEDED(hr) && variant.vt == VT_BSTR && variant.bstrVal) {
-        result = WideToUtf8(variant.bstrVal);
-      }
-
-      VariantClear(&variant);
-      obj->Release();
-
-    } while (false);
-
-    // Clean up query-specific resources
-    if (enumerator) {
-      enumerator->Release();
+      logger_.Debug(
+          "Failed to execute WMI query", {{"hresult", static_cast<int64_t>(hr)}}
+      );
+      return "";
     }
 
+    // Use the enumerator to get the first result
+    IWbemClassObject* obj = nullptr;
+    ULONG returned = 0;
+    hr = enumerator->Next(WBEM_INFINITE, 1, &obj, &returned);
+    if (FAILED(hr) || returned == 0) {
+      enumerator->Release();
+      DATADOG_ASSERT(
+          obj == nullptr, "IWbemClassObject::Next returned valid obj on failure"
+      );
+      return "";
+    }
+
+    // Get the property value
+    std::string result;
+    VARIANT variant;
+    VariantInit(&variant);
+    hr = obj->Get(property, 0, &variant, nullptr, nullptr);
+    if (SUCCEEDED(hr) && variant.vt == VT_BSTR && variant.bstrVal) {
+      result = WideToUtf8(variant.bstrVal);
+    }
+
+    // Cleanup
+    VariantClear(&variant);
+    obj->Release();
+    enumerator->Release();
+
+    // Return value as string
     return result;
   }
 };
