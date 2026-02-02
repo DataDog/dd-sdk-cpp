@@ -91,35 +91,6 @@ static size_t _object_len(const Attribute& value) {
   return len;
 }
 
-static size_t _object_write(char* dst, size_t n, const Attribute& value) {
-  char* ptr = dst;
-  char* const dst_end = dst + n;
-
-  // Open object literal
-  *ptr++ = '{';
-
-  // Write name:value pairs for each property, comma-delimited, serializing values
-  // recursively
-  const size_t num_properties = value.GetObjectPropertyCount();
-  for (int i = 0, num = static_cast<int>(num_properties); i < num; i++) {
-    if (i > 0) {
-      *ptr++ = ',';
-    }
-    ptr += WriteJson(ptr, dst_end - ptr, value.GetObjectPropertyNameAt(i));
-    *ptr++ = ':';
-    ptr += WriteJson(ptr, dst_end - ptr, value.GetObjectPropertyValueAt(i));
-  }
-
-  // Close object literal
-  *ptr++ = '}';
-
-  // Return total number of bytes written, which should have been less than or equal to
-  // the available space in the buffer
-  const size_t num_bytes_written = ptr - dst;
-  DATADOG_ASSERT(num_bytes_written <= n, "buffer overflow on object encode");
-  return num_bytes_written;
-}
-
 size_t GetJsonSize(const Attribute& value) {
   switch (value.GetType()) {
     case ValueType::Null:
@@ -171,7 +142,9 @@ size_t WriteJson(char* dst, size_t n, const Attribute& value) {
       return _array_write(dst, n, value);
     }
     case ValueType::Object: {
-      return _object_write(dst, n, value);
+      // Call our object-serialization helper function, specializing it to perform no
+      // filtering based on property names
+      return WriteFilteredJsonObject(dst, n, value, nullptr);
     }
   }
   DATADOG_ASSERT(false, "unhandled ValueType in WriteJson");

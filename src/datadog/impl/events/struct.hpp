@@ -14,6 +14,7 @@
 #include <string_view>
 #include <utility>
 
+#include "datadog/impl/assert.hpp"
 #include "datadog/impl/json.hpp"
 
 namespace datadog::impl {
@@ -168,6 +169,122 @@ size_t WriteJson(char* dst, size_t n, const Fields&&... fields) {
 
   *ptr++ = '}';
   return ptr - dst;
+}
+
+/**
+ * Defines the JSON object format used to serialize a value of type `Type`, merging any
+ * custom user-specified property values specified via an Attribute member whose name
+ * is given as `Extra`.
+ *
+ * The resulting serialization routines work identically to `DATADOG_JSON_STRUCT`,
+ * except that if the member specified by `Extra` is an Attribute with one or more
+ * object property values, those property values will be merged into the resulting JSON
+ * object at top-level, alongside the ordinary struct members declared via
+ * `DATADOG_JSON_FIELD`. If the `Extra` object contains any properties with names that
+ * conflict with the names specified as struct fields, those values will be omitted.
+ *
+ * The extra `Attribute` field should _NOT_ be listed in `DATADOG_JSON_STRUCT`; it
+ * should instead by listed immediately after the type, without being wrapped in any
+ * macro.
+ */
+#define DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(Type, Extra, ...)      \
+  inline size_t GetJsonSize(const Type& obj) {                           \
+    return GetJsonSizeWithExtraAttributes(obj.Extra, __VA_ARGS__);       \
+  }                                                                      \
+  inline size_t WriteJson(char* dst, size_t n, const Type& obj) {        \
+    return WriteJsonWithExtraAttributes(obj.Extra, dst, n, __VA_ARGS__); \
+  }
+
+/**
+ * Returns the worst-case buffer size required to JSON-serialized a set of struct fields
+ * along with the values specified in the given `extra` object.
+ */
+template <typename... Fields>
+size_t GetJsonSizeWithExtraAttributes(
+    const Attribute& extra, const Fields&&... fields
+) {
+  // Compute the size required to encode all our struct fields as a JSON object, without
+  // any extra attributes merged in; and use that value as-is if we have no extra fields
+  const size_t base_size = GetJsonSize(std::forward<const Fields>(fields)...);
+  if (extra.GetObjectPropertyCount() == 0) {
+    return base_size;
+  }
+
+  // If we've been provided with extra fields, extend our reserved size to also fit the
+  // full, JSON-encoded representation of those fields as their own object, with the
+  // leading brace trimmed off: this does not account for any extra properties with
+  // reserved field names (which will be filtered out in WriteJsonWithExtraAttributes),
+  // but it's OK if we overshoot slightly in edge cases
+  return base_size + GetJsonSize(extra) - 1;
+}
+
+/**
+ * Serializes the given set of struct fields to JSON, merging in any `extra` attribute
+ * attribute values that are safe to merge. A value is safe to merge if its property
+ * name does not conflict with any of the struct field names given in `fields`.
+ */
+template <typename... Fields>
+size_t WriteJsonWithExtraAttributes(
+    const Attribute& extra, char* dst, size_t n, const Fields&&... fields
+) {
+  // Use the normal struct serialization implementation to produce a JSON object with
+  // the base fields of our struct, e.g. `{"id":"foo","name":"bar"}`. (Even in the null
+  // case, this value will still be a valid JSON object, e.g. `{}`.)
+  const size_t base_size = WriteJson(dst, n, std::forward<const Fields>(fields)...);
+  DATADOG_ASSERT(
+      base_size >= 2 && dst[0] == '{' && dst[base_size - 1] == '}',
+      "WriteJson for struct produced non-object value"
+  );
+
+  // If we have no extra attributes whatsoever, early-out and return the base object
+  // as-is: no need to bother with filtering or concatenation
+  if (extra.GetObjectPropertyCount() == 0) {
+    return base_size;
+  }
+
+  // It's possible that the set of `extra` attributes includes one or more top-level
+  // property values that overlap with the set of canonical property names specified in
+  // `fields`. Prepare a constexpr function that will return true if a given attribute
+  // name is safe for merging; false if it conflicts with a value in `fields`.
+  auto is_safe_name = [&](std::string_view name) constexpr {
+    return !((name == std::forward<const Fields>(fields).first) || ...);
+  };
+
+  // Advance to the last character of the base object to begin writing extra properties
+  char* extra_start = dst + base_size - 1;
+  DATADOG_ASSERT(*extra_start == '}', "Bad write position for extra properties");
+
+  // Write extra properties, overlapping the original JSON value by one, then convert
+  // the extra object's opening brace to a comma to concatenate the two
+  const size_t extra_size =
+      WriteFilteredJsonObject(extra_start, n - base_size + 1, extra, is_safe_name);
+  DATADOG_ASSERT(
+      extra_size >= 2 && *extra_start == '{' && *(extra_start + extra_size - 1) == '}',
+      "WriteFilteredJsonObject produced non-object value"
+  );
+
+  // Note that in a case where `extra` contains only properties with reserved names, it
+  // could write `{}`, producing `{"id":"foo","name":"bar"{}`, which would not be valid
+  // JSON if we turned it into `{"id":"foo","name":"bar",}`. We need to handle this case
+  // specifically, after we serialize the extra attributes, since catching it beforehand
+  // would require iterating over all property values up-front to perform a separate
+  // filtering pass.
+  if (extra_size == 2) {
+    // Return the last character to a closing brace, then return the original size: JSON
+    // values are not null-terminated, so we can leave the extra '}' alone
+    *extra_start = '}';
+    return base_size;
+  }
+
+  // Otherwise, it's guaranteed that both our base value and our extra value were
+  // encoded as JSON object values with at least 1 property, so replacing the extra
+  // value's opening '{' (which was originally the base value's closing '}') with a
+  // comma will correctly concatenate the two values into a single object
+  *extra_start = ',';
+
+  // Return the total size of both values, accounting for the fact that we overlapped
+  // them by one byte
+  return base_size + extra_size - 1;
 }
 
 }  // namespace datadog::impl
