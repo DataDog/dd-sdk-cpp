@@ -27,6 +27,7 @@ option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS
 option(DD_ENABLE_CRASHPAD "Enable crash reporting support via Crashpad" ${DD_DEVELOPMENT})
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
+option(DD_BUILD_TOOLS "Build optional utilities from C++ source within tools/" ${DD_DEVELOPMENT})
 option(DD_BUILD_INSTALL "Enable install targets" ${DD_IS_TOP_LEVEL})
 if(DD_BUILD_INSTALL)
     option(DD_BUILD_PACKAGE "Enable package targets and build required tools" ${DD_BUILD_INSTALL})
@@ -111,6 +112,12 @@ endif()
 if(DD_BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# If configured to build developer tools, include the CMake targets defined in tools/
+# for utilities written in C++
+if(DD_BUILD_TOOLS)
+    add_subdirectory(tools/print-system-info)
 endif()
 
 # Only install when DD_BUILD_INSTALL is enabled

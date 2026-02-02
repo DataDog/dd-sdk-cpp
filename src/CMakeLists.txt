@@ -175,6 +175,23 @@ else()
     endif()
 endif()
 
+# Platform-specific support for system info
+option(DD_SYSTEMINFO_USE_DEFAULT "Use default system info implementation. If disabled, you must supply an implementation of platform/system_info.hpp in a file specified as DD_SYSTEMINFO_SRC" ON)
+if(DD_SYSTEMINFO_USE_DEFAULT)
+    if(WIN32)
+        target_sources(dd_native PRIVATE datadog/impl/platform/system_info_windows.cpp)
+    elseif(APPLE)
+        target_sources(dd_native PRIVATE datadog/impl/platform/system_info_macos.cpp)
+    elseif(UNIX)
+        target_sources(dd_native PRIVATE datadog/impl/platform/system_info_linux.cpp)
+    endif()
+else()
+    set(DD_SYSTEMINFO_SRC "" CACHE STRING "Path to custom implementation of platform/system_info.hpp")
+    if(DD_SYSTEMINFO_SRC)
+        target_sources(dd_native PRIVATE ${DD_SYSTEMINFO_SRC})
+    endif()
+endif()
+
 # If building with crashpad support, integrate crashpad as a dependency: this adds an
 # ExternalProject target that will build crashpad, then adds the resulting static lib as
 # a dependency for dd_native. To ensure binary-compatible builds, this script must run

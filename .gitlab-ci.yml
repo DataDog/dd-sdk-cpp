@@ -245,7 +245,6 @@ build-windows:
       cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=${env:DD_ENABLE_CRASHPAD} -DDD_RUN_CRASHPAD_TESTS=${env:DD_ENABLE_CRASHPAD} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
-
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
 # support with precompiled binaries
 

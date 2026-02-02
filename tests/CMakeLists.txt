@@ -69,6 +69,7 @@ add_executable(dd_native_tests
     impl/platform/clock_test.cpp
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
+    impl/platform/system_info_test.cpp
     impl/diagnostics_test.cpp
     impl/error_message_test.cpp
     impl/json_test.cpp
