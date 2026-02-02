@@ -20,6 +20,19 @@
 
 namespace datadog::impl {
 
+// Type trait to detect pair-like types (types with .first and .second members)
+template <typename T, typename = void>
+struct is_pair_like : std::false_type {};
+
+template <typename T>
+struct is_pair_like<
+    T,
+    std::void_t<decltype(std::declval<T>().first), decltype(std::declval<T>().second)>>
+    : std::true_type {};
+
+template <typename T>
+inline constexpr bool is_pair_like_v = is_pair_like<std::decay_t<T>>::value;
+
 /**
  * This file implements JSON serialization support for arbitrary data structures.
  *
@@ -112,7 +125,9 @@ namespace datadog::impl {
  * the form `std::pair<std::string_view, T>`, returns the total number of bytes required
  * to encode the given values for those fields as a JSON object.
  */
-template <typename... Fields>
+template <
+    typename... Fields,
+    typename = std::enable_if_t<(is_pair_like_v<Fields> && ...)>>
 size_t GetJsonSize(const Fields&&... fields) {
   // An empty struct is simply encoded as '{}'
   if constexpr (sizeof...(Fields) == 0) {
@@ -138,7 +153,9 @@ size_t GetJsonSize(const Fields&&... fields) {
  * Given a set of fields declared via DATADOG_JSON_FIELD, serializes a JSON object
  * containing each of those fields' names and values.
  */
-template <typename... Fields>
+template <
+    typename... Fields,
+    typename = std::enable_if_t<(is_pair_like_v<Fields> && ...)>>
 size_t WriteJson(char* dst, size_t n, const Fields&&... fields) {
   char* ptr = dst;
   *ptr++ = '{';
@@ -208,7 +225,9 @@ size_t WriteJson(char* dst, size_t n, const Fields&&... fields) {
  * Returns the worst-case buffer size required to JSON-serialize a set of struct fields
  * along with the values specified in the given `extra` object.
  */
-template <typename... Fields>
+template <
+    typename... Fields,
+    typename = std::enable_if_t<(is_pair_like_v<Fields> && ...)>>
 size_t GetJsonSizeWithExtraAttributes(
     const Attribute& extra, const Fields&&... fields
 ) {
@@ -232,7 +251,9 @@ size_t GetJsonSizeWithExtraAttributes(
  * attribute values that are safe to merge. A value is safe to merge if its property
  * name does not conflict with any of the struct field names given in `fields`.
  */
-template <typename... Fields>
+template <
+    typename... Fields,
+    typename = std::enable_if_t<(is_pair_like_v<Fields> && ...)>>
 size_t WriteJsonWithExtraAttributes(
     const Attribute& extra, char* dst, size_t n, const Fields&&... fields
 ) {
