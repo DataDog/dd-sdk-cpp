@@ -50,18 +50,18 @@ std::string GetSysctlString(const char* name) {
  * @param version Full version string (e.g., "14.2.1")
  * @return Major version component (e.g., "14"), or "0" if parsing fails
  */
-std::string ParseMajorVersion(const std::string& version) {
+std::string ParseMajorVersion(std::string_view version) {
   if (version.empty()) {
     return "0";
   }
 
   size_t dot_pos = version.find('.');
-  if (dot_pos == std::string::npos) {
+  if (dot_pos == std::string_view::npos) {
     // No dot found; entire string is the major version
-    return version;
+    return std::string(version);
   }
 
-  return version.substr(0, dot_pos);
+  return std::string(version.substr(0, dot_pos));
 }
 
 /**
@@ -72,7 +72,7 @@ std::string ParseMajorVersion(const std::string& version) {
  * @param model Model string from hw.model
  * @return Alphabetical prefix, or empty string if model is empty
  */
-std::string ExtractDeviceName(const std::string& model) {
+std::string ExtractDeviceName(std::string_view model) {
   if (model.empty()) {
     return "";
   }
@@ -83,7 +83,7 @@ std::string ExtractDeviceName(const std::string& model) {
     ++end;
   }
 
-  return model.substr(0, end);
+  return std::string(model.substr(0, end));
 }
 
 /**
@@ -121,9 +121,10 @@ std::string GetUserLocale(impl::DiagnosticLogger& logger) {
         CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
     std::string buffer(max_size, '\0');
     if (CFStringGetCString(locale_id, buffer.data(), max_size, kCFStringEncodingUTF8)) {
-      // Remove null terminator
+      // Remove null terminator - resize in place
       size_t actual_length = strlen(buffer.c_str());
-      result = buffer.substr(0, actual_length);
+      buffer.resize(actual_length);
+      result = std::move(buffer);
     }
   }
 
@@ -173,9 +174,10 @@ std::string GetSystemTimezone(impl::DiagnosticLogger& logger) {
         CFStringGetMaximumSizeForEncoding(length, kCFStringEncodingUTF8) + 1;
     std::string buffer(max_size, '\0');
     if (CFStringGetCString(tz_name, buffer.data(), max_size, kCFStringEncodingUTF8)) {
-      // Remove null terminator
+      // Remove null terminator - resize in place
       size_t actual_length = strlen(buffer.c_str());
-      result = buffer.substr(0, actual_length);
+      buffer.resize(actual_length);
+      result = std::move(buffer);
     }
   }
 
