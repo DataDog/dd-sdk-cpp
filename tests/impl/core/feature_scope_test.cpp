@@ -82,7 +82,18 @@ struct FeatureState {
 TEST_CASE("FeatureScope thread safety", "[unit][core][thread-safety]") {
   // Given a CoreContextProvider
   platform::OsInfo os_info{"mock-os", "2.3.4", "mock-build-number", "2"};
-  CoreContext initial_context(CoreConfig("client-token", "service", "env"), os_info);
+  platform::DeviceInfo device_info{
+      "desktop",
+      "mock-device",
+      "mock-model",
+      "mock-brand",
+      "x86_64",
+      "en-US",
+      "America/New_York"
+  };
+  CoreContext initial_context(
+      CoreConfig("client-token", "service", "env"), os_info, device_info
+  );
   CoreContextProvider context_provider(initial_context);
 
   // And three independent features that will handle API calls from different threads

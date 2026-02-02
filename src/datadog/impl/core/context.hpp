@@ -19,6 +19,7 @@
 
 namespace datadog::platform {
 struct OsInfo;
+struct DeviceInfo;
 }  // namespace datadog::platform
 
 namespace datadog::impl {
@@ -109,9 +110,14 @@ struct HttpContext {
  */
 struct CoreContext {
   /**
-   * Initializes a new CoreContext from the provided SDK config and OS information.
+   * Initializes a new CoreContext from the provided SDK config, OS info, and device
+   * info.
    */
-  explicit CoreContext(const CoreConfig& config, const platform::OsInfo& os_info);
+  explicit CoreContext(
+      const CoreConfig& config,
+      const platform::OsInfo& os_info,
+      const platform::DeviceInfo& device_info
+  );
 
   /**
    * Immutable configuration details that affect the building of HTTP requests in the
@@ -126,6 +132,12 @@ struct CoreContext {
    * Borrowed from ISystemInfo subsystem, which is tied to the lifetime of the Core.
    */
   const platform::OsInfo* os;
+
+  /**
+   * Device information collected at SDK startup.
+   * Borrowed from ISystemInfo subsystem, which is tied to the lifetime of the Core.
+   */
+  const platform::DeviceInfo* device;
 
   /**
    * Additional context provided by the RUM feature, if in use.

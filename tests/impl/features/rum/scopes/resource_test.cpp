@@ -53,6 +53,15 @@ class ResourceFixture {
   std::vector<CapturedResourceEvent> events;
   std::vector<std::string> captured_warnings;
   platform::OsInfo os_info{"mock-os", "2.3.4", "mock-build-number", "2"};
+  platform::DeviceInfo device_info{
+      "desktop",
+      "mock-device",
+      "mock-model",
+      "mock-brand",
+      "x86_64",
+      "en-US",
+      "America/New_York"
+  };
   CoreContextProvider context_provider;
   FeatureScope feature_scope;
 
@@ -97,7 +106,9 @@ class ResourceFixture {
             Attribute()
         ),
         context_provider(CoreContext(
-            CoreConfig{"fake-client-token", "fake-service", "fake-env"}, os_info
+            CoreConfig{"fake-client-token", "fake-service", "fake-env"},
+            os_info,
+            device_info
         )),
         feature_scope(
             context_provider,

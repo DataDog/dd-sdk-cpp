@@ -40,7 +40,16 @@ class ActionFixture {
   static constexpr const char* ACTION_ID = "4c10171e-4334-4334-4334-b0000eeeefff";
 
   MockClock clock;
-  platform::OsInfo os_info;
+  platform::OsInfo os_info{"mock-os", "2.3.4", "mock-build-number", "2"};
+  platform::DeviceInfo device_info{
+      "desktop",
+      "mock-device",
+      "mock-model",
+      "mock-brand",
+      "x86_64",
+      "en-US",
+      "America/New_York"
+  };
 
   RumConfig config;
   RumScopeDependencies deps;
@@ -97,7 +106,9 @@ class ActionFixture {
             Attribute()
         ),
         context_provider(CoreContext(
-            CoreConfig{"fake-client-token", "fake-service", "fake-env"}, os_info
+            CoreConfig{"fake-client-token", "fake-service", "fake-env"},
+            os_info,
+            device_info
         )),
         feature_scope(
             context_provider,
