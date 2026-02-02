@@ -183,8 +183,8 @@ size_t WriteJson(char* dst, size_t n, const Fields&&... fields) {
  * `DATADOG_JSON_FIELD`. If the `Extra` object contains any properties with names that
  * conflict with the names specified as struct fields, those values will be omitted.
  *
- * The extra `Attribute` field should _NOT_ be listed in `DATADOG_JSON_STRUCT`; it
- * should instead by listed immediately after the type, without being wrapped in any
+ * The extra `Attribute` field should _NOT_ be listed in the set of `DATADOG_JSON_FIELD`
+ * declarations; it should instead be provided as `Extra`, without being wrapped in any
  * macro.
  */
 #define DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(Type, Extra, ...)      \
@@ -196,7 +196,7 @@ size_t WriteJson(char* dst, size_t n, const Fields&&... fields) {
   }
 
 /**
- * Returns the worst-case buffer size required to JSON-serialized a set of struct fields
+ * Returns the worst-case buffer size required to JSON-serialize a set of struct fields
  * along with the values specified in the given `extra` object.
  */
 template <typename... Fields>
@@ -270,7 +270,7 @@ size_t WriteJsonWithExtraAttributes(
   // would require iterating over all property values up-front to perform a separate
   // filtering pass.
   if (extra_size == 2) {
-    // Return the last character to a closing brace, then return the original size: JSON
+    // Revert the last character to a closing brace, then return the original size: JSON
     // values are not null-terminated, so we can leave the extra '}' alone
     *extra_start = '}';
     return base_size;
