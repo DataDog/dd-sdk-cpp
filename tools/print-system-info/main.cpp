@@ -31,16 +31,22 @@ int main() {
   };
 
   // Initialize the SystemInfo implementation (whichever is compiled into this build)
-  // and retrieve OS info
-  // TODO(RUM-14016): Retrieve device info as well
+  // and retrieve OS and device info
   auto system_info = datadog::platform::SystemInfo::Init(logger);
   const auto& os = system_info->GetOsInfo();
+  const auto& device = system_info->GetDeviceInfo();
 
-  // TODO(RUM-14016): Dump device info, prefixed with 'device.'
   std::cout << "os.name: " << os.name << "\n"
             << "os.version: " << os.version << "\n"
             << "os.build: " << os.build << "\n"
-            << "os.version_major: " << os.version_major << "\n";
+            << "os.version_major: " << os.version_major << "\n"
+            << "device.type: " << device.type << "\n"
+            << "device.name: " << device.name << "\n"
+            << "device.model: " << device.model << "\n"
+            << "device.brand: " << device.brand << "\n"
+            << "device.architecture: " << device.architecture << "\n"
+            << "device.locale: " << device.locale << "\n"
+            << "device.time_zone: " << device.time_zone << "\n";
 
   return 0;
 }
