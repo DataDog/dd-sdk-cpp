@@ -27,6 +27,7 @@
 #include "datadog/impl/core/upload_scheduler.hpp"
 #include "datadog/impl/core/upload_thread.hpp"
 #include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 // Forward declarations
 namespace datadog::platform {
@@ -80,15 +81,18 @@ struct CoreSubsystems {
   std::unique_ptr<platform::IClock> clock;
   std::unique_ptr<platform::IStorageDirectory> storage_root;
   std::unique_ptr<platform::IHttpSubsystem> http;
+  std::unique_ptr<platform::ISystemInfo> system_info;
 
   explicit CoreSubsystems(
       std::unique_ptr<platform::IClock>&& in_clock,
       std::unique_ptr<platform::IStorageDirectory>&& in_storage_root,
-      std::unique_ptr<platform::IHttpSubsystem>&& in_http
+      std::unique_ptr<platform::IHttpSubsystem>&& in_http,
+      std::unique_ptr<platform::ISystemInfo>&& in_system_info
   )
       : clock(std::move(in_clock)),
         storage_root(std::move(in_storage_root)),
-        http(std::move(in_http)) {}
+        http(std::move(in_http)),
+        system_info(std::move(in_system_info)) {}
 
   /**
    * Initializes the default implementations of platform subsystems, to be injected

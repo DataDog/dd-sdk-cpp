@@ -16,6 +16,7 @@
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/features/logging/logging.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 #include "mock/clock.hpp"
 #include "support/feature.hpp"
@@ -24,6 +25,7 @@ using namespace datadog;
 using namespace datadog::impl;
 
 static const CoreConfig CORE_CONFIG("mock-client-token", "mock-service", "mock-env");
+static const platform::OsInfo OS_INFO{"mock-os", "2.3.4", "mock-build-number", "2"};
 
 TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
   static const UUID uuid_9916 = *UUID::Parse("99163baf-48fe-458f-b777-eab1e4038342");
@@ -57,7 +59,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     auto logger = logging->CreateLogger(LoggerConfig());
 
     // And a context that includes RUM session details
-    CoreContext context(CORE_CONFIG);
+    CoreContext context(CORE_CONFIG, OS_INFO);
     context.rum = RumFeatureContext();
     context.rum->application_id = uuid_9916;
     context.rum->session_id = uuid_d927;
@@ -89,7 +91,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
 
     // And a context that includes a RUM application ID and session ID, but no view or
     // action ID
-    CoreContext context(CORE_CONFIG);
+    CoreContext context(CORE_CONFIG, OS_INFO);
     context.rum = RumFeatureContext();
     context.rum->application_id = uuid_9916;
     context.rum->session_id = uuid_d927;
@@ -118,7 +120,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     auto logger = logging->CreateLogger(LoggerConfig());
 
     // And a context that includes a RUM application ID, but no session
-    CoreContext context(CORE_CONFIG);
+    CoreContext context(CORE_CONFIG, OS_INFO);
     context.rum = RumFeatureContext();
     context.rum->application_id = uuid_9916;
 
@@ -154,7 +156,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     auto logger = logging->CreateLogger(LoggerConfig().SetEnrichWithRumContext(false));
 
     // And a context that includes RUM session details
-    CoreContext context(CORE_CONFIG);
+    CoreContext context(CORE_CONFIG, OS_INFO);
     context.rum = RumFeatureContext();
     context.rum->application_id = uuid_9916;
     context.rum->session_id = uuid_d927;
@@ -184,7 +186,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     auto logger = logging->CreateLogger(LoggerConfig());
 
     // And a context that has no RumFeatureContext
-    CoreContext context(CORE_CONFIG);
+    CoreContext context(CORE_CONFIG, OS_INFO);
 
     // When we emit a log event while the SDK is running
     FeatureTest test(context);

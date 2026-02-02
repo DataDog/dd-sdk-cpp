@@ -17,6 +17,10 @@
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/site.hpp"
 
+namespace datadog::platform {
+struct OsInfo;
+}  // namespace datadog::platform
+
 namespace datadog::impl {
 
 /**
@@ -105,9 +109,9 @@ struct HttpContext {
  */
 struct CoreContext {
   /**
-   * Initializes a new CoreContext from the provided SDK config.
+   * Initializes a new CoreContext from the provided SDK config and OS information.
    */
-  explicit CoreContext(const CoreConfig& config);
+  explicit CoreContext(const CoreConfig& config, const platform::OsInfo& os_info);
 
   /**
    * Immutable configuration details that affect the building of HTTP requests in the
@@ -116,6 +120,12 @@ struct CoreContext {
    * feature-specific operation depends on CoreContext - @see CoreContextProvider.
    */
   std::shared_ptr<const HttpContext> http;
+
+  /**
+   * Operating system information collected at SDK startup.
+   * Borrowed from ISystemInfo subsystem, which is tied to the lifetime of the Core.
+   */
+  const platform::OsInfo* os;
 
   /**
    * Additional context provided by the RUM feature, if in use.

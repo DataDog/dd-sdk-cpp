@@ -18,6 +18,7 @@
 #include "datadog/impl/features/rum/context.hpp"
 #include "datadog/impl/features/rum/scopes/application.hpp"
 #include "datadog/impl/features/rum/scopes/session.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 #include "mock/clock.hpp"
 
@@ -49,6 +50,7 @@ class ViewFixture {
   std::vector<CapturedViewEvent> events;
   size_t num_non_view_events{0};
   std::vector<std::string> captured_warnings;
+  platform::OsInfo os_info{"mock-os", "2.3.4", "mock-build-number", "2"};
   CoreContextProvider context_provider;
   FeatureScope feature_scope;
 
@@ -80,9 +82,9 @@ class ViewFixture {
                 std::chrono::milliseconds{1700000000000}
             )}
         ),
-        context_provider(
-            CoreContext(CoreConfig{"fake-client-token", "fake-service", "fake-env"})
-        ),
+        context_provider(CoreContext(
+            CoreConfig{"fake-client-token", "fake-service", "fake-env"}, os_info
+        )),
         feature_scope(
             context_provider,
             [this](Block event, Block event_metadata) {

@@ -18,6 +18,7 @@
 #include "mock/clock.hpp"
 #include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
+#include "mock/system_info.hpp"
 #include "support/diagnostics.hpp"
 
 using namespace datadog;
@@ -73,6 +74,7 @@ struct CoreTestHarness {
     auto _clock = std::make_unique<MockClock>();
     auto _storage_root = std::make_unique<MockStorageDirectory>();
     auto _http = std::make_unique<MockHttpSubsystem>();
+    auto _system_info = std::make_unique<MockSystemInfo>();
 
     // Capture references to the underlying objects before we transfer ownership out of
     // these unique_ptrs
@@ -88,7 +90,10 @@ struct CoreTestHarness {
     auto core = std::make_unique<impl::Core>(
         config,
         impl::CoreSubsystems(
-            std::move(_clock), std::move(_storage_root), std::move(_http)
+            std::move(_clock),
+            std::move(_storage_root),
+            std::move(_http),
+            std::move(_system_info)
         )
     );
 
