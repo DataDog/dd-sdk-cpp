@@ -4,6 +4,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+// Enable POSIX APIs including ucontext routines
+#define _XOPEN_SOURCE 700
+
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
