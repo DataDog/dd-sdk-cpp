@@ -74,7 +74,7 @@ std::string_view NamedValueList::Get(std::string_view name) const {
 int64_t NamedValueList::GetInt(std::string_view name) const {
   int64_t value{0};
   std::string_view str_value = Get(name);
-  std::from_chars(str_value.begin(), str_value.end(), value);
+  std::from_chars(str_value.data(), str_value.data() + str_value.size(), value);
   return value;
 }
 
