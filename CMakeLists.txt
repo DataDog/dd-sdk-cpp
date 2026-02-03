@@ -26,7 +26,7 @@ option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
 set(DD_CRASH_MODE_DEFAULT "noop")
 if(DD_DEVELOPMENT)
-    set(DD_CRASH_MODE_DEFAULT "inprocess")
+    set(DD_CRASH_MODE_DEFAULT "crashpad")
 endif()
 set(DD_CRASH_MODE ${DD_CRASH_MODE_DEFAULT} CACHE STRING "Crash handler mode: noop, inprocess, or crashpad")
 set_property(CACHE DD_CRASH_MODE PROPERTY STRINGS "noop" "inprocess" "crashpad")
