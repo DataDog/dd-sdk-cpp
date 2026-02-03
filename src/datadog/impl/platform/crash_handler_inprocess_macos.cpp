@@ -18,39 +18,47 @@
 
 namespace datadog::platform {
 
+// This file implements an async-signal-safe crash handler that must use low-level
+// C-style operations and avoid modern C++ constructs. The following linter checks
+// are disabled because they conflict with async-signal-safety requirements:
+// NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTBEGIN(readability-braces-around-statements)
+// NOLINTBEGIN(google-readability-braces-around-statements)
+// NOLINTBEGIN(google-runtime-int)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+// NOLINTBEGIN(cppcoreguidelines-narrowing-conversions)
+// NOLINTBEGIN(bugprone-narrowing-conversions)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-cstyle-cast)
+// NOLINTBEGIN(google-readability-casting)
+// NOLINTBEGIN(performance-no-int-to-ptr)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-member-init)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
+// NOLINTBEGIN(cppcoreguidelines-no-malloc)
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+
 // BEHAVIOR: Only the first crash per process is captured.
 // Subsequent crashes (if handler doesn't exit) use OS default handler.
 
-// Signal-safe global state
-// Required for async-signal-safe crash handler
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+// Signal-safe global state required for async-signal-safe crash handler
 static volatile sig_atomic_t s_crash_fd = -1;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static char s_crash_filename[256];
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct sigaction s_old_sigsegv;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct sigaction s_old_sigbus;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct sigaction s_old_sigill;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct sigaction s_old_sigfpe;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static struct sigaction s_old_sigabrt;
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static void* s_sigalt_stack = nullptr;
 
 // Async-signal-safe helper: write a string literal
 static void write_str(int fd, const char* str) {
   size_t len = 0;
-  while (str[len]) {  // NOLINT(readability-braces-around-statements)
+  while (str[len])
     len++;
-  }
   write(fd, str, len);
 }
 
 // Async-signal-safe helper: write an unsigned integer as decimal
-// NOLINTNEXTLINE(google-runtime-int): unsigned long is standard for async-signal-safe code
 static void write_uint(int fd, unsigned long val) {
   char buf[32];
   int i = 0;
@@ -61,14 +69,12 @@ static void write_uint(int fd, unsigned long val) {
   }
 
   while (val > 0) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index,cppcoreguidelines-narrowing-conversions,bugprone-narrowing-conversions)
     buf[i++] = '0' + (val % 10);
     val /= 10;
   }
 
   // Write in reverse order
   while (i > 0) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     write(fd, &buf[--i], 1);
   }
 }
@@ -79,22 +85,16 @@ static void write_hex_address(int fd, void* addr) {
   char buf[20]; // "0x" + 16 hex digits + "\n"
   int idx = 0;
 
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
   buf[idx++] = '0';
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
   buf[idx++] = 'x';
 
-  // NOLINTNEXTLINE(google-runtime-int,cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting)
   unsigned long val = (unsigned long)addr;
   // Write 16 hex digits (even if leading zeros)
   for (int shift = 60; shift >= 0; shift -= 4) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     buf[idx++] = hex_chars[(val >> shift) & 0xf];
   }
 
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
   buf[idx++] = '\n';
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
   write(fd, buf, idx);
 }
 
@@ -108,12 +108,10 @@ static void write_stack_trace(int fd, void* frame_pointer) {
   for (int i = 0; i < max_frames && fp != nullptr; i++) {
     // Validate frame pointer looks reasonable
     // Must be aligned and not obviously invalid
-    // NOLINTNEXTLINE(google-runtime-int,cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting)
     if ((unsigned long)fp < 0x1000 || ((unsigned long)fp & 0x7) != 0) {
       break;
     }
 
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting)
     void** frame = (void**)fp;
 
     // frame[0] = previous frame pointer
@@ -129,7 +127,6 @@ static void write_stack_trace(int fd, void* frame_pointer) {
     fp = frame[0]; // Move to next frame
 
     // Stop if next frame pointer is invalid
-    // NOLINTNEXTLINE(google-runtime-int,cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting)
     if (fp != nullptr && (unsigned long)fp <= (unsigned long)frame) {
       break; // Prevent backwards or circular references
     }
@@ -170,7 +167,6 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   write_str(fd, "\n");
 
   write_str(fd, "TID: ");
-  // NOLINTNEXTLINE(google-runtime-int,cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting)
   write_uint(fd, (unsigned long)pthread_self());
   write_str(fd, "\n");
 
@@ -184,14 +180,10 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   void* fp = nullptr;
 
 #ifdef __x86_64__
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting)
   ucontext_t* uc = (ucontext_t*)ucontext_raw;
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting,performance-no-int-to-ptr)
   fp = (void*)uc->uc_mcontext->__ss.__rbp;
 #elif defined(__aarch64__)
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting)
   ucontext_t* uc = (ucontext_t*)ucontext_raw;
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-cstyle-cast,google-readability-casting,performance-no-int-to-ptr)
   fp = (void*)uc->uc_mcontext->__ss.__fp;
 #else
   #error "Unsupported architecture for in-process crash handler"
@@ -220,11 +212,9 @@ class InProcessCrashHandler final : public ICrashHandler {
 
     // 2. Format crash filename with timestamp and PID
     time_t now = time(nullptr);
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init): Initialized by localtime_r
     struct tm tm_buf;
     localtime_r(&now, &tm_buf);
 
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg,cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     snprintf(s_crash_filename, sizeof(s_crash_filename),
              ".crashes/crash_%04d%02d%02d_%02d%02d%02d_%d.txt",
              tm_buf.tm_year + 1900, tm_buf.tm_mon + 1, tm_buf.tm_mday,
@@ -232,7 +222,6 @@ class InProcessCrashHandler final : public ICrashHandler {
              getpid());
 
     // 3. Pre-open crash file
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg,cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     s_crash_fd = open(s_crash_filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
     if (s_crash_fd < 0) {
       _logger.Error("Failed to open crash file for writing");
@@ -241,7 +230,6 @@ class InProcessCrashHandler final : public ICrashHandler {
 
     // 4. Allocate alternate signal stack
     const size_t stack_size = SIGSTKSZ * 2; // 16KB on most systems
-    // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory): Required for sigaltstack
     s_sigalt_stack = malloc(stack_size);
     if (!s_sigalt_stack) {
       close(s_crash_fd);
@@ -257,7 +245,6 @@ class InProcessCrashHandler final : public ICrashHandler {
     ss.ss_flags = 0;
 
     if (sigaltstack(&ss, nullptr) < 0) {
-      // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory): Required for sigaltstack
       free(s_sigalt_stack);
       s_sigalt_stack = nullptr;
       close(s_crash_fd);
@@ -267,7 +254,6 @@ class InProcessCrashHandler final : public ICrashHandler {
     }
 
     // 6. Register signal handlers
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-member-init): Initialized by memset
     struct sigaction sa;
     memset(&sa, 0, sizeof(sa));
     sa.sa_sigaction = crash_signal_handler;
@@ -300,7 +286,6 @@ class InProcessCrashHandler final : public ICrashHandler {
 
     if (!success) {
       // Clean up resources
-      // NOLINTNEXTLINE(cppcoreguidelines-no-malloc,cppcoreguidelines-owning-memory): Required for sigaltstack
       free(s_sigalt_stack);
       s_sigalt_stack = nullptr;
       close(s_crash_fd);
@@ -343,5 +328,21 @@ std::unique_ptr<ICrashHandler> CrashHandler::Init(
   (void)handler_exe_path;
   return std::make_unique<InProcessCrashHandler>(logger);
 }
+
+// NOLINTEND(cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-no-malloc)
+// NOLINTEND(cppcoreguidelines-pro-type-vararg)
+// NOLINTEND(cppcoreguidelines-pro-type-member-init)
+// NOLINTEND(performance-no-int-to-ptr)
+// NOLINTEND(google-readability-casting)
+// NOLINTEND(cppcoreguidelines-pro-type-cstyle-cast)
+// NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+// NOLINTEND(bugprone-narrowing-conversions)
+// NOLINTEND(cppcoreguidelines-narrowing-conversions)
+// NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
+// NOLINTEND(google-runtime-int)
+// NOLINTEND(google-readability-braces-around-statements)
+// NOLINTEND(readability-braces-around-statements)
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace datadog::platform
