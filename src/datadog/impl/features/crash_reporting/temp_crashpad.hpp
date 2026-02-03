@@ -8,7 +8,7 @@
 
 #include <string_view>
 
-// When the SDK is built with the CMake option DD_ENABLE_CRASHPAD, we'll be compiled
+// When the SDK is built with the CMake option DD_CRASH_MODE=crashpad, we'll be compiled
 // with DATADOG_WITH_CRASHPAD=1. If enabled, we can use the crashpad client library, and
 // we can expect the crashpad_handler executable to be deployed alongside the
 // application.

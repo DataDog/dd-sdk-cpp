@@ -8,3 +8,4 @@ Testing/
 .repl-env
 .plans/
 .crashpad/
+.crashes/

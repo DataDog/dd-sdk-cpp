@@ -6,12 +6,14 @@
 
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
 
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/platform/clock.hpp"
+#include "datadog/impl/platform/crash_handler.hpp"
 
 namespace datadog::impl {
 
@@ -49,8 +51,8 @@ class CrashReporting final : public Feature {
   // Configuration: path to the crashpad_handler executable
   const std::string _handler_exe_path;
 
-  // Tracks whether crash handler was successfully initialized
-  bool _initialized;
+  // Platform-specific crash handler implementation
+  std::unique_ptr<platform::ICrashHandler> _crash_handler;
 };
 
 }  // namespace datadog::impl

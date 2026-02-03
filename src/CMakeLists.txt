@@ -193,13 +193,36 @@ else()
     endif()
 endif()
 
-# If building with crashpad support, integrate crashpad as a dependency: this adds an
-# ExternalProject target that will build crashpad, then adds the resulting static lib as
-# a dependency for dd_native. To ensure binary-compatible builds, this script must run
-# after compile/link options for dd_native are fully configured.
-if(DD_ENABLE_CRASHPAD)
-    include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
-    target_compile_definitions(dd_native PUBLIC DATADOG_WITH_CRASHPAD=1)
+# Platform-specific crash handler implementation selection
+# Users can provide their own implementation by setting DD_CRASHHANDLER_USE_DEFAULT=OFF
+# and providing a custom source file via DD_CRASHHANDLER_SRC
+option(DD_CRASHHANDLER_USE_DEFAULT "Use default crash handler implementation" ON)
+if(DD_CRASHHANDLER_USE_DEFAULT)
+    if(DD_CRASH_MODE STREQUAL "noop")
+        target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_noop.cpp)
+    elseif(DD_CRASH_MODE STREQUAL "inprocess")
+        target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_inprocess.cpp)
+        # Add -fno-omit-frame-pointer for reliable POSIX stack walking
+        if(NOT WIN32)
+            target_compile_options(dd_native PRIVATE -fno-omit-frame-pointer)
+        endif()
+    elseif(DD_CRASH_MODE STREQUAL "crashpad")
+        # If building with crashpad support, integrate crashpad as a dependency: this
+        # adds an ExternalProject target that will build crashpad, then adds the
+        # resulting static lib as a dependency for dd_native. To ensure
+        # binary-compatible builds, this script must run after compile/link options for
+        # dd_native are fully configured.
+        include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
+        target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_crashpad.cpp)
+        target_compile_definitions(dd_native PUBLIC DATADOG_WITH_CRASHPAD=1)
+    else()
+        message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
+    endif()
+else()
+    set(DD_CRASHHANDLER_SRC "" CACHE STRING "Path to custom crash handler implementation")
+    if(DD_CRASHHANDLER_SRC)
+        target_sources(dd_native PRIVATE ${DD_CRASHHANDLER_SRC})
+    endif()
 endif()
 
 # Install configuration

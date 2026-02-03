@@ -24,7 +24,7 @@ class CrashReporting;
  * Configures the Crash Reporting feature.
  *
  * To enable Crash Reporting support in your application, the SDK must be compiled with
- * DD_ENABLE_CRASHPAD. At present, if you use Crashpad, your application build must
+ * DD_CRASH_MODE=crashpad. At present, if you use Crashpad, your application build must
  * target C++20, and you must distribute the crashpad_handler executable alongside your
  * application.
  */

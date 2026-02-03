@@ -24,7 +24,12 @@ option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools
 
 # Top-level options for the build
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
-option(DD_ENABLE_CRASHPAD "Enable crash reporting support via Crashpad" ${DD_DEVELOPMENT})
+set(DD_CRASH_MODE_DEFAULT "noop")
+if(DD_DEVELOPMENT)
+    set(DD_CRASH_MODE_DEFAULT "inprocess")
+endif()
+set(DD_CRASH_MODE ${DD_CRASH_MODE_DEFAULT} CACHE STRING "Crash handler mode: noop, inprocess, or crashpad")
+set_property(CACHE DD_CRASH_MODE PROPERTY STRINGS "noop" "inprocess" "crashpad")
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
 option(DD_BUILD_TOOLS "Build optional utilities from C++ source within tools/" ${DD_DEVELOPMENT})
@@ -54,7 +59,7 @@ if(DD_IS_TOP_LEVEL)
 
     # Crashpad requires C++20, so building the SDK with crashpad support requires
     # targeting C++20
-    if(DD_ENABLE_CRASHPAD)
+    if(DD_CRASH_MODE STREQUAL "crashpad")
         set(CMAKE_CXX_STANDARD 20)
     endif()
 endif()
