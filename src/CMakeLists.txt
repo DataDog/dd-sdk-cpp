@@ -39,7 +39,6 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/features/logging/logger.cpp
     datadog/impl/features/logging/logging.cpp
     datadog/impl/features/crash_reporting/crash_reporting.cpp
-    datadog/impl/features/crash_reporting/temp_crashpad.cpp
     datadog/impl/features/rum/containers/resource_map.cpp
     datadog/impl/features/rum/containers/view_array.cpp
     datadog/impl/features/rum/scopes/action.cpp
@@ -210,7 +209,6 @@ elseif(DD_CRASH_MODE STREQUAL "crashpad")
     # dd_native are fully configured.
     include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
     target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_crashpad.cpp)
-    target_compile_definitions(dd_native PUBLIC DATADOG_WITH_CRASHPAD=1)
 else()
     message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
 endif()

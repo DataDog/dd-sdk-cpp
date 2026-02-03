@@ -4,10 +4,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/platform/crash_handler.hpp"
-
-#if DATADOG_WITH_CRASHPAD
 #include <filesystem>
 #include <map>
 #include <string>
@@ -17,6 +13,9 @@
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
 #include "client/settings.h"
+
+#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/platform/crash_handler.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -88,7 +87,6 @@ static std::filesystem::path get_crashpad_database_path() {
   // For now, store Crashpad data in $(pwd)/.crashpad
   return ".crashpad";
 }
-#endif  // DATADOG_WITH_CRASHPAD
 
 namespace datadog::platform {
 
@@ -100,7 +98,6 @@ class CrashpadCrashHandler final : public ICrashHandler {
       : _logger(logger), _handler_exe_path(handler_exe_path) {}
 
   bool Initialize() override {
-#if DATADOG_WITH_CRASHPAD
     // Prepare Crashpad client options
     std::filesystem::path crashpad_handler_path = _handler_exe_path;
     if (crashpad_handler_path.empty()) {
@@ -145,11 +142,6 @@ class CrashpadCrashHandler final : public ICrashHandler {
       }
     }
     return true;
-#else
-    // The SDK was compiled without Crashpad support; our crash-handling code is inert
-    (void)_logger;
-    return true;
-#endif  // DATADOG_WITH_CRASHPAD
   }
 
   void Shutdown() override {
