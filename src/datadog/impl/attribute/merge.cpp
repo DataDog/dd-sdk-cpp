@@ -38,7 +38,6 @@ void AttributeMerge::AssembleObject(
     // For non-object values, num_properties will be 0
     const size_t num_properties = attribute.GetObjectPropertyCount();
     for (int i = 0, n = static_cast<int>(num_properties); i < n; i++) {
-      // Property has a non-reserved name: merge its value into the root object
       mut_obj.SetObjectProperty(
           attribute.GetObjectPropertyNameAt(i), attribute.GetObjectPropertyValueAt(i)
       );

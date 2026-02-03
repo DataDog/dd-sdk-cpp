@@ -48,7 +48,8 @@ struct LogEvent {
   OmitIfNoValue<RumOSProperties> os;
   OmitIfNoValue<RumDeviceProperties> device;
 
-  // Custom user attributes to be merged into the JSON payload at top-level
+  // Custom user attributes to be merged into the JSON payload at top-level, condensed
+  // from the union of global attributes, logger attributes, and message attributes
   Attribute user_attributes;
 
   explicit LogEvent(
