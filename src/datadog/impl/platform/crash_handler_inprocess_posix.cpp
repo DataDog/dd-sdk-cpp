@@ -194,23 +194,23 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   ucontext_t* uc = (ucontext_t*)ucontext_raw;
 
 #if defined(__APPLE__)
-  // macOS ucontext structure
-  #ifdef __x86_64__
-    fp = (void*)uc->uc_mcontext->__ss.__rbp;
-  #elif defined(__aarch64__)
-    fp = (void*)uc->uc_mcontext->__ss.__fp;
-  #else
-    #error "Unsupported architecture for in-process crash handler on macOS"
-  #endif
+// macOS ucontext structure
+#ifdef __x86_64__
+  fp = (void*)uc->uc_mcontext->__ss.__rbp;
+#elif defined(__aarch64__)
+  fp = (void*)uc->uc_mcontext->__ss.__fp;
 #else
-  // Linux ucontext structure
-  #ifdef __x86_64__
-    fp = (void*)uc->uc_mcontext.gregs[REG_RBP];
-  #elif defined(__aarch64__)
-    fp = (void*)uc->uc_mcontext.regs[29];  // x29 = FP on ARM64
-  #else
-    #error "Unsupported architecture for in-process crash handler on Linux"
-  #endif
+#error "Unsupported architecture for in-process crash handler on macOS"
+#endif
+#else
+// Linux ucontext structure
+#ifdef __x86_64__
+  fp = (void*)uc->uc_mcontext.gregs[REG_RBP];
+#elif defined(__aarch64__)
+  fp = (void*)uc->uc_mcontext.regs[29];  // x29 = FP on ARM64
+#else
+#error "Unsupported architecture for in-process crash handler on Linux"
+#endif
 #endif
 
   // Write stack trace
