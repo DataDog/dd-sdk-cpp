@@ -55,7 +55,7 @@ static void* s_sigalt_stack = nullptr;
 static void write_str(int fd, const char* str) {
   size_t len = 0;
   while (str[len]) len++;
-  write(fd, str, len);
+  (void)write(fd, str, len);
 }
 
 // Async-signal-safe helper: write an unsigned integer as decimal
@@ -64,7 +64,7 @@ static void write_uint(int fd, unsigned long val) {
   int i = 0;
 
   if (val == 0) {
-    write(fd, "0", 1);
+    (void)write(fd, "0", 1);
     return;
   }
 
@@ -75,7 +75,7 @@ static void write_uint(int fd, unsigned long val) {
 
   // Write in reverse order
   while (i > 0) {
-    write(fd, &buf[--i], 1);
+    (void)write(fd, &buf[--i], 1);
   }
 }
 
@@ -95,7 +95,7 @@ static void write_hex_address(int fd, void* addr) {
   }
 
   buf[idx++] = '\n';
-  write(fd, buf, idx);
+  (void)write(fd, buf, idx);
 }
 
 // Async-signal-safe stack trace writer using frame-pointer walking
