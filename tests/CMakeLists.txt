@@ -79,6 +79,13 @@ add_executable(dd_native_tests
     support/attribute_debug.cpp
 )
 
+# Add macOS-specific tests
+if(APPLE)
+    target_sources(dd_native_tests PRIVATE
+        impl/platform/crash_handler_inprocess_test.cpp
+    )
+endif()
+
 # Add Windows-specific tests
 if(WIN32)
     target_sources(dd_native_tests PRIVATE
