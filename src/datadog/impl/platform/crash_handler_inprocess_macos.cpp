@@ -7,8 +7,6 @@
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
 
-#ifdef __APPLE__
-
 #include <ctime>
 #include <fcntl.h>
 #include <pthread.h>
@@ -347,5 +345,3 @@ std::unique_ptr<ICrashHandler> CrashHandler::Init(
 }
 
 }  // namespace datadog::platform
-
-#endif // __APPLE__
