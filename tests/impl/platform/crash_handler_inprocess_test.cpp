@@ -4,18 +4,19 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/platform/crash_handler.hpp"
-#include "datadog/impl/diagnostics.hpp"
-
-#include <catch2/catch_test_macros.hpp>
 #include <dirent.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
+
+#include <catch2/catch_test_macros.hpp>
 #include <cstring>
 #include <fstream>
 #include <string>
+
+#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/platform/crash_handler.hpp"
 
 using namespace datadog;
 
@@ -67,7 +68,8 @@ static std::string read_crash_file(const std::string& path) {
 
 #ifdef __APPLE__
 
-// [platform-crash-handler-inprocess] tests validate the in-process crash handler implementation.
+// [platform-crash-handler-inprocess] tests validate the in-process crash handler
+// implementation.
 
 TEST_CASE("In-process crash handler", "[unit][platform-crash-handler-inprocess]") {
   // Clean up before test
@@ -83,7 +85,7 @@ TEST_CASE("In-process crash handler", "[unit][platform-crash-handler-inprocess]"
       bool init_result = handler->Initialize();
 
       if (!init_result) {
-        _exit(1); // Failed to initialize
+        _exit(1);  // Failed to initialize
       }
 
       // Trigger SIGSEGV
@@ -112,7 +114,7 @@ TEST_CASE("In-process crash handler", "[unit][platform-crash-handler-inprocess]"
     REQUIRE(contents.find("=== Datadog SDK Crash Report ===") != std::string::npos);
     REQUIRE(contents.find("Signal: SIGSEGV") != std::string::npos);
     REQUIRE(contents.find("Stack trace (raw addresses):") != std::string::npos);
-    REQUIRE(contents.find("0x") != std::string::npos); // At least one address
+    REQUIRE(contents.find("0x") != std::string::npos);  // At least one address
 
     // Clean up
     cleanup_crashes_directory();
@@ -231,4 +233,4 @@ TEST_CASE("In-process crash handler", "[unit][platform-crash-handler-inprocess]"
   cleanup_crashes_directory();
 }
 
-#endif // __APPLE__
+#endif  // __APPLE__

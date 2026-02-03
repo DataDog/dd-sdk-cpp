@@ -4,17 +4,18 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/platform/crash_handler.hpp"
-
-#include <ctime>
 #include <fcntl.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+
 #include <cstring>
+#include <ctime>
+
+#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/platform/crash_handler.hpp"
 
 namespace datadog::platform {
 
@@ -53,8 +54,7 @@ static void* s_sigalt_stack = nullptr;
 // Async-signal-safe helper: write a string literal
 static void write_str(int fd, const char* str) {
   size_t len = 0;
-  while (str[len])
-    len++;
+  while (str[len]) len++;
   write(fd, str, len);
 }
 
@@ -82,7 +82,7 @@ static void write_uint(int fd, unsigned long val) {
 // Async-signal-safe helper: write a pointer as hex
 static void write_hex_address(int fd, void* addr) {
   const char hex_chars[] = "0123456789abcdef";
-  char buf[20]; // "0x" + 16 hex digits + "\n"
+  char buf[20];  // "0x" + 16 hex digits + "\n"
   int idx = 0;
 
   buf[idx++] = '0';
@@ -124,11 +124,11 @@ static void write_stack_trace(int fd, void* frame_pointer) {
 
     write_hex_address(fd, ret_addr);
 
-    fp = frame[0]; // Move to next frame
+    fp = frame[0];  // Move to next frame
 
     // Stop if next frame pointer is invalid
     if (fp != nullptr && (unsigned long)fp <= (unsigned long)frame) {
-      break; // Prevent backwards or circular references
+      break;  // Prevent backwards or circular references
     }
   }
 }
@@ -146,12 +146,24 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   write_str(fd, "Signal: ");
 
   switch (sig) {
-    case SIGSEGV: write_str(fd, "SIGSEGV"); break;
-    case SIGBUS: write_str(fd, "SIGBUS"); break;
-    case SIGILL: write_str(fd, "SIGILL"); break;
-    case SIGFPE: write_str(fd, "SIGFPE"); break;
-    case SIGABRT: write_str(fd, "SIGABRT"); break;
-    default: write_uint(fd, sig); break;
+    case SIGSEGV:
+      write_str(fd, "SIGSEGV");
+      break;
+    case SIGBUS:
+      write_str(fd, "SIGBUS");
+      break;
+    case SIGILL:
+      write_str(fd, "SIGILL");
+      break;
+    case SIGFPE:
+      write_str(fd, "SIGFPE");
+      break;
+    case SIGABRT:
+      write_str(fd, "SIGABRT");
+      break;
+    default:
+      write_uint(fd, sig);
+      break;
   }
   write_str(fd, "\n");
 
@@ -186,7 +198,7 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   ucontext_t* uc = (ucontext_t*)ucontext_raw;
   fp = (void*)uc->uc_mcontext->__ss.__fp;
 #else
-  #error "Unsupported architecture for in-process crash handler"
+#error "Unsupported architecture for in-process crash handler"
 #endif
 
   // Write stack trace
@@ -215,11 +227,18 @@ class InProcessCrashHandler final : public ICrashHandler {
     struct tm tm_buf;
     localtime_r(&now, &tm_buf);
 
-    snprintf(s_crash_filename, sizeof(s_crash_filename),
-             ".crashes/crash_%04d%02d%02d_%02d%02d%02d_%d.txt",
-             tm_buf.tm_year + 1900, tm_buf.tm_mon + 1, tm_buf.tm_mday,
-             tm_buf.tm_hour, tm_buf.tm_min, tm_buf.tm_sec,
-             getpid());
+    snprintf(
+        s_crash_filename,
+        sizeof(s_crash_filename),
+        ".crashes/crash_%04d%02d%02d_%02d%02d%02d_%d.txt",
+        tm_buf.tm_year + 1900,
+        tm_buf.tm_mon + 1,
+        tm_buf.tm_mday,
+        tm_buf.tm_hour,
+        tm_buf.tm_min,
+        tm_buf.tm_sec,
+        getpid()
+    );
 
     // 3. Pre-open crash file
     s_crash_fd = open(s_crash_filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
@@ -229,7 +248,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     }
 
     // 4. Allocate alternate signal stack
-    const size_t stack_size = SIGSTKSZ * 2; // 16KB on most systems
+    const size_t stack_size = SIGSTKSZ * 2;  // 16KB on most systems
     s_sigalt_stack = malloc(stack_size);
     if (!s_sigalt_stack) {
       close(s_crash_fd);
