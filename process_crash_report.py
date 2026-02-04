@@ -48,9 +48,9 @@ class StackFrame:
                 return f"#{self.frame_number} 0x{self.raw_address:016x}  <unknown>"
 
         elif style == 'llvm':
-            # Format for llvm-symbolizer: /path/to/binary 0xoffset
+            # Format for llvm-symbolizer: echo 'path offset' | llvm-symbolizer
             if self.module and self.offset is not None:
-                return f"{self.module.path} 0x{self.offset:x}"
+                return f"echo '{self.module.path} 0x{self.offset:x}' | llvm-symbolizer"
             else:
                 return f"# Unknown address: 0x{self.raw_address:016x}"
 

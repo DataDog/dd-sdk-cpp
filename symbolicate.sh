@@ -67,74 +67,44 @@ echo
 # Generate and execute symbolication commands
 frame_num=0
 
-if [ "$SYMBOL_FORMAT" = "llvm" ]; then
-    # llvm-symbolizer: read lines in format "/path/to/binary 0xoffset"
-    if [ -n "$CRASH_REPORT" ]; then
-        python3 "$SCRIPT_DIR/process_crash_report.py" "$CRASH_REPORT" --format llvm | while IFS= read -r line; do
-            if [[ "$line" =~ ^# ]]; then
-                printf "%2s  %s\n" "" "$line"
-            else
-                # llvm-symbolizer reads from stdin, format: /path/to/binary 0xoffset
-                result=$(echo "$line" | llvm-symbolizer 2>/dev/null | head -n 1)
-                printf "%2d: %s\n" "$frame_num" "$result"
-                ((frame_num++))
-            fi
-        done
-    else
-        python3 "$SCRIPT_DIR/process_crash_report.py" --format llvm | while IFS= read -r line; do
-            if [[ "$line" =~ ^# ]]; then
-                printf "%2s  %s\n" "" "$line"
-            else
-                result=$(echo "$line" | llvm-symbolizer 2>/dev/null | head -n 1)
-                printf "%2d: %s\n" "$frame_num" "$result"
-                ((frame_num++))
-            fi
-        done
-    fi
+# Determine crash report argument
+if [ -n "$CRASH_REPORT" ]; then
+    REPORT_ARG="$CRASH_REPORT"
 else
-    # atos (macOS) or addr2line (Linux): execute commands directly
-    if [ -n "$CRASH_REPORT" ]; then
-        python3 "$SCRIPT_DIR/process_crash_report.py" "$CRASH_REPORT" --format "$SYMBOL_FORMAT" | while IFS= read -r line; do
-            if [[ "$line" =~ ^# ]]; then
-                printf "%2s  %s\n" "" "$line"
-            else
-                if [ "$SYMBOL_FORMAT" = "addr2line" ]; then
-                    # addr2line -f outputs two lines: function name, then file:line
-                    # Capture both and combine them
-                    output=$(eval "$line" 2>&1)
-                    func_name=$(echo "$output" | head -n 1 | grep -v "^addr2line:" || echo "??")
-                    file_line=$(echo "$output" | head -n 2 | tail -n 1 | grep -v "^addr2line:" || echo "??:?")
-                    printf "%2d: %s (%s)\n" "$frame_num" "$func_name" "$file_line"
-                else
-                    # atos outputs a single line
-                    result=$(eval "$line" 2>/dev/null || echo "??:?")
-                    printf "%2d: %s\n" "$frame_num" "$result"
-                fi
-                ((frame_num++))
-            fi
-        done
-    else
-        python3 "$SCRIPT_DIR/process_crash_report.py" --format "$SYMBOL_FORMAT" | while IFS= read -r line; do
-            if [[ "$line" =~ ^# ]]; then
-                printf "%2s  %s\n" "" "$line"
-            else
-                if [ "$SYMBOL_FORMAT" = "addr2line" ]; then
-                    # addr2line -f outputs two lines: function name, then file:line
-                    # Capture both and combine them
-                    output=$(eval "$line" 2>&1)
-                    func_name=$(echo "$output" | head -n 1 | grep -v "^addr2line:" || echo "??")
-                    file_line=$(echo "$output" | head -n 2 | tail -n 1 | grep -v "^addr2line:" || echo "??:?")
-                    printf "%2d: %s (%s)\n" "$frame_num" "$func_name" "$file_line"
-                else
-                    # atos outputs a single line
-                    result=$(eval "$line" 2>/dev/null || echo "??:?")
-                    printf "%2d: %s\n" "$frame_num" "$result"
-                fi
-                ((frame_num++))
-            fi
-        done
-    fi
+    REPORT_ARG=""
 fi
+
+# Process each line from the crash report
+python3 "$SCRIPT_DIR/process_crash_report.py" $REPORT_ARG --format "$SYMBOL_FORMAT" | while IFS= read -r line; do
+    # Skip comment lines
+    if [[ "$line" =~ ^# ]]; then
+        printf "%2s  %s\n" "" "$line"
+        continue
+    fi
+
+    # Execute symbolication command (disable exit-on-error temporarily)
+    set +e
+    if [ "$SYMBOL_FORMAT" = "atos" ]; then
+        # atos outputs a single line
+        result=$(eval "$line" 2>/dev/null || echo "??:?")
+        printf "%2d: %s\n" "$frame_num" "$result"
+    else
+        # addr2line and llvm-symbolizer both output two lines: function name, then file:line
+        # Combine them into a single line
+        output=$(eval "$line" 2>&1 || true)
+        func_name=$(echo "$output" | head -n 1 | { grep -v "^addr2line:" || true; } | head -n 1)
+        file_line=$(echo "$output" | head -n 2 | tail -n 1 | { grep -v "^addr2line:" || true; })
+
+        # Use defaults if empty
+        [ -z "$func_name" ] && func_name="??"
+        [ -z "$file_line" ] && file_line="??:?"
+
+        printf "%2d: %s (%s)\n" "$frame_num" "$func_name" "$file_line"
+    fi
+
+    ((frame_num++))
+    set -e
+done
 
 echo
 echo "========================================================================"
