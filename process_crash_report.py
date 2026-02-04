@@ -61,6 +61,14 @@ class StackFrame:
             else:
                 return f"# Unknown address: 0x{self.raw_address:016x}"
 
+        elif style == 'addr2line':
+            # Format for Linux addr2line: needs binary path and offset
+            # -f: show function names, -C: demangle C++, -i: show inlined functions
+            if self.module and self.offset is not None:
+                return f"addr2line -e {self.module.path} -f -C -i 0x{self.offset:x}"
+            else:
+                return f"# Unknown address: 0x{self.raw_address:016x}"
+
         else:
             raise ValueError(f"Unknown format style: {style}")
 
@@ -201,9 +209,9 @@ def main() -> int:
     )
     parser.add_argument(
         '--format',
-        choices=['human', 'full', 'llvm', 'atos'],
+        choices=['human', 'full', 'llvm', 'atos', 'addr2line'],
         default='human',
-        help='Output format: human (compact), full (with paths), llvm (llvm-symbolizer), atos (macOS atos)'
+        help='Output format: human (compact), full (with paths), llvm (llvm-symbolizer), atos (macOS atos), addr2line (Linux addr2line)'
     )
 
     args = parser.parse_args()
