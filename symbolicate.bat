@@ -65,25 +65,35 @@ REM Process each line from the crash report with dbh format
 for /f "usebackq delims=" %%L in (`%PYTHON_CMD% --format dbh 2^>nul`) do (
     set "line=%%L"
 
-    REM Check if line starts with # (comment)
+    REM Check if line starts with # (comment/error)
     echo !line! | findstr /b /c:"#" >nul
     if !errorlevel! equ 0 (
-        REM Comment line - print as-is with indentation
+        REM Comment/error line - print as-is with indentation
         echo    !line!
+        set /a frame_num+=1
     ) else (
-        REM Execute dbh command and capture output
+        REM Execute dbh command and parse output
+        set "symbol_found="
         for /f "usebackq delims=" %%O in (`%%L 2^>nul`) do (
             set "output=%%O"
-            REM Print first line of dbh output (usually module!symbol+offset)
-            if defined output (
-                echo !frame_num!: !output!
-                set output=
-                goto :next_frame
+            REM Skip header lines (Symbol Search Path, blank lines, indented info)
+            echo !output! | findstr /b /c:"Symbol Search Path:" >nul
+            if !errorlevel! neq 0 (
+                REM Check if line is not indented (symbol lines start at column 0)
+                echo !output! | findstr /b /c:" " >nul
+                if !errorlevel! neq 0 (
+                    REM This is a non-indented, non-header line - likely the symbol
+                    if not defined symbol_found (
+                        echo  !frame_num!: !output!
+                        set symbol_found=1
+                    )
+                )
             )
         )
-        REM If no output, print unknown
-        echo !frame_num!: ??
-        :next_frame
+        REM If no symbol found, print unknown
+        if not defined symbol_found (
+            echo  !frame_num!: ^(unknown^)
+        )
         set /a frame_num+=1
     )
 )
