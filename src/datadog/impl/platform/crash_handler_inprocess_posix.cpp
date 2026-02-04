@@ -4,7 +4,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-// Enable POSIX APIs including ucontext routines
+// Expose ucontext routines by explicitly requesting POSIX.1-2008 / XPG7. This is a
+// valid feature test macro, not a redefinition of a reserved identifier.
+// NOLINTNEXTLINE(bugprone-reserved-identifier)
 #define _XOPEN_SOURCE 700
 
 #include <fcntl.h>
@@ -17,6 +19,11 @@
 
 #include <cstring>
 #include <ctime>
+
+#ifdef __APPLE__
+#include <mach-o/dyld.h>
+#include <mach-o/loader.h>
+#endif
 
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
@@ -41,6 +48,7 @@ namespace datadog::platform {
 // NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
 // NOLINTBEGIN(cppcoreguidelines-no-malloc)
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
+// NOLINTBEGIN(readability-use-std-min-max)
 
 // BEHAVIOR: Only the first crash per process is captured.
 // Subsequent crashes (if handler doesn't exit) use OS default handler.
@@ -141,6 +149,130 @@ static void write_stack_trace(int fd, void* frame_pointer) {
   }
 }
 
+#ifdef __APPLE__
+// Async-signal-safe helper: write a pointer as hex without newline
+static void write_hex_no_newline(int fd, unsigned long val) {
+  const char hex_chars[] = "0123456789abcdef";
+  char buf[18];  // "0x" + 16 hex digits
+  int idx = 0;
+
+  buf[idx++] = '0';
+  buf[idx++] = 'x';
+
+  // Write 16 hex digits (even if leading zeros)
+  for (int shift = 60; shift >= 0; shift -= 4) {
+    buf[idx++] = hex_chars[(val >> shift) & 0xf];
+  }
+
+  ssize_t result = write(fd, buf, idx);
+  (void)result;  // Intentionally ignore - crash handler cannot handle errors
+}
+
+// NOTE: dyld APIs used here are not documented as async-signal-safe.
+// However, they are simple getters reading internal data structures
+// and are widely used in practice for crash reporting. Use with caution.
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+static void write_modules_macos(int fd) {
+  write_str(fd, "\nLoaded Modules:\n");
+
+  uint32_t image_count = _dyld_image_count();
+
+  for (uint32_t i = 0; i < image_count; i++) {
+    const char* image_name = _dyld_get_image_name(i);
+    const struct mach_header* header = _dyld_get_image_header(i);
+
+    if (!header || !image_name) {
+      continue;
+    }
+
+    // Calculate the base address and module size by parsing load commands
+    unsigned long base_addr = (unsigned long)header;
+
+    // Find the range of vmaddr values in segments
+    // Note: vmaddr is relative to the module's preferred load address
+    // The actual load address is base_addr (after ASLR slide)
+    unsigned long min_vmaddr = 0xFFFFFFFFFFFFFFFF;
+    unsigned long max_vmaddr_end = 0;
+
+    // Determine if this is 64-bit or 32-bit mach_header
+    bool is_64bit = (header->magic == MH_MAGIC_64 || header->magic == MH_CIGAM_64);
+
+    const uint8_t* cmd_ptr = nullptr;
+    uint32_t ncmds = 0;
+
+    if (is_64bit) {
+      const struct mach_header_64* header64 = (const struct mach_header_64*)header;
+      cmd_ptr = (const uint8_t*)(header64 + 1);
+      ncmds = header64->ncmds;
+    } else {
+      cmd_ptr = (const uint8_t*)(header + 1);
+      ncmds = header->ncmds;
+    }
+
+    // Iterate through load commands to find the address range
+    // Skip __PAGEZERO (vmaddr=0, large vmsize) - it's not actually mapped
+    for (uint32_t cmd_idx = 0; cmd_idx < ncmds; cmd_idx++) {
+      const struct load_command* cmd = (const struct load_command*)cmd_ptr;
+
+      if (cmd->cmd == LC_SEGMENT_64) {
+        const struct segment_command_64* seg = (const struct segment_command_64*)cmd;
+        // Skip __PAGEZERO - check if segment name is "__PAGEZERO"
+        bool is_pagezero =
+            (seg->segname[0] == '_' && seg->segname[1] == '_' &&
+             seg->segname[2] == 'P' && seg->segname[3] == 'A' &&
+             seg->segname[4] == 'G' && seg->segname[5] == 'E' &&
+             seg->segname[6] == 'Z' && seg->segname[7] == 'E' &&
+             seg->segname[8] == 'R' && seg->segname[9] == 'O');
+        if (!is_pagezero && seg->vmsize > 0) {
+          if (seg->vmaddr < min_vmaddr) {
+            min_vmaddr = seg->vmaddr;
+          }
+          unsigned long seg_end = seg->vmaddr + seg->vmsize;
+          if (seg_end > max_vmaddr_end) {
+            max_vmaddr_end = seg_end;
+          }
+        }
+      } else if (cmd->cmd == LC_SEGMENT) {
+        const struct segment_command* seg = (const struct segment_command*)cmd;
+        // Skip __PAGEZERO
+        bool is_pagezero =
+            (seg->segname[0] == '_' && seg->segname[1] == '_' &&
+             seg->segname[2] == 'P' && seg->segname[3] == 'A' &&
+             seg->segname[4] == 'G' && seg->segname[5] == 'E' &&
+             seg->segname[6] == 'Z' && seg->segname[7] == 'E' &&
+             seg->segname[8] == 'R' && seg->segname[9] == 'O');
+        if (!is_pagezero && seg->vmsize > 0) {
+          if (seg->vmaddr < min_vmaddr) {
+            min_vmaddr = seg->vmaddr;
+          }
+          unsigned long seg_end = seg->vmaddr + seg->vmsize;
+          if (seg_end > max_vmaddr_end) {
+            max_vmaddr_end = seg_end;
+          }
+        }
+      }
+
+      cmd_ptr += cmd->cmdsize;
+    }
+
+    // Calculate actual load addresses
+    // base_addr is already the actual load address (after ASLR)
+    // The module size is the span from min to max vmaddr
+    unsigned long actual_start = base_addr;
+    unsigned long module_size = max_vmaddr_end - min_vmaddr;
+    unsigned long actual_end = base_addr + module_size;
+
+    // Write the module information in format: 0x<base>-0x<end> <path>
+    write_hex_no_newline(fd, actual_start);
+    write_str(fd, "-");
+    write_hex_no_newline(fd, actual_end);
+    write_str(fd, " ");
+    write_str(fd, image_name);
+    write_str(fd, "\n");
+  }
+}
+#endif
+
 // Signal handler - MUST be async-signal-safe
 static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   int fd = s_crash_fd;
@@ -222,6 +354,11 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
 
   // Write stack trace
   write_stack_trace(fd, fp);
+
+#ifdef __APPLE__
+  // Write loaded modules (macOS only for Phase 1)
+  write_modules_macos(fd);
+#endif
 
   write_str(fd, "\n=== End of crash report ===\n");
 
@@ -367,6 +504,7 @@ std::unique_ptr<ICrashHandler> CrashHandler::Init(
   return std::make_unique<InProcessCrashHandler>(logger);
 }
 
+// NOLINTEND(readability-use-std-min-max)
 // NOLINTEND(cppcoreguidelines-owning-memory)
 // NOLINTEND(cppcoreguidelines-no-malloc)
 // NOLINTEND(cppcoreguidelines-pro-type-vararg)
