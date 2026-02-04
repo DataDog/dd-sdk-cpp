@@ -8,7 +8,14 @@ from pathlib import Path
 from typing import Optional
 import argparse
 import os
+import shutil
+import subprocess
 import sys
+
+
+# Global caches for DBH operations
+_dbh_exe_path: Optional[str] = None
+_dbh_base_address_cache: dict[str, int] = {}
 
 
 @dataclass
@@ -75,11 +82,26 @@ class StackFrame:
             # DBH loads modules at an internal base address from the PE ImageBase
             # The addr command expects addresses relative to this internal base
             if self.module and self.offset is not None:
-                symbol_path = get_windows_symbol_path()
-                # DBH typically uses ImageBase from PE header (commonly 0x01000000 or 0x140000000)
-                # We use 0x01000000 which is the typical default for many executables
-                dbh_base = 0x01000000
+                global _dbh_exe_path, _dbh_base_address_cache
+
+                # Resolve dbh.exe path (cached)
+                if _dbh_exe_path is None:
+                    _dbh_exe_path = _resolve_dbh_exe()
+                    if _dbh_exe_path is None:
+                        return f"# Error: dbh.exe not found"
+
+                # Get base address for this module (cached)
+                module_path = self.module.path
+                if module_path not in _dbh_base_address_cache:
+                    base_addr = _dbh_get_base_address(_dbh_exe_path, module_path)
+                    if base_addr is None:
+                        return f"# Error: Unable to determine base address for {module_path}"
+                    _dbh_base_address_cache[module_path] = base_addr
+
+                dbh_base = _dbh_base_address_cache[module_path]
                 dbh_address = dbh_base + self.offset
+
+                symbol_path = get_windows_symbol_path()
                 return f'dbh -s:"{symbol_path}" "{self.module.path}" addr 0x{dbh_address:x}'
             else:
                 return f"# Unknown address: 0x{self.raw_address:016x}"
@@ -105,6 +127,75 @@ def get_windows_symbol_path() -> str:
 
     # Otherwise use sensible default
     return 'SRV*C:\\Symbols*https://msdl.microsoft.com/download/symbols'
+
+
+def _resolve_dbh_exe() -> Optional[str]:
+    """
+    Resolve the path to dbh.exe.
+
+    Returns:
+        Path to dbh.exe if found, None otherwise
+    """
+    # First check if dbh.exe is in PATH
+    dbh_path = shutil.which('dbh.exe')
+    if dbh_path:
+        return dbh_path
+
+    # Check standard Windows Debugging Tools location
+    program_files_x86 = os.environ.get('ProgramFiles(x86)', 'C:\\Program Files (x86)')
+    standard_path = os.path.join(
+        program_files_x86,
+        'Windows Kits',
+        '10',
+        'Debuggers',
+        'x64',
+        'dbh.exe'
+    )
+
+    if os.path.isfile(standard_path):
+        return standard_path
+
+    return None
+
+
+def _dbh_get_base_address(dbh_exe: str, module_path: str) -> Optional[int]:
+    """
+    Get the base address that DBH uses for a module by running 'dbh info'.
+
+    Args:
+        dbh_exe: Path to dbh.exe
+        module_path: Path to the module to query
+
+    Returns:
+        Base address as integer, or None if unable to determine
+    """
+    try:
+        # Run: dbh.exe "module_path" info
+        result = subprocess.run(
+            [dbh_exe, module_path, 'info'],
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+
+        if result.returncode != 0:
+            return None
+
+        # Parse output looking for: BaseOfImage : 0xADDRESS
+        for line in result.stdout.splitlines():
+            line = line.strip()
+            if line.startswith('BaseOfImage'):
+                # Format: "BaseOfImage : 0x01000000"
+                parts = line.split(':', 1)
+                if len(parts) == 2:
+                    addr_str = parts[1].strip()
+                    if addr_str.startswith('0x'):
+                        return int(addr_str, 16)
+
+        return None
+
+    except (subprocess.TimeoutExpired, subprocess.SubprocessError, ValueError):
+        return None
 
 
 def parse_crash_report(file_path: Path) -> tuple[list[int], list[Module]]:
