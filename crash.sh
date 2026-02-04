@@ -10,5 +10,5 @@ register-rum
 register-crash-reporting
 start-core
 sleep 1
-crash
+crash $1
 EOF

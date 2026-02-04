@@ -10,5 +10,5 @@ echo register-rum
 echo register-crash-reporting
 echo start-core
 echo sleep 1
-echo crash
+echo crash %1
 ) | build\examples\Debug\dd_native_repl.exe
