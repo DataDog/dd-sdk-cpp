@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 import argparse
+import os
 import sys
 
 
@@ -69,6 +70,14 @@ class StackFrame:
             else:
                 return f"# Unknown address: 0x{self.raw_address:016x}"
 
+        elif style == 'dbh':
+            # Format for Windows dbh (Debug Help): needs symbol path, module path, and offset
+            if self.module and self.offset is not None:
+                symbol_path = get_windows_symbol_path()
+                return f'dbh -y "{symbol_path}" -d "{self.module.path}" addr 0x{self.offset:x}'
+            else:
+                return f"# Unknown address: 0x{self.raw_address:016x}"
+
         else:
             raise ValueError(f"Unknown format style: {style}")
 
@@ -79,6 +88,17 @@ class StackFrame:
 def parse_hex_address(addr_str: str) -> int:
     """Parse a hex address string to an integer."""
     return int(addr_str, 16)
+
+
+def get_windows_symbol_path() -> str:
+    """Get the symbol path for Windows debugging tools."""
+    # Check environment variable first
+    env_path = os.environ.get('_NT_SYMBOL_PATH')
+    if env_path:
+        return env_path
+
+    # Otherwise use sensible default
+    return 'SRV*C:\\Symbols*https://msdl.microsoft.com/download/symbols'
 
 
 def parse_crash_report(file_path: Path) -> tuple[list[int], list[Module]]:
@@ -209,9 +229,9 @@ def main() -> int:
     )
     parser.add_argument(
         '--format',
-        choices=['human', 'full', 'llvm', 'atos', 'addr2line'],
+        choices=['human', 'full', 'llvm', 'atos', 'addr2line', 'dbh'],
         default='human',
-        help='Output format: human (compact), full (with paths), llvm (llvm-symbolizer), atos (macOS atos), addr2line (Linux addr2line)'
+        help='Output format: human (compact), full (with paths), llvm (llvm-symbolizer), atos (macOS atos), addr2line (Linux addr2line), dbh (Windows dbh)'
     )
 
     args = parser.parse_args()
