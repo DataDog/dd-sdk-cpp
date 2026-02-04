@@ -71,10 +71,16 @@ class StackFrame:
                 return f"# Unknown address: 0x{self.raw_address:016x}"
 
         elif style == 'dbh':
-            # Format for Windows dbh (Debug Help): needs symbol path, module path, and offset
+            # Format for Windows dbh.exe (Symbol Server tool)
+            # DBH loads modules at an internal base address from the PE ImageBase
+            # The addr command expects addresses relative to this internal base
             if self.module and self.offset is not None:
                 symbol_path = get_windows_symbol_path()
-                return f'dbh -y "{symbol_path}" -d "{self.module.path}" addr 0x{self.offset:x}'
+                # DBH typically uses ImageBase from PE header (commonly 0x01000000 or 0x140000000)
+                # We use 0x01000000 which is the typical default for many executables
+                dbh_base = 0x01000000
+                dbh_address = dbh_base + self.offset
+                return f'dbh -s:"{symbol_path}" "{self.module.path}" addr 0x{dbh_address:x}'
             else:
                 return f"# Unknown address: 0x{self.raw_address:016x}"
 
