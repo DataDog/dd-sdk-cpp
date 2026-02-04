@@ -149,7 +149,6 @@ static void write_stack_trace(int fd, void* frame_pointer) {
   }
 }
 
-#ifdef __APPLE__
 // Async-signal-safe helper: write a pointer as hex without newline
 static void write_hex_no_newline(int fd, unsigned long val) {
   const char hex_chars[] = "0123456789abcdef";
@@ -168,6 +167,7 @@ static void write_hex_no_newline(int fd, unsigned long val) {
   (void)result;  // Intentionally ignore - crash handler cannot handle errors
 }
 
+#ifdef __APPLE__
 // NOTE: dyld APIs used here are not documented as async-signal-safe.
 // However, they are simple getters reading internal data structures
 // and are widely used in practice for crash reporting. Use with caution.
@@ -273,6 +273,156 @@ static void write_modules_macos(int fd) {
 }
 #endif
 
+#ifdef __linux__
+// Async-signal-safe helper: parse hex character to value
+static int hex_char_to_int(char c) {
+  if (c >= '0' && c <= '9') return c - '0';
+  if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+  if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+  return -1;
+}
+
+// Async-signal-safe helper: parse hex string to unsigned long
+static unsigned long parse_hex(const char* str, int* chars_consumed) {
+  unsigned long val = 0;
+  int count = 0;
+
+  while (str[count]) {
+    int digit = hex_char_to_int(str[count]);
+    if (digit < 0) break;
+    val = (val << 4) | digit;
+    count++;
+  }
+
+  if (chars_consumed) {
+    *chars_consumed = count;
+  }
+  return val;
+}
+
+// Async-signal-safe helper: write loaded modules from /proc/self/maps
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
+static void write_modules_linux(int fd) {
+  write_str(fd, "\nLoaded Modules:\n");
+
+  // Open /proc/self/maps
+  int maps_fd = open("/proc/self/maps", O_RDONLY);
+  if (maps_fd < 0) {
+    write_str(fd, "Error: Failed to open /proc/self/maps\n");
+    return;
+  }
+
+  // Read and parse /proc/self/maps line by line
+  char buffer[4096];
+  char line[512];
+  int line_pos = 0;
+
+  while (true) {
+    ssize_t bytes_read = read(maps_fd, buffer, sizeof(buffer));
+    if (bytes_read <= 0) break;
+
+    for (ssize_t i = 0; i < bytes_read; i++) {
+      char c = buffer[i];
+
+      if (c == '\n') {
+        // Process complete line
+        line[line_pos] = '\0';
+
+        // Parse line format: "start-end perms offset dev inode pathname"
+        // Example: "00400000-00452000 r-xp 00000000 08:02 173521 /usr/bin/dbus-daemon"
+
+        // Parse start address
+        int consumed = 0;
+        unsigned long start_addr = parse_hex(line, &consumed);
+        int pos = consumed;
+
+        // Skip '-'
+        if (line[pos] != '-') {
+          line_pos = 0;
+          continue;
+        }
+        pos++;
+
+        // Parse end address
+        unsigned long end_addr = parse_hex(line + pos, &consumed);
+        pos += consumed;
+
+        // Skip space
+        while (line[pos] == ' ') pos++;
+
+        // Parse permissions (4 chars: rwxp or similar)
+        if (pos + 4 > line_pos) {
+          line_pos = 0;
+          continue;
+        }
+
+        char perms[5];
+        perms[0] = line[pos];
+        perms[1] = line[pos + 1];
+        perms[2] = line[pos + 2];
+        perms[3] = line[pos + 3];
+        perms[4] = '\0';
+        pos += 4;
+
+        // Check if executable (perms[2] == 'x')
+        bool is_executable = (perms[2] == 'x');
+
+        if (!is_executable) {
+          line_pos = 0;
+          continue;
+        }
+
+        // Skip offset, dev, inode to get to pathname
+        // Format: " offset dev inode pathname"
+        int field_count = 0;
+        while (line[pos] && field_count < 3) {
+          // Skip whitespace
+          while (line[pos] == ' ') pos++;
+          // Skip non-whitespace (the field)
+          while (line[pos] && line[pos] != ' ') pos++;
+          field_count++;
+        }
+
+        // Skip leading whitespace before pathname
+        while (line[pos] == ' ') pos++;
+
+        // Check if there's a pathname
+        if (!line[pos]) {
+          // No pathname (anonymous mapping)
+          line_pos = 0;
+          continue;
+        }
+
+        const char* pathname = line + pos;
+
+        // Skip special pseudo-files like [vdso], [vvar], [vsyscall], [heap], [stack]
+        if (pathname[0] == '[') {
+          line_pos = 0;
+          continue;
+        }
+
+        // Write module information: 0x<start>-0x<end> <pathname>
+        write_hex_no_newline(fd, start_addr);
+        write_str(fd, "-");
+        write_hex_no_newline(fd, end_addr);
+        write_str(fd, " ");
+        write_str(fd, pathname);
+        write_str(fd, "\n");
+
+        line_pos = 0;
+      } else {
+        // Accumulate character in line buffer
+        if (line_pos < (int)sizeof(line) - 1) {
+          line[line_pos++] = c;
+        }
+      }
+    }
+  }
+
+  close(maps_fd);
+}
+#endif
+
 // Signal handler - MUST be async-signal-safe
 static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   int fd = s_crash_fd;
@@ -356,8 +506,11 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   write_stack_trace(fd, fp);
 
 #ifdef __APPLE__
-  // Write loaded modules (macOS only for Phase 1)
+  // Write loaded modules (macOS)
   write_modules_macos(fd);
+#elif defined(__linux__)
+  // Write loaded modules (Linux)
+  write_modules_linux(fd);
 #endif
 
   write_str(fd, "\n=== End of crash report ===\n");
