@@ -4,6 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <tlhelp32.h>
 #include <windows.h>
 
 #include <ctime>
@@ -105,6 +106,68 @@ static void write_hex_address(HANDLE file, void* addr) {
 
   DWORD written = 0;
   WriteFile(file, buf, idx, &written, nullptr);
+}
+
+// Helper: write loaded modules information
+static void write_modules_windows(HANDLE file) {
+  if (file == INVALID_HANDLE_VALUE) {
+    return;
+  }
+
+  write_str(file, "\nLoaded Modules:\n");
+
+  // Create snapshot of all modules in current process
+  HANDLE snapshot = CreateToolhelp32Snapshot(
+      TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, GetCurrentProcessId()
+  );
+
+  if (snapshot == INVALID_HANDLE_VALUE) {
+    write_str(file, "[ERROR: Failed to create module snapshot]\n");
+    return;
+  }
+
+  MODULEENTRY32 me;
+  me.dwSize = sizeof(me);
+
+  if (!Module32First(snapshot, &me)) {
+    write_str(file, "[ERROR: Failed to enumerate modules]\n");
+    CloseHandle(snapshot);
+    return;
+  }
+
+  // Iterate through all modules
+  do {
+    // Write base address
+    write_str(file, "0x");
+    const char hex_chars[] = "0123456789abcdef";
+    char addr_buf[16];
+    int addr_idx = 0;
+
+    unsigned long long base_addr = (unsigned long long)me.modBaseAddr;
+    for (int shift = 60; shift >= 0; shift -= 4) {
+      addr_buf[addr_idx++] = hex_chars[(base_addr >> shift) & 0xf];
+    }
+    DWORD written = 0;
+    WriteFile(file, addr_buf, addr_idx, &written, nullptr);
+
+    write_str(file, "-0x");
+
+    // Write end address (base + size)
+    addr_idx = 0;
+    unsigned long long end_addr = base_addr + me.modBaseSize;
+    for (int shift = 60; shift >= 0; shift -= 4) {
+      addr_buf[addr_idx++] = hex_chars[(end_addr >> shift) & 0xf];
+    }
+    WriteFile(file, addr_buf, addr_idx, &written, nullptr);
+
+    // Write module path
+    write_str(file, " ");
+    write_str(file, me.szExePath);
+    write_str(file, "\n");
+
+  } while (Module32Next(snapshot, &me));
+
+  CloseHandle(snapshot);
 }
 
 // Exception filter - top-level crash handler
@@ -239,6 +302,9 @@ static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
   for (USHORT i = 0; i < frames; i++) {
     write_hex_address(file, stack[i]);
   }
+
+  // Write loaded modules information
+  write_modules_windows(file);
 
   write_str(file, "\n=== End of crash report ===\n");
 
