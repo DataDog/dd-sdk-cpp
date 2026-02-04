@@ -4,8 +4,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include <tlhelp32.h>
+// clang-format off
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <tlhelp32.h>
+// clang-format on
 
 #include <ctime>
 
