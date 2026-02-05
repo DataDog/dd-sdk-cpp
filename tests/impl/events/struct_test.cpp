@@ -53,7 +53,11 @@ struct MyPropertiesWithExtra {
 };
 
 DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
-    MyPropertiesWithExtra, extra, DATADOG_JSON_FIELD(id), DATADOG_JSON_FIELD(name)
+    MyPropertiesWithExtra,
+    extra,
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_RESERVED_FIELD(future)
 )
 
 TEST_CASE("struct JSON serialization", "[unit][events]") {
@@ -134,6 +138,17 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
       // Then the resulting value has both "id" and "name" values, and nothing else: our
       // extra attributes are entirely ignored, and nothing is concatenated
       RequireJsonLiteral(ev, R"({"id":"foo","name":"bar"})");
+    }
+
+    SECTION("M omit attribute values during merge W property name is reserved") {
+      // When we serialize the value with {"future":100,"y":200} as extra properties
+      ev.extra.InitObject(2);
+      ev.extra.SetObjectProperty("future", Attribute::Int(100));
+      ev.extra.SetObjectProperty("y", Attribute::Int(200));
+
+      // Then "y" is concatenated to the original value, but "future" is ignored because
+      // it conflicts with a field name that's declared with DATADOG_JSON_RESERVED_FIELD
+      RequireJsonLiteral(ev, R"({"id":"foo","name":"bar","y":200})");
     }
   }
 }

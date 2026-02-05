@@ -15,15 +15,6 @@
 using namespace datadog;
 using namespace datadog::impl;
 
-static bool is_valid_property_name(std::string_view name) {
-  // clang-format off
-  // Filter out reserved property names
-  if (name == "foo") return false;
-  if (name == "_secret") return false;
-  return true;
-  // clang-format on
-}
-
 TEST_CASE("AttributeMerge", "[unit][attribute]") {
   SECTION("M produce new object with all properties W called with many objects") {
     // Given three object attributes, each with a unique property name
@@ -78,36 +69,6 @@ TEST_CASE("AttributeMerge", "[unit][attribute]") {
     REQUIRE(result.GetObjectPropertyNameAt(0) == "foo");
     REQUIRE(result.GetObjectPropertyNameAt(1) == "bar");
     REQUIRE(result.GetObjectPropertyNameAt(2) == "baz");
-  }
-
-  SECTION("M ignore incoming values W property name is reserved") {
-    // Given a root object {"foo":100} that we want to merge our values into
-    Attribute root = Attribute::Object(1);
-    root.SetObjectProperty("foo", Attribute::Int(100));
-
-    // And another object {"foo":200,"bar":300,"_secret":400}
-    Attribute other = Attribute::Object(3);
-    other.SetObjectProperty("foo", Attribute::Int(200));
-    other.SetObjectProperty("bar", Attribute::Int(300));
-    other.SetObjectProperty("_secret", Attribute::Int(400));
-
-    // And a filter function that excludes "foo" and "_secret" as reserved property
-    // names
-    AttributeMerge::FilterFunc filter = is_valid_property_name;
-
-    // When we merge our two objects, specifying the filter function as a callback
-    Attribute merged = Attribute::Object();
-    AttributeMerge::AssembleObject(merged, {root, other}, filter);
-
-    // Then 'foo' and '_secret' are not present in the result object, as our filter
-    // function excludes them as reserved property names
-    REQUIRE(merged.FindObjectProperty("foo") == -1);
-    REQUIRE(merged.FindObjectProperty("_secret") == -1);
-
-    // And 'bar' was merged into our root object just fine, because it's not a
-    // reserved property
-    REQUIRE(merged.GetObjectPropertyCount() == 1);
-    REQUIRE(merged.GetObjectProperty("bar").GetIntValue() == 300);
   }
 
   SECTION("M preserve nested objects as-is W nested objects have conflicting names") {

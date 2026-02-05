@@ -160,24 +160,26 @@ void Logging::OnLoggerEmit(
     global_attributes = _global_attributes.attribute;
   }
 
-  // Encode our LogEvent as a JSON object, also merging in the full set of
-  // Attribute::Object() values that represent custom, user-specified attributes. User
-  // attributes are merged into the event at top-level, with the following order:
+  // Merge the full set of custom, user-specified attribute values into the LogEvent
+  // payload's 'user_attributes' member. User attributes are merged into the event at
+  // top-level, with the following order:
   //
   // 1. The global attributes set via Logging::AddAttribute
   // 2. The logger-level attributes set via Logger::AddAttribute
   // 3. The message-level attributes supplied in the log call
   //
   // If multiple user attributes share the same property name, the value that appears
-  // later in the list will take precedence. LogEvent_CanMergeUserAttribute() is applied
-  // to filter user attributes, rejecting any values with reserved property names.
-  EncodeJsonWithMergedUserAttributes(
-      mut_state.event_buffer,
-      state.event,
-      mut_state.merged_attributes.attribute,
-      {global_attributes, state.user_attributes.attribute, message_attributes},
-      LogEvent_CanMergeUserAttribute
+  // later in the list will take precedence.
+  AttributeMerge::AssembleObject(
+      mut_state.event.user_attributes,
+      {global_attributes, state.user_attributes.attribute, message_attributes}
   );
+
+  // Now that we've fully populated our LogEvent value, serialize it as a JSON object,
+  // with all custom attributes from 'user_attributes' merged in at top level. If any
+  // properties in user_attributes use names that are already used by LogEvent struct
+  // fields, those custom attribute values will be ignored.
+  EncodeJson(mut_state.event_buffer, state.event);
 
   // Create a view of the JSON payload now held in our buffer, and call WriteEvent,
   // which will copy our event data onto the storage queue

@@ -12,9 +12,7 @@
 namespace datadog::impl {
 
 void AttributeMerge::AssembleObject(
-    Attribute& mut_obj,
-    std::initializer_list<Attribute> attributes,
-    AttributeMerge::FilterFunc filter
+    Attribute& mut_obj, std::initializer_list<Attribute> attributes
 ) {
   // Require that the target attribute is already of type Object
   if (mut_obj.GetType() != ValueType::Object) {
@@ -40,14 +38,9 @@ void AttributeMerge::AssembleObject(
     // For non-object values, num_properties will be 0
     const size_t num_properties = attribute.GetObjectPropertyCount();
     for (int i = 0, n = static_cast<int>(num_properties); i < n; i++) {
-      // If a non-root object has a property with a reserved name, ignore it
-      std::string_view name = attribute.GetObjectPropertyNameAt(i);
-      if (filter && !filter(name)) {
-        continue;
-      }
-
-      // Property has a non-reserved name: merge its value into the root object
-      mut_obj.SetObjectProperty(name, attribute.GetObjectPropertyValueAt(i));
+      mut_obj.SetObjectProperty(
+          attribute.GetObjectPropertyNameAt(i), attribute.GetObjectPropertyValueAt(i)
+      );
     }
   }
 }

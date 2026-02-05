@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include "datadog/attribute.hpp"
 #include "datadog/logging.hpp"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
@@ -47,17 +48,23 @@ struct LogEvent {
   OmitIfNoValue<RumOSProperties> os;
   OmitIfNoValue<RumDeviceProperties> device;
 
+  // Custom user attributes to be merged into the JSON payload at top-level, condensed
+  // from the union of global attributes, logger attributes, and message attributes
+  Attribute user_attributes;
+
   explicit LogEvent(
       std::string_view in_service_name,
       std::string_view in_logger_name,
-      std::string_view in_logger_version
+      std::string_view in_logger_version,
+      size_t initial_attribute_capacity
   )
       : status(LogLevel::Debug),
         service(in_service_name),
         date(Timestamp{}),
         message(""),
         logger_name(in_logger_name),
-        logger_version(in_logger_version) {
+        logger_version(in_logger_version),
+        user_attributes(Attribute::Object(initial_attribute_capacity)) {
     message.reserve(256);
   }
 
@@ -71,8 +78,9 @@ struct LogEvent {
   }
 };
 
-DATADOG_JSON_STRUCT(
+DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     LogEvent,
+    user_attributes,
 
     DATADOG_JSON_FIELD(status),
     DATADOG_JSON_FIELD(service),
@@ -88,37 +96,17 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD_NAME(rum_action_id, "user_action.id"),
 
     DATADOG_JSON_FIELD(os),
-    DATADOG_JSON_FIELD(device)
+    DATADOG_JSON_FIELD(device),
 
-    // All user-specified attribute values are merged into the JSON object at top-level
-    // and appended after these fields, with the exception of any property values whose
-    // names are rejected by LogEvent_CanMergeUserAttribute().
+    // Field names reserved for future use (any custom attributes with conflicting names
+    // will be ignored)
+    DATADOG_JSON_RESERVED_FIELD(_dd),
+    DATADOG_JSON_RESERVED_FIELD(usr),
+    DATADOG_JSON_RESERVED_FIELD(account),
+    DATADOG_JSON_RESERVED_FIELD(network),
+    DATADOG_JSON_RESERVED_FIELD(error),
+    DATADOG_JSON_RESERVED_FIELD(build_id),
+    DATADOG_JSON_RESERVED_FIELD(ddtags)
 )
-
-constexpr bool LogEvent_CanMergeUserAttribute(std::string_view name) {
-  // clang-format off
-  if (name == "status") { return false; }
-  if (name == "service") { return false; }
-  if (name == "date") { return false; }
-  if (name == "message") { return false; }
-  if (name == "logger.name") { return false; }
-  if (name == "logger.version") { return false; }
-  if (name == "application_id") { return false; }
-  if (name == "session_id") { return false; }
-  if (name == "view.id") { return false; }
-  if (name == "user_action.id") { return false; }
-  if (name == "os") { return false; }
-  if (name == "device") { return false; }
-  // Reserved for future use:
-  if (name == "_dd") { return false; }
-  if (name == "usr") { return false; }
-  if (name == "account") { return false; }
-  if (name == "network") { return false; }
-  if (name == "error") { return false; }
-  if (name == "build_id") { return false; }
-  if (name == "ddtags") { return false; }
-  // clang-format on
-  return true;
-}
 
 }  // namespace datadog::impl
