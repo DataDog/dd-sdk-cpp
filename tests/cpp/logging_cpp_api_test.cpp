@@ -24,6 +24,16 @@ static const auto OS_PROPERTIES = nlohmann::json{
     {"name", "MockOS"}, {"version", "1.0.0"}, {"build", "12345"}, {"version_major", "1"}
 };
 
+static const auto DEVICE_PROPERTIES = nlohmann::json{
+    {"architecture", "x86_64"},
+    {"brand", "MockBrand"},
+    {"locale", "en-US"},
+    {"model", "MockModel"},
+    {"name", "MockDevice"},
+    {"time_zone", "UTC"},
+    {"type", "desktop"}
+};
+
 TEST_CASE("Logging null safety", "[unit][logging][cpp-api]") {
   SECTION("M safely do nothing W this wraps nullptr") {
     // Given both a valid Core interface that has no valid implementation pointer, as
@@ -241,6 +251,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
         nlohmann::json{
             nlohmann::json{
                 {"os", OS_PROPERTIES},
+                {"device", DEVICE_PROPERTIES},
                 {"status", "info"},
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
@@ -249,6 +260,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
+                {"device", DEVICE_PROPERTIES},
                 {"status", "debug"},
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
@@ -257,6 +269,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
+                {"device", DEVICE_PROPERTIES},
                 {"status", "info"},
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
@@ -265,6 +278,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
+                {"device", DEVICE_PROPERTIES},
                 {"status", "notice"},
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
@@ -273,6 +287,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
+                {"device", DEVICE_PROPERTIES},
                 {"status", "warn"},
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
@@ -281,6 +296,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
+                {"device", DEVICE_PROPERTIES},
                 {"status", "error"},
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
@@ -289,6 +305,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
+                {"device", DEVICE_PROPERTIES},
                 {"status", "critical"},
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
@@ -395,6 +412,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
         MergeJsonArrays(test.client.requests) ==
         nlohmann::json::array({nlohmann::json{
             {"os", OS_PROPERTIES},
+            {"device", DEVICE_PROPERTIES},
             {"status", "info"},
             {"service", "mock-service"},
             {"date", "2023-11-14T22:13:20.000Z"},
@@ -429,6 +447,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
         MergeJsonArrays(test.client.requests) ==
         nlohmann::json::array({nlohmann::json{
             {"os", OS_PROPERTIES},
+            {"device", DEVICE_PROPERTIES},
             {"status", "info"},
             {"service", "overridden-service"},
             {"date", "2023-11-14T22:13:20.000Z"},
@@ -467,6 +486,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
         MergeJsonArrays(test.client.requests) ==
         nlohmann::json::array({nlohmann::json{
             {"os", OS_PROPERTIES},
+            {"device", DEVICE_PROPERTIES},
             {"status", "info"},
             {"service", "mock-service"},
             {"date", "2023-11-14T22:13:20.000Z"},
@@ -638,6 +658,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        // Event should include "foo":100,"bar":"yes"
        nlohmann::json::array({nlohmann::json{
            {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
            {"status", "info"},
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
@@ -663,6 +684,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        // Event should include "foo":100,"bar":200
        nlohmann::json::array({nlohmann::json{
            {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
            {"status", "info"},
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
@@ -688,6 +710,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        // Event should include "foo":200
        nlohmann::json::array({nlohmann::json{
            {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
            {"status", "info"},
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
@@ -723,6 +746,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        nlohmann::json{
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "info"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
@@ -734,6 +758,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            },
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "debug"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
@@ -745,6 +770,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            },
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "info"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
@@ -756,6 +782,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            },
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "notice"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
@@ -767,6 +794,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            },
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "warn"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
@@ -778,6 +806,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            },
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "error"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
@@ -789,6 +818,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            },
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "critical"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
@@ -821,6 +851,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        // Event should include "foo":300,"baz":200,"bar":400
        nlohmann::json::array({nlohmann::json{
            {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
            {"status", "info"},
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
@@ -854,6 +885,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        // all other custom attributes should be entirely ignored
        nlohmann::json::array({nlohmann::json{
            {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
            {"status", "info"},
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
@@ -892,6 +924,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
        nlohmann::json{
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "info"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
@@ -903,6 +936,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            },
            nlohmann::json{
                {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
                {"status", "info"},
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},

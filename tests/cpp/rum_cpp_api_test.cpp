@@ -431,6 +431,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "build": "12345",
               "version_major": "1"
             },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -478,6 +487,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "build": "12345",
               "version_major": "1"
             },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -511,6 +529,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "version": "1.0.0",
               "build": "12345",
               "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
             },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -1319,6 +1346,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "build": "12345",
               "version_major": "1"
             },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -1444,6 +1480,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "version": "1.0.0",
               "build": "12345",
               "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
             },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -1826,6 +1871,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "build": "12345",
               "version_major": "1"
             },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -1893,6 +1947,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "version": "1.0.0",
               "build": "12345",
               "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
             },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -1965,6 +2028,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "build": "12345",
               "version_major": "1"
             },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
             },
@@ -2023,6 +2095,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "version": "1.0.0",
               "build": "12345",
               "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
             },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -2088,6 +2169,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "version": "1.0.0",
               "build": "12345",
               "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
             },
             "application": {
               "id": "a991ca10-4004-4004-4004-beefbeefbeef"

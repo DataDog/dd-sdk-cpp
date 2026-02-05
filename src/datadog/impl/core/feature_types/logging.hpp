@@ -45,6 +45,7 @@ struct LogEvent {
   OmitIfZero<UUID> rum_action_id;
 
   OmitIfNoValue<RumOSProperties> os;
+  OmitIfNoValue<RumDeviceProperties> device;
 
   explicit LogEvent(
       std::string_view in_service_name,
@@ -66,6 +67,7 @@ struct LogEvent {
     rum_view_id = UUID::Zero;
     rum_action_id = UUID::Zero;
     os = std::nullopt;
+    device = std::nullopt;
   }
 };
 
@@ -85,7 +87,8 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD_NAME(rum_view_id, "view.id"),
     DATADOG_JSON_FIELD_NAME(rum_action_id, "user_action.id"),
 
-    DATADOG_JSON_FIELD(os)
+    DATADOG_JSON_FIELD(os),
+    DATADOG_JSON_FIELD(device)
 
     // All user-specified attribute values are merged into the JSON object at top-level
     // and appended after these fields, with the exception of any property values whose
@@ -105,6 +108,7 @@ constexpr bool LogEvent_CanMergeUserAttribute(std::string_view name) {
   if (name == "view.id") { return false; }
   if (name == "user_action.id") { return false; }
   if (name == "os") { return false; }
+  if (name == "device") { return false; }
   // Reserved for future use:
   if (name == "_dd") { return false; }
   if (name == "usr") { return false; }
