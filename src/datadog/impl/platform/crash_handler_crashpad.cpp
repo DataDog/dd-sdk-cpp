@@ -84,12 +84,31 @@ static std::filesystem::path get_crashpad_handler_path() {
  * directory.
  */
 static std::filesystem::path get_crashpad_database_path() {
+  // TODO(RUM-14020): Store Crashpad artifacts within SDK storage directory
   // For now, store Crashpad data in $(pwd)/.crashpad
   return ".crashpad";
 }
 
 namespace datadog::platform {
 
+/**
+ * Crash handler implementation that uses the Crashpad client library, in conjunction
+ * with an external, out-of-process crashpad_handler executable that will be spawned by
+ * the client library on Initialize().
+ *
+ * When a crash occurs, the Crashpad client's signal handlers detect the crash, collect
+ * register state, and send an IPC notification to the handler proces. The handler
+ * process then captures a Breakpad-format minidump from the crashing application
+ * process.
+ *
+ * NOTE: COMPILING WITH DD_CRASH_MODE=crashpad IS NOT YET SUPPORTED. This is a prototype
+ * implementation that does not yet report crashes to Datadog intake. It will initialize
+ * the Crashpad client and handler, crashes will be handled, and minidumps will be
+ * written to `.crashpad/pending/`, but nothing will be uploaded.
+ *
+ * TODO(RUM-14025): Revisit Initialize() and Shutdown() when work on Crashpad support
+ *  resumes.
+ */
 class CrashpadCrashHandler final : public ICrashHandler {
  public:
   explicit CrashpadCrashHandler(
@@ -98,14 +117,24 @@ class CrashpadCrashHandler final : public ICrashHandler {
       : _logger(logger), _handler_exe_path(handler_exe_path) {}
 
   bool Initialize() override {
+    // TODO(RUM-14025): Re-enable uploads when work on Crashpad support resumes
+    const bool enable_crashpad_uploads = false;
+
     // Prepare Crashpad client options
     std::filesystem::path crashpad_handler_path = _handler_exe_path;
     if (crashpad_handler_path.empty()) {
       crashpad_handler_path = get_crashpad_handler_path();
     }
-    // TODO(RUM-14020): Figure out where Crashpad should store files
     std::filesystem::path crashpad_database_path = get_crashpad_database_path();
-    const std::string url = "http://127.0.0.1:8080";
+    // TODO(RUM-14025): To report crashes to the Datadog backend, we'd need to configure
+    //  the crashpad handler to upload crash reports to an HTTP endpoint that could
+    //  accept Breakpad-format minidumps, along with all relevant context in the form of
+    //  annotations, and produce RUM Errors with valid (though not necessarily
+    //  symbolicated) callstacks. Configuring this hardcoded upload URL is intended to
+    //  facilitate interception of requests (see examples/repl/mitm_dump.py) when using
+    //  the repl with mitmproxy enabled (./repl.sh), so that we can inspect Crashpad
+    //  requests for debugging purposes.
+    const std::string url = enable_crashpad_uploads ? "http://127.0.0.1:8080" : "";
     std::map<std::string, std::string> annotations;
     std::vector<std::string> arguments;
     const bool restartable = false;
@@ -130,17 +159,64 @@ class CrashpadCrashHandler final : public ICrashHandler {
       return false;
     }
 
+    // Set initial annotation values as a test
     s_test_annotation1.Set("foo");
     s_test_annotation2.Set("bar");
 
+    // When the Crashpad client is first initialized, it populates the configured
+    // database directory with configuration metadata and other state. By default, a
+    // database is configured to rate-limit uploads to once per hour, and uploads are
+    // also entirely disabled by default.
     auto db = crashpad::CrashReportDatabase::Initialize(
         base::FilePath(crashpad_database_path)
     );
     if (db) {
+      // Explicitly enable uploads so that new crashes will be POSTed to our upload URL
+      // if not rate-limited
       if (auto* settings = db->GetSettings(); settings) {
-        settings->SetUploadsEnabled(true);
+        settings->SetUploadsEnabled(enable_crashpad_uploads);
       }
     }
+
+    // Example upload behavior: if Crashpad produces a minidump with GUID
+    // 617ab41b-84d0-472f-b261-bae41acb901a, and it's configured with an upload URL of
+    // https://example.com/dumps/upload, along with the two test annotations with values
+    // 'foo' and 'bar' as noted above, then the handler will initiate an HTTP POST
+    // request equivalent to:
+    //
+    // clang-format off
+    // ================================================================================
+    // POST /dumps/upload?guid=617ab41b-84d0-472f-b261-bae41acb901a HTTP/1.1
+    // Host: example.com
+    // Content-Type: multipart/form-data; boundary=---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
+    // Transfer-Encoding: chunked
+    // Accept: */*
+    // Content-Encoding: gzip
+    // User-Agent: Crashpad/0.8.0 CFNetwork/3826.600.41 Darwin/24.6.0 (arm64)
+    // Accept-Language: en-US,en;q=0.9
+    // Accept-Encoding: gzip, deflate
+    // Connection: keep-alive
+    //
+    // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
+    // Content-Disposition: form-data; name="guid"
+    //
+    // 617ab41b-84d0-472f-b261-bae41acb901a
+    // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
+    // Content-Disposition: form-data; name="test_annotation1"
+    //
+    // foo
+    // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
+    // Content-Disposition: form-data; name="test_annotation2"
+    //
+    // bar
+    // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
+    // Content-Disposition: form-data; name="upload_file_minidump"; filename="6af03cf2-c984-4257-a2a3-304033a95b0b.dmp"
+    // Content-Type: application/octet-stream
+    //
+    // [... raw bytes of minidump file ...]
+    // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
+    // ================================================================================
+    // clang-format on
     return true;
   }
 
@@ -150,7 +226,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
   }
 
  private:
-  impl::DiagnosticLogger& _logger;
+  impl::DiagnosticLogger _logger;
   std::string _handler_exe_path;
 };
 
