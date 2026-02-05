@@ -73,7 +73,7 @@ class ICrashHandler {
    * Initialize(), such that crashes will no longer be handled by this implementation,
    * and will instead be handled as configured prior to the call to Initialize().
    *
-   * Some crash handler implementation may not be fully reversible. The SDK may not
+   * Some crash handler implementations may not be fully reversible. The SDK may not
    * assume that Initialize() is safe to call more than once, even if Shutdown() is
    * called.
    *
