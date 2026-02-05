@@ -198,13 +198,14 @@ def _dbh_get_base_address(dbh_exe: str, module_path: str) -> Optional[int]:
         return None
 
 
-def parse_crash_report(file_path: Path) -> tuple[list[int], list[Module]]:
+def parse_crash_report(file_path: Path) -> tuple[list[str], list[int], list[Module]]:
     """
     Parse a crash report file and extract stack trace addresses and loaded modules.
 
     Returns:
-        Tuple of (stack_addresses, modules)
+        Tuple of (metadata_lines, stack_addresses, modules)
     """
+    metadata_lines: list[str] = []
     stack_addresses: list[int] = []
     modules: list[Module] = []
 
@@ -218,6 +219,9 @@ def parse_crash_report(file_path: Path) -> tuple[list[int], list[Module]]:
             # Skip empty lines
             if not line:
                 continue
+
+            if not in_stack_trace and not in_loaded_modules and ': ' in line:
+                metadata_lines.append(line)
 
             # Check for section headers (case-insensitive)
             if line.lower().startswith('stack trace'):
@@ -256,7 +260,7 @@ def parse_crash_report(file_path: Path) -> tuple[list[int], list[Module]]:
                 except (ValueError, AttributeError):
                     pass  # Skip malformed lines
 
-    return stack_addresses, modules
+    return metadata_lines, stack_addresses, modules
 
 
 def resolve_address(address: int, modules: list[Module]) -> StackFrame:
@@ -357,7 +361,7 @@ def main() -> int:
 
     # Parse the crash report
     try:
-        stack_addresses, modules = parse_crash_report(crash_report_path)
+        metadata_lines, stack_addresses, modules = parse_crash_report(crash_report_path)
     except Exception as e:
         print(f"Error parsing crash report: {e}", file=sys.stderr)
         return 1
@@ -367,6 +371,9 @@ def main() -> int:
 
     # Report findings (only in human-readable formats)
     if args.format in ['human', 'full']:
+        for line in metadata_lines:
+            print(line)
+        print()
         print(f"Found {len(stack_addresses)} stack frames")
         print(f"Found {len(modules)} loaded modules")
         print()
