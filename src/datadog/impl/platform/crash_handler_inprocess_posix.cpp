@@ -769,7 +769,8 @@ class InProcessCrashHandler final : public ICrashHandler {
     }
 
     // Allocate an alternate signal stack of at least 128 KiB
-    const size_t stack_size = std::max(SIGSTKSZ, 0x20000);
+    const size_t stack_size =
+        std::max(static_cast<size_t>(SIGSTKSZ), static_cast<size_t>(0x20000));
     s_sigalt_stack = malloc(stack_size);
     if (!s_sigalt_stack) {
       close(s_crash_fd);
