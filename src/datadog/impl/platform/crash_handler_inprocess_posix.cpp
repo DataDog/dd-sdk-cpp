@@ -37,6 +37,7 @@ static_assert(
 #include <mach-o/loader.h>
 #endif
 
+#include "datadog/impl/assert.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
 
@@ -246,6 +247,27 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
         reinterpret_cast<uintptr_t>(fp) <= reinterpret_cast<uintptr_t>(frame)) {
       break;
     }
+  }
+}
+
+/**
+ * Returns pointer to the saved sigaction struct for the given signal number, or nullptr
+ * if the signal is not one that we handle.
+ */
+static struct sigaction* get_old_sigaction(int sig) {
+  switch (sig) {
+    case SIGSEGV:
+      return &s_old_sigsegv;
+    case SIGBUS:
+      return &s_old_sigbus;
+    case SIGILL:
+      return &s_old_sigill;
+    case SIGFPE:
+      return &s_old_sigfpe;
+    case SIGABRT:
+      return &s_old_sigabrt;
+    default:
+      return nullptr;
   }
 }
 
@@ -695,12 +717,21 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
 
   write_str(fd, "\n=== End of crash report ===\n");
 
-  // TODO(WIP): Call old signal handler
+  // If our signal handler replaced another signal handler that was installed by another
+  // library, by the application, or by the OS before us, restore that signal handler
+  // and re-raise the signal, effectively chaining to that signal handler so that we
+  // don't eat the error
+  struct sigaction* old_action = get_old_sigaction(sig);
+  if (old_action) {
+    sigaction(sig, old_action, nullptr);
+    raise(sig);
+  }
 
-  // Terminate the process, indicating death by signal, using _exit to skip atexit
-  // handlers and stdio flushing. We intentionally leave the crash report file
-  // descriptor open, since close() could fail or hang: the kernel will clean up on
-  // process exit.
+  // If we didn't have a previous handler to chain to, _or_ if that handler didn't
+  // terminate the process, we'll still have control of the program here. Terminate the
+  // process, indicating death by signal, using _exit to skip atexit handlers and stdio
+  // flushing. We intentionally leave the crash report file descriptor open, since
+  // close() could fail or hang: the kernel will clean up on process exit.
   _exit(128 + sig);
 }
 
@@ -734,6 +765,7 @@ class InProcessCrashHandler final : public ICrashHandler {
    */
   bool Initialize() override {
     // Set up the crash handler in stages, cleaning up on failure at each step
+    DATADOG_ASSERT(!_initialized, "InProcessCrashHandler::Initialize called twice");
 
     // Create directory to contain crashes, aborting on failure
     // TODO(WIP): Store crashes relative to SDK storage root
@@ -809,7 +841,8 @@ class InProcessCrashHandler final : public ICrashHandler {
     sigemptyset(&sa.sa_mask);
 
     // Register our signal handler for all fatal signals, reverting and cleaning up any
-    // to avoid partial setup if any sigaction() call fails:
+    // to avoid partial setup if any sigaction() call fails. Note that s_old_sigsegv et
+    // al. will _always_ be populated with a valid value.
     /// - SIGSEGV: Segmentation fault (invalid memory access)
     /// - SIGBUS: Bus error (misaligned access, hardware fault)
     /// - SIGILL: Illegal instruction (invalid opcode)
@@ -848,6 +881,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     }
 
     _logger.Debug("In-process crash handler initialized successfully");
+    _initialized = true;
     return true;
   }
 
@@ -856,48 +890,51 @@ class InProcessCrashHandler final : public ICrashHandler {
    * crashes occurred.
    */
   void Shutdown() override {
-    // Restore old signal handlers
-    // TODO: What if initialization failed and we didn't register anything?
+    // If we weren't successfully initialized, there should be no cleanup needed
+    if (!_initialized) {
+      return;
+    }
+
+    // Restore any old signal handlers that were replaced when we registered ours
     sigaction(SIGABRT, &s_old_sigabrt, nullptr);
     sigaction(SIGFPE, &s_old_sigfpe, nullptr);
     sigaction(SIGILL, &s_old_sigill, nullptr);
     sigaction(SIGBUS, &s_old_sigbus, nullptr);
     sigaction(SIGSEGV, &s_old_sigsegv, nullptr);
 
-    // If we allocated and registered an alternate stack for this thread, disable it and
-    // free it
-    if (s_sigalt_stack) {
-      // Disable the alternate signal stack for this thread
-      // TODO(WIP): sigaltstack() is per-thread
-      // TODO(WIP): Save and restore previous alt stack for this thread if replaced
-      stack_t disable = {};
-      disable.ss_flags = SS_DISABLE;
-      sigaltstack(&disable, nullptr);
+    // Disable the alternate signal stack for this thread
+    // TODO(WIP): sigaltstack() is per-thread
+    // TODO(WIP): Save and restore previous alt stack for this thread if replaced
+    stack_t disable = {};
+    disable.ss_flags = SS_DISABLE;
+    sigaltstack(&disable, nullptr);
 
-      free(s_sigalt_stack);
-      s_sigalt_stack = nullptr;
-    }
+    // Free the memory we allocated for the alternate stack
+    DATADOG_ASSERT(s_sigalt_stack, "s_sigalt_stack");
+    free(s_sigalt_stack);
+    s_sigalt_stack = nullptr;
 
-    // If we opened a crash file, close that file and delete it
-    if (s_crash_fd >= 0) {
-      // Sanity-check the file descriptor to make sure we didn't write anything to it
-      const off_t num_bytes_written = lseek(s_crash_fd, 0L, SEEK_CUR);
+    // We should have a crash report file open: clean it up since we didn't crash
+    DATADOG_ASSERT(s_crash_fd, "s_sigalt_stack");
 
-      // Close the file
-      close(s_crash_fd);
-      s_crash_fd = -1;
+    // Sanity-check the file descriptor to make sure we didn't write anything to it
+    const off_t num_bytes_written = lseek(s_crash_fd, 0L, SEEK_CUR);
 
-      // If we're certain the file is empty, attempt to delete it, ignoring failure
-      // since empty files will be handled cleanly by subsequent SDK instances
-      if (num_bytes_written == 0) {
-        int result = unlink(s_crash_filename);
-        (void)result;
-      }
+    // Close the file
+    close(s_crash_fd);
+    s_crash_fd = -1;
+
+    // If we're certain the file is empty, attempt to delete it, ignoring failure
+    // since empty files will be handled cleanly by subsequent SDK instances
+    if (num_bytes_written == 0) {
+      int result = unlink(s_crash_filename);
+      (void)result;
     }
   }
 
  private:
   impl::DiagnosticLogger& _logger;
+  bool _initialized{false};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Init(
