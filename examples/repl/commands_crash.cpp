@@ -4,7 +4,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <chrono>
 #include <optional>
+#include <thread>
 #include <type_traits>
 
 #ifdef _WIN32
@@ -39,9 +41,48 @@ void IntentionalCrash_Raise() {
 #endif
 }
 
+void IntentionalCrash_Raise_ThreadMain() {
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  IntentionalCrash_Raise();
+}
+
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Winfinite-recursion"
+#elif defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable : 4717)  // recursive on all control paths
+#endif
+
+void IntentionalCrash_StackOverflow() {
+  // Reserve a large buffer to make sure our stack frames are beefy, declaring it
+  // volatile and writing to it to ensure that the compiler won't optimize it away
+  volatile char buffer[1024];
+  buffer[0] = 0;
+
+  // Recurse infinitely
+  IntentionalCrash_StackOverflow();
+}
+
+#if defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic pop
+#elif defined(_MSC_VER)
+#pragma warning(pop)
+#endif
+
+void IntentionalCrash_StackOverflow_ThreadMain() {
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  IntentionalCrash_StackOverflow();
+}
+
 void IntentionalCrash_BadSdkUsage(void* addr) {
   auto* core = reinterpret_cast<datadog::Core*>(addr);
   core->SetTrackingConsent(datadog::TrackingConsent::Pending);
+}
+
+void IntentionalCrash_BadSdkUsage_ThreadMain(void* addr) {
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  IntentionalCrash_BadSdkUsage(addr);
 }
 
 void IntentionalCrash_BadSdkDtor(State& state) {
@@ -69,6 +110,11 @@ void IntentionalCrash_BadSdkDtor(State& state) {
   state.core.reset();
 }
 
+void IntentionalCrash_BadSdkDtor_ThreadMain(State& state) {
+  std::this_thread::sleep_for(std::chrono::milliseconds(10));
+  IntentionalCrash_BadSdkDtor(state);
+}
+
 // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
 }  // namespace
@@ -90,14 +136,23 @@ CommandResult HandleRegisterCrashReporting(State& state, const CommandInput&) {
 
 CommandResult HandleCrash(State& state, const CommandInput& args) {
   // First positional arg indicates type of crash we want to provoke
-  std::string_view mode = Unquote(args[0]);
+  auto pos = args.Positional();
+  std::string_view mode = Unquote(pos[0]);
   if (mode.empty()) {
     mode = "raise";
   }
 
-  // In the simplest mode, just raise a segfault signal / access violation exception
-  // directly
+  // If background:true, spin up a background thread to run the faulty code
+  auto named = args.Named();
+  const bool background = named.GetFlag("background");
+
+  // In the simplest mode, just raise a segfault / access violation directly
   if (mode == "raise") {
+    if (background) {
+      std::thread t{IntentionalCrash_Raise_ThreadMain};
+      t.detach();
+      return CommandResult::OK("std::thread::detach()");
+    }
     IntentionalCrash_Raise();
     return CommandResult::Error("IntentionalCrash_Raise() did not crash!");
   }
@@ -106,16 +161,37 @@ CommandResult HandleCrash(State& state, const CommandInput& args) {
   // to datadog::Core::SetTrackingConsent but with an invalid this pointer derived from
   // our state struct
   if (mode == "bad-sdk-usage") {
+    if (background) {
+      std::thread t{IntentionalCrash_BadSdkUsage_ThreadMain, &state};
+      t.detach();
+      return CommandResult::OK("std::thread::detach()");
+    }
     IntentionalCrash_BadSdkUsage(&state);
     return CommandResult::Error("IntentionalCrash_BadSdkUsage() did not crash!");
   }
 
-  // If mode is 'bad-sdk-cleanup', produce a more elaborate callstack by corrupting the
+  // If mode is 'bad-sdk-dtor', produce a more elaborate callstack by corrupting the
   // pointer held by our Core, then deleting that Core so that we get a chain of calls
   // leading to a destructor call that ultimately segfaults
   if (mode == "bad-sdk-dtor") {
+    if (background) {
+      std::thread t{IntentionalCrash_BadSdkDtor_ThreadMain, std::ref(state)};
+      t.detach();
+      return CommandResult::OK("std::thread::detach()");
+    }
     IntentionalCrash_BadSdkDtor(state);
     return CommandResult::Error("IntentionalCrash_BadSdkDtor() did not crash!");
+  }
+
+  // If mode is 'stack-overflow', cause a stack overflow via infinite recursion
+  if (mode == "stack-overflow") {
+    if (background) {
+      std::thread t{IntentionalCrash_StackOverflow_ThreadMain};
+      t.detach();
+      return CommandResult::OK("std::thread::detach()");
+    }
+    IntentionalCrash_StackOverflow();
+    return CommandResult::Error("IntentionalCrash_StackOverflow() did not crash!");
   }
 
   return CommandResult::Error("Unrecognied mode for crash!");
