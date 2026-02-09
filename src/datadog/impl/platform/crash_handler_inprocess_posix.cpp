@@ -154,7 +154,7 @@ static void write_hex_address(int fd, uintptr_t addr) {
   buf[i++] = 'x';
 
   // sprintf/snprintf are not signal-safe: manually convert to hex by starting at the
-  // top nibble (bits 60, 61, 62, 63), masking those 4 bytes to resolve the most
+  // top nibble (bits 60, 61, 62, 63), masking those 4 bits to resolve the most
   // significant hex digit, then progressing forward toward less-significant digits,
   // stepping down by 4 bytes each time
   for (int shift = 60; shift >= 0; shift -= 4) {
@@ -910,12 +910,18 @@ class InProcessCrashHandler final : public ICrashHandler {
     sigaltstack(&disable, nullptr);
 
     // Free the memory we allocated for the alternate stack
-    DATADOG_ASSERT(s_sigalt_stack, "s_sigalt_stack");
+    DATADOG_ASSERT(
+        s_sigalt_stack,
+        "s_sigalt_stack should be allocated if crash handler was fully initialized"
+    );
     free(s_sigalt_stack);
     s_sigalt_stack = nullptr;
 
     // We should have a crash report file open: clean it up since we didn't crash
-    DATADOG_ASSERT(s_crash_fd, "s_sigalt_stack");
+    DATADOG_ASSERT(
+        s_crash_fd >= 0,
+        "s_crash_fd should be open if crash handler was fully initialized"
+    );
 
     // Sanity-check the file descriptor to make sure we didn't write anything to it
     const off_t num_bytes_written = lseek(s_crash_fd, 0L, SEEK_CUR);
