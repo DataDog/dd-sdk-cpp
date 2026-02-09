@@ -102,6 +102,7 @@ void IntentionalCrash_BadSdkDtor(State& state) {
   void** impl_ptr_addr = reinterpret_cast<void**>(core);
 
   // Corrupt that address so that future calls to Core API functions will crash
+  // NOLINTNEXTLINE(performance-no-int-to-ptr)
   *impl_ptr_addr = reinterpret_cast<void*>(static_cast<uintptr_t>(0xbeefbe0f));
 
   // Reset our only reference to the datadog::Core: this will destroy the unique_ptr, in
