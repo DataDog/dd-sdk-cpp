@@ -5,6 +5,7 @@
 // Copyright 2025-Present Datadog, Inc.
 
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <thread>
 #include <type_traits>
@@ -101,7 +102,7 @@ void IntentionalCrash_BadSdkDtor(State& state) {
   void** impl_ptr_addr = reinterpret_cast<void**>(core);
 
   // Corrupt that address so that future calls to Core API functions will crash
-  *impl_ptr_addr = reinterpret_cast<void*>(0xbeefbe0f);
+  *impl_ptr_addr = reinterpret_cast<void*>(static_cast<uintptr_t>(0xbeefbe0f));
 
   // Reset our only reference to the datadog::Core: this will destroy the unique_ptr, in
   // turn invoking impl::Core::~Core() with a corrupt value for the 'this' pointer: this
