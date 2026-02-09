@@ -68,6 +68,11 @@ namespace datadog::platform {
 static volatile sig_atomic_t s_crash_fd = -1;
 static char s_crash_filename[256];  // Path to crash report file
 
+// Atomically set to 1 once our signal handler has been called, and never reset. This
+// one-shot reentrancy guard prevents recursive crashes (e.g., if the handler itself
+// triggers a signal) from causing infinite recursion or corrupting the crash report.
+static volatile sig_atomic_t s_in_handler = 0;
+
 // Original signal handlers to restore on shutdown
 static struct sigaction s_old_sigsegv;
 static struct sigaction s_old_sigbus;
@@ -611,6 +616,14 @@ static void write_modules(int fd) {
  * functions except for a signal-safe subset, etc.
  */
 static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
+  // One-shot reentrancy guard: if this function is called more than once (e.g., because
+  // the handler itself triggers a signal during crash report generation), we'll take no
+  // action and immediately terminate to avoid infinite recursion or report corruption
+  if (__atomic_exchange_n(&s_in_handler, 1, __ATOMIC_SEQ_CST) != 0) {
+    // Handler already running: terminate immediately with standard signal death code
+    _exit(128 + sig);
+  }
+
   // We should have a file descriptor for our crash report file, opened when crash
   // reporting was initialized. If we have no such file, exit immediately.
   int fd = s_crash_fd;

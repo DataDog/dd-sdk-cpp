@@ -44,6 +44,9 @@ static char s_crash_filename[MAX_PATH];  // Path to crash report file
 // Original exception filter to restore on shutdown
 static LPTOP_LEVEL_EXCEPTION_FILTER s_old_filter = nullptr;
 
+// Atomically set to 1 once our exception filter has been called, and never reset
+static LONG s_in_filter = 0;
+
 // === Exception-safe helpers for string formatting and file I/O ===
 
 /**
@@ -243,6 +246,13 @@ static void write_modules(HANDLE file) {
  * allocations that could fail, minimal dependencies on C runtime.
  */
 static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
+  // One-shot reentrancy guard: if this function is called more than once (e.g. because
+  // a second exception is raised during handling of the first), we'll take no action
+  // and let Windows continue handling the new exception as normal
+  if (InterlockedExchange(&s_in_filter, 1) != 0) {
+    return EXCEPTION_CONTINUE_SEARCH;
+  }
+
   // We should have a file handle for our crash report file, opened when crash reporting
   // was initialized. If we have no such file, return EXCEPTION_EXECUTE_HANDLER to let
   // Windows terminate the process.
