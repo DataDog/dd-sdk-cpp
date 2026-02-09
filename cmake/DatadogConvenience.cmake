@@ -26,7 +26,7 @@ function(datadog_enable target)
 
     # If the SDK was built with crashpad support, ensure that the crashpad_handler
     # executable is present alongside the application binary post-build
-    if(DD_ENABLE_CRASHPAD OR DATADOG_BUILT_WITH_DD_ENABLE_CRASHPAD)
+    if((DD_CRASH_MODE STREQUAL "crashpad") OR (DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad"))
         if (TARGET crashpad::handler)
             add_custom_command(TARGET ${target} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -55,7 +55,7 @@ endfunction()
 function(datadog_install destination)
     # If the SDK was built with crashpad support, install the crashpad_handler
     # executable to the destination directory
-    if(DD_ENABLE_CRASHPAD OR DATADOG_BUILT_WITH_DD_ENABLE_CRASHPAD)
+    if((DD_CRASH_MODE STREQUAL "crashpad") OR (DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad"))
         if(TARGET crashpad::handler)
             get_target_property(CRASHPAD_HANDLER_PATH crashpad::handler IMPORTED_LOCATION)
             install(PROGRAMS ${CRASHPAD_HANDLER_PATH} DESTINATION ${destination})

@@ -39,7 +39,6 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/features/logging/logger.cpp
     datadog/impl/features/logging/logging.cpp
     datadog/impl/features/crash_reporting/crash_reporting.cpp
-    datadog/impl/features/crash_reporting/temp_crashpad.cpp
     datadog/impl/features/rum/containers/resource_map.cpp
     datadog/impl/features/rum/containers/view_array.cpp
     datadog/impl/features/rum/scopes/action.cpp
@@ -193,13 +192,25 @@ else()
     endif()
 endif()
 
-# If building with crashpad support, integrate crashpad as a dependency: this adds an
-# ExternalProject target that will build crashpad, then adds the resulting static lib as
-# a dependency for dd_native. To ensure binary-compatible builds, this script must run
-# after compile/link options for dd_native are fully configured.
-if(DD_ENABLE_CRASHPAD)
+# Crash handler implementation selection, based on DD_CRASH_MODE
+if(DD_CRASH_MODE STREQUAL "noop")
+    target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_noop.cpp)
+elseif(DD_CRASH_MODE STREQUAL "inprocess")
+    target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_inprocess.cpp)
+    # Add -fno-omit-frame-pointer for reliable POSIX stack walking
+    if(NOT WIN32)
+        target_compile_options(dd_native PRIVATE -fno-omit-frame-pointer)
+    endif()
+elseif(DD_CRASH_MODE STREQUAL "crashpad")
+    # If building with crashpad support, integrate crashpad as a dependency: this
+    # adds an ExternalProject target that will build crashpad, then adds the
+    # resulting static lib as a dependency for dd_native. To ensure
+    # binary-compatible builds, this script must run after compile/link options for
+    # dd_native are fully configured.
     include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
-    target_compile_definitions(dd_native PUBLIC DATADOG_WITH_CRASHPAD=1)
+    target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_crashpad.cpp)
+else()
+    message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
 endif()
 
 # Install configuration

@@ -8,12 +8,11 @@
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/writer.hpp"
-#include "datadog/impl/features/crash_reporting/temp_crashpad.hpp"
 
 namespace datadog::impl {
 
 CrashReporting::CrashReporting(std::string_view handler_exe_path)
-    : _handler_exe_path(handler_exe_path), _initialized(false) {}
+    : _handler_exe_path(handler_exe_path) {}
 
 std::optional<Report> CrashReporting::UploadThread_PrepareReport(
     const HttpContext& context, BatchReader& reader
@@ -27,42 +26,34 @@ std::optional<Report> CrashReporting::UploadThread_PrepareReport(
 
 void CrashReporting::Start() {
   DATADOG_ASSERT(_scope, "CrashReporting::Start called without valid FeatureScope");
-  DATADOG_ASSERT(
-      !_initialized, "CrashReporting::Start called when already initialized"
-  );
 
-  // Attempt to start Crashpad so we can verify that our build process has successfully
-  // linked the Crashpad client library and bundled the crashpad_handler executable
+  // Initialize the crash handler. This is static per process - it happens once and
+  // can't be undone. Starting the handler as early as possible gives us the best chance
+  // of catching early crashes.
 
-  // TODO(RUM-14033): Should this run on feature registration instead of on SDK start?
-  //  Crashpad init is necessarily static (it happens once per process and can't be
-  //  undone), and starting the handler as early as possible seems ideal for having the
-  //  best chance of catching early crashes.
+  static bool has_called_initialize = false;
+  if (!has_called_initialize) {
+    has_called_initialize = true;
 
-  // TODO(RUM-14033): Define a proper (Crashpad-agnostic) interface for initializing,
-  //  configuring, and controlling crash-reporting functionality within the SDK
+    _crash_handler =
+        platform::CrashHandler::Init(_scope->diagnostic_logger, _handler_exe_path);
+    if (!_crash_handler) {
+      _scope->diagnostic_logger.Error("Failed to create crash handler");
+      return;
+    }
 
-  static bool has_called_initialize_crash_handler = false;
-  if (!has_called_initialize_crash_handler) {
-    // Ensure that we only initialize Crashpad once in any given process
-    _initialized = InitializeCrashHandler(_handler_exe_path);
-    has_called_initialize_crash_handler = true;
-
-    // Log a status message to indicate that the Crashpad client has been initialized;
-    // or log an error if initialization failed
-    if (_initialized) {
+    if (_crash_handler->Initialize()) {
       _scope->diagnostic_logger.Status("Crash handler initialized");
     } else {
-      // TODO(RUM-14024): Surface errors from function return, and/or capture and
-      // redirect log output from Crashpad?
       _scope->diagnostic_logger.Error("Crash handler initialization failed");
     }
   }
 }
 
 void CrashReporting::Stop() {
-  // Note: The crashpad handler process is designed to outlive the application
-  // and continue running after SDK shutdown. We don't forcibly terminate it here.
+  if (_crash_handler) {
+    _crash_handler->Shutdown();
+  }
 }
 
 }  // namespace datadog::impl

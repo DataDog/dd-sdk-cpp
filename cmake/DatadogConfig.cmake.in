@@ -29,8 +29,8 @@ endif()
 
 # If the SDK was built with Crashpad support, include CrashpadConfig.cmake, ensuring
 # that crashpad::client and crashpad::handler targets are defined
-set(DATADOG_BUILT_WITH_DD_ENABLE_CRASHPAD @DD_ENABLE_CRASHPAD@)
-if(DATADOG_BUILT_WITH_DD_ENABLE_CRASHPAD)
+set(DATADOG_BUILT_WITH_DD_CRASH_MODE "@DD_CRASH_MODE@")
+if(DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad")
     include("${CMAKE_CURRENT_LIST_DIR}/../Crashpad/CrashpadConfig.cmake")
 endif()
 

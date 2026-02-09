@@ -1,4 +1,4 @@
-# When the SDK is built to an installable package with DD_ENABLE_CRASHPAD, this file is
+# When the SDK is built to an installable package with DD_CRASH_MODE=crashpad, this file is
 # distributed in lib/cmake/Crashpad, and DatadogConfig.cmake will automatically import
 # it from that location.
 #

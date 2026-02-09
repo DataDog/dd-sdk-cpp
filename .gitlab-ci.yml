@@ -152,28 +152,28 @@ build-linux:
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
-        DD_ENABLE_CRASHPAD: "OFF"  # Crashpad does not support GCC out of the box
+        DD_CRASH_MODE: "noop"  # Crashpad does not support GCC out of the box
 
       # gcc13: static-release, w/ bundled libcurl
       - TOOLCHAIN_TARGET: gcc13
         BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
-        DD_ENABLE_CRASHPAD: "OFF"  # Crashpad does not support GCC out of the box
+        DD_CRASH_MODE: "noop"  # Crashpad does not support GCC out of the box
 
       # clang15: static-release, w/ runtime dependency on libcurl.so
       - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "ON"
-        DD_ENABLE_CRASHPAD: "ON"
+        DD_CRASH_MODE: "crashpad"
 
       # clang15: shared-debug, w/ bundled libcurl
       - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "OFF"
-        DD_ENABLE_CRASHPAD: "ON"
+        DD_CRASH_MODE: "crashpad"
 
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
@@ -182,8 +182,8 @@ build-linux:
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
-      -DDD_ENABLE_CRASHPAD=${DD_ENABLE_CRASHPAD}
-      -DDD_RUN_CRASHPAD_TESTS=${DD_ENABLE_CRASHPAD}
+      -DDD_CRASH_MODE=${DD_CRASH_MODE}
+      -DDD_RUN_CRASHPAD_TESTS=$([[ "${DD_CRASH_MODE}" == "crashpad" ]] && echo "ON" || echo "OFF")
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
@@ -198,21 +198,21 @@ build-macos:
       - BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
-        DD_ENABLE_CRASHPAD: "ON"
+        DD_CRASH_MODE: "crashpad"
 
       # clang15 (Apple): static-release, w/ bundled libcurl
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
-        DD_ENABLE_CRASHPAD: "ON"
+        DD_CRASH_MODE: "crashpad"
   script:
     - >
       cmake
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
       -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
-      -DDD_ENABLE_CRASHPAD=${DD_ENABLE_CRASHPAD}
-      -DDD_RUN_CRASHPAD_TESTS=${DD_ENABLE_CRASHPAD}
+      -DDD_CRASH_MODE=${DD_CRASH_MODE}
+      -DDD_RUN_CRASHPAD_TESTS=$([[ "${DD_CRASH_MODE}" == "crashpad" ]] && echo "ON" || echo "OFF")
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
@@ -229,12 +229,13 @@ build-windows:
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
-        DD_ENABLE_CRASHPAD: "ON"
+        DD_CRASH_MODE: "crashpad"
         MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
     - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - $env:DD_RUN_CRASHPAD_TESTS = if (${env:DD_CRASH_MODE} -eq "crashpad") { "ON" } else { "OFF" }
     - >
       docker run --rm
       -m 8192M
@@ -242,7 +243,7 @@ build-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_ENABLE_CRASHPAD=${env:DD_ENABLE_CRASHPAD} -DDD_RUN_CRASHPAD_TESTS=${env:DD_ENABLE_CRASHPAD} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we

@@ -23,10 +23,22 @@ class CrashReporting;
 /**
  * Configures the Crash Reporting feature.
  *
- * To enable Crash Reporting support in your application, the SDK must be compiled with
- * DD_ENABLE_CRASHPAD. At present, if you use Crashpad, your application build must
- * target C++20, and you must distribute the crashpad_handler executable alongside your
- * application.
+ * The exact crash reporting mechanism varies depending on which crash handler
+ * implementation the SDK is built with, controllable via the CMake option
+ * DD_CRASH_MODE:
+ *
+ * - DD_CRASH_MODE=noop
+ *   - Renders Crash Reporting inert: API remains usable but all calls are no-ops.
+ *
+ * - DD_CRASH_MODE=inprocess
+ *   - This is the default option, and the option used for pre-built SDK binaries.
+ *   - Captures the callstack for the crashing thread only.
+ *   - Uploads reports to Datadog on the next application launch.
+ *
+ * - DD_CRASH_MODE=crashpad
+ *   - This option is NOT YET SUPPORTED.
+ *   - Includes Crashpad in the SDK build; requires targeting C++20 and distributing a
+ *     crashpad_handler with your application; does not yet upload reports to Datadog.
  */
 struct CrashReportingConfig {
   friend class CrashReporting;
@@ -51,17 +63,15 @@ struct CrashReportingConfig {
   DATADOG_API CrashReportingConfig& operator=(CrashReportingConfig&&) noexcept;
 
   /**
-   * Sets the path to the crash handler executable, which must be distributed alongside
-   * your application: the SDK's Crashpad client will attempt to launch this process
-   * from the provided path.
+   * Sets the path to the crash handler executable, overriding the default path.
    *
-   * By default, the SDK will look for a file named 'crashpad_handler' (POSIX) or
+   * If using DD_CRASH_MODE=crashpad (not yet supported), you may supply the full path
+   * to the crashpad_handler executable to be launched alongside your application. By
+   * default, the SDK will look for a file named 'crashpad_handler' (POSIX) or
    * 'crashpad_handler.exe' (Windows) in the same directory as your application's
-   * executable. If you distribute the handler executable in a different location,
-   * and/or with a different name, provide the full file path to this function.
+   * executable.
    *
-   * If you provide a relative path, it will be resolved relative to the current working
-   * directory.
+   * If using DD_CRASH_MODE=noop or DD_CRASH_MODE=inprocess, this value is ignored.
    */
   DATADOG_API CrashReportingConfig& SetHandlerExePath(std::string_view value);
 };
