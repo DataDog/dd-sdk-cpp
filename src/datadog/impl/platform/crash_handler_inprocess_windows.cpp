@@ -402,11 +402,14 @@ static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
     }
   }
 
-  // Otherwise, we're telling Windows the result of our handling this exception: since
-  // we just wanted to non-invasively record the crash details, "continue search" is
-  // appropriate since it instructs the OS to continue with its normal behavior, without
-  // suppressing WER or default termination behavior
-  return EXCEPTION_CONTINUE_SEARCH;
+  // If the exception wasn't decisively handled by any previous exception filter,
+  // terminate the process: if we've handled what we consider a fatal, reportable crash,
+  // then we should ensure that the application is shut down. Convey the exception code
+  // as the process exit code (which is a uint32 DWORD on Windows)
+  TerminateProcess(GetCurrentProcess(), code);
+
+  // Unreachable fallback: we own the crash outcome, hence EXCEPTION_EXECUTE_HANDLER
+  return EXCEPTION_EXECUTE_HANDLER;
 }
 
 /**
