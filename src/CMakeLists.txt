@@ -61,6 +61,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/json/primitives/uuid.cpp
     datadog/impl/json/attribute.cpp
     datadog/impl/json/diagnostic_attribute.cpp
+    datadog/impl/storage/path.cpp
     datadog/impl/diagnostics.cpp
     datadog/impl/error_message.cpp
     datadog/impl/validation.cpp
