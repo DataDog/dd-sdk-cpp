@@ -14,6 +14,7 @@
 #include <pthread.h>
 #include <signal.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <ucontext.h>
 #include <unistd.h>
@@ -40,6 +41,7 @@ static_assert(
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
+#include "datadog/impl/platform/crash_report_write.hpp"
 
 namespace datadog::platform {
 
@@ -84,95 +86,6 @@ static struct sigaction s_old_sigabrt;
 // stack exhaustion
 static void* s_sigalt_stack = nullptr;
 
-// === Signal-safe helpers for string parsing/formatting and file I/O ===
-
-/**
- * Writes a null-terminated string to the given file descriptor, using only signal-safe
- * functions.
- */
-static void write_str(int fd, const char* str) {
-  // Compute string length manually, as, strlen is not guaranteed to be signal-safe
-  size_t len = 0;
-  while (str[len]) {
-    len++;
-  }
-
-  // Write to the open file descriptor, ignoring the result since the crash handler has
-  // no recovery path for I/O errors
-  ssize_t result = write(fd, str, len);
-  (void)result;
-}
-
-/**
- * Writes a literal newline character to the given file descriptor.
- */
-static void write_newline(int fd) {
-  ssize_t result = write(fd, "\n", 1);
-  (void)result;
-}
-
-/**
- * Writes an unsigned, 64-bit integer to the given file descriptor as an ASCII string,
- * in decimal format, using only signal-safe functions.
- */
-static void write_uint(int fd, uint64_t val) {
-  // Early-out for 0: write literal '0', ignoring result
-  if (val == 0) {
-    ssize_t result = write(fd, "0", 1);
-    (void)result;
-    return;
-  }
-
-  // Establish a buffer large enough to contain the max possible uint
-  char buf[32];
-  int i = 0;
-
-  // sprintf/snprintf are not signal-safe: manually accumulate the digits of our decimal
-  // value into the buffer, from least-significant to most-significant
-  while (val > 0) {
-    buf[i++] = static_cast<char>('0' + (val % 10));
-    val /= 10;
-  }
-
-  // Iterate backwards to write each of our digits into the file in reverse, ignoring
-  // the result since the crash handler has no recovery path for I/O errors
-  while (i > 0) {
-    ssize_t result = write(fd, &buf[--i], 1);
-    (void)result;  // Intentionally ignore - crash handler cannot handle errors
-  }
-}
-
-/**
- * Writes an address to the given file descriptor in lowercase hex format, prefixed with
- * '0x', always padded with leading zeroes to 16 hex digits (64-bit addresses), using
- * only signal-safe functions.
- */
-static void write_hex_address(int fd, uintptr_t addr) {
-  // Establish a constant lookup table of hex digits, and a buffer large enough to
-  // contain "0x" + 16 hex digits
-  const char hex_chars[] = "0123456789abcdef";
-  char buf[18];
-
-  // Write the 2-byte prefix to the buffer
-  int i = 0;
-  buf[i++] = '0';
-  buf[i++] = 'x';
-
-  // sprintf/snprintf are not signal-safe: manually convert to hex by starting at the
-  // top nibble (bits 60, 61, 62, 63), masking those 4 bits to resolve the most
-  // significant hex digit, then progressing forward toward less-significant digits,
-  // stepping down by 4 bytes each time
-  for (int shift = 60; shift >= 0; shift -= 4) {
-    // Write the appropriate hex digit into the next position in our buffer
-    buf[i++] = hex_chars[(addr >> shift) & 0xf];
-  }
-
-  // Write the 18 bytes from our buffer to the open file descriptor, ignoring the result
-  // since the crash handler has no recovery path for I/O errors
-  ssize_t result = write(fd, buf, i);
-  (void)result;
-}
-
 // === Stack unwinding ===
 // - We write stack frames to the crash report file as we iterate through the stack.
 // - For simplicity and maximum signal-safety, we currently walk the call stack by
@@ -185,20 +98,17 @@ static void write_hex_address(int fd, uintptr_t addr) {
 //   reconstruct callstacks based on .eh_frame / DWARF CFI metadata.
 
 /**
- * Writes a header indicating the start of the stack trace, followed by the instruction
- * pointer value indicating where the crash occurred, followed by the return addresses
- * stored in each subsequent stack frame.
+ * Writes the instruction pointer value indicating where the crash occurred, followed by
+ * the return addresses stored in each subsequent stack frame.
  *
  * Traverses the stack, starting from the frame_pointer address that's currently loaded
- * in the RBP/FP register, writing the return address from each stack frame into the
- * crash report file on its own line, hex-encoded.
+ * in the RBP/FP register, writing each stack frame using WriteCrashReportStackFrame().
  */
 static void write_stack_trace(int fd, void* instruction_pointer, void* frame_pointer) {
   // The topmost (most-recently-pushed) frame in our callstack represents the function
   // in which the crash occurred: the value of the instruction pointer / program counter
   // at the time of the crash indicates exactly where the crash occurred
-  write_hex_address(fd, reinterpret_cast<uintptr_t>(instruction_pointer));
-  write_newline(fd);
+  WriteCrashReportStackFrame(fd, reinterpret_cast<uint64_t>(instruction_pointer));
 
   // Stop after 128 frames to bound execution time and prevent runaway traversal
   const int max_frames = 128;
@@ -237,8 +147,7 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
     // address points to the instruction to be executed after this function returns
     // (immediately following the call that created this frame). Symbolication tools
     // will adjust to resolve the actual call site.
-    write_hex_address(fd, reinterpret_cast<uintptr_t>(ret_addr));
-    write_newline(fd);
+    WriteCrashReportStackFrame(fd, reinterpret_cast<uint64_t>(ret_addr));
 
     // Reading frame[0] into fp (effectively dereferencing fp) moves to the next frame
     fp = frame[0];
@@ -281,12 +190,7 @@ static struct sigaction* get_old_sigaction(int sig) {
 
 /**
  * Resolves a list of all modules that are loaded in the current process, and writes
- * them to the given file descriptor, in the format:
- *
- * <start-address>-<end-address> <binary-path>
- *
- * Where addresses are encoded as '0x'-prefixed, lowercase hex values zero-padded to 16
- * bytes, and binary path is the full path to the executable or library file.
+ * them to the given file descriptor in binary format, using WriteCrashReportModule.
  */
 static void write_modules(int fd);
 
@@ -396,13 +300,13 @@ static void write_modules(int fd) {
     const uintptr_t actual_start = base_addr;
     const uintptr_t actual_end = base_addr + module_size;
 
-    // Write the module information in format: 0x<base>-0x<end> <path>
-    write_hex_address(fd, actual_start);
-    write_str(fd, "-");
-    write_hex_address(fd, actual_end);
-    write_str(fd, " ");
-    write_str(fd, image_name);
-    write_newline(fd);
+    // Write the relevant details of this module
+    WriteCrashReportModule(
+        fd,
+        static_cast<uint64_t>(actual_start),
+        static_cast<uint64_t>(actual_end),
+        image_name
+    );
   }
 }
 #endif  // __APPLE__
@@ -459,7 +363,7 @@ static void write_modules(int fd) {
   // our standard format.
   int maps_fd = open("/proc/self/maps", O_RDONLY);
   if (maps_fd < 0) {
-    write_str(fd, "Error: Failed to open /proc/self/maps\n");
+    // Failed to open /proc/self/maps; silently return (best-effort crash handling)
     return;
   }
 
@@ -586,15 +490,13 @@ static void write_modules(int fd) {
       }
 
       // We've parsed the address range and pathname of a loaded module that should be
-      // included in our crash report: write that information to the output file in a
-      // single line with the format `<start-address>-<end-address> <pathname>`, with
-      // addresses formatted as fixed-width, '0x'-prefixed hex strings
-      write_hex_address(fd, start_addr);
-      write_str(fd, "-");
-      write_hex_address(fd, end_addr);
-      write_str(fd, " ");
-      write_str(fd, pathname);
-      write_newline(fd);
+      // included in our crash report: write that information to the output file
+      WriteCrashReportModule(
+          fd,
+          static_cast<uint64_t>(start_addr),
+          static_cast<uint64_t>(end_addr),
+          pathname
+      );
 
       // Clear the line buffer to begin accumulating the next line
       line_write_pos = 0;
@@ -642,52 +544,15 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
 
   // We have a crash report file open and we should handle this crash; proceed with
   // writing to that file before chaining and/or exiting
-  write_str(fd, "=== Datadog SDK Crash Report ===\n");
-
-  write_str(fd, "Signal: ");
-  switch (sig) {
-    case SIGSEGV:
-      write_str(fd, "SIGSEGV");
-      break;
-    case SIGBUS:
-      write_str(fd, "SIGBUS");
-      break;
-    case SIGILL:
-      write_str(fd, "SIGILL");
-      break;
-    case SIGFPE:
-      write_str(fd, "SIGFPE");
-      break;
-    case SIGABRT:
-      write_str(fd, "SIGABRT");
-      break;
-    default:
-      write_uint(fd, sig);
-      break;
-  }
-  write_newline(fd);
-
-  write_str(fd, "Signal code: ");
-  write_uint(fd, info->si_code);
-  write_newline(fd);
-
-  write_str(fd, "Fault address: ");
-  write_hex_address(fd, reinterpret_cast<uintptr_t>(info->si_addr));
-  write_newline(fd);
-
-  write_str(fd, "PID: ");
-  write_uint(fd, getpid());
-  write_newline(fd);
-
-  write_str(fd, "TID: ");
-  write_uint(fd, reinterpret_cast<uintptr_t>(pthread_self()));
-  write_newline(fd);
-
-  // Timestamp (simple format, async-signal-safe)
-  time_t now = time(nullptr);
-  write_str(fd, "Timestamp: ");
-  write_uint(fd, now);
-  write_newline(fd);
+  WriteCrashReportHeader(
+      fd,
+      static_cast<uint64_t>(sig),                  // fault_code (signal number)
+      reinterpret_cast<uint64_t>(info->si_addr),   // fault_address
+      0,                                           // fault_flags (0 on POSIX)
+      static_cast<uint64_t>(getpid()),             // pid
+      reinterpret_cast<uint64_t>(pthread_self()),  // tid
+      static_cast<uint64_t>(time(nullptr))         // timestamp
+  );
 
   // The provided ucontext value contains CPU register states saved at time of crash:
   // different CPU architectures use different register names, and the layout of
@@ -730,15 +595,14 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
 #endif
   // NOLINTEND(performance-no-int-to-ptr)
 
-  // Write stack trace
-  write_str(fd, "\nStack trace (raw addresses):\n");
-  write_stack_trace(fd, ip, fp);
-
   // Write loaded modules
-  write_str(fd, "\nLoaded Modules:\n");
   write_modules(fd);
 
-  write_str(fd, "\n=== End of crash report ===\n");
+  // Write stack trace
+  write_stack_trace(fd, ip, fp);
+
+  // Write footer to mark end of crash report
+  WriteCrashReportFooter(fd);
 
   // If our signal handler replaced another signal handler that was installed by another
   // library, by the application, or by the OS before us, restore that signal handler
@@ -799,20 +663,17 @@ class InProcessCrashHandler final : public ICrashHandler {
 
     // Format a filename for this process's crash report file, with timestamp and PID:
     // note that the mere presence of this file does not indicate that a crash occurred,
-    // and the timestamp is SDK start time (to ensure uniqueness), not crash time
-    time_t now = time(nullptr);
-    struct tm tm_buf;
-    localtime_r(&now, &tm_buf);
+    // and the timestamp is SDK start time (to ensure uniqueness), not crash time.
+    // Format: crash_<system-timestamp-in-ms>_<pid>
+    struct timespec ts;
+    clock_gettime(CLOCK_REALTIME, &ts);
+    uint64_t timestamp_ms = (static_cast<uint64_t>(ts.tv_sec) * 1000) +
+                            (static_cast<uint64_t>(ts.tv_nsec) / 1000000);
     snprintf(
         s_crash_filename,
         sizeof(s_crash_filename),
-        ".crashes/crash_%04d%02d%02d_%02d%02d%02d_%d.txt",
-        tm_buf.tm_year + 1900,
-        tm_buf.tm_mon + 1,
-        tm_buf.tm_mday,
-        tm_buf.tm_hour,
-        tm_buf.tm_min,
-        tm_buf.tm_sec,
+        ".crashes/crash_%" PRIu64 "_%d",
+        timestamp_ms,
         getpid()
     );
 
