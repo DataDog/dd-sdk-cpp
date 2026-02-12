@@ -625,13 +625,23 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   }
 
   // We should have a file descriptor for our crash report file, opened when crash
-  // reporting was initialized. If we have no such file, exit immediately.
+  // reporting was initialized. If we have no such file, do not attempt to handle the
+  // crash: instead, chain to any previously-registered handler, and terminate the
+  // process if needed.
   int fd = s_crash_fd;
   if (fd < 0) {
-    // 128 + sig == death by signal
+    struct sigaction* old_action = get_old_sigaction(sig);
+    if (old_action) {
+      sigaction(sig, old_action, nullptr);
+      raise(sig);
+    }
+    // No old_action, or old_action did not terminate. Exit with 128 + sig to indicate
+    // death by signal
     _exit(128 + sig);
   }
 
+  // We have a crash report file open and we should handle this crash; proceed with
+  // writing to that file before chaining and/or exiting
   write_str(fd, "=== Datadog SDK Crash Report ===\n");
 
   write_str(fd, "Signal: ");
