@@ -27,34 +27,38 @@ using PlatformFileHandle = int;
 static const PlatformFileHandle INVALID_FILE_HANDLE = -1;
 #endif
 
-// === Filesystem Operation Results ===
-// Error codes for filesystem operations. These are mapped from platform-specific
-// errors (POSIX errno, Windows GetLastError) to provide consistent error reporting
-// across platforms.
+/**
+ * Result of a filesystem operation.
+ *
+ * These values are mapped from platform-specific error codes (errno, GetLastError()) to
+ * provide consistent error handling across all platforms.
+ */
 enum class FilesystemResult : uint8_t {
   OK,
   AlreadyExistsAsDirectory,
   AlreadyExists,
-  ParentDirectoryDoesNotExist,
+  DoesNotExist,
   PermissionDenied,
   ReadOnlyFilesystem,
   OutOfSpace,
   PathTooLong,
   InvalidName,
-  LockContention,  // Advisory lock could not be acquired (non-blocking attempt)
+  LockContention,
   UnknownError
 };
 
-// === Filesystem Interface ===
-// Low-level filesystem operations interface providing file I/O, directory
-// operations, and advisory file locking. All path operations use StoragePath
-// and PlatformPath to avoid heap allocations.
-//
-// Thread safety: Implementations are NOT thread-safe. Callers must synchronize
-// access to shared IFilesystem instances.
-//
-// Error handling: All operations return FilesystemResult codes. File handles
-// must be explicitly closed via Close() - no RAII wrapper is provided at this level.
+/**
+ * Interface for low-level filesystem operations.
+ *
+ * Uses the appropriate system APIs to implement file I/O, directory operations, and
+ * advisory file locking as required by the SDK.
+ *
+ * All operations that require filesystem paths use PlatformPath, which provides direct
+ * access to a null-terminated string in the appropriate representation for the platform
+ * (UTF-16 on Windows; UTF-8 otherwise), without requiring heap allocation. File I/O
+ * operations accept a valid PlatformFileHandle, which is defined as the canonical file
+ * descriptor type for the platform (HANDLE on Windows; int otherwise).
+ */
 class IFilesystem {
  public:
   IFilesystem() = default;
@@ -66,93 +70,91 @@ class IFilesystem {
   IFilesystem(IFilesystem&&) = default;
   IFilesystem& operator=(IFilesystem&&) = default;
 
-  // === Directory Operations ===
-
   /**
    * Creates a directory at the specified path.
    *
-   * Permissions (POSIX): 0700 (owner read/write/execute only)
-   * Permissions (Windows): Inherit from parent directory
+   * On POSIX systems, directories are created with permission flags 0700 (owner
+   * read/write/execute only). On Windows, security attributes are inherited from the
+   * parent directory.
    *
-   * @param path Platform-specific path to create
-   * @return OK if created, AlreadyExistsAsDirectory if exists,
-   *         ParentDirectoryDoesNotExist if parent missing, etc.
+   * The parent directory MUST already exist: this function does not create nested
+   * directories recursively. If any parent directory does not exist, returns
+   * DoesNotExist.
+   *
+   * If the directory is created successfully, returns OK. If the directory is already
+   * present, returns AlreadyExistsAsDirectory. Any other error code represents a
+   * failure.
    */
   virtual FilesystemResult CreateDirectory(const PlatformPath& path) = 0;
 
   /**
-   * Lists regular files in a directory (non-recursive).
+   * Populates `out_names` with a list of basenames (no path prefix) for all regular
+   * files in the given directory, in filesystem order (unsorted). Excludes
+   * subdirectories, symlinks, and special files.
    *
-   * Returns basenames only (no path prefix), in filesystem order (unsorted).
-   * Excludes subdirectories, symlinks, and special files.
-   * Clears out_names before populating.
+   * Clears out_names before populating it.
    *
-   * @param path Directory to list
-   * @param out_names Output vector for file basenames (cleared first)
-   * @return OK on success (empty vector if directory empty/missing),
-   *         error code on failure
+   * If the directory exists and a listing is successfully retrieved, returns OK and
+   * populates out_names with 0 or more filenames. If no such directory exists, returns
+   * DoesNotExist. Any other error code represents a failure.
    */
   virtual FilesystemResult ListFiles(
       const PlatformPath& path, std::vector<std::string>& out_names
   ) = 0;
 
   /**
-   * Lists subdirectories in a directory (non-recursive).
+   * Populates `out_names` with a list of basenames (no path prefix) for all
+   * subdirectories contained in the given directory, in filesystem order (unsorted).
+   * Excludes ".", "..", symlinks, and regular files.
    *
-   * Returns basenames only (no path prefix), in filesystem order (unsorted).
-   * Excludes "." and ".." entries, and regular files.
-   * Clears out_names before populating.
+   * Clears out_names before populating it.
    *
-   * @param path Directory to list
-   * @param out_names Output vector for directory basenames (cleared first)
-   * @return OK on success (empty vector if directory empty/missing),
-   *         error code on failure
+   * If the directory exists and a listing is successfully retrieved, returns OK and
+   * populates out_names with 0 or more subdirectory names. If no such directory exists,
+   * returns DoesNotExist. Any other error code represents a failure.
    */
   virtual FilesystemResult ListSubdirectories(
       const PlatformPath& path, std::vector<std::string>& out_names
   ) = 0;
 
-  // === File Operations ===
-
   struct OpenFileResult {
     FilesystemResult value;
-    PlatformFileHandle handle;  // INVALID_FILE_HANDLE on error
+    PlatformFileHandle handle;
   };
 
   /**
-   * Opens a file for writing, optionally with advisory locking.
+   * Opens a binary file for writing, optionally with advisory locking, creating the
+   * file if it does not yet exist.
    *
-   * Creates the file if it doesn't exist (mode 0600 on POSIX).
-   * - append=true: Open in append mode (writes always go to end)
-   * - append=false: Truncate to zero length
-   * - hold_advisory_lock=true: Acquire exclusive non-blocking lock
-   *   (POSIX: flock LOCK_EX|LOCK_NB, Windows: LockFileEx EXCLUSIVE)
+   * On POSIX systems, newly-created files receive mode 0600 (read/write access for
+   * owner only).
    *
-   * If lock requested but can't be acquired, returns LockContention.
-   * Lock is held until Close() is called.
+   * If `append` is true, existing files will be opened in append mode, such that all
+   * subsequent writes will start from the end of the file. If false, the file will be
+   * truncated to zero length if it already exists.
    *
-   * @param path File to open/create
-   * @param append If true, append to file; if false, truncate
-   * @param hold_advisory_lock If true, acquire exclusive lock
-   * @return {OK, handle} on success, {error, INVALID_FILE_HANDLE} on failure
+   * If `hold_advisory_lock` is true, the function will make a non-blocking attempt to
+   * acquire an exclusive lock on the file. If unable to acquire a lock, closes the file
+   * and returns LockContention. If a lock is acquired, it remains held until Close() is
+   * called on the resulting file handle.
+   *
+   * On success, returns {OK, handle}. On failure, returns {error, INVALID_FILE_HANDLE}.
    */
   virtual OpenFileResult OpenForWrite(
       const PlatformPath& path, bool append, bool hold_advisory_lock
   ) = 0;
 
   /**
-   * Opens a file for reading, optionally with advisory locking.
+   * Opens a binary file for reading, optionally with advisory locking.
    *
-   * File must already exist.
-   * - acquire_advisory_lock=true: Acquire shared non-blocking lock
-   *   (POSIX: flock LOCK_SH|LOCK_NB, Windows: LockFileEx shared)
+   * File must already exist. If no file exists at the given path, returns DoesNotExist.
    *
-   * If lock requested but can't be acquired, returns LockContention.
-   * Lock is held until Close() is called.
+   * If `acquire_advisory_lock` is called, the function will make a non-blocking attempt
+   * to acquire an exclusive lock on the file. If unable to acquire a lock, closes the
+   * file and returns LockContention. If a lock is acquired, it remains held until
+   * Close() is called on the resulting file handle.
    *
-   * @param path File to open
-   * @param acquire_advisory_lock If true, acquire shared lock
-   * @return {OK, handle} on success, {error, INVALID_FILE_HANDLE} on failure
+   * On success, returns {OK, handle}. On failure, returns {error, INVALID_FILE_HANDLE}.
    */
   virtual OpenFileResult OpenForRead(
       const PlatformPath& path, bool acquire_advisory_lock
@@ -160,39 +162,34 @@ class IFilesystem {
 
   struct WriteResult {
     FilesystemResult value;
-    size_t bytes_written;  // Bytes written before error (may be < n on failure)
+    size_t bytes_written;
   };
 
   /**
-   * Writes data to an open file.
+   * Writes N bytes of binary data to a file that's been opened for write.
    *
-   * Loops internally on partial writes to ensure all N bytes are written.
-   * For append-mode files, writes always go to end regardless of file position.
+   * If partial writes occur, retries in a loop to ensure that all N bytes are written.
    *
-   * @param file Open file handle from OpenForWrite
-   * @param src Data to write
-   * @param n Number of bytes to write
-   * @return {OK, n} on success, {error, partial_bytes} on failure
+   * On success, returns {OK, n}. On failure, returns {error, num_bytes_written}, with
+   * a num_bytes_written value greater than 0 indicating that a partial write occurred.
    */
   virtual WriteResult Write(PlatformFileHandle file, const char* src, size_t n) = 0;
 
   struct ReadResult {
     FilesystemResult value;
-    size_t bytes_read;  // Bytes actually read (0 = EOF, may be < n)
+    size_t bytes_read;
   };
 
   /**
-   * Reads data from an open file (single syscall, no looping).
+   * Reads up to N bytes of binary data from a file that's been opened for read.
    *
-   * Reads up to N bytes in a single operation. May return fewer bytes if:
-   * - End of file reached (returns 0 bytes)
-   * - Less data available than requested
-   * Does NOT loop internally like Write().
+   * `dst` must point to a contiguous buffer with capacity for at least N bytes.
    *
-   * @param file Open file handle from OpenForRead
-   * @param dst Buffer to read into (must have space for at least n bytes)
-   * @param n Maximum number of bytes to read
-   * @return {OK, bytes_read} on success (0 = EOF), {error, 0} on failure
+   * May return fewer than N bytes read when EOF has been reached or less data is
+   * available than was requested.
+   *
+   * On success, returns {OK, bytes_read}, with a bytes_read value of 0 indicating EOF.
+   * On failure, returns {error, 0}.
    */
   virtual ReadResult Read(PlatformFileHandle file, char* dst, size_t n) = 0;
 
@@ -200,33 +197,29 @@ class IFilesystem {
    * Closes an open file handle.
    *
    * Flushes any buffered writes and releases advisory locks if held.
-   * May return error if final flush fails (e.g., disk full).
    *
-   * @param file File handle to close
-   * @return OK on success, error code on failure
+   * May return error if final flush fails.
    */
   virtual FilesystemResult Close(PlatformFileHandle file) = 0;
 
   /**
    * Deletes a regular file.
    *
-   * Returns error if path is a directory or doesn't exist.
-   *
-   * @param path File to delete
-   * @return OK on success, error code on failure
+   * Returns OK on success, or an error code if the file doesn't exist, was a directory,
+   * or couldn't be deleted.
    */
   virtual FilesystemResult Delete(const PlatformPath& path) = 0;
 
   /**
-   * Atomically renames a file (same filesystem only).
+   * Atomically renames a file, given two paths on the same filesystem.
    *
-   * Fails if destination already exists (no clobber).
-   * Fails if source and destination are on different filesystems
-   * (no cross-filesystem copy fallback).
+   * If a file or directory already exists at the destination path, refrains from moving
+   * the file and returns AlreadyExists, leaving both source and destination files
+   * intact.
    *
-   * @param src Source file path
-   * @param dst Destination file path
-   * @return OK on success, AlreadyExists if dst exists, error otherwise
+   * Returns OK on success, or an error code if the source file doesn't exist, the
+   * destination path is occupied, the paths point to different filesystems, or the
+   * rename operation failed.
    */
   virtual FilesystemResult Rename(const PlatformPath& src, const PlatformPath& dst) = 0;
 };
