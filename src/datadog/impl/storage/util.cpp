@@ -18,8 +18,8 @@ static const char* filesystem_result_str(FilesystemResult res) {
       return "OK";
     case FilesystemResult::AlreadyExistsAsDirectory:
       return "AlreadyExistsAsDirectory";
-    case FilesystemResult::AlreadyExistsAsFile:
-      return "AlreadyExistsAsFile";
+    case FilesystemResult::AlreadyExists:
+      return "AlreadyExists";
     case FilesystemResult::ParentDirectoryDoesNotExist:
       return "ParentDirectoryDoesNotExist";
     case FilesystemResult::PermissionDenied:
@@ -32,6 +32,8 @@ static const char* filesystem_result_str(FilesystemResult res) {
       return "PathTooLong";
     case FilesystemResult::InvalidName:
       return "InvalidName";
+    case FilesystemResult::LockContention:
+      return "LockContention";
     case FilesystemResult::UnknownError:
       return "UnknownError";
   }
