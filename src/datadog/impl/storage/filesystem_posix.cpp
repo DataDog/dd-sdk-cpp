@@ -22,15 +22,10 @@
 
 namespace datadog::impl {
 
-// === Error Mapping Helper ===
-// Maps POSIX errno values to FilesystemResult codes. Used by most operations
-// for consistent error reporting. CreateDirectory() handles errors inline since
-// it needs to distinguish AlreadyExists vs AlreadyExistsAsDirectory.
-namespace {
-FilesystemResult MapErrnoToResult(int err) {
+static FilesystemResult map_errno(int err) {
   switch (err) {
     case ENOENT:
-      return FilesystemResult::ParentDirectoryDoesNotExist;
+      return FilesystemResult::DoesNotExist;
     case EEXIST:
       return FilesystemResult::AlreadyExists;
     case EACCES:
@@ -53,12 +48,9 @@ FilesystemResult MapErrnoToResult(int err) {
       return FilesystemResult::UnknownError;
   }
 }
-}  // namespace
 
 class PosixFilesystem final : public IFilesystem {
  public:
-  // === Directory Operations ===
-
   FilesystemResult CreateDirectory(const PlatformPath& path) override {
     // Attempt to create directory with rwx------ permissions
     const int result = mkdir(path.Get(), 0700);
@@ -66,34 +58,28 @@ class PosixFilesystem final : public IFilesystem {
       return FilesystemResult::OK;
     }
 
-    // Creation failed, analyze errno to determine specific failure reason.
-    // We handle errors inline here (rather than using MapErrnoToResult) because
-    // EEXIST requires calling stat() to distinguish between an existing file vs
-    // an existing directory.
+    // If creation failed due to an existing file at the target path, use stat() to see
+    // if it's a file or a directory
     const int error = errno;
     if (error == EEXIST) {
-      // Path exists - use stat() to distinguish file vs directory
       struct stat st;
       if (stat(path.Get(), &st) == 0 && S_ISDIR(st.st_mode)) {
         return FilesystemResult::AlreadyExistsAsDirectory;
       }
     }
-    return MapErrnoToResult(error);
+    return map_errno(error);
   }
 
   FilesystemResult ListFiles(
       const PlatformPath& path, std::vector<std::string>& out_names
   ) override {
+    // Clear output vector
     out_names.clear();
 
-    // Open directory for reading. If directory doesn't exist, return OK with
-    // empty vector (as specified in plan).
+    // Open directory for reading
     DIR* dir = opendir(path.Get());
     if (dir == nullptr) {
-      if (errno == ENOENT) {
-        return FilesystemResult::OK;  // Missing directory = empty list
-      }
-      return MapErrnoToResult(errno);
+      return map_errno(errno);
     }
 
     // Iterate through directory entries, filtering for regular files
@@ -104,11 +90,11 @@ class PosixFilesystem final : public IFilesystem {
         // Check if we hit an error or just reached end of directory
         const int error = errno;
         closedir(dir);
-        return error == 0 ? FilesystemResult::OK : MapErrnoToResult(error);
+        return error == 0 ? FilesystemResult::OK : map_errno(error);
       }
 
-      // Filter for regular files only. d_type is reliably populated on
-      // modern local filesystems (ext4, XFS, APFS, HFS+).
+      // Filter for regular files only. d_type is reliably populated on modern local
+      // filesystems (ext4, XFS, APFS, HFS+)
       if (entry->d_type == DT_REG) {
         out_names.emplace_back(entry->d_name);
       }
@@ -118,15 +104,13 @@ class PosixFilesystem final : public IFilesystem {
   FilesystemResult ListSubdirectories(
       const PlatformPath& path, std::vector<std::string>& out_names
   ) override {
+    // Clear output vector
     out_names.clear();
 
     // Open directory for reading
     DIR* dir = opendir(path.Get());
     if (dir == nullptr) {
-      if (errno == ENOENT) {
-        return FilesystemResult::OK;  // Missing directory = empty list
-      }
-      return MapErrnoToResult(errno);
+      return map_errno(errno);
     }
 
     // Iterate through directory entries, filtering for subdirectories
@@ -136,7 +120,7 @@ class PosixFilesystem final : public IFilesystem {
       if (entry == nullptr) {
         const int error = errno;
         closedir(dir);
-        return error == 0 ? FilesystemResult::OK : MapErrnoToResult(error);
+        return error == 0 ? FilesystemResult::OK : map_errno(error);
       }
 
       // Skip "." and ".." entries
@@ -144,15 +128,12 @@ class PosixFilesystem final : public IFilesystem {
         continue;
       }
 
-      // Filter for directories only. d_type is reliably populated on
-      // modern local filesystems (ext4, XFS, APFS, HFS+).
+      // Filter for directories only
       if (entry->d_type == DT_DIR) {
         out_names.emplace_back(entry->d_name);
       }
     }
   }
-
-  // === File Operations ===
 
   OpenFileResult OpenForWrite(
       const PlatformPath& path, bool append, bool hold_advisory_lock
@@ -161,37 +142,33 @@ class PosixFilesystem final : public IFilesystem {
     int flags = O_WRONLY | O_CREAT;
     flags |= append ? O_APPEND : O_TRUNC;
 
-    // Open file with permissions 0600 (owner read/write only).
-    // Retry on EINTR (signal interruption).
+    // Open file with permissions 0600 (owner read/write only), and retry on EINTR
     int fd = -1;
     while (true) {
       fd = open(path.Get(), flags, 0600);
       if (fd >= 0) {
-        break;  // Success
+        break;
       }
-      if (errno != EINTR) {
-        // Failed for reason other than interrupt
-        return {MapErrnoToResult(errno), INVALID_FILE_HANDLE};
+      if (errno == EINTR) {
+        continue;
       }
-      // errno == EINTR: retry
+      return {map_errno(errno), INVALID_FILE_HANDLE};
     }
 
     // If advisory lock requested, attempt non-blocking exclusive lock
     if (hold_advisory_lock) {
-      // flock() with LOCK_EX (exclusive) | LOCK_NB (non-blocking)
-      // Returns 0 on success, -1 on failure
       while (true) {
         const int lock_result = flock(fd, LOCK_EX | LOCK_NB);
         if (lock_result == 0) {
-          break;  // Lock acquired
+          break;
         }
         if (errno == EINTR) {
-          continue;  // Retry on interrupt
+          continue;
         }
         // Lock failed - close fd and return error
         const int lock_error = errno;
         close(fd);  // Ignore close errors here
-        return {MapErrnoToResult(lock_error), INVALID_FILE_HANDLE};
+        return {map_errno(lock_error), INVALID_FILE_HANDLE};
       }
     }
 
@@ -201,33 +178,33 @@ class PosixFilesystem final : public IFilesystem {
   OpenFileResult OpenForRead(
       const PlatformPath& path, bool acquire_advisory_lock
   ) override {
-    // Open file read-only, retry on EINTR
+    // Open file read-only; retry on EINTR
     int fd = -1;
     while (true) {
       fd = open(path.Get(), O_RDONLY);
       if (fd >= 0) {
-        break;  // Success
+        break;
       }
-      if (errno != EINTR) {
-        return {MapErrnoToResult(errno), INVALID_FILE_HANDLE};
+      if (errno == EINTR) {
+        continue;
       }
+      return {map_errno(errno), INVALID_FILE_HANDLE};
     }
 
-    // If advisory lock requested, attempt non-blocking shared lock
+    // If advisory lock requested, attempt non-blocking exclusive lock
     if (acquire_advisory_lock) {
-      // flock() with LOCK_SH (shared) | LOCK_NB (non-blocking)
       while (true) {
-        const int lock_result = flock(fd, LOCK_SH | LOCK_NB);
+        const int lock_result = flock(fd, LOCK_EX | LOCK_NB);
         if (lock_result == 0) {
-          break;  // Lock acquired
+          break;
         }
         if (errno == EINTR) {
-          continue;  // Retry on interrupt
+          continue;
         }
-        // Lock failed
+        // Lock failed: close file and return error from flock() call
         const int lock_error = errno;
         close(fd);
-        return {MapErrnoToResult(lock_error), INVALID_FILE_HANDLE};
+        return {map_errno(lock_error), INVALID_FILE_HANDLE};
       }
     }
 
@@ -235,17 +212,16 @@ class PosixFilesystem final : public IFilesystem {
   }
 
   WriteResult Write(PlatformFileHandle file, const char* src, size_t n) override {
-    // Write exactly N bytes, looping on partial writes and EINTR.
-    // This ensures all data is written even if write() returns < n.
+    // Write exactly N bytes, looping to retry on partial writes and EINTR, ensuring
+    // that all data is written even if a write() call returns < n
     size_t total = 0;
     while (total < n) {
       const ssize_t result = write(file, src + total, n - total);
       if (result < 0) {
         if (errno == EINTR) {
-          continue;  // Retry on interrupt
+          continue;
         }
-        // Write error - return partial bytes written
-        return {MapErrnoToResult(errno), total};
+        return {map_errno(errno), total};
       }
       if (result == 0) {
         // Unexpected: write() returned 0 (should not happen for regular files)
@@ -257,15 +233,15 @@ class PosixFilesystem final : public IFilesystem {
   }
 
   ReadResult Read(PlatformFileHandle file, char* dst, size_t n) override {
-    // Read up to N bytes in a single syscall (no looping except for EINTR).
-    // Returns actual bytes read, which may be less than N (or 0 for EOF).
+    // Read up to N bytes in a single syscall (no looping except to retry in case of
+    // EINTR)
     while (true) {
       const ssize_t result = read(file, dst, n);
       if (result < 0) {
         if (errno == EINTR) {
-          continue;  // Retry on interrupt
+          continue;
         }
-        return {MapErrnoToResult(errno), 0};
+        return {map_errno(errno), 0};
       }
       // result >= 0: success, may be 0 (EOF) or less than n
       return {FilesystemResult::OK, static_cast<size_t>(result)};
@@ -273,51 +249,45 @@ class PosixFilesystem final : public IFilesystem {
   }
 
   FilesystemResult Close(PlatformFileHandle file) override {
-    // Close file descriptor, retry on EINTR. Advisory locks are automatically
-    // released by the kernel when fd is closed.
+    // Close file descriptor, retry on EINTR. Advisory locks are automatically released
+    // by the kernel when fd is closed.
     while (true) {
       const int result = close(file);
       if (result == 0) {
         return FilesystemResult::OK;
       }
-      if (errno != EINTR) {
-        return MapErrnoToResult(errno);
+      if (errno == EINTR) {
+        continue;
       }
-      // errno == EINTR: retry
+      return map_errno(errno);
     }
   }
 
   FilesystemResult Delete(const PlatformPath& path) override {
-    // Delete regular file. Returns error if path is a directory or doesn't exist.
     const int result = unlink(path.Get());
     if (result == 0) {
       return FilesystemResult::OK;
     }
-    return MapErrnoToResult(errno);
+    return map_errno(errno);
   }
 
   FilesystemResult Rename(const PlatformPath& src, const PlatformPath& dst) override {
-    // Atomically rename src to dst. POSIX rename() clobbers dst by default,
-    // but we want non-clobbering semantics, so check if dst exists first.
-    // This introduces a small TOCTOU window, but it's acceptable for our use case
-    // (batch file management where concurrent renames to same dst are unlikely).
+    // Atomically rename src to dst. POSIX rename() clobbers dst by default, but we want
+    // non-clobbering semantics, so check if dst exists first. This introduces a small
+    // TOCTOU window, but it's acceptable for our use case.
     struct stat st;
     if (stat(dst.Get(), &st) == 0) {
       // Destination exists - return error to prevent clobber
       return FilesystemResult::AlreadyExists;
     }
-    // stat() failed - if dst doesn't exist (ENOENT), proceed with rename.
-    // For other errors (permission denied, etc.), proceed anyway and let
-    // rename() report the error.
-
-    // Attempt rename. Will fail if src doesn't exist, or if src and dst are
-    // on different filesystems (EXDEV).
+    // stat() failed, either because the destination file doesn't exist (ENOENT, as
+    // expected) or because of another error. Either way, proceed with the rename: any
+    // unexpected errors will be reported by rename().
     const int result = rename(src.Get(), dst.Get());
     if (result == 0) {
       return FilesystemResult::OK;
     }
-
-    return MapErrnoToResult(errno);
+    return map_errno(errno);
   }
 };
 

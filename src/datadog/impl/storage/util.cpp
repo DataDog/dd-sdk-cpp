@@ -20,8 +20,8 @@ static const char* filesystem_result_str(FilesystemResult res) {
       return "AlreadyExistsAsDirectory";
     case FilesystemResult::AlreadyExists:
       return "AlreadyExists";
-    case FilesystemResult::ParentDirectoryDoesNotExist:
-      return "ParentDirectoryDoesNotExist";
+    case FilesystemResult::DoesNotExist:
+      return "DoesNotExist";
     case FilesystemResult::PermissionDenied:
       return "PermissionDenied";
     case FilesystemResult::ReadOnlyFilesystem:

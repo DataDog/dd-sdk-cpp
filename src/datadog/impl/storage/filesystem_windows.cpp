@@ -13,14 +13,11 @@
 
 namespace datadog::impl {
 
-// === Error Mapping Helper ===
-// Maps Windows GetLastError() codes to FilesystemResult codes.
-namespace {
-FilesystemResult MapWindowsError(DWORD error) {
+static FilesystemResult map_error(DWORD error) {
   switch (error) {
     case ERROR_FILE_NOT_FOUND:
     case ERROR_PATH_NOT_FOUND:
-      return FilesystemResult::ParentDirectoryDoesNotExist;
+      return FilesystemResult::DoesNotExist;
     case ERROR_ALREADY_EXISTS:
       return FilesystemResult::AlreadyExists;
     case ERROR_ACCESS_DENIED:
@@ -43,9 +40,7 @@ FilesystemResult MapWindowsError(DWORD error) {
   }
 }
 
-// Converts a wide (UTF-16) string to a narrow (UTF-8) string for returning
-// directory entry names as std::string. Returns empty string on conversion failure.
-std::string WideToUtf8(const std::wstring& wide) {
+static std::string wide_to_utf8(const std::wstring& wide) {
   if (wide.empty()) {
     return std::string();
   }
@@ -79,12 +74,9 @@ std::string WideToUtf8(const std::wstring& wide) {
   );
   return utf8;
 }
-}  // namespace
 
 class WindowsFilesystem final : public IFilesystem {
  public:
-  // === Directory Operations ===
-
   FilesystemResult CreateDirectory(const PlatformPath& path) override {
     // Attempt to create directory with default security attributes
     const BOOL result = CreateDirectoryW(path.Get(), nullptr);
@@ -92,90 +84,91 @@ class WindowsFilesystem final : public IFilesystem {
       return FilesystemResult::OK;
     }
 
-    // Creation failed, analyze GetLastError() to determine specific failure reason
+    // Creation failed: if a file or directory already exists at the target path, use
+    // GetFileAttributesW() to distinguish file vs directory
     const DWORD error = GetLastError();
     if (error == ERROR_ALREADY_EXISTS) {
-      // Path exists - use GetFileAttributesW() to distinguish file vs directory
       const DWORD attrs = GetFileAttributesW(path.Get());
       if (attrs != INVALID_FILE_ATTRIBUTES && (attrs & FILE_ATTRIBUTE_DIRECTORY)) {
         return FilesystemResult::AlreadyExistsAsDirectory;
       }
     }
-    return MapWindowsError(error);
+    return map_error(error);
   }
 
   FilesystemResult ListFiles(
       const PlatformPath& path, std::vector<std::string>& out_names
   ) override {
+    // Clear output vector
     out_names.clear();
 
-    // Construct search pattern: path\*
-    // PlatformPath returns const wchar_t*, so we build a wide string
-    std::wstring search_pattern = path.Get();
-    if (!search_pattern.empty() && search_pattern.back() != L'\\') {
-      search_pattern += L'\\';
-    }
-    search_pattern += L'*';
+    // Copy our target directory path to a buffer that will hold our search path
+    wchar_t search_pattern[MAX_STORAGE_PATH_SIZE + 2];
+    const wchar_t* path_str = path.Get();
+    size_t len = wcslen(path_str);
+    wcscpy(search_pattern, path_str);
 
-    // Find first file in directory
+    // Append '\' if not already present, then '*', then null-terminate
+    if (len > 0 && search_pattern[len - 1] != L'\\') {
+      search_pattern[len++] = L'\\';
+    }
+    search_pattern[len++] = L'*';
+    search_pattern[len] = L'\0';
+
+    // Use FindFirstFileW/FindNextFileW to iterate over the contents of the directory
     WIN32_FIND_DATAW find_data;
-    HANDLE find_handle = FindFirstFileW(search_pattern.c_str(), &find_data);
+    HANDLE find_handle = FindFirstFileW(search_pattern, &find_data);
     if (find_handle == INVALID_HANDLE_VALUE) {
-      const DWORD error = GetLastError();
-      if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
-        return FilesystemResult::OK;  // Missing directory = empty list
-      }
-      return MapWindowsError(error);
+      return map_error(GetLastError());
     }
-
-    // Iterate through directory entries, filtering for regular files
     do {
       // Skip directories - we only want regular files
       if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
         // Convert wide filename to UTF-8 and add to output vector
-        std::string filename = WideToUtf8(find_data.cFileName);
+        std::string filename = wide_to_utf8(find_data.cFileName);
         if (!filename.empty()) {
           out_names.push_back(std::move(filename));
         }
       }
     } while (FindNextFileW(find_handle, &find_data) != 0);
 
-    // Check if we exited loop due to error or end of directory
+    // Check if we exited the loop due to error or end of directory
     const DWORD error = GetLastError();
     FindClose(find_handle);
-    return error == ERROR_NO_MORE_FILES ? FilesystemResult::OK : MapWindowsError(error);
+    return error == ERROR_NO_MORE_FILES ? FilesystemResult::OK : map_error(error);
   }
 
   FilesystemResult ListSubdirectories(
       const PlatformPath& path, std::vector<std::string>& out_names
   ) override {
+    // Clear output vector
     out_names.clear();
 
-    // Construct search pattern: path\*
-    std::wstring search_pattern = path.Get();
-    if (!search_pattern.empty() && search_pattern.back() != L'\\') {
-      search_pattern += L'\\';
-    }
-    search_pattern += L'*';
+    // Copy our target directory path to a buffer that will hold our search path
+    wchar_t search_pattern[MAX_STORAGE_PATH_SIZE + 2];
+    const wchar_t* path_str = path.Get();
+    size_t len = wcslen(path_str);
+    wcscpy(search_pattern, path_str);
 
-    // Find first file in directory
+    // Append '\' if not already present, then '*', then null-terminate
+    if (len > 0 && search_pattern[len - 1] != L'\\') {
+      search_pattern[len++] = L'\\';
+    }
+    search_pattern[len++] = L'*';
+    search_pattern[len] = L'\0';
+
+    // Use FindFirstFileW/FindNextFileW to iterate over the contents of the directory
     WIN32_FIND_DATAW find_data;
-    HANDLE find_handle = FindFirstFileW(search_pattern.c_str(), &find_data);
+    HANDLE find_handle = FindFirstFileW(search_pattern, &find_data);
     if (find_handle == INVALID_HANDLE_VALUE) {
-      const DWORD error = GetLastError();
-      if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND) {
-        return FilesystemResult::OK;  // Missing directory = empty list
-      }
-      return MapWindowsError(error);
+      return map_error(GetLastError());
     }
-
-    // Iterate through directory entries, filtering for subdirectories
     do {
       // Only include directories, excluding "." and ".."
       if ((find_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0) {
         if (wcscmp(find_data.cFileName, L".") != 0 &&
             wcscmp(find_data.cFileName, L"..") != 0) {
-          std::string dirname = WideToUtf8(find_data.cFileName);
+          std::string dirname = wide_to_utf8(find_data.cFileName);
           if (!dirname.empty()) {
             out_names.push_back(std::move(dirname));
           }
@@ -183,47 +176,42 @@ class WindowsFilesystem final : public IFilesystem {
       }
     } while (FindNextFileW(find_handle, &find_data) != 0);
 
-    // Check if we exited loop due to error or end of directory
+    // Check if we exited the loop due to error or end of directory
     const DWORD error = GetLastError();
     FindClose(find_handle);
-    return error == ERROR_NO_MORE_FILES ? FilesystemResult::OK : MapWindowsError(error);
+    return error == ERROR_NO_MORE_FILES ? FilesystemResult::OK : map_error(error);
   }
-
-  // === File Operations ===
 
   OpenFileResult OpenForWrite(
       const PlatformPath& path, bool append, bool hold_advisory_lock
   ) override {
-    // Determine creation disposition: truncate or open/create for append
-    // - TRUNCATE_EXISTING would fail if file doesn't exist, so use CREATE_ALWAYS
-    //   to truncate or create
-    // - OPEN_ALWAYS for append mode (create if doesn't exist, open if exists)
+    // OPEN_ALWAYS appends if files already exists, creating it if it doesn't.
+    // CREATE_ALWAYS replaces the file if it already exists, creating it if it doesn't.
     const DWORD creation_disposition = append ? OPEN_ALWAYS : CREATE_ALWAYS;
 
-    // Open file for writing. On Windows, FILE_APPEND_DATA restricts writes to
-    // end of file (append mode), whereas GENERIC_WRITE allows arbitrary positioning.
+    // FILE_APPEND_DATA restricts writes to end of file; GENERIC_WRITE allows arbitrary
+    // positioning
     const DWORD desired_access = append ? FILE_APPEND_DATA : GENERIC_WRITE;
 
-    // Open file with share mode allowing other processes to read (but not write)
-    // unless we're taking a lock
+    // Open file with share mode, allowing other processes to read from (but not write
+    // to) the file while we have it open. We rely on cooperative advisory locks, not
+    // Windows share modes, for file locking.
     HANDLE handle = CreateFileW(
         path.Get(),
         desired_access,
-        FILE_SHARE_READ,  // Allow concurrent reads
-        nullptr,          // Default security
+        FILE_SHARE_READ,
+        nullptr,
         creation_disposition,
         FILE_ATTRIBUTE_NORMAL,
-        nullptr  // No template file
+        nullptr
     );
 
     if (handle == INVALID_HANDLE_VALUE) {
-      return {MapWindowsError(GetLastError()), INVALID_FILE_HANDLE};
+      return {map_error(GetLastError()), INVALID_FILE_HANDLE};
     }
 
     // If advisory lock requested, attempt non-blocking exclusive lock
     if (hold_advisory_lock) {
-      // LockFileEx() locks entire file range. Use LOCKFILE_EXCLUSIVE_LOCK for
-      // exclusive access and LOCKFILE_FAIL_IMMEDIATELY for non-blocking.
       OVERLAPPED overlapped = {};  // Lock from byte 0
       const BOOL lock_result = LockFileEx(
           handle,
@@ -235,10 +223,10 @@ class WindowsFilesystem final : public IFilesystem {
       );
 
       if (lock_result == 0) {
-        // Lock failed - close handle and return error
+        // Lock failed: close file and return LockFileEx() error
         const DWORD lock_error = GetLastError();
         CloseHandle(handle);
-        return {MapWindowsError(lock_error), INVALID_FILE_HANDLE};
+        return {map_error(lock_error), INVALID_FILE_HANDLE};
       }
     }
 
@@ -248,29 +236,28 @@ class WindowsFilesystem final : public IFilesystem {
   OpenFileResult OpenForRead(
       const PlatformPath& path, bool acquire_advisory_lock
   ) override {
-    // Open file for reading. File must already exist (OPEN_EXISTING).
-    // Allow concurrent reads and writes by other processes (unless locking).
+    // Open file for reading, and allow concurrent reads and writes by other processes:
+    // we rely on cooperative advisory locks, not Windows share modes, for file locking
     HANDLE handle = CreateFileW(
         path.Get(),
         GENERIC_READ,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
         nullptr,
-        OPEN_EXISTING,
+        OPEN_EXISTING,  // File must already exist
         FILE_ATTRIBUTE_NORMAL,
         nullptr
     );
 
     if (handle == INVALID_HANDLE_VALUE) {
-      return {MapWindowsError(GetLastError()), INVALID_FILE_HANDLE};
+      return {map_error(GetLastError()), INVALID_FILE_HANDLE};
     }
 
-    // If advisory lock requested, attempt non-blocking shared lock
+    // If advisory lock requested, attempt non-blocking exclusive lock
     if (acquire_advisory_lock) {
-      // LockFileEx() without LOCKFILE_EXCLUSIVE_LOCK = shared lock
       OVERLAPPED overlapped = {};
       const BOOL lock_result = LockFileEx(
           handle,
-          LOCKFILE_FAIL_IMMEDIATELY,  // Non-blocking shared lock
+          LOCKFILE_EXCLUSIVE_LOCK | LOCKFILE_FAIL_IMMEDIATELY,
           0,
           MAXDWORD,
           MAXDWORD,
@@ -278,9 +265,10 @@ class WindowsFilesystem final : public IFilesystem {
       );
 
       if (lock_result == 0) {
+        // Lock failed: close file and return LockFileEx() error
         const DWORD lock_error = GetLastError();
         CloseHandle(handle);
-        return {MapWindowsError(lock_error), INVALID_FILE_HANDLE};
+        return {map_error(lock_error), INVALID_FILE_HANDLE};
       }
     }
 
@@ -295,16 +283,12 @@ class WindowsFilesystem final : public IFilesystem {
     while (total < n) {
       DWORD written;
       const BOOL result = WriteFile(
-          file,
-          src + total,
-          static_cast<DWORD>(n - total),
-          &written,
-          nullptr  // Synchronous I/O
+          file, src + total, static_cast<DWORD>(n - total), &written, nullptr
       );
 
       if (result == 0) {
         // Write failed - return partial bytes written
-        return {MapWindowsError(GetLastError()), static_cast<size_t>(total)};
+        return {map_error(GetLastError()), static_cast<size_t>(total)};
       }
 
       total += written;
@@ -314,8 +298,7 @@ class WindowsFilesystem final : public IFilesystem {
   }
 
   ReadResult Read(PlatformFileHandle file, char* dst, size_t n) override {
-    // Read up to N bytes in a single syscall (no looping).
-    // Returns actual bytes read, which may be less than N (or 0 for EOF).
+    // Read up to N bytes
     DWORD bytes_read;
     const BOOL result = ReadFile(
         file,
@@ -326,37 +309,38 @@ class WindowsFilesystem final : public IFilesystem {
     );
 
     if (result == 0) {
-      return {MapWindowsError(GetLastError()), 0};
+      return {map_error(GetLastError()), 0};
     }
 
+    // Return number of bytes actually read, which may be 0 for EOF or < N if fewer
+    // bytes than requested were available
     return {FilesystemResult::OK, static_cast<size_t>(bytes_read)};
   }
 
   FilesystemResult Close(PlatformFileHandle file) override {
-    // Close file handle. Advisory locks are automatically released by Windows
-    // when the handle is closed.
+    // Close file handle: any advisory lock will be automatically released by Windows
+    // when the handle is closed
     const BOOL result = CloseHandle(file);
     if (result == 0) {
-      return MapWindowsError(GetLastError());
+      return map_error(GetLastError());
     }
     return FilesystemResult::OK;
   }
 
   FilesystemResult Delete(const PlatformPath& path) override {
-    // Delete regular file. Returns error if path is a directory or doesn't exist.
     const BOOL result = DeleteFileW(path.Get());
     if (result == 0) {
-      return MapWindowsError(GetLastError());
+      return map_error(GetLastError());
     }
     return FilesystemResult::OK;
   }
 
   FilesystemResult Rename(const PlatformPath& src, const PlatformPath& dst) override {
-    // Atomically rename src to dst. By default, MoveFileW() fails if dst exists,
-    // which matches our requirement (no clobber).
+    // Atomically rename src to dst: by default, MoveFileW() fails if dst exists,
+    // which matches our no-clobber requirement
     const BOOL result = MoveFileW(src.Get(), dst.Get());
     if (result == 0) {
-      return MapWindowsError(GetLastError());
+      return map_error(GetLastError());
     }
     return FilesystemResult::OK;
   }
