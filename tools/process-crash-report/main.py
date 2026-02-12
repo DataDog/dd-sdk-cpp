@@ -23,24 +23,29 @@ Usage:
     crash report from the .crashes/ directory.
 
 Options:
-    --output {full|stack}           Output mode (default: full)
+    --output {full|stack|raw}       Output mode (default: full)
                                     - full: metadata + resolved + symbolicated
                                     - stack: symbolicated stack only
+                                    - raw: parsed binary without resolution
 
     --tool {atos|llvm-symbolizer|addr2line|dbh|none|auto}
                                     Symbolication tool (default: auto)
                                     - auto: platform default
                                     - none: no symbolication (resolved only)
+                                    - ignored in raw mode
 
 Examples:
     # Process latest crash with default settings
     python3 tools/process-crash-report/main.py
 
     # Process specific crash report
-    python3 tools/process-crash-report/main.py .crashes/crash_20260209_114330_52101.txt
+    python3 tools/process-crash-report/main.py .crashes/crash_1770922852158_10798
 
     # Show only symbolicated stack (no metadata)
     python3 tools/process-crash-report/main.py --output stack
+
+    # Show raw parsed binary crash report (no resolution/symbolication)
+    python3 tools/process-crash-report/main.py --output raw
 
     # Use specific symbolication tool
     python3 tools/process-crash-report/main.py --tool llvm-symbolizer
@@ -54,9 +59,9 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pathlib import Path
 
 # Import lib modules
-from lib.parser import find_latest_crash_report, load_crash_report
+from lib.parser import find_latest_crash_report, load_crash_report, parse_crash_report
 from lib.symbolizers import get_symbolizer, SymbolizerTool
-from lib.formatters import print_crash_report, OutputMode
+from lib.formatters import print_crash_report, print_raw_crash_report, OutputMode
 
 
 def main() -> int:
@@ -77,9 +82,9 @@ def main() -> int:
 
     parser.add_argument(
         '--output',
-        choices=['full', 'stack'],
+        choices=['full', 'stack', 'raw'],
         default='full',
-        help='Output mode: full (metadata + stacks) or stack (symbolicated only)'
+        help='Output mode: full (metadata + stacks), stack (symbolicated only), or raw (parsed binary)'
     )
 
     parser.add_argument(
@@ -110,6 +115,23 @@ def main() -> int:
             print("", file=sys.stderr)
             print("Generate a crash report by running a program that uses the SDK", file=sys.stderr)
             print("and triggers a crash (e.g., dd_native_repl with a crash command).", file=sys.stderr)
+            return 1
+
+    # === Handle Raw Output Mode ===
+    # Raw mode: parse binary but skip resolution/symbolication (--tool ignored)
+    if args.output == 'raw':
+        try:
+            metadata, stack_addresses, modules = parse_crash_report(crash_report_path)
+            print_raw_crash_report(crash_report_path, metadata, stack_addresses, modules)
+            return 0
+        except FileNotFoundError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            return 1
+        except Exception as e:
+            print(f"Error parsing crash report: {e}", file=sys.stderr)
             return 1
 
     # === Parse Crash Report ===

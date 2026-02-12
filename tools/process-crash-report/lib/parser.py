@@ -6,32 +6,104 @@
 """
 Parse crash report files into structured data.
 
-This module handles reading crash report files from disk, parsing their three
-main sections (metadata, stack trace, loaded modules), and combining parsed
-data with address resolution to produce complete CrashReport objects.
+This module handles reading binary crash report files from disk, parsing their
+sections (header, modules, stack frames), and combining parsed data with address
+resolution to produce complete CrashReport objects.
+
+The binary format is defined in crash_report.hpp and uses little-endian uint64_t
+values with magic constants to identify sections.
 """
 
+import sys
+import struct
+import signal
 from pathlib import Path
+from datetime import datetime, timezone
 from typing import Optional
 from .models import CrashReport, Module
 
 
-# === Hex Address Parsing ===
+# === Magic Constants ===
+# These match the constants defined in crash_report.hpp
 
-def _parse_hex_address(addr_str: str) -> int:
+CRASH_REPORT_HEADER_MAGIC = 0xdd01
+CRASH_REPORT_FILE_VERSION = 1
+CRASH_REPORT_MODULE_MAGIC = 0xdda1
+CRASH_REPORT_STACK_FRAME_MAGIC = 0xdda2
+CRASH_REPORT_FOOTER_MAGIC = 0xddff
+
+# Size constants (in bytes)
+UINT64_SIZE = 8
+HEADER_SIZE = 64  # 8 uint64_t values
+
+
+# === Platform-Specific Signal/Exception Mapping ===
+
+def _get_signal_name(fault_code: int) -> Optional[str]:
     """
-    Parse a hex address string to an integer.
+    Map a POSIX signal number to its name.
 
     Args:
-        addr_str: Hex string like "0x12345678"
+        fault_code: Signal number
 
     Returns:
-        Integer address
-
-    Raises:
-        ValueError: If string is not valid hex
+        Signal name (e.g., "SIGSEGV") or None if unknown
     """
-    return int(addr_str, 16)
+    # Build reverse mapping from signal numbers to names
+    signal_map = {
+        signal.SIGSEGV: "SIGSEGV",
+        signal.SIGBUS: "SIGBUS",
+        signal.SIGILL: "SIGILL",
+        signal.SIGFPE: "SIGFPE",
+        signal.SIGABRT: "SIGABRT",
+        signal.SIGTRAP: "SIGTRAP",
+    }
+
+    return signal_map.get(fault_code)
+
+
+def _format_fault_code(fault_code: int) -> str:
+    """
+    Format the fault code appropriately for the platform.
+
+    On POSIX systems (macOS, Linux), formats as signal name + number.
+    On Windows, formats as hex exception code.
+
+    Args:
+        fault_code: Signal number (POSIX) or exception code (Windows)
+
+    Returns:
+        Formatted string like "Signal: SIGSEGV (11)" or "Exception Code: 0xc0000005"
+    """
+    if sys.platform == 'win32':
+        # Windows: Format as hex exception code
+        return f"Exception Code: 0x{fault_code:08x}"
+    else:
+        # POSIX: Try to map to signal name, fallback to number
+        signal_name = _get_signal_name(fault_code)
+        if signal_name:
+            return f"Signal: {signal_name} ({fault_code})"
+        else:
+            return f"Signal: {fault_code}"
+
+
+def _format_timestamp(timestamp: int) -> str:
+    """
+    Format Unix timestamp with human-readable date/time.
+
+    Args:
+        timestamp: Unix timestamp (seconds since epoch)
+
+    Returns:
+        Formatted string like "1770922852 (2026-02-12 18:14:12 UTC)"
+    """
+    try:
+        dt = datetime.fromtimestamp(timestamp, tz=timezone.utc)
+        human_readable = dt.strftime('%Y-%m-%d %H:%M:%S UTC')
+        return f"{timestamp} ({human_readable})"
+    except (ValueError, OSError):
+        # Timestamp out of range or invalid
+        return str(timestamp)
 
 
 # === Crash Report Discovery ===
@@ -40,7 +112,7 @@ def find_latest_crash_report(crashes_dir: Path) -> Optional[Path]:
     """
     Find the most recent crash report in the crashes directory.
 
-    Crash reports are named crash_<timestamp>_<pid>.txt, where timestamp
+    Crash reports are named crash_<timestamp>_<pid>, where timestamp
     uses lexicographically sortable format. This function finds the latest
     by sorting in reverse order.
 
@@ -48,14 +120,14 @@ def find_latest_crash_report(crashes_dir: Path) -> Optional[Path]:
         crashes_dir: Directory to search (typically .crashes/)
 
     Returns:
-        Path to most recent crash_*.txt file, or None if none found or
+        Path to most recent crash_* file, or None if none found or
         directory doesn't exist
     """
     if not crashes_dir.exists() or not crashes_dir.is_dir():
         return None
 
     crash_files = sorted(
-        crashes_dir.glob('crash_*.txt'),
+        crashes_dir.glob('crash_*'),
         reverse=True  # Most recent first (lexical sort)
     )
 
@@ -66,26 +138,24 @@ def find_latest_crash_report(crashes_dir: Path) -> Optional[Path]:
 
 def parse_crash_report(file_path: Path) -> tuple[dict[str, str], list[int], list[Module]]:
     """
-    Parse a crash report file into components.
+    Parse a binary crash report file into components.
 
-    Crash reports have three sections:
-    1. Metadata: Key-value pairs (e.g., "Signal: SIGSEGV")
-    2. Stack trace (raw addresses): Lines starting with "0x"
-    3. Loaded modules: Lines with format "0xbase-0xend /path/to/module"
+    The binary format is defined in crash_report.hpp and consists of:
+    1. Header section: magic, version, and crash metadata (64 bytes)
+    2. Module section: repeated module entries with magic, addresses, and paths
+    3. Stack frame section: repeated frame entries with magic and addresses
+    4. Footer: footer magic constant
 
-    Section markers:
-    - "Stack trace" (case-insensitive) starts stack trace section
-    - "Loaded Modules" (case-insensitive) starts module section
-    - "===" ends sections or marks report boundaries
+    All values are uint64_t (8 bytes) in little-endian byte order.
 
     Args:
-        file_path: Path to crash report file
+        file_path: Path to binary crash report file
 
     Returns:
         Tuple of (metadata_dict, stack_addresses, modules)
         - metadata_dict: Key-value pairs from header section
-        - stack_addresses: Raw hex addresses from stack trace section (in order)
-        - modules: Parsed Module objects from loaded modules section
+        - stack_addresses: Raw addresses from stack frame section (in order)
+        - modules: Parsed Module objects from module section
 
     Raises:
         FileNotFoundError: If file doesn't exist
@@ -95,66 +165,104 @@ def parse_crash_report(file_path: Path) -> tuple[dict[str, str], list[int], list
     stack_addresses: list[int] = []
     modules: list[Module] = []
 
-    # State machine for section tracking
-    in_stack_trace = False
-    in_loaded_modules = False
-
     try:
-        with open(file_path, 'r') as f:
-            for line in f:
-                line = line.strip()
+        with open(file_path, 'rb') as f:
+            # === Parse Header (64 bytes) ===
+            header_data = f.read(HEADER_SIZE)
+            if len(header_data) < HEADER_SIZE:
+                raise ValueError("Truncated crash report file (incomplete header)")
 
-                # Skip empty lines
-                if not line:
-                    continue
+            # Unpack 8 uint64_t values in little-endian format
+            header_values = struct.unpack('<8Q', header_data)
+            (magic, version, fault_code, fault_address, fault_flags,
+             pid, tid, timestamp) = header_values
 
-                # === Metadata Section ===
-                # Before any section markers, lines with ": " are metadata
-                if not in_stack_trace and not in_loaded_modules and ': ' in line:
-                    key, value = line.split(': ', 1)
-                    metadata[key] = value
+            # Validate magic number
+            if magic != CRASH_REPORT_HEADER_MAGIC:
+                raise ValueError(
+                    f"Invalid crash report: bad magic "
+                    f"(expected 0x{CRASH_REPORT_HEADER_MAGIC:x}, got 0x{magic:x})"
+                )
 
-                # === Section Markers ===
-                if line.lower().startswith('stack trace'):
-                    in_stack_trace = True
-                    in_loaded_modules = False
-                    continue
-                elif line.lower().startswith('loaded modules'):
-                    in_stack_trace = False
-                    in_loaded_modules = True
-                    continue
-                elif line.startswith('==='):
-                    # End of report or section separator
-                    in_stack_trace = False
-                    in_loaded_modules = False
-                    continue
+            # Check version (warn but continue if != 1)
+            if version != CRASH_REPORT_FILE_VERSION:
+                print(
+                    f"Warning: Unknown crash report version {version} "
+                    f"(expected {CRASH_REPORT_FILE_VERSION}), attempting parse",
+                    file=sys.stderr
+                )
 
-                # === Stack Trace Parsing ===
-                # Lines starting with "0x" are addresses
-                if in_stack_trace and line.startswith('0x'):
+            # Build metadata dict
+            metadata[_format_fault_code(fault_code).split(':')[0]] = \
+                _format_fault_code(fault_code).split(': ', 1)[1]
+            metadata["Fault Address"] = f"0x{fault_address:016x}"
+            metadata["PID"] = str(pid)
+            metadata["TID"] = f"0x{tid:x}"
+            metadata["Timestamp"] = _format_timestamp(timestamp)
+
+            # Include fault_flags if non-zero (Windows only)
+            if fault_flags != 0:
+                metadata["Fault Flags"] = f"0x{fault_flags:x}"
+
+            # === Parse Modules and Stack Frames ===
+            # Read magic values and dispatch to appropriate handler
+
+            while True:
+                # Read next magic constant
+                magic_data = f.read(UINT64_SIZE)
+                if len(magic_data) < UINT64_SIZE:
+                    raise ValueError("Truncated crash report file (incomplete section magic)")
+
+                magic = struct.unpack('<Q', magic_data)[0]
+
+                if magic == CRASH_REPORT_MODULE_MAGIC:
+                    # Parse module entry
+                    module_data = f.read(3 * UINT64_SIZE)
+                    if len(module_data) < 3 * UINT64_SIZE:
+                        raise ValueError("Truncated crash report file (incomplete module header)")
+
+                    start_addr, end_addr, num_path_bytes = struct.unpack('<3Q', module_data)
+
+                    # Read UTF-8 path (length-prefixed, no null terminator)
+                    path_data = f.read(num_path_bytes)
+                    if len(path_data) < num_path_bytes:
+                        raise ValueError("Truncated crash report file (incomplete module path)")
+
                     try:
-                        addr = _parse_hex_address(line)
-                        stack_addresses.append(addr)
-                    except ValueError:
-                        pass  # Skip malformed lines
+                        path = path_data.decode('utf-8')
+                    except UnicodeDecodeError:
+                        # Use replacement characters for invalid UTF-8
+                        path = path_data.decode('utf-8', errors='replace')
 
-                # === Loaded Modules Parsing ===
-                # Format: 0xbase-0xend /path/to/module
-                elif in_loaded_modules and line:
-                    try:
-                        parts = line.split(None, 1)  # Split on first whitespace
-                        if len(parts) == 2:
-                            addr_range, path = parts
-                            base_str, end_str = addr_range.split('-')
-                            base_address = _parse_hex_address(base_str)
-                            end_address = _parse_hex_address(end_str)
-                            modules.append(Module(base_address, end_address, path))
-                    except (ValueError, AttributeError):
-                        pass  # Skip malformed lines
+                    modules.append(Module(start_addr, end_addr, path))
+
+                elif magic == CRASH_REPORT_STACK_FRAME_MAGIC:
+                    # Parse stack frame entry
+                    frame_data = f.read(UINT64_SIZE)
+                    if len(frame_data) < UINT64_SIZE:
+                        raise ValueError("Truncated crash report file (incomplete stack frame)")
+
+                    raw_address = struct.unpack('<Q', frame_data)[0]
+                    stack_addresses.append(raw_address)
+
+                elif magic == CRASH_REPORT_FOOTER_MAGIC:
+                    # End of file
+                    break
+
+                else:
+                    # Unknown magic value
+                    raise ValueError(
+                        f"Invalid crash report: unexpected magic 0x{magic:x} "
+                        f"at offset {f.tell() - UINT64_SIZE}"
+                    )
 
     except FileNotFoundError:
         raise FileNotFoundError(f"Crash report not found: {file_path}")
+    except struct.error as e:
+        raise ValueError(f"Truncated crash report file: {e}")
     except Exception as e:
+        if isinstance(e, ValueError):
+            raise
         raise ValueError(f"Failed to parse crash report {file_path}: {e}")
 
     # Validate that we got at least some data
