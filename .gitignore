@@ -9,3 +9,5 @@ Testing/
 .plans/
 .crashpad/
 .crashes/
+__pycache__/
+*.pyc

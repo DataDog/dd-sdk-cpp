@@ -196,10 +196,15 @@ endif()
 if(DD_CRASH_MODE STREQUAL "noop")
     target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_noop.cpp)
 elseif(DD_CRASH_MODE STREQUAL "inprocess")
-    target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_inprocess.cpp)
-    # Add -fno-omit-frame-pointer for reliable POSIX stack walking
-    if(NOT WIN32)
+    # Select platform-specific in-process crash handler implementation
+    if(WIN32)
+        target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_inprocess_windows.cpp)
+    elseif(UNIX)
+        # Unified POSIX implementation for Linux and macOS
+        target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_inprocess_posix.cpp)
         target_compile_options(dd_native PRIVATE -fno-omit-frame-pointer)
+    else()
+        message(FATAL_ERROR "In-process crash handler not supported on this platform")
     endif()
 elseif(DD_CRASH_MODE STREQUAL "crashpad")
     # If building with crashpad support, integrate crashpad as a dependency: this

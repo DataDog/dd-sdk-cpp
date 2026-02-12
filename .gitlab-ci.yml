@@ -152,28 +152,28 @@ build-linux:
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
-        DD_CRASH_MODE: "noop"  # Crashpad does not support GCC out of the box
+        DD_CRASH_MODE: "inprocess"
 
       # gcc13: static-release, w/ bundled libcurl
       - TOOLCHAIN_TARGET: gcc13
         BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "noop"  # Crashpad does not support GCC out of the box
+        DD_CRASH_MODE: "inprocess"
 
       # clang15: static-release, w/ runtime dependency on libcurl.so
       - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "ON"
-        DD_CRASH_MODE: "crashpad"
+        DD_CRASH_MODE: "inprocess"
 
       # clang15: shared-debug, w/ bundled libcurl
       - TOOLCHAIN_TARGET: clang15
         BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "crashpad"
+        DD_CRASH_MODE: "inprocess"
 
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
@@ -198,13 +198,13 @@ build-macos:
       - BUILD_CONFIGURATION: Debug
         BUILD_SHARED_LIBS: "ON"
         USE_SYSTEM_LIBCURL: "ON"
-        DD_CRASH_MODE: "crashpad"
+        DD_CRASH_MODE: "inprocess"
 
       # clang15 (Apple): static-release, w/ bundled libcurl
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "crashpad"
+        DD_CRASH_MODE: "inprocess"
   script:
     - >
       cmake
@@ -229,7 +229,7 @@ build-windows:
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "crashpad"
+        DD_CRASH_MODE: "inprocess"
         MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
   script:
     - $ErrorActionPreference = "Stop"
