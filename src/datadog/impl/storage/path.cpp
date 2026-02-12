@@ -90,14 +90,13 @@ bool StoragePath::Join(std::string_view parent_path, std::string_view name) {
   return true;
 }
 
-bool PlatformPath::Encode(const StoragePath& path) {
+bool PlatformPath::Encode(const char* utf8_path) {
 #ifdef _WIN32
   // Determine how many UTF-16 code units are required to represent the given UTF-8
   // input string: setting cbMultiByte to -1 causes MultiByteToWideChar to treat the
   // string as null-terminated, meaning that the resulting size includes the null
   // terminator. Including MB_ERR_INVALID_CHARS ensures that input strings with invalid
   // UTF-8 sequences will be rejected outright.
-  const char* utf8_path = path.CStr();
   const DWORD flags = MB_ERR_INVALID_CHARS;
   const int cb_multi_byte = -1;
   const int num_utf16_chars =
@@ -123,7 +122,7 @@ bool PlatformPath::Encode(const StoragePath& path) {
   // POSIX treats a file path as an opaque sequence of bytes, and we assume UTF-8 by
   // convention on macOS and Linux; so we can use our underlying StoragePath buffer
   // directly, without requiring conversion
-  _ptr = path.CStr();
+  _ptr = utf8_path;
   return true;
 #endif
 }

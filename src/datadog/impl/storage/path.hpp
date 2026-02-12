@@ -17,7 +17,7 @@ namespace datadog::impl {
  * terminator and any multi-byte-encoded UTF-8 characters: e.g. the maximum effective
  * string length is (MAX_STORAGE_PATH_SIZE - 1) ASCII characters.
  */
-static constexpr size_t MAX_STORAGE_PATH_SIZE = 4096;
+static constexpr size_t MAX_STORAGE_PATH_SIZE = 512;
 
 /**
  * Holds a string value representing a filesystem path used by the SDK.
@@ -47,11 +47,11 @@ class StoragePath {
  * callsite:
  *
  *   bool DoSomething(const StoragePath& path) {
- *     PlatformPath sys_path;
- *     if (!sys_path.Encode(path)) {
+ *     PlatformPath platform_path;
+ *     if (!platform_path.Encode(path.CStr())) {
  *        return false;
  *     }
- *     return CallSomeSystemAPI(sys_path.Get());
+ *     return CallSomeSystemAPI(platform_path.Get());
  *   }
  *
  * On Windows, Encode() converts the provided path to a null-terminated UTF-8 string,
@@ -63,7 +63,7 @@ class StoragePath {
  */
 class PlatformPath {
  public:
-  bool Encode(const StoragePath& path);
+  bool Encode(const char* utf8_path);
 
 #ifdef _WIN32
   const wchar_t* Get() const { return _buf.data(); };

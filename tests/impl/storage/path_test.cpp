@@ -363,7 +363,7 @@ TEST_CASE("PlatformPath", "[unit][storage]") {
 
     // When we encode that value for use in calls to Win32 system APIs
     PlatformPath platform_path;
-    const bool ok = platform_path.Encode(path);
+    const bool ok = platform_path.Encode(path.CStr());
 
     // Then the operation succeeds
     REQUIRE(ok);
@@ -380,7 +380,7 @@ TEST_CASE("PlatformPath", "[unit][storage]") {
 
     // When we encode that value for use in calls to Win32 system APIs
     PlatformPath platform_path;
-    const bool ok = platform_path.Encode(path);
+    const bool ok = platform_path.Encode(path.CStr());
 
     // Then the operation succeeds
     REQUIRE(ok);
@@ -398,7 +398,7 @@ TEST_CASE("PlatformPath", "[unit][storage]") {
 
     // When we encode that value for use in calls to Win32 system APIs
     PlatformPath platform_path;
-    const bool ok = platform_path.Encode(path);
+    const bool ok = platform_path.Encode(path.CStr());
 
     // Then the operation fails
     REQUIRE(!ok);
@@ -411,7 +411,7 @@ TEST_CASE("PlatformPath", "[unit][storage]") {
 
     // When we "encode" that value for use in calls to POSIX system APIs
     PlatformPath platform_path;
-    const bool ok = platform_path.Encode(path);
+    const bool ok = platform_path.Encode(path.CStr());
 
     // Then the operation succeeds
     REQUIRE(ok);
@@ -427,7 +427,7 @@ TEST_CASE("PlatformPath", "[unit][storage]") {
 
     // When we "encode" that value for use in calls to POSIX system APIs
     PlatformPath platform_path;
-    const bool ok = platform_path.Encode(path);
+    const bool ok = platform_path.Encode(path.CStr());
 
     // Then the operation succeeds
     REQUIRE(ok);
