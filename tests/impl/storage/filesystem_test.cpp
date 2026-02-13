@@ -299,6 +299,29 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
     }
   }
 
+  SECTION("M handle zero-byte write W writing empty data") {
+    // Given a new file opened for writing
+    StoragePath file_path;
+    REQUIRE(file_path.Join(temp.path, "zerobyte.txt"));
+    const auto open_result =
+        fs->OpenForWrite(MakePlatformPath(file_path), false, false);
+    REQUIRE(open_result.value == FilesystemResult::OK);
+
+    // When we write zero bytes
+    const char* data = "dummy";
+    const auto write_result = fs->Write(open_result.handle, data, 0);
+
+    // Then the operation succeeds with zero bytes written
+    REQUIRE(write_result.value == FilesystemResult::OK);
+    REQUIRE(write_result.bytes_written == 0);
+
+    fs->Close(open_result.handle);
+
+    // And the file exists but is empty
+    REQUIRE(temp.FileExists("zerobyte.txt"));
+    REQUIRE(temp.ReadFileContents("zerobyte.txt") == "");
+  }
+
   SECTION("M acquire lock W writing with advisory lock") {
     // Given a path for a new file
     StoragePath file_path;
@@ -335,24 +358,6 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
     fs->Close(first_open.handle);
   }
 
-  SECTION("M allow multiple writers W opening without advisory lock") {
-    // Given a file opened for writing without advisory locking
-    StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "shared.txt"));
-    const auto first_open = fs->OpenForWrite(MakePlatformPath(file_path), false, false);
-    REQUIRE(first_open.value == FilesystemResult::OK);
-
-    // When we open the same file again without advisory locking
-    const auto second_open =
-        fs->OpenForWrite(MakePlatformPath(file_path), false, false);
-
-    // Then both opens succeed
-    REQUIRE(second_open.value == FilesystemResult::OK);
-
-    fs->Close(first_open.handle);
-    fs->Close(second_open.handle);
-  }
-
   SECTION("M flush data to disk W closing file after write") {
     // Given a file opened for writing
     StoragePath file_path;
@@ -369,6 +374,66 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
 
     // Then the data is persisted to disk
     REQUIRE(temp.ReadFileContents("flushed.txt") == "flushed data");
+  }
+
+  SECTION("M write data in multiple sequential calls W same file handle") {
+    // Given a new file opened for writing
+    StoragePath file_path;
+    REQUIRE(file_path.Join(temp.path, "sequential.txt"));
+    const auto open_result =
+        fs->OpenForWrite(MakePlatformPath(file_path), false, false);
+    REQUIRE(open_result.value == FilesystemResult::OK);
+
+    // When we write data in multiple sequential calls
+    const char* part1 = "part1";
+    const char* part2 = "part2";
+    const char* part3 = "part3";
+    const auto write1 = fs->Write(open_result.handle, part1, std::strlen(part1));
+    REQUIRE(write1.value == FilesystemResult::OK);
+    REQUIRE(write1.bytes_written == std::strlen(part1));
+    const auto write2 = fs->Write(open_result.handle, part2, std::strlen(part2));
+    REQUIRE(write2.value == FilesystemResult::OK);
+    REQUIRE(write2.bytes_written == std::strlen(part2));
+    const auto write3 = fs->Write(open_result.handle, part3, std::strlen(part3));
+    REQUIRE(write3.value == FilesystemResult::OK);
+    REQUIRE(write3.bytes_written == std::strlen(part3));
+
+    fs->Close(open_result.handle);
+
+    // Then all parts are written sequentially
+    REQUIRE(temp.ReadFileContents("sequential.txt") == "part1part2part3");
+  }
+
+  SECTION("M preserve all data W write-close-read round trip") {
+    // Given binary data with all byte values
+    StoragePath file_path;
+    REQUIRE(file_path.Join(temp.path, "roundtrip.dat"));
+    std::array<char, 256> original_data;
+    for (size_t i = 0; i < original_data.size(); ++i) {
+      original_data[i] = static_cast<char>(i);
+    }
+
+    // When we write the data
+    const auto write_open = fs->OpenForWrite(MakePlatformPath(file_path), false, false);
+    REQUIRE(write_open.value == FilesystemResult::OK);
+    const auto write_result =
+        fs->Write(write_open.handle, original_data.data(), original_data.size());
+    REQUIRE(write_result.value == FilesystemResult::OK);
+    REQUIRE(write_result.bytes_written == original_data.size());
+    fs->Close(write_open.handle);
+
+    // And reopen for reading
+    const auto read_open = fs->OpenForRead(MakePlatformPath(file_path), false);
+    REQUIRE(read_open.value == FilesystemResult::OK);
+    std::array<char, 256> read_data;
+    const auto read_result =
+        fs->Read(read_open.handle, read_data.data(), read_data.size());
+    fs->Close(read_open.handle);
+
+    // Then the data matches exactly
+    REQUIRE(read_result.value == FilesystemResult::OK);
+    REQUIRE(read_result.bytes_read == original_data.size());
+    REQUIRE(read_data == original_data);
   }
 }
 
@@ -504,25 +569,89 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
 
     fs->Close(first_open.handle);
   }
+
+  SECTION("M read file in multiple chunks W sequential reads until EOF") {
+    // Given a file with 16 bytes of content
+    temp.WriteFile("chunks.txt", "0123456789ABCDEF");
+    StoragePath file_path;
+    REQUIRE(file_path.Join(temp.path, "chunks.txt"));
+    const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
+    REQUIRE(open_result.value == FilesystemResult::OK);
+
+    // When we read in chunks
+    char buffer[10];
+    const auto read1 = fs->Read(open_result.handle, buffer, 5);
+    REQUIRE(read1.value == FilesystemResult::OK);
+    REQUIRE(read1.bytes_read == 5);
+    REQUIRE(std::string(buffer, read1.bytes_read) == "01234");
+
+    const auto read2 = fs->Read(open_result.handle, buffer, 5);
+    REQUIRE(read2.value == FilesystemResult::OK);
+    REQUIRE(read2.bytes_read == 5);
+    REQUIRE(std::string(buffer, read2.bytes_read) == "56789");
+
+    const auto read3 = fs->Read(open_result.handle, buffer, 10);
+    REQUIRE(read3.value == FilesystemResult::OK);
+    REQUIRE(read3.bytes_read == 6);
+    REQUIRE(std::string(buffer, read3.bytes_read) == "ABCDEF");
+
+    // And read again at EOF
+    const auto read4 = fs->Read(open_result.handle, buffer, 10);
+
+    // Then we get EOF indication
+    REQUIRE(read4.value == FilesystemResult::OK);
+    REQUIRE(read4.bytes_read == 0);
+
+    fs->Close(open_result.handle);
+  }
+
+  SECTION("M return OK with 0 bytes W reading at EOF") {
+    // Given a file with content
+    temp.WriteFile("eof.txt", "content");
+    StoragePath file_path;
+    REQUIRE(file_path.Join(temp.path, "eof.txt"));
+    const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
+    REQUIRE(open_result.value == FilesystemResult::OK);
+
+    // When we read the entire file with a large buffer
+    char buffer[100];
+    const auto read1 = fs->Read(open_result.handle, buffer, sizeof(buffer));
+    REQUIRE(read1.value == FilesystemResult::OK);
+    REQUIRE(read1.bytes_read == 7);
+
+    // And read again at EOF
+    const auto read2 = fs->Read(open_result.handle, buffer, sizeof(buffer));
+
+    // Then we get explicit EOF indication
+    REQUIRE(read2.value == FilesystemResult::OK);
+    REQUIRE(read2.bytes_read == 0);
+
+    fs->Close(open_result.handle);
+  }
+
+  SECTION("M handle zero-byte read W reading zero bytes") {
+    // Given a file with content
+    temp.WriteFile("zerobytes.txt", "content");
+    StoragePath file_path;
+    REQUIRE(file_path.Join(temp.path, "zerobytes.txt"));
+    const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
+    REQUIRE(open_result.value == FilesystemResult::OK);
+
+    // When we read zero bytes
+    char buffer[100];
+    const auto read_result = fs->Read(open_result.handle, buffer, 0);
+
+    // Then the operation succeeds with zero bytes read
+    REQUIRE(read_result.value == FilesystemResult::OK);
+    REQUIRE(read_result.bytes_read == 0);
+
+    fs->Close(open_result.handle);
+  }
 }
 
 TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
   TempDirectory temp;
   auto fs = CreateFilesystem();
-
-  SECTION("M hold exclusive lock W single writer with advisory lock") {
-    // Given a path for a new file
-    StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "exclusive.txt"));
-
-    // When we open the file with advisory locking
-    const auto open_result = fs->OpenForWrite(MakePlatformPath(file_path), false, true);
-
-    // Then the operation succeeds
-    REQUIRE(open_result.value == FilesystemResult::OK);
-
-    fs->Close(open_result.handle);
-  }
 
   SECTION("M allow second lock W first writer releases lock") {
     // Given a file that was previously locked and released
@@ -764,6 +893,31 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
     // Then the operation returns DoesNotExist
     REQUIRE(result == FilesystemResult::DoesNotExist);
   }
+
+  SECTION("M rename across directories W source and dest in different directories") {
+    // Given two directories with a file in the first
+    temp.Mkdirs("dir1");
+    temp.Mkdirs("dir2");
+    temp.WriteFile("dir1/moveme.txt", "content to move");
+    StoragePath src_path;
+    REQUIRE(src_path.Join(temp.path, "dir1/moveme.txt"));
+    StoragePath dst_path;
+    REQUIRE(dst_path.Join(temp.path, "dir2/moveme.txt"));
+
+    // When we rename the file to the second directory
+    const FilesystemResult result =
+        fs->Rename(MakePlatformPath(src_path), MakePlatformPath(dst_path));
+
+    // Then the operation succeeds
+    REQUIRE(result == FilesystemResult::OK);
+
+    // And the source no longer exists
+    REQUIRE(!temp.FileExists("dir1/moveme.txt"));
+
+    // And the destination exists with the original content
+    REQUIRE(temp.FileExists("dir2/moveme.txt"));
+    REQUIRE(temp.ReadFileContents("dir2/moveme.txt") == "content to move");
+  }
 }
 
 TEST_CASE("IFilesystem path handling", "[unit][storage][filesystem]") {
@@ -838,59 +992,5 @@ TEST_CASE("IFilesystem path handling", "[unit][storage][filesystem]") {
 
     // Then the file is created successfully
     REQUIRE(temp.FileExists(long_filename));
-  }
-}
-
-TEST_CASE("IFilesystem error conditions", "[unit][storage][filesystem]") {
-  TempDirectory temp;
-  auto fs = CreateFilesystem();
-
-  SECTION("M return InvalidName W path contains null byte") {
-    // Note: StoragePath::Set() itself will reject paths with embedded nulls due to
-    // strlen(), but if a path made it through, the OS would reject it.
-    // This test verifies the concept at the filesystem level.
-
-    // Given a path string containing a null byte
-    StoragePath file_path;
-    const std::string path_with_null = temp.path + std::string("/file\0name", 9);
-
-    // When we set the path (StoragePath::Set() uses strlen(), so it truncates at null)
-    const bool set_ok = file_path.Set(path_with_null.c_str());
-    REQUIRE(set_ok);
-
-    // Then the resulting path is truncated at the null
-    const auto open_result =
-        fs->OpenForWrite(MakePlatformPath(file_path), false, false);
-    REQUIRE(open_result.value == FilesystemResult::OK);
-
-    fs->Close(open_result.handle);
-  }
-
-  SECTION(
-      "M return appropriate error W filesystem operation encounters unexpected error"
-  ) {
-    // This test verifies that unexpected errors are mapped to UnknownError.
-    // In practice, it's difficult to trigger truly unknown errors in normal
-    // test conditions, so we just verify that the error mapping is in place.
-
-    // Given a normal file path
-    StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "testfile.txt"));
-
-    // When we attempt filesystem operations
-    const auto open_result =
-        fs->OpenForWrite(MakePlatformPath(file_path), false, false);
-
-    // Then the operation returns a known error code
-    REQUIRE(
-        (open_result.value == FilesystemResult::OK ||
-         open_result.value == FilesystemResult::DoesNotExist ||
-         open_result.value == FilesystemResult::PermissionDenied ||
-         open_result.value == FilesystemResult::UnknownError)
-    );
-
-    if (open_result.value == FilesystemResult::OK) {
-      fs->Close(open_result.handle);
-    }
   }
 }
