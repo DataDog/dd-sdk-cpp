@@ -15,7 +15,59 @@
 
 namespace datadog::impl {
 
+// Define the canonical path separator used to concatenate paths on the current
+// platform. Note that when writing paths on Windows we always use backslash, but when
+// _reading_ paths on Windows we always accept either backslash or forward slash, since
+// Win32 filesystem APIs treat them interchangeably.
+#ifdef _WIN32
+static const char PATH_SEP = '\\';
+#else
+static const char PATH_SEP = '/';
+#endif
+
+/**
+ * Given a UTF-8 string, returns true if the last character in the string is treated as
+ * a path separator on the current platform. On POSIX systems, this is effectively
+ * `path.endswith('/')`, but on Windows it's `path.endswith('/') || path.endswith('\\')`
+ * since Windows filesystem API functions recognize either character as a separator.
+ */
+static bool has_trailing_slash(std::string_view path) {
+  if (path.empty()) {
+    return false;
+  }
+  const char last = path.back();
+#ifdef _WIN32
+  return last == '/' || last == '\\';
+#else
+  return last == '/';
+#endif
+}
+
+/**
+ * Given a UTF-8 string, returns the position of the last path separator, matching only
+ * '/' on POSIX systems but matching either '/' or '\\' on Windows. Returns
+ * std::string_view::npos if the string contains no valid path separators.
+ */
+static std::string_view::size_type find_final_slash(std::string_view path) {
+#ifdef _WIN32
+  size_t pos = path.size();
+  while (pos-- > 0) {
+    if (path[pos] == '/' || path[pos] == '\\') {
+      return pos;
+    }
+  }
+  return std::string_view::npos;
+#else
+  return path.find_last_of('/');
+#endif
+}
+
 bool StoragePath::Set(std::string_view path) {
+  // Reject if the path contains "..", to prevent relative path traversal
+  if (path.find("..") != std::string_view::npos) {
+    return false;
+  }
+
   // Account for the total number of bytes required to hold the input value: number of
   // bytes in the string, plus a null terminator
   const size_t sizeof_nul = 1;
@@ -28,6 +80,8 @@ bool StoragePath::Set(std::string_view path) {
   // NOLINTNEXTLINE(readability-qualified-auto)
   auto it = std::copy(path.begin(), path.end(), _buf.begin());
   *it = '\0';
+
+  // Store total string length in bytes, excluding null terminator
   _len = path.size();
   return true;
 }
@@ -46,29 +100,12 @@ bool StoragePath::Join(std::string_view parent_path, std::string_view name) {
     return Set(name);
   }
 
-  // Join path components using the appropriate path separator for the platform
-#ifdef _WIN32
-  const char sep = '\\';
-#else
-  const char sep = '/';
-#endif
-
   // Determine if parent_path already ends with a path separator
-  bool has_trailing_slash = false;
-  if (!parent_path.empty()) {
-    const char last_char = parent_path.back();
-#ifdef _WIN32
-    // On Windows, both forward slash and backslash are valid separators
-    has_trailing_slash = (last_char == '/' || last_char == '\\');
-#else
-    // On non-Windows platforms, only forward slash is a separator
-    has_trailing_slash = (last_char == '/');
-#endif
-  }
+  const bool needs_slash = !has_trailing_slash(parent_path);
 
   // Account for the total number of bytes required to hold the path built from our
   // input values: parent_path + optional separator + name + null terminator
-  const size_t sizeof_sep = has_trailing_slash ? 0 : 1;
+  const size_t sizeof_sep = needs_slash ? 1 : 0;
   const size_t sizeof_nul = 1;
   const size_t num_bytes = parent_path.size() + sizeof_sep + name.size() + sizeof_nul;
   if (num_bytes > _buf.size()) {
@@ -79,8 +116,8 @@ bool StoragePath::Join(std::string_view parent_path, std::string_view name) {
   // have a trailing slash, append name, and add null terminator
   // NOLINTNEXTLINE(readability-qualified-auto)
   auto it = std::copy(parent_path.begin(), parent_path.end(), _buf.begin());
-  if (!has_trailing_slash) {
-    *it++ = sep;
+  if (needs_slash) {
+    *it++ = PATH_SEP;
   }
   it = std::copy(name.begin(), name.end(), it);
   *it = '\0';
@@ -88,6 +125,68 @@ bool StoragePath::Join(std::string_view parent_path, std::string_view name) {
   // Update stored string length (count of UTF-8 bytes excluding null terminator)
   _len = parent_path.size() + sizeof_sep + name.size();
   return true;
+}
+
+bool StoragePath::Append(std::string_view name) {
+  // Reject if new path component contains "..", to prevent relative path traversal
+  if (name.find("..") != std::string_view::npos) {
+    return false;
+  }
+
+  // If currently-held path is empty or ".", just set the name directly
+  const std::string_view parent_path = Get();
+  if (parent_path.empty() || parent_path == ".") {
+    return Set(name);
+  }
+
+  // Determine if currently-held path already ends with a path separator
+  const bool needs_slash = !has_trailing_slash(parent_path);
+
+  // Account for the total number of bytes required to hold the path built from our
+  // input values: parent_path + optional separator + name + null terminator
+  const size_t sizeof_sep = needs_slash ? 1 : 0;
+  const size_t sizeof_nul = 1;
+  const size_t num_bytes = parent_path.size() + sizeof_sep + name.size() + sizeof_nul;
+  if (num_bytes > _buf.size()) {
+    return false;
+  }
+
+  // Start at the end of the currently-held path, add separator if needed, append name,
+  // and add null terminator
+  // NOLINTNEXTLINE(readability-qualified-auto)
+  auto it = _buf.begin() + _len;
+  if (needs_slash) {
+    *it++ = PATH_SEP;
+  }
+  it = std::copy(name.begin(), name.end(), it);
+  *it = '\0';
+
+  // Update stored string length (count of UTF-8 bytes excluding null terminator)
+  _len = parent_path.size() + sizeof_sep + name.size();
+  return true;
+}
+
+void StoragePath::Pop() {
+  // If the path ends with a trailing slash, shrink our temporary view of the string so
+  // we skip past that separator when scanning backward
+  std::string_view path = Get();
+  if (has_trailing_slash(path)) {
+    path = std::string_view{CStr(), _len - 1};
+  }
+
+  // Find the position of the last significant path separator in the string: if there is
+  // none, we can pop no further - either the currently-held value is a root path (e.g.
+  // "/" or "C:\\"), or it's the top-level component in a relative path (e.g. "foo",
+  // "foo/", ".", or "")
+  auto sep_pos = find_final_slash(path);
+  if (sep_pos == std::string_view::npos) {
+    return;
+  }
+
+  // Otherwise, truncate the path by replacing that separator with a null terminator
+  // (and shrink the length accordingly), effectively removing the last path component
+  _buf[sep_pos] = '\0';  // NOLINT(cppcoreguidelines-pro-bounds-constant-array-index)
+  _len = sep_pos;
 }
 
 bool PlatformPath::Encode(const char* utf8_path) {
