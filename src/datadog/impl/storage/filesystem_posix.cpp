@@ -12,6 +12,7 @@
 #include <unistd.h>
 
 #include <cstring>
+#include <memory>
 
 #include "datadog/impl/storage/filesystem.hpp"
 
@@ -290,6 +291,10 @@ class PosixFilesystem final : public IFilesystem {
     return map_errno(errno);
   }
 };
+
+std::unique_ptr<IFilesystem> CreateFilesystem() {
+  return std::make_unique<PosixFilesystem>();
+}
 
 }  // namespace datadog::impl
 

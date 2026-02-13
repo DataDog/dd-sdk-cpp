@@ -7,6 +7,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 
+#include <memory>
 #include <string>
 
 #include "datadog/impl/storage/filesystem.hpp"
@@ -345,5 +346,9 @@ class WindowsFilesystem final : public IFilesystem {
     return FilesystemResult::OK;
   }
 };
+
+std::unique_ptr<IFilesystem> CreateFilesystem() {
+  return std::make_unique<WindowsFilesystem>();
+}
 
 }  // namespace datadog::impl

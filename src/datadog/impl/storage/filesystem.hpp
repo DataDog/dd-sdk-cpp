@@ -12,6 +12,7 @@
 #endif
 
 #include <cinttypes>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -223,5 +224,12 @@ class IFilesystem {
    */
   virtual FilesystemResult Rename(const PlatformPath& src, const PlatformPath& dst) = 0;
 };
+
+/**
+ * Creates a platform-specific filesystem implementation.
+ *
+ * Returns PosixFilesystem on POSIX systems, WindowsFilesystem on Windows.
+ */
+std::unique_ptr<IFilesystem> CreateFilesystem();
 
 }  // namespace datadog::impl
