@@ -1,0 +1,570 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+//
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-Present Datadog, Inc.
+
+#include "mock/filesystem_new.hpp"
+
+#include <algorithm>
+#include <cstring>
+
+namespace datadog::impl {
+
+#ifdef _WIN32
+static int handle_to_int(PlatformFileHandle handle) {
+  return static_cast<int>(reinterpret_cast<intptr_t>(handle));
+}
+static PlatformFileHandle int_to_handle(int fd) {
+  return reinterpret_cast<PlatformFileHandle>(static_cast<intptr_t>(fd));
+}
+#else
+static int handle_to_int(PlatformFileHandle handle) { return handle; }
+static PlatformFileHandle int_to_handle(int fd) { return fd; }
+#endif
+
+MockFilesystem::~MockFilesystem() {
+  std::lock_guard lock(mutex_);
+  if (!handles_.empty()) {
+    // List all unclosed handles for diagnostics
+    std::string leaked_handles;
+    for (const auto& [fd, info] : handles_) {
+      leaked_handles += std::to_string(fd) + " (" + info.path + "), ";
+    }
+    DATADOG_ASSERT(false, "MockFilesystem destroyed with open handles");
+  }
+}
+
+std::string MockFilesystem::NormalizePath(const PlatformPath& path) {
+#ifdef _WIN32
+  // On Windows, convert wchar_t* to UTF-8 string
+  const wchar_t* wide_path = path.Get();
+  if (wide_path == nullptr) {
+    return "";
+  }
+  // Simple conversion - for mock purposes we can use basic ASCII
+  std::string result;
+  while (*wide_path) {
+    result += static_cast<char>(*wide_path);
+    ++wide_path;
+  }
+  // Normalize backslashes to forward slashes
+  std::replace(result.begin(), result.end(), '\\', '/');
+  return result;
+#else
+  const char* str = path.Get();
+  return str ? std::string(str) : "";
+#endif
+}
+
+std::string MockFilesystem::GetParentPath(const std::string& path) {
+  size_t pos = path.find_last_of('/');
+  if (pos == std::string::npos) {
+    return "";
+  }
+  return path.substr(0, pos);
+}
+
+std::string MockFilesystem::GetBasename(const std::string& path) {
+  size_t pos = path.find_last_of('/');
+  if (pos == std::string::npos) {
+    return path;
+  }
+  return path.substr(pos + 1);
+}
+
+bool MockFilesystem::IsDirectory(const std::string& path) {
+  std::lock_guard lock(mutex_);
+  return dirs_.find(path) != dirs_.end();
+}
+
+bool MockFilesystem::IsFile(const std::string& path) {
+  std::lock_guard lock(mutex_);
+  return files_.find(path) != files_.end();
+}
+
+FilesystemResult MockFilesystem::CreateDirectory(const PlatformPath& path) {
+  std::string path_str = NormalizePath(path);
+  std::lock_guard lock(mutex_);
+
+  // Check if directory already exists
+  if (dirs_.find(path_str) != dirs_.end()) {
+    return FilesystemResult::AlreadyExistsAsDirectory;
+  }
+
+  // Check if a file exists at this path
+  if (files_.find(path_str) != files_.end()) {
+    return FilesystemResult::AlreadyExists;
+  }
+
+  // Check if parent directory exists
+  std::string parent = GetParentPath(path_str);
+  if (!parent.empty() && dirs_.find(parent) == dirs_.end()) {
+    return FilesystemResult::DoesNotExist;
+  }
+
+  // Create directory
+  dirs_[path_str] = MockDirEntry{};
+  return FilesystemResult::OK;
+}
+
+FilesystemResult MockFilesystem::ListFiles(
+    const PlatformPath& path, std::vector<std::string>& out_names
+) {
+  std::string path_str = NormalizePath(path);
+  std::lock_guard lock(mutex_);
+
+  // Clear output
+  out_names.clear();
+
+  // Check if directory exists
+  auto dir_it = dirs_.find(path_str);
+  if (dir_it == dirs_.end()) {
+    return FilesystemResult::DoesNotExist;
+  }
+
+  // Check if directory is marked bad
+  if (dir_it->second.bad) {
+    return FilesystemResult::UnknownError;
+  }
+
+  // List all files in this directory
+  std::string prefix = path_str.empty() ? "" : path_str + "/";
+  for (const auto& [file_path, entry] : files_) {
+    // Check if file is in this directory (direct child only)
+    if (file_path.size() > prefix.size() &&
+        file_path.substr(0, prefix.size()) == prefix) {
+      std::string relative = file_path.substr(prefix.size());
+      // Make sure it's a direct child (no additional slashes)
+      if (relative.find('/') == std::string::npos) {
+        out_names.push_back(relative);
+      }
+    }
+  }
+
+  return FilesystemResult::OK;
+}
+
+FilesystemResult MockFilesystem::ListSubdirectories(
+    const PlatformPath& path, std::vector<std::string>& out_names
+) {
+  std::string path_str = NormalizePath(path);
+  std::lock_guard lock(mutex_);
+
+  // Clear output
+  out_names.clear();
+
+  // Check if directory exists
+  auto dir_it = dirs_.find(path_str);
+  if (dir_it == dirs_.end()) {
+    return FilesystemResult::DoesNotExist;
+  }
+
+  // Check if directory is marked bad
+  if (dir_it->second.bad) {
+    return FilesystemResult::UnknownError;
+  }
+
+  // List all subdirectories in this directory
+  std::string prefix = path_str.empty() ? "" : path_str + "/";
+  for (const auto& [dir_path, entry] : dirs_) {
+    // Skip the directory itself
+    if (dir_path == path_str) {
+      continue;
+    }
+    // Check if directory is in this directory (direct child only)
+    if (dir_path.size() > prefix.size() &&
+        dir_path.substr(0, prefix.size()) == prefix) {
+      std::string relative = dir_path.substr(prefix.size());
+      // Make sure it's a direct child (no additional slashes)
+      if (relative.find('/') == std::string::npos) {
+        out_names.push_back(relative);
+      }
+    }
+  }
+
+  return FilesystemResult::OK;
+}
+
+MockFilesystem::OpenFileResult MockFilesystem::OpenForWrite(
+    const PlatformPath& path, bool append, bool hold_advisory_lock
+) {
+  std::string path_str = NormalizePath(path);
+  std::lock_guard global_lock(mutex_);
+
+  // Create file entry if it doesn't exist
+  if (files_.find(path_str) == files_.end()) {
+    files_.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(path_str),
+        std::forward_as_tuple()
+    );
+  }
+
+  MockFileEntry& entry = files_[path_str];
+  std::lock_guard file_lock(entry.mutex);
+
+  // Check for advisory lock contention
+  if (hold_advisory_lock && entry.advisory_lock_holder.has_value()) {
+    return {FilesystemResult::LockContention, INVALID_FILE_HANDLE};
+  }
+
+  // Allocate file descriptor
+  int fd = next_fd_++;
+
+  // Truncate file if not appending
+  if (!append) {
+    entry.data.clear();
+  }
+
+  // Track handle
+  entry.open_handles.push_back(fd);
+  if (hold_advisory_lock) {
+    entry.advisory_lock_holder = fd;
+  }
+
+  HandleInfo handle_info;
+  handle_info.path = path_str;
+  handle_info.is_write = true;
+  handle_info.has_advisory_lock = hold_advisory_lock;
+  handle_info.read_offset = 0;
+  handles_[fd] = handle_info;
+
+  return {FilesystemResult::OK, int_to_handle(fd)};
+}
+
+MockFilesystem::OpenFileResult MockFilesystem::OpenForRead(
+    const PlatformPath& path, bool acquire_advisory_lock
+) {
+  std::string path_str = NormalizePath(path);
+  std::lock_guard global_lock(mutex_);
+
+  // Check if file exists
+  auto file_it = files_.find(path_str);
+  if (file_it == files_.end()) {
+    return {FilesystemResult::DoesNotExist, INVALID_FILE_HANDLE};
+  }
+
+  MockFileEntry& entry = file_it->second;
+  std::lock_guard file_lock(entry.mutex);
+
+  // Check for advisory lock contention
+  if (acquire_advisory_lock && entry.advisory_lock_holder.has_value()) {
+    return {FilesystemResult::LockContention, INVALID_FILE_HANDLE};
+  }
+
+  // Allocate file descriptor
+  int fd = next_fd_++;
+
+  // Track handle
+  entry.open_handles.push_back(fd);
+  if (acquire_advisory_lock) {
+    entry.advisory_lock_holder = fd;
+  }
+
+  HandleInfo handle_info;
+  handle_info.path = path_str;
+  handle_info.is_write = false;
+  handle_info.has_advisory_lock = acquire_advisory_lock;
+  handle_info.read_offset = 0;
+  handles_[fd] = handle_info;
+
+  return {FilesystemResult::OK, int_to_handle(fd)};
+}
+
+MockFilesystem::WriteResult MockFilesystem::Write(
+    PlatformFileHandle file, const char* src, size_t n
+) {
+  std::lock_guard global_lock(mutex_);
+
+  // Convert handle to int for internal lookup
+  int fd = handle_to_int(file);
+
+  // Find handle
+  auto handle_it = handles_.find(fd);
+  if (handle_it == handles_.end()) {
+    return {FilesystemResult::UnknownError, 0};
+  }
+
+  const HandleInfo& handle = handle_it->second;
+  auto file_it = files_.find(handle.path);
+  if (file_it == files_.end()) {
+    return {FilesystemResult::UnknownError, 0};
+  }
+
+  MockFileEntry& entry = file_it->second;
+  std::lock_guard file_lock(entry.mutex);
+
+  // Check error flags
+  if (entry.bad) {
+    return {FilesystemResult::UnknownError, 0};
+  }
+  if (entry.fail) {
+    return {FilesystemResult::UnknownError, 0};
+  }
+
+  // Append data
+  entry.data.append(src, n);
+  return {FilesystemResult::OK, n};
+}
+
+MockFilesystem::ReadResult MockFilesystem::Read(
+    PlatformFileHandle file, char* dst, size_t n
+) {
+  std::lock_guard global_lock(mutex_);
+
+  // Convert handle to int for internal lookup
+  int fd = handle_to_int(file);
+
+  // Find handle
+  auto handle_it = handles_.find(fd);
+  if (handle_it == handles_.end()) {
+    return {FilesystemResult::UnknownError, 0};
+  }
+
+  HandleInfo& handle = handle_it->second;
+  auto file_it = files_.find(handle.path);
+  if (file_it == files_.end()) {
+    return {FilesystemResult::UnknownError, 0};
+  }
+
+  MockFileEntry& entry = file_it->second;
+  std::lock_guard file_lock(entry.mutex);
+
+  // Check error flags
+  if (entry.bad) {
+    return {FilesystemResult::UnknownError, 0};
+  }
+  if (entry.fail) {
+    return {FilesystemResult::UnknownError, 0};
+  }
+
+  // Calculate how much data to read
+  size_t available = entry.data.size() > handle.read_offset
+                         ? entry.data.size() - handle.read_offset
+                         : 0;
+  size_t to_read = std::min(n, available);
+
+  // Copy data
+  if (to_read > 0) {
+    std::memcpy(dst, entry.data.data() + handle.read_offset, to_read);
+    handle.read_offset += to_read;
+  }
+
+  return {FilesystemResult::OK, to_read};
+}
+
+FilesystemResult MockFilesystem::Close(PlatformFileHandle file) {
+  std::lock_guard global_lock(mutex_);
+
+  // Convert handle to int for internal lookup
+  int fd = handle_to_int(file);
+
+  // Find handle
+  auto handle_it = handles_.find(fd);
+  if (handle_it == handles_.end()) {
+    return FilesystemResult::UnknownError;
+  }
+
+  const HandleInfo& handle = handle_it->second;
+  auto file_it = files_.find(handle.path);
+  if (file_it != files_.end()) {
+    MockFileEntry& entry = file_it->second;
+    std::lock_guard file_lock(entry.mutex);
+
+    // Remove from open handles
+    auto& open_handles = entry.open_handles;
+    open_handles.erase(
+        std::remove(open_handles.begin(), open_handles.end(), fd), open_handles.end()
+    );
+
+    // Release advisory lock if held
+    if (handle.has_advisory_lock && entry.advisory_lock_holder == fd) {
+      entry.advisory_lock_holder.reset();
+    }
+  }
+
+  // Remove handle
+  handles_.erase(handle_it);
+  return FilesystemResult::OK;
+}
+
+FilesystemResult MockFilesystem::Delete(const PlatformPath& path) {
+  std::string path_str = NormalizePath(path);
+  std::lock_guard global_lock(mutex_);
+
+  // Check if file exists
+  auto file_it = files_.find(path_str);
+  if (file_it == files_.end()) {
+    return FilesystemResult::DoesNotExist;
+  }
+
+  MockFileEntry& entry = file_it->second;
+  std::lock_guard file_lock(entry.mutex);
+
+  // Check if file has open handles
+  if (!entry.open_handles.empty()) {
+    return FilesystemResult::UnknownError;
+  }
+
+  // Delete file
+  files_.erase(file_it);
+  num_files_deleted_++;
+  return FilesystemResult::OK;
+}
+
+FilesystemResult MockFilesystem::Rename(
+    const PlatformPath& src, const PlatformPath& dst
+) {
+  std::string src_str = NormalizePath(src);
+  std::string dst_str = NormalizePath(dst);
+  std::lock_guard global_lock(mutex_);
+
+  // Check if source exists
+  auto src_it = files_.find(src_str);
+  if (src_it == files_.end()) {
+    return FilesystemResult::DoesNotExist;
+  }
+
+  // Check if destination exists
+  if (files_.find(dst_str) != files_.end() || dirs_.find(dst_str) != dirs_.end()) {
+    return FilesystemResult::AlreadyExists;
+  }
+
+  // Move file data (can't move mutex, so copy data and recreate entry)
+  std::string data_copy;
+  bool bad_copy = false;
+  bool fail_copy = false;
+  {
+    std::lock_guard file_lock(src_it->second.mutex);
+    data_copy = src_it->second.data;
+    bad_copy = src_it->second.bad;
+    fail_copy = src_it->second.fail;
+    // Note: open_handles and advisory_lock_holder are not copied
+    // because rename should not be called on open files
+  }
+  files_.erase(src_it);
+
+  // Create new entry at destination
+  files_.emplace(
+      std::piecewise_construct, std::forward_as_tuple(dst_str), std::forward_as_tuple()
+  );
+  files_[dst_str].data = std::move(data_copy);
+  files_[dst_str].bad = bad_copy;
+  files_[dst_str].fail = fail_copy;
+
+  // Update handles to point to new path
+  for (auto& [fd, handle] : handles_) {
+    if (handle.path == src_str) {
+      handle.path = dst_str;
+    }
+  }
+
+  return FilesystemResult::OK;
+}
+
+// Test helper methods
+
+void MockFilesystem::Touch(std::string_view path, std::string_view initial_data) {
+  std::lock_guard lock(mutex_);
+  std::string path_str(path);
+  if (files_.find(path_str) == files_.end()) {
+    files_.emplace(
+        std::piecewise_construct,
+        std::forward_as_tuple(path_str),
+        std::forward_as_tuple()
+    );
+  }
+  files_[path_str].data = std::string(initial_data);
+}
+
+void MockFilesystem::Mkdirs(std::string_view path) {
+  std::string path_str(path);
+  std::lock_guard lock(mutex_);
+
+  // Create all parent directories
+  size_t pos = 0;
+  while ((pos = path_str.find('/', pos)) != std::string::npos) {
+    std::string subpath = path_str.substr(0, pos);
+    if (!subpath.empty() && dirs_.find(subpath) == dirs_.end()) {
+      dirs_.emplace(subpath, MockDirEntry{});
+    }
+    ++pos;
+  }
+
+  // Create the directory itself
+  if (dirs_.find(path_str) == dirs_.end()) {
+    dirs_.emplace(path_str, MockDirEntry{});
+  }
+}
+
+void MockFilesystem::Corrupt(std::string_view path) {
+  std::string path_str(path);
+  std::lock_guard global_lock(mutex_);
+
+  auto file_it = files_.find(path_str);
+  if (file_it != files_.end()) {
+    std::lock_guard file_lock(file_it->second.mutex);
+    file_it->second.bad = true;
+  }
+
+  auto dir_it = dirs_.find(path_str);
+  if (dir_it != dirs_.end()) {
+    dir_it->second.bad = true;
+  }
+}
+
+void MockFilesystem::SetFail(std::string_view path, bool fail) {
+  std::string path_str(path);
+  std::lock_guard global_lock(mutex_);
+
+  auto file_it = files_.find(path_str);
+  if (file_it != files_.end()) {
+    std::lock_guard file_lock(file_it->second.mutex);
+    file_it->second.fail = fail;
+  }
+
+  auto dir_it = dirs_.find(path_str);
+  if (dir_it != dirs_.end()) {
+    dir_it->second.fail = fail;
+  }
+}
+
+std::string MockFilesystem::Cat(std::string_view path) {
+  std::string path_str(path);
+  std::lock_guard global_lock(mutex_);
+
+  auto file_it = files_.find(path_str);
+  if (file_it != files_.end()) {
+    std::lock_guard file_lock(file_it->second.mutex);
+    return file_it->second.data;
+  }
+  return "";
+}
+
+std::vector<std::string> MockFilesystem::FindFiles(std::string_view path) {
+  std::string path_str(path);
+  std::vector<std::string> result;
+  PlatformPath platform_path;
+  if (!platform_path.Encode(path_str.c_str())) {
+    return result;
+  }
+  ListFiles(platform_path, result);
+  return result;
+}
+
+int MockFilesystem::GetNumFilesDeleted() const {
+  std::lock_guard lock(mutex_);
+  return num_files_deleted_;
+}
+
+std::vector<int> MockFilesystem::GetOpenHandles() const {
+  std::lock_guard lock(mutex_);
+  std::vector<int> result;
+  for (const auto& [fd, info] : handles_) {
+    result.push_back(fd);
+  }
+  return result;
+}
+
+}  // namespace datadog::impl
