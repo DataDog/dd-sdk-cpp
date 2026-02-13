@@ -27,10 +27,50 @@ static constexpr size_t MAX_STORAGE_PATH_SIZE = 512;
  */
 class StoragePath {
  public:
+  /**
+   * Updates the buffer to hold the specified path. The path must be absolute or
+   * relative to the current directory. Paths must not contain "..".
+   *
+   * Returns true if the value was successfully stored; false if it exceeds the buffer
+   * size or contains "..".
+   */
   bool Set(std::string_view path);
+
+  /**
+   * Updates the buffer to hold the result of concatenating the specified parent path
+   * with the given path component. Neither value may contain "..".
+   *
+   * Returns true if the value was successfully stored; false if it would exceed the
+   * buffer size or if either value contains "..".
+   */
   bool Join(std::string_view parent_path, std::string_view name);
 
+  /**
+   * Modifies the value in-place, updating the buffer to concatenate the given path
+   * component onto the currently-held path. `name` must not contain "..".
+   *
+   * Returns true if the value was successfully updated; false if it would exceed the
+   * buffer size or if `name` contains "..".
+   */
+  bool Append(std::string_view name);
+
+  /**
+   * Modifies the value in-place, updating the buffer to strip off the last path
+   * component. If the path already refers to a root directory (e.g. "/" or "C:\\") or
+   * the top-level component of a relative path (e.g. "foo", "foo/", ".", ""), makes no
+   * changes.
+   */
+  void Pop();
+
+  /**
+   * Returns a string_view for the path value currently held in the buffer.
+   */
   std::string_view Get() const { return std::string_view(_buf.data(), _len); }
+
+  /**
+   * Returns a pointer to the null-terminated string data held in the buffer. Will never
+   * be null.
+   */
   const char* CStr() const { return _buf.data(); }
 
  private:
