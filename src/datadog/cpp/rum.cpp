@@ -321,4 +321,85 @@ void Rum::AddError(
   }
 }
 
+void Rum::StartFeatureOperation(
+    std::string_view name,
+    std::string_view operation_key,
+    const Attribute& attributes
+) {
+  // Require a non-empty operation name
+  if (name.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
+        "Rum::StartFeatureOperation call ignored: application must supply a non-empty "
+        "operation name"
+    );
+    return;
+  }
+
+  // If operation_key is provided, it must be non-empty
+  std::optional<std::string_view> opt_key;
+  if (!operation_key.empty()) {
+    opt_key = operation_key;
+  }
+
+  if (_impl) {
+    const UUID vital_id = UUID::Random();
+    _impl->StartFeatureOperation(name, opt_key, vital_id, attributes);
+  }
+}
+
+void Rum::SucceedFeatureOperation(
+    std::string_view name,
+    std::string_view operation_key,
+    const Attribute& attributes
+) {
+  // Require a non-empty operation name
+  if (name.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
+        "Rum::SucceedFeatureOperation call ignored: application must supply a non-empty "
+        "operation name"
+    );
+    return;
+  }
+
+  // If operation_key is provided, it must be non-empty
+  std::optional<std::string_view> opt_key;
+  if (!operation_key.empty()) {
+    opt_key = operation_key;
+  }
+
+  if (_impl) {
+    const UUID vital_id = UUID::Random();
+    _impl->StopFeatureOperation(name, opt_key, vital_id, std::nullopt, attributes);
+  }
+}
+
+void Rum::FailFeatureOperation(
+    std::string_view name,
+    RumFeatureOperationFailureReason failure_reason,
+    std::string_view operation_key,
+    const Attribute& attributes
+) {
+  // Require a non-empty operation name
+  if (name.empty()) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
+        "Rum::FailFeatureOperation call ignored: application must supply a non-empty "
+        "operation name"
+    );
+    return;
+  }
+
+  // If operation_key is provided, it must be non-empty
+  std::optional<std::string_view> opt_key;
+  if (!operation_key.empty()) {
+    opt_key = operation_key;
+  }
+
+  if (_impl) {
+    const UUID vital_id = UUID::Random();
+    _impl->StopFeatureOperation(
+        name, opt_key, vital_id, failure_reason, attributes
+    );
+  }
+}
+
 }  // namespace datadog

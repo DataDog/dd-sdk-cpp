@@ -100,4 +100,22 @@ inline RumErrorSource RumErrorSource_FromC(dd_rum_error_source_t value) {
   return static_cast<RumErrorSource>(value);
 }
 
+inline RumFeatureOperationFailureReason RumFeatureOperationFailureReason_FromC(
+    dd_rum_failure_reason_t value
+) {
+  static_assert(
+      static_cast<int>(RumFeatureOperationFailureReason::Error) ==
+      DD_RUM_FAILURE_REASON_ERROR
+  );
+  static_assert(
+      static_cast<int>(RumFeatureOperationFailureReason::Abandoned) ==
+      DD_RUM_FAILURE_REASON_ABANDONED
+  );
+  static_assert(
+      static_cast<int>(RumFeatureOperationFailureReason::Other) ==
+      DD_RUM_FAILURE_REASON_OTHER
+  );
+  return static_cast<RumFeatureOperationFailureReason>(value);
+}
+
 }  // namespace datadog
