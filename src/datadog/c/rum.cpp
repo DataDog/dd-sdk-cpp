@@ -498,6 +498,123 @@ void dd_rum_stop_resource_with_error(
   rum->impl->StopResource(key, response, error, cpp_attributes);
 }
 
+void dd_rum_start_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    const char* operation_key,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty operation name
+  if (!name || !name[0]) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_start_feature_operation call ignored: application must supply a "
+        "non-empty operation name"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL means no key
+  std::optional<std::string_view> opt_key;
+  if (operation_key && operation_key[0]) {
+    opt_key = operation_key;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  const datadog::UUID vital_id = datadog::UUID::Random();
+  rum->impl->StartFeatureOperation(name, opt_key, vital_id, cpp_attributes);
+}
+
+void dd_rum_succeed_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    const char* operation_key,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty operation name
+  if (!name || !name[0]) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_succeed_feature_operation call ignored: application must supply a "
+        "non-empty operation name"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL means no key
+  std::optional<std::string_view> opt_key;
+  if (operation_key && operation_key[0]) {
+    opt_key = operation_key;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  const datadog::UUID vital_id = datadog::UUID::Random();
+  rum->impl->StopFeatureOperation(
+      name, opt_key, vital_id, std::nullopt, cpp_attributes
+  );
+}
+
+void dd_rum_fail_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    dd_rum_failure_reason_t failure_reason,
+    const char* operation_key,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a valid, non-empty operation name
+  if (!name || !name[0]) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_fail_feature_operation call ignored: application must supply a "
+        "non-empty operation name"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL means no key
+  std::optional<std::string_view> opt_key;
+  if (operation_key && operation_key[0]) {
+    opt_key = operation_key;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  const datadog::UUID vital_id = datadog::UUID::Random();
+  rum->impl->StopFeatureOperation(
+      name,
+      opt_key,
+      vital_id,
+      datadog::RumFeatureOperationFailureReason_FromC(failure_reason),
+      cpp_attributes
+  );
+}
+
 void dd_rum_add_error(
     dd_rum_t* rum,
     dd_rum_error_source_t source,

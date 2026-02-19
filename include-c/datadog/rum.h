@@ -397,6 +397,75 @@ DATADOG_API void dd_rum_stop_resource_with_error(
     dd_attribute_t* attributes
 );
 
+// === RUM feature operations ===
+
+// A feature operation represents a user-facing workflow (e.g. login, checkout, upload)
+// that can span multiple views and is tracked for performance and reliability insights.
+
+/**
+ * Describes the reason why a feature operation failed.
+ *
+ * This API is in preview and may change in future releases.
+ */
+typedef enum {
+  DD_RUM_FAILURE_REASON_ERROR,
+  DD_RUM_FAILURE_REASON_ABANDONED,
+  DD_RUM_FAILURE_REASON_OTHER
+} dd_rum_failure_reason_t;
+
+/**
+ * Records the start of a feature operation (e.g. login, checkout, upload).
+ *
+ * This API is in preview and may change in future releases.
+ *
+ * @param name - The name of the operation. Must be a valid, non-empty string.
+ * @param operation_key - An optional key to distinguish parallel instances of the same
+ *  operation. Pass NULL to omit.
+ * @param attributes - An optional set of custom attributes for this event.
+ */
+DATADOG_API void dd_rum_start_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    const char* operation_key,
+    dd_attribute_t* attributes
+);
+
+/**
+ * Records the successful completion of a feature operation.
+ *
+ * This API is in preview and may change in future releases.
+ *
+ * @param name - The name of the operation. Must be a valid, non-empty string.
+ * @param operation_key - An optional key to distinguish parallel instances of the same
+ *  operation. Pass NULL to omit.
+ * @param attributes - An optional set of custom attributes for this event.
+ */
+DATADOG_API void dd_rum_succeed_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    const char* operation_key,
+    dd_attribute_t* attributes
+);
+
+/**
+ * Records the failure of a feature operation.
+ *
+ * This API is in preview and may change in future releases.
+ *
+ * @param name - The name of the operation. Must be a valid, non-empty string.
+ * @param failure_reason - The reason the operation failed.
+ * @param operation_key - An optional key to distinguish parallel instances of the same
+ *  operation. Pass NULL to omit.
+ * @param attributes - An optional set of custom attributes for this event.
+ */
+DATADOG_API void dd_rum_fail_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    dd_rum_failure_reason_t failure_reason,
+    const char* operation_key,
+    dd_attribute_t* attributes
+);
+
 // === RUM errors ===
 
 /**

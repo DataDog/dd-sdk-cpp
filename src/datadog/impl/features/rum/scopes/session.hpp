@@ -9,6 +9,8 @@
 #include <cinttypes>
 #include <functional>
 #include <optional>
+#include <string>
+#include <unordered_set>
 
 #include "datadog/uuid.hpp"
 
@@ -163,6 +165,20 @@ class RumSessionScope {
    */
   void AttemptViewTransfer(const RumCommand& command, const ViewDetails& prev_view);
 
+  /**
+   * Constructs and emits a RUM vital event in the context of the current session.
+   * If there is an active view, the event will include view context; otherwise,
+   * view fields will be empty/zero.
+   */
+  void SendVitalEvent(
+      const RumCommandParams& base,
+      const UUID& vital_id,
+      std::string_view name,
+      RumVitalStepType step_type,
+      std::optional<std::string_view> operation_key,
+      std::optional<RumVitalFailureReason> failure_reason
+  );
+
  private:
   std::reference_wrapper<const RumScopeDependencies> _deps;
   std::reference_wrapper<class RumApplicationScope> _parent;
@@ -183,6 +199,10 @@ class RumSessionScope {
   // When _we_ are closed, the details of any active view are stored here so they can
   // be conveyed to the next session.
   std::optional<ViewDetails> _active_view_on_close;
+
+  // Active feature operations tracking: set of composite keys (name + operationKey) for
+  // developer warnings about duplicate starts or stop-without-start
+  std::unordered_set<std::string> _active_operations;
 
   size_t _num_views_opened{0};
   RumViewArray _view_scopes;

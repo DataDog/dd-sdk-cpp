@@ -133,6 +133,29 @@ class Rum final : public Feature {
       const Attribute& attributes = Attribute()
   );
 
+  /**
+   * Handles a StartFeatureOperation API call, recording the start of a user-facing
+   * operation.
+   */
+  void StartFeatureOperation(
+      std::string_view name,
+      std::optional<std::string_view> operation_key,
+      const UUID& vital_id,
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Handles a StopFeatureOperation API call (succeed or fail), recording the conclusion
+   * of a user-facing operation.
+   */
+  void StopFeatureOperation(
+      std::string_view name,
+      std::optional<std::string_view> operation_key,
+      const UUID& vital_id,
+      std::optional<RumFeatureOperationFailureReason> failure_reason,
+      const Attribute& attributes = Attribute()
+  );
+
  private:
   RumCommandParams GetBaseCommandParams(
       const Attribute& attributes = Attribute()
