@@ -106,11 +106,11 @@ enum class RumResourceType : uint8_t {
 };
 
 /**
- * Describes the reason why a feature operation failed.
+ * Describes the reason why a operation failed.
  *
  * This API is in preview and may change in future releases.
  */
-enum class RumFeatureOperationFailureReason : uint8_t {
+enum class RumOperationFailureReason : uint8_t {
   /** Operation failed due to an error. */
   Error,
   /** Operation was abandoned (e.g. user navigated away). */
@@ -404,7 +404,7 @@ class Rum {
   );
 
   /**
-   * Records the start of a feature operation (e.g. login, checkout, upload).
+   * Records the start of a operation (e.g. login, checkout, upload).
    *
    * Each call emits a vital operation step event with step_type "start". The backend
    * aggregates start/stop steps into full operations with computed duration and success
@@ -417,14 +417,14 @@ class Rum {
    *  operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
-  DATADOG_API void StartFeatureOperation(
+  DATADOG_API void StartOperation(
       std::string_view name,
       std::string_view operation_key = {},
       const Attribute& attributes = Attribute()
   );
 
   /**
-   * Records the successful completion of a feature operation.
+   * Records the successful completion of a operation.
    *
    * Each call emits a vital operation step event with step_type "end" and no failure
    * reason.
@@ -436,14 +436,14 @@ class Rum {
    *  operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
-  DATADOG_API void SucceedFeatureOperation(
+  DATADOG_API void SucceedOperation(
       std::string_view name,
       std::string_view operation_key = {},
       const Attribute& attributes = Attribute()
   );
 
   /**
-   * Records the failure of a feature operation.
+   * Records the failure of a operation.
    *
    * Each call emits a vital operation step event with step_type "end" and the specified
    * failure reason.
@@ -456,9 +456,9 @@ class Rum {
    *  operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
-  DATADOG_API void FailFeatureOperation(
+  DATADOG_API void FailOperation(
       std::string_view name,
-      RumFeatureOperationFailureReason failure_reason,
+      RumOperationFailureReason failure_reason,
       std::string_view operation_key = {},
       const Attribute& attributes = Attribute()
   );

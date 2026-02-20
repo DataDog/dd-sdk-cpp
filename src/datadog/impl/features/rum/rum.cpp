@@ -153,25 +153,25 @@ void Rum::AddError(
   Dispatch(RumCommand::AddError(GetBaseCommandParams(attributes), source, error));
 }
 
-void Rum::StartFeatureOperation(
+void Rum::StartOperation(
     std::string_view name,
     std::optional<std::string_view> operation_key,
     const UUID& vital_id,
     const Attribute& attributes
 ) {
-  Dispatch(RumCommand::StartFeatureOperation(
+  Dispatch(RumCommand::StartOperation(
       GetBaseCommandParams(attributes), name, operation_key, vital_id
   ));
 }
 
-void Rum::StopFeatureOperation(
+void Rum::StopOperation(
     std::string_view name,
     std::optional<std::string_view> operation_key,
     const UUID& vital_id,
-    std::optional<RumFeatureOperationFailureReason> failure_reason,
+    std::optional<RumOperationFailureReason> failure_reason,
     const Attribute& attributes
 ) {
-  Dispatch(RumCommand::StopFeatureOperation(
+  Dispatch(RumCommand::StopOperation(
       GetBaseCommandParams(attributes), name, operation_key, vital_id, failure_reason
   ));
 }

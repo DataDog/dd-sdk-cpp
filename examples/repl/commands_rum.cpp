@@ -131,16 +131,16 @@ std::optional<datadog::RumErrorSource> ParseRumErrorSource(std::string_view s) {
   return std::nullopt;
 }
 
-std::optional<datadog::RumFeatureOperationFailureReason>
+std::optional<datadog::RumOperationFailureReason>
 ParseRumFailureReason(std::string_view s) {
   if (s == "error") {
-    return datadog::RumFeatureOperationFailureReason::Error;
+    return datadog::RumOperationFailureReason::Error;
   }
   if (s == "abandoned") {
-    return datadog::RumFeatureOperationFailureReason::Abandoned;
+    return datadog::RumOperationFailureReason::Abandoned;
   }
   if (s == "other") {
-    return datadog::RumFeatureOperationFailureReason::Other;
+    return datadog::RumOperationFailureReason::Other;
   }
   return std::nullopt;
 }
@@ -466,7 +466,7 @@ CommandResult HandleAddError(State& state, const CommandInput& args) {
   return CommandResult::OK("Rum::AddError()");
 }
 
-CommandResult HandleStartFeatureOperation(State& state, const CommandInput& args) {
+CommandResult HandleStartOperation(State& state, const CommandInput& args) {
   // RUM must be registered and SDK must be running
   if (!state.rum) {
     return CommandResult::Error("RUM is not registered!");
@@ -486,11 +486,11 @@ CommandResult HandleStartFeatureOperation(State& state, const CommandInput& args
   auto named = args.Named();
   auto key = Unquote(named.Get("key"));
 
-  state.rum->StartFeatureOperation(name, key);
-  return CommandResult::OK("Rum::StartFeatureOperation()");
+  state.rum->StartOperation(name, key);
+  return CommandResult::OK("Rum::StartOperation()");
 }
 
-CommandResult HandleSucceedFeatureOperation(State& state, const CommandInput& args) {
+CommandResult HandleSucceedOperation(State& state, const CommandInput& args) {
   // RUM must be registered and SDK must be running
   if (!state.rum) {
     return CommandResult::Error("RUM is not registered!");
@@ -510,11 +510,11 @@ CommandResult HandleSucceedFeatureOperation(State& state, const CommandInput& ar
   auto named = args.Named();
   auto key = Unquote(named.Get("key"));
 
-  state.rum->SucceedFeatureOperation(name, key);
-  return CommandResult::OK("Rum::SucceedFeatureOperation()");
+  state.rum->SucceedOperation(name, key);
+  return CommandResult::OK("Rum::SucceedOperation()");
 }
 
-CommandResult HandleFailFeatureOperation(State& state, const CommandInput& args) {
+CommandResult HandleFailOperation(State& state, const CommandInput& args) {
   // RUM must be registered and SDK must be running
   if (!state.rum) {
     return CommandResult::Error("RUM is not registered!");
@@ -533,8 +533,8 @@ CommandResult HandleFailFeatureOperation(State& state, const CommandInput& args)
   // Named args
   auto named = args.Named();
 
-  datadog::RumFeatureOperationFailureReason reason{
-      datadog::RumFeatureOperationFailureReason::Error};
+  datadog::RumOperationFailureReason reason{
+      datadog::RumOperationFailureReason::Error};
   auto reason_str = Unquote(named.Get("reason"));
   if (!reason_str.empty()) {
     if (auto reason_opt = ParseRumFailureReason(reason_str)) {
@@ -546,6 +546,6 @@ CommandResult HandleFailFeatureOperation(State& state, const CommandInput& args)
 
   auto key = Unquote(named.Get("key"));
 
-  state.rum->FailFeatureOperation(name, reason, key);
-  return CommandResult::OK("Rum::FailFeatureOperation()");
+  state.rum->FailOperation(name, reason, key);
+  return CommandResult::OK("Rum::FailOperation()");
 }

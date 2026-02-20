@@ -463,16 +463,16 @@ class SessionEventFixture {
 
 TEST_CASE_METHOD(
     SessionEventFixture,
-    "RumSessionScope feature operations",
+    "RumSessionScope operations",
     "[unit][rum]"
 ) {
-  SECTION("M emit start vital event W StartFeatureOperation is processed") {
+  SECTION("M emit start vital event W StartOperation is processed") {
     // Given an active session with a view
     StartView();
 
-    // When we process a StartFeatureOperation command
+    // When we process a StartOperation command
     const UUID vital_id = *UUID::Parse("aaaa1111-2222-4333-b444-555555555555");
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "checkout", std::nullopt, vital_id
     ));
 
@@ -489,17 +489,17 @@ TEST_CASE_METHOD(
     REQUIRE(ev["vital"].count("failure_reason") == 0);
   }
 
-  SECTION("M emit end vital event with no failure W SucceedFeatureOperation is processed") {
+  SECTION("M emit end vital event with no failure W SucceedOperation is processed") {
     // Given an active session with a view and an active operation
     StartView();
     const UUID start_vital_id = *UUID::Parse("aaaa1111-2222-4333-b444-555555555555");
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "checkout", std::nullopt, start_vital_id
     ));
 
     // When we stop the operation successfully
     const UUID stop_vital_id = *UUID::Parse("bbbb2222-3333-4444-b555-666666666666");
-    scope.Process(RumCommand::StopFeatureOperation(
+    scope.Process(RumCommand::StopOperation(
         GetBaseParams(), "checkout", std::nullopt, stop_vital_id, std::nullopt
     ));
 
@@ -511,22 +511,22 @@ TEST_CASE_METHOD(
     REQUIRE(end_ev["vital"].count("failure_reason") == 0);
   }
 
-  SECTION("M emit end vital event with failure_reason W FailFeatureOperation is processed") {
+  SECTION("M emit end vital event with failure_reason W FailOperation is processed") {
     // Given an active session with a view and an active operation
     StartView();
     const UUID start_vital_id = UUID::Random();
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "upload", std::nullopt, start_vital_id
     ));
 
     // When we fail the operation with an error reason
     const UUID stop_vital_id = UUID::Random();
-    scope.Process(RumCommand::StopFeatureOperation(
+    scope.Process(RumCommand::StopOperation(
         GetBaseParams(),
         "upload",
         std::nullopt,
         stop_vital_id,
-        RumFeatureOperationFailureReason::Error
+        RumOperationFailureReason::Error
     ));
 
     // Then the end event includes failure_reason
@@ -539,7 +539,7 @@ TEST_CASE_METHOD(
   SECTION("M include operation_key W operation_key is provided") {
     StartView();
     const UUID vital_id = UUID::Random();
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "checkout", std::string_view{"cart-42"}, vital_id
     ));
 
@@ -550,17 +550,17 @@ TEST_CASE_METHOD(
   SECTION("M emit vital with abandoned failure_reason W abandoned") {
     StartView();
     const UUID start_id = UUID::Random();
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "login", std::nullopt, start_id
     ));
 
     const UUID stop_id = UUID::Random();
-    scope.Process(RumCommand::StopFeatureOperation(
+    scope.Process(RumCommand::StopOperation(
         GetBaseParams(),
         "login",
         std::nullopt,
         stop_id,
-        RumFeatureOperationFailureReason::Abandoned
+        RumOperationFailureReason::Abandoned
     ));
 
     REQUIRE(vital_events.size() == 2);
@@ -570,13 +570,13 @@ TEST_CASE_METHOD(
   SECTION("M warn on duplicate start W same operation started twice") {
     StartView();
     const UUID id1 = UUID::Random();
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "checkout", std::nullopt, id1
     ));
 
     // Start the same operation again
     const UUID id2 = UUID::Random();
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "checkout", std::nullopt, id2
     ));
 
@@ -593,7 +593,7 @@ TEST_CASE_METHOD(
   SECTION("M warn on stop without start W operation stopped without matching start") {
     StartView();
     const UUID vital_id = UUID::Random();
-    scope.Process(RumCommand::StopFeatureOperation(
+    scope.Process(RumCommand::StopOperation(
         GetBaseParams(), "unknown-op", std::nullopt, vital_id, std::nullopt
     ));
 
@@ -610,9 +610,9 @@ TEST_CASE_METHOD(
 
   SECTION("M emit vital event with zero view ID W no active view exists") {
     // Given an active session with NO views
-    // When we process a StartFeatureOperation command
+    // When we process a StartOperation command
     const UUID vital_id = UUID::Random();
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "background-op", std::nullopt, vital_id
     ));
 
@@ -626,10 +626,10 @@ TEST_CASE_METHOD(
     StartView();
 
     // Start two operations with same name but different operation_keys
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "upload", std::string_view{"file-1"}, UUID::Random()
     ));
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "upload", std::string_view{"file-2"}, UUID::Random()
     ));
 
@@ -638,7 +638,7 @@ TEST_CASE_METHOD(
     REQUIRE(vital_events.size() == 2);
 
     // Stop one
-    scope.Process(RumCommand::StopFeatureOperation(
+    scope.Process(RumCommand::StopOperation(
         GetBaseParams(), "upload", std::string_view{"file-1"}, UUID::Random(),
         std::nullopt
     ));
@@ -652,7 +652,7 @@ TEST_CASE_METHOD(
     StartView();
 
     // Start an operation
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "checkout", std::nullopt, UUID::Random()
     ));
 
@@ -672,7 +672,7 @@ TEST_CASE_METHOD(
     cmd_attrs.SetObjectProperty("command.key", Attribute::String("cmd-val"));
     auto params = RumCommandParams(clock.Now(), {}, cmd_attrs);
 
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         std::move(params), "checkout", std::nullopt, UUID::Random()
     ));
 
@@ -689,7 +689,7 @@ TEST_CASE_METHOD(
     // emitted, not the view context at operation start.
 
     // Given no active view - start event has zero view ID
-    scope.Process(RumCommand::StartFeatureOperation(
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "checkout", std::nullopt, UUID::Random()
     ));
     REQUIRE(vital_events.size() == 1);
@@ -699,7 +699,7 @@ TEST_CASE_METHOD(
     StartView();
 
     // And the operation is stopped
-    scope.Process(RumCommand::StopFeatureOperation(
+    scope.Process(RumCommand::StopOperation(
         GetBaseParams(), "checkout", std::nullopt, UUID::Random(), std::nullopt
     ));
 
@@ -711,19 +711,19 @@ TEST_CASE_METHOD(
     );
   }
 
-  SECTION("M not extend session timeout W feature operation command is processed") {
+  SECTION("M not extend session timeout W operation command is processed") {
     // Given a session that is near the inactivity timeout
     clock.Tick(std::chrono::minutes(14));
 
-    // When a non-UserInteraction command (feature operation) is processed
-    scope.Process(RumCommand::StartFeatureOperation(
+    // When a non-UserInteraction command (operation) is processed
+    scope.Process(RumCommand::StartOperation(
         GetBaseParams(), "checkout", std::nullopt, UUID::Random()
     ));
 
     // And then another minute passes
     clock.Tick(std::chrono::minutes(2));
 
-    // Then the session should expire because feature operations don't refresh inactivity
+    // Then the session should expire because operations don't refresh inactivity
     auto result = scope.Process(RumCommand::StartView(GetBaseParams(), "foo", ""));
     REQUIRE(result == RumScopeResult::Close);
     REQUIRE(

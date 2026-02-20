@@ -397,13 +397,13 @@ DATADOG_API void dd_rum_stop_resource_with_error(
     dd_attribute_t* attributes
 );
 
-// === RUM feature operations ===
+// === RUM operations ===
 
-// A feature operation represents a user-facing workflow (e.g. login, checkout, upload)
+// A operation represents a user-facing workflow (e.g. login, checkout, upload)
 // that can span multiple views and is tracked for performance and reliability insights.
 
 /**
- * Describes the reason why a feature operation failed.
+ * Describes the reason why a operation failed.
  *
  * This API is in preview and may change in future releases.
  */
@@ -414,7 +414,7 @@ typedef enum {
 } dd_rum_failure_reason_t;
 
 /**
- * Records the start of a feature operation (e.g. login, checkout, upload).
+ * Records the start of a operation (e.g. login, checkout, upload).
  *
  * This API is in preview and may change in future releases.
  *
@@ -423,7 +423,7 @@ typedef enum {
  *  operation. Pass NULL to omit.
  * @param attributes - An optional set of custom attributes for this event.
  */
-DATADOG_API void dd_rum_start_feature_operation(
+DATADOG_API void dd_rum_start_operation(
     dd_rum_t* rum,
     const char* name,
     const char* operation_key,
@@ -431,7 +431,7 @@ DATADOG_API void dd_rum_start_feature_operation(
 );
 
 /**
- * Records the successful completion of a feature operation.
+ * Records the successful completion of a operation.
  *
  * This API is in preview and may change in future releases.
  *
@@ -440,7 +440,7 @@ DATADOG_API void dd_rum_start_feature_operation(
  *  operation. Pass NULL to omit.
  * @param attributes - An optional set of custom attributes for this event.
  */
-DATADOG_API void dd_rum_succeed_feature_operation(
+DATADOG_API void dd_rum_succeed_operation(
     dd_rum_t* rum,
     const char* name,
     const char* operation_key,
@@ -448,7 +448,7 @@ DATADOG_API void dd_rum_succeed_feature_operation(
 );
 
 /**
- * Records the failure of a feature operation.
+ * Records the failure of a operation.
  *
  * This API is in preview and may change in future releases.
  *
@@ -458,7 +458,7 @@ DATADOG_API void dd_rum_succeed_feature_operation(
  *  operation. Pass NULL to omit.
  * @param attributes - An optional set of custom attributes for this event.
  */
-DATADOG_API void dd_rum_fail_feature_operation(
+DATADOG_API void dd_rum_fail_operation(
     dd_rum_t* rum,
     const char* name,
     dd_rum_failure_reason_t failure_reason,

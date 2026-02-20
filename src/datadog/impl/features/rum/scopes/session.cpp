@@ -148,10 +148,10 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     _num_views_opened++;
   }
 
-  // -- Handle feature operation vital events (session-scoped, not delegated to views)
+  // -- Handle operation vital events (session-scoped, not delegated to views)
 
-  if (command.Is<RumStartFeatureOperationPayload>()) {
-    const auto& payload = command.As<RumStartFeatureOperationPayload>();
+  if (command.Is<RumStartOperationPayload>()) {
+    const auto& payload = command.As<RumStartOperationPayload>();
 
     // Build lookup key for active operation tracking: name + operationKey
     std::string lookup_key(payload.name);
@@ -161,7 +161,7 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
 
     // Warn if the operation is already active (but never suppress the event)
     if (_active_operations.count(lookup_key) > 0) {
-      std::string warn_msg = "StartFeatureOperation: operation '";
+      std::string warn_msg = "StartOperation: operation '";
       warn_msg += payload.name;
       warn_msg += "'";
       if (payload.operation_key) {
@@ -190,8 +190,8 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     return RumScopeResult::RemainOpen;
   }
 
-  if (command.Is<RumStopFeatureOperationPayload>()) {
-    const auto& payload = command.As<RumStopFeatureOperationPayload>();
+  if (command.Is<RumStopOperationPayload>()) {
+    const auto& payload = command.As<RumStopOperationPayload>();
 
     // Build lookup key for active operation tracking: name + operationKey
     std::string lookup_key(payload.name);
@@ -201,7 +201,7 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
 
     // Warn if the operation is not currently active (but never suppress the event)
     if (_active_operations.erase(lookup_key) == 0) {
-      std::string warn_msg = "StopFeatureOperation: stop was called for operation '";
+      std::string warn_msg = "StopOperation: stop was called for operation '";
       warn_msg += payload.name;
       warn_msg += "'";
       if (payload.operation_key) {
@@ -213,17 +213,17 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
       _deps.get().diagnostic_logger.Warning(warn_msg.c_str());
     }
 
-    // Map RumFeatureOperationFailureReason to RumVitalFailureReason
+    // Map RumOperationFailureReason to RumVitalFailureReason
     std::optional<RumVitalFailureReason> vital_failure_reason;
     if (payload.failure_reason) {
       switch (*payload.failure_reason) {
-        case RumFeatureOperationFailureReason::Error:
+        case RumOperationFailureReason::Error:
           vital_failure_reason = RumVitalFailureReason::Error;
           break;
-        case RumFeatureOperationFailureReason::Abandoned:
+        case RumOperationFailureReason::Abandoned:
           vital_failure_reason = RumVitalFailureReason::Abandoned;
           break;
-        case RumFeatureOperationFailureReason::Other:
+        case RumOperationFailureReason::Other:
           vital_failure_reason = RumVitalFailureReason::Other;
           break;
       }
