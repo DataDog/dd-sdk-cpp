@@ -115,6 +115,15 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "add-error") {
     return HandleAddError(state, input.Shift());
   }
+  if (input.Peek() == "start-feature-operation") {
+    return HandleStartFeatureOperation(state, input.Shift());
+  }
+  if (input.Peek() == "succeed-feature-operation") {
+    return HandleSucceedFeatureOperation(state, input.Shift());
+  }
+  if (input.Peek() == "fail-feature-operation") {
+    return HandleFailFeatureOperation(state, input.Shift());
+  }
 
   // datadog::CrashReporting
   if (input.Peek() == "register-crash-reporting") {
