@@ -61,6 +61,12 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
     dd_rum_stop_resource_with_error(
         nullptr, "foo", "Bad times", "RuntimeError", nullptr, false, 0, &obj
     );
+
+    dd_rum_start_feature_operation(nullptr, "checkout", nullptr, nullptr);
+    dd_rum_succeed_feature_operation(nullptr, "checkout", nullptr, nullptr);
+    dd_rum_fail_feature_operation(
+        nullptr, "upload", DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
+    );
   }
 }
 
@@ -650,6 +656,115 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        {"dd_rum_add_error recording an error with no message: application should "
         "supply a non-empty error message"},
        {}},
+
+      // === dd_rum_start/succeed/fail_feature_operation() ===
+
+      {"M print error W dd_rum_start_feature_operation is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_feature_operation(rum, nullptr, nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_start_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_start_feature_operation is called with empty name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_feature_operation(rum, "", nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_start_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_start_feature_operation is called with whitespace-only "
+       "name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_feature_operation(rum, "   ", nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_start_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_start_feature_operation is called with whitespace-only "
+       "key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_feature_operation(rum, "checkout", "   ", nullptr);
+         });
+       },
+       {},
+       {"dd_rum_start_feature_operation call ignored: operation_key, if provided, must "
+        "be a non-empty string"}},
+
+      {"M print no error W dd_rum_start_feature_operation is called with empty key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           // Empty key means "no key" — valid
+           dd_rum_start_feature_operation(rum, "checkout", "", nullptr);
+         });
+       },
+       {},
+       {}},
+
+      {"M print error W dd_rum_succeed_feature_operation is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_succeed_feature_operation(rum, nullptr, nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_succeed_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_succeed_feature_operation is called with whitespace-only "
+       "name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_succeed_feature_operation(rum, "\t", nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_succeed_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_fail_feature_operation is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_fail_feature_operation(
+               rum, nullptr, DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
+           );
+         });
+       },
+       {},
+       {"dd_rum_fail_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_fail_feature_operation is called with whitespace-only "
+       "name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_fail_feature_operation(
+               rum, " \n ", DD_RUM_FAILURE_REASON_ABANDONED, nullptr, nullptr
+           );
+         });
+       },
+       {},
+       {"dd_rum_fail_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {

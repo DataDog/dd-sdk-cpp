@@ -161,10 +161,16 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
 
     // Warn if the operation is already active (but never suppress the event)
     if (_active_operations.count(lookup_key) > 0) {
-      _deps.get().diagnostic_logger.Warning(
-          "StartFeatureOperation: an operation with the same name and key is "
-          "already active"
-      );
+      std::string warn_msg = "StartFeatureOperation: operation '";
+      warn_msg += payload.name;
+      warn_msg += "'";
+      if (payload.operation_key) {
+        warn_msg += " (key '";
+        warn_msg += *payload.operation_key;
+        warn_msg += "')";
+      }
+      warn_msg += " has already been started";
+      _deps.get().diagnostic_logger.Warning(warn_msg.c_str());
     }
 
     // Track this operation as active
@@ -195,10 +201,16 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
 
     // Warn if the operation is not currently active (but never suppress the event)
     if (_active_operations.erase(lookup_key) == 0) {
-      _deps.get().diagnostic_logger.Warning(
-          "StopFeatureOperation: no active operation found with the given name "
-          "and key"
-      );
+      std::string warn_msg = "StopFeatureOperation: stop was called for operation '";
+      warn_msg += payload.name;
+      warn_msg += "'";
+      if (payload.operation_key) {
+        warn_msg += " (key '";
+        warn_msg += *payload.operation_key;
+        warn_msg += "')";
+      }
+      warn_msg += ", but it is not currently active";
+      _deps.get().diagnostic_logger.Warning(warn_msg.c_str());
     }
 
     // Map RumFeatureOperationFailureReason to RumVitalFailureReason
