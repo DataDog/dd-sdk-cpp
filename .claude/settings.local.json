@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(wc:*)",
+      "Bash(find:*)",
+      "Bash(ls:*)",
+      "Bash(grep:*)",
+      "Bash(node /Users/valentin.pertuisot/.claude/get-shit-done/bin/gsd-tools.cjs commit:*)"
+    ]
+  }
+}
