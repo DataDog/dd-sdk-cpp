@@ -6,12 +6,27 @@
 
 #include "datadog/rum.hpp"
 
+#include <cctype>
+
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/features/rum/rum.hpp"
+
+namespace {
+// Returns true if s is empty or consists entirely of whitespace characters.
+// Used to enforce "non-blank" validation on operation name and key per spec §8.
+bool IsBlankString(std::string_view s) {
+  for (unsigned char c : s) {
+    if (!std::isspace(c)) {
+      return false;
+    }
+  }
+  return true;
+}
+}  // namespace
 
 namespace datadog {
 
@@ -326,8 +341,8 @@ void Rum::StartFeatureOperation(
     std::string_view operation_key,
     const Attribute& attributes
 ) {
-  // Require a non-empty operation name
-  if (name.empty()) {
+  // Require a non-blank (non-empty, non-whitespace-only) operation name
+  if (IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::StartFeatureOperation call ignored: application must supply a non-empty "
         "operation name"
@@ -335,7 +350,16 @@ void Rum::StartFeatureOperation(
     return;
   }
 
-  // If operation_key is provided, it must be non-empty
+  // If operation_key is provided, it must be non-blank
+  if (!operation_key.empty() && IsBlankString(operation_key)) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
+        "Rum::StartFeatureOperation call ignored: operation_key, if provided, must be "
+        "a non-empty string"
+    );
+    return;
+  }
+
+  // Empty operation_key means "no key"
   std::optional<std::string_view> opt_key;
   if (!operation_key.empty()) {
     opt_key = operation_key;
@@ -352,8 +376,8 @@ void Rum::SucceedFeatureOperation(
     std::string_view operation_key,
     const Attribute& attributes
 ) {
-  // Require a non-empty operation name
-  if (name.empty()) {
+  // Require a non-blank (non-empty, non-whitespace-only) operation name
+  if (IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::SucceedFeatureOperation call ignored: application must supply a non-empty "
         "operation name"
@@ -361,7 +385,16 @@ void Rum::SucceedFeatureOperation(
     return;
   }
 
-  // If operation_key is provided, it must be non-empty
+  // If operation_key is provided, it must be non-blank
+  if (!operation_key.empty() && IsBlankString(operation_key)) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
+        "Rum::SucceedFeatureOperation call ignored: operation_key, if provided, must be "
+        "a non-empty string"
+    );
+    return;
+  }
+
+  // Empty operation_key means "no key"
   std::optional<std::string_view> opt_key;
   if (!operation_key.empty()) {
     opt_key = operation_key;
@@ -379,8 +412,8 @@ void Rum::FailFeatureOperation(
     std::string_view operation_key,
     const Attribute& attributes
 ) {
-  // Require a non-empty operation name
-  if (name.empty()) {
+  // Require a non-blank (non-empty, non-whitespace-only) operation name
+  if (IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::FailFeatureOperation call ignored: application must supply a non-empty "
         "operation name"
@@ -388,7 +421,16 @@ void Rum::FailFeatureOperation(
     return;
   }
 
-  // If operation_key is provided, it must be non-empty
+  // If operation_key is provided, it must be non-blank
+  if (!operation_key.empty() && IsBlankString(operation_key)) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
+        "Rum::FailFeatureOperation call ignored: operation_key, if provided, must be "
+        "a non-empty string"
+    );
+    return;
+  }
+
+  // Empty operation_key means "no key"
   std::optional<std::string_view> opt_key;
   if (!operation_key.empty()) {
     opt_key = operation_key;

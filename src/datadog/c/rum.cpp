@@ -6,6 +6,7 @@
 
 #include "datadog/rum.h"
 
+#include <cctype>
 #include <memory>
 
 #include "datadog/core.h"
@@ -17,6 +18,20 @@
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/features/rum/rum.hpp"
 #include "datadog/impl/features/rum/types.hpp"
+
+// Returns true if s is NULL, empty, or consists entirely of whitespace.
+// Used to enforce "non-blank" validation on operation name and key per spec §8.
+static bool IsCStringBlank(const char* s) {
+  if (!s || !s[0]) {
+    return true;
+  }
+  for (const char* p = s; *p; ++p) {
+    if (!std::isspace(static_cast<unsigned char>(*p))) {
+      return false;
+    }
+  }
+  return true;
+}
 
 static const uint32_t RUM_CONFIG_VERSION = 1;
 
@@ -509,8 +524,8 @@ void dd_rum_start_feature_operation(
     return;
   }
 
-  // Require a valid, non-empty operation name
-  if (!name || !name[0]) {
+  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
+  if (IsCStringBlank(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_start_feature_operation call ignored: application must supply a "
         "non-empty operation name"
@@ -518,7 +533,16 @@ void dd_rum_start_feature_operation(
     return;
   }
 
-  // Convert optional operation_key: NULL means no key
+  // If operation_key is provided (non-NULL, non-empty), it must be non-blank
+  if (operation_key && operation_key[0] && IsCStringBlank(operation_key)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_start_feature_operation call ignored: operation_key, if provided, must "
+        "be a non-empty string"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL or empty means no key
   std::optional<std::string_view> opt_key;
   if (operation_key && operation_key[0]) {
     opt_key = operation_key;
@@ -545,8 +569,8 @@ void dd_rum_succeed_feature_operation(
     return;
   }
 
-  // Require a valid, non-empty operation name
-  if (!name || !name[0]) {
+  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
+  if (IsCStringBlank(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_succeed_feature_operation call ignored: application must supply a "
         "non-empty operation name"
@@ -554,7 +578,16 @@ void dd_rum_succeed_feature_operation(
     return;
   }
 
-  // Convert optional operation_key: NULL means no key
+  // If operation_key is provided (non-NULL, non-empty), it must be non-blank
+  if (operation_key && operation_key[0] && IsCStringBlank(operation_key)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_succeed_feature_operation call ignored: operation_key, if provided, "
+        "must be a non-empty string"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL or empty means no key
   std::optional<std::string_view> opt_key;
   if (operation_key && operation_key[0]) {
     opt_key = operation_key;
@@ -584,8 +617,8 @@ void dd_rum_fail_feature_operation(
     return;
   }
 
-  // Require a valid, non-empty operation name
-  if (!name || !name[0]) {
+  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
+  if (IsCStringBlank(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_fail_feature_operation call ignored: application must supply a "
         "non-empty operation name"
@@ -593,7 +626,16 @@ void dd_rum_fail_feature_operation(
     return;
   }
 
-  // Convert optional operation_key: NULL means no key
+  // If operation_key is provided (non-NULL, non-empty), it must be non-blank
+  if (operation_key && operation_key[0] && IsCStringBlank(operation_key)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_fail_feature_operation call ignored: operation_key, if provided, must "
+        "be a non-empty string"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL or empty means no key
   std::optional<std::string_view> opt_key;
   if (operation_key && operation_key[0]) {
     opt_key = operation_key;

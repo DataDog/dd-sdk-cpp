@@ -582,10 +582,11 @@ TEST_CASE_METHOD(
 
     // Both events are emitted (warnings never suppress events)
     REQUIRE(vital_events.size() == 2);
-    // A warning was logged
+    // A warning was logged including the operation name
     REQUIRE(captured_warnings.size() == 1);
+    REQUIRE(captured_warnings[0].find("checkout") != std::string::npos);
     REQUIRE(
-        captured_warnings[0].find("already active") != std::string::npos
+        captured_warnings[0].find("has already been started") != std::string::npos
     );
   }
 
@@ -599,10 +600,11 @@ TEST_CASE_METHOD(
     // Event is still emitted despite no matching start
     REQUIRE(vital_events.size() == 1);
     REQUIRE(vital_events[0].obj["vital"]["step_type"] == "end");
-    // A warning was logged
+    // A warning was logged including the operation name
     REQUIRE(captured_warnings.size() == 1);
+    REQUIRE(captured_warnings[0].find("unknown-op") != std::string::npos);
     REQUIRE(
-        captured_warnings[0].find("no active operation") != std::string::npos
+        captured_warnings[0].find("not currently active") != std::string::npos
     );
   }
 
@@ -678,6 +680,35 @@ TEST_CASE_METHOD(
     const auto& ev = vital_events[0].obj;
     REQUIRE(ev.count("context") == 1);
     REQUIRE(ev["context"]["command.key"] == "cmd-val");
+  }
+
+  SECTION(
+      "M capture view context at emission time W view becomes active mid-operation"
+  ) {
+    // EDGE-02: vital events capture the *current* view context at the moment they are
+    // emitted, not the view context at operation start.
+
+    // Given no active view - start event has zero view ID
+    scope.Process(RumCommand::StartFeatureOperation(
+        GetBaseParams(), "checkout", std::nullopt, UUID::Random()
+    ));
+    REQUIRE(vital_events.size() == 1);
+    REQUIRE(vital_events[0].obj["view"]["id"] == "00000000-0000-0000-0000-000000000000");
+
+    // When a view is started mid-operation
+    StartView();
+
+    // And the operation is stopped
+    scope.Process(RumCommand::StopFeatureOperation(
+        GetBaseParams(), "checkout", std::nullopt, UUID::Random(), std::nullopt
+    ));
+
+    // Then the stop event captures the current (non-zero) view context
+    REQUIRE(vital_events.size() == 2);
+    REQUIRE(vital_events[1].obj["vital"]["step_type"] == "end");
+    REQUIRE(
+        vital_events[1].obj["view"]["id"] != "00000000-0000-0000-0000-000000000000"
+    );
   }
 
   SECTION("M not extend session timeout W feature operation command is processed") {
