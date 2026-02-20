@@ -200,7 +200,7 @@ class RumSessionScope {
   // be conveyed to the next session.
   std::optional<ViewDetails> _active_view_on_close;
 
-  // Active feature operations tracking: set of composite keys (name + operationKey) for
+  // Active operations tracking: set of composite keys (name + operationKey) for
   // developer warnings about duplicate starts or stop-without-start
   std::unordered_set<std::string> _active_operations;
 

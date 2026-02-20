@@ -62,9 +62,9 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
           "foo", "Bad times", "RuntimeError", "", false, 0, attributes
       );
 
-      rum->StartFeatureOperation("checkout");
-      rum->SucceedFeatureOperation("checkout");
-      rum->FailFeatureOperation("upload", RumFeatureOperationFailureReason::Error);
+      rum->StartOperation("checkout");
+      rum->SucceedOperation("checkout");
+      rum->FailOperation("upload", RumOperationFailureReason::Error);
     }
   }
 }
@@ -131,9 +131,9 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->StartAction(RumActionType::Scroll, "scroll1");
     rum->StopAction(RumActionType::Scroll, "scroll1");
     rum->AddError(RumErrorSource::Console, "Internal error", "66");
-    rum->StartFeatureOperation("checkout");
-    rum->SucceedFeatureOperation("checkout");
-    rum->FailFeatureOperation("upload", RumFeatureOperationFailureReason::Error);
+    rum->StartOperation("checkout");
+    rum->SucceedOperation("checkout");
+    rum->FailOperation("upload", RumOperationFailureReason::Error);
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -373,94 +373,94 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
         "non-empty error message"},
        {}},
 
-      // === StartFeatureOperation() / SucceedFeatureOperation() / FailFeatureOperation()
+      // === StartOperation() / SucceedOperation() / FailOperation()
       // ===
 
-      {"M print error W StartFeatureOperation is called with empty name",
+      {"M print error W StartOperation is called with empty name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->StartFeatureOperation("");
+           rum->StartOperation("");
          });
        },
        {},
-       {"Rum::StartFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::StartOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print error W StartFeatureOperation is called with whitespace-only name",
+      {"M print error W StartOperation is called with whitespace-only name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->StartFeatureOperation("   ");
+           rum->StartOperation("   ");
          });
        },
        {},
-       {"Rum::StartFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::StartOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print error W StartFeatureOperation is called with whitespace-only key",
+      {"M print error W StartOperation is called with whitespace-only key",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->StartFeatureOperation("checkout", "   ");
+           rum->StartOperation("checkout", "   ");
          });
        },
        {},
-       {"Rum::StartFeatureOperation call ignored: operation_key, if provided, must be "
+       {"Rum::StartOperation call ignored: operation_key, if provided, must be "
         "a non-empty string"}},
 
-      {"M print error W SucceedFeatureOperation is called with empty name",
+      {"M print error W SucceedOperation is called with empty name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->SucceedFeatureOperation("");
+           rum->SucceedOperation("");
          });
        },
        {},
-       {"Rum::SucceedFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::SucceedOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print error W SucceedFeatureOperation is called with whitespace-only name",
+      {"M print error W SucceedOperation is called with whitespace-only name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->SucceedFeatureOperation("  \t  ");
+           rum->SucceedOperation("  \t  ");
          });
        },
        {},
-       {"Rum::SucceedFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::SucceedOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print error W FailFeatureOperation is called with empty name",
+      {"M print error W FailOperation is called with empty name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->FailFeatureOperation("", RumFeatureOperationFailureReason::Error);
+           rum->FailOperation("", RumOperationFailureReason::Error);
          });
        },
        {},
-       {"Rum::FailFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::FailOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print error W FailFeatureOperation is called with whitespace-only name",
+      {"M print error W FailOperation is called with whitespace-only name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->FailFeatureOperation(
-               "\n", RumFeatureOperationFailureReason::Abandoned
+           rum->FailOperation(
+               "\n", RumOperationFailureReason::Abandoned
            );
          });
        },
        {},
-       {"Rum::FailFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::FailOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print no error W StartFeatureOperation is called with empty key",
+      {"M print no error W StartOperation is called with empty key",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
            // Empty key means "no key" — valid
-           rum->StartFeatureOperation("checkout", "");
+           rum->StartOperation("checkout", "");
          });
        },
        {},
