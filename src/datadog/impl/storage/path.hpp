@@ -37,15 +37,6 @@ class StoragePath {
   bool Set(std::string_view path);
 
   /**
-   * Updates the buffer to hold the result of concatenating the specified parent path
-   * with the given path component. Neither value may contain "..".
-   *
-   * Returns true if the value was successfully stored; false if it would exceed the
-   * buffer size or if either value contains "..".
-   */
-  bool Join(std::string_view parent_path, std::string_view name);
-
-  /**
    * Modifies the value in-place, updating the buffer to concatenate the given path
    * component onto the currently-held path. `name` must not contain "..".
    *

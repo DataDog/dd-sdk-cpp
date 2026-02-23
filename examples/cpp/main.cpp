@@ -4,8 +4,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <any>
 #include <chrono>
 #include <iostream>
+#include <map>
+#include <string>
 #include <thread>
 
 #include "datadog.hpp"
@@ -18,10 +21,27 @@ int main()  // NOLINT(bugprone-exception-escape)
   std::cout << "Datadog Native SDK C++ Example\n";
 
   // Prepare our configuration and create the Datadog SDK Core
-  datadog::CoreConfig config("fake-client-token", "example-service", "development");
+  datadog::CoreConfig("fake-client-token", "example-service", "development");
   config.SetApplicationVersion("1.0.0");
 
-  auto core = datadog::Core::Create(config);
+  std::string_view client_token = "my-client-token";
+  std::string_view service = "my-service";
+  std::string_view env = "my-env";
+
+  auto core = datadog::Core::Create(
+      datadog::CoreConfig(client_token, service, env)
+          .SetApplicationVersion("1.0.0")
+          .SetBatchSize(datadog::BatchSize::Small)
+          .SetDiagnosticThreshold(datadog::DiagnosticLevel::Debug)
+  );
+  core->Start();
+
+  std::map<std::string, std::any> extra_attributes = {
+      {"foo", 100},
+      {"locales", std::vector<std::string>{"en-US", "fr-CA", "fr-FR"}},
+      {"nested", std::map<std::string, std::any>{{"x", 42.0f}, {"y", -33.33f}}}
+  };
+
   if (!core) {
     std::cout << "Failed to create Datadog core\n";
     return 1;
@@ -64,8 +84,19 @@ int main()  // NOLINT(bugprone-exception-escape)
   // Use our logger to send a message
   logger->Info("Hello world!");
 
+  using datadog::Attribute;
+
   // Start a RUM View
-  rum->StartView("main_menu");
+  datadog::Timestamp t;
+  uint8_t id[16];
+
+  auto attributes = Attribute::Object(4);
+  attributes.SetObjectProperty("mode", Attribute::String("demo"));
+  attributes.SetObjectProperty("scaleFactor", Attribute::Double(1.0));
+  attributes.SetObjectProperty("refreshId", Attribute::UUID(id));
+  attributes.SetObjectProperty("lastRefresh", Attribute::Timestamp(t));
+
+  rum->StartView("main_menu", "Main Menu", attributes);
 
   // Log messages will now be correlated with our session and view in the RUM UI
   logger->Info("Main menu loaded");

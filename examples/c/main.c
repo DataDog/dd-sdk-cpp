@@ -14,7 +14,10 @@ int main(int argc, char* argv[]) {
 
   printf("Datadog Native SDK C Example\n");
 
-  // Prepare our configuration and create the Datadog SDK Core
+  const char* client_token = "my-client-token";
+  const char* service = "my-service";
+  const char* env = "my-env";
+
   dd_core_config_t config;
   dd_core_config_init(&config, "fake-client-token", "example-service", "development");
   dd_core_config_set_application_version(&config, "1.0.0");
