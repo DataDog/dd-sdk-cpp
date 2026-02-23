@@ -182,11 +182,23 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
   SECTION("reuses abandoned directory when process is dead (rename optimization)") {
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
     WriteTestEvent(
-        fs, "my-app/storage", "99999", "main", "rum", "v1", "event1.json",
+        fs,
+        "my-app/storage",
+        "99999",
+        "main",
+        "rum",
+        "v1",
+        "event1.json",
         "{\"id\": 1, \"type\": \"view\"}"
     );
     WriteTestEvent(
-        fs, "my-app/storage", "99999", "main", "rum", "intermediate-v1", "event2.json",
+        fs,
+        "my-app/storage",
+        "99999",
+        "main",
+        "rum",
+        "intermediate-v1",
+        "event2.json",
         "{\"id\": 2, \"type\": \"action\"}"
     );
 
@@ -202,11 +214,23 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
 
     // Events preserved in renamed directory
     REQUIRE(VerifyEventFile(
-        fs, "my-app/storage", "12345", "main", "rum", "v1", "event1.json",
+        fs,
+        "my-app/storage",
+        "12345",
+        "main",
+        "rum",
+        "v1",
+        "event1.json",
         "{\"id\": 1, \"type\": \"view\"}"
     ));
     REQUIRE(VerifyEventFile(
-        fs, "my-app/storage", "12345", "main", "rum", "intermediate-v1", "event2.json",
+        fs,
+        "my-app/storage",
+        "12345",
+        "main",
+        "rum",
+        "intermediate-v1",
+        "event2.json",
         "{\"id\": 2, \"type\": \"action\"}"
     ));
   }
@@ -214,19 +238,37 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
   SECTION("migrates events from multiple abandoned directories") {
     CreateAbandonedDirectory(fs, "my-app/storage", "88888", "main", "rum", true);
     WriteTestEvent(
-        fs, "my-app/storage", "88888", "main", "rum", "v1", "event1.json",
+        fs,
+        "my-app/storage",
+        "88888",
+        "main",
+        "rum",
+        "v1",
+        "event1.json",
         "{\"id\": 1, \"source\": \"88888\"}"
     );
 
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "logs", true);
     WriteTestEvent(
-        fs, "my-app/storage", "99999", "main", "logs", "v1", "event2.json",
+        fs,
+        "my-app/storage",
+        "99999",
+        "main",
+        "logs",
+        "v1",
+        "event2.json",
         "{\"id\": 2, \"source\": \"99999\"}"
     );
 
     CreateAbandonedDirectory(fs, "my-app/storage", "77777", "main", "rum", true);
     WriteTestEvent(
-        fs, "my-app/storage", "77777", "main", "rum", "intermediate-v1", "event3.json",
+        fs,
+        "my-app/storage",
+        "77777",
+        "main",
+        "rum",
+        "intermediate-v1",
+        "event3.json",
         "{\"id\": 3, \"source\": \"77777\"}"
     );
 
@@ -246,15 +288,33 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
 
     // All events migrated to 12345
     REQUIRE(VerifyEventFile(
-        fs, "my-app/storage", "12345", "main", "rum", "v1", "event1.json",
+        fs,
+        "my-app/storage",
+        "12345",
+        "main",
+        "rum",
+        "v1",
+        "event1.json",
         "{\"id\": 1, \"source\": \"88888\"}"
     ));
     REQUIRE(VerifyEventFile(
-        fs, "my-app/storage", "12345", "main", "logs", "v1", "event2.json",
+        fs,
+        "my-app/storage",
+        "12345",
+        "main",
+        "logs",
+        "v1",
+        "event2.json",
         "{\"id\": 2, \"source\": \"99999\"}"
     ));
     REQUIRE(VerifyEventFile(
-        fs, "my-app/storage", "12345", "main", "rum", "intermediate-v1", "event3.json",
+        fs,
+        "my-app/storage",
+        "12345",
+        "main",
+        "rum",
+        "intermediate-v1",
+        "event3.json",
         "{\"id\": 3, \"source\": \"77777\"}"
     ));
   }
@@ -262,7 +322,13 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
   SECTION("skips non-numeric directories during migration scan") {
     CreateAbandonedDirectory(fs, "my-app/storage", "not-a-pid", "main", "rum", true);
     WriteTestEvent(
-        fs, "my-app/storage", "not-a-pid", "main", "rum", "v1", "event.json",
+        fs,
+        "my-app/storage",
+        "not-a-pid",
+        "main",
+        "rum",
+        "v1",
+        "event.json",
         "{\"id\": 1}"
     );
 
@@ -276,7 +342,14 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     // Non-numeric directory's lockfile and events should remain untouched
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/not-a-pid.lock"));
     REQUIRE(VerifyEventFile(
-        fs, "my-app/storage", "not-a-pid", "main", "rum", "v1", "event.json", "{\"id\": 1}"
+        fs,
+        "my-app/storage",
+        "not-a-pid",
+        "main",
+        "rum",
+        "v1",
+        "event.json",
+        "{\"id\": 1}"
     ));
   }
 
@@ -289,10 +362,24 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
         fs, "my-app/storage", "99999", "main", "rum", "v1", "event1.json", "{\"id\": 1}"
     );
     WriteTestEvent(
-        fs, "my-app/storage", "99999", "main", "logs", "v1", "event2.json", "{\"id\": 2}"
+        fs,
+        "my-app/storage",
+        "99999",
+        "main",
+        "logs",
+        "v1",
+        "event2.json",
+        "{\"id\": 2}"
     );
     WriteTestEvent(
-        fs, "my-app/storage", "99999", "worker", "rum", "v1", "event3.json", "{\"id\": 3}"
+        fs,
+        "my-app/storage",
+        "99999",
+        "worker",
+        "rum",
+        "v1",
+        "event3.json",
+        "{\"id\": 3}"
     );
 
     SdkStorage storage(fs, 12345);
@@ -307,10 +394,24 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
         fs, "my-app/storage", "12345", "main", "rum", "v1", "event1.json", "{\"id\": 1}"
     ));
     REQUIRE(VerifyEventFile(
-        fs, "my-app/storage", "12345", "main", "logs", "v1", "event2.json", "{\"id\": 2}"
+        fs,
+        "my-app/storage",
+        "12345",
+        "main",
+        "logs",
+        "v1",
+        "event2.json",
+        "{\"id\": 2}"
     ));
     REQUIRE(VerifyEventFile(
-        fs, "my-app/storage", "12345", "worker", "rum", "v1", "event3.json", "{\"id\": 3}"
+        fs,
+        "my-app/storage",
+        "12345",
+        "worker",
+        "rum",
+        "v1",
+        "event3.json",
+        "{\"id\": 3}"
     ));
   }
 
