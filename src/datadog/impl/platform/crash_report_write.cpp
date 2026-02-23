@@ -20,7 +20,7 @@ namespace datadog::platform {
 static void write_bytes(CrashReportFileHandle fd, const char* bytes, size_t num_bytes) {
 #ifdef _WIN32
   DWORD written = 0;
-  WriteFile(fd, bytes, num_bytes, &written, nullptr);
+  WriteFile(fd, bytes, static_cast<DWORD>(num_bytes), &written, nullptr);
   (void)written;
 #else
   ssize_t result = write(fd, bytes, num_bytes);
@@ -36,7 +36,7 @@ static void write_uint64_values(
 
 #ifdef _WIN32
   DWORD written = 0;
-  WriteFile(fd, bytes, num_bytes, &written, nullptr);
+  WriteFile(fd, bytes, static_cast<DWORD>(num_bytes), &written, nullptr);
   (void)written;
 #else
   ssize_t result = write(fd, bytes, num_bytes);
