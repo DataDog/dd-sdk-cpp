@@ -16,11 +16,18 @@ class SdkStorage {
  public:
   explicit SdkStorage(IFilesystem& fs, uint32_t pid);
 
+  ~SdkStorage();
+
   bool Initialize(
       const impl::DiagnosticLogger& logger,
       std::string_view application_storage_path,
       std::string_view sdk_instance_name
   );
+
+  void MigrateAbandonedEvents();
+
+ private:
+  void HandleMigrate(std::string_view from_pid);
 
  private:
   IFilesystem& _fs;
@@ -29,9 +36,11 @@ class SdkStorage {
   std::array<char, 11> _pid_str_buffer{};
   std::string_view _pid_str;
 
-  StoragePath _root;          // <application-storage-path>/.datadog/<sdk-instance-name>
-  StoragePath _process_root;  // <_root>/<pid>
-  StoragePath _events_root;   // <_root>/<pid>/events
+  StoragePath _root;          // <application-storage-path>/.datadog/
+  StoragePath _process_root;  // <_root>/<pid>/
+  StoragePath _events_root;   // <_root>/<pid>/<sdk-instance-name>/
+
+  PlatformFileHandle _lockfile_handle{INVALID_FILE_HANDLE};
 };
 
 }  // namespace datadog::impl

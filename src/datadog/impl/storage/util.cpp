@@ -40,6 +40,50 @@ static const char* filesystem_result_str(FilesystemResult res) {
   return "<invalid-enum>";
 }
 
+void LogPathLengthError(
+    const class DiagnosticLogger& logger, const char* failure_message
+) {
+  (void)logger;
+  (void)failure_message;
+}
+
+bool AppendPath(
+    StoragePath& dst,
+    std::string_view name,
+    const DiagnosticLogger& logger,
+    const char* failure_message
+) {
+  if (!dst.Append(name)) {
+    logger.Error(
+        failure_message,
+        {{"parent_path", dst.Get()},
+         {"name", name},
+         {"max_storage_path_size", MAX_STORAGE_PATH_SIZE}}
+    );
+    return false;
+  }
+  return true;
+}
+
+bool JoinPaths(
+    StoragePath& dst,
+    std::string_view parent,
+    std::string_view name,
+    const DiagnosticLogger& logger,
+    const char* failure_message
+) {
+  if (!dst.Set(parent)) {
+    logger.Error(
+        failure_message,
+        {{"parent_path", parent},
+         {"name", name},
+         {"max_storage_path_size", MAX_STORAGE_PATH_SIZE}}
+    );
+    return false;
+  }
+  return AppendPath(dst, name, logger, failure_message);
+}
+
 bool EnsureDirectoryExists(
     const StoragePath& path,
     PlatformPath& platform_path,

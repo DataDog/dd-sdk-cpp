@@ -86,47 +86,6 @@ bool StoragePath::Set(std::string_view path) {
   return true;
 }
 
-bool StoragePath::Join(std::string_view parent_path, std::string_view name) {
-  // Reject if either path component contains "..", to prevent relative path traversal
-  if (parent_path.find("..") != std::string_view::npos) {
-    return false;
-  }
-  if (name.find("..") != std::string_view::npos) {
-    return false;
-  }
-
-  // If parent_path is empty or ".", just set the name directly without any prefix
-  if (parent_path.empty() || parent_path == ".") {
-    return Set(name);
-  }
-
-  // Determine if parent_path already ends with a path separator
-  const bool needs_slash = !has_trailing_slash(parent_path);
-
-  // Account for the total number of bytes required to hold the path built from our
-  // input values: parent_path + optional separator + name + null terminator
-  const size_t sizeof_sep = needs_slash ? 1 : 0;
-  const size_t sizeof_nul = 1;
-  const size_t num_bytes = parent_path.size() + sizeof_sep + name.size() + sizeof_nul;
-  if (num_bytes > _buf.size()) {
-    return false;
-  }
-
-  // Copy parent_path to our buffer, add separator only if parent_path doesn't already
-  // have a trailing slash, append name, and add null terminator
-  // NOLINTNEXTLINE(readability-qualified-auto)
-  auto it = std::copy(parent_path.begin(), parent_path.end(), _buf.begin());
-  if (needs_slash) {
-    *it++ = PATH_SEP;
-  }
-  it = std::copy(name.begin(), name.end(), it);
-  *it = '\0';
-
-  // Update stored string length (count of UTF-8 bytes excluding null terminator)
-  _len = parent_path.size() + sizeof_sep + name.size();
-  return true;
-}
-
 bool StoragePath::Append(std::string_view name) {
   // Reject if new path component contains "..", to prevent relative path traversal
   if (name.find("..") != std::string_view::npos) {

@@ -33,7 +33,7 @@ TEST_CASE("IFilesystem directory operations", "[unit][storage][filesystem]") {
   SECTION("M return OK W creating new directory") {
     // Given a path to a non-existent directory
     StoragePath dir_path;
-    REQUIRE(dir_path.Join(temp.path, "newdir"));
+    REQUIRE((dir_path.Set(temp.path) && dir_path.Append("newdir")));
 
     // When we create the directory
     const FilesystemResult result = fs->CreateDirectory(MakePlatformPath(dir_path));
@@ -52,7 +52,7 @@ TEST_CASE("IFilesystem directory operations", "[unit][storage][filesystem]") {
     temp.Mkdirs("existingdir");
 
     StoragePath dir_path;
-    REQUIRE(dir_path.Join(temp.path, "existingdir"));
+    REQUIRE((dir_path.Set(temp.path) && dir_path.Append("existingdir")));
 
     // When we attempt to create it again
     const FilesystemResult result = fs->CreateDirectory(MakePlatformPath(dir_path));
@@ -68,7 +68,7 @@ TEST_CASE("IFilesystem directory operations", "[unit][storage][filesystem]") {
     // Given a file at a specific path
     temp.WriteFile("somefile", "content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "somefile"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("somefile")));
 
     // When we attempt to create a directory at that same path
     const FilesystemResult result = fs->CreateDirectory(MakePlatformPath(file_path));
@@ -83,7 +83,7 @@ TEST_CASE("IFilesystem directory operations", "[unit][storage][filesystem]") {
   SECTION("M return DoesNotExist W creating directory without parent") {
     // Given a path with a non-existent parent directory
     StoragePath nonexistent_parent;
-    REQUIRE(nonexistent_parent.Join(temp.path, "nonexistent/child"));
+    REQUIRE((nonexistent_parent.Set(temp.path) && nonexistent_parent.Append("nonexistent/child")));
 
     // When we attempt to create the child directory
     const FilesystemResult result =
@@ -102,7 +102,7 @@ TEST_CASE("IFilesystem file enumeration", "[unit][storage][filesystem]") {
     // Given an empty directory
     temp.Mkdirs("emptydir");
     StoragePath dir_path;
-    REQUIRE(dir_path.Join(temp.path, "emptydir"));
+    REQUIRE((dir_path.Set(temp.path) && dir_path.Append("emptydir")));
 
     // When we list files in the directory
     std::vector<std::string> files;
@@ -122,7 +122,7 @@ TEST_CASE("IFilesystem file enumeration", "[unit][storage][filesystem]") {
     temp.WriteFile("filesdir/file2.txt", "content2");
     temp.WriteFile("filesdir/file3.txt", "content3");
     StoragePath dir_path;
-    REQUIRE(dir_path.Join(temp.path, "filesdir"));
+    REQUIRE((dir_path.Set(temp.path) && dir_path.Append("filesdir")));
 
     // When we list files in the directory
     std::vector<std::string> files;
@@ -145,7 +145,7 @@ TEST_CASE("IFilesystem file enumeration", "[unit][storage][filesystem]") {
     temp.Mkdirs("parentdir/subdir1");
     temp.Mkdirs("parentdir/subdir2");
     StoragePath dir_path;
-    REQUIRE(dir_path.Join(temp.path, "parentdir"));
+    REQUIRE((dir_path.Set(temp.path) && dir_path.Append("parentdir")));
 
     // When we list subdirectories
     std::vector<std::string> subdirs;
@@ -165,7 +165,7 @@ TEST_CASE("IFilesystem file enumeration", "[unit][storage][filesystem]") {
   SECTION("M return DoesNotExist W listing non-existent directory") {
     // Given a path to a non-existent directory
     StoragePath nonexistent;
-    REQUIRE(nonexistent.Join(temp.path, "nonexistent"));
+    REQUIRE((nonexistent.Set(temp.path) && nonexistent.Append("nonexistent")));
 
     // When we attempt to list files
     std::vector<std::string> files;
@@ -183,7 +183,7 @@ TEST_CASE("IFilesystem file enumeration", "[unit][storage][filesystem]") {
     temp.WriteFile("mixeddir/file1.txt", "content1");
     temp.WriteFile("mixeddir/file2.txt", "content2");
     StoragePath dir_path;
-    REQUIRE(dir_path.Join(temp.path, "mixeddir"));
+    REQUIRE((dir_path.Set(temp.path) && dir_path.Append("mixeddir")));
 
     // When we list files
     std::vector<std::string> files;
@@ -212,7 +212,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
   SECTION("M create file with content W opening new file for write") {
     // Given a path to a new file
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "newfile.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("newfile.txt")));
 
     // When we open the file for writing
     const auto open_result =
@@ -239,7 +239,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
     // Given an existing file with content
     temp.WriteFile("existing.txt", "old content that will be truncated");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "existing.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("existing.txt")));
 
     // When we open it in truncate mode and write new data
     const auto open_result =
@@ -257,7 +257,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
     // Given an existing file with content
     temp.WriteFile("appendfile.txt", "existing content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "appendfile.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("appendfile.txt")));
 
     // When we open it in append mode and write additional data
     const auto open_result = fs->OpenForWrite(MakePlatformPath(file_path), true, false);
@@ -273,7 +273,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
   SECTION("M write binary data W file contains null bytes") {
     // Given a new binary file
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "binary.dat"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("binary.dat")));
     const auto open_result =
         fs->OpenForWrite(MakePlatformPath(file_path), false, false);
     REQUIRE(open_result.value == FilesystemResult::OK);
@@ -302,7 +302,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
   SECTION("M handle zero-byte write W writing empty data") {
     // Given a new file opened for writing
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "zerobyte.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("zerobyte.txt")));
     const auto open_result =
         fs->OpenForWrite(MakePlatformPath(file_path), false, false);
     REQUIRE(open_result.value == FilesystemResult::OK);
@@ -325,7 +325,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
   SECTION("M acquire lock W writing with advisory lock") {
     // Given a path for a new file
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "locked.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("locked.txt")));
 
     // When we open the file with advisory locking enabled
     const auto open_result = fs->OpenForWrite(MakePlatformPath(file_path), false, true);
@@ -344,7 +344,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
   SECTION("M return LockContention W second writer requests advisory lock") {
     // Given a file opened with an advisory lock held
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "contended.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("contended.txt")));
     const auto first_open = fs->OpenForWrite(MakePlatformPath(file_path), false, true);
     REQUIRE(first_open.value == FilesystemResult::OK);
 
@@ -361,7 +361,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
   SECTION("M flush data to disk W closing file after write") {
     // Given a file opened for writing
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "flushed.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("flushed.txt")));
     const auto open_result =
         fs->OpenForWrite(MakePlatformPath(file_path), false, false);
     REQUIRE(open_result.value == FilesystemResult::OK);
@@ -379,7 +379,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
   SECTION("M write data in multiple sequential calls W same file handle") {
     // Given a new file opened for writing
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "sequential.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("sequential.txt")));
     const auto open_result =
         fs->OpenForWrite(MakePlatformPath(file_path), false, false);
     REQUIRE(open_result.value == FilesystemResult::OK);
@@ -407,7 +407,7 @@ TEST_CASE("IFilesystem file writing", "[unit][storage][filesystem]") {
   SECTION("M preserve all data W write-close-read round trip") {
     // Given binary data with all byte values
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "roundtrip.dat"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("roundtrip.dat")));
     std::array<char, 256> original_data;
     for (size_t i = 0; i < original_data.size(); ++i) {
       original_data[i] = static_cast<char>(i);
@@ -445,7 +445,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     // Given an existing file with content
     temp.WriteFile("readable.txt", "file contents");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "readable.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("readable.txt")));
 
     // When we open the file for reading
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
@@ -467,7 +467,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
   SECTION("M return DoesNotExist W opening non-existent file for read") {
     // Given a path to a non-existent file
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "nonexistent.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("nonexistent.txt")));
 
     // When we attempt to open it for reading
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
@@ -482,7 +482,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     const std::string content = "exact size content";
     temp.WriteFile("exact.txt", content);
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "exact.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("exact.txt")));
 
     // When we open and read the file
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
@@ -502,7 +502,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     // Given a small file
     temp.WriteFile("small.txt", "small");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "small.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("small.txt")));
 
     // When we read with a buffer larger than the file size
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
@@ -521,7 +521,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     // Given an empty file
     temp.WriteFile("empty.txt", "");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "empty.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("empty.txt")));
 
     // When we read from it
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
@@ -540,7 +540,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     // Given an existing file
     temp.WriteFile("readlocked.txt", "content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "readlocked.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("readlocked.txt")));
 
     // When we open it for reading with advisory locking enabled
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), true);
@@ -556,7 +556,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     // Given a file opened for reading with an advisory lock held
     temp.WriteFile("readcontended.txt", "content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "readcontended.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("readcontended.txt")));
     const auto first_open = fs->OpenForRead(MakePlatformPath(file_path), true);
     REQUIRE(first_open.value == FilesystemResult::OK);
 
@@ -574,7 +574,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     // Given a file with 16 bytes of content
     temp.WriteFile("chunks.txt", "0123456789ABCDEF");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "chunks.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("chunks.txt")));
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
     REQUIRE(open_result.value == FilesystemResult::OK);
 
@@ -609,7 +609,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     // Given a file with content
     temp.WriteFile("eof.txt", "content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "eof.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("eof.txt")));
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
     REQUIRE(open_result.value == FilesystemResult::OK);
 
@@ -633,7 +633,7 @@ TEST_CASE("IFilesystem file reading", "[unit][storage][filesystem]") {
     // Given a file with content
     temp.WriteFile("zerobytes.txt", "content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "zerobytes.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("zerobytes.txt")));
     const auto open_result = fs->OpenForRead(MakePlatformPath(file_path), false);
     REQUIRE(open_result.value == FilesystemResult::OK);
 
@@ -656,7 +656,7 @@ TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
   SECTION("M allow second lock W first writer releases lock") {
     // Given a file that was previously locked and released
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "released.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("released.txt")));
     const auto first_open = fs->OpenForWrite(MakePlatformPath(file_path), false, true);
     REQUIRE(first_open.value == FilesystemResult::OK);
 
@@ -674,7 +674,7 @@ TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
   SECTION("M allow multiple handles W opening without advisory lock") {
     // Given a file opened without advisory locking
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "nonlocked.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("nonlocked.txt")));
     const auto write1 = fs->OpenForWrite(MakePlatformPath(file_path), false, false);
     REQUIRE(write1.value == FilesystemResult::OK);
 
@@ -692,7 +692,7 @@ TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
     // Given a file opened for reading without advisory locking
     temp.WriteFile("nonlockedread.txt", "content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "nonlockedread.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("nonlockedread.txt")));
     const auto read1 = fs->OpenForRead(MakePlatformPath(file_path), false);
     REQUIRE(read1.value == FilesystemResult::OK);
 
@@ -709,7 +709,7 @@ TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
   SECTION("M return LockContention W read with lock when write holds lock") {
     // Given a file opened for writing with an advisory lock held
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "writelock.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("writelock.txt")));
     const auto write_open = fs->OpenForWrite(MakePlatformPath(file_path), false, true);
     REQUIRE(write_open.value == FilesystemResult::OK);
 
@@ -726,7 +726,7 @@ TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
     // Given a file opened for reading with an advisory lock held
     temp.WriteFile("readlock.txt", "content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "readlock.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("readlock.txt")));
     const auto read_open = fs->OpenForRead(MakePlatformPath(file_path), true);
     REQUIRE(read_open.value == FilesystemResult::OK);
 
@@ -742,7 +742,7 @@ TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
   SECTION("M succeed W write without lock when advisory lock held") {
     // Given a file opened with an advisory lock held
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "advisoryignored.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("advisoryignored.txt")));
     const auto locked_write =
         fs->OpenForWrite(MakePlatformPath(file_path), false, true);
     REQUIRE(locked_write.value == FilesystemResult::OK);
@@ -761,7 +761,7 @@ TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
   SECTION("M return LockContention and close handle W lock acquisition fails") {
     // Given a file with an advisory lock held
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "lockerror.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("lockerror.txt")));
     const auto first_open = fs->OpenForWrite(MakePlatformPath(file_path), false, true);
     REQUIRE(first_open.value == FilesystemResult::OK);
 
@@ -784,7 +784,7 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
     // Given an existing file
     temp.WriteFile("deleteme.txt", "content");
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "deleteme.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("deleteme.txt")));
 
     // When we delete the file
     const FilesystemResult result = fs->Delete(MakePlatformPath(file_path));
@@ -799,7 +799,7 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
   SECTION("M return DoesNotExist W deleting non-existent file") {
     // Given a path to a non-existent file
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "nonexistent.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("nonexistent.txt")));
 
     // When we attempt to delete it
     const FilesystemResult result = fs->Delete(MakePlatformPath(file_path));
@@ -811,7 +811,7 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
   SECTION("M handle platform-specific behavior W deleting open file") {
     // Given a file opened for writing
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "openfile.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("openfile.txt")));
     const auto open_result =
         fs->OpenForWrite(MakePlatformPath(file_path), false, false);
     REQUIRE(open_result.value == FilesystemResult::OK);
@@ -838,11 +838,11 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
     // Given a source file
     temp.WriteFile("source.txt", "content to move");
     StoragePath src_path;
-    REQUIRE(src_path.Join(temp.path, "source.txt"));
+    REQUIRE((src_path.Set(temp.path) && src_path.Append("source.txt")));
 
     // When we rename it to a new location
     StoragePath dst_path;
-    REQUIRE(dst_path.Join(temp.path, "destination.txt"));
+    REQUIRE((dst_path.Set(temp.path) && dst_path.Append("destination.txt")));
     const FilesystemResult result =
         fs->Rename(MakePlatformPath(src_path), MakePlatformPath(dst_path));
 
@@ -862,9 +862,9 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
     temp.WriteFile("source.txt", "source content");
     temp.WriteFile("destination.txt", "destination content");
     StoragePath src_path;
-    REQUIRE(src_path.Join(temp.path, "source.txt"));
+    REQUIRE((src_path.Set(temp.path) && src_path.Append("source.txt")));
     StoragePath dst_path;
-    REQUIRE(dst_path.Join(temp.path, "destination.txt"));
+    REQUIRE((dst_path.Set(temp.path) && dst_path.Append("destination.txt")));
 
     // When we attempt to rename to the existing destination
     const FilesystemResult result =
@@ -882,9 +882,9 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
   SECTION("M return DoesNotExist W renaming non-existent source") {
     // Given a path to a non-existent source file
     StoragePath src_path;
-    REQUIRE(src_path.Join(temp.path, "nonexistent.txt"));
+    REQUIRE((src_path.Set(temp.path) && src_path.Append("nonexistent.txt")));
     StoragePath dst_path;
-    REQUIRE(dst_path.Join(temp.path, "destination.txt"));
+    REQUIRE((dst_path.Set(temp.path) && dst_path.Append("destination.txt")));
 
     // When we attempt to rename it
     const FilesystemResult result =
@@ -900,9 +900,9 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
     temp.Mkdirs("dir2");
     temp.WriteFile("dir1/moveme.txt", "content to move");
     StoragePath src_path;
-    REQUIRE(src_path.Join(temp.path, "dir1/moveme.txt"));
+    REQUIRE((src_path.Set(temp.path) && src_path.Append("dir1/moveme.txt")));
     StoragePath dst_path;
-    REQUIRE(dst_path.Join(temp.path, "dir2/moveme.txt"));
+    REQUIRE((dst_path.Set(temp.path) && dst_path.Append("dir2/moveme.txt")));
 
     // When we rename the file to the second directory
     const FilesystemResult result =
@@ -927,7 +927,7 @@ TEST_CASE("IFilesystem path handling", "[unit][storage][filesystem]") {
   SECTION("M handle UTF-8 paths W creating file with UTF-8 name") {
     // Given a path with UTF-8 characters
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "文件.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("文件.txt")));
 
     // When we create and write to the file
     const auto open_result =
@@ -961,7 +961,7 @@ TEST_CASE("IFilesystem path handling", "[unit][storage][filesystem]") {
   SECTION("M handle paths with spaces W creating file") {
     // Given a path with spaces
     StoragePath file_path;
-    REQUIRE(file_path.Join(temp.path, "file with spaces.txt"));
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("file with spaces.txt")));
 
     // When we create the file
     const auto open_result =
@@ -980,7 +980,7 @@ TEST_CASE("IFilesystem path handling", "[unit][storage][filesystem]") {
     long_filename += ".txt";
 
     StoragePath file_path;
-    const bool set_ok = file_path.Join(temp.path, long_filename);
+    const bool set_ok = file_path.Set(temp.path) && file_path.Append(long_filename);
     REQUIRE(set_ok);
 
     // When we create the file
