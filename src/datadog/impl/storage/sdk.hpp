@@ -27,6 +27,8 @@ class SdkStorage {
   void MigrateAbandonedEvents();
 
  private:
+  bool TryClaimAbandonedDirectory(std::string_view abandoned_pid);
+
   void HandleMigrate(std::string_view from_pid);
 
  private:
