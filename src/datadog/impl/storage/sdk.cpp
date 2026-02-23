@@ -127,22 +127,16 @@ bool SdkStorage::Initialize(
     return false;
   }
 
-  // <application-storage>/.datadog/<pid> will contain event data for this process,
-  // ensuring that we don't contend with other processes of the same application that
-  // may be running concurrently
-  if (!JoinPaths(_process_root, _root.Get(), _pid_str, logger, join_message)) {
+  // Build lockfile path: <root>/<pid>.lock (sibling to process directory)
+  StoragePath lockfile_path;
+  if (!JoinPaths(lockfile_path, _root.Get(), _pid_str, logger, join_message)) {
     return false;
   }
-  if (!EnsureDirectoryExists(_process_root, path, _fs, logger, mkdir_message)) {
+  if (!AppendPath(lockfile_path, ".lock", logger, join_message)) {
     return false;
   }
 
-  StoragePath& lockfile_path = _events_root;
-  if (!JoinPaths(
-          lockfile_path, _process_root.Get(), "lockfile", logger, join_message
-      )) {
-    return false;
-  }
+  // Encode and acquire lockfile BEFORE creating process directory
   if (!path.Encode(lockfile_path.CStr())) {
     logger.Error("Failed to encode lockfile path");
     return false;
@@ -152,11 +146,22 @@ bool SdkStorage::Initialize(
   const bool hold_advisory_lock = true;
   auto opened = _fs.OpenForWrite(path, append, hold_advisory_lock);
   if (opened.value != FilesystemResult::OK || opened.handle == INVALID_FILE_HANDLE) {
-    // TODO: Log error code
     logger.Error(lockfile_message);
     return false;
   }
   _lockfile_handle = opened.handle;
+
+  // Build process directory path: <application-storage>/.datadog/<pid> will
+  // contain event data for this process, ensuring that we don't contend with other
+  // processes of the same application that may be running concurrently
+  if (!JoinPaths(_process_root, _root.Get(), _pid_str, logger, join_message)) {
+    return false;
+  }
+
+  // Create process directory
+  if (!EnsureDirectoryExists(_process_root, path, _fs, logger, mkdir_message)) {
+    return false;
+  }
 
   // If we have multiple SDK instances within the same process, they must be configured
   // with unique "instance names" (default is "main"): we use another layer of nesting
