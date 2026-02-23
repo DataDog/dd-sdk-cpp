@@ -195,6 +195,72 @@ static struct sigaction* get_old_sigaction(int sig) {
 static void write_modules(int fd);
 
 #ifdef __APPLE__
+
+/**
+ * Extracts the UUID from a Mach-O binary header by parsing load commands for
+ * LC_UUID. Returns pointer to `out_buffer` containing formatted UUID on success, or
+ * nullptr if LC_UUID not found. Async-signal-safe.
+ *
+ * The UUID is formatted as lowercase hex with dashes:
+ * xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx (36 chars + null terminator)
+ */
+static const char* extract_macho_uuid(
+    const struct mach_header* header, char* out_buffer, size_t buffer_size
+) {
+  if (buffer_size < 37) {
+    return nullptr;
+  }
+
+  // Helper to convert nibble to hex character
+  auto hex_char = [](uint8_t nibble) -> char {
+    return static_cast<char>(nibble < 10 ? '0' + nibble : 'a' + (nibble - 10));
+  };
+
+  // Locate load commands after mach header
+  const uint8_t* cmd_ptr = nullptr;
+  uint32_t ncmds = 0;
+  if (header->magic == MH_MAGIC_64 || header->magic == MH_CIGAM_64) {
+    const auto* header_64 = reinterpret_cast<const struct mach_header_64*>(header);
+    cmd_ptr = reinterpret_cast<const uint8_t*>(header_64 + 1);
+    ncmds = header_64->ncmds;
+  } else {
+    cmd_ptr = reinterpret_cast<const uint8_t*>(header + 1);
+    ncmds = header->ncmds;
+  }
+
+  // Iterate through load commands to find LC_UUID
+  for (uint32_t i = 0; i < ncmds; i++) {
+    const auto* cmd = reinterpret_cast<const struct load_command*>(cmd_ptr);
+
+    if (cmd->cmd == LC_UUID) {
+      // LC_UUID command contains 16-byte UUID immediately after load_command header
+      const uint8_t* uuid_bytes = cmd_ptr + sizeof(struct load_command);
+
+      // Format UUID as lowercase hex with dashes at positions 8, 13, 18, 23
+      char* out = out_buffer;
+      for (int byte_idx = 0; byte_idx < 16; byte_idx++) {
+        uint8_t byte = uuid_bytes[byte_idx];
+        *out++ = hex_char(byte >> 4);
+        *out++ = hex_char(byte & 0x0F);
+
+        // Insert dashes after bytes 3, 5, 7, 9 (positions 8, 13, 18, 23 in output)
+        if (byte_idx == 3 || byte_idx == 5 || byte_idx == 7 || byte_idx == 9) {
+          *out++ = '-';
+        }
+      }
+      *out = '\0';
+      return out_buffer;
+    }
+
+    cmd_ptr += cmd->cmdsize;
+  }
+
+  return nullptr;
+}
+
+#endif
+
+#ifdef __APPLE__
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 static void write_modules(int fd) {
   // Use dyld APIs to retrieve information about loaded modules: these functions are
@@ -300,12 +366,18 @@ static void write_modules(int fd) {
     const uintptr_t actual_start = base_addr;
     const uintptr_t actual_end = base_addr + module_size;
 
+    // Extract build ID (UUID) from Mach-O header
+    char build_id_buffer[64];
+    const char* build_id =
+        extract_macho_uuid(header, build_id_buffer, sizeof(build_id_buffer));
+
     // Write the relevant details of this module
     WriteCrashReportModule(
         fd,
         static_cast<uint64_t>(actual_start),
         static_cast<uint64_t>(actual_end),
-        image_name
+        image_name,
+        build_id
     );
   }
 }
@@ -495,7 +567,8 @@ static void write_modules(int fd) {
           fd,
           static_cast<uint64_t>(start_addr),
           static_cast<uint64_t>(end_addr),
-          pathname
+          pathname,
+          nullptr  // Build ID extraction for Linux deferred to Phase 2
       );
 
       // Clear the line buffer to begin accumulating the next line

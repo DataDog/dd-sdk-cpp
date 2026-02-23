@@ -43,7 +43,8 @@ void WriteCrashReportModule(
     CrashReportFileHandle fd,
     uint64_t start_address,
     uint64_t end_address,
-    const char* path
+    const char* path,
+    const char* build_id
 );
 
 /**

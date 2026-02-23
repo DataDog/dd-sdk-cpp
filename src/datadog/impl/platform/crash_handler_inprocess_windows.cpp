@@ -98,7 +98,8 @@ static void write_modules(HANDLE file) {
         file,
         static_cast<uint64_t>(base_addr),
         static_cast<uint64_t>(end_addr),
-        me.szExePath
+        me.szExePath,
+        nullptr  // Build ID extraction for Windows deferred to Phase 2
     );
   } while (Module32Next(snapshot, &me));
 

@@ -40,8 +40,8 @@
  * and maintaining backward-compatibility when parsing by checking the version number
  * encoded in the file.
  *
- * Example layout for a file describing a crash with two loaded modules ('/foo' and
- * '/bar/') and a stack trace with 4 frames:
+ * Example layout for a file describing a crash with two loaded modules ('/foo' with
+ * build ID 'abc', and '/bar/' with no build ID) and a stack trace with 4 frames:
  *
  * 0x0000: <CrashReportHeaderMagic>
  * 0x0008: version
@@ -55,33 +55,38 @@
  * 0x0048: start_address
  * 0x0050: end_address
  * 0x0058: num_path_bytes (4)
- * 0x0060: /
- * 0x0061: f
- * 0x0062: o
- * 0x0063: o
- * 0x0064: <CrashReportModuleMagic>
- * 0x006c: start_address
- * 0x0074: end_address
- * 0x007c: num_path_bytes (4)
- * 0x0084: /
- * 0x0085: b
- * 0x0086: a
- * 0x0087: r
- * 0x0088: <CrashReportStackFrameMagic>
- * 0x0090: raw_address
- * 0x0098: <CrashReportStackFrameMagic>
- * 0x00a0: raw_address
- * 0x00a8: <CrashReportStackFrameMagic>
- * 0x00b0: raw_address
- * 0x00b8: <CrashReportStackFrameMagic>
- * 0x00c0: raw_address
- * 0x00c8: <CrashReportFooterMagic>
+ * 0x0060: num_buildid_bytes (3)
+ * 0x0068: /
+ * 0x0069: f
+ * 0x006a: o
+ * 0x006b: o
+ * 0x006c: a
+ * 0x006d: b
+ * 0x006e: c
+ * 0x006f: <CrashReportModuleMagic>
+ * 0x0077: start_address
+ * 0x007f: end_address
+ * 0x0087: num_path_bytes (4)
+ * 0x008f: num_buildid_bytes (0)
+ * 0x0097: /
+ * 0x0098: b
+ * 0x0099: a
+ * 0x009a: r
+ * 0x009b: <CrashReportStackFrameMagic>
+ * 0x00a3: raw_address
+ * 0x00ab: <CrashReportStackFrameMagic>
+ * 0x00b3: raw_address
+ * 0x00bb: <CrashReportStackFrameMagic>
+ * 0x00c3: raw_address
+ * 0x00cb: <CrashReportStackFrameMagic>
+ * 0x00d3: raw_address
+ * 0x00db: <CrashReportFooterMagic>
  */
 
 namespace datadog::platform {
 
 static const uint64_t CrashReportHeaderMagic = 0xdd01;
-static const uint64_t CrashReportFileVersion = 1;
+static const uint64_t CrashReportFileVersion = 2;
 
 static const uint64_t CrashReportModuleMagic = 0xdda1;
 static const uint64_t CrashReportStackFrameMagic = 0xdda2;
@@ -104,12 +109,15 @@ struct CrashReportHeader {
 /**
  * Encodes basic details about a binary module that was loaded by the process at the
  * time of a crash. If num_path_bytes > 0, the path to the binary file is encoded as
- * UTF-8 in the next <num_path_bytes> bytes following the header.
+ * UTF-8 in the next <num_path_bytes> bytes following the header. If num_buildid_bytes
+ * > 0, the build ID is encoded as UTF-8 in the next <num_buildid_bytes> bytes
+ * following the path.
  */
 struct CrashReportModuleHeader {
   uint64_t start_addr;      // Address in virtual memory where this module is loaded
   uint64_t end_addr;        // First byte of virtual memory after the end of this module
   uint64_t num_path_bytes;  // Length of ensuing UTF-8 string denoting file path
+  uint64_t num_buildid_bytes;  // Length of ensuing UTF-8 string denoting build ID
 };
 
 }  // namespace datadog::platform
