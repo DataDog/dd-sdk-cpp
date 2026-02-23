@@ -206,6 +206,11 @@ bool SdkStorage::Initialize(
     return false;
   }
 
+  // Migrate events from any remaining abandoned directories that couldn't be claimed
+  // via directory rename. This handles the case where multiple processes crashed and
+  // we've already claimed one directory - we need to migrate events from the others.
+  MigrateAbandonedEvents();
+
   return true;
 }
 
@@ -231,7 +236,7 @@ void SdkStorage::MigrateAbandonedEvents() {
     if (!lockfile_path.Set(_root.Get()) || !lockfile_path.Append(name)) {
       continue;
     }
-    if (!lockfile_path.Append("lockfile")) {
+    if (!lockfile_path.Append(".lock")) {
       continue;
     }
 
@@ -253,39 +258,191 @@ void SdkStorage::MigrateAbandonedEvents() {
   }
 }
 
-void SdkStorage::HandleMigrate(std::string_view from_pid) {  // NOLINT
-  (void)from_pid;
-  /*
-  StoragePath from_process_root;
-  StoragePath instance_root;
+void SdkStorage::MigrateFilesFromSubdirectory(
+    const StoragePath& from_events_dir,
+    const StoragePath& to_events_dir
+) {
   PlatformPath path;
+  PlatformPath src_path;
+  PlatformPath dst_path;
 
-  std::vector<std::string> instance_names;
-  instance_names.reserve(4);
-  std::vector<std::string> feature_names;
-  feature_names.reserve(8);
-  std::vector<std::string> subdir_names;
-  subdir_names.reserve(4);
-
-  if (!from_process_root.Join(_events_root.Get(), from_pid)) {
+  if (!path.Encode(from_events_dir.CStr())) {
     return;
   }
 
+  std::vector<std::string> filenames;
+  if (_fs.ListFiles(path, filenames) != FilesystemResult::OK) {
+    return;
+  }
+
+  for (const std::string& filename : filenames) {
+    StoragePath src_file;
+    if (!src_file.Set(from_events_dir.Get()) || !src_file.Append(filename)) {
+      continue;
+    }
+
+    StoragePath dst_file;
+    if (!dst_file.Set(to_events_dir.Get()) || !dst_file.Append(filename)) {
+      continue;
+    }
+
+    if (!src_path.Encode(src_file.CStr()) ||
+        !dst_path.Encode(dst_file.CStr())) {
+      continue;
+    }
+
+    _fs.Rename(src_path, dst_path);
+  }
+}
+
+bool SdkStorage::EnsureDestinationDirectoryExists(
+    std::string_view instance_name,
+    std::string_view feature_name,
+    std::string_view subdir
+) {
+  PlatformPath path;
+
+  // Create instance directory
+  StoragePath instance_dir;
+  if (!instance_dir.Set(_process_root.Get()) ||
+      !instance_dir.Append(instance_name)) {
+    return false;
+  }
+  if (!path.Encode(instance_dir.CStr())) {
+    return false;
+  }
+  if (_fs.CreateDirectory(path) != FilesystemResult::OK &&
+      _fs.CreateDirectory(path) != FilesystemResult::AlreadyExistsAsDirectory) {
+    return false;
+  }
+
+  // Create feature directory
+  StoragePath feature_dir;
+  if (!feature_dir.Set(instance_dir.Get()) ||
+      !feature_dir.Append(feature_name)) {
+    return false;
+  }
+  if (!path.Encode(feature_dir.CStr())) {
+    return false;
+  }
+  if (_fs.CreateDirectory(path) != FilesystemResult::OK &&
+      _fs.CreateDirectory(path) != FilesystemResult::AlreadyExistsAsDirectory) {
+    return false;
+  }
+
+  // Create events subdirectory (v1/ or intermediate-v1/)
+  StoragePath events_dir;
+  if (!events_dir.Set(feature_dir.Get()) || !events_dir.Append(subdir)) {
+    return false;
+  }
+  if (!path.Encode(events_dir.CStr())) {
+    return false;
+  }
+  if (_fs.CreateDirectory(path) != FilesystemResult::OK &&
+      _fs.CreateDirectory(path) != FilesystemResult::AlreadyExistsAsDirectory) {
+    return false;
+  }
+
+  return true;
+}
+
+void SdkStorage::MigrateFeatureEvents(
+    std::string_view instance_name,
+    std::string_view feature_name,
+    const StoragePath& from_feature_root
+) {
+  const char* subdirs[] = {"v1", "intermediate-v1"};
+  for (const char* subdir : subdirs) {
+    StoragePath from_events_dir;
+    if (!from_events_dir.Set(from_feature_root.Get()) ||
+        !from_events_dir.Append(subdir)) {
+      continue;
+    }
+
+    if (!EnsureDestinationDirectoryExists(instance_name, feature_name, subdir)) {
+      continue;
+    }
+
+    StoragePath to_events_dir;
+    if (!to_events_dir.Set(_process_root.Get()) ||
+        !to_events_dir.Append(instance_name) ||
+        !to_events_dir.Append(feature_name) ||
+        !to_events_dir.Append(subdir)) {
+      continue;
+    }
+
+    MigrateFilesFromSubdirectory(from_events_dir, to_events_dir);
+  }
+}
+
+void SdkStorage::MigrateInstanceDirectory(
+    std::string_view instance_name,
+    const StoragePath& from_instance_root
+) {
+  PlatformPath path;
+  StoragePath from_feature_root;
+
+  if (!path.Encode(from_instance_root.CStr())) {
+    return;
+  }
+
+  std::vector<std::string> feature_names;
+  if (_fs.ListSubdirectories(path, feature_names) != FilesystemResult::OK) {
+    return;
+  }
+
+  for (const std::string& feature_name : feature_names) {
+    if (!from_feature_root.Set(from_instance_root.Get()) ||
+        !from_feature_root.Append(feature_name)) {
+      continue;
+    }
+
+    MigrateFeatureEvents(instance_name, feature_name, from_feature_root);
+  }
+}
+
+void SdkStorage::HandleMigrate(std::string_view from_pid) {
+  StoragePath from_process_root;
+  StoragePath from_instance_root;
+  PlatformPath path;
+
+  // Build source process root: <root>/<abandoned_pid>/
+  if (!from_process_root.Set(_root.Get()) ||
+      !from_process_root.Append(from_pid)) {
+    return;
+  }
+
+  // List all instance directories (e.g., "main")
   if (!path.Encode(from_process_root.CStr())) {
     return;
   }
+  std::vector<std::string> instance_names;
   if (_fs.ListSubdirectories(path, instance_names) != FilesystemResult::OK) {
     return;
   }
 
+  // For each instance directory
   for (const std::string& instance_name : instance_names) {
-    if (!instance_root.Join(from_process_root.Get(), instance_name)) {
+    if (!from_instance_root.Set(from_process_root.Get()) ||
+        !from_instance_root.Append(instance_name)) {
       continue;
     }
-    if (!path.Encode(instance_root.Get())) {
-    }
+
+    MigrateInstanceDirectory(instance_name, from_instance_root);
   }
-  */
+
+  // Clean up: delete the abandoned process directory and its lockfile
+  if (path.Encode(from_process_root.CStr())) {
+    _fs.Delete(path);
+  }
+
+  StoragePath lockfile;
+  if (lockfile.Set(_root.Get()) &&
+      lockfile.Append(from_pid) &&
+      lockfile.Append(".lock") &&
+      path.Encode(lockfile.CStr())) {
+    _fs.Delete(path);
+  }
 }
 
 }  // namespace datadog::impl

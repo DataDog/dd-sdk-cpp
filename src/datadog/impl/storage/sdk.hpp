@@ -31,6 +31,28 @@ class SdkStorage {
 
   void HandleMigrate(std::string_view from_pid);
 
+  void MigrateInstanceDirectory(
+      std::string_view instance_name,
+      const StoragePath& from_instance_root
+  );
+
+  void MigrateFeatureEvents(
+      std::string_view instance_name,
+      std::string_view feature_name,
+      const StoragePath& from_feature_root
+  );
+
+  bool EnsureDestinationDirectoryExists(
+      std::string_view instance_name,
+      std::string_view feature_name,
+      std::string_view subdir
+  );
+
+  void MigrateFilesFromSubdirectory(
+      const StoragePath& from_events_dir,
+      const StoragePath& to_events_dir
+  );
+
  private:
   IFilesystem& _fs;
 
