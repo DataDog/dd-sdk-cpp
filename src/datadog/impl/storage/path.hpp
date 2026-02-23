@@ -46,6 +46,18 @@ class StoragePath {
   bool Append(std::string_view name);
 
   /**
+   * Modifies the value in-place, appending the given extension directly without a path
+   * separator. Removes any trailing slash from the buffer before appending. The
+   * extension `ext` must not contain "..".
+   *
+   * Useful for appending file extensions like ".lock" or ".tmp" to a path component.
+   *
+   * Returns true if successful; false if would exceed buffer size or `ext` contains
+   * "..".
+   */
+  bool AppendExt(std::string_view ext);
+
+  /**
    * Modifies the value in-place, updating the buffer to strip off the last path
    * component. If the path already refers to a root directory (e.g. "/" or "C:\\") or
    * the top-level component of a relative path (e.g. "foo", "foo/", ".", ""), makes no

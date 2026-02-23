@@ -125,6 +125,44 @@ bool StoragePath::Append(std::string_view name) {
   return true;
 }
 
+bool StoragePath::AppendExt(std::string_view ext) {
+  // Reject if extension contains "..", to prevent relative path traversal
+  if (ext.find("..") != std::string_view::npos) {
+    return false;
+  }
+
+  std::string_view current_path = Get();
+
+  // If path is empty, just set the extension directly
+  if (current_path.empty()) {
+    return Set(ext);
+  }
+
+  // Remove trailing slash(es) from the buffer before appending
+  size_t adjusted_len = _len;
+  while (adjusted_len > 0 &&
+         has_trailing_slash(std::string_view{CStr(), adjusted_len})) {
+    adjusted_len--;
+  }
+
+  // Account for total bytes: adjusted_path + ext + null terminator
+  const size_t sizeof_nul = 1;
+  const size_t num_bytes = adjusted_len + ext.size() + sizeof_nul;
+  if (num_bytes > _buf.size()) {
+    return false;
+  }
+
+  // Append extension directly after adjusted position and add null terminator
+  // NOLINTNEXTLINE(readability-qualified-auto)
+  auto it = _buf.begin() + adjusted_len;
+  it = std::copy(ext.begin(), ext.end(), it);
+  *it = '\0';
+
+  // Update stored string length (count of UTF-8 bytes excluding null terminator)
+  _len = adjusted_len + ext.size();
+  return true;
+}
+
 void StoragePath::Pop() {
   // If the path ends with a trailing slash, shrink our temporary view of the string so
   // we skip past that separator when scanning backward

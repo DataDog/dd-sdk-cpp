@@ -369,6 +369,94 @@ TEST_CASE("StoragePath", "[unit][storage]") {
     REQUIRE(std::strcmp(path.CStr(), "/foo/bar/baz") == 0);
   }
 
+  SECTION("M append extension without separator W AppendExt is called") {
+    StoragePath path;
+    REQUIRE(path.Set("/tmp/foo"));
+    REQUIRE(path.AppendExt(".lock"));
+    REQUIRE(path.Get() == "/tmp/foo.lock");
+  }
+
+  SECTION("M remove trailing slash W AppendExt is called") {
+    StoragePath path;
+    REQUIRE(path.Set("/tmp/foo/"));
+    REQUIRE(path.AppendExt(".lock"));
+    REQUIRE(path.Get() == "/tmp/foo.lock");
+  }
+
+  SECTION("M remove multiple trailing slashes W AppendExt is called") {
+    StoragePath path;
+    REQUIRE(path.Set("/tmp/foo///"));
+    REQUIRE(path.AppendExt(".lock"));
+    REQUIRE(path.Get() == "/tmp/foo.lock");
+  }
+
+#ifdef _WIN32
+  SECTION("M remove trailing backslash W AppendExt on Windows") {
+    StoragePath path;
+    REQUIRE(path.Set("C:\\Temp\\foo\\"));
+    REQUIRE(path.AppendExt(".lock"));
+    REQUIRE(path.Get() == "C:\\Temp\\foo.lock");
+  }
+#else
+  SECTION("M preserve backslash in path W AppendExt on POSIX") {
+    StoragePath path;
+    REQUIRE(path.Set("/tmp/foo\\"));
+    REQUIRE(path.AppendExt(".lock"));
+    REQUIRE(path.Get() == "/tmp/foo\\.lock");
+  }
+#endif
+
+  SECTION("M handle empty extension W AppendExt is called") {
+    StoragePath path;
+    REQUIRE(path.Set("/tmp/foo"));
+    REQUIRE(path.AppendExt(""));
+    REQUIRE(path.Get() == "/tmp/foo");
+  }
+
+  SECTION("M append to empty path W AppendExt is called") {
+    StoragePath path;
+    REQUIRE(path.AppendExt(".lock"));
+    REQUIRE(path.Get() == ".lock");
+  }
+
+  SECTION("M fail W AppendExt with double-dot") {
+    auto value = GENERATE("..", "../lock", "..lock", "lock..");
+    StoragePath path;
+    REQUIRE(path.Set("/tmp/foo"));
+    REQUIRE(!path.AppendExt(value));
+    REQUIRE(path.Get() == "/tmp/foo");  // Unchanged
+  }
+
+  SECTION("M fail and preserve W AppendExt exceeds buffer") {
+    StoragePath path;
+    REQUIRE(path.Set("/tmp/foo"));
+    const std::string original = std::string(path.Get());
+
+    // Try to append an extension that would exceed the 512-byte buffer
+    const bool ok = path.AppendExt(
+        ".aaaaaaaaaaaaaaaa-aaeaaaaaaaaaaaaa-ab2aaaaaaaaaaaaa-ab6aaaaaaaaaaaaa-"
+        "abaaaaaaaaaaaaaa-abeaaaaaaaaaaaaa-ac2aaaaaaaaaaaaa-ac6aaaaaaaaaaaaa-"
+        "acaaaaaaaaaaaaaa-aceaaaaaaaaaaaaa-ad2aaaaaaaaaaaaa-ad6aaaaaaaaaaaaa-"
+        "adaaaaaaaaaaaaaa-adeaaaaaaaaaaaaa-ae2aaaaaaaaaaaaa-ae6aaaaaaaaaaaaa-"
+        "aeaaaaaaaaaaaaaa-aeeaaaaaaaaaaaaa-af2aaaaaaaaaaaaa-af6aaaaaaaaaaaaa-"
+        "afaaaaaaaaaaaaaa-afeaaaaaaaaaaaaa-b02aaaaaaaaaaaaa-b06aaaaaaaaaaaaa-"
+        "b0aaaaaaaaaaaaaa-b0eaaaaaaaaaaaaa-b12aaaaaaaaaaaaa-b16aaaaaaaaaaaaa-"
+        "b1aaaaaaaaaaaaaa-b1eaaaaaaaaaaaaa-b22aaaaaaaaaaaaa-b26aaaaaaaaaaaaa-"
+        "b2aaaaaaaaaaaaaa-b2eaaaaaaaaaaaaa-b32aaaaaaaaaaaaa-b36aaaaaaaaaaaaa"
+    );
+    REQUIRE(!ok);
+    REQUIRE(path.Get() == original);
+  }
+
+  SECTION("M chain AppendExt W building complex path") {
+    StoragePath path;
+    REQUIRE(path.Set("/tmp"));
+    REQUIRE(path.Append("myfile"));
+    REQUIRE(path.AppendExt(".txt"));
+    REQUIRE(path.AppendExt(".tmp"));
+    REQUIRE(path.Get() == "/tmp/myfile.txt.tmp");
+  }
+
   SECTION("M remove trailing path component W Pop is called") {
     // Given a StoragePath value that currently holds /foo/bar/baz
     StoragePath path;
