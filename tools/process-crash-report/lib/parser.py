@@ -216,12 +216,13 @@ def parse_crash_report(file_path: Path) -> tuple[dict[str, str], list[int], list
                 magic = struct.unpack('<Q', magic_data)[0]
 
                 if magic == CRASH_REPORT_MODULE_MAGIC:
-                    # Parse module entry
-                    module_data = f.read(3 * UINT64_SIZE)
-                    if len(module_data) < 3 * UINT64_SIZE:
+                    # Parse module entry (includes build ID field)
+                    module_data = f.read(4 * UINT64_SIZE)
+                    if len(module_data) < 4 * UINT64_SIZE:
                         raise ValueError("Truncated crash report file (incomplete module header)")
 
-                    start_addr, end_addr, num_path_bytes = struct.unpack('<3Q', module_data)
+                    start_addr, end_addr, num_path_bytes, num_buildid_bytes = \
+                        struct.unpack('<4Q', module_data)
 
                     # Read UTF-8 path (length-prefixed, no null terminator)
                     path_data = f.read(num_path_bytes)
@@ -234,7 +235,20 @@ def parse_crash_report(file_path: Path) -> tuple[dict[str, str], list[int], list
                         # Use replacement characters for invalid UTF-8
                         path = path_data.decode('utf-8', errors='replace')
 
-                    modules.append(Module(start_addr, end_addr, path))
+                    # Read UTF-8 build ID (length-prefixed, no null terminator)
+                    build_id = ""
+                    if num_buildid_bytes > 0:
+                        buildid_data = f.read(num_buildid_bytes)
+                        if len(buildid_data) < num_buildid_bytes:
+                            raise ValueError("Truncated crash report file (incomplete build ID)")
+
+                        try:
+                            build_id = buildid_data.decode('utf-8')
+                        except UnicodeDecodeError:
+                            # Use replacement characters for invalid UTF-8
+                            build_id = buildid_data.decode('utf-8', errors='replace')
+
+                    modules.append(Module(start_addr, end_addr, path, build_id))
 
                 elif magic == CRASH_REPORT_STACK_FRAME_MAGIC:
                     # Parse stack frame entry

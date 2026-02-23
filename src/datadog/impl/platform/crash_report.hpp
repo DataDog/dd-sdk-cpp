@@ -86,7 +86,7 @@
 namespace datadog::platform {
 
 static const uint64_t CrashReportHeaderMagic = 0xdd01;
-static const uint64_t CrashReportFileVersion = 2;
+static const uint64_t CrashReportFileVersion = 1;
 
 static const uint64_t CrashReportModuleMagic = 0xdda1;
 static const uint64_t CrashReportStackFrameMagic = 0xdda2;
