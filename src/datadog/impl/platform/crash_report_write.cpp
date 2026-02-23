@@ -88,18 +88,20 @@ void WriteCrashReportModule(
     }
   }
 
-  // Write module header: magic, start, end, path length, build_id length
-  uint64_t values[] = {
-      CrashReportModuleMagic, start_address, end_address, path_len, build_id_len
-  };
-  write_uint64_values(fd, static_cast<uint64_t*>(values), std::size(values));
+  // Write module header: magic, start, end
+  uint64_t header_values[] = {CrashReportModuleMagic, start_address, end_address};
+  write_uint64_values(
+      fd, static_cast<uint64_t*>(header_values), std::size(header_values)
+  );
 
-  // Write path bytes (if present)
+  // Write path as length-prefixed string
+  write_uint64_values(fd, &path_len, 1);
   if (path_len > 0) {
     write_bytes(fd, path, path_len);
   }
 
-  // Write build ID bytes (if present)
+  // Write build ID as length-prefixed string
+  write_uint64_values(fd, &build_id_len, 1);
   if (build_id_len > 0) {
     write_bytes(fd, build_id, build_id_len);
   }

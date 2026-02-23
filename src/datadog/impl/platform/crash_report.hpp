@@ -108,16 +108,21 @@ struct CrashReportHeader {
 
 /**
  * Encodes basic details about a binary module that was loaded by the process at the
- * time of a crash. If num_path_bytes > 0, the path to the binary file is encoded as
- * UTF-8 in the next <num_path_bytes> bytes following the header. If num_buildid_bytes
- * > 0, the build ID is encoded as UTF-8 in the next <num_buildid_bytes> bytes
- * following the path.
+ * time of a crash.
+ *
+ * Binary format for each module entry:
+ * - CrashReportModuleMagic (uint64_t)
+ * - start_addr (uint64_t) - module base address
+ * - end_addr (uint64_t) - first byte after module end
+ * - path_length (uint64_t) - followed by path_length bytes of UTF-8 path data
+ * - buildid_length (uint64_t) - followed by buildid_length bytes of UTF-8 build ID
+ *
+ * The path and build ID are encoded as length-prefixed strings (length immediately
+ * precedes the string data).
  */
 struct CrashReportModuleHeader {
-  uint64_t start_addr;      // Address in virtual memory where this module is loaded
-  uint64_t end_addr;        // First byte of virtual memory after the end of this module
-  uint64_t num_path_bytes;  // Length of ensuing UTF-8 string denoting file path
-  uint64_t num_buildid_bytes;  // Length of ensuing UTF-8 string denoting build ID
+  uint64_t start_addr;  // Address in virtual memory where this module is loaded
+  uint64_t end_addr;    // First byte of virtual memory after the end of this module
 };
 
 }  // namespace datadog::platform
