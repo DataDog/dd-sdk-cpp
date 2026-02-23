@@ -107,7 +107,7 @@ class WindowsFilesystem final : public IFilesystem {
     wchar_t search_pattern[MAX_STORAGE_PATH_SIZE + 2];
     const wchar_t* path_str = path.Get();
     size_t len = wcslen(path_str);
-    wcscpy(search_pattern, path_str);
+    wcscpy_s(search_pattern, MAX_STORAGE_PATH_SIZE + 2, path_str);
 
     // Append '\' if not already present, then '*', then null-terminate
     if (len > 0 && search_pattern[len - 1] != L'\\') {
@@ -149,7 +149,7 @@ class WindowsFilesystem final : public IFilesystem {
     wchar_t search_pattern[MAX_STORAGE_PATH_SIZE + 2];
     const wchar_t* path_str = path.Get();
     size_t len = wcslen(path_str);
-    wcscpy(search_pattern, path_str);
+    wcscpy_s(search_pattern, MAX_STORAGE_PATH_SIZE + 2, path_str);
 
     // Append '\' if not already present, then '*', then null-terminate
     if (len > 0 && search_pattern[len - 1] != L'\\') {
