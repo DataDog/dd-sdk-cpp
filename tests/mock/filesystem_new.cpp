@@ -420,9 +420,13 @@ FilesystemResult MockFilesystem::Rename(
   std::string dst_str = NormalizePath(dst);
   std::lock_guard global_lock(mutex_);
 
-  // Check if source exists
-  auto src_it = files_.find(src_str);
-  if (src_it == files_.end()) {
+  // Check if source exists (file or directory)
+  auto src_file_it = files_.find(src_str);
+  auto src_dir_it = dirs_.find(src_str);
+  bool is_file = src_file_it != files_.end();
+  bool is_dir = src_dir_it != dirs_.end();
+
+  if (!is_file && !is_dir) {
     return FilesystemResult::DoesNotExist;
   }
 
@@ -431,32 +435,92 @@ FilesystemResult MockFilesystem::Rename(
     return FilesystemResult::AlreadyExists;
   }
 
-  // Move file data (can't move mutex, so copy data and recreate entry)
-  std::string data_copy;
-  bool bad_copy = false;
-  bool fail_copy = false;
-  {
-    std::lock_guard file_lock(src_it->second.mutex);
-    data_copy = src_it->second.data;
-    bad_copy = src_it->second.bad;
-    fail_copy = src_it->second.fail;
-    // Note: open_handles and advisory_lock_holder are not copied
-    // because rename should not be called on open files
-  }
-  files_.erase(src_it);
+  if (is_file) {
+    // Move file data (can't move mutex, so copy data and recreate entry)
+    std::string data_copy;
+    bool bad_copy = false;
+    bool fail_copy = false;
+    {
+      std::lock_guard file_lock(src_file_it->second.mutex);
+      data_copy = src_file_it->second.data;
+      bad_copy = src_file_it->second.bad;
+      fail_copy = src_file_it->second.fail;
+      // Note: open_handles and advisory_lock_holder are not copied
+      // because rename should not be called on open files
+    }
+    files_.erase(src_file_it);
 
-  // Create new entry at destination
-  files_.emplace(
-      std::piecewise_construct, std::forward_as_tuple(dst_str), std::forward_as_tuple()
-  );
-  files_[dst_str].data = std::move(data_copy);
-  files_[dst_str].bad = bad_copy;
-  files_[dst_str].fail = fail_copy;
+    // Create new entry at destination
+    files_.emplace(
+        std::piecewise_construct, std::forward_as_tuple(dst_str), std::forward_as_tuple()
+    );
+    files_[dst_str].data = std::move(data_copy);
+    files_[dst_str].bad = bad_copy;
+    files_[dst_str].fail = fail_copy;
 
-  // Update handles to point to new path
-  for (auto& [fd, handle] : handles_) {
-    if (handle.path == src_str) {
-      handle.path = dst_str;
+    // Update handles to point to new path
+    for (auto& [fd, handle] : handles_) {
+      if (handle.path == src_str) {
+        handle.path = dst_str;
+      }
+    }
+  } else {
+    // Rename directory and all its contents
+    // First, rename the directory itself
+    dirs_[dst_str] = src_dir_it->second;
+    dirs_.erase(src_dir_it);
+
+    // Then, rename all files and subdirectories under it
+    std::string src_prefix = src_str + "/";
+    std::string dst_prefix = dst_str + "/";
+
+    // Rename all files
+    std::vector<std::pair<std::string, std::string>> files_to_rename;
+    for (const auto& [path, entry] : files_) {
+      if (path.size() > src_prefix.size() &&
+          path.substr(0, src_prefix.size()) == src_prefix) {
+        std::string new_path = dst_prefix + path.substr(src_prefix.size());
+        files_to_rename.emplace_back(path, new_path);
+      }
+    }
+    for (const auto& [old_path, new_path] : files_to_rename) {
+      auto& old_entry = files_[old_path];
+      std::lock_guard file_lock(old_entry.mutex);
+
+      // Create new entry and copy data (can't move due to mutex)
+      files_.emplace(
+          std::piecewise_construct, std::forward_as_tuple(new_path),
+          std::forward_as_tuple()
+      );
+      files_[new_path].data = old_entry.data;
+      files_[new_path].bad = old_entry.bad;
+      files_[new_path].fail = old_entry.fail;
+
+      files_.erase(old_path);
+    }
+
+    // Rename all subdirectories
+    std::vector<std::pair<std::string, std::string>> dirs_to_rename;
+    for (const auto& [path, entry] : dirs_) {
+      if (path != dst_str && path.size() > src_prefix.size() &&
+          path.substr(0, src_prefix.size()) == src_prefix) {
+        std::string new_path = dst_prefix + path.substr(src_prefix.size());
+        dirs_to_rename.emplace_back(path, new_path);
+      }
+    }
+    for (const auto& [old_path, new_path] : dirs_to_rename) {
+      dirs_[new_path] = dirs_[old_path];
+      dirs_.erase(old_path);
+    }
+
+    // Update handles to point to new paths
+    for (auto& [fd, handle] : handles_) {
+      if (handle.path.size() >= src_prefix.size() &&
+          handle.path.substr(0, src_prefix.size()) == src_prefix) {
+        handle.path = dst_prefix + handle.path.substr(src_prefix.size());
+      } else if (handle.path == src_str) {
+        handle.path = dst_str;
+      }
     }
   }
 
