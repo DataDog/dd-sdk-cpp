@@ -22,6 +22,7 @@
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
+#include "datadog/impl/platform/crash_handler_buildid_cache.hpp"
 #include "datadog/impl/platform/crash_report_write.hpp"
 
 namespace datadog::platform {
@@ -93,13 +94,16 @@ static void write_modules(HANDLE file) {
     const uintptr_t base_addr = reinterpret_cast<uintptr_t>(me.modBaseAddr);
     const uintptr_t end_addr = base_addr + me.modBaseSize;
 
+    // Lookup build ID from cache
+    const char* build_id = LookupCachedBuildId(base_addr);
+
     // Write relevant details for this module
     WriteCrashReportModule(
         file,
         static_cast<uint64_t>(base_addr),
         static_cast<uint64_t>(end_addr),
         me.szExePath,
-        nullptr  // Build ID extraction for Windows deferred to Phase 2
+        build_id
     );
   } while (Module32Next(snapshot, &me));
 
@@ -294,6 +298,10 @@ class InProcessCrashHandler final : public ICrashHandler {
 
     _logger.Debug("In-process crash handler initialized successfully");
     _initialized = true;
+
+    // Initialize build ID cache for crash-time lookup
+    InitializeModuleBuildIdCache();
+
     return true;
   }
 

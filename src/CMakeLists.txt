@@ -208,7 +208,10 @@ elseif(DD_CRASH_MODE STREQUAL "inprocess")
     endif()
 
     # In-process implementation needs to write crash report files
-    target_sources(dd_native PRIVATE datadog/impl/platform/crash_report_write.cpp)
+    target_sources(dd_native PRIVATE
+        datadog/impl/platform/crash_report_write.cpp
+        datadog/impl/platform/crash_handler_buildid_cache.cpp
+    )
 elseif(DD_CRASH_MODE STREQUAL "crashpad")
     # If building with crashpad support, integrate crashpad as a dependency: this
     # adds an ExternalProject target that will build crashpad, then adds the

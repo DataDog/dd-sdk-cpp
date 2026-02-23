@@ -41,6 +41,7 @@ static_assert(
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
+#include "datadog/impl/platform/crash_handler_buildid_cache.hpp"
 #include "datadog/impl/platform/crash_report_write.hpp"
 
 namespace datadog::platform {
@@ -561,6 +562,9 @@ static void write_modules(int fd) {
         continue;
       }
 
+      // Lookup build ID from cache
+      const char* build_id = LookupCachedBuildId(start_addr);
+
       // We've parsed the address range and pathname of a loaded module that should be
       // included in our crash report: write that information to the output file
       WriteCrashReportModule(
@@ -568,7 +572,7 @@ static void write_modules(int fd) {
           static_cast<uint64_t>(start_addr),
           static_cast<uint64_t>(end_addr),
           pathname,
-          nullptr  // Build ID extraction for Linux deferred to Phase 2
+          build_id
       );
 
       // Clear the line buffer to begin accumulating the next line
@@ -839,6 +843,10 @@ class InProcessCrashHandler final : public ICrashHandler {
 
     _logger.Debug("In-process crash handler initialized successfully");
     _initialized = true;
+
+    // Initialize build ID cache for crash-time lookup (Windows/Linux only)
+    InitializeModuleBuildIdCache();
+
     return true;
   }
 
