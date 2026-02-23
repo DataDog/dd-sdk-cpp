@@ -23,6 +23,73 @@ SdkStorage::~SdkStorage() {
   }
 }
 
+bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
+  // Build lockfile path: <root>/<abandoned_pid>.lock
+  StoragePath lockfile_path;
+  if (!lockfile_path.Set(_root.Get()) ||
+      !lockfile_path.Append(abandoned_pid) ||
+      !lockfile_path.Append(".lock")) {
+    return false;
+  }
+
+  // Try to acquire lock
+  PlatformPath path;
+  if (!path.Encode(lockfile_path.CStr())) {
+    return false;
+  }
+
+  auto opened = _fs.OpenForRead(path, true);
+
+  // Lock contention = process still alive
+  if (opened.value == FilesystemResult::LockContention) {
+    return false;
+  }
+
+  // File doesn't exist = no lockfile (old SDK version or cleaned up)
+  if (opened.value == FilesystemResult::DoesNotExist) {
+    return false;
+  }
+
+  // Other errors = skip
+  if (opened.value != FilesystemResult::OK || opened.handle == INVALID_FILE_HANDLE) {
+    return false;
+  }
+
+  // Successfully locked = process dead, directory abandoned
+  // Build paths for rename: <root>/<abandoned_pid>/ → <root>/<current_pid>/
+  StoragePath src_path;
+  StoragePath dst_path;
+  if (!src_path.Set(_root.Get()) || !src_path.Append(abandoned_pid)) {
+    _fs.Close(opened.handle);
+    return false;
+  }
+  if (!dst_path.Set(_root.Get()) || !dst_path.Append(_pid_str)) {
+    _fs.Close(opened.handle);
+    return false;
+  }
+
+  PlatformPath src_platform;
+  PlatformPath dst_platform;
+  if (!src_platform.Encode(src_path.CStr()) ||
+      !dst_platform.Encode(dst_path.CStr())) {
+    _fs.Close(opened.handle);
+    return false;
+  }
+
+  // Atomic rename
+  FilesystemResult rename_result = _fs.Rename(src_platform, dst_platform);
+
+  _fs.Close(opened.handle);
+
+  if (rename_result == FilesystemResult::OK) {
+    // Delete old lockfile
+    _fs.Delete(path);
+    return true;
+  }
+
+  return false;
+}
+
 bool SdkStorage::Initialize(
     const impl::DiagnosticLogger& logger,
     std::string_view application_storage_path,
