@@ -127,6 +127,34 @@ bool SdkStorage::Initialize(
     return false;
   }
 
+  // Scan for abandoned process directories to migrate
+  bool claimed_abandoned = false;
+  {
+    PlatformPath scan_path;
+    if (scan_path.Encode(_root.CStr())) {
+      std::vector<std::string> subdirs;
+      if (_fs.ListSubdirectories(scan_path, subdirs) == FilesystemResult::OK) {
+        for (const std::string& name : subdirs) {
+          // Skip our own PID
+          if (name == _pid_str) {
+            continue;
+          }
+
+          // Only try numeric directory names (PIDs)
+          if (!std::all_of(name.begin(), name.end(), ::isdigit)) {
+            continue;
+          }
+
+          // Try to claim this abandoned directory
+          if (TryClaimAbandonedDirectory(name)) {
+            claimed_abandoned = true;
+            break;  // Successfully claimed, stop searching
+          }
+        }
+      }
+    }
+  }
+
   // Build lockfile path: <root>/<pid>.lock (sibling to process directory)
   StoragePath lockfile_path;
   if (!JoinPaths(lockfile_path, _root.Get(), _pid_str, logger, join_message)) {
@@ -158,9 +186,11 @@ bool SdkStorage::Initialize(
     return false;
   }
 
-  // Create process directory
-  if (!EnsureDirectoryExists(_process_root, path, _fs, logger, mkdir_message)) {
-    return false;
+  // Create process directory (unless we claimed an abandoned one via rename)
+  if (!claimed_abandoned) {
+    if (!EnsureDirectoryExists(_process_root, path, _fs, logger, mkdir_message)) {
+      return false;
+    }
   }
 
   // If we have multiple SDK instances within the same process, they must be configured
