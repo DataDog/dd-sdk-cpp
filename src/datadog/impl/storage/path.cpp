@@ -131,14 +131,13 @@ bool StoragePath::AppendExt(std::string_view ext) {
     return false;
   }
 
-  std::string_view current_path = Get();
-
   // If path is empty, just set the extension directly
+  std::string_view current_path = Get();
   if (current_path.empty()) {
     return Set(ext);
   }
 
-  // Remove trailing slash(es) from the buffer before appending
+  // Remove any trailing slash(es) from the buffer before appending
   size_t adjusted_len = _len;
   while (adjusted_len > 0 &&
          has_trailing_slash(std::string_view{CStr(), adjusted_len})) {
