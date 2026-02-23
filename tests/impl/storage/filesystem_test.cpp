@@ -83,7 +83,10 @@ TEST_CASE("IFilesystem directory operations", "[unit][storage][filesystem]") {
   SECTION("M return DoesNotExist W creating directory without parent") {
     // Given a path with a non-existent parent directory
     StoragePath nonexistent_parent;
-    REQUIRE((nonexistent_parent.Set(temp.path) && nonexistent_parent.Append("nonexistent/child")));
+    REQUIRE(
+        (nonexistent_parent.Set(temp.path) &&
+         nonexistent_parent.Append("nonexistent/child"))
+    );
 
     // When we attempt to create the child directory
     const FilesystemResult result =

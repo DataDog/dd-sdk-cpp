@@ -32,8 +32,7 @@ class SdkStorage {
   void HandleMigrate(std::string_view from_pid);
 
   void MigrateInstanceDirectory(
-      std::string_view instance_name,
-      const StoragePath& from_instance_root
+      std::string_view instance_name, const StoragePath& from_instance_root
   );
 
   void MigrateFeatureEvents(
@@ -49,8 +48,7 @@ class SdkStorage {
   );
 
   void MigrateFilesFromSubdirectory(
-      const StoragePath& from_events_dir,
-      const StoragePath& to_events_dir
+      const StoragePath& from_events_dir, const StoragePath& to_events_dir
   );
 
  private:

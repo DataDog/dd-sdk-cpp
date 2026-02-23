@@ -69,8 +69,7 @@ bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
 
   PlatformPath src_platform;
   PlatformPath dst_platform;
-  if (!src_platform.Encode(src_path.CStr()) ||
-      !dst_platform.Encode(dst_path.CStr())) {
+  if (!src_platform.Encode(src_path.CStr()) || !dst_platform.Encode(dst_path.CStr())) {
     _fs.Close(opened.handle);
     return false;
   }
@@ -256,8 +255,7 @@ void SdkStorage::MigrateAbandonedEvents() {
 }
 
 void SdkStorage::MigrateFilesFromSubdirectory(
-    const StoragePath& from_events_dir,
-    const StoragePath& to_events_dir
+    const StoragePath& from_events_dir, const StoragePath& to_events_dir
 ) {
   PlatformPath path;
   PlatformPath src_path;
@@ -283,8 +281,7 @@ void SdkStorage::MigrateFilesFromSubdirectory(
       continue;
     }
 
-    if (!src_path.Encode(src_file.CStr()) ||
-        !dst_path.Encode(dst_file.CStr())) {
+    if (!src_path.Encode(src_file.CStr()) || !dst_path.Encode(dst_file.CStr())) {
       continue;
     }
 
@@ -301,8 +298,7 @@ bool SdkStorage::EnsureDestinationDirectoryExists(
 
   // Create instance directory
   StoragePath instance_dir;
-  if (!instance_dir.Set(_process_root.Get()) ||
-      !instance_dir.Append(instance_name)) {
+  if (!instance_dir.Set(_process_root.Get()) || !instance_dir.Append(instance_name)) {
     return false;
   }
   if (!path.Encode(instance_dir.CStr())) {
@@ -315,8 +311,7 @@ bool SdkStorage::EnsureDestinationDirectoryExists(
 
   // Create feature directory
   StoragePath feature_dir;
-  if (!feature_dir.Set(instance_dir.Get()) ||
-      !feature_dir.Append(feature_name)) {
+  if (!feature_dir.Set(instance_dir.Get()) || !feature_dir.Append(feature_name)) {
     return false;
   }
   if (!path.Encode(feature_dir.CStr())) {
@@ -362,8 +357,7 @@ void SdkStorage::MigrateFeatureEvents(
 
     StoragePath to_events_dir;
     if (!to_events_dir.Set(_process_root.Get()) ||
-        !to_events_dir.Append(instance_name) ||
-        !to_events_dir.Append(feature_name) ||
+        !to_events_dir.Append(instance_name) || !to_events_dir.Append(feature_name) ||
         !to_events_dir.Append(subdir)) {
       continue;
     }
@@ -373,8 +367,7 @@ void SdkStorage::MigrateFeatureEvents(
 }
 
 void SdkStorage::MigrateInstanceDirectory(
-    std::string_view instance_name,
-    const StoragePath& from_instance_root
+    std::string_view instance_name, const StoragePath& from_instance_root
 ) {
   PlatformPath path;
   StoragePath from_feature_root;
@@ -404,8 +397,7 @@ void SdkStorage::HandleMigrate(std::string_view from_pid) {
   PlatformPath path;
 
   // Build source process root: <root>/<abandoned_pid>/
-  if (!from_process_root.Set(_root.Get()) ||
-      !from_process_root.Append(from_pid)) {
+  if (!from_process_root.Set(_root.Get()) || !from_process_root.Append(from_pid)) {
     return;
   }
 

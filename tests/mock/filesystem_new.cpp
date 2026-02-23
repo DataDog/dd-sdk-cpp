@@ -452,7 +452,9 @@ FilesystemResult MockFilesystem::Rename(
 
     // Create new entry at destination
     files_.emplace(
-        std::piecewise_construct, std::forward_as_tuple(dst_str), std::forward_as_tuple()
+        std::piecewise_construct,
+        std::forward_as_tuple(dst_str),
+        std::forward_as_tuple()
     );
     files_[dst_str].data = std::move(data_copy);
     files_[dst_str].bad = bad_copy;
@@ -489,7 +491,8 @@ FilesystemResult MockFilesystem::Rename(
 
       // Create new entry and copy data (can't move due to mutex)
       files_.emplace(
-          std::piecewise_construct, std::forward_as_tuple(new_path),
+          std::piecewise_construct,
+          std::forward_as_tuple(new_path),
           std::forward_as_tuple()
       );
       files_[new_path].data = old_entry.data;
