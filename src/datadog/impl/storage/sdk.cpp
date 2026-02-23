@@ -25,10 +25,21 @@ SdkStorage::~SdkStorage() {
 
 bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
   // Build lockfile path: <root>/<abandoned_pid>.lock
+  // Note: Construct "<pid>.lock" as a single string to avoid adding separator
+  std::array<char, 16> lockfile_name_buffer{};
+  auto res = std::to_chars(
+      lockfile_name_buffer.data(),
+      lockfile_name_buffer.data() + lockfile_name_buffer.size() - 6,
+      std::stoul(std::string(abandoned_pid))
+  );
+  if (res.ec != std::errc{}) {
+    return false;
+  }
+  std::memcpy(res.ptr, ".lock", 6);  // includes null terminator
+
   StoragePath lockfile_path;
   if (!lockfile_path.Set(_root.Get()) ||
-      !lockfile_path.Append(abandoned_pid) ||
-      !lockfile_path.Append(".lock")) {
+      !lockfile_path.Append(lockfile_name_buffer.data())) {
     return false;
   }
 
@@ -156,11 +167,15 @@ bool SdkStorage::Initialize(
   }
 
   // Build lockfile path: <root>/<pid>.lock (sibling to process directory)
+  // Note: Construct "<pid>.lock" as a single string to avoid adding separator
+  std::array<char, 16> lockfile_name_buffer{};
+  std::memcpy(lockfile_name_buffer.data(), _pid_str.data(), _pid_str.size());
+  std::memcpy(
+      lockfile_name_buffer.data() + _pid_str.size(), ".lock", 6
+  );  // includes null terminator
+
   StoragePath lockfile_path;
-  if (!JoinPaths(lockfile_path, _root.Get(), _pid_str, logger, join_message)) {
-    return false;
-  }
-  if (!AppendPath(lockfile_path, ".lock", logger, join_message)) {
+  if (!JoinPaths(lockfile_path, _root.Get(), lockfile_name_buffer.data(), logger, join_message)) {
     return false;
   }
 
@@ -233,10 +248,11 @@ void SdkStorage::MigrateAbandonedEvents() {
     if (!std::all_of(name.begin(), name.end(), isdigit)) {
       continue;
     }
-    if (!lockfile_path.Set(_root.Get()) || !lockfile_path.Append(name)) {
-      continue;
-    }
-    if (!lockfile_path.Append(".lock")) {
+
+    // Build lockfile path: <root>/<name>.lock
+    // Note: Construct "<name>.lock" as a single string to avoid adding separator
+    std::string lockfile_name = name + ".lock";
+    if (!lockfile_path.Set(_root.Get()) || !lockfile_path.Append(lockfile_name)) {
       continue;
     }
 
@@ -436,10 +452,12 @@ void SdkStorage::HandleMigrate(std::string_view from_pid) {
     _fs.Delete(path);
   }
 
+  // Build lockfile path: <root>/<from_pid>.lock
+  // Note: Construct "<from_pid>.lock" as a single string to avoid adding separator
+  std::string lockfile_name = std::string(from_pid) + ".lock";
   StoragePath lockfile;
   if (lockfile.Set(_root.Get()) &&
-      lockfile.Append(from_pid) &&
-      lockfile.Append(".lock") &&
+      lockfile.Append(lockfile_name) &&
       path.Encode(lockfile.CStr())) {
     _fs.Delete(path);
   }
