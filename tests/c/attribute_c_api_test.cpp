@@ -506,7 +506,7 @@ TEST_CASE("dd_attribute", "[unit][attribute][c-api]") {
   SECTION("M safely ignore all operations W target attribute is NULL") {
     // Given a valid attribute value to pass as an array item / object property
     dd_attribute_t valid = dd_attribute_string("I am a valid argument");
-    dd_uuid_t uuid;
+    dd_uuid_t uuid{};
 
     // dd_attribute_set_<type> are all safe no-ops when called without an attribute
     dd_attribute_set_null(nullptr);

@@ -100,6 +100,9 @@ inline std::optional<TemplateVar> ParseTemplateVar(const nlohmann::json& value) 
     return TemplateVar::NONZERO_UUID;
   }
   FAIL("Invalid TemplateVar name: " << var_name);
+#ifdef _MSC_VER
+#pragma warning(suppress : 4702)
+#endif
   return std::nullopt;
 }
 
