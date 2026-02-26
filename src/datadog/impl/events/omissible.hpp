@@ -39,7 +39,7 @@ struct Omissible {
       typename = std::enable_if_t<
           std::is_constructible_v<T, U> &&
           !std::is_same_v<std::decay_t<U>, Omissible<T>>>>
-  Omissible(U&& in_value) : value(std::forward<U>(in_value)) {}
+  Omissible(U&& in_value) : value(static_cast<T>(std::forward<U>(in_value))) {}
 
   template <
       typename U,
@@ -47,7 +47,7 @@ struct Omissible {
           std::is_assignable_v<T&, U> &&
           !std::is_same_v<std::decay_t<U>, Omissible<T>>>>
   Omissible& operator=(U&& in_value) {
-    value = std::forward<U>(in_value);
+    value = static_cast<T>(std::forward<U>(in_value));
     return *this;
   }
 };
