@@ -100,10 +100,17 @@ inline std::optional<TemplateVar> ParseTemplateVar(const nlohmann::json& value) 
     return TemplateVar::NONZERO_UUID;
   }
   FAIL("Invalid TemplateVar name: " << var_name);
+  // FAIL() is [[noreturn]], so this return is unreachable. It is still required
+  // to satisfy compilers that cannot deduce this. MSVC (correctly) warns about
+  // the unreachable code, so we disable C4702 around the return statement.
 #ifdef _MSC_VER
-#pragma warning(suppress : 4702)
+#pragma warning(push)
+#pragma warning(disable : 4702)
 #endif
   return std::nullopt;
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 }
 
 /**
