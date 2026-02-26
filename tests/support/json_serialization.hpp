@@ -95,22 +95,15 @@ inline std::optional<TemplateVar> ParseTemplateVar(const nlohmann::json& value) 
   const size_t var_name_len = str.size() - prefix.size() - suffix.size();
   std::string_view var_name = str.substr(prefix.size(), var_name_len);
 
-  // Parse the placeholder variable name
+  // Parse the placeholder variable name. Structured as if/else so that the
+  // return below is reachable from the if-branch, avoiding MSVC C4702.
+  std::optional<TemplateVar> result;
   if (var_name == "NONZERO_UUID") {
-    return TemplateVar::NONZERO_UUID;
+    result = TemplateVar::NONZERO_UUID;
+  } else {
+    FAIL("Invalid TemplateVar name: " << var_name);
   }
-  FAIL("Invalid TemplateVar name: " << var_name);
-  // FAIL() is [[noreturn]], so this return is unreachable. It is still required
-  // to satisfy compilers that cannot deduce this. MSVC (correctly) warns about
-  // the unreachable code, so we disable C4702 around the return statement.
-#ifdef _MSC_VER
-#pragma warning(push)
-#pragma warning(disable : 4702)
-#endif
-  return std::nullopt;
-#ifdef _MSC_VER
-#pragma warning(pop)
-#endif
+  return result;
 }
 
 /**
