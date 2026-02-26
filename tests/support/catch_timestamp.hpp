@@ -31,7 +31,13 @@ struct StringMaker<datadog::Timestamp> {
     auto s = time_point_cast<system_clock::duration>(value);
     std::time_t t = system_clock::to_time_t(s);
     std::ostringstream oss;
+#ifdef _WIN32
+    struct tm tm_result;
+    gmtime_s(&tm_result, &t);
+    oss << std::put_time(&tm_result, "%Y-%m-%d %H:%M:%S");
+#else
     oss << std::put_time(std::gmtime(&t), "%Y-%m-%d %H:%M:%S");
+#endif
     return oss.str();
   }
 };

@@ -337,7 +337,9 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
        [](dd_core_config_t* config, TempDirectory& tmpdir) {
          // When we configure the SDK to use a nonexistent directory for storage
          auto nonexistent_path = std::filesystem::path(tmpdir.path) / "nonexistent-dir";
-         dd_core_config_set_event_storage_location(config, nonexistent_path.c_str());
+         dd_core_config_set_event_storage_location(
+             config, nonexistent_path.string().c_str()
+         );
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,

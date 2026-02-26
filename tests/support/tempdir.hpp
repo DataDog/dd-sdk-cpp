@@ -117,7 +117,7 @@ struct TempDirectory {
     std::filesystem::path dir_path = std::filesystem::path(path) / dirname;
     std::error_code ec;
     for (const auto& entry : std::filesystem::directory_iterator(dir_path, ec)) {
-      results.push_back(entry.path().filename());
+      results.push_back(entry.path().filename().string());
     }
     return results;
   }
