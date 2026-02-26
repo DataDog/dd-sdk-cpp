@@ -33,7 +33,7 @@ TEST_CASE("timestamp JSON serialization", "[unit][json]") {
 
     // Pre-1970 timestamps
     test(std::chrono::seconds(-1), "\"1969-12-31T23:59:59.000Z\"");
-    test(std::chrono::seconds(-2208988800), "\"1900-01-01T00:00:00.000Z\"");
+    test(std::chrono::seconds(-2208988800LL), "\"1900-01-01T00:00:00.000Z\"");
 
     // Leap day
     test(std::chrono::milliseconds(68239266580), "\"1972-02-29T19:21:06.580Z\"");
