@@ -39,25 +39,16 @@ namespace datadog::platform {
 // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
 // NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
 
+// Explicitly zero-initialize module build cache, for clarity
 ModuleBuildIdCache g_module_build_id_cache = {};
-
-const char* LookupCachedBuildId(uintptr_t base_address) {
-  // Linear search through cache (async-signal-safe)
-  const size_t count = g_module_build_id_cache.num_entries;
-  for (size_t i = 0; i < count; ++i) {
-    const CachedModuleBuildId& entry = g_module_build_id_cache.entries[i];
-    if (entry.valid && entry.base_address == base_address) {
-      return entry.build_id;
-    }
-  }
-  return nullptr;
-}
 
 #ifdef _WIN32
 
-// Maps an RVA (relative virtual address) to a file offset by walking the section
-// header array. Returns true and writes the file offset to `out_offset` if the RVA
-// falls within one of the sections; returns false otherwise.
+/**
+ * Maps an RVA (relative virtual address) to a file offset by walking the section header
+ * array. Returns true and writes the file offset to `out_offset` if the RVA falls
+ * within one of the sections; returns false otherwise.
+ */
 static bool rva_to_file_offset(
     const IMAGE_SECTION_HEADER* sections,
     WORD num_sections,
@@ -78,14 +69,14 @@ static bool rva_to_file_offset(
 }
 
 /**
- * Extract PE build ID from optional header (32-bit or 64-bit).
+ * Extracts PE build ID from optional header (32-bit or 64-bit).
  *
  * Reads the appropriate optional header type based on `is_64bit`, locates the debug
  * directory, reads section headers to convert RVAs to file offsets, and extracts the
- * CodeView record (GUID+Age). This helper is called by `ExtractPEBuildIdSafe` after
+ * CodeView record (GUID+Age). This helper is called by `extract_pe_build_id` after
  * architecture detection.
  */
-static bool ExtractPEBuildIdFromOptionalHeader(
+static bool extract_pe_build_id_from_optional_header(
     HANDLE file,
     LONG e_lfanew,
     bool is_64bit,
@@ -230,7 +221,7 @@ static bool ExtractPEBuildIdFromOptionalHeader(
 }
 
 /**
- * Extract PE GUID+Age from Windows binary file.
+ * Extracts PE GUID+Age from Windows binary file.
  *
  * Opens the PE file at `module_path`, reads the debug directory to find the CodeView
  * record, extracts the GUID and Age, and formats them as uppercase hex with no
@@ -239,10 +230,10 @@ static bool ExtractPEBuildIdFromOptionalHeader(
  * Supports both 32-bit (IMAGE_OPTIONAL_HEADER32) and 64-bit (IMAGE_OPTIONAL_HEADER64)
  * PE files by detecting the architecture from IMAGE_FILE_HEADER.Machine.
  *
- * Returns true on success (build ID written to `out_buffer`), false on failure.
- * This function uses file I/O and is NOT async-signal-safe.
+ * Returns true on success (build ID written to `out_buffer`), false on failure. This
+ * function uses file I/O and is NOT async-signal-safe.
  */
-static bool ExtractPEBuildIdSafe(
+static bool extract_pe_build_id(
     const char* module_path, char* out_buffer, size_t buffer_size
 ) {
   if (buffer_size < 42) {  // 32 hex chars for GUID + up to 10 for Age + null
@@ -307,7 +298,7 @@ static bool ExtractPEBuildIdSafe(
   }
 
   // Extract build ID from optional header (handles both 32-bit and 64-bit)
-  const bool success = ExtractPEBuildIdFromOptionalHeader(
+  const bool success = extract_pe_build_id_from_optional_header(
       file, dos_header.e_lfanew, is_64bit, file_header, out_buffer, buffer_size
   );
 
@@ -315,7 +306,7 @@ static bool ExtractPEBuildIdSafe(
   return success;
 }
 
-void InitializeModuleBuildIdCache() {
+void PopulateBuildIdCache() {
   g_module_build_id_cache.num_entries = 0;
 
   HANDLE snapshot = CreateToolhelp32Snapshot(
@@ -335,7 +326,7 @@ void InitializeModuleBuildIdCache() {
       }
 
       char build_id[kMaxBuildIdLength];
-      if (ExtractPEBuildIdSafe(entry.szExePath, build_id, sizeof(build_id))) {
+      if (extract_pe_build_id(entry.szExePath, build_id, sizeof(build_id))) {
         const size_t entry_idx = g_module_build_id_cache.num_entries;
         auto& cached = g_module_build_id_cache.entries[entry_idx];
         cached.base_address = reinterpret_cast<uintptr_t>(entry.modBaseAddr);
@@ -355,15 +346,15 @@ void InitializeModuleBuildIdCache() {
 #ifdef __linux__
 
 /**
- * Extract ELF build ID from program headers (template for 32-bit and 64-bit).
+ * Extracts ELF build ID from program headers (template for 32-bit and 64-bit).
  *
  * Reads program headers to find PT_NOTE segments, parses note entries to find the
- * NT_GNU_BUILD_ID note, and formats the build ID as lowercase hex. This template
- * helper is instantiated for both Elf32 and Elf64 types by `ExtractElfBuildIdSafe`
- * after ELF class detection.
+ * NT_GNU_BUILD_ID note, and formats the build ID as lowercase hex. This template helper
+ * is instantiated for both Elf32 and Elf64 types by `extract_elf_build_id` after ELF
+ * class detection.
  */
 template <typename EhdrType, typename PhdrType, typename NhdrType>
-static bool ExtractElfBuildIdFromHeaders(
+static bool extract_elf_build_id_from_headers(
     int fd, const EhdrType& ehdr, char* out_buffer, size_t buffer_size
 ) {
   // Read program headers with explicit seeking to avoid lseek corruption
@@ -440,19 +431,19 @@ static bool ExtractElfBuildIdFromHeaders(
 }
 
 /**
- * Extract ELF build ID from Linux binary file.
+ * Extracts ELF build ID from a Linux binary file.
  *
- * Opens the ELF file at `module_path`, reads program headers to find PT_NOTE
- * segments, parses note entries to find the NT_GNU_BUILD_ID note, and formats the
- * build ID as lowercase hex (e.g., "8c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d").
+ * Opens the ELF file at `module_path`, reads program headers to find PT_NOTE segments,
+ * parses note entries to find the NT_GNU_BUILD_ID note, and formats the build ID as
+ * lowercase hex (e.g., "8c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d").
  *
- * Supports both 32-bit (Elf32_*) and 64-bit (Elf64_*) ELF files by detecting the
- * ELF class from e_ident[EI_CLASS].
+ * Supports both 32-bit (Elf32_*) and 64-bit (Elf64_*) ELF files by detecting the ELF
+ * class from e_ident[EI_CLASS].
  *
- * Returns true on success (build ID written to `out_buffer`), false on failure.
- * This function uses file I/O and is NOT async-signal-safe.
+ * Returns true on success (build ID written to `out_buffer`), false on failure. This
+ * function uses file I/O and is NOT async-signal-safe.
  */
-static bool ExtractElfBuildIdSafe(
+static bool extract_elf_build_id(
     const char* module_path, char* out_buffer, size_t buffer_size
 ) {
   if (buffer_size < 41) {  // Typical 20-byte build ID = 40 hex chars + null
@@ -498,14 +489,14 @@ static bool ExtractElfBuildIdSafe(
   if (is_64bit) {
     Elf64_Ehdr ehdr;
     if (read(fd, &ehdr, sizeof(ehdr)) == sizeof(ehdr)) {
-      success = ExtractElfBuildIdFromHeaders<Elf64_Ehdr, Elf64_Phdr, Elf64_Nhdr>(
+      success = extract_elf_build_id_from_headers<Elf64_Ehdr, Elf64_Phdr, Elf64_Nhdr>(
           fd, ehdr, out_buffer, buffer_size
       );
     }
   } else if (is_32bit) {
     Elf32_Ehdr ehdr;
     if (read(fd, &ehdr, sizeof(ehdr)) == sizeof(ehdr)) {
-      success = ExtractElfBuildIdFromHeaders<Elf32_Ehdr, Elf32_Phdr, Elf32_Nhdr>(
+      success = extract_elf_build_id_from_headers<Elf32_Ehdr, Elf32_Phdr, Elf32_Nhdr>(
           fd, ehdr, out_buffer, buffer_size
       );
     }
@@ -515,7 +506,7 @@ static bool ExtractElfBuildIdSafe(
   return success;
 }
 
-void InitializeModuleBuildIdCache() {
+void PopulateBuildIdCache() {
   g_module_build_id_cache.num_entries = 0;
 
   FILE* maps = fopen("/proc/self/maps", "r");
@@ -558,7 +549,7 @@ void InitializeModuleBuildIdCache() {
 
         if (!already_cached && num_cached_paths < kMaxCachedModules) {
           char build_id[kMaxBuildIdLength];
-          if (ExtractElfBuildIdSafe(pathname, build_id, sizeof(build_id))) {
+          if (extract_elf_build_id(pathname, build_id, sizeof(build_id))) {
             const size_t entry_idx = g_module_build_id_cache.num_entries;
             auto& cached = g_module_build_id_cache.entries[entry_idx];
             cached.base_address = start_addr;
@@ -583,11 +574,23 @@ void InitializeModuleBuildIdCache() {
 
 #ifdef __APPLE__
 
-void InitializeModuleBuildIdCache() {
+void PopulateBuildIdCache() {
   // Not needed on macOS—build IDs extracted from memory at crash time
 }
 
 #endif  // __APPLE__
+
+const char* FindCachedBuildId(uintptr_t base_address) {
+  // Linear search through cache (async-signal-safe)
+  const size_t count = g_module_build_id_cache.num_entries;
+  for (size_t i = 0; i < count; ++i) {
+    const CachedModuleBuildId& entry = g_module_build_id_cache.entries[i];
+    if (entry.valid && entry.base_address == base_address) {
+      return entry.build_id;
+    }
+  }
+  return nullptr;
+}
 
 // NOLINTEND(cppcoreguidelines-pro-type-vararg)
 // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
