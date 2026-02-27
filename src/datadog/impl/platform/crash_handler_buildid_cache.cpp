@@ -266,12 +266,14 @@ void InitializeModuleBuildIdCache() {
 
       char build_id[kMaxBuildIdLength];
       if (ExtractPEBuildIdSafe(entry.szExePath, build_id, sizeof(build_id))) {
-        auto& cached =
-            g_module_build_id_cache.entries[g_module_build_id_cache.num_entries++];
+        const size_t entry_idx = g_module_build_id_cache.num_entries;
+        auto& cached = g_module_build_id_cache.entries[entry_idx];
         cached.base_address = reinterpret_cast<uintptr_t>(entry.modBaseAddr);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
         snprintf(cached.build_id, kMaxBuildIdLength, "%s", build_id);
         cached.valid = true;
+        // Make entry visible to readers only after fully written
+        g_module_build_id_cache.num_entries = entry_idx + 1;
       }
     } while (Module32Next(snapshot, &entry));
   }
@@ -448,12 +450,14 @@ void InitializeModuleBuildIdCache() {
         if (!already_cached && num_cached_paths < kMaxCachedModules) {
           char build_id[kMaxBuildIdLength];
           if (ExtractElfBuildIdSafe(pathname, build_id, sizeof(build_id))) {
-            auto& cached =
-                g_module_build_id_cache.entries[g_module_build_id_cache.num_entries++];
+            const size_t entry_idx = g_module_build_id_cache.num_entries;
+            auto& cached = g_module_build_id_cache.entries[entry_idx];
             cached.base_address = start_addr;
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
             snprintf(cached.build_id, kMaxBuildIdLength, "%s", build_id);
             cached.valid = true;
+            // Make entry visible to readers only after fully written
+            g_module_build_id_cache.num_entries = entry_idx + 1;
 
             // Track this path to avoid duplicates
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
