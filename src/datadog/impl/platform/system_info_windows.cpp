@@ -4,9 +4,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include <comdef.h>
-#include <wbemidl.h>
+// clang-format off
 #include <windows.h>
+#include <comdef.h>   // COM definitions; must follow windows.h
+#include <wbemidl.h>  // WMI interfaces; must follow windows.h
+// clang-format on
 
 #include <algorithm>
 #include <string>

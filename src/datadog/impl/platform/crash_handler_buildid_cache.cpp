@@ -7,9 +7,11 @@
 #include "crash_handler_buildid_cache.hpp"
 
 #ifdef _WIN32
+// clang-format off
 #define WIN32_LEAN_AND_MEAN
-#include <tlhelp32.h>
 #include <windows.h>
+#include <tlhelp32.h>  // ToolHelp32 snapshot APIs; must follow windows.h
+// clang-format on
 
 #include <cstdio>
 #endif
