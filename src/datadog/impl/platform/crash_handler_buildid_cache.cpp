@@ -215,8 +215,7 @@ void InitializeModuleBuildIdCache() {
             g_module_build_id_cache.entries[g_module_build_id_cache.num_entries++];
         cached.base_address = reinterpret_cast<uintptr_t>(entry.modBaseAddr);
         // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-        strncpy(cached.build_id, build_id, kMaxBuildIdLength - 1);
-        cached.build_id[kMaxBuildIdLength - 1] = '\0';
+        snprintf(cached.build_id, kMaxBuildIdLength, "%s", build_id);
         cached.valid = true;
       }
     } while (Module32Next(snapshot, &entry));
@@ -395,14 +394,12 @@ void InitializeModuleBuildIdCache() {
                 g_module_build_id_cache.entries[g_module_build_id_cache.num_entries++];
             cached.base_address = start_addr;
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-            strncpy(cached.build_id, build_id, kMaxBuildIdLength - 1);
-            cached.build_id[kMaxBuildIdLength - 1] = '\0';
+            snprintf(cached.build_id, kMaxBuildIdLength, "%s", build_id);
             cached.valid = true;
 
             // Track this path to avoid duplicates
             // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-            strncpy(cached_paths[num_cached_paths], pathname, 255);
-            cached_paths[num_cached_paths][255] = '\0';
+            snprintf(cached_paths[num_cached_paths], 256, "%s", pathname);
             ++num_cached_paths;
           }
         }
