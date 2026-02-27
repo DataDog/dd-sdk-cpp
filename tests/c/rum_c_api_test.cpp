@@ -679,7 +679,7 @@ static nlohmann::json filter_events(std::string_view type, const nlohmann::json&
       xs.end(),
       std::back_inserter(result),
       [type](const nlohmann::json& x) {
-        return x.contains("type") && x["type"] == type;
+        return x.contains("type") && x["type"].get<std::string>() == type;
       }
   );
   return result;

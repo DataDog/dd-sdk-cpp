@@ -740,7 +740,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     auto has_status = [](const std::string_view status, const nlohmann::json& obj) {
       REQUIRE(obj.is_object());
       REQUIRE(obj.at("status").is_string());
-      return obj.at("status") == status;
+      return obj.at("status").get<std::string>() == status;
     };
     auto is_warn = [&](const nlohmann::json& obj) { return has_status("warn", obj); };
     auto is_err = [&](const nlohmann::json& obj) { return has_status("error", obj); };

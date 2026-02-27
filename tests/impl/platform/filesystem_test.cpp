@@ -14,6 +14,16 @@
 
 #include "support/tempdir.hpp"
 
+// On Windows, <windows.h> (included via tempdir.hpp) defines MoveFile and
+// DeleteFile as macros that collide with the same-named virtual methods in
+// IDirectory. Undefine them here so the method names are used as-is.
+#ifdef MoveFile
+#undef MoveFile
+#endif
+#ifdef DeleteFile
+#undef DeleteFile
+#endif
+
 using namespace datadog;
 
 // Tag [platform-filesystem] describes tests used to validate that a platform-specific

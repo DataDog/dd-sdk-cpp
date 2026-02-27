@@ -273,7 +273,7 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
        [](CoreConfig& config, TempDirectory& tmpdir) {
          // When we configure the SDK to use a nonexistent directory for storage
          auto nonexistent_path = std::filesystem::path(tmpdir.path) / "nonexistent-dir";
-         config.SetEventStorageLocation(nonexistent_path.c_str());
+         config.SetEventStorageLocation(nonexistent_path.string());
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,

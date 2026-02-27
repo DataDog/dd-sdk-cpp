@@ -51,10 +51,12 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
   RumViewArray array{diagnostic_logger};
   REQUIRE(warnings.empty());
   REQUIRE(errors.empty());
-  auto count_items = [&array]() {
-    return std::count_if(array.items.begin(), array.items.end(), [](const auto& item) {
-      return item.has_value();
-    });
+  auto count_items = [&array]() -> size_t {
+    return static_cast<size_t>(
+        std::count_if(array.items.begin(), array.items.end(), [](const auto& item) {
+          return item.has_value();
+        })
+    );
   };
 
   // And a set of prerequisite values required to initialize new RumViewScopes
