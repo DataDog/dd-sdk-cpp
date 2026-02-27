@@ -31,7 +31,7 @@ namespace datadog::platform {
 // ELF on Linux). The Linux implementation must be usable from async-signal-safe
 // contexts, so it uses low-level C-style I/O. The following linter checks are disabled
 // because they conflict with these requirements:
-// NOLINTBEGIN(cert-err34-c)
+// NOLINTBEGIN(bugprone-unchecked-string-to-number-conversion)
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
@@ -598,6 +598,6 @@ const char* FindCachedBuildId(uintptr_t base_address) {
 // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 // NOLINTEND(cppcoreguidelines-owning-memory)
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
-// NOLINTEND(cert-err34-c)
+// NOLINTEND(bugprone-unchecked-string-to-number-conversion)
 
 }  // namespace datadog::platform

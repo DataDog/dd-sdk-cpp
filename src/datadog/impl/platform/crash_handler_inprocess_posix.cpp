@@ -562,8 +562,8 @@ static void write_modules(int fd) {
         continue;
       }
 
-      // Lookup build ID from cache
-      const char* build_id = LookupCachedBuildId(start_addr);
+      // Retrieve build ID from cache
+      const char* build_id = FindCachedBuildId(start_addr);
 
       // We've parsed the address range and pathname of a loaded module that should be
       // included in our crash report: write that information to the output file
@@ -845,7 +845,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     _initialized = true;
 
     // Initialize build ID cache for crash-time lookup (Windows/Linux only)
-    InitializeModuleBuildIdCache();
+    PopulateBuildIdCache();
 
     return true;
   }

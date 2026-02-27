@@ -94,8 +94,8 @@ static void write_modules(HANDLE file) {
     const uintptr_t base_addr = reinterpret_cast<uintptr_t>(me.modBaseAddr);
     const uintptr_t end_addr = base_addr + me.modBaseSize;
 
-    // Lookup build ID from cache
-    const char* build_id = LookupCachedBuildId(base_addr);
+    // Retrieve build ID from cache
+    const char* build_id = FindCachedBuildId(base_addr);
 
     // Write relevant details for this module
     WriteCrashReportModule(
@@ -300,7 +300,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     _initialized = true;
 
     // Initialize build ID cache for crash-time lookup
-    InitializeModuleBuildIdCache();
+    PopulateBuildIdCache();
 
     return true;
   }
