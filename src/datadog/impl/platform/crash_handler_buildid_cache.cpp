@@ -47,6 +47,28 @@ const char* LookupCachedBuildId(uintptr_t base_address) {
 
 #ifdef _WIN32
 
+// Maps an RVA (relative virtual address) to a file offset by walking the section
+// header array. Returns true and writes the file offset to `out_offset` if the RVA
+// falls within one of the sections; returns false otherwise.
+static bool rva_to_file_offset(
+    const IMAGE_SECTION_HEADER* sections,
+    WORD num_sections,
+    DWORD rva,
+    DWORD* out_offset
+) {
+  for (WORD i = 0; i < num_sections; ++i) {
+    const DWORD vaddr = sections[i].VirtualAddress;
+    // Use VirtualSize when available; fall back to SizeOfRawData
+    DWORD vsize = sections[i].Misc.VirtualSize;
+    if (vsize == 0) vsize = sections[i].SizeOfRawData;
+    if (rva >= vaddr && rva < vaddr + vsize) {
+      *out_offset = sections[i].PointerToRawData + (rva - vaddr);
+      return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Extract PE GUID+Age from Windows binary file.
  *
@@ -114,9 +136,42 @@ static bool ExtractPEBuildIdSafe(
     return false;
   }
 
-  // Convert RVA to file offset (simplified - assumes debug dir is in first section)
-  // For production, should walk section headers to map RVA to file offset properly
-  DWORD debug_dir_offset = debug_dir.VirtualAddress;
+  // Read PE section headers to convert the debug directory RVA to a file offset.
+  // IMAGE_DATA_DIRECTORY.VirtualAddress is an RVA, not a file offset; the section
+  // headers are needed to perform the mapping.
+  const WORD num_sections = nt_headers.FileHeader.NumberOfSections;
+  if (num_sections == 0 || num_sections > 96) {
+    CloseHandle(file);
+    return false;
+  }
+
+  // Section headers immediately follow the optional header, which starts at
+  // e_lfanew + FIELD_OFFSET(IMAGE_NT_HEADERS64, OptionalHeader).
+  const LONG sections_offset =
+      dos_header.e_lfanew +
+      static_cast<LONG>(FIELD_OFFSET(IMAGE_NT_HEADERS64, OptionalHeader)) +
+      nt_headers.FileHeader.SizeOfOptionalHeader;
+  if (SetFilePointer(file, sections_offset, nullptr, FILE_BEGIN) ==
+      INVALID_SET_FILE_POINTER) {
+    CloseHandle(file);
+    return false;
+  }
+
+  IMAGE_SECTION_HEADER sections[96];
+  const DWORD sections_bytes = num_sections * sizeof(IMAGE_SECTION_HEADER);
+  if (!ReadFile(file, sections, sections_bytes, &bytes_read, nullptr) ||
+      bytes_read != sections_bytes) {
+    CloseHandle(file);
+    return false;
+  }
+
+  DWORD debug_dir_offset = 0;
+  if (!rva_to_file_offset(
+          sections, num_sections, debug_dir.VirtualAddress, &debug_dir_offset
+      )) {
+    CloseHandle(file);
+    return false;
+  }
 
   // Read debug directory entries
   const DWORD num_entries = debug_dir.Size / sizeof(IMAGE_DEBUG_DIRECTORY);
