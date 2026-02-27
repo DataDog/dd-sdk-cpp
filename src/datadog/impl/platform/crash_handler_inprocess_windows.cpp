@@ -22,6 +22,7 @@
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
+#include "datadog/impl/platform/crash_report_write.hpp"
 
 namespace datadog::platform {
 
@@ -47,142 +48,12 @@ static LPTOP_LEVEL_EXCEPTION_FILTER s_old_filter = nullptr;
 // Atomically set to 1 once our exception filter has been called, and never reset
 static LONG s_in_filter = 0;
 
-// === Exception-safe helpers for string formatting and file I/O ===
-
-/**
- * Writes a null-terminated string to the given file handle. Safe to call from exception
- * handler context.
- */
-static void write_str(HANDLE file, const char* str) {
-  if (file == INVALID_HANDLE_VALUE) {
-    return;
-  }
-
-  // Compute string length manually since we can't rely on strlen in exception context
-  DWORD len = 0;
-  while (str[len]) {
-    len++;
-  }
-
-  // Write to the open file handle, ignoring result since exception handler has no
-  // recovery path for I/O errors
-  DWORD written = 0;
-  WriteFile(file, str, len, &written, nullptr);
-}
-
-/**
- * Writes a literal newline character to the given file handle.
- */
-static void write_newline(HANDLE file) {
-  DWORD written = 0;
-  WriteFile(file, "\n", 1, &written, nullptr);
-}
-
-/**
- * Writes an unsigned, 64-bit integer to the given file handle as an ASCII string, in
- * decimal format. Safe to call from exception handler context.
- */
-static void write_uint64(HANDLE file, uint64_t val) {
-  // Early-out for 0: write literal '0', ignoring result
-  if (val == 0) {
-    write_str(file, "0");
-    return;
-  }
-
-  // Establish a buffer large enough to contain the max possible uint64_t
-  char buf[32];
-  int i = 0;
-
-  // sprintf/snprintf are not safe in exception context: manually accumulate the digits
-  // of our decimal value into the buffer, from least-significant to most-significant
-  while (val > 0) {
-    buf[i++] = static_cast<char>('0' + (val % 10));
-    val /= 10;
-  }
-
-  // Iterate backwards to write each of our digits into the file in reverse, ignoring
-  // the result since the exception handler has no recovery path for I/O errors
-  while (i > 0) {
-    DWORD written = 0;
-    WriteFile(file, &buf[--i], 1, &written, nullptr);
-  }
-}
-
-/**
- * Writes an unsigned, 32-bit integer to the given file handle as an ASCII string, in
- * decimal format. Safe to call from exception handler context.
- */
-static void write_uint(HANDLE file, uint32_t val) { write_uint64(file, val); }
-
-/**
- * Writes an address to the given file handle in lowercase hex format, prefixed with
- * '0x', always padded with leading zeroes to 16 hex digits (64-bit addresses). Safe to
- * call from exception handler context.
- */
-static void write_hex_address(HANDLE file, uintptr_t addr) {
-  // Establish a constant lookup table of hex digits, and a buffer large enough to
-  // contain "0x" + 16 hex digits
-  const char hex_chars[] = "0123456789abcdef";
-  char buf[18];
-
-  // Write the 2-byte prefix to the buffer
-  int i = 0;
-  buf[i++] = '0';
-  buf[i++] = 'x';
-
-  // sprintf/snprintf are not safe in exception context: manually convert to hex by
-  // starting at the top nibble (bits 60-63), masking those 4 bits to resolve the most
-  // significant hex digit, then progressing forward toward less-significant digits,
-  // stepping down by 4 bits each time
-  for (int shift = 60; shift >= 0; shift -= 4) {
-    // Write the appropriate hex digit into the next position in our buffer
-    buf[i++] = hex_chars[(addr >> shift) & 0xf];
-  }
-
-  // Write the 18 bytes from our buffer to the open file handle, ignoring the result
-  // since the exception handler has no recovery path for I/O errors
-  DWORD written = 0;
-  WriteFile(file, buf, i, &written, nullptr);
-}
-
-/**
- * Writes a 32-bit value to the given file handle in uppercase hex format, prefixed with
- * '0x', always padded with leading zeroes to 8 hex digits. Does NOT write a trailing
- * newline. Safe to call from exception handler context.
- */
-static void write_hex_dword(HANDLE file, DWORD val) {
-  // Establish a constant lookup table of hex digits (uppercase for consistency with
-  // Windows convention), and a buffer large enough to contain "0x" + 8 hex digits
-  const char hex_chars[] = "0123456789ABCDEF";
-  char buf[10];
-
-  // Write the 2-byte prefix to the buffer
-  int i = 0;
-  buf[i++] = '0';
-  buf[i++] = 'x';
-
-  // Manually convert to hex by starting at the top nibble (bits 28-31), masking those 4
-  // bits to resolve the most significant hex digit, then progressing forward
-  for (int shift = 28; shift >= 0; shift -= 4) {
-    buf[i++] = hex_chars[(val >> shift) & 0xf];
-  }
-
-  // Write the 10 bytes from our buffer to the open file handle
-  DWORD written = 0;
-  WriteFile(file, buf, i, &written, nullptr);
-}
-
 // === Enumeration of loaded modules ===
 // - Uses ToolHelp32 snapshot API to enumerate PE modules loaded in the current process
 
 /**
  * Resolves a list of all modules that are loaded in the current process, and writes
- * them to the given file handle, in the format:
- *
- * <start-address>-<end-address> <binary-path>
- *
- * Where addresses are encoded as '0x'-prefixed, lowercase hex values zero-padded to 16
- * bytes, and binary path is the full path to the executable or DLL file.
+ * them to the given file handle in binary format using WriteCrashReportModule().
  */
 static void write_modules(HANDLE file) {
   if (file == INVALID_HANDLE_VALUE) {
@@ -198,8 +69,7 @@ static void write_modules(HANDLE file) {
   );
 
   if (snapshot == INVALID_HANDLE_VALUE) {
-    write_str(file, "[ERROR: Failed to create module snapshot]");
-    write_newline(file);
+    // Failed to create module snapshot; silently return (best-effort crash handling)
     return;
   }
 
@@ -209,8 +79,7 @@ static void write_modules(HANDLE file) {
   me.dwSize = sizeof(me);
 
   if (!Module32First(snapshot, &me)) {
-    write_str(file, "[ERROR: Failed to enumerate modules]");
-    write_newline(file);
+    // Failed to enumerate modules; silently return (best-effort crash handling)
     CloseHandle(snapshot);
     return;
   }
@@ -224,13 +93,13 @@ static void write_modules(HANDLE file) {
     const uintptr_t base_addr = reinterpret_cast<uintptr_t>(me.modBaseAddr);
     const uintptr_t end_addr = base_addr + me.modBaseSize;
 
-    // Write the module information in format: 0x<base>-0x<end> <path>
-    write_hex_address(file, base_addr);
-    write_str(file, "-");
-    write_hex_address(file, end_addr);
-    write_str(file, " ");
-    write_str(file, me.szExePath);
-    write_newline(file);
+    // Write relevant details for this module
+    WriteCrashReportModule(
+        file,
+        static_cast<uint64_t>(base_addr),
+        static_cast<uint64_t>(end_addr),
+        me.szExePath
+    );
   } while (Module32Next(snapshot, &me));
 
   // Clean up the snapshot handle
@@ -261,124 +130,35 @@ static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
     return EXCEPTION_EXECUTE_HANDLER;
   }
 
-  write_str(file, "=== Datadog SDK Crash Report ===\n");
-
   // The EXCEPTION_POINTERS structure contains two key components:
   // - ExceptionRecord: details about the exception (code, address, flags)
   // - ContextRecord: CPU register state at the time of the exception
-  write_str(file, "Exception: ");
 
   // Exception codes are 32-bit values defined by Windows, with different ranges for
   // different exception categories. The high 2 bits indicate severity:
   // - 00 = Success, 01 = Informational, 10 = Warning, 11 = Error
   const DWORD code = exinfo->ExceptionRecord->ExceptionCode;
-  switch (code) {
-    case EXCEPTION_ACCESS_VIOLATION:
-      write_str(file, "ACCESS_VIOLATION");
-      break;
-    case EXCEPTION_ARRAY_BOUNDS_EXCEEDED:
-      write_str(file, "ARRAY_BOUNDS_EXCEEDED");
-      break;
-    case EXCEPTION_BREAKPOINT:
-      write_str(file, "BREAKPOINT");
-      break;
-    case EXCEPTION_DATATYPE_MISALIGNMENT:
-      write_str(file, "DATATYPE_MISALIGNMENT");
-      break;
-    case EXCEPTION_FLT_DENORMAL_OPERAND:
-      write_str(file, "FLT_DENORMAL_OPERAND");
-      break;
-    case EXCEPTION_FLT_DIVIDE_BY_ZERO:
-      write_str(file, "FLT_DIVIDE_BY_ZERO");
-      break;
-    case EXCEPTION_FLT_INEXACT_RESULT:
-      write_str(file, "FLT_INEXACT_RESULT");
-      break;
-    case EXCEPTION_FLT_INVALID_OPERATION:
-      write_str(file, "FLT_INVALID_OPERATION");
-      break;
-    case EXCEPTION_FLT_OVERFLOW:
-      write_str(file, "FLT_OVERFLOW");
-      break;
-    case EXCEPTION_FLT_STACK_CHECK:
-      write_str(file, "FLT_STACK_CHECK");
-      break;
-    case EXCEPTION_FLT_UNDERFLOW:
-      write_str(file, "FLT_UNDERFLOW");
-      break;
-    case EXCEPTION_ILLEGAL_INSTRUCTION:
-      write_str(file, "ILLEGAL_INSTRUCTION");
-      break;
-    case EXCEPTION_IN_PAGE_ERROR:
-      write_str(file, "IN_PAGE_ERROR");
-      break;
-    case EXCEPTION_INT_DIVIDE_BY_ZERO:
-      write_str(file, "INT_DIVIDE_BY_ZERO");
-      break;
-    case EXCEPTION_INT_OVERFLOW:
-      write_str(file, "INT_OVERFLOW");
-      break;
-    case EXCEPTION_INVALID_DISPOSITION:
-      write_str(file, "INVALID_DISPOSITION");
-      break;
-    case EXCEPTION_NONCONTINUABLE_EXCEPTION:
-      write_str(file, "NONCONTINUABLE_EXCEPTION");
-      break;
-    case EXCEPTION_PRIV_INSTRUCTION:
-      write_str(file, "PRIV_INSTRUCTION");
-      break;
-    case EXCEPTION_SINGLE_STEP:
-      write_str(file, "SINGLE_STEP");
-      break;
-    case EXCEPTION_STACK_OVERFLOW:
-      write_str(file, "STACK_OVERFLOW");
-      break;
-    default:
-      write_str(file, "UNKNOWN (");
-      write_hex_dword(file, code);
-      write_str(file, ")");
-      break;
-  }
-  write_newline(file);
 
-  write_str(file, "Exception code: ");
-  write_hex_dword(file, code);
-  write_newline(file);
-
-  // ExceptionAddress points to the instruction that caused the exception: this is the
-  // actual crash location and should be the first address in our stack trace
-  write_str(file, "Exception address: ");
-  write_hex_address(
-      file, reinterpret_cast<uintptr_t>(exinfo->ExceptionRecord->ExceptionAddress)
+  // Write file header with exception details
+  WriteCrashReportHeader(
+      file,
+      static_cast<uint64_t>(code),  // fault_code (exception code)
+      reinterpret_cast<uint64_t>(
+          exinfo->ExceptionRecord->ExceptionAddress
+      ),                                                               // fault_address
+      static_cast<uint64_t>(exinfo->ExceptionRecord->ExceptionFlags),  // fault_flags
+      static_cast<uint64_t>(GetCurrentProcessId()),                    // pid
+      static_cast<uint64_t>(GetCurrentThreadId()),                     // tid
+      static_cast<uint64_t>(time(nullptr))                             // timestamp
   );
-  write_newline(file);
 
-  // ExceptionFlags indicates whether the exception is continuable:
-  // - 0 = continuable exception (handler could theoretically fix and continue)
-  // - EXCEPTION_NONCONTINUABLE (0x1) = noncontinuable (must terminate)
-  write_str(file, "Exception flags: ");
-  write_hex_dword(file, exinfo->ExceptionRecord->ExceptionFlags);
-  write_newline(file);
-
-  write_str(file, "PID: ");
-  write_uint(file, GetCurrentProcessId());
-  write_newline(file);
-
-  write_str(file, "TID: ");
-  write_uint(file, GetCurrentThreadId());
-  write_newline(file);
-
-  // Timestamp (Unix epoch format for consistency with POSIX implementation)
-  time_t now = time(nullptr);
-  write_str(file, "Timestamp: ");
-  write_uint64(file, now);
-  write_newline(file);
+  // Write loaded modules
+  write_modules(file);
 
   // === Stack trace capture ===
   // Windows provides RtlCaptureStackBackTrace for simple stack walking without needing
   // to manually parse frame pointers. This function walks the stack using frame
   // pointers (if available) or unwind metadata from the PE's .pdata section.
-  write_str(file, "\nStack trace (raw addresses):\n");
 
   // Capture the call stack using RtlCaptureStackBackTrace, which returns an array of
   // return addresses for each frame. We skip the first frame (frame 0), which would be
@@ -388,15 +168,11 @@ static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
   void* stack[max_frames];
   const USHORT frames = RtlCaptureStackBackTrace(1, max_frames, stack, nullptr);
   for (USHORT i = 0; i < frames; i++) {
-    write_hex_address(file, reinterpret_cast<uintptr_t>(stack[i]));
-    write_newline(file);
+    WriteCrashReportStackFrame(file, reinterpret_cast<uint64_t>(stack[i]));
   }
 
-  // Write loaded modules
-  write_str(file, "\nLoaded Modules:\n");
-  write_modules(file);
-
-  write_str(file, "\n=== End of crash report ===\n");
+  // Write footer to mark end of crash report
+  WriteCrashReportFooter(file);
 
   // Intentionally leave the file handler open: CloseHandle could block or fail in an
   // exception context. Windows will clean up on process termination.
@@ -469,24 +245,21 @@ class InProcessCrashHandler final : public ICrashHandler {
 
     // Format a filename for this process's crash report file, with timestamp and PID:
     // note that the mere presence of this file does not indicate that a crash occurred,
-    // and the timestamp is SDK start time (to ensure uniqueness), not crash time
-    time_t now = time(nullptr);
-    struct tm tm_buf;
-    if (localtime_s(&tm_buf, &now) != 0) {
-      _logger.Error("Failed to get local time");
-      return false;
-    }
+    // and the timestamp is SDK start time (to ensure uniqueness), not crash time.
+    // Format: crash_<system-timestamp-in-ms>_<pid>
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    ULARGE_INTEGER uli;
+    uli.LowPart = ft.dwLowDateTime;
+    uli.HighPart = ft.dwHighDateTime;
+    // Convert from 100-nanosecond intervals since 1601 to milliseconds since Unix epoch
+    uint64_t timestamp_ms = (uli.QuadPart / 10000) - 11644473600000ULL;
     _snprintf_s(
         s_crash_filename,
         sizeof(s_crash_filename),
         _TRUNCATE,
-        ".crashes\\crash_%04d%02d%02d_%02d%02d%02d_%lu.txt",
-        tm_buf.tm_year + 1900,
-        tm_buf.tm_mon + 1,
-        tm_buf.tm_mday,
-        tm_buf.tm_hour,
-        tm_buf.tm_min,
-        tm_buf.tm_sec,
+        ".crashes\\crash_%" PRIu64 "_%lu",
+        timestamp_ms,
         static_cast<unsigned long>(GetCurrentProcessId())
     );
 

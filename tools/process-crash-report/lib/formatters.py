@@ -13,8 +13,9 @@ in both resolved and symbolicated forms.
 
 import sys
 from enum import Enum
+from pathlib import Path
 from typing import Optional, TextIO
-from .models import CrashReport, StackFrame, SymbolizedFrame
+from .models import CrashReport, StackFrame, SymbolizedFrame, Module
 
 
 class OutputMode(str, Enum):
@@ -23,9 +24,11 @@ class OutputMode(str, Enum):
 
     FULL: Complete output including filename, metadata, resolved stack, and symbolicated stack
     STACK: Only the symbolicated (or resolved if no symbolication) stack trace, no headers
+    RAW: Raw parsed binary crash report without resolution or symbolication
     """
     FULL = "full"
     STACK = "stack"
+    RAW = "raw"
 
 
 # === Frame Formatting ===
@@ -68,6 +71,56 @@ def format_symbolicated_frame(sym_frame: SymbolizedFrame) -> str:
         Formatted string with frame number, function name, and location
     """
     return f"  {sym_frame.frame_number}: {sym_frame.function} ({sym_frame.location})"
+
+
+# === Raw Crash Report Printing ===
+
+def print_raw_crash_report(
+    file_path: Path,
+    metadata: dict[str, str],
+    stack_addresses: list[int],
+    modules: list[Module],
+    output: TextIO = sys.stdout
+) -> None:
+    """
+    Print a raw crash report showing parsed binary data without resolution or symbolication.
+
+    This mode displays the crash metadata, raw stack addresses, and loaded modules
+    exactly as parsed from the binary file, without performing address resolution
+    or symbolication.
+
+    Args:
+        file_path: Path to the crash report file
+        metadata: Parsed metadata dictionary from crash report header
+        stack_addresses: Raw addresses from stack frame section
+        modules: Parsed Module objects from module section
+        output: Output stream (defaults to stdout)
+    """
+    # === Section 1: Filename ===
+    output.write("========================================================================\n")
+    output.write(f"Crash Report: {file_path.name}\n")
+    output.write("========================================================================\n")
+    output.write("\n")
+
+    # === Section 2: Metadata ===
+    output.write("=== Crash Metadata ===\n")
+    for key, value in metadata.items():
+        output.write(f"{key}: {value}\n")
+    output.write("\n")
+
+    # === Section 3: Raw Stack Trace ===
+    output.write("=== Stack Trace (Raw Addresses) ===\n")
+    for address in stack_addresses:
+        output.write(f"0x{address:016x}\n")
+    output.write("\n")
+
+    # === Section 4: Loaded Modules ===
+    output.write("=== Loaded Modules ===\n")
+    for module in modules:
+        output.write(f"0x{module.base_address:016x}-0x{module.end_address:016x} {module.path}\n")
+    output.write("\n")
+
+    output.write("========================================================================\n")
 
 
 # === Crash Report Printing ===
