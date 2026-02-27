@@ -413,7 +413,8 @@ void InitializeModuleBuildIdCache() {
 
   char line[4096];
   // Track which modules we've already cached (by pathname)
-  char cached_paths[kMaxCachedModules][256];
+  // Static storage to avoid 64KB stack allocation
+  static char cached_paths[kMaxCachedModules][256];
   size_t num_cached_paths = 0;
 
   while (fgets(line, sizeof(line), maps) &&
