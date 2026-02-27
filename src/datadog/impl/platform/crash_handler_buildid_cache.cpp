@@ -329,12 +329,13 @@ static bool ExtractElfBuildIdSafe(
   }
 
   // Read program headers
-  if (lseek(fd, ehdr.e_phoff, SEEK_SET) != static_cast<off_t>(ehdr.e_phoff)) {
-    close(fd);
-    return false;
-  }
-
   for (int i = 0; i < ehdr.e_phnum; ++i) {
+    // Seek to phdr table offset before each read to avoid lseek corruption
+    const off_t phdr_offset = ehdr.e_phoff + i * sizeof(Elf64_Phdr);
+    if (lseek(fd, phdr_offset, SEEK_SET) != phdr_offset) {
+      continue;
+    }
+
     Elf64_Phdr phdr;
     if (read(fd, &phdr, sizeof(phdr)) != sizeof(phdr)) {
       continue;
