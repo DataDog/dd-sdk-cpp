@@ -27,18 +27,26 @@
 
 namespace datadog::platform {
 
+// This file contains functions that extract build IDs from binary files (PE on Windows,
+// ELF on Linux). The Linux implementation must be usable from async-signal-safe
+// contexts, so it uses low-level C-style I/O. The following linter checks are disabled
+// because they conflict with these requirements:
+// NOLINTBEGIN(cert-err34-c)
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTBEGIN(cppcoreguidelines-owning-memory)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
+// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
+
 ModuleBuildIdCache g_module_build_id_cache = {};
-// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 const char* LookupCachedBuildId(uintptr_t base_address) {
   // Linear search through cache (async-signal-safe)
   const size_t count = g_module_build_id_cache.num_entries;
   for (size_t i = 0; i < count; ++i) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     const CachedModuleBuildId& entry = g_module_build_id_cache.entries[i];
     if (entry.valid && entry.base_address == base_address) {
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
       return entry.build_id;
     }
   }
@@ -331,7 +339,6 @@ void InitializeModuleBuildIdCache() {
         const size_t entry_idx = g_module_build_id_cache.num_entries;
         auto& cached = g_module_build_id_cache.entries[entry_idx];
         cached.base_address = reinterpret_cast<uintptr_t>(entry.modBaseAddr);
-        // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
         snprintf(cached.build_id, kMaxBuildIdLength, "%s", build_id);
         cached.valid = true;
         // Make entry visible to readers only after fully written
@@ -362,12 +369,12 @@ static bool ExtractElfBuildIdFromHeaders(
   // Read program headers with explicit seeking to avoid lseek corruption
   for (int i = 0; i < ehdr.e_phnum; ++i) {
     // Seek to phdr table offset before each read to avoid lseek corruption
-    const off_t phdr_offset = ehdr.e_phoff + i * sizeof(PhdrType);
+    const off_t phdr_offset = ehdr.e_phoff + (i * sizeof(PhdrType));
     if (lseek(fd, phdr_offset, SEEK_SET) != phdr_offset) {
       continue;
     }
 
-    PhdrType phdr;
+    PhdrType phdr{};
     if (read(fd, &phdr, sizeof(phdr)) != sizeof(phdr)) {
       continue;
     }
@@ -530,7 +537,6 @@ void InitializeModuleBuildIdCache() {
     char pathname[256] = {};
 
     // Parse: address_start-address_end perms offset dev:inode pathname
-    // NOLINTNEXTLINE(cert-err34-c)
     if (sscanf(
             line,
             "%lx-%lx %4s %*x %*x:%*x %*d %255s",
@@ -556,14 +562,12 @@ void InitializeModuleBuildIdCache() {
             const size_t entry_idx = g_module_build_id_cache.num_entries;
             auto& cached = g_module_build_id_cache.entries[entry_idx];
             cached.base_address = start_addr;
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
             snprintf(cached.build_id, kMaxBuildIdLength, "%s", build_id);
             cached.valid = true;
             // Make entry visible to readers only after fully written
             g_module_build_id_cache.num_entries = entry_idx + 1;
 
             // Track this path to avoid duplicates
-            // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
             snprintf(cached_paths[num_cached_paths], 256, "%s", pathname);
             ++num_cached_paths;
           }
@@ -584,5 +588,13 @@ void InitializeModuleBuildIdCache() {
 }
 
 #endif  // __APPLE__
+
+// NOLINTEND(cppcoreguidelines-pro-type-vararg)
+// NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
+// NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
+// NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+// NOLINTEND(cppcoreguidelines-owning-memory)
+// NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTEND(cert-err34-c)
 
 }  // namespace datadog::platform
