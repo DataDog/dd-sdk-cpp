@@ -94,8 +94,8 @@ static bool ExtractPEBuildIdFromOptionalHeader(
   }
 
   // Section headers start after optional header
-  LONG sections_offset = e_lfanew + 4 + sizeof(IMAGE_FILE_HEADER) +
-                         file_header.SizeOfOptionalHeader;
+  LONG sections_offset =
+      e_lfanew + 4 + sizeof(IMAGE_FILE_HEADER) + file_header.SizeOfOptionalHeader;
 
   if (is_64bit) {
     // Read 64-bit optional header
