@@ -381,8 +381,9 @@ static bool ExtractElfBuildIdSafe(
             memcmp(name, "GNU", 4) == 0) {
           // Format build ID as lowercase hex
           size_t out_idx = 0;
+          // Ensure room for 2 hex chars + null terminator
           for (size_t byte_idx = 0;
-               byte_idx < nhdr->n_descsz && out_idx < buffer_size - 1;
+               byte_idx < nhdr->n_descsz && out_idx <= buffer_size - 3;
                ++byte_idx) {
             snprintf(
                 out_buffer + out_idx, buffer_size - out_idx, "%02x", desc[byte_idx]
