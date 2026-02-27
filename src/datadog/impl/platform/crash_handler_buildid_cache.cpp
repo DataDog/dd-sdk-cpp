@@ -348,59 +348,26 @@ void InitializeModuleBuildIdCache() {
 #ifdef __linux__
 
 /**
- * Extract ELF build ID from Linux binary file.
+ * Extract ELF build ID from program headers (template for 32-bit and 64-bit).
  *
- * Opens the ELF file at `module_path`, reads program headers to find PT_NOTE
- * segments, parses note entries to find the NT_GNU_BUILD_ID note, and formats the
- * build ID as lowercase hex (e.g., "8c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d").
- *
- * Returns true on success (build ID written to `out_buffer`), false on failure.
- * This function uses file I/O and is NOT async-signal-safe.
+ * Reads program headers to find PT_NOTE segments, parses note entries to find the
+ * NT_GNU_BUILD_ID note, and formats the build ID as lowercase hex. This template
+ * helper is instantiated for both Elf32 and Elf64 types by `ExtractElfBuildIdSafe`
+ * after ELF class detection.
  */
-static bool ExtractElfBuildIdSafe(
-    const char* module_path, char* out_buffer, size_t buffer_size
+template <typename EhdrType, typename PhdrType, typename NhdrType>
+static bool ExtractElfBuildIdFromHeaders(
+    int fd, const EhdrType& ehdr, char* out_buffer, size_t buffer_size
 ) {
-  if (buffer_size < 41) {  // Typical 20-byte build ID = 40 hex chars + null
-    return false;
-  }
-
-  int fd = open(module_path, O_RDONLY);
-  if (fd < 0) {
-    return false;
-  }
-
-  // Read ELF header
-  Elf64_Ehdr ehdr;
-  if (read(fd, &ehdr, sizeof(ehdr)) != sizeof(ehdr)) {
-    close(fd);
-    return false;
-  }
-
-  // Validate ELF magic
-  if (ehdr.e_ident[EI_MAG0] != ELFMAG0 || ehdr.e_ident[EI_MAG1] != ELFMAG1 ||
-      ehdr.e_ident[EI_MAG2] != ELFMAG2 || ehdr.e_ident[EI_MAG3] != ELFMAG3) {
-    close(fd);
-    return false;
-  }
-
-  // Check if 64-bit or 32-bit
-  const bool is_64bit = (ehdr.e_ident[EI_CLASS] == ELFCLASS64);
-
-  if (!is_64bit) {
-    // Handle 32-bit ELF (not shown for brevity - would need Elf32_* types)
-    close(fd);
-    return false;
-  }
-
-  // Read program headers
+  // Read program headers with explicit seeking to avoid lseek corruption
   for (int i = 0; i < ehdr.e_phnum; ++i) {
     // Seek to phdr table offset before each read to avoid lseek corruption
-    const off_t phdr_offset = ehdr.e_phoff + i * sizeof(Elf64_Phdr);
+    const off_t phdr_offset = ehdr.e_phoff + i * sizeof(PhdrType);
     if (lseek(fd, phdr_offset, SEEK_SET) != phdr_offset) {
       continue;
     }
 
-    Elf64_Phdr phdr;
+    PhdrType phdr;
     if (read(fd, &phdr, sizeof(phdr)) != sizeof(phdr)) {
       continue;
     }
@@ -422,9 +389,9 @@ static bool ExtractElfBuildIdSafe(
 
       // Parse note entries
       size_t offset = 0;
-      while (offset + sizeof(Elf64_Nhdr) <= note_size) {
-        const auto* nhdr = reinterpret_cast<const Elf64_Nhdr*>(note_data + offset);
-        offset += sizeof(Elf64_Nhdr);
+      while (offset + sizeof(NhdrType) <= note_size) {
+        const auto* nhdr = reinterpret_cast<const NhdrType*>(note_data + offset);
+        offset += sizeof(NhdrType);
 
         // Align name and desc to 4-byte boundaries
         const size_t name_size_aligned = (nhdr->n_namesz + 3) & ~3;
@@ -456,15 +423,89 @@ static bool ExtractElfBuildIdSafe(
           }
           out_buffer[out_idx] = '\0';
 
-          close(fd);
           return true;
         }
       }
     }
   }
 
-  close(fd);
   return false;
+}
+
+/**
+ * Extract ELF build ID from Linux binary file.
+ *
+ * Opens the ELF file at `module_path`, reads program headers to find PT_NOTE
+ * segments, parses note entries to find the NT_GNU_BUILD_ID note, and formats the
+ * build ID as lowercase hex (e.g., "8c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d").
+ *
+ * Supports both 32-bit (Elf32_*) and 64-bit (Elf64_*) ELF files by detecting the
+ * ELF class from e_ident[EI_CLASS].
+ *
+ * Returns true on success (build ID written to `out_buffer`), false on failure.
+ * This function uses file I/O and is NOT async-signal-safe.
+ */
+static bool ExtractElfBuildIdSafe(
+    const char* module_path, char* out_buffer, size_t buffer_size
+) {
+  if (buffer_size < 41) {  // Typical 20-byte build ID = 40 hex chars + null
+    return false;
+  }
+
+  int fd = open(module_path, O_RDONLY);
+  if (fd < 0) {
+    return false;
+  }
+
+  // Read e_ident (first 16 bytes, common to 32-bit and 64-bit ELF)
+  unsigned char e_ident[EI_NIDENT];
+  if (read(fd, e_ident, EI_NIDENT) != EI_NIDENT) {
+    close(fd);
+    return false;
+  }
+
+  // Validate ELF magic
+  if (e_ident[EI_MAG0] != ELFMAG0 || e_ident[EI_MAG1] != ELFMAG1 ||
+      e_ident[EI_MAG2] != ELFMAG2 || e_ident[EI_MAG3] != ELFMAG3) {
+    close(fd);
+    return false;
+  }
+
+  // Check ELF class (32-bit or 64-bit)
+  const bool is_64bit = (e_ident[EI_CLASS] == ELFCLASS64);
+  const bool is_32bit = (e_ident[EI_CLASS] == ELFCLASS32);
+
+  if (!is_64bit && !is_32bit) {
+    // Unsupported ELF class
+    close(fd);
+    return false;
+  }
+
+  // Seek back to start to read full header
+  if (lseek(fd, 0, SEEK_SET) != 0) {
+    close(fd);
+    return false;
+  }
+
+  bool success = false;
+  if (is_64bit) {
+    Elf64_Ehdr ehdr;
+    if (read(fd, &ehdr, sizeof(ehdr)) == sizeof(ehdr)) {
+      success = ExtractElfBuildIdFromHeaders<Elf64_Ehdr, Elf64_Phdr, Elf64_Nhdr>(
+          fd, ehdr, out_buffer, buffer_size
+      );
+    }
+  } else if (is_32bit) {
+    Elf32_Ehdr ehdr;
+    if (read(fd, &ehdr, sizeof(ehdr)) == sizeof(ehdr)) {
+      success = ExtractElfBuildIdFromHeaders<Elf32_Ehdr, Elf32_Phdr, Elf32_Nhdr>(
+          fd, ehdr, out_buffer, buffer_size
+      );
+    }
+  }
+
+  close(fd);
+  return success;
 }
 
 void InitializeModuleBuildIdCache() {
