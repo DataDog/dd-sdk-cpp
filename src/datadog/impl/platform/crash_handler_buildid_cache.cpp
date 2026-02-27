@@ -70,90 +70,70 @@ static bool rva_to_file_offset(
 }
 
 /**
- * Extract PE GUID+Age from Windows binary file.
+ * Extract PE build ID from optional header (32-bit or 64-bit).
  *
- * Opens the PE file at `module_path`, reads the debug directory to find the CodeView
- * record, extracts the GUID and Age, and formats them as uppercase hex with no
- * delimiters (e.g., "F4A7B2C3D1E5F6789ABCDEF0123456785").
- *
- * Returns true on success (build ID written to `out_buffer`), false on failure.
- * This function uses file I/O and is NOT async-signal-safe.
+ * Reads the appropriate optional header type based on `is_64bit`, locates the debug
+ * directory, reads section headers to convert RVAs to file offsets, and extracts the
+ * CodeView record (GUID+Age). This helper is called by `ExtractPEBuildIdSafe` after
+ * architecture detection.
  */
-static bool ExtractPEBuildIdSafe(
-    const char* module_path, char* out_buffer, size_t buffer_size
+static bool ExtractPEBuildIdFromOptionalHeader(
+    HANDLE file,
+    LONG e_lfanew,
+    bool is_64bit,
+    const IMAGE_FILE_HEADER& file_header,
+    char* out_buffer,
+    size_t buffer_size
 ) {
-  if (buffer_size < 42) {  // 32 hex chars for GUID + up to 10 for Age + null
-    return false;
-  }
-
-  HANDLE file = CreateFileA(
-      module_path,
-      GENERIC_READ,
-      FILE_SHARE_READ,
-      nullptr,
-      OPEN_EXISTING,
-      FILE_ATTRIBUTE_NORMAL,
-      nullptr
-  );
-  if (file == INVALID_HANDLE_VALUE) {
-    return false;
-  }
-
-  // Read DOS header to get offset to NT headers
-  IMAGE_DOS_HEADER dos_header;
   DWORD bytes_read = 0;
-  if (!ReadFile(file, &dos_header, sizeof(dos_header), &bytes_read, nullptr) ||
-      bytes_read != sizeof(dos_header) || dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
-    CloseHandle(file);
+  IMAGE_DATA_DIRECTORY debug_dir = {};
+  WORD num_sections = file_header.NumberOfSections;
+
+  if (num_sections == 0 || num_sections > 96) {
     return false;
   }
 
-  // Seek to NT headers
-  if (SetFilePointer(file, dos_header.e_lfanew, nullptr, FILE_BEGIN) ==
-      INVALID_SET_FILE_POINTER) {
-    CloseHandle(file);
-    return false;
+  // Section headers start after optional header
+  LONG sections_offset = e_lfanew + 4 + sizeof(IMAGE_FILE_HEADER) +
+                         file_header.SizeOfOptionalHeader;
+
+  if (is_64bit) {
+    // Read 64-bit optional header
+    IMAGE_OPTIONAL_HEADER64 opt_header;
+    if (!ReadFile(file, &opt_header, sizeof(opt_header), &bytes_read, nullptr) ||
+        bytes_read != sizeof(opt_header)) {
+      return false;
+    }
+
+    // Locate debug directory in data directories
+    if (opt_header.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG) {
+      return false;
+    }
+    debug_dir = opt_header.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
+  } else {
+    // Read 32-bit optional header
+    IMAGE_OPTIONAL_HEADER32 opt_header;
+    if (!ReadFile(file, &opt_header, sizeof(opt_header), &bytes_read, nullptr) ||
+        bytes_read != sizeof(opt_header)) {
+      return false;
+    }
+
+    // Locate debug directory in data directories
+    if (opt_header.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG) {
+      return false;
+    }
+    debug_dir = opt_header.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
   }
 
-  // Read NT headers (64-bit)
-  IMAGE_NT_HEADERS64 nt_headers;
-  if (!ReadFile(file, &nt_headers, sizeof(nt_headers), &bytes_read, nullptr) ||
-      bytes_read != sizeof(nt_headers) || nt_headers.Signature != IMAGE_NT_SIGNATURE) {
-    CloseHandle(file);
-    return false;
-  }
-
-  // Locate debug directory in data directories
-  if (nt_headers.OptionalHeader.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG) {
-    CloseHandle(file);
-    return false;
-  }
-
-  const IMAGE_DATA_DIRECTORY& debug_dir =
-      nt_headers.OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
   if (debug_dir.Size == 0) {
-    CloseHandle(file);
     return false;
   }
 
   // Read PE section headers to convert the debug directory RVA to a file offset.
   // IMAGE_DATA_DIRECTORY.VirtualAddress is an RVA, not a file offset; the section
   // headers are needed to perform the mapping.
-  const WORD num_sections = nt_headers.FileHeader.NumberOfSections;
-  if (num_sections == 0 || num_sections > 96) {
-    CloseHandle(file);
-    return false;
-  }
-
-  // Section headers immediately follow the optional header, which starts at
-  // e_lfanew + FIELD_OFFSET(IMAGE_NT_HEADERS64, OptionalHeader).
-  const LONG sections_offset =
-      dos_header.e_lfanew +
-      static_cast<LONG>(FIELD_OFFSET(IMAGE_NT_HEADERS64, OptionalHeader)) +
-      nt_headers.FileHeader.SizeOfOptionalHeader;
   if (SetFilePointer(file, sections_offset, nullptr, FILE_BEGIN) ==
       INVALID_SET_FILE_POINTER) {
-    CloseHandle(file);
     return false;
   }
 
@@ -161,7 +141,6 @@ static bool ExtractPEBuildIdSafe(
   const DWORD sections_bytes = num_sections * sizeof(IMAGE_SECTION_HEADER);
   if (!ReadFile(file, sections, sections_bytes, &bytes_read, nullptr) ||
       bytes_read != sections_bytes) {
-    CloseHandle(file);
     return false;
   }
 
@@ -169,7 +148,6 @@ static bool ExtractPEBuildIdSafe(
   if (!rva_to_file_offset(
           sections, num_sections, debug_dir.VirtualAddress, &debug_dir_offset
       )) {
-    CloseHandle(file);
     return false;
   }
 
@@ -236,13 +214,97 @@ static bool ExtractPEBuildIdSafe(
           cv_record.age
       );
 
-      CloseHandle(file);
       return true;
     }
   }
 
-  CloseHandle(file);
   return false;
+}
+
+/**
+ * Extract PE GUID+Age from Windows binary file.
+ *
+ * Opens the PE file at `module_path`, reads the debug directory to find the CodeView
+ * record, extracts the GUID and Age, and formats them as uppercase hex with no
+ * delimiters (e.g., "F4A7B2C3D1E5F6789ABCDEF0123456785").
+ *
+ * Supports both 32-bit (IMAGE_OPTIONAL_HEADER32) and 64-bit (IMAGE_OPTIONAL_HEADER64)
+ * PE files by detecting the architecture from IMAGE_FILE_HEADER.Machine.
+ *
+ * Returns true on success (build ID written to `out_buffer`), false on failure.
+ * This function uses file I/O and is NOT async-signal-safe.
+ */
+static bool ExtractPEBuildIdSafe(
+    const char* module_path, char* out_buffer, size_t buffer_size
+) {
+  if (buffer_size < 42) {  // 32 hex chars for GUID + up to 10 for Age + null
+    return false;
+  }
+
+  HANDLE file = CreateFileA(
+      module_path,
+      GENERIC_READ,
+      FILE_SHARE_READ,
+      nullptr,
+      OPEN_EXISTING,
+      FILE_ATTRIBUTE_NORMAL,
+      nullptr
+  );
+  if (file == INVALID_HANDLE_VALUE) {
+    return false;
+  }
+
+  // Read DOS header to get offset to NT headers
+  IMAGE_DOS_HEADER dos_header;
+  DWORD bytes_read = 0;
+  if (!ReadFile(file, &dos_header, sizeof(dos_header), &bytes_read, nullptr) ||
+      bytes_read != sizeof(dos_header) || dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
+    CloseHandle(file);
+    return false;
+  }
+
+  // Seek to NT headers
+  if (SetFilePointer(file, dos_header.e_lfanew, nullptr, FILE_BEGIN) ==
+      INVALID_SET_FILE_POINTER) {
+    CloseHandle(file);
+    return false;
+  }
+
+  // Read NT signature (4 bytes)
+  DWORD nt_signature = 0;
+  if (!ReadFile(file, &nt_signature, sizeof(nt_signature), &bytes_read, nullptr) ||
+      bytes_read != sizeof(nt_signature) || nt_signature != IMAGE_NT_SIGNATURE) {
+    CloseHandle(file);
+    return false;
+  }
+
+  // Read FILE_HEADER to determine architecture
+  IMAGE_FILE_HEADER file_header;
+  if (!ReadFile(file, &file_header, sizeof(file_header), &bytes_read, nullptr) ||
+      bytes_read != sizeof(file_header)) {
+    CloseHandle(file);
+    return false;
+  }
+
+  // Detect architecture from Machine field
+  bool is_64bit = false;
+  if (file_header.Machine == IMAGE_FILE_MACHINE_AMD64) {
+    is_64bit = true;
+  } else if (file_header.Machine == IMAGE_FILE_MACHINE_I386) {
+    is_64bit = false;
+  } else {
+    // Unsupported architecture
+    CloseHandle(file);
+    return false;
+  }
+
+  // Extract build ID from optional header (handles both 32-bit and 64-bit)
+  const bool success = ExtractPEBuildIdFromOptionalHeader(
+      file, dos_header.e_lfanew, is_64bit, file_header, out_buffer, buffer_size
+  );
+
+  CloseHandle(file);
+  return success;
 }
 
 void InitializeModuleBuildIdCache() {
