@@ -55,11 +55,11 @@
  * 0x0048: start_address
  * 0x0050: end_address
  * 0x0058: num_path_bytes (4)
- * 0x0060: num_buildid_bytes (3)
- * 0x0068: /
- * 0x0069: f
- * 0x006a: o
- * 0x006b: o
+ * 0x0060: /
+ * 0x0061: f
+ * 0x0062: o
+ * 0x0063: o
+ * 0x0064: num_buildid_bytes (3)
  * 0x006c: a
  * 0x006d: b
  * 0x006e: c
@@ -67,11 +67,11 @@
  * 0x0077: start_address
  * 0x007f: end_address
  * 0x0087: num_path_bytes (4)
- * 0x008f: num_buildid_bytes (0)
- * 0x0097: /
- * 0x0098: b
- * 0x0099: a
- * 0x009a: r
+ * 0x008f: /
+ * 0x0090: b
+ * 0x0091: a
+ * 0x0092: r
+ * 0x0093: num_buildid_bytes (0)
  * 0x009b: <CrashReportStackFrameMagic>
  * 0x00a3: raw_address
  * 0x00ab: <CrashReportStackFrameMagic>
@@ -117,8 +117,7 @@ struct CrashReportHeader {
  * - path_length (uint64_t) - followed by path_length bytes of UTF-8 path data
  * - buildid_length (uint64_t) - followed by buildid_length bytes of UTF-8 build ID
  *
- * The path and build ID are encoded as length-prefixed strings (length immediately
- * precedes the string data).
+ * The path and build ID are encoded as length-prefixed strings, with no terminators.
  */
 struct CrashReportModuleHeader {
   uint64_t start_addr;  // Address in virtual memory where this module is loaded
