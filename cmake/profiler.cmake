@@ -27,8 +27,12 @@ target_link_libraries(dd_native PRIVATE dd-win-prof)
 target_compile_definitions(dd_native PUBLIC DD_PROFILER_ENABLED)
 
 if(DD_BUILD_INSTALL)
-    # Install dd-win-prof.dll to bin/ so it ships alongside the SDK
-    install(TARGETS dd-win-prof RUNTIME DESTINATION bin)
+    # Install dd-win-prof.dll to bin/ so it ships alongside the SDK. Include it in
+    # the DatadogTargets export set since dd_native depends on it.
+    install(TARGETS dd-win-prof
+        EXPORT DatadogTargets
+        RUNTIME DESTINATION bin
+    )
 
     # Install datadog_profiling_ffi.dll, which dd-win-prof.dll loads at runtime.
     # The path is config-specific; DD_WIN_PROF_LIBDATADOG_DIR is set by dd-win-prof's
