@@ -122,6 +122,11 @@ target_link_libraries(dd_native_tests
     Catch2::Catch2WithMain
 )
 
+# Suppress unreachable code warnings from Catch2 headers on MSVC
+if(MSVC)
+    target_compile_options(dd_native_tests PRIVATE /wd4702)
+endif()
+
 # Register tests with CTest
 include(CTest)
 include(Catch)
