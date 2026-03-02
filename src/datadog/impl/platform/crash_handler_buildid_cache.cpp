@@ -29,8 +29,7 @@ namespace datadog::platform {
 
 // This file contains functions that extract build IDs from binary files (PE on Windows,
 // ELF on Linux). The Linux implementation must be usable from async-signal-safe
-// contexts, so it uses low-level C-style I/O. The following linter checks are disabled
-// because they conflict with these requirements:
+// contexts, so it uses low-level C-style I/O.
 // NOLINTBEGIN(bugprone-unchecked-string-to-number-conversion)
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
@@ -45,7 +44,7 @@ ModuleBuildIdCache g_module_build_id_cache = {};
 #ifdef _WIN32
 
 /**
- * Maps an RVA (relative virtual address) to a file offset by walking the section header
+ * Maps a relative virtual address (RVA) to a file offset by walking the section header
  * array. Returns true and writes the file offset to `out_offset` if the RVA falls
  * within one of the sections; returns false otherwise.
  */
@@ -55,13 +54,24 @@ static bool rva_to_file_offset(
     DWORD rva,
     DWORD* out_offset
 ) {
+  // Iterate through the headers describing each section of the PE binary, until we find
+  // the section that contains the relative virtual address we want to resolve
   for (WORD i = 0; i < num_sections; ++i) {
-    const DWORD vaddr = sections[i].VirtualAddress;
-    // Use VirtualSize when available; fall back to SizeOfRawData
-    DWORD vsize = sections[i].Misc.VirtualSize;
-    if (vsize == 0) vsize = sections[i].SizeOfRawData;
-    if (rva >= vaddr && rva < vaddr + vsize) {
-      *out_offset = sections[i].PointerToRawData + (rva - vaddr);
+    // VirtualSize is the size of the section in memory; fall back to SizeOfRawData
+    // (size of section in the file) if not available
+    DWORD section_size = sections[i].Misc.VirtualSize;
+    if (section_size == 0) {
+      section_size = sections[i].SizeOfRawData;
+    }
+
+    // VirtualAddress denotes where the section is loaded into memory
+    const DWORD section_start = sections[i].VirtualAddress;
+    const DWORD section_end = section_start + section_size;
+
+    // If the RVA we're looking for lies within this section, then we can compute the
+    // offset into the file that corresponds to the start of the section
+    if (rva >= section_start && rva < section_end) {
+      *out_offset = sections[i].PointerToRawData + (rva - section_start);
       return true;
     }
   }
@@ -69,154 +79,131 @@ static bool rva_to_file_offset(
 }
 
 /**
- * Extracts PE build ID from optional header (32-bit or 64-bit).
+ * Extracts PE build ID from optional header (template helper for 32-bit or 64-bit).
  *
- * Reads the appropriate optional header type based on `is_64bit`, locates the debug
- * directory, reads section headers to convert RVAs to file offsets, and extracts the
- * CodeView record (GUID+Age). This helper is called by `extract_pe_build_id` after
- * architecture detection.
+ * Locates the debug directory using the DataDirectory table in `opt_header`, converts
+ * the debug directory RVA to a file offset using `sections`, seeks to that offset in
+ * `file`, and iterates through IMAGE_DEBUG_DIRECTORY entries to find the CodeView
+ * record containing the PDB GUID and Age. Formats the build ID as uppercase hex
+ * (GUID+Age) and writes it to `out_buffer`.
+ *
+ * This template helper is instantiated with `OhdrType` = IMAGE_OPTIONAL_HEADER32 or
+ * IMAGE_OPTIONAL_HEADER64 by `extract_pe_build_id` after architecture detection, to
+ * handle both 32-bit and 64-bit PE files with the same logic.
+ *
+ * Returns true on success (build ID written to `out_buffer`), false if the file lacks
+ * debug information or cannot be read.
  */
+template <typename OhdrType>
 static bool extract_pe_build_id_from_optional_header(
     HANDLE file,
-    LONG e_lfanew,
-    bool is_64bit,
-    const IMAGE_FILE_HEADER& file_header,
+    const OhdrType& opt_header,
+    const IMAGE_SECTION_HEADER* sections,
+    WORD num_sections,
     char* out_buffer,
     size_t buffer_size
 ) {
-  DWORD bytes_read = 0;
-  IMAGE_DATA_DIRECTORY debug_dir = {};
-  WORD num_sections = file_header.NumberOfSections;
-
-  if (num_sections == 0 || num_sections > 96) {
+  // IMAGE_OPTIONAL_HEADER64/32 contains a lookup table, DataDirectory, with predefined
+  // indices for common data that's encoded in the PE file. The DEBUG entry tells us
+  // where we can find an array of IMAGE_DEBUG_DIRECTORY values.
+  if (opt_header.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG) {
+    // File does not contain enough extra sections; unable to read debug info
     return false;
   }
+  const IMAGE_DATA_DIRECTORY& debug_dir =
+      opt_header.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
 
-  // Section headers start after optional header
-  LONG sections_offset =
-      e_lfanew + 4 + sizeof(IMAGE_FILE_HEADER) + file_header.SizeOfOptionalHeader;
-
-  if (is_64bit) {
-    // Read 64-bit optional header
-    IMAGE_OPTIONAL_HEADER64 opt_header;
-    if (!ReadFile(file, &opt_header, sizeof(opt_header), &bytes_read, nullptr) ||
-        bytes_read != sizeof(opt_header)) {
-      return false;
-    }
-
-    // Locate debug directory in data directories
-    if (opt_header.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG) {
-      return false;
-    }
-    debug_dir = opt_header.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
-  } else {
-    // Read 32-bit optional header
-    IMAGE_OPTIONAL_HEADER32 opt_header;
-    if (!ReadFile(file, &opt_header, sizeof(opt_header), &bytes_read, nullptr) ||
-        bytes_read != sizeof(opt_header)) {
-      return false;
-    }
-
-    // Locate debug directory in data directories
-    if (opt_header.NumberOfRvaAndSizes <= IMAGE_DIRECTORY_ENTRY_DEBUG) {
-      return false;
-    }
-    debug_dir = opt_header.DataDirectory[IMAGE_DIRECTORY_ENTRY_DEBUG];
-  }
-
-  if (debug_dir.Size == 0) {
-    return false;
-  }
-
-  // Read PE section headers to convert the debug directory RVA to a file offset.
-  // IMAGE_DATA_DIRECTORY.VirtualAddress is an RVA, not a file offset; the section
-  // headers are needed to perform the mapping.
-  if (SetFilePointer(file, sections_offset, nullptr, FILE_BEGIN) ==
-      INVALID_SET_FILE_POINTER) {
-    return false;
-  }
-
-  IMAGE_SECTION_HEADER sections[96];
-  const DWORD sections_bytes = num_sections * sizeof(IMAGE_SECTION_HEADER);
-  if (!ReadFile(file, sections, sections_bytes, &bytes_read, nullptr) ||
-      bytes_read != sections_bytes) {
-    return false;
-  }
-
+  // Our IMAGE_DATA_DIRECTORY value gives us the virtual address where the
+  // IMAGE_DEBUG_DIRECTORY array will be loaded, relative to the base address of the
+  // module. We need to convert this relative virtual address (RVA) to a file offset, by
+  // finding the PE section that includes the IMAGE_DEBUG_DIRECTORY array and computing
+  // an offset from that section's position in the file.
+  const DWORD debug_dir_rva = debug_dir.VirtualAddress;
   DWORD debug_dir_offset = 0;
-  if (!rva_to_file_offset(
-          sections, num_sections, debug_dir.VirtualAddress, &debug_dir_offset
-      )) {
+  if (!rva_to_file_offset(sections, num_sections, debug_dir_rva, &debug_dir_offset)) {
+    // Failed to compute file offset; unable to read debug info
     return false;
   }
 
-  // Read debug directory entries
-  const DWORD num_entries = debug_dir.Size / sizeof(IMAGE_DEBUG_DIRECTORY);
-  for (DWORD i = 0; i < num_entries; ++i) {
-    if (SetFilePointer(
-            file,
-            debug_dir_offset + i * sizeof(IMAGE_DEBUG_DIRECTORY),
-            nullptr,
-            FILE_BEGIN
-        ) == INVALID_SET_FILE_POINTER) {
-      continue;
-    }
+  // Seek to the file offset where the IMAGE_DEBUG_DIRECTORY array begins, so we can
+  // read each entry sequentially until we find the data we need
+  if (SetFilePointer(file, debug_dir_offset, nullptr, FILE_BEGIN) ==
+      INVALID_SET_FILE_POINTER) {
+    // Seek failed; unable to read debug info
+    return false;
+  }
 
+  // A PE binary may contain multiple debug directory entries, each with a different
+  // type. We're looking for an entry with type IMAGE_DEBUG_TYPE_CODEVIEW, indicating a
+  // CodeView record that contains the PDB GUID and Age values.
+  DWORD bytes_read = 0;
+  const DWORD num_debug_entries = debug_dir.Size / sizeof(IMAGE_DEBUG_DIRECTORY);
+  for (DWORD i = 0; i < num_debug_entries; ++i) {
+    // Read the next debug entry from the file
     IMAGE_DEBUG_DIRECTORY debug_entry;
     if (!ReadFile(file, &debug_entry, sizeof(debug_entry), &bytes_read, nullptr) ||
         bytes_read != sizeof(debug_entry)) {
+      // Read failed; unable to resolve CodeView record
+      return false;
+    }
+
+    // If this entry does not describe a CodeView record, ignore it and continue reading
+    // the next entry
+    if (debug_entry.Type != IMAGE_DEBUG_TYPE_CODEVIEW) {
       continue;
     }
 
-    // Look for CodeView debug information (type 2)
-    if (debug_entry.Type == IMAGE_DEBUG_TYPE_CODEVIEW) {
-      // Read CodeView record
-      if (SetFilePointer(file, debug_entry.PointerToRawData, nullptr, FILE_BEGIN) ==
-          INVALID_SET_FILE_POINTER) {
-        continue;
-      }
-
-      // CodeView record starts with signature (4 bytes), then GUID (16 bytes), then Age
-      struct CodeViewRecord {
-        DWORD signature;
-        GUID guid;
-        DWORD age;
-      };
-
-      CodeViewRecord cv_record;
-      if (!ReadFile(file, &cv_record, sizeof(cv_record), &bytes_read, nullptr) ||
-          bytes_read != sizeof(cv_record)) {
-        continue;
-      }
-
-      // Check for RSDS signature (0x53445352)
-      if (cv_record.signature != 0x53445352) {
-        continue;
-      }
-
-      // Format GUID and Age as uppercase hex: Data1-Data2-Data3-Data4[0-7]-Age
-      snprintf(
-          out_buffer,
-          buffer_size,
-          "%08X%04X%04X%02X%02X%02X%02X%02X%02X%02X%02X%u",
-          cv_record.guid.Data1,
-          cv_record.guid.Data2,
-          cv_record.guid.Data3,
-          cv_record.guid.Data4[0],
-          cv_record.guid.Data4[1],
-          cv_record.guid.Data4[2],
-          cv_record.guid.Data4[3],
-          cv_record.guid.Data4[4],
-          cv_record.guid.Data4[5],
-          cv_record.guid.Data4[6],
-          cv_record.guid.Data4[7],
-          cv_record.age
-      );
-
-      return true;
+    // debug_entry describes where we can find the CodeView record that contains our PDB
+    // GUID and Age: PointerToRawData gives us an exact offset into the file, so seek to
+    // that position
+    if (SetFilePointer(file, debug_entry.PointerToRawData, nullptr, FILE_BEGIN) ==
+        INVALID_SET_FILE_POINTER) {
+      // Seek failed; unable to read CodeView record
+      return false;
     }
+
+    // We can now read the required data encoded in CodeView format
+    struct CodeViewRecord {
+      DWORD signature;  // "RSDS" = 0x53445352
+      GUID guid;        // Unique identifier for this build
+      DWORD age;        // Incremental counter
+      // Followed by null-terminated PDB path string
+    };
+    CodeViewRecord cv_record;
+    if (!ReadFile(file, &cv_record, sizeof(cv_record), &bytes_read, nullptr) ||
+        bytes_read != sizeof(cv_record)) {
+      // Read failed; unable to parse CodeView record
+      return false;
+    }
+    if (cv_record.signature != 0x53445352) {
+      // Invalid CodeView format; abort
+      return false;
+    }
+
+    // Write our build ID to the output buffer, formatting GUID and Age as uppercase
+    // hex without delimiters: {Data1}{Data2}{Data3}{Data4[0-7]}{Age}
+    snprintf(
+        out_buffer,
+        buffer_size,
+        "%08X%04X%04X%02X%02X%02X%02X%02X%02X%02X%02X%u",
+        cv_record.guid.Data1,
+        cv_record.guid.Data2,
+        cv_record.guid.Data3,
+        cv_record.guid.Data4[0],
+        cv_record.guid.Data4[1],
+        cv_record.guid.Data4[2],
+        cv_record.guid.Data4[3],
+        cv_record.guid.Data4[4],
+        cv_record.guid.Data4[5],
+        cv_record.guid.Data4[6],
+        cv_record.guid.Data4[7],
+        cv_record.age
+    );
+    return true;
   }
 
+  // We've iterated over all debug entries without finding a CodeView record: there is
+  // no build ID encoded in this file
   return false;
 }
 
@@ -236,10 +223,15 @@ static bool extract_pe_build_id_from_optional_header(
 static bool extract_pe_build_id(
     const char* module_path, char* out_buffer, size_t buffer_size
 ) {
-  if (buffer_size < 42) {  // 32 hex chars for GUID + up to 10 for Age + null
+  // Require a large enough output buffer to fit any PE build ID: 32 hex chars for GUID,
+  // up to 10 decimal digits for Age, plus null terminator
+  if (buffer_size < 42) {
+    // Insufficient buffer size; abort
     return false;
   }
 
+  // TODO: Accept const wchar_t*, use CreateFileW, use MODULEENTRY32W
+  // Open the PE file for read
   HANDLE file = CreateFileA(
       module_path,
       GENERIC_READ,
@@ -253,80 +245,183 @@ static bool extract_pe_build_id(
     return false;
   }
 
-  // Read DOS header to get offset to NT headers
+  // A PE binary begins with a DOS header, which contains an e_lfanew value denoting
+  // the offset into the file at which we can find the NT header:
+  //
+  // - 0x0000 [DOS header (IMAGE_DOS_HEADER) - 64 bytes]
+  // - 0x0040 [DOS stub - variable size]
+  //
+  // The NT header consists of a 4-byte magic constant "PE\0\0", followed by an
+  // IMAGE_FILE_HEADER, then an IMAGE_OPTIONAL_HEADER64 or IMAGE_OPTIONAL_HEADER32
+  // value
+  // ("optional" in the context of object files; actually required for compiled PE
+  // binaries), followed by a packed array of IMAGE_SECTION_HEADER values describing
+  // each of the sections (e.g. .text, .data, .bss) in the PE file.
+  //
+  // Assuming dos_header.e_lfanew is 0x0080, then we might find:
+  //
+  // - 0x0080: ["PE\0\0" - 4 bytes]
+  // - 0x0084: [IMAGE_FILE_HEADER - 20 bytes]
+  // - 0x0098: [IMAGE_OPTIONAL_HEADER64|32 - file_header.SizeOfOptionalHeader]
+  // - 0x????: [Section headers (IMAGE_SECTION_HEADER) * file_header.NumberOfSections]
+
+  // From the start of the file, read the DOS header so we can get the offset to the
+  // NT header
   IMAGE_DOS_HEADER dos_header;
   DWORD bytes_read = 0;
   if (!ReadFile(file, &dos_header, sizeof(dos_header), &bytes_read, nullptr) ||
       bytes_read != sizeof(dos_header) || dos_header.e_magic != IMAGE_DOS_SIGNATURE) {
+    // Read failed or invalid DOS header; abort
     CloseHandle(file);
     return false;
   }
 
-  // Seek to NT headers
+  // Seek to the position indicated by e_lfanew, so we can start reading from the NT
+  // header
   if (SetFilePointer(file, dos_header.e_lfanew, nullptr, FILE_BEGIN) ==
       INVALID_SET_FILE_POINTER) {
+    // Seek failed; abort
     CloseHandle(file);
     return false;
   }
 
-  // Read NT signature (4 bytes)
+  // Read the next 4 bytes to verify the NT signature ("PE\0\0", i.e. 0x00004550)
   DWORD nt_signature = 0;
   if (!ReadFile(file, &nt_signature, sizeof(nt_signature), &bytes_read, nullptr) ||
       bytes_read != sizeof(nt_signature) || nt_signature != IMAGE_NT_SIGNATURE) {
+    // Read failed or invalid NT signature; abort
     CloseHandle(file);
     return false;
   }
 
-  // Read FILE_HEADER to determine architecture
+  // Read the NT file header value so we can determine the architecture and number of
+  // sections in the file
   IMAGE_FILE_HEADER file_header;
   if (!ReadFile(file, &file_header, sizeof(file_header), &bytes_read, nullptr) ||
       bytes_read != sizeof(file_header)) {
+    // Read failed; abort
     CloseHandle(file);
     return false;
   }
 
-  // Detect architecture from Machine field
+  // Determine architecture and read the appropriate IMAGE_OPTIONAL_HEADER value.
+  // file_header.Machine indicates the architecture for which the PE binary is
+  // compiled; file_header.SizeOfOptionalHeader denotes the size of the
+  // IMAGE_OPTIONAL_HEADER that immediately follows the IMAGE_FILE_HEADER
+  union {
+    IMAGE_OPTIONAL_HEADER32 i386;
+    IMAGE_OPTIONAL_HEADER64 amd64;
+  } opt_header;
   bool is_64bit = false;
   if (file_header.Machine == IMAGE_FILE_MACHINE_AMD64) {
     is_64bit = true;
+    if (file_header.SizeOfOptionalHeader != sizeof(opt_header.amd64) ||
+        !ReadFile(
+            file, &opt_header.amd64, sizeof(opt_header.amd64), &bytes_read, nullptr
+        ) ||
+        bytes_read != sizeof(opt_header.amd64)) {
+      // Read failed or unexpected optional header size for 64-bit arch; abort
+      CloseHandle(file);
+      return false;
+    }
   } else if (file_header.Machine == IMAGE_FILE_MACHINE_I386) {
     is_64bit = false;
+    if (file_header.SizeOfOptionalHeader != sizeof(opt_header.i386) ||
+        !ReadFile(
+            file, &opt_header.i386, sizeof(opt_header.i386), &bytes_read, nullptr
+        ) ||
+        bytes_read != sizeof(opt_header.i386)) {
+      // Read failed or unexpected optional header size for 32-bit arch; abort
+      CloseHandle(file);
+      return false;
+    }
   } else {
-    // Unsupported architecture
+    // Unsupported architecture; abort
     CloseHandle(file);
     return false;
   }
 
-  // Extract build ID from optional header (handles both 32-bit and 64-bit)
-  const bool success = extract_pe_build_id_from_optional_header(
-      file, dos_header.e_lfanew, is_64bit, file_header, out_buffer, buffer_size
-  );
+  // Our file handle is now positioned at the start of the IMAGE_SECTION_HEADER array:
+  // read these section headers into memory so we can efficiently traverse them while
+  // computing offsets etc.
+  static const size_t max_sections = 96;
+  IMAGE_SECTION_HEADER sections[max_sections];
+
+  // Typical PE files have 5-10 sections, while a complex binary may have 20-30: if
+  // the file reports more sections than our reasonable upper limit, ignore it
+  const WORD num_sections = file_header.NumberOfSections;
+  if (num_sections == 0 || num_sections > max_sections) {
+    // Invalid section count; abort
+    CloseHandle(file);
+    return false;
+  }
+
+  // Read from the file to populate our sections array
+  const DWORD num_section_header_bytes = num_sections * sizeof(IMAGE_SECTION_HEADER);
+  if (!ReadFile(file, sections, num_section_header_bytes, &bytes_read, nullptr) ||
+      bytes_read != num_section_header_bytes) {
+    // Read failed; abort
+    CloseHandle(file);
+    return false;
+  }
+
+  // Now that we've loaded the optional header and the set of PE sections (required for
+  // address resolution), we can read from the optional header to locate the
+  // IMAGE_DEBUG_DIRECTORY records within the file, then find the CodeView record that
+  // includes PDB GUID and Age, then populate out_buffer with the canonical Build ID
+  // representation of that data
+  bool success = false;
+  if (is_64bit) {
+    // Call helper func with OhdrType = IMAGE_OPTIONAL_HEADER64
+    success = extract_pe_build_id_from_optional_header(
+        file, opt_header.amd64, sections, num_sections, out_buffer, buffer_size
+    );
+  } else {
+    // Call helper func with OhdrType = IMAGE_OPTIONAL_HEADER32
+    success = extract_pe_build_id_from_optional_header(
+        file, opt_header.i386, sections, num_sections, out_buffer, buffer_size
+    );
+  }
 
   CloseHandle(file);
   return success;
 }
 
 void PopulateBuildIdCache() {
+  // Reset the cache to empty state before repopulating
   g_module_build_id_cache.num_entries = 0;
 
+  // Use the ToolHelp32 API to enumerate all modules (DLLs and EXEs) loaded in the
+  // current process. TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32 ensures we capture both
+  // 64-bit and 32-bit modules in a WOW64 process.
   HANDLE snapshot = CreateToolhelp32Snapshot(
       TH32CS_SNAPMODULE | TH32CS_SNAPMODULE32, GetCurrentProcessId()
   );
   if (snapshot == INVALID_HANDLE_VALUE) {
+    // Snapshot creation failed; cache remains empty
     return;
   }
 
+  // MODULEENTRY32 is populated by Module32First/Module32Next with information about
+  // each loaded module. The dwSize field must be initialized before the first call.
   MODULEENTRY32 entry;
   entry.dwSize = sizeof(entry);
 
+  // Iterate through all loaded modules, starting with Module32First to get the first
+  // module, then repeatedly calling Module32Next until no more modules remain
   if (Module32First(snapshot, &entry)) {
     do {
+      // Stop if we've reached our cache capacity
       if (g_module_build_id_cache.num_entries >= kMaxCachedModules) {
         break;
       }
 
+      // Attempt to extract the build ID from this module's PE file (szExePath contains
+      // the full path to the module's file on disk)
       char build_id[kMaxBuildIdLength];
       if (extract_pe_build_id(entry.szExePath, build_id, sizeof(build_id))) {
+        // Successfully extracted build ID: add this module to the cache, recording its
+        // base address (where it's loaded in memory) and build ID string
         const size_t entry_idx = g_module_build_id_cache.num_entries;
         auto& cached = g_module_build_id_cache.entries[entry_idx];
         cached.base_address = reinterpret_cast<uintptr_t>(entry.modBaseAddr);
@@ -349,9 +444,9 @@ void PopulateBuildIdCache() {
  * Extracts ELF build ID from program headers (template for 32-bit and 64-bit).
  *
  * Reads program headers to find PT_NOTE segments, parses note entries to find the
- * NT_GNU_BUILD_ID note, and formats the build ID as lowercase hex. This template helper
- * is instantiated for both Elf32 and Elf64 types by `extract_elf_build_id` after ELF
- * class detection.
+ * NT_GNU_BUILD_ID note, and formats the build ID as lowercase hex. This template
+ * helper is instantiated for both Elf32 and Elf64 types by `extract_elf_build_id`
+ * after ELF class detection.
  */
 template <typename EhdrType, typename PhdrType, typename NhdrType>
 static bool extract_elf_build_id_from_headers(
@@ -433,9 +528,9 @@ static bool extract_elf_build_id_from_headers(
 /**
  * Extracts ELF build ID from a Linux binary file.
  *
- * Opens the ELF file at `module_path`, reads program headers to find PT_NOTE segments,
- * parses note entries to find the NT_GNU_BUILD_ID note, and formats the build ID as
- * lowercase hex (e.g., "8c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d").
+ * Opens the ELF file at `module_path`, reads program headers to find PT_NOTE
+ * segments, parses note entries to find the NT_GNU_BUILD_ID note, and formats the
+ * build ID as lowercase hex (e.g., "8c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d").
  *
  * Supports both 32-bit (Elf32_*) and 64-bit (Elf64_*) ELF files by detecting the ELF
  * class from e_ident[EI_CLASS].
