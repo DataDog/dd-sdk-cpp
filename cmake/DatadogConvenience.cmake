@@ -39,6 +39,19 @@ function(datadog_enable target)
             message(FATAL_ERROR "datadog_enable(): target crashpad::handler does not exist")
         endif()
     endif()
+
+    # If the SDK was built with profiler support, copy the required runtime DLLs
+    # (dd-win-prof.dll and datadog_profiling_ffi.dll) alongside the application
+    # binary so they can be found at runtime.
+    if(DD_ENABLE_PROFILER OR DATADOG_BUILT_WITH_DD_ENABLE_PROFILER)
+        if(COMMAND dd_win_prof_copy_runtime_deps)
+            dd_win_prof_copy_runtime_deps(${target})
+        else()
+            message(FATAL_ERROR
+                "datadog_enable(): dd_win_prof_copy_runtime_deps is not available; "
+                "ensure dd-win-prof was fetched before calling datadog_enable()")
+        endif()
+    endif()
 endfunction()
 
 # datadog_install(bin):
