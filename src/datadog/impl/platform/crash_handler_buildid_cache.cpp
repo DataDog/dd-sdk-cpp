@@ -441,76 +441,115 @@ void PopulateBuildIdCache() {
 #ifdef __linux__
 
 /**
- * Extracts ELF build ID from program headers (template for 32-bit and 64-bit).
+ * Extracts ELF build ID from program headers (template helper for 32-bit or 64-bit).
  *
- * Reads program headers to find PT_NOTE segments, parses note entries to find the
- * NT_GNU_BUILD_ID note, and formats the build ID as lowercase hex. This template
- * helper is instantiated for both Elf32 and Elf64 types by `extract_elf_build_id`
- * after ELF class detection.
+ * Reads the program header array from `ehdr` to locate PT_NOTE segments, which
+ * contain note entries with auxiliary information about the binary. Parses each note
+ * entry to find an NT_GNU_BUILD_ID note (type 3, name "GNU"), extracts the build ID
+ * bytes from the note descriptor, and formats them as lowercase hex (e.g.,
+ * "8c9d3e4f5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d") in `out_buffer`.
+ *
+ * This template helper is instantiated with `EhdrType` = Elf32_Ehdr or Elf64_Ehdr,
+ * `PhdrType` = Elf32_Phdr or Elf64_Phdr, and `NhdrType` = Elf32_Nhdr or Elf64_Nhdr by
+ * `extract_elf_build_id` after architecture detection, to handle both 32-bit and
+ * 64-bit ELF files with the same logic.
+ *
+ * Returns true on success (build ID written to `out_buffer`), false if the file lacks
+ * a GNU build ID note or cannot be read.
  */
 template <typename EhdrType, typename PhdrType, typename NhdrType>
 static bool extract_elf_build_id_from_headers(
     int fd, const EhdrType& ehdr, char* out_buffer, size_t buffer_size
 ) {
-  // Read program headers with explicit seeking to avoid lseek corruption
+  // Iterate through the program headers to find PT_NOTE segments, which may contain
+  // note entries including the GNU build ID
   for (int i = 0; i < ehdr.e_phnum; ++i) {
-    // Seek to phdr table offset before each read to avoid lseek corruption
+    // Seek to the position of this program header in the file before reading it. We
+    // perform an explicit seek before each read (rather than relying on sequential file
+    // position) to avoid lseek corruption issues in signal handlers where multiple
+    // threads may share the same file descriptor offset.
     const off_t phdr_offset = ehdr.e_phoff + (i * sizeof(PhdrType));
     if (lseek(fd, phdr_offset, SEEK_SET) != phdr_offset) {
+      // Seek failed; skip to next header
       continue;
     }
 
     PhdrType phdr{};
     if (read(fd, &phdr, sizeof(phdr)) != sizeof(phdr)) {
+      // Read failed; skip to next header
       continue;
     }
 
-    // Look for PT_NOTE segments
+    // PT_NOTE segments contain note entries, which are auxiliary information records.
+    // One of these note entries may be the GNU build ID we're looking for.
     if (phdr.p_type == PT_NOTE) {
-      // Seek to note segment
+      // Seek to the file offset where this PT_NOTE segment begins
       if (lseek(fd, phdr.p_offset, SEEK_SET) != static_cast<off_t>(phdr.p_offset)) {
+        // Seek failed; skip to next segment
         continue;
       }
 
-      // Read note segment data
+      // Read the note segment data into a fixed-size buffer. We cap the read at 4096
+      // bytes to avoid excessive stack allocation; typical PT_NOTE segments containing
+      // build IDs are much smaller.
       char note_data[4096];
-      const size_t note_size =
+      const size_t note_segment_size =
           (phdr.p_filesz < sizeof(note_data)) ? phdr.p_filesz : sizeof(note_data);
-      if (read(fd, note_data, note_size) != static_cast<ssize_t>(note_size)) {
+      if (read(fd, note_data, note_segment_size) !=
+          static_cast<ssize_t>(note_segment_size)) {
+        // Read failed; skip to next segment
         continue;
       }
 
-      // Parse note entries
+      // A PT_NOTE segment contains one or more note entries, each with the structure:
+      //
+      // - Nhdr (12 bytes on 32-bit, 12 bytes on 64-bit): header with n_namesz,
+      //   n_descsz, n_type
+      // - name (n_namesz bytes, padded to 4-byte alignment): null-terminated string
+      // - desc (n_descsz bytes, padded to 4-byte alignment): descriptor data
+      //
+      // We're looking for a note entry with n_type = NT_GNU_BUILD_ID (3), name =
+      // "GNU\0", and descriptor containing the raw build ID bytes.
       size_t offset = 0;
-      while (offset + sizeof(NhdrType) <= note_size) {
+      while (offset + sizeof(NhdrType) <= note_segment_size) {
         const auto* nhdr = reinterpret_cast<const NhdrType*>(note_data + offset);
         offset += sizeof(NhdrType);
 
-        // Align name and desc to 4-byte boundaries
+        // Note names and descriptors must be aligned to 4-byte boundaries per the ELF
+        // spec. Calculate the aligned sizes by rounding up to the next multiple of 4.
         const size_t name_size_aligned = (nhdr->n_namesz + 3) & ~3;
         const size_t desc_size_aligned = (nhdr->n_descsz + 3) & ~3;
 
-        if (offset + name_size_aligned + desc_size_aligned > note_size) {
+        // Validate that this note entry (header + aligned name + aligned desc) fits
+        // within the buffer we read; if not, the note segment is malformed so abort
+        // parsing
+        if (offset + name_size_aligned + desc_size_aligned > note_segment_size) {
           break;
         }
 
-        const char* name = note_data + offset;
+        // Extract pointer to the note name string (should be "GNU" for GNU build ID
+        // notes)
+        const char* note_name = note_data + offset;
         offset += name_size_aligned;
 
-        const uint8_t* desc = reinterpret_cast<const uint8_t*>(note_data + offset);
+        // Extract pointer to the note descriptor (the actual build ID bytes)
+        const uint8_t* note_desc = reinterpret_cast<const uint8_t*>(note_data + offset);
         offset += desc_size_aligned;
 
-        // Look for GNU build ID (type 3, name "GNU")
+        // GNU build ID notes have type NT_GNU_BUILD_ID (3), name "GNU\0" (4 bytes
+        // including null terminator), and descriptor containing the raw build ID bytes
+        // (typically 20 bytes for SHA-1)
         if (nhdr->n_type == NT_GNU_BUILD_ID && nhdr->n_namesz == 4 &&
-            memcmp(name, "GNU", 4) == 0) {
-          // Format build ID as lowercase hex
+            memcmp(note_name, "GNU", 4) == 0) {
+          // Format the build ID as a lowercase hex string, with 2 hex characters per
+          // byte
           size_t out_idx = 0;
-          // Ensure room for 2 hex chars + null terminator
           for (size_t byte_idx = 0;
                byte_idx < nhdr->n_descsz && out_idx <= buffer_size - 3;
                ++byte_idx) {
+            // Ensure room for 2 hex chars + null terminator
             snprintf(
-                out_buffer + out_idx, buffer_size - out_idx, "%02x", desc[byte_idx]
+                out_buffer + out_idx, buffer_size - out_idx, "%02x", note_desc[byte_idx]
             );
             out_idx += 2;
           }
@@ -522,6 +561,8 @@ static bool extract_elf_build_id_from_headers(
     }
   }
 
+  // We've iterated over all program headers without finding a GNU build ID note: there
+  // is no build ID encoded in this file
   return false;
 }
 
@@ -541,60 +582,110 @@ static bool extract_elf_build_id_from_headers(
 static bool extract_elf_build_id(
     const char* module_path, char* out_buffer, size_t buffer_size
 ) {
-  if (buffer_size < 41) {  // Typical 20-byte build ID = 40 hex chars + null
+  // Require a large enough output buffer to fit any ELF build ID: typical build IDs
+  // are 20 bytes (40 hex chars) plus null terminator
+  if (buffer_size < 41) {
+    // Insufficient buffer size; abort
     return false;
   }
 
+  // An ELF binary begins with an ELF header (Ehdr), which contains metadata about
+  // the binary including the architecture (32-bit or 64-bit) and the location of the
+  // program header table. The program header table is an array of program headers
+  // (Phdr) that describe segments in the binary. One or more PT_NOTE segments may
+  // contain note entries, which store auxiliary information about the binary.
+  //
+  // ELF file structure:
+  // - 0x0000: [ELF Header (Ehdr) - 52 bytes (32-bit) or 64 bytes (64-bit)]
+  //   - e_ident[16]: Magic bytes and format identifiers
+  //   - e_phoff: Offset to program header table
+  //   - e_phnum: Number of program headers
+  // - e_phoff: [Program Header Table (Phdr array)]
+  //   - Each Phdr describes a segment (loadable code/data, notes, etc.)
+  //   - PT_NOTE segments (p_type == PT_NOTE) contain note entries
+  // - (various offsets): [PT_NOTE segments]
+  //   - Each note entry has: Nhdr (12 bytes) + name (aligned) + desc (aligned)
+  //   - Nhdr fields: n_namesz, n_descsz, n_type
+  //   - GNU build ID: n_type = NT_GNU_BUILD_ID (3), name = "GNU\0", desc = raw
+  //   build ID bytes
+  //
+  // For example, a 64-bit ELF might have:
+  // - 0x0000: ELF Header with e_ident[0..3] = 0x7F 'E' 'L' 'F'
+  // - 0x0040: Program Header 0 (PT_LOAD)
+  // - 0x0078: Program Header 1 (PT_NOTE) with p_offset = 0x0338, p_filesz = 0x44
+  // - 0x0338: Note entry: Nhdr {n_namesz=4, n_descsz=20, n_type=3} + "GNU\0" + 20
+  // build ID bytes
+
+  // Open the ELF file for read
   int fd = open(module_path, O_RDONLY);
   if (fd < 0) {
+    // Open failed; abort
     return false;
   }
 
-  // Read e_ident (first 16 bytes, common to 32-bit and 64-bit ELF)
+  // The first 16 bytes of an ELF file (e_ident) are identical for both 32-bit and
+  // 64-bit ELF files, containing magic bytes and format identifiers. Read these bytes
+  // first so we can validate the file format and determine the architecture before
+  // reading the architecture-specific header.
   unsigned char e_ident[EI_NIDENT];
   if (read(fd, e_ident, EI_NIDENT) != EI_NIDENT) {
+    // Read failed; abort
     close(fd);
     return false;
   }
 
-  // Validate ELF magic
+  // Validate the ELF magic bytes: 0x7F 'E' 'L' 'F' (0x7F454C46). These bytes
+  // identify the file as an ELF binary.
   if (e_ident[EI_MAG0] != ELFMAG0 || e_ident[EI_MAG1] != ELFMAG1 ||
       e_ident[EI_MAG2] != ELFMAG2 || e_ident[EI_MAG3] != ELFMAG3) {
+    // Invalid ELF magic; abort
     close(fd);
     return false;
   }
 
-  // Check ELF class (32-bit or 64-bit)
+  // The EI_CLASS field in e_ident indicates whether this is a 32-bit (ELFCLASS32) or
+  // 64-bit (ELFCLASS64) ELF file, which determines the size and layout of the ELF
+  // header and program headers.
   const bool is_64bit = (e_ident[EI_CLASS] == ELFCLASS64);
   const bool is_32bit = (e_ident[EI_CLASS] == ELFCLASS32);
 
   if (!is_64bit && !is_32bit) {
-    // Unsupported ELF class
+    // Unsupported ELF class; abort
     close(fd);
     return false;
   }
 
-  // Seek back to start to read full header
+  // Seek back to the start of the file so we can read the full architecture-specific
+  // ELF header (Elf32_Ehdr or Elf64_Ehdr)
   if (lseek(fd, 0, SEEK_SET) != 0) {
+    // Seek failed; abort
     close(fd);
     return false;
   }
 
+  // Now that we've determined the architecture, read the full ELF header and call the
+  // template helper to extract the build ID. The template is instantiated with the
+  // appropriate architecture-specific types (Elf64_* or Elf32_*) to handle both 32-bit
+  // and 64-bit ELF files with the same logic.
   bool success = false;
   if (is_64bit) {
+    // Read 64-bit ELF header
     Elf64_Ehdr ehdr;
     if (read(fd, &ehdr, sizeof(ehdr)) == sizeof(ehdr)) {
       success = extract_elf_build_id_from_headers<Elf64_Ehdr, Elf64_Phdr, Elf64_Nhdr>(
           fd, ehdr, out_buffer, buffer_size
       );
     }
+    // Read failed; success remains false
   } else if (is_32bit) {
+    // Read 32-bit ELF header
     Elf32_Ehdr ehdr;
     if (read(fd, &ehdr, sizeof(ehdr)) == sizeof(ehdr)) {
       success = extract_elf_build_id_from_headers<Elf32_Ehdr, Elf32_Phdr, Elf32_Nhdr>(
           fd, ehdr, out_buffer, buffer_size
       );
     }
+    // Read failed; success remains false
   }
 
   close(fd);
@@ -602,16 +693,30 @@ static bool extract_elf_build_id(
 }
 
 void PopulateBuildIdCache() {
+  // Reset the cache to empty state before repopulating
   g_module_build_id_cache.num_entries = 0;
 
+  // On Linux, /proc/self/maps is a virtual file that lists all memory mappings for the
+  // current process. Each line describes one mapping with the format:
+  //   start_addr-end_addr perms offset dev:inode pathname
+  //
+  // Example line:
+  //   7f1234567000-7f1234568000 r-xp 00001000 08:01 12345
+  //   /lib/x86_64-linux-gnu/libc.so.6
+  //
+  // We parse this file to enumerate all loaded binaries and libraries (executable
+  // mappings with absolute pathnames), then extract their build IDs from the ELF files.
   FILE* maps = fopen("/proc/self/maps", "r");
   if (!maps) {
+    // Failed to open maps file; cache remains empty
     return;
   }
 
   char line[4096];
-  // Track which modules we've already cached (by pathname)
-  // Static storage to avoid 64KB stack allocation
+  // Track which modules we've already cached (by pathname) to avoid duplicate entries.
+  // A single binary/library typically has multiple memory mappings (code, data,
+  // rodata), but we only need to cache the build ID once per unique pathname. Static
+  // storage to avoid 64KB stack allocation.
   static char cached_paths[kMaxCachedModules][256];
   size_t num_cached_paths = 0;
 
@@ -622,7 +727,9 @@ void PopulateBuildIdCache() {
     char perms[5] = {};
     char pathname[256] = {};
 
-    // Parse: address_start-address_end perms offset dev:inode pathname
+    // Parse each line to extract: start address, end address, permissions, and
+    // pathname. The format is: %lx-%lx %4s %*x %*x:%*x %*d %255s where %*x means "read
+    // but discard" for offset, device, and inode fields we don't need.
     if (sscanf(
             line,
             "%lx-%lx %4s %*x %*x:%*x %*d %255s",
@@ -631,9 +738,13 @@ void PopulateBuildIdCache() {
             perms,
             pathname
         ) == 4) {
-      // Only executable segments with absolute paths
+      // Only process executable segments (perms contains 'x') with absolute paths
+      // (pathname starts with '/'). These are binaries and libraries that may have
+      // build IDs; other mappings (stack, heap, anonymous, relative paths) do not.
       if (strchr(perms, 'x') && pathname[0] == '/') {
-        // Check if already cached (avoid duplicate entries for same binary)
+        // Check if we've already cached this module's build ID to avoid duplicate
+        // entries. A single binary typically has multiple mappings (text, data, etc.),
+        // but we only need one cache entry per unique file.
         bool already_cached = false;
         for (size_t i = 0; i < num_cached_paths; ++i) {
           if (strcmp(cached_paths[i], pathname) == 0) {
@@ -643,8 +754,12 @@ void PopulateBuildIdCache() {
         }
 
         if (!already_cached && num_cached_paths < kMaxCachedModules) {
+          // Module not yet cached; attempt to extract the build ID from the ELF file on
+          // disk
           char build_id[kMaxBuildIdLength];
           if (extract_elf_build_id(pathname, build_id, sizeof(build_id))) {
+            // Successfully extracted build ID: add this module to the cache, recording
+            // its base address (where the first mapping starts) and build ID string
             const size_t entry_idx = g_module_build_id_cache.num_entries;
             auto& cached = g_module_build_id_cache.entries[entry_idx];
             cached.base_address = start_addr;
@@ -653,7 +768,7 @@ void PopulateBuildIdCache() {
             // Make entry visible to readers only after fully written
             g_module_build_id_cache.num_entries = entry_idx + 1;
 
-            // Track this path to avoid duplicates
+            // Track this pathname so we can skip subsequent mappings of the same binary
             snprintf(cached_paths[num_cached_paths], 256, "%s", pathname);
             ++num_cached_paths;
           }
