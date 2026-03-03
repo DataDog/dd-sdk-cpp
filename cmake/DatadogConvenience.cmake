@@ -54,16 +54,17 @@ function(datadog_enable target)
     endif()
 endfunction()
 
-# datadog_install(bin):
+# datadog_install(destination):
 #
-# - (if Crashpad support is enabled) ensures that the crashpad_handler executable will
-#   be copied to bin/ alongside your application
+# Installs runtime dependencies required by the SDK alongside your application:
+# - (if Crashpad support is enabled) copies the crashpad_handler executable
+# - (if Profiler support is enabled) copies dd-win-prof.dll and datadog_profiling_ffi.dll
 #
 # Call this function after defining `install(TARGETS my-app ...)` for your app,
-# specifying the destination directory for your application's binaries in lieu of `bin`.
-# You may elect not to call this function if a.) your project does not use CMake
-# installation rules, b.) you don't need Crashpad support, or c.) you are ensuring that
-# the crashpad_handler exectuable makes its way into your builds through other means.
+# specifying the destination directory for your application's binaries (typically "bin").
+# You may elect not to call this function if: a.) your project does not use CMake
+# installation rules, b.) you don't need Crashpad or Profiler support, or c.) you are
+# handling runtime dependencies through other means.
 #
 function(datadog_install destination)
     # If the SDK was built with crashpad support, install the crashpad_handler
@@ -74,6 +75,32 @@ function(datadog_install destination)
             install(PROGRAMS ${CRASHPAD_HANDLER_PATH} DESTINATION ${destination})
         else()
             message(FATAL_ERROR "datadog_install(): target crashpad::handler does not exist")
+        endif()
+    endif()
+
+    # If the SDK was built with profiler support, install the required runtime DLLs
+    # to the destination directory
+    if((DD_ENABLE_PROFILER) OR (DATADOG_BUILT_WITH_DD_ENABLE_PROFILER))
+        if(TARGET dd-win-prof)
+            # Try to get imported location (for find_package case)
+            get_target_property(DD_WIN_PROF_DLL dd-win-prof IMPORTED_LOCATION)
+
+            if(DD_WIN_PROF_DLL AND NOT DD_WIN_PROF_DLL MATCHES "-NOTFOUND$")
+                # Imported target case: install the DLL from its imported location
+                install(PROGRAMS ${DD_WIN_PROF_DLL} DESTINATION ${destination})
+
+                # Also install datadog_profiling_ffi.dll from the same directory
+                get_filename_component(DD_WIN_PROF_DIR ${DD_WIN_PROF_DLL} DIRECTORY)
+                install(PROGRAMS "${DD_WIN_PROF_DIR}/datadog_profiling_ffi.dll" DESTINATION ${destination})
+            else()
+                # FetchContent case: use generator expressions to get target files
+                install(FILES "$<TARGET_FILE:dd-win-prof>" DESTINATION ${destination})
+                if(TARGET libdatadog_dynamic)
+                    install(FILES "$<TARGET_FILE:libdatadog_dynamic>" DESTINATION ${destination})
+                endif()
+            endif()
+        else()
+            message(FATAL_ERROR "datadog_install(): target dd-win-prof does not exist")
         endif()
     endif()
 endfunction()

@@ -35,7 +35,5 @@ if(DD_BUILD_INSTALL)
     )
 
     # Install datadog_profiling_ffi.dll, which dd-win-prof.dll loads at runtime.
-    # The path is config-specific; DD_WIN_PROF_LIBDATADOG_DIR is set by dd-win-prof's
-    # own CMakeLists via PARENT_SCOPE when FetchContent_MakeAvailable processes it.
     install(FILES "$<TARGET_FILE:libdatadog_dynamic>" DESTINATION bin)
 endif()
