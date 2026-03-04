@@ -790,7 +790,7 @@ TEST_CASE("RumApplicationScope::PopulateContext", "[unit][rum]") {
     RumApplicationScope scope(deps);
 
     // When we populate a RumContext from that application scope
-    RumContext ctx;
+    impl::RumContext ctx;
     scope.PopulateContext(ctx);
 
     // Then its application_id value reflects the configured value

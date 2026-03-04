@@ -387,7 +387,7 @@ TEST_CASE("RumViewScope::PopulateContext", "[unit][rum]") {
       );
 
       // When we populate a RumContext from the view scope
-      RumContext ctx;
+      impl::RumContext ctx;
       scope.PopulateContext(ctx);
 
       // Then it has all expected values

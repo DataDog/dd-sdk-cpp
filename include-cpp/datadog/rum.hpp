@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -25,6 +26,59 @@ struct RumScopeDependencies;
 }  // namespace impl
 
 /**
+ * Snapshot of essential RUM context state, capturing the current application,
+ * session, view, and action identifiers.
+ *
+ * This structure is provided to context change callbacks to allow external
+ * libraries to correlate their data with RUM state.
+ */
+struct RumContext {
+  /**
+   * The RUM application ID. UUID::Zero if RUM is not initialized.
+   */
+  UUID application_id;
+
+  /**
+   * The current RUM session ID. UUID::Zero if no session is active.
+   */
+  UUID session_id;
+
+  /**
+   * The current RUM view ID. UUID::Zero if no view is active.
+   */
+  UUID view_id;
+
+  /**
+   * The current RUM action ID. UUID::Zero if no action is active.
+   */
+  UUID action_id;
+
+  /**
+   * Compares two RumContext instances for equality.
+   */
+  bool operator==(const RumContext& other) const {
+    return application_id == other.application_id && session_id == other.session_id &&
+           view_id == other.view_id && action_id == other.action_id;
+  }
+
+  bool operator!=(const RumContext& other) const { return !(*this == other); }
+};
+
+/**
+ * Callback function invoked when RUM context changes.
+ *
+ * The callback receives a snapshot of the new RUM context whenever any of the
+ * four context UUIDs (application_id, session_id, view_id, action_id) changes
+ * value, including transitions to/from UUID::Zero.
+ *
+ * The callback is invoked synchronously on the thread that triggered the
+ * context change (i.e., the thread calling RUM API methods like StartView(),
+ * AddAction(), etc.). Callback implementations should be fast and
+ * non-blocking.
+ */
+using RumContextChangeCallback = std::function<void(const RumContext&)>;
+
+/**
  * Configures the details of the RUM feature upon initialization.
  */
 struct RumConfig {
@@ -35,6 +89,7 @@ struct RumConfig {
  private:
   UUID application_id;  // UUID::Zero if uninitialized or invalid
   float session_sample_rate{100.0f};
+  RumContextChangeCallback context_change_callback{nullptr};
 
  public:
   /**
@@ -68,6 +123,18 @@ struct RumConfig {
    * intake; at 0.0, no RUM events are generated. Default is 100.0.
    */
   DATADOG_API RumConfig& SetSessionSampleRate(float value);
+
+  /**
+   * Sets a callback to be invoked whenever RUM context changes.
+   *
+   * The callback will be called with a snapshot of the new RUM context whenever
+   * any of the context UUIDs (application_id, session_id, view_id, action_id)
+   * changes value. The callback is invoked synchronously on the thread calling
+   * RUM API methods.
+   *
+   * Pass nullptr to clear any previously-set callback.
+   */
+  DATADOG_API RumConfig& SetContextChangeCallback(RumContextChangeCallback value);
 };
 
 enum class RumActionType : uint8_t { Tap, Click, Scroll, Swipe, Custom };

@@ -36,7 +36,7 @@ RumViewScope::RumViewScope(
       _global_and_view_attributes(32),
       _resource_scopes(deps.diagnostic_logger) {}
 
-void RumViewScope::PopulateContext(struct RumContext& out_context) const {
+void RumViewScope::PopulateContext(RumContext& out_context) const {
   // Call the parent's PopulateContext function to set application and session details
   const RumSessionScope& parent = _parent;
   parent.PopulateContext(out_context);

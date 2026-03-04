@@ -47,6 +47,11 @@ RumConfig& RumConfig::SetSessionSampleRate(float value) {
   return *this;
 }
 
+RumConfig& RumConfig::SetContextChangeCallback(RumContextChangeCallback value) {
+  context_change_callback = std::move(value);
+  return *this;
+}
+
 Rum::Rum(Rum::PrivateCtorTag)
     : _impl(nullptr),
       _diagnostic_handler(nullptr),

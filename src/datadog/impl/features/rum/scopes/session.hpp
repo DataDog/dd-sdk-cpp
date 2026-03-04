@@ -22,6 +22,8 @@
 
 namespace datadog::impl {
 
+struct RumContext;
+
 /**
  * Node in the RUM scope tree modeling a 'Session', which represents a contiguous series
  * of user interactions. The session scope is responsible for creating and managing the
@@ -135,7 +137,7 @@ class RumSessionScope {
   RumSessionScope& operator=(RumSessionScope&&) = default;
 
   // RumContextProvider interface
-  void PopulateContext(struct RumContext& out_context) const;
+  void PopulateContext(impl::RumContext& out_context) const;
 
   // RumScope interface
   RumScopeResult Process(const RumCommand& command);

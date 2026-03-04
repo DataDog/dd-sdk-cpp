@@ -15,6 +15,8 @@
 
 namespace datadog::impl {
 
+struct RumContext;
+
 /**
  * Top-level node in the tree of RUM scopes that model the current state of the user's
  * interactions with the application.
@@ -105,7 +107,7 @@ class RumApplicationScope {
   explicit RumApplicationScope(const RumScopeDependencies& deps);
 
   // RumContextProvider interface
-  void PopulateContext(struct RumContext& out_context) const;
+  void PopulateContext(impl::RumContext& out_context) const;
 
   // RumScope interface
   RumScopeResult Process(const RumCommand& command);

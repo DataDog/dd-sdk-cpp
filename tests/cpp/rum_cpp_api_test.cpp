@@ -3386,3 +3386,97 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
     }
   }
 }
+
+TEST_CASE("RumConfig::SetContextChangeCallback", "[unit][rum][cpp-api]") {
+  SECTION("M store callback W callback is set") {
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+
+    bool callback_invoked = false;
+    config.SetContextChangeCallback([&](const RumContext& ctx) {
+      (void)ctx;
+      callback_invoked = true;
+    });
+
+    // Callback should not be invoked until RUM APIs are called
+    REQUIRE_FALSE(callback_invoked);
+  }
+
+  SECTION("M allow nullptr W clearing callback") {
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextChangeCallback([](const RumContext&) {});
+    config.SetContextChangeCallback(nullptr);
+    // Should not crash
+  }
+}
+
+TEST_CASE("RumContextChangeCallback invocation", "[unit][rum][cpp-api]") {
+  SECTION("M invoke callback W view is started") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+
+    RumContext captured_context;
+    bool callback_invoked = false;
+
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextChangeCallback([&](const RumContext& ctx) {
+      captured_context = ctx;
+      callback_invoked = true;
+    });
+
+    auto rum = Rum::Register(core, config);
+    REQUIRE(rum != nullptr);
+    REQUIRE(core->Start());
+
+    // Starting a view should trigger callback
+    callback_invoked = false;
+    rum->StartView("view1", "View 1");
+
+    REQUIRE(callback_invoked);
+    REQUIRE(captured_context.application_id != UUID::Zero);
+    REQUIRE(captured_context.session_id != UUID::Zero);
+    REQUIRE(captured_context.view_id != UUID::Zero);
+    REQUIRE(captured_context.action_id == UUID::Zero);
+  }
+
+  SECTION("M NOT invoke callback W context unchanged") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+
+    int callback_count = 0;
+
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextChangeCallback([&](const RumContext&) { callback_count++; });
+
+    auto rum = Rum::Register(core, config);
+    REQUIRE(core->Start());
+    rum->StartView("view1", "View 1");
+
+    int count_after_view = callback_count;
+    REQUIRE(count_after_view >= 1);
+
+    // Adding attributes should not change context
+    rum->AddAttribute("key", Attribute::String("value"));
+    REQUIRE(callback_count == count_after_view);
+  }
+
+  SECTION("M invoke callback W action started") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+
+    std::vector<RumContext> contexts;
+
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextChangeCallback([&](const RumContext& ctx) {
+      contexts.push_back(ctx);
+    });
+
+    auto rum = Rum::Register(core, config);
+    REQUIRE(core->Start());
+    rum->StartView("view1");
+    rum->AddAction(RumActionType::Click, "button1");
+
+    REQUIRE(contexts.size() >= 2);
+    // Last context should have action_id set
+    REQUIRE(contexts.back().action_id != UUID::Zero);
+  }
+}

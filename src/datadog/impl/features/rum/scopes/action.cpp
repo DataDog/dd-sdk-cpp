@@ -33,7 +33,7 @@ RumActionScope::RumActionScope(
       _expires_at(start_time + timeout_duration),
       _attributes(attributes) {}
 
-void RumActionScope::PopulateContext(struct RumContext& out_context) const {
+void RumActionScope::PopulateContext(RumContext& out_context) const {
   // Call the parent's PopulateContext function to set application, session, and view
   // details
   const RumViewScope& parent = _parent;

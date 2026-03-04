@@ -765,7 +765,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
     );
 
     // When we populate a RumContext from the session scope
-    RumContext ctx;
+    impl::RumContext ctx;
     scope.PopulateContext(ctx);
 
     // Then it has all expected values
@@ -800,7 +800,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
     );
 
     // When we populate a RumContext from the session scope
-    RumContext ctx;
+    impl::RumContext ctx;
     scope.PopulateContext(ctx);
 
     // Then session_is_sampled is false; all other session info is recorded faithfully
@@ -834,7 +834,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
     scope.Process(RumCommand::StopSession(RumCommandParams(Timestamp{}, {}, {})));
 
     // And we then populate a RumContext from the session scope
-    RumContext ctx;
+    impl::RumContext ctx;
     scope.PopulateContext(ctx);
 
     // Then it remembers the details of the last active session, but reports that the

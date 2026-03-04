@@ -7,7 +7,7 @@
 #include "datadog/impl/features/rum/rum.hpp"
 
 #include <iostream>
-#include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string_view>
 
@@ -18,7 +18,9 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
     : _global_attributes(8),
       _deps(config, clock),
       _application(_deps),
-      _application_snapshot() {}
+      _application_snapshot(),
+      _context_change_callback(config.context_change_callback),
+      _previous_context() {}
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
     const HttpContext& context, BatchReader& reader
@@ -76,6 +78,9 @@ void Rum::Stop() {
   // Clear the FeatureScope reference in RumScopeDependencies: scopes should no longer
   // generate events
   _deps.OnStop();
+
+  // Reset previous context to ensure callback fires on next SDK start
+  _previous_context = RumFeatureContext{};
 }
 
 void Rum::AddAttribute(std::string_view name, const Attribute& value) {
@@ -207,15 +212,19 @@ void Rum::Dispatch(const RumCommand& command) {
 }
 
 void Rum::UpdateFeatureContext() {
-  // Build a RumContext value (_application_snapshot) that summarizes the current state
-  // of our internal scope tree
   UpdateApplicationSnapshot();
 
-  // Write the relevant values to the global RumFeatureContext, so that other features
-  // can enrich their events with the latest RUM context
+  const RumFeatureContext new_context = _application_snapshot.ToFeatureContext();
+
   if (_scope) {
-    const RumFeatureContext rum_ctx = _application_snapshot.ToFeatureContext();
-    _scope->UpdateContext([rum_ctx](CoreContext& ctx) { ctx.rum = rum_ctx; });
+    _scope->UpdateContext([new_context](CoreContext& ctx) { ctx.rum = new_context; });
+  }
+
+  // Check if callback should be invoked
+  if (_context_change_callback && new_context != _previous_context) {
+    _previous_context = new_context;
+    const datadog::RumContext callback_context = new_context.ToPublicContext();
+    _context_change_callback(callback_context);
   }
 }
 

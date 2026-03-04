@@ -14,7 +14,7 @@ using namespace datadog::impl;
 TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
   SECTION("M set no values W application_id invalid") {
     // Given a RUM state snapshot that has some UUIDs but no valid application ID
-    RumContext snapshot;
+    impl::RumContext snapshot;
     snapshot.application_id = UUID::Zero;
     snapshot.session_id = UUID::Random();
 
@@ -30,7 +30,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
 
   SECTION("M set application_id W application_id is valid") {
     // Given a RUM state snapshot that has a valid application_id and no other state
-    RumContext snapshot;
+    impl::RumContext snapshot;
     snapshot.application_id = *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf");
     snapshot.session_id = UUID::Zero;
 
@@ -47,7 +47,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
   SECTION("M set session_id W session has valid ID and is active and sampled") {
     // Given a RUM state snapshot that has a valid application_id and an active, sampled
     // session, but no active view
-    RumContext snapshot;
+    impl::RumContext snapshot;
     snapshot.application_id = *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf");
     snapshot.session_id = *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8");
     snapshot.session_is_active = true;
@@ -66,7 +66,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
   SECTION("M set view_id W active session has an active view") {
     // Given a RUM state snapshot that has a valid application_id and an active, sampled
     // session with an active view
-    RumContext snapshot;
+    impl::RumContext snapshot;
     snapshot.application_id = *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf");
     snapshot.session_id = *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8");
     snapshot.session_is_active = true;
@@ -88,7 +88,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
   SECTION("M set action_id W active view has an active action") {
     // Given a RUM state snapshot that has a valid application_id, an active, sampled
     // session with an active view, and an active action within that view
-    RumContext snapshot;
+    impl::RumContext snapshot;
     snapshot.application_id = *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf");
     snapshot.session_id = *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8");
     snapshot.session_is_active = true;
@@ -111,7 +111,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
   SECTION("M not set session_id, view_id, or action_id W session is not sampled") {
     // Given a RUM state snapshot that has a valid application_id and an active session
     // that's not sampled
-    RumContext snapshot;
+    impl::RumContext snapshot;
     snapshot.application_id = *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf");
     snapshot.session_id = *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8");
     snapshot.session_is_active = true;
@@ -132,7 +132,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
   SECTION("M not set session_id, view_id, or action_id W session is no longer active") {
     // Given a RUM state snapshot that has a valid application_id and a session that's
     // sampled but is no longer active
-    RumContext snapshot;
+    impl::RumContext snapshot;
     snapshot.application_id = *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf");
     snapshot.session_id = *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8");
     snapshot.session_is_active = false;

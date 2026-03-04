@@ -10,6 +10,8 @@
 
 namespace datadog::impl {
 
+struct RumContext;
+
 /**
  * Node in the RUM scope tree modeling an 'Action', which represents a user-initiated
  * interaction with the app.
@@ -64,7 +66,7 @@ class RumActionScope {
   RumActionScope& operator=(RumActionScope&&) = default;
 
   // RumContextProvider interface
-  void PopulateContext(struct RumContext& out_context) const;
+  void PopulateContext(impl::RumContext& out_context) const;
 
   // RumScope interface
   RumScopeResult Process(const RumCommand& command);

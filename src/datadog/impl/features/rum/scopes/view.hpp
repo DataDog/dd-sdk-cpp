@@ -19,6 +19,8 @@
 
 namespace datadog::impl {
 
+struct RumContext;
+
 /**
  * Node in the RUM scope tree modeling a 'View', which represents some user-facing
  * portion of the client application (e.g. a page, a screen, a level, etc.) that the
@@ -141,7 +143,7 @@ class RumViewScope {
   RumViewScope& operator=(RumViewScope&&) = default;
 
   // RumContextProvider interface
-  void PopulateContext(struct RumContext& out_context) const;
+  void PopulateContext(impl::RumContext& out_context) const;
 
   // RumScope interface
   RumScopeResult Process(const RumCommand& command);

@@ -126,6 +126,20 @@ struct RumFeatureContext {
   UUID session_id;      // UUID::Zero if no active session
   UUID view_id;         // UUID::Zero if no active view
   UUID action_id;       // UUID::Zero if no active action
+
+  /**
+   * Converts this internal RumFeatureContext to the public RumContext type.
+   */
+  datadog::RumContext ToPublicContext() const {
+    return datadog::RumContext{application_id, session_id, view_id, action_id};
+  }
+
+  bool operator==(const RumFeatureContext& other) const {
+    return application_id == other.application_id && session_id == other.session_id &&
+           view_id == other.view_id && action_id == other.action_id;
+  }
+
+  bool operator!=(const RumFeatureContext& other) const { return !(*this == other); }
 };
 
 DATADOG_STRING_ENUM(
