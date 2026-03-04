@@ -15,7 +15,7 @@ else()
     FetchContent_Declare(
         dd-win-prof
         GIT_REPOSITORY https://github.com/DataDog/dd-win-prof.git
-        GIT_TAG        aforsythe/cmake
+        GIT_TAG        aforsythe/rum-poc
     )
 endif()
 
