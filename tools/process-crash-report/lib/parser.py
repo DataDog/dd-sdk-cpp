@@ -216,14 +216,20 @@ def parse_crash_report(file_path: Path) -> tuple[dict[str, str], list[int], list
                 magic = struct.unpack('<Q', magic_data)[0]
 
                 if magic == CRASH_REPORT_MODULE_MAGIC:
-                    # Parse module entry
-                    module_data = f.read(3 * UINT64_SIZE)
-                    if len(module_data) < 3 * UINT64_SIZE:
+                    # Parse module entry: start_addr, end_addr
+                    module_data = f.read(2 * UINT64_SIZE)
+                    if len(module_data) < 2 * UINT64_SIZE:
                         raise ValueError("Truncated crash report file (incomplete module header)")
 
-                    start_addr, end_addr, num_path_bytes = struct.unpack('<3Q', module_data)
+                    start_addr, end_addr = struct.unpack('<2Q', module_data)
 
-                    # Read UTF-8 path (length-prefixed, no null terminator)
+                    # Read path as length-prefixed string
+                    path_len_data = f.read(UINT64_SIZE)
+                    if len(path_len_data) < UINT64_SIZE:
+                        raise ValueError("Truncated crash report file (missing path length)")
+
+                    num_path_bytes = struct.unpack('<Q', path_len_data)[0]
+
                     path_data = f.read(num_path_bytes)
                     if len(path_data) < num_path_bytes:
                         raise ValueError("Truncated crash report file (incomplete module path)")
@@ -234,7 +240,26 @@ def parse_crash_report(file_path: Path) -> tuple[dict[str, str], list[int], list
                         # Use replacement characters for invalid UTF-8
                         path = path_data.decode('utf-8', errors='replace')
 
-                    modules.append(Module(start_addr, end_addr, path))
+                    # Read build ID as length-prefixed string
+                    buildid_len_data = f.read(UINT64_SIZE)
+                    if len(buildid_len_data) < UINT64_SIZE:
+                        raise ValueError("Truncated crash report file (missing build ID length)")
+
+                    num_buildid_bytes = struct.unpack('<Q', buildid_len_data)[0]
+
+                    build_id = ""
+                    if num_buildid_bytes > 0:
+                        buildid_data = f.read(num_buildid_bytes)
+                        if len(buildid_data) < num_buildid_bytes:
+                            raise ValueError("Truncated crash report file (incomplete build ID)")
+
+                        try:
+                            build_id = buildid_data.decode('utf-8')
+                        except UnicodeDecodeError:
+                            # Use replacement characters for invalid UTF-8
+                            build_id = buildid_data.decode('utf-8', errors='replace')
+
+                    modules.append(Module(start_addr, end_addr, path, build_id))
 
                 elif magic == CRASH_REPORT_STACK_FRAME_MAGIC:
                     # Parse stack frame entry

@@ -44,24 +44,6 @@ static void write_uint64_values(
 #endif
 }
 
-/**
- * Given a null-terminated string literal, writes that string value to the given file,
- * prefixing it with a uint64_t count of bytes. Does not write a null terminator to the
- * file.
- */
-static void write_length_prefixed_string(CrashReportFileHandle fd, const char* str) {
-  // Compute string length manually, as strlen is not guaranteed to be signal-safe
-  uint64_t len = 0;
-  while (str[len]) {
-    len++;
-  }
-
-  // Write the number of (presumably UTF-8) bytes as a prefix, then write the string
-  // thereafter, with no terminator
-  write_uint64_values(fd, &len, 1);
-  write_bytes(fd, str, len);
-}
-
 void WriteCrashReportHeader(
     CrashReportFileHandle fd,
     uint64_t fault_code,
@@ -88,15 +70,40 @@ void WriteCrashReportModule(
     CrashReportFileHandle fd,
     uint64_t start_address,
     uint64_t end_address,
-    const char* path
+    const char* path,
+    const char* build_id
 ) {
-  uint64_t values[] = {CrashReportModuleMagic, start_address, end_address};
-  write_uint64_values(fd, static_cast<uint64_t*>(values), std::size(values));
+  // Compute string lengths manually for async-signal-safety
+  uint64_t path_len = 0;
   if (path) {
-    write_length_prefixed_string(fd, path);
-  } else {
-    uint64_t zero = 0;
-    write_uint64_values(fd, &zero, 1);
+    while (path[path_len]) {
+      path_len++;
+    }
+  }
+
+  uint64_t build_id_len = 0;
+  if (build_id) {
+    while (build_id[build_id_len]) {
+      build_id_len++;
+    }
+  }
+
+  // Write module header: magic, start, end
+  uint64_t header_values[] = {CrashReportModuleMagic, start_address, end_address};
+  write_uint64_values(
+      fd, static_cast<uint64_t*>(header_values), std::size(header_values)
+  );
+
+  // Write path as length-prefixed string
+  write_uint64_values(fd, &path_len, 1);
+  if (path_len > 0) {
+    write_bytes(fd, path, path_len);
+  }
+
+  // Write build ID as length-prefixed string
+  write_uint64_values(fd, &build_id_len, 1);
+  if (build_id_len > 0) {
+    write_bytes(fd, build_id, build_id_len);
   }
 }
 

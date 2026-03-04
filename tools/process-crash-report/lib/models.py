@@ -25,10 +25,16 @@ class Module:
         base_address: Memory address where the module was loaded (start of range)
         end_address: End of the module's memory range (exclusive)
         path: Filesystem path to the module binary
+        build_id: Build identifier for the module (platform-specific format):
+                  - Windows: PE GUID+Age (uppercase hex, e.g., "F4A7B2C3D1E5...")
+                  - macOS: Mach-O UUID (lowercase with dashes, e.g., "a1b2c3d4-...")
+                  - Linux: ELF build-id (lowercase hex, e.g., "8c9d3e4f5a6b...")
+                  - Empty string if extraction failed or not available
     """
     base_address: int
     end_address: int
     path: str
+    build_id: str = ""
 
     @property
     def name(self) -> str:

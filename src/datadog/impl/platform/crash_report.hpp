@@ -40,8 +40,8 @@
  * and maintaining backward-compatibility when parsing by checking the version number
  * encoded in the file.
  *
- * Example layout for a file describing a crash with two loaded modules ('/foo' and
- * '/bar/') and a stack trace with 4 frames:
+ * Example layout for a file describing a crash with two loaded modules ('/foo' with
+ * build ID 'abc', and '/bar/' with no build ID) and a stack trace with 4 frames:
  *
  * 0x0000: <CrashReportHeaderMagic>
  * 0x0008: version
@@ -59,23 +59,28 @@
  * 0x0061: f
  * 0x0062: o
  * 0x0063: o
- * 0x0064: <CrashReportModuleMagic>
- * 0x006c: start_address
- * 0x0074: end_address
- * 0x007c: num_path_bytes (4)
- * 0x0084: /
- * 0x0085: b
- * 0x0086: a
- * 0x0087: r
- * 0x0088: <CrashReportStackFrameMagic>
- * 0x0090: raw_address
- * 0x0098: <CrashReportStackFrameMagic>
- * 0x00a0: raw_address
- * 0x00a8: <CrashReportStackFrameMagic>
- * 0x00b0: raw_address
- * 0x00b8: <CrashReportStackFrameMagic>
- * 0x00c0: raw_address
- * 0x00c8: <CrashReportFooterMagic>
+ * 0x0064: num_buildid_bytes (3)
+ * 0x006c: a
+ * 0x006d: b
+ * 0x006e: c
+ * 0x006f: <CrashReportModuleMagic>
+ * 0x0077: start_address
+ * 0x007f: end_address
+ * 0x0087: num_path_bytes (4)
+ * 0x008f: /
+ * 0x0090: b
+ * 0x0091: a
+ * 0x0092: r
+ * 0x0093: num_buildid_bytes (0)
+ * 0x009b: <CrashReportStackFrameMagic>
+ * 0x00a3: raw_address
+ * 0x00ab: <CrashReportStackFrameMagic>
+ * 0x00b3: raw_address
+ * 0x00bb: <CrashReportStackFrameMagic>
+ * 0x00c3: raw_address
+ * 0x00cb: <CrashReportStackFrameMagic>
+ * 0x00d3: raw_address
+ * 0x00db: <CrashReportFooterMagic>
  */
 
 namespace datadog::platform {
@@ -103,13 +108,20 @@ struct CrashReportHeader {
 
 /**
  * Encodes basic details about a binary module that was loaded by the process at the
- * time of a crash. If num_path_bytes > 0, the path to the binary file is encoded as
- * UTF-8 in the next <num_path_bytes> bytes following the header.
+ * time of a crash.
+ *
+ * Binary format for each module entry:
+ * - CrashReportModuleMagic (uint64_t)
+ * - start_addr (uint64_t) - module base address
+ * - end_addr (uint64_t) - first byte after module end
+ * - path_length (uint64_t) - followed by path_length bytes of UTF-8 path data
+ * - buildid_length (uint64_t) - followed by buildid_length bytes of UTF-8 build ID
+ *
+ * The path and build ID are encoded as length-prefixed strings, with no terminators.
  */
 struct CrashReportModuleHeader {
-  uint64_t start_addr;      // Address in virtual memory where this module is loaded
-  uint64_t end_addr;        // First byte of virtual memory after the end of this module
-  uint64_t num_path_bytes;  // Length of ensuing UTF-8 string denoting file path
+  uint64_t start_addr;  // Address in virtual memory where this module is loaded
+  uint64_t end_addr;    // First byte of virtual memory after the end of this module
 };
 
 }  // namespace datadog::platform

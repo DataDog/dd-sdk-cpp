@@ -117,7 +117,8 @@ def print_raw_crash_report(
     # === Section 4: Loaded Modules ===
     output.write("=== Loaded Modules ===\n")
     for module in modules:
-        output.write(f"0x{module.base_address:016x}-0x{module.end_address:016x} {module.path}\n")
+        build_id_str = f" [{module.build_id}]" if module.build_id else ""
+        output.write(f"0x{module.base_address:016x}-0x{module.end_address:016x} {module.path}{build_id_str}\n")
     output.write("\n")
 
     output.write("========================================================================\n")
