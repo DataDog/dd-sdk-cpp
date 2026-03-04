@@ -21,10 +21,10 @@ endif()
 
 FetchContent_MakeAvailable(dd-win-prof)
 
-# Link the profiler into the SDK and expose the DD_PROFILER_ENABLED preprocessor
-# macro so that consuming code can conditionally compile profiler-dependent paths.
-target_link_libraries(dd_native PRIVATE dd-win-prof)
-target_compile_definitions(dd_native PUBLIC DD_PROFILER_ENABLED)
+# Link dd-win-prof into the SDK. For the time being, we don't wrap dd-win-prof in an SDK
+# feature: the application is just expected to include dd-win-prof.h and call the
+# profiling API directly. Therefore, it's declared as a PUBLIC dependency.
+target_link_libraries(dd_native PUBLIC dd-win-prof)
 
 if(DD_BUILD_INSTALL)
     # Install dd-win-prof.dll to bin/ so it ships alongside the SDK. Include it in
