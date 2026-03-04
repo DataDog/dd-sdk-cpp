@@ -17,6 +17,17 @@ set(CURL_DISABLE_LDAP ON)
 set(USE_LIBIDN2 OFF)
 set(CURL_ENABLE_EXPORT_TARGET OFF)
 
+# Enable SSL/TLS support
+if(WIN32)
+    # Use Windows native SSL (Schannel) - no external dependencies,
+    # automatically uses Windows certificate store
+    set(CURL_USE_SCHANNEL ON)
+else()
+    # On Unix systems, let curl auto-detect OpenSSL or other system SSL
+    # libraries (works reliably on macOS and Linux)
+    set(CURL_USE_OPENSSL ON)
+endif()
+
 # Disable building examples for CURL but don't pollute other portions
 set(_original_build_examples ${BUILD_EXAMPLES})
 set(BUILD_EXAMPLES OFF)
