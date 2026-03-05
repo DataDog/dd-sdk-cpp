@@ -13,10 +13,12 @@
 #include <vector>
 
 #include "datadog/core.hpp"
+
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
+
 #include "support/diagnostics.hpp"
 
 using namespace datadog;
@@ -62,9 +64,7 @@ class RumEventCapture {
    * skipped (useful for session-level tests where view ID varies).
    */
   RumEventCapture(
-      const char* application_id,
-      const char* session_id,
-      const char* view_id = nullptr
+      const char* application_id, const char* session_id, const char* view_id = nullptr
   )
       : application_id(application_id),
         session_id(session_id),
@@ -123,8 +123,7 @@ class RumEventCapture {
 
   // Access methods
   FeatureScope& GetFeatureScope() { return feature_scope; }
-  DiagnosticMessageBuffer& Diagnostics() { return diagnostics; }
-  std::vector<std::string>& Warnings() { return diagnostics.warning; }
+  const DiagnosticMessageBuffer& Diagnostics() const { return diagnostics; }
 
   // Filter methods - return copies for easy assertions
   std::vector<nlohmann::json> FilterByType(std::string_view type) const {
@@ -143,13 +142,9 @@ class RumEventCapture {
 
   std::vector<nlohmann::json> Actions() const { return FilterByType("action"); }
 
-  std::vector<nlohmann::json> Resources() const {
-    return FilterByType("resource");
-  }
+  std::vector<nlohmann::json> Resources() const { return FilterByType("resource"); }
 
   std::vector<nlohmann::json> Errors() const { return FilterByType("error"); }
 
-  std::vector<nlohmann::json> LongTasks() const {
-    return FilterByType("long_task");
-  }
+  std::vector<nlohmann::json> LongTasks() const { return FilterByType("long_task"); }
 };

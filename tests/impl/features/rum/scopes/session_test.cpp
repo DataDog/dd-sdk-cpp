@@ -565,7 +565,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     auto vitals = event_capture.Vitals();
     REQUIRE(vitals.size() == 2);
     // A warning was logged including the operation name
-    auto& warnings = event_capture.Warnings();
+    auto& warnings = event_capture.Diagnostics().warning;
     REQUIRE(warnings.size() == 1);
     REQUIRE(warnings[0].find("checkout") != std::string::npos);
     REQUIRE(warnings[0].find("has already been started") != std::string::npos);
@@ -584,7 +584,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     REQUIRE(vitals.size() == 1);
     REQUIRE(vitals[0]["vital"]["step_type"] == "end");
     // A warning was logged including the operation name
-    auto& warnings = event_capture.Warnings();
+    auto& warnings = event_capture.Diagnostics().warning;
     REQUIRE(warnings.size() == 1);
     REQUIRE(warnings[0].find("unknown-op") != std::string::npos);
     REQUIRE(warnings[0].find("not currently active") != std::string::npos);
@@ -622,7 +622,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // No warnings - these are distinct operations
-    auto& warnings = event_capture.Warnings();
+    auto& warnings = event_capture.Diagnostics().warning;
     auto vitals = event_capture.Vitals();
     REQUIRE(warnings.size() == 0);
     REQUIRE(vitals.size() == 2);
