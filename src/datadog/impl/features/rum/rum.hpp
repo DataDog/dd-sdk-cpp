@@ -108,7 +108,7 @@ class Rum final : public Feature {
    */
   void StartResource(
       std::string_view key,
-      RumRequestDetails request,
+      const RumRequestDetails& request,
       const Attribute& attributes = Attribute()
   );
 

@@ -492,9 +492,9 @@ void dd_rum_stop_resource_with_error(
   // Call StopResource on our RUM feature implementation, passing error details
   const datadog::impl::RumResponseDetails response{status_code};
   const datadog::impl::RumErrorDetails error{
-      error_message ? error_message : std::string_view{},
-      error_type ? error_type : std::string_view{},
-      error_stack_trace ? error_stack_trace : std::string_view{},
+      error_message ? error_message : "",
+      error_type ? error_type : "",
+      error_stack_trace ? error_stack_trace : "",
       is_network_error
   };
   rum->impl->StopResource(key, response, error, cpp_attributes);
@@ -671,9 +671,7 @@ void dd_rum_add_error(
 
   // Call AddError on our RUM feature implementation
   const datadog::impl::RumErrorDetails error{
-      message ? message : std::string_view{},
-      type ? type : std::string_view{},
-      stack_trace ? stack_trace : std::string_view{}
+      message ? message : "", type ? type : "", stack_trace ? stack_trace : ""
   };
   rum->impl->AddError(datadog::RumErrorSource_FromC(source), error, cpp_attributes);
 }
