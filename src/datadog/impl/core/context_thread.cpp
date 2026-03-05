@@ -15,10 +15,10 @@ void ContextThreadMain(
 ) {
   diagnostic_logger.Debug("Context thread starting");
 
-  // Process closures until the queue is stopped and drained (Pop() returns
+  // Process functions until the queue is stopped and drained (Pop() returns
   // std::nullopt)
-  while (auto closure = queue.Pop()) {
-    (*closure)();
+  while (auto thunk = queue.Pop()) {
+    (*thunk)();
   }
 
   diagnostic_logger.Debug("Context thread finished");

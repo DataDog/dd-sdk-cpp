@@ -10,6 +10,7 @@
 
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/queue.hpp"
 #include "datadog/impl/diagnostics.hpp"
 
 namespace datadog::impl {
@@ -28,6 +29,20 @@ namespace datadog::impl {
 using EventGeneratedFunc = std::function<bool(Block event, Block event_metadata)>;
 
 /**
+ * Callback that writes an event to storage from the context thread.
+ *
+ * Returns whether the event was successfully enqueued.
+ */
+using EventWriter = std::function<bool(Block event, Block event_metadata)>;
+
+/**
+ * Function executed on the context thread with access to a CoreContext snapshot and an
+ * EventWriter for generating events.
+ */
+using ContextThreadFunc =
+    std::function<void(const CoreContext& context, const EventWriter& writer)>;
+
+/**
  * Interface provided to each feature in order to give that feature access to core SDK
  * functionality.
  */
@@ -35,6 +50,7 @@ class FeatureScope {
  private:
   CoreContextProvider* _context_provider;
   EventGeneratedFunc _event_generated_func;
+  Queue<std::function<void()>>* _context_queue;
 
  public:
   DiagnosticLogger diagnostic_logger;
@@ -42,11 +58,16 @@ class FeatureScope {
   /**
    * Initializes a FeatureScope for a single feature, given the state necessary to
    * connect it to the Core.
+   *
+   * @param context_queue Optional pointer to the context queue. If null, operations
+   *  will execute synchronously (used in tests). If non-null, operations will be
+   *  queued for asynchronous execution on the context thread.
    */
   explicit FeatureScope(
       CoreContextProvider& context_provider,
       const EventGeneratedFunc& event_generated_func,
-      const DiagnosticLogger& in_diagnostic_logger
+      const DiagnosticLogger& in_diagnostic_logger,
+      Queue<std::function<void()>>* context_queue = nullptr
   );
 
   // Noncopyable, but movable (so ownership can be transferred to Feature from Core)
@@ -101,6 +122,19 @@ class FeatureScope {
    * CoreContext, it may be worthwhile to use async dispatch (see above).
    */
   bool WriteEvent(Block event, Block event_metadata) const;
+
+  /**
+   * Executes a function on the context thread, providing it with a CoreContext snapshot
+   * and an EventWriter for generating events.
+   *
+   * If no context queue is configured (testing mode), executes the function
+   * synchronously on the calling thread.
+   *
+   * The function receives:
+   * - A const reference to a CoreContext snapshot (taken at execution time)
+   * - An EventWriter callback that can be used to generate events
+   */
+  void ExecuteOnContextThread(const ContextThreadFunc& func);
 };
 
 }  // namespace datadog::impl

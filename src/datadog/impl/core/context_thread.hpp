@@ -17,11 +17,11 @@ namespace datadog::impl {
 /**
  * Entry point for the context thread.
  *
- * The context thread processes closures submitted by features, providing each
- * closure with a snapshot of the CoreContext at execution time. This allows
+ * The context thread processes functions submitted by features, providing each
+ * function with a snapshot of the CoreContext at execution time. This allows
  * features to perform operations asynchronously without blocking their callers.
  *
- * The thread runs until the queue is stopped and drained, processing closures in
+ * The thread runs until the queue is stopped and drained, processing functions in
  * FIFO order.
  *
  * @param diagnostic_logger Interface for logging status/warning messages.
