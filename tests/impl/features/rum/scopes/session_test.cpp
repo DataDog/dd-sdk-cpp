@@ -464,14 +464,16 @@ class SessionEventFixture {
 };
 
 TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]") {
-  SECTION("M emit start vital event W StartOperation is processed") {
+  SECTION("M emit start vital event W StartFeatureOperation is processed") {
     // Given an active session with a view
     StartView();
 
-    // When we process a StartOperation command
+    // When we process a StartFeatureOperation command
     const UUID vital_id = *UUID::Parse("aaaa1111-2222-4333-b444-555555555555");
     scope.Process(
-        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt, vital_id)
+        RumCommand::StartFeatureOperation(
+            GetBaseParams(), "checkout", std::nullopt, vital_id
+        )
     );
 
     // Then a vital event is emitted
@@ -487,12 +489,14 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     REQUIRE(ev["vital"].count("failure_reason") == 0);
   }
 
-  SECTION("M emit end vital event with no failure W SucceedOperation is processed") {
+  SECTION(
+      "M emit end vital event with no failure W SucceedFeatureOperation is processed"
+  ) {
     // Given an active session with a view and an active operation
     StartView();
     const UUID start_vital_id = *UUID::Parse("aaaa1111-2222-4333-b444-555555555555");
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "checkout", std::nullopt, start_vital_id
         )
     );
@@ -500,7 +504,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     // When we stop the operation successfully
     const UUID stop_vital_id = *UUID::Parse("bbbb2222-3333-4444-b555-666666666666");
     scope.Process(
-        RumCommand::StopOperation(
+        RumCommand::StopFeatureOperation(
             GetBaseParams(), "checkout", std::nullopt, stop_vital_id, std::nullopt
         )
     );
@@ -513,12 +517,14 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     REQUIRE(end_ev["vital"].count("failure_reason") == 0);
   }
 
-  SECTION("M emit end vital event with failure_reason W FailOperation is processed") {
+  SECTION(
+      "M emit end vital event with failure_reason W FailFeatureOperation is processed"
+  ) {
     // Given an active session with a view and an active operation
     StartView();
     const UUID start_vital_id = UUID::Random();
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "upload", std::nullopt, start_vital_id
         )
     );
@@ -526,7 +532,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     // When we fail the operation with an error reason
     const UUID stop_vital_id = UUID::Random();
     scope.Process(
-        RumCommand::StopOperation(
+        RumCommand::StopFeatureOperation(
             GetBaseParams(),
             "upload",
             std::nullopt,
@@ -546,7 +552,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     StartView();
     const UUID vital_id = UUID::Random();
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "checkout", std::string_view{"cart-42"}, vital_id
         )
     );
@@ -559,12 +565,14 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     StartView();
     const UUID start_id = UUID::Random();
     scope.Process(
-        RumCommand::StartOperation(GetBaseParams(), "login", std::nullopt, start_id)
+        RumCommand::StartFeatureOperation(
+            GetBaseParams(), "login", std::nullopt, start_id
+        )
     );
 
     const UUID stop_id = UUID::Random();
     scope.Process(
-        RumCommand::StopOperation(
+        RumCommand::StopFeatureOperation(
             GetBaseParams(),
             "login",
             std::nullopt,
@@ -581,13 +589,17 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     StartView();
     const UUID id1 = UUID::Random();
     scope.Process(
-        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt, id1)
+        RumCommand::StartFeatureOperation(
+            GetBaseParams(), "checkout", std::nullopt, id1
+        )
     );
 
     // Start the same operation again
     const UUID id2 = UUID::Random();
     scope.Process(
-        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt, id2)
+        RumCommand::StartFeatureOperation(
+            GetBaseParams(), "checkout", std::nullopt, id2
+        )
     );
 
     // Both events are emitted (warnings never suppress events)
@@ -602,7 +614,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     StartView();
     const UUID vital_id = UUID::Random();
     scope.Process(
-        RumCommand::StopOperation(
+        RumCommand::StopFeatureOperation(
             GetBaseParams(), "unknown-op", std::nullopt, vital_id, std::nullopt
         )
     );
@@ -618,10 +630,10 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
   SECTION("M emit vital event with zero view ID W no active view exists") {
     // Given an active session with NO views
-    // When we process a StartOperation command
+    // When we process a StartFeatureOperation command
     const UUID vital_id = UUID::Random();
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "background-op", std::nullopt, vital_id
         )
     );
@@ -639,12 +651,12 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Start two operations with same name but different operation_keys
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "upload", std::string_view{"file-1"}, UUID::Random()
         )
     );
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "upload", std::string_view{"file-2"}, UUID::Random()
         )
     );
@@ -655,7 +667,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Stop one
     scope.Process(
-        RumCommand::StopOperation(
+        RumCommand::StopFeatureOperation(
             GetBaseParams(),
             "upload",
             std::string_view{"file-1"},
@@ -674,7 +686,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Start an operation
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "checkout", std::nullopt, UUID::Random()
         )
     );
@@ -697,7 +709,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     auto params = RumCommandParams(clock.Now(), {}, cmd_attrs);
 
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             std::move(params), "checkout", std::nullopt, UUID::Random()
         )
     );
@@ -716,7 +728,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Given no active view - start event has zero view ID
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "checkout", std::nullopt, UUID::Random()
         )
     );
@@ -730,7 +742,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // And the operation is stopped
     scope.Process(
-        RumCommand::StopOperation(
+        RumCommand::StopFeatureOperation(
             GetBaseParams(), "checkout", std::nullopt, UUID::Random(), std::nullopt
         )
     );
@@ -749,7 +761,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // When a non-UserInteraction command (operation) is processed
     scope.Process(
-        RumCommand::StartOperation(
+        RumCommand::StartFeatureOperation(
             GetBaseParams(), "checkout", std::nullopt, UUID::Random()
         )
     );

@@ -500,7 +500,7 @@ void dd_rum_stop_resource_with_error(
   rum->impl->StopResource(key, response, error, cpp_attributes);
 }
 
-void dd_rum_start_operation(
+void dd_rum_start_feature_operation(
     dd_rum_t* rum,
     const char* name,
     const char* operation_key,
@@ -514,7 +514,7 @@ void dd_rum_start_operation(
   // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
   if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
-        "dd_rum_start_operation call ignored: application must supply a "
+        "dd_rum_start_feature_operation call ignored: application must supply a "
         "non-empty operation name"
     );
     return;
@@ -524,7 +524,7 @@ void dd_rum_start_operation(
   if (operation_key && operation_key[0] &&
       datadog::impl::IsBlankCString(operation_key)) {
     rum->diagnostic_logger.Error(
-        "dd_rum_start_operation call ignored: operation_key, if provided, must "
+        "dd_rum_start_feature_operation call ignored: operation_key, if provided, must "
         "be a non-empty string"
     );
     return;
@@ -543,10 +543,10 @@ void dd_rum_start_operation(
   }
 
   const datadog::UUID vital_id = datadog::UUID::Random();
-  rum->impl->StartOperation(name, opt_key, vital_id, cpp_attributes);
+  rum->impl->StartFeatureOperation(name, opt_key, vital_id, cpp_attributes);
 }
 
-void dd_rum_succeed_operation(
+void dd_rum_succeed_feature_operation(
     dd_rum_t* rum,
     const char* name,
     const char* operation_key,
@@ -560,7 +560,7 @@ void dd_rum_succeed_operation(
   // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
   if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
-        "dd_rum_succeed_operation call ignored: application must supply a "
+        "dd_rum_succeed_feature_operation call ignored: application must supply a "
         "non-empty operation name"
     );
     return;
@@ -570,7 +570,7 @@ void dd_rum_succeed_operation(
   if (operation_key && operation_key[0] &&
       datadog::impl::IsBlankCString(operation_key)) {
     rum->diagnostic_logger.Error(
-        "dd_rum_succeed_operation call ignored: operation_key, if provided, "
+        "dd_rum_succeed_feature_operation call ignored: operation_key, if provided, "
         "must be a non-empty string"
     );
     return;
@@ -589,10 +589,12 @@ void dd_rum_succeed_operation(
   }
 
   const datadog::UUID vital_id = datadog::UUID::Random();
-  rum->impl->StopOperation(name, opt_key, vital_id, std::nullopt, cpp_attributes);
+  rum->impl->StopFeatureOperation(
+      name, opt_key, vital_id, std::nullopt, cpp_attributes
+  );
 }
 
-void dd_rum_fail_operation(
+void dd_rum_fail_feature_operation(
     dd_rum_t* rum,
     const char* name,
     dd_rum_failure_reason_t failure_reason,
@@ -607,7 +609,7 @@ void dd_rum_fail_operation(
   // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
   if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
-        "dd_rum_fail_operation call ignored: application must supply a "
+        "dd_rum_fail_feature_operation call ignored: application must supply a "
         "non-empty operation name"
     );
     return;
@@ -617,7 +619,7 @@ void dd_rum_fail_operation(
   if (operation_key && operation_key[0] &&
       datadog::impl::IsBlankCString(operation_key)) {
     rum->diagnostic_logger.Error(
-        "dd_rum_fail_operation call ignored: operation_key, if provided, must "
+        "dd_rum_fail_feature_operation call ignored: operation_key, if provided, must "
         "be a non-empty string"
     );
     return;
@@ -636,7 +638,7 @@ void dd_rum_fail_operation(
   }
 
   const datadog::UUID vital_id = datadog::UUID::Random();
-  rum->impl->StopOperation(
+  rum->impl->StopFeatureOperation(
       name,
       opt_key,
       vital_id,

@@ -47,9 +47,9 @@ CommandResult HandleStartResource(State& state, const CommandInput& args);
 CommandResult HandleStopResource(State& state, const CommandInput& args);
 CommandResult HandleStopResourceWithError(State& state, const CommandInput& args);
 CommandResult HandleAddError(State& state, const CommandInput& args);
-CommandResult HandleStartOperation(State& state, const CommandInput& args);
-CommandResult HandleSucceedOperation(State& state, const CommandInput& args);
-CommandResult HandleFailOperation(State& state, const CommandInput& args);
+CommandResult HandleStartFeatureOperation(State& state, const CommandInput& args);
+CommandResult HandleSucceedFeatureOperation(State& state, const CommandInput& args);
+CommandResult HandleFailFeatureOperation(State& state, const CommandInput& args);
 
 // crash
 CommandResult HandleRegisterCrashReporting(State& state, const CommandInput& args);

@@ -149,8 +149,8 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
 
   // -- Handle operation vital events (session-scoped, not delegated to views)
 
-  if (command.Is<RumStartOperationPayload>()) {
-    const auto& payload = command.As<RumStartOperationPayload>();
+  if (command.Is<RumStartFeatureOperationPayload>()) {
+    const auto& payload = command.As<RumStartFeatureOperationPayload>();
 
     // Build lookup key for active operation tracking: name + operationKey
     std::string lookup_key(payload.name);
@@ -162,12 +162,12 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     if (_active_operations.count(lookup_key) > 0) {
       if (payload.operation_key) {
         _deps.get().diagnostic_logger.Warning(
-            "StartOperation called for operation that has already been started",
+            "StartFeatureOperation called for operation that has already been started",
             {{"name", payload.name}, {"operation_key", *payload.operation_key}}
         );
       } else {
         _deps.get().diagnostic_logger.Warning(
-            "StartOperation called for operation that has already been started",
+            "StartFeatureOperation called for operation that has already been started",
             {{"name", payload.name}}
         );
       }
@@ -190,8 +190,8 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     return RumScopeResult::RemainOpen;
   }
 
-  if (command.Is<RumStopOperationPayload>()) {
-    const auto& payload = command.As<RumStopOperationPayload>();
+  if (command.Is<RumStopFeatureOperationPayload>()) {
+    const auto& payload = command.As<RumStopFeatureOperationPayload>();
 
     // Build lookup key for active operation tracking: name + operationKey
     std::string lookup_key(payload.name);
@@ -203,12 +203,12 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     if (_active_operations.erase(lookup_key) == 0) {
       if (payload.operation_key) {
         _deps.get().diagnostic_logger.Warning(
-            "StopOperation called for operation that is not currently active",
+            "StopFeatureOperation called for operation that is not currently active",
             {{"name", payload.name}, {"operation_key", *payload.operation_key}}
         );
       } else {
         _deps.get().diagnostic_logger.Warning(
-            "StopOperation called for operation that is not currently active",
+            "StopFeatureOperation called for operation that is not currently active",
             {{"name", payload.name}}
         );
       }

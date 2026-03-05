@@ -270,18 +270,18 @@ struct RumAddErrorPayload {
 };
 
 /**
- * On StartOperation, the application has called the StartOperation API
+ * On StartFeatureOperation, the application has called the StartFeatureOperation API
  * function, recording the start of a user-facing operation (e.g. login, checkout).
  */
-struct RumStartOperationPayload {
-  static constexpr const char* COMMAND_NAME = "StartOperation";
+struct RumStartFeatureOperationPayload {
+  static constexpr const char* COMMAND_NAME = "StartFeatureOperation";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
 
   std::string_view name;
   std::optional<std::string_view> operation_key;
   UUID vital_id;
 
-  explicit RumStartOperationPayload(
+  explicit RumStartFeatureOperationPayload(
       std::string_view in_name,
       std::optional<std::string_view> in_operation_key,
       const UUID& in_vital_id
@@ -290,12 +290,12 @@ struct RumStartOperationPayload {
 };
 
 /**
- * On StopOperation, the application has called the SucceedOperation or
- * FailOperation API function, recording the conclusion of a user-facing
+ * On StopFeatureOperation, the application has called the SucceedFeatureOperation or
+ * FailFeatureOperation API function, recording the conclusion of a user-facing
  * operation.
  */
-struct RumStopOperationPayload {
-  static constexpr const char* COMMAND_NAME = "StopOperation";
+struct RumStopFeatureOperationPayload {
+  static constexpr const char* COMMAND_NAME = "StopFeatureOperation";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
 
   std::string_view name;
@@ -303,7 +303,7 @@ struct RumStopOperationPayload {
   UUID vital_id;
   std::optional<RumOperationFailureReason> failure_reason;
 
-  explicit RumStopOperationPayload(
+  explicit RumStopFeatureOperationPayload(
       std::string_view in_name,
       std::optional<std::string_view> in_operation_key,
       const UUID& in_vital_id,
@@ -330,8 +330,8 @@ struct RumCommand {
       RumStartActionPayload,
       RumStopActionPayload,
       RumAddErrorPayload,
-      RumStartOperationPayload,
-      RumStopOperationPayload>;
+      RumStartFeatureOperationPayload,
+      RumStopFeatureOperationPayload>;
 
   RumCommandParams base;
   Payload payload;
@@ -420,20 +420,20 @@ struct RumCommand {
     return RumCommand(std::move(base), RumAddErrorPayload(source, error));
   }
 
-  /** Creates a new 'StartOperation' command. */
-  static RumCommand StartOperation(
+  /** Creates a new 'StartFeatureOperation' command. */
+  static RumCommand StartFeatureOperation(
       RumCommandParams&& base,
       std::string_view name,
       std::optional<std::string_view> operation_key,
       const UUID& vital_id
   ) {
     return RumCommand(
-        std::move(base), RumStartOperationPayload(name, operation_key, vital_id)
+        std::move(base), RumStartFeatureOperationPayload(name, operation_key, vital_id)
     );
   }
 
-  /** Creates a new 'StopOperation' command. */
-  static RumCommand StopOperation(
+  /** Creates a new 'StopFeatureOperation' command. */
+  static RumCommand StopFeatureOperation(
       RumCommandParams&& base,
       std::string_view name,
       std::optional<std::string_view> operation_key,
@@ -442,7 +442,7 @@ struct RumCommand {
   ) {
     return RumCommand(
         std::move(base),
-        RumStopOperationPayload(name, operation_key, vital_id, failure_reason)
+        RumStopFeatureOperationPayload(name, operation_key, vital_id, failure_reason)
     );
   }
 

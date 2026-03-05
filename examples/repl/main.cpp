@@ -116,13 +116,13 @@ CommandResult Handle(State& state, const CommandInput& input) {
     return HandleAddError(state, input.Shift());
   }
   if (input.Peek() == "start-feature-operation") {
-    return HandleStartOperation(state, input.Shift());
+    return HandleStartFeatureOperation(state, input.Shift());
   }
   if (input.Peek() == "succeed-feature-operation") {
-    return HandleSucceedOperation(state, input.Shift());
+    return HandleSucceedFeatureOperation(state, input.Shift());
   }
   if (input.Peek() == "fail-feature-operation") {
-    return HandleFailOperation(state, input.Shift());
+    return HandleFailFeatureOperation(state, input.Shift());
   }
 
   // datadog::CrashReporting

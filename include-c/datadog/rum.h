@@ -423,7 +423,7 @@ typedef enum {
  *  operation. Pass NULL to omit.
  * @param attributes - An optional set of custom attributes for this event.
  */
-DATADOG_API void dd_rum_start_operation(
+DATADOG_API void dd_rum_start_feature_operation(
     dd_rum_t* rum,
     const char* name,
     const char* operation_key,
@@ -440,7 +440,7 @@ DATADOG_API void dd_rum_start_operation(
  *  operation. Pass NULL to omit.
  * @param attributes - An optional set of custom attributes for this event.
  */
-DATADOG_API void dd_rum_succeed_operation(
+DATADOG_API void dd_rum_succeed_feature_operation(
     dd_rum_t* rum,
     const char* name,
     const char* operation_key,
@@ -458,7 +458,7 @@ DATADOG_API void dd_rum_succeed_operation(
  *  operation. Pass NULL to omit.
  * @param attributes - An optional set of custom attributes for this event.
  */
-DATADOG_API void dd_rum_fail_operation(
+DATADOG_API void dd_rum_fail_feature_operation(
     dd_rum_t* rum,
     const char* name,
     dd_rum_failure_reason_t failure_reason,

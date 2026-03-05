@@ -467,7 +467,7 @@ CommandResult HandleAddError(State& state, const CommandInput& args) {
   return CommandResult::OK("Rum::AddError()");
 }
 
-CommandResult HandleStartOperation(State& state, const CommandInput& args) {
+CommandResult HandleStartFeatureOperation(State& state, const CommandInput& args) {
   // RUM must be registered and SDK must be running
   if (!state.rum) {
     return CommandResult::Error("RUM is not registered!");
@@ -487,11 +487,11 @@ CommandResult HandleStartOperation(State& state, const CommandInput& args) {
   auto named = args.Named();
   auto key = Unquote(named.Get("key"));
 
-  state.rum->StartOperation(name, key);
-  return CommandResult::OK("Rum::StartOperation()");
+  state.rum->StartFeatureOperation(name, key);
+  return CommandResult::OK("Rum::StartFeatureOperation()");
 }
 
-CommandResult HandleSucceedOperation(State& state, const CommandInput& args) {
+CommandResult HandleSucceedFeatureOperation(State& state, const CommandInput& args) {
   // RUM must be registered and SDK must be running
   if (!state.rum) {
     return CommandResult::Error("RUM is not registered!");
@@ -511,11 +511,11 @@ CommandResult HandleSucceedOperation(State& state, const CommandInput& args) {
   auto named = args.Named();
   auto key = Unquote(named.Get("key"));
 
-  state.rum->SucceedOperation(name, key);
-  return CommandResult::OK("Rum::SucceedOperation()");
+  state.rum->SucceedFeatureOperation(name, key);
+  return CommandResult::OK("Rum::SucceedFeatureOperation()");
 }
 
-CommandResult HandleFailOperation(State& state, const CommandInput& args) {
+CommandResult HandleFailFeatureOperation(State& state, const CommandInput& args) {
   // RUM must be registered and SDK must be running
   if (!state.rum) {
     return CommandResult::Error("RUM is not registered!");
@@ -546,6 +546,6 @@ CommandResult HandleFailOperation(State& state, const CommandInput& args) {
 
   auto key = Unquote(named.Get("key"));
 
-  state.rum->FailOperation(name, reason, key);
-  return CommandResult::OK("Rum::FailOperation()");
+  state.rum->FailFeatureOperation(name, reason, key);
+  return CommandResult::OK("Rum::FailFeatureOperation()");
 }

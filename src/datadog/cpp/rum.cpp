@@ -324,13 +324,13 @@ void Rum::AddError(
   }
 }
 
-void Rum::StartOperation(
+void Rum::StartFeatureOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
   // Require a non-blank (non-empty, non-whitespace-only) operation name
   if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Rum::StartOperation call ignored: application must supply a non-empty "
+        "Rum::StartFeatureOperation call ignored: application must supply a non-empty "
         "operation name"
     );
     return;
@@ -339,7 +339,7 @@ void Rum::StartOperation(
   // If operation_key is provided, it must be non-blank
   if (!operation_key.empty() && impl::IsBlankString(operation_key)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Rum::StartOperation call ignored: operation_key, if provided, must be "
+        "Rum::StartFeatureOperation call ignored: operation_key, if provided, must be "
         "a non-empty string"
     );
     return;
@@ -353,17 +353,18 @@ void Rum::StartOperation(
 
   if (_impl) {
     const UUID vital_id = UUID::Random();
-    _impl->StartOperation(name, opt_key, vital_id, attributes);
+    _impl->StartFeatureOperation(name, opt_key, vital_id, attributes);
   }
 }
 
-void Rum::SucceedOperation(
+void Rum::SucceedFeatureOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
   // Require a non-blank (non-empty, non-whitespace-only) operation name
   if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Rum::SucceedOperation call ignored: application must supply a non-empty "
+        "Rum::SucceedFeatureOperation call ignored: application must supply a "
+        "non-empty "
         "operation name"
     );
     return;
@@ -372,7 +373,8 @@ void Rum::SucceedOperation(
   // If operation_key is provided, it must be non-blank
   if (!operation_key.empty() && impl::IsBlankString(operation_key)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Rum::SucceedOperation call ignored: operation_key, if provided, must be "
+        "Rum::SucceedFeatureOperation call ignored: operation_key, if provided, must "
+        "be "
         "a non-empty string"
     );
     return;
@@ -386,11 +388,11 @@ void Rum::SucceedOperation(
 
   if (_impl) {
     const UUID vital_id = UUID::Random();
-    _impl->StopOperation(name, opt_key, vital_id, std::nullopt, attributes);
+    _impl->StopFeatureOperation(name, opt_key, vital_id, std::nullopt, attributes);
   }
 }
 
-void Rum::FailOperation(
+void Rum::FailFeatureOperation(
     std::string_view name,
     RumOperationFailureReason failure_reason,
     std::string_view operation_key,
@@ -399,7 +401,7 @@ void Rum::FailOperation(
   // Require a non-blank (non-empty, non-whitespace-only) operation name
   if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Rum::FailOperation call ignored: application must supply a non-empty "
+        "Rum::FailFeatureOperation call ignored: application must supply a non-empty "
         "operation name"
     );
     return;
@@ -408,7 +410,7 @@ void Rum::FailOperation(
   // If operation_key is provided, it must be non-blank
   if (!operation_key.empty() && impl::IsBlankString(operation_key)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Rum::FailOperation call ignored: operation_key, if provided, must be "
+        "Rum::FailFeatureOperation call ignored: operation_key, if provided, must be "
         "a non-empty string"
     );
     return;
@@ -422,7 +424,7 @@ void Rum::FailOperation(
 
   if (_impl) {
     const UUID vital_id = UUID::Random();
-    _impl->StopOperation(name, opt_key, vital_id, failure_reason, attributes);
+    _impl->StopFeatureOperation(name, opt_key, vital_id, failure_reason, attributes);
   }
 }
 
