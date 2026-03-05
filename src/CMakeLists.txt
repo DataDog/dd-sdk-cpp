@@ -24,6 +24,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/cpp/version.cpp
     datadog/impl/attribute/cow.cpp
     datadog/impl/attribute/merge.cpp
+    datadog/impl/core/context_thread.cpp
     datadog/impl/core/context.cpp
     datadog/impl/core/core.cpp
     datadog/impl/core/feature_read.cpp
