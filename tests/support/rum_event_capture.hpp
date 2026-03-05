@@ -17,6 +17,7 @@
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -31,7 +32,7 @@ using namespace datadog::impl;
  */
 class RumEventCapture {
   std::vector<nlohmann::json> all_events;
-  std::vector<std::string> captured_warnings;
+  DiagnosticMessageBuffer diagnostics;
 
   const char* application_id;
   const char* session_id;
@@ -100,8 +101,21 @@ class RumEventCapture {
               return true;
             },
             DiagnosticLogger(
-                [this](const DiagnosticMessage& message) {
-                  captured_warnings.emplace_back(message.text);
+                [&](const DiagnosticMessage& message) {
+                  switch (message.level) {
+                    case DiagnosticLevel::Debug:
+                      diagnostics.debug.emplace_back(message.text);
+                      break;
+                    case DiagnosticLevel::Status:
+                      diagnostics.status.emplace_back(message.text);
+                      break;
+                    case DiagnosticLevel::Warning:
+                      diagnostics.warning.emplace_back(message.text);
+                      break;
+                    case DiagnosticLevel::Error:
+                      diagnostics.error.emplace_back(message.text);
+                      break;
+                  }
                 },
                 DiagnosticLevel::Debug
             )
@@ -109,7 +123,8 @@ class RumEventCapture {
 
   // Access methods
   FeatureScope& GetFeatureScope() { return feature_scope; }
-  std::vector<std::string>& Warnings() { return captured_warnings; }
+  DiagnosticMessageBuffer& Diagnostics() { return diagnostics; }
+  std::vector<std::string>& Warnings() { return diagnostics.warning; }
 
   // Filter methods - return copies for easy assertions
   std::vector<nlohmann::json> FilterByType(std::string_view type) const {
