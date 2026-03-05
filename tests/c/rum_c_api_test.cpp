@@ -3572,6 +3572,222 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
                                      }
          );
        }},
+
+      // === Feature Operations ===
+
+      {"M emit start and end vital events W operation succeeds",
+       [](dd_rum_config_t*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_operation(rum, "checkout", nullptr, nullptr);
+         clock.Tick(std::chrono::milliseconds(500));
+         dd_rum_succeed_operation(rum, "checkout", nullptr, nullptr);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[0], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "start",
+             "id": "${__NONZERO_UUID__}"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000500,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         REQUIRE(vitals[1]["vital"].count("failure_reason") == 0);
+       }},
+
+      {"M emit end vital with failure_reason W operation fails with error",
+       [](dd_rum_config_t*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_operation(rum, "upload", nullptr, nullptr);
+         dd_rum_fail_operation(
+             rum, "upload", DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
+         );
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "upload",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}",
+             "failure_reason": "error"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+       }},
+
+      {"M include operation_key in vital events W operation started with key",
+       [](dd_rum_config_t*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_operation(rum, "checkout", "cart-42", nullptr);
+         dd_rum_succeed_operation(rum, "checkout", "cart-42", nullptr);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[0], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "start",
+             "id": "${__NONZERO_UUID__}",
+             "operation_key": "cart-42"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}",
+             "operation_key": "cart-42"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+       }},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
