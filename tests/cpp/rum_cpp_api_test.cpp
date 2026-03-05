@@ -3169,6 +3169,184 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
            "_dd": {"format_version": 2}
          })"));
        }},
+
+      // Attribute merging tests for operations
+      {"M include command attributes in start vital W StartOperation with attributes",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         Attribute attrs = Attribute::Object(2);
+         attrs.SetObjectProperty("checkout.cart_id", Attribute::String("cart-123"));
+         attrs.SetObjectProperty("checkout.item_count", Attribute::Int(3));
+         rum->StartOperation("checkout", "", attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         REQUIRE(vitals[0]["vital"]["step_type"] == "start");
+         REQUIRE(
+             vitals[0]["context"] ==
+             nlohmann::json{
+                 {"checkout.cart_id", "cart-123"}, {"checkout.item_count", 3}
+             }
+         );
+       }},
+
+      {"M include command attributes in end vital W SucceedOperation with attributes",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         rum->StartOperation("upload");
+         Attribute attrs = Attribute::Object(1);
+         attrs.SetObjectProperty("upload.bytes", Attribute::Int(1024000));
+         rum->SucceedOperation("upload", "", attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(vitals[1]["context"] == nlohmann::json{{"upload.bytes", 1024000}});
+       }},
+
+      {"M include command attributes in end vital W FailOperation with attributes",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         rum->StartOperation("login");
+         Attribute attrs = Attribute::Object(2);
+         attrs.SetObjectProperty("error.code", Attribute::String("INVALID_CREDS"));
+         attrs.SetObjectProperty("attempt.count", Attribute::Int(3));
+         rum->FailOperation("login", RumOperationFailureReason::Error, "", attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(vitals[1]["vital"]["failure_reason"] == "error");
+         REQUIRE(
+             vitals[1]["context"] ==
+             nlohmann::json{{"error.code", "INVALID_CREDS"}, {"attempt.count", 3}}
+         );
+       }},
+
+      {"M merge global <- view <- command attributes in vital events",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // Global: {"able":100, "baker":200}
+         rum->AddAttribute("able", Attribute::Int(100));
+         rum->AddAttribute("baker", Attribute::Int(200));
+
+         // View: {"baker":222, "charlie":333, "dog":444}
+         Attribute view_attrs = Attribute::Object(3);
+         view_attrs.SetObjectProperty("baker", Attribute::Int(222));  // shadows global
+         view_attrs.SetObjectProperty("charlie", Attribute::Int(333));
+         view_attrs.SetObjectProperty("dog", Attribute::Int(444));
+         rum->StartView("my-view", "My View", view_attrs);
+
+         // Operation: {"alpha":1, "bravo":2, "dog":"good"}
+         Attribute op_attrs = Attribute::Object(3);
+         op_attrs.SetObjectProperty("alpha", Attribute::Int(1));
+         op_attrs.SetObjectProperty("bravo", Attribute::Int(2));
+         op_attrs.SetObjectProperty("dog", Attribute::String("good"));  // shadows view
+         rum->StartOperation("checkout", "", op_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         // Result: global + view + operation, with operation > view > global precedence
+         REQUIRE(
+             vitals[0]["context"] == nlohmann::json{
+                                         {"able", 100},   // from global
+                                         {"baker", 222},  // from view (shadowed global)
+                                         {"charlie", 333},  // from view
+                                         {"alpha", 1},      // from operation
+                                         {"bravo", 2},      // from operation
+                                         {"dog", "good"}
+                                         // from operation (shadowed view and global)
+                                     }
+         );
+       }},
+
+      {"M merge global <- command attributes W operation emitted without active view",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // Global: {"env":"production", "version":"1.2.3"}
+         rum->AddAttribute("env", Attribute::String("production"));
+         rum->AddAttribute("version", Attribute::String("1.2.3"));
+
+         // No view started - operation runs in background
+         Attribute op_attrs = Attribute::Object(2);
+         op_attrs.SetObjectProperty("task.name", Attribute::String("sync"));
+         op_attrs.SetObjectProperty(
+             "env", Attribute::String("staging")
+         );  // shadows global
+         rum->StartOperation("background-sync", "", op_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         REQUIRE(vitals[0]["view"]["id"] == "00000000-0000-0000-0000-000000000000");
+         REQUIRE(
+             vitals[0]["context"] ==
+             nlohmann::json{
+                 {"env", "staging"},    // from operation (shadowed global)
+                 {"version", "1.2.3"},  // from global
+                 {"task.name", "sync"}  // from operation
+             }
+         );
+       }},
+
+      {"M not merge StartOperation and SucceedOperation attributes together",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+
+         // StartOperation with {"start.timestamp":"2024-01-01"}
+         Attribute start_attrs = Attribute::Object(1);
+         start_attrs.SetObjectProperty(
+             "start.timestamp", Attribute::String("2024-01-01")
+         );
+         rum->StartOperation("upload", "", start_attrs);
+
+         // SucceedOperation with {"end.timestamp":"2024-01-02", "bytes":5000}
+         Attribute succeed_attrs = Attribute::Object(2);
+         succeed_attrs.SetObjectProperty(
+             "end.timestamp", Attribute::String("2024-01-02")
+         );
+         succeed_attrs.SetObjectProperty("bytes", Attribute::Int(5000));
+         rum->SucceedOperation("upload", "", succeed_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         // Start event has only start attributes
+         REQUIRE(vitals[0]["vital"]["step_type"] == "start");
+         REQUIRE(
+             vitals[0]["context"] == nlohmann::json{{"start.timestamp", "2024-01-01"}}
+         );
+
+         // End event has only end attributes (not merged with start)
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(
+             vitals[1]["context"] ==
+             nlohmann::json{{"end.timestamp", "2024-01-02"}, {"bytes", 5000}}
+         );
+       }},
+
+      {"M omit context field in vital event W no attributes provided",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         rum->StartOperation("checkout");    // no attributes
+         rum->SucceedOperation("checkout");  // no attributes
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[0].count("context") == 0);
+         REQUIRE(vitals[1].count("context") == 0);
+       }},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
