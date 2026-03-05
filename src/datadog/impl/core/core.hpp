@@ -365,6 +365,14 @@ class Core {
    */
   void Stop();
 
+  /**
+   * Blocks until all queued closures on the context thread have been processed.
+   *
+   * This is intended for testing, to ensure deterministic execution of asynchronous
+   * operations. Must only be called when the core is running.
+   */
+  void FlushContextQueue();
+
  private:
   bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
 
@@ -385,6 +393,9 @@ class Core {
   // Initialized on Start, cleaned up on Stop
   std::unique_ptr<StorageQueue> _storage_queue;
   std::optional<std::thread> _storage_thread;
+
+  std::unique_ptr<Queue<std::function<void()>>> _context_queue;
+  std::optional<std::thread> _context_thread;
 
   std::unique_ptr<UploadScheduler> _upload_scheduler;
   std::optional<std::thread> _upload_thread;

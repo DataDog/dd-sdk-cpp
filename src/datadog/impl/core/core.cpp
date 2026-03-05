@@ -7,11 +7,14 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <algorithm>
+#include <condition_variable>
 #include <filesystem>
 #include <iostream>
+#include <mutex>
 #include <sstream>
 
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/context_thread.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/version.hpp"
@@ -314,6 +317,22 @@ bool Core::Start() {
       std::ref(_features)
   );
 
+  // Initialize a thread-safe queue for closures that will execute on the context
+  // thread
+  DATADOG_ASSERT(!_context_queue, "_context_queue already exists on Start()");
+  _context_queue = std::make_unique<Queue<std::function<void()>>>();
+
+  // Start the context thread that will execute closures submitted by features
+  DATADOG_ASSERT(!_context_thread, "_context_thread already exists on Start()");
+  _context_thread = std::thread(
+      ContextThreadMain,
+      std::ref(_diagnostic_logger),
+      std::ref(*_context_queue),
+      std::ref(*_context_provider)
+  );
+
+  // Initialize an upload scheduler to manage the timing of upload cycles for each
+  // feature
   DATADOG_ASSERT(!_upload_scheduler, "_upload_scheduler already exists on Start()");
   _upload_scheduler = std::make_unique<UploadScheduler>(*_subsystems.clock);
 
@@ -378,7 +397,12 @@ void Core::Stop() {
     feature.impl->OnCoreStopping();
   }
 
-  // If we were previously started, the storage and upload threads should be running
+  // If we were previously started, all background threads should be running
+  DATADOG_ASSERT(_context_queue, "_context_queue is invalid on Stop");
+  DATADOG_ASSERT(
+      _context_thread && _context_thread->joinable(),
+      "_context_thread is non-joinable on Stop"
+  );
   DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid on Stop");
   DATADOG_ASSERT(
       _storage_thread && _storage_thread->joinable(),
@@ -389,6 +413,17 @@ void Core::Stop() {
       _upload_thread && _upload_thread->joinable(),
       "_upload_thread is non-joinable on Stop"
   );
+
+  // Stop the context queue, then block until the context thread drains the queue and
+  // exits. This ensures all pending feature operations complete before we stop the
+  // storage thread.
+  _context_queue->Stop();
+  if (_context_thread) {
+    _diagnostic_logger.Debug("Joining on context thread");
+    _context_thread->join();
+  }
+  _context_thread.reset();
+  _context_queue.reset();
 
   // Stop all queue processing, then block until the consumer thread drains the queue
   // and exits, at which point it's safe to release the queue
@@ -490,6 +525,29 @@ std::string_view Core::GetApplicationVersion() const {
       _state >= CoreState::Initialized, "GetApplicationVersion called before Core init"
   );
   return _context_provider->GetHttpContext().application_version;
+}
+
+void Core::FlushContextQueue() {
+  DATADOG_ASSERT(
+      _state == CoreState::Started, "FlushContextQueue called while Core not running"
+  );
+  DATADOG_ASSERT(_context_queue, "_context_queue is null on FlushContextQueue");
+
+  // Use a condition variable to wait until the sentinel closure executes
+  std::mutex mutex;
+  std::condition_variable cv;
+  bool sentinel_executed = false;
+
+  // Queue a sentinel closure that signals completion
+  _context_queue->Push([&]() {
+    std::lock_guard<std::mutex> lock(mutex);
+    sentinel_executed = true;
+    cv.notify_one();
+  });
+
+  // Wait until the sentinel has been executed by the context thread
+  std::unique_lock<std::mutex> lock(mutex);
+  cv.wait(lock, [&] { return sentinel_executed; });
 }
 
 }  // namespace datadog::impl
