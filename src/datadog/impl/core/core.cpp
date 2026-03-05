@@ -317,12 +317,12 @@ bool Core::Start() {
       std::ref(_features)
   );
 
-  // Initialize a thread-safe queue for closures that will execute on the context
+  // Initialize a thread-safe queue for functions that will execute on the context
   // thread
   DATADOG_ASSERT(!_context_queue, "_context_queue already exists on Start()");
   _context_queue = std::make_unique<Queue<std::function<void()>>>();
 
-  // Start the context thread that will execute closures submitted by features
+  // Start the context thread that will execute functions submitted by features
   DATADOG_ASSERT(!_context_thread, "_context_thread already exists on Start()");
   _context_thread = std::thread(
       ContextThreadMain,
@@ -378,9 +378,12 @@ bool Core::Start() {
         [this, id](Block event, Block event_metadata) -> bool {
       return EnqueueStorageWrite(id, event, event_metadata);
     };
-    feature.impl->OnCoreStarted(
-        FeatureScope(*_context_provider, event_generated_func, _diagnostic_logger)
-    );
+    feature.impl->OnCoreStarted(FeatureScope(
+        *_context_provider,
+        event_generated_func,
+        _diagnostic_logger,
+        _context_queue.get()
+    ));
   }
   return true;
 }
@@ -533,12 +536,12 @@ void Core::FlushContextQueue() {
   );
   DATADOG_ASSERT(_context_queue, "_context_queue is null on FlushContextQueue");
 
-  // Use a condition variable to wait until the sentinel closure executes
+  // Use a condition variable to wait until the sentinel function executes
   std::mutex mutex;
   std::condition_variable cv;
   bool sentinel_executed = false;
 
-  // Queue a sentinel closure that signals completion
+  // Queue a sentinel function that signals completion
   _context_queue->Push([&]() {
     std::lock_guard<std::mutex> lock(mutex);
     sentinel_executed = true;

@@ -366,7 +366,7 @@ class Core {
   void Stop();
 
   /**
-   * Blocks until all queued closures on the context thread have been processed.
+   * Blocks until all queued functions on the context thread have been processed.
    *
    * This is intended for testing, to ensure deterministic execution of asynchronous
    * operations. Must only be called when the core is running.
