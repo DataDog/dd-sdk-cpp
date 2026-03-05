@@ -446,9 +446,7 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->FailOperation(
-               "\n", RumOperationFailureReason::Abandoned
-           );
+           rum->FailOperation("\n", RumOperationFailureReason::Abandoned);
          });
        },
        {},

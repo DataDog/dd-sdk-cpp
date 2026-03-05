@@ -428,8 +428,7 @@ struct RumCommand {
       const UUID& vital_id
   ) {
     return RumCommand(
-        std::move(base),
-        RumStartOperationPayload(name, operation_key, vital_id)
+        std::move(base), RumStartOperationPayload(name, operation_key, vital_id)
     );
   }
 

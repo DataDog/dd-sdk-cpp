@@ -337,9 +337,7 @@ void Rum::AddError(
 }
 
 void Rum::StartOperation(
-    std::string_view name,
-    std::string_view operation_key,
-    const Attribute& attributes
+    std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
   // Require a non-blank (non-empty, non-whitespace-only) operation name
   if (IsBlankString(name)) {
@@ -372,9 +370,7 @@ void Rum::StartOperation(
 }
 
 void Rum::SucceedOperation(
-    std::string_view name,
-    std::string_view operation_key,
-    const Attribute& attributes
+    std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
   // Require a non-blank (non-empty, non-whitespace-only) operation name
   if (IsBlankString(name)) {
@@ -438,9 +434,7 @@ void Rum::FailOperation(
 
   if (_impl) {
     const UUID vital_id = UUID::Random();
-    _impl->StopOperation(
-        name, opt_key, vital_id, failure_reason, attributes
-    );
+    _impl->StopOperation(name, opt_key, vital_id, failure_reason, attributes);
   }
 }
 

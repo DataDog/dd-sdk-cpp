@@ -159,9 +159,11 @@ void Rum::StartOperation(
     const UUID& vital_id,
     const Attribute& attributes
 ) {
-  Dispatch(RumCommand::StartOperation(
-      GetBaseCommandParams(attributes), name, operation_key, vital_id
-  ));
+  Dispatch(
+      RumCommand::StartOperation(
+          GetBaseCommandParams(attributes), name, operation_key, vital_id
+      )
+  );
 }
 
 void Rum::StopOperation(
@@ -171,9 +173,15 @@ void Rum::StopOperation(
     std::optional<RumOperationFailureReason> failure_reason,
     const Attribute& attributes
 ) {
-  Dispatch(RumCommand::StopOperation(
-      GetBaseCommandParams(attributes), name, operation_key, vital_id, failure_reason
-  ));
+  Dispatch(
+      RumCommand::StopOperation(
+          GetBaseCommandParams(attributes),
+          name,
+          operation_key,
+          vital_id,
+          failure_reason
+      )
+  );
 }
 
 RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {

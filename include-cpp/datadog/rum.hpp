@@ -413,8 +413,8 @@ class Rum {
    * This API is in preview and may change in future releases.
    *
    * @param name - The name of the operation. Must be non-empty.
-   * @param operation_key - An optional key to distinguish parallel instances of the same
-   *  operation. Must be non-empty if provided.
+   * @param operation_key - An optional key to distinguish parallel instances of the
+   * same operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
   DATADOG_API void StartOperation(
@@ -432,8 +432,8 @@ class Rum {
    * This API is in preview and may change in future releases.
    *
    * @param name - The name of the operation. Must be non-empty.
-   * @param operation_key - An optional key to distinguish parallel instances of the same
-   *  operation. Must be non-empty if provided.
+   * @param operation_key - An optional key to distinguish parallel instances of the
+   * same operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
   DATADOG_API void SucceedOperation(
@@ -452,8 +452,8 @@ class Rum {
    *
    * @param name - The name of the operation. Must be non-empty.
    * @param failure_reason - The reason the operation failed.
-   * @param operation_key - An optional key to distinguish parallel instances of the same
-   *  operation. Must be non-empty if provided.
+   * @param operation_key - An optional key to distinguish parallel instances of the
+   * same operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
   DATADOG_API void FailOperation(

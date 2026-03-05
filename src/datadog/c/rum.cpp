@@ -600,9 +600,7 @@ void dd_rum_succeed_operation(
   }
 
   const datadog::UUID vital_id = datadog::UUID::Random();
-  rum->impl->StopOperation(
-      name, opt_key, vital_id, std::nullopt, cpp_attributes
-  );
+  rum->impl->StopOperation(name, opt_key, vital_id, std::nullopt, cpp_attributes);
 }
 
 void dd_rum_fail_operation(

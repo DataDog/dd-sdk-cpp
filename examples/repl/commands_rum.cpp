@@ -131,8 +131,9 @@ std::optional<datadog::RumErrorSource> ParseRumErrorSource(std::string_view s) {
   return std::nullopt;
 }
 
-std::optional<datadog::RumOperationFailureReason>
-ParseRumFailureReason(std::string_view s) {
+std::optional<datadog::RumOperationFailureReason> ParseRumFailureReason(
+    std::string_view s
+) {
   if (s == "error") {
     return datadog::RumOperationFailureReason::Error;
   }
@@ -533,8 +534,7 @@ CommandResult HandleFailOperation(State& state, const CommandInput& args) {
   // Named args
   auto named = args.Named();
 
-  datadog::RumOperationFailureReason reason{
-      datadog::RumOperationFailureReason::Error};
+  datadog::RumOperationFailureReason reason{datadog::RumOperationFailureReason::Error};
   auto reason_str = Unquote(named.Get("reason"));
   if (!reason_str.empty()) {
     if (auto reason_opt = ParseRumFailureReason(reason_str)) {
