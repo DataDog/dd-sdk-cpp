@@ -21,6 +21,7 @@
 #include "datadog/impl/platform/system_info.hpp"
 
 #include "mock/clock.hpp"
+#include "support/rum_event_capture.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -366,12 +367,6 @@ TEST_CASE_METHOD(
 /**
  * Fixture for session tests that need to capture emitted events.
  */
-struct CapturedVitalEvent {
-  nlohmann::json obj;
-
-  CapturedVitalEvent(nlohmann::json in_obj) : obj(std::move(in_obj)) {}
-};
-
 class SessionEventFixture {
  protected:
   static constexpr const char* APPLICATION_ID = "a991ca10-4004-4004-4004-beefbeefbeef";
@@ -385,22 +380,8 @@ class SessionEventFixture {
   RumApplicationScope parent;
   RumSessionScope scope;
 
-  // Event capture
-  std::vector<CapturedVitalEvent> vital_events;
-  size_t num_non_vital_events{0};
-  std::vector<std::string> captured_warnings;
-  platform::OsInfo os_info{"mock-os", "2.3.4", "mock-build-number", "2"};
-  platform::DeviceInfo device_info{
-      "desktop",
-      "mock-device",
-      "mock-model",
-      "mock-brand",
-      "x86_64",
-      "en-US",
-      "America/New_York"
-  };
-  CoreContextProvider context_provider;
-  FeatureScope feature_scope;
+  // Event capture - delegates to shared RumEventCapture harness
+  RumEventCapture event_capture;
 
  public:
   SessionEventFixture()
@@ -419,36 +400,9 @@ class SessionEventFixture {
             )},
             std::nullopt
         ),
-        context_provider(CoreContext(
-            CoreConfig{"fake-client-token", "fake-service", "fake-env"},
-            os_info,
-            device_info
-        )),
-        feature_scope(
-            context_provider,
-            [this](Block event, Block event_metadata) {
-              REQUIRE(event_metadata.empty());
-              auto obj = nlohmann::json::parse(event);
-              REQUIRE(obj.is_object());
-
-              if (obj["type"] == "vital") {
-                REQUIRE(obj["application"]["id"] == APPLICATION_ID);
-                REQUIRE(obj["session"]["id"] == SESSION_ID);
-                vital_events.emplace_back(std::move(obj));
-              } else {
-                num_non_vital_events++;
-              }
-              return true;
-            },
-            DiagnosticLogger(
-                [this](const DiagnosticMessage& message) {
-                  captured_warnings.emplace_back(message.text);
-                },
-                DiagnosticLevel::Debug
-            )
-        ) {
-    deps.scope = &feature_scope;
-    deps.diagnostic_logger = feature_scope.diagnostic_logger;
+        event_capture(APPLICATION_ID, SESSION_ID, nullptr) {
+    deps.scope = &event_capture.GetFeatureScope();
+    deps.diagnostic_logger = event_capture.GetFeatureScope().diagnostic_logger;
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -474,8 +428,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // Then a vital event is emitted
-    REQUIRE(vital_events.size() == 1);
-    const auto& ev = vital_events[0].obj;
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    const auto& ev = vitals[0];
     REQUIRE(ev["type"] == "vital");
     REQUIRE(ev["vital"]["name"] == "checkout");
     REQUIRE(ev["vital"]["type"] == "operation_step");
@@ -564,8 +519,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
         )
     );
 
-    REQUIRE(vital_events.size() == 1);
-    REQUIRE(vital_events[0].obj["vital"]["operation_key"] == "cart-42");
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["vital"]["operation_key"] == "cart-42");
   }
 
   SECTION("M emit vital with abandoned failure_reason W abandoned") {
@@ -606,11 +562,13 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // Both events are emitted (warnings never suppress events)
-    REQUIRE(vital_events.size() == 2);
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
     // A warning was logged including the operation name
-    REQUIRE(captured_warnings.size() == 1);
-    REQUIRE(captured_warnings[0].find("checkout") != std::string::npos);
-    REQUIRE(captured_warnings[0].find("has already been started") != std::string::npos);
+    auto& warnings = event_capture.Warnings();
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("checkout") != std::string::npos);
+    REQUIRE(warnings[0].find("has already been started") != std::string::npos);
   }
 
   SECTION("M warn on stop without start W operation stopped without matching start") {
@@ -622,12 +580,14 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // Event is still emitted despite no matching start
-    REQUIRE(vital_events.size() == 1);
-    REQUIRE(vital_events[0].obj["vital"]["step_type"] == "end");
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["vital"]["step_type"] == "end");
     // A warning was logged including the operation name
-    REQUIRE(captured_warnings.size() == 1);
-    REQUIRE(captured_warnings[0].find("unknown-op") != std::string::npos);
-    REQUIRE(captured_warnings[0].find("not currently active") != std::string::npos);
+    auto& warnings = event_capture.Warnings();
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("unknown-op") != std::string::npos);
+    REQUIRE(warnings[0].find("not currently active") != std::string::npos);
   }
 
   SECTION("M emit vital event with zero view ID W no active view exists") {
@@ -640,11 +600,10 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // Then a vital event is still emitted with zero-valued view
-    REQUIRE(vital_events.size() == 1);
-    REQUIRE(
-        vital_events[0].obj["view"]["id"] == "00000000-0000-0000-0000-000000000000"
-    );
-    REQUIRE(vital_events[0].obj["view"]["url"] == "");
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["view"]["id"] == "00000000-0000-0000-0000-000000000000");
+    REQUIRE(vitals[0]["view"]["url"] == "");
   }
 
   SECTION("M track parallel operations with distinct keys correctly") {
@@ -663,8 +622,10 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // No warnings - these are distinct operations
-    REQUIRE(captured_warnings.size() == 0);
-    REQUIRE(vital_events.size() == 2);
+    auto& warnings = event_capture.Warnings();
+    auto vitals = event_capture.Vitals();
+    REQUIRE(warnings.size() == 0);
+    REQUIRE(vitals.size() == 2);
 
     // Stop one
     scope.Process(
@@ -674,8 +635,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // No warning for stop-with-matching-start
-    REQUIRE(captured_warnings.size() == 0);
-    REQUIRE(vital_events.size() == 3);
+    vitals = event_capture.Vitals();
+    REQUIRE(warnings.size() == 0);
+    REQUIRE(vitals.size() == 3);
   }
 
   SECTION("M clear active operations W session is stopped") {
@@ -707,8 +669,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
         RumCommand::StartFeatureOperation(std::move(params), "checkout", std::nullopt)
     );
 
-    REQUIRE(vital_events.size() == 1);
-    const auto& ev = vital_events[0].obj;
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    const auto& ev = vitals[0];
     REQUIRE(ev.count("context") == 1);
     REQUIRE(ev["context"]["command.key"] == "cmd-val");
   }
@@ -723,10 +686,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     scope.Process(
         RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt)
     );
-    REQUIRE(vital_events.size() == 1);
-    REQUIRE(
-        vital_events[0].obj["view"]["id"] == "00000000-0000-0000-0000-000000000000"
-    );
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["view"]["id"] == "00000000-0000-0000-0000-000000000000");
 
     // When a view is started mid-operation
     StartView();
