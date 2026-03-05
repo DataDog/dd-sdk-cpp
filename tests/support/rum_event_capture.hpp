@@ -28,9 +28,9 @@ using namespace datadog::impl;
  * Shared test harness for capturing RUM events and diagnostics emitted by
  * implementation-layer scope tests.
  *
- * Captures ALL events (doesn't filter by type at capture time) and provides
- * filter methods to extract events by type after capture. Owns FeatureScope,
- * CoreContextProvider, and diagnostic infrastructure.
+ * Captures ALL events (doesn't filter by type at capture time) and provides filter
+ * methods to extract events by type after capture. Owns FeatureScope,
+ * CoreContextProvider, and diagnostic logging code.
  */
 class RumEventCapture {
   std::vector<nlohmann::json> all_events;
@@ -56,12 +56,14 @@ class RumEventCapture {
 
  public:
   /**
-   * Construct an event capture harness that validates application/session/view
-   * IDs match expected values.
+   * Constructs a new event capture harness that validates application/session/view
+   * IDs match expected values, and buffers all RUM events and diagnostic messages
+   * emitted during a test.
    *
-   * Events with matching IDs are captured; ID validation is performed for types
-   * that include those fields. If `view_id` is nullptr, view ID validation is
-   * skipped (useful for session-level tests where view ID varies).
+   * As each event is captured, this class will validate that it's a valid JSON object,
+   * and that if has an "application.id" and "session.id" value matching the values
+   * given on construction. If a view_id value is given, and the event has a "view.id"
+   * value, it will be checked for equality as well.
    */
   RumEventCapture(
       const char* application_id, const char* session_id, const char* view_id = nullptr
@@ -121,11 +123,22 @@ class RumEventCapture {
             )
         ) {}
 
-  // Access methods
+  /**
+   * Returns a reference to the FeatureScope owned by this harness, so that it can be
+   * injected into the code under test.
+   */
   FeatureScope& GetFeatureScope() { return feature_scope; }
+
+  /**
+   * Returns the full set of diagnostic messages that were emitted via this object's
+   * FeatureScope since construction.
+   */
   const DiagnosticMessageBuffer& Diagnostics() const { return diagnostics; }
 
-  // Filter methods - return copies for easy assertions
+  /**
+   * Returns the set of captured events whose top-level "type" property matches the
+   * given values.
+   */
   std::vector<nlohmann::json> FilterByType(std::string_view type) const {
     std::vector<nlohmann::json> result;
     for (const auto& event : all_events) {
@@ -136,15 +149,28 @@ class RumEventCapture {
     return result;
   }
 
-  std::vector<nlohmann::json> Vitals() const { return FilterByType("vital"); }
-
+  /**
+   * Returns all RUM View events that have been captured.
+   */
   std::vector<nlohmann::json> Views() const { return FilterByType("view"); }
 
+  /**
+   * Returns all RUM Action events that have been captured.
+   */
   std::vector<nlohmann::json> Actions() const { return FilterByType("action"); }
 
+  /**
+   * Returns all RUM Resource events that have been captured.
+   */
   std::vector<nlohmann::json> Resources() const { return FilterByType("resource"); }
 
+  /**
+   * Returns all RUM Error events that have been captured.
+   */
   std::vector<nlohmann::json> Errors() const { return FilterByType("error"); }
 
-  std::vector<nlohmann::json> LongTasks() const { return FilterByType("long_task"); }
+  /**
+   * Returns all RUM Vital events that have been captured.
+   */
+  std::vector<nlohmann::json> Vitals() const { return FilterByType("vital"); }
 };
