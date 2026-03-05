@@ -6,7 +6,6 @@
 
 #include "datadog/impl/features/rum/scopes/session.hpp"
 
-#include <algorithm>
 #include <string>
 
 #include "datadog/impl/assert.hpp"
@@ -161,16 +160,17 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
 
     // Warn if the operation is already active (but never suppress the event)
     if (_active_operations.count(lookup_key) > 0) {
-      std::string warn_msg = "StartOperation: operation '";
-      warn_msg += payload.name;
-      warn_msg += "'";
       if (payload.operation_key) {
-        warn_msg += " (key '";
-        warn_msg += *payload.operation_key;
-        warn_msg += "')";
+        _deps.get().diagnostic_logger.Warning(
+            "StartOperation called for operation that has already been started",
+            {{"name", payload.name}, {"operation_key", *payload.operation_key}}
+        );
+      } else {
+        _deps.get().diagnostic_logger.Warning(
+            "StartOperation called for operation that has already been started",
+            {{"name", payload.name}}
+        );
       }
-      warn_msg += " has already been started";
-      _deps.get().diagnostic_logger.Warning(warn_msg.c_str());
     }
 
     // Track this operation as active
@@ -201,16 +201,17 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
 
     // Warn if the operation is not currently active (but never suppress the event)
     if (_active_operations.erase(lookup_key) == 0) {
-      std::string warn_msg = "StopOperation: stop was called for operation '";
-      warn_msg += payload.name;
-      warn_msg += "'";
       if (payload.operation_key) {
-        warn_msg += " (key '";
-        warn_msg += *payload.operation_key;
-        warn_msg += "')";
+        _deps.get().diagnostic_logger.Warning(
+            "StopOperation called for operation that is not currently active",
+            {{"name", payload.name}, {"operation_key", *payload.operation_key}}
+        );
+      } else {
+        _deps.get().diagnostic_logger.Warning(
+            "StopOperation called for operation that is not currently active",
+            {{"name", payload.name}}
+        );
       }
-      warn_msg += ", but it is not currently active";
-      _deps.get().diagnostic_logger.Warning(warn_msg.c_str());
     }
 
     // Map RumOperationFailureReason to RumVitalFailureReason
