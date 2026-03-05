@@ -14,19 +14,7 @@
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/features/rum/rum.hpp"
-
-namespace {
-// Returns true if s is empty or consists entirely of whitespace characters.
-// Used to enforce "non-blank" validation on operation name and key per spec §8.
-bool IsBlankString(std::string_view s) {
-  for (unsigned char c : s) {
-    if (!std::isspace(c)) {
-      return false;
-    }
-  }
-  return true;
-}
-}  // namespace
+#include "datadog/impl/validation.hpp"
 
 namespace datadog {
 
@@ -340,7 +328,7 @@ void Rum::StartOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
   // Require a non-blank (non-empty, non-whitespace-only) operation name
-  if (IsBlankString(name)) {
+  if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::StartOperation call ignored: application must supply a non-empty "
         "operation name"
@@ -349,7 +337,7 @@ void Rum::StartOperation(
   }
 
   // If operation_key is provided, it must be non-blank
-  if (!operation_key.empty() && IsBlankString(operation_key)) {
+  if (!operation_key.empty() && impl::IsBlankString(operation_key)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::StartOperation call ignored: operation_key, if provided, must be "
         "a non-empty string"
@@ -373,7 +361,7 @@ void Rum::SucceedOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
   // Require a non-blank (non-empty, non-whitespace-only) operation name
-  if (IsBlankString(name)) {
+  if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::SucceedOperation call ignored: application must supply a non-empty "
         "operation name"
@@ -382,7 +370,7 @@ void Rum::SucceedOperation(
   }
 
   // If operation_key is provided, it must be non-blank
-  if (!operation_key.empty() && IsBlankString(operation_key)) {
+  if (!operation_key.empty() && impl::IsBlankString(operation_key)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::SucceedOperation call ignored: operation_key, if provided, must be "
         "a non-empty string"
@@ -409,7 +397,7 @@ void Rum::FailOperation(
     const Attribute& attributes
 ) {
   // Require a non-blank (non-empty, non-whitespace-only) operation name
-  if (IsBlankString(name)) {
+  if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::FailOperation call ignored: application must supply a non-empty "
         "operation name"
@@ -418,7 +406,7 @@ void Rum::FailOperation(
   }
 
   // If operation_key is provided, it must be non-blank
-  if (!operation_key.empty() && IsBlankString(operation_key)) {
+  if (!operation_key.empty() && impl::IsBlankString(operation_key)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::FailOperation call ignored: operation_key, if provided, must be "
         "a non-empty string"

@@ -18,20 +18,7 @@
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/features/rum/rum.hpp"
 #include "datadog/impl/features/rum/types.hpp"
-
-// Returns true if s is NULL, empty, or consists entirely of whitespace.
-// Used to enforce "non-blank" validation on operation name and key per spec §8.
-static bool IsCStringBlank(const char* s) {
-  if (!s || !s[0]) {
-    return true;
-  }
-  for (const char* p = s; *p; ++p) {
-    if (!std::isspace(static_cast<unsigned char>(*p))) {
-      return false;
-    }
-  }
-  return true;
-}
+#include "datadog/impl/validation.hpp"
 
 static const uint32_t RUM_CONFIG_VERSION = 1;
 
@@ -525,7 +512,7 @@ void dd_rum_start_operation(
   }
 
   // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
-  if (IsCStringBlank(name)) {
+  if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_start_operation call ignored: application must supply a "
         "non-empty operation name"
@@ -534,7 +521,8 @@ void dd_rum_start_operation(
   }
 
   // If operation_key is provided (non-NULL, non-empty), it must be non-blank
-  if (operation_key && operation_key[0] && IsCStringBlank(operation_key)) {
+  if (operation_key && operation_key[0] &&
+      datadog::impl::IsBlankCString(operation_key)) {
     rum->diagnostic_logger.Error(
         "dd_rum_start_operation call ignored: operation_key, if provided, must "
         "be a non-empty string"
@@ -570,7 +558,7 @@ void dd_rum_succeed_operation(
   }
 
   // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
-  if (IsCStringBlank(name)) {
+  if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_succeed_operation call ignored: application must supply a "
         "non-empty operation name"
@@ -579,7 +567,8 @@ void dd_rum_succeed_operation(
   }
 
   // If operation_key is provided (non-NULL, non-empty), it must be non-blank
-  if (operation_key && operation_key[0] && IsCStringBlank(operation_key)) {
+  if (operation_key && operation_key[0] &&
+      datadog::impl::IsBlankCString(operation_key)) {
     rum->diagnostic_logger.Error(
         "dd_rum_succeed_operation call ignored: operation_key, if provided, "
         "must be a non-empty string"
@@ -616,7 +605,7 @@ void dd_rum_fail_operation(
   }
 
   // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
-  if (IsCStringBlank(name)) {
+  if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_fail_operation call ignored: application must supply a "
         "non-empty operation name"
@@ -625,7 +614,8 @@ void dd_rum_fail_operation(
   }
 
   // If operation_key is provided (non-NULL, non-empty), it must be non-blank
-  if (operation_key && operation_key[0] && IsCStringBlank(operation_key)) {
+  if (operation_key && operation_key[0] &&
+      datadog::impl::IsBlankCString(operation_key)) {
     rum->diagnostic_logger.Error(
         "dd_rum_fail_operation call ignored: operation_key, if provided, must "
         "be a non-empty string"
