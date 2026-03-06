@@ -16,6 +16,7 @@
 #include "datadog/impl/features/rum/context.hpp"
 
 #include "mock/clock.hpp"
+#include "mock/system_info.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -25,13 +26,26 @@ class ApplicationFixture {
   static constexpr const char* APPLICATION_ID = "a991ca10-4004-4004-4004-beefbeefbeef";
 
   MockClock clock;
+  MockSystemInfo system_info;
 
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope scope;
 
+  CoreContext context;
+  EventWriter writer;
+
  public:
-  ApplicationFixture() : config(APPLICATION_ID), deps(config, clock), scope(deps) {
+  ApplicationFixture()
+      : config(APPLICATION_ID),
+        deps(config, clock),
+        scope(deps),
+        context(
+            CoreConfig{"test-token", "test-service", "test-env"},
+            system_info.os_info,
+            system_info.device_info
+        ),
+        writer([](Block, Block) { return true; }) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -44,7 +58,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     REQUIRE(scope.GetActiveSession() == std::nullopt);
 
     // When we process SDKInit
-    scope.Process(RumCommand::SDKInit(GetBaseParams()));
+    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
 
     // Then a new session is created
     auto session_opt = scope.GetActiveSession();
@@ -61,12 +75,12 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
 
   SECTION("M end existing session W StopSession is processed") {
     // Given a RumApplicationScope with an active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()));
+    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
 
     // When we process StopSession
-    scope.Process(RumCommand::StopSession(GetBaseParams()));
+    scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
     // Then we no longer have an active session
     REQUIRE(scope.GetActiveSession() == std::nullopt);
@@ -82,17 +96,21 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
 
   SECTION("M start new session W user interaction is processed after StopSession") {
     // Given a RumApplicationScope with an active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()));
+    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
 
     // When we process StopSession
-    scope.Process(RumCommand::StopSession(GetBaseParams()));
+    scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
     // And then we subsequently process a command like AddAction
     // (Note that the '{on session refresh}' tests below validate a more exhaustive
     // range of command types)
-    scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
+    scope.Process(
+        RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"),
+        context,
+        writer
+    );
 
     // Then we once again have an active session, and it's distinct from the first
     REQUIRE(scope.GetActiveSession());
@@ -111,16 +129,16 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
   SECTION("M do nothing W StopSession is processed after StopSession") {
     // Given a RumApplicationScope that's received StopSession, and therefore has no
     // active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()));
+    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
-    scope.Process(RumCommand::StopSession(GetBaseParams()));
+    scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
     REQUIRE(scope.GetActiveSession() == std::nullopt);
 
     // When we process an additional StopSession command in our already-stopped session
     // (Note that the '{on session refresh}' tests below validate a more exhaustive
     // range of command types)
-    scope.Process(RumCommand::StopSession(GetBaseParams()));
+    scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
     // Then nothing happens: we still have no active session
     REQUIRE(scope.GetActiveSession() == std::nullopt);
@@ -139,14 +157,14 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
       "15m+ of inactivity"
   ) {
     // Given a RumApplicationScope with an active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()));
+    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
 
     // When we wait 16 minutes, then process any command that represents user
     // interaction
     clock.Tick(std::chrono::minutes(16));
-    scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+    scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
     // Then we have an active session that's distinct from the first one
     REQUIRE(scope.GetActiveSession());
@@ -161,7 +179,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
 
   SECTION("M end existing session and start new one W session duration is 4h+") {
     // Given a RumApplicationScope with an active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()));
+    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
 
@@ -169,7 +187,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     // times so that our last interaction is recorded at 3h58m into the session
     for (int i = 1; i <= 17; i++) {
       clock.Tick(std::chrono::minutes(14));
-      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
     }
 
     // Then as of 3h58m, our original session should still be active
@@ -180,7 +198,7 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
 
     // Next: When we wait three minutes, then try to record a user interaction at 4h01m
     clock.Tick(std::chrono::minutes(3));
-    scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+    scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
     // Then we have an active session that's distinct from the first one
     REQUIRE(scope.GetActiveSession());
@@ -204,10 +222,14 @@ class ViewTransferFixture {
   static constexpr const char* APPLICATION_ID = "a991ca10-4004-4004-4004-beefbeefbeef";
 
   MockClock clock;
+  MockSystemInfo system_info;
 
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope scope;
+
+  CoreContext context;
+  EventWriter writer;
 
   // Recorded details of the session and view we started with
   UUID initial_session_id;
@@ -226,17 +248,28 @@ class ViewTransferFixture {
   State state{State::Initial};
 
  public:
-  ViewTransferFixture() : config(APPLICATION_ID), deps(config, clock), scope(deps) {
+  ViewTransferFixture()
+      : config(APPLICATION_ID),
+        deps(config, clock),
+        scope(deps),
+        context(
+            CoreConfig{"test-token", "test-service", "test-env"},
+            system_info.os_info,
+            system_info.device_info
+        ),
+        writer([](Block, Block) { return true; }) {
     clock.FreezeAtMilliseconds(1700000000000);
 
     // Issue SDKInit to create an initial session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()));
+    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
     auto session_opt = scope.GetActiveSession();
     REQUIRE(session_opt.has_value());
     const RumSessionScope& session = session_opt->get();
 
     // Create a new view with key 'foo'
-    scope.Process(RumCommand::StartView(GetBaseParams(), "foo", "Foo"));
+    scope.Process(
+        RumCommand::StartView(GetBaseParams(), "foo", "Foo"), context, writer
+    );
     auto view_opt = session.GetActiveView();
     REQUIRE(view_opt.has_value());
     const RumViewScope& view = view_opt->get();
@@ -279,7 +312,9 @@ class ViewTransferFixture {
         for (int i = 1; i <= 17; i++) {
           // User interactions recorded at [T+14m, T+28m, ..., T+238m]
           clock.Tick(std::chrono::minutes(14));
-          scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+          scope.Process(
+              RumCommand::StopAction(GetBaseParams(), "foo"), context, writer
+          );
         }
         // Advance one minute beyond the max session duration: next command will trigger
         // expiration and refresh
@@ -290,7 +325,7 @@ class ViewTransferFixture {
         // Advance past the start of the session, then dispatch StopSession: on next
         // command, there will be no active session
         clock.Tick(std::chrono::minutes(5));
-        scope.Process(RumCommand::StopSession(GetBaseParams()));
+        scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
         RequireNoActiveSession();
         return;
     }
@@ -416,7 +451,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we process a StopSession call in that expired or closed state
-      scope.Process(RumCommand::StopSession(GetBaseParams()));
+      scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
       // Then we are left without an active session, because StopSession was called
       RequireNoActiveSession();
@@ -452,7 +487,9 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a StartView command
-      scope.Process(RumCommand::StartView(GetBaseParams(), "bar", "Bar"));
+      scope.Process(
+          RumCommand::StartView(GetBaseParams(), "bar", "Bar"), context, writer
+      );
 
       // Then a new session is created, and it contains our new view, not a copy of the
       // one we started with
@@ -472,7 +509,7 @@ TEST_CASE_METHOD(
       auto view_key = GENERATE("foo", "bar");
 
       // When we trigger session refresh with that StopView command
-      scope.Process(RumCommand::StopView(GetBaseParams(), view_key));
+      scope.Process(RumCommand::StopView(GetBaseParams(), view_key), context, writer);
 
       // Then the session is refreshed, but it remains without an active view
       RequireNewSessionWithNoActiveView();
@@ -483,7 +520,7 @@ TEST_CASE_METHOD(
       EnterState(ViewTransferFixture::State::ExplicitlyStopped);
 
       // When we process StopView after the session has been explicitly stopped
-      scope.Process(RumCommand::StopView(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopView(GetBaseParams(), "foo"), context, writer);
 
       // Then the command is ignored and no session refresh occurs
       RequireNoActiveSession();
@@ -502,7 +539,9 @@ TEST_CASE_METHOD(
       scope.Process(
           RumCommand::StartResource(
               GetBaseParams(), "foo", RumRequestDetails{RumResourceMethod::Get, "/foo"}
-          )
+          ),
+          context,
+          writer
       );
 
       // Then the session is refreshed, and the last active view is recreated in order
@@ -518,7 +557,9 @@ TEST_CASE_METHOD(
       scope.Process(
           RumCommand::StartResource(
               GetBaseParams(), "foo", RumRequestDetails{RumResourceMethod::Get, "/foo"}
-          )
+          ),
+          context,
+          writer
       );
 
       // Then the StartResource call is ignored
@@ -535,7 +576,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with StopResource
-      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"), context, writer);
 
       // Then the session is refreshed, but it remains without an active view
       RequireNewSessionWithNoActiveView();
@@ -546,7 +587,7 @@ TEST_CASE_METHOD(
       EnterState(ViewTransferFixture::State::ExplicitlyStopped);
 
       // When we process StopResource after the session has been explicitly stopped
-      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"), context, writer);
 
       // Then the command is ignored and no session refresh occurs
       RequireNoActiveSession();
@@ -563,7 +604,11 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a AddAction command
-      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
+      scope.Process(
+          RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"),
+          context,
+          writer
+      );
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -581,7 +626,9 @@ TEST_CASE_METHOD(
 
       // When we trigger session refresh with a StartAction command
       scope.Process(
-          RumCommand::StartAction(GetBaseParams(), RumActionType::Tap, "foo")
+          RumCommand::StartAction(GetBaseParams(), RumActionType::Tap, "foo"),
+          context,
+          writer
       );
 
       // Then the session is refreshed and the last active view is recreated
@@ -598,7 +645,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with StopAction
-      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
       // Then the session is refreshed, but it remains without an active view
       RequireNewSessionWithNoActiveView();
@@ -609,7 +656,7 @@ TEST_CASE_METHOD(
       EnterState(ViewTransferFixture::State::ExplicitlyStopped);
 
       // When we process StopAction after the session has been explicitly stopped
-      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
       // Then the command is ignored and no session refresh occurs
       RequireNoActiveSession();
@@ -629,12 +676,18 @@ TEST_CASE_METHOD(
       scope.Process(
           RumCommand::StartResource(
               GetBaseParams(), "foo", RumRequestDetails{RumResourceMethod::Get, "/foo"}
-          )
+          ),
+          context,
+          writer
       );
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
+      scope.Process(
+          RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"),
+          context,
+          writer
+      );
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -651,11 +704,15 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a StopResource command
-      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"), context, writer);
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
+      scope.Process(
+          RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"),
+          context,
+          writer
+      );
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -673,11 +730,15 @@ TEST_CASE_METHOD(
 
       // When we trigger session refresh with a StopView command that targets a
       // different view than the one that's active
-      scope.Process(RumCommand::StopView(GetBaseParams(), "bar"));
+      scope.Process(RumCommand::StopView(GetBaseParams(), "bar"), context, writer);
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
+      scope.Process(
+          RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"),
+          context,
+          writer
+      );
 
       // Then the session is refreshed and the last active view is recreated
       RequireRecreatedView();
@@ -695,11 +756,15 @@ TEST_CASE_METHOD(
 
       // When we trigger session refresh with a StopView command that targets the active
       // view
-      scope.Process(RumCommand::StopView(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopView(GetBaseParams(), "foo"), context, writer);
 
       // And then we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
+      scope.Process(
+          RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"),
+          context,
+          writer
+      );
 
       // TODO(RUM-12247): With background tracking enabled, the new session would have
       // a 'Background' view
@@ -717,7 +782,7 @@ TEST_CASE_METHOD(
 
       // When we trigger session refresh with a StopView command that targets the active
       // view (which should clear any cached view-transfer state for that view)
-      scope.Process(RumCommand::StopView(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopView(GetBaseParams(), "foo"), context, writer);
 
       // Then we still have no active session, because StopView does not trigger session
       // refresh after explicit stop
@@ -725,7 +790,11 @@ TEST_CASE_METHOD(
 
       // Next: When we handle an AddAction command post-refresh
       clock.Tick(std::chrono::seconds(1));
-      scope.Process(RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"));
+      scope.Process(
+          RumCommand::AddAction(GetBaseParams(), RumActionType::Tap, "foo"),
+          context,
+          writer
+      );
 
       // TODO(RUM-12247): With background tracking enabled, the new session would have
       // a 'Background' view
@@ -746,7 +815,7 @@ TEST_CASE_METHOD(
       ));
 
       // When we trigger session refresh with a StopResource command
-      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
+      scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"), context, writer);
 
       // Then either we end up with an expired session or we remain in our
       // post-StopSession state with no active session
@@ -757,7 +826,9 @@ TEST_CASE_METHOD(
       }
 
       // Next: When we process StartView to explicitly register a new view
-      scope.Process(RumCommand::StartView(GetBaseParams(), "bar", "Bar"));
+      scope.Process(
+          RumCommand::StartView(GetBaseParams(), "bar", "Bar"), context, writer
+      );
 
       // Then that view is active in a new session
       RequireDifferentView("bar", "Bar");
@@ -769,7 +840,9 @@ TEST_CASE_METHOD(
 
       // Next: When we process StartAction
       scope.Process(
-          RumCommand::StartAction(GetBaseParams(), RumActionType::Tap, "foo")
+          RumCommand::StartAction(GetBaseParams(), RumActionType::Tap, "foo"),
+          context,
+          writer
       );
 
       // Then we remain in our newly-created view: the last-active view from our

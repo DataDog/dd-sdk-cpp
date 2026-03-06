@@ -159,7 +159,7 @@ class Rum final : public Feature {
       const Attribute& attributes = Attribute()
   ) const;
 
-  void Dispatch(const RumCommand& command);
+  void DispatchAsync(const RumCommand& command);
 
   void UpdateFeatureContext();
   void UpdateApplicationSnapshot();

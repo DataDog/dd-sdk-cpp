@@ -59,7 +59,10 @@ struct RumResourceMap {
    * resource event, and error event, or no event.
    */
   RumResourceScope::Result Forward(
-      const std::string& resource_key, const RumCommand& command
+      const std::string& resource_key,
+      const RumCommand& command,
+      const CoreContext& context,
+      const EventWriter& writer
   );
 
   /**

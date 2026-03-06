@@ -44,7 +44,9 @@ void RumActionScope::PopulateContext(struct RumContext& out_context) const {
   out_context.active_action_id = _action_id;
 }
 
-RumScopeResult RumActionScope::Process(const RumCommand& command) {
+RumScopeResult RumActionScope::Process(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
   // Determine whether our expiration time has passed: even if it has, we still remain
   // active until the last active resource that started under our watch has ended
   const bool has_expired = command.base.issued_at >= _expires_at;
@@ -94,7 +96,7 @@ RumScopeResult RumActionScope::Process(const RumCommand& command) {
     // completion to that time: this will be reflected in the event payload as a
     // duration in nanoseconds called `loading_time`
     const Timestamp completed_at = has_expired ? _expires_at : command.base.issued_at;
-    SendActionEvent(command, completed_at);
+    SendActionEvent(command, completed_at, context, writer);
     return RumScopeResult::Close;
   }
 
@@ -115,7 +117,10 @@ RumScopeResult RumActionScope::Process(const RumCommand& command) {
 }
 
 void RumActionScope::SendActionEvent(
-    const RumCommand& command, const Timestamp& completed_at
+    const RumCommand& command,
+    const Timestamp& completed_at,
+    const CoreContext& context_param,
+    const EventWriter& writer
 ) {
   // Resolve references needed to populate required event data
   const RumScopeDependencies& deps = _deps;
@@ -204,9 +209,10 @@ void RumActionScope::SendActionEvent(
   }
 
   // Enrich event with OS and device properties from CoreContext
-  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateCommonProperties(context_param, ev);
 
-  deps.ProduceEvent(ev);
+  std::string_view json = deps.EncodeEvent(ev);
+  writer(Block{json.data(), json.size()}, Block{});
   _has_sent_action_event = true;
 }
 

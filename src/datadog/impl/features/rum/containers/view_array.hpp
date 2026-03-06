@@ -60,7 +60,9 @@ struct RumViewArray {
    * Iteration order is not defined: no assumptions should be made about the order in
    * which sibling view scopes will process the command.
    */
-  void Propagate(const RumCommand& command);
+  void Propagate(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
 
   /**
    * Returns a reference to the first active view scope found in the array, or

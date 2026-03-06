@@ -42,7 +42,10 @@ RumResourceScope& RumResourceMap::Add(
 }
 
 RumResourceScope::Result RumResourceMap::Forward(
-    const std::string& resource_key, const RumCommand& command
+    const std::string& resource_key,
+    const RumCommand& command,
+    const CoreContext& context,
+    const EventWriter& writer
 ) {
   // Prepare a result value, defaulting to 'no event'
   RumResourceScope::Result scope_result = RumResourceScope::Result::SentNoEvent;
@@ -58,7 +61,7 @@ RumResourceScope::Result RumResourceMap::Forward(
 
   // We have a matching resource: propagate the command to that scope (and that scope
   // only), removing it from the map if it should be closed as a result
-  const RumScopeResult result = found->second.Process(command);
+  const RumScopeResult result = found->second.Process(command, context, writer);
   if (result == RumScopeResult::Close) {
     // If the scope is now closed, record its result (i.e. what kind of event it sent)
     // before destroying it

@@ -15,6 +15,7 @@
 #include "datadog/impl/features/rum/scopes/view.hpp"
 
 #include "mock/clock.hpp"
+#include "mock/system_info.hpp"
 #include "support/catch.hpp"
 
 using namespace datadog;
@@ -62,6 +63,14 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
   // And a set of prerequisite values required to initialize new RumViewScopes
   RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
   MockClock clock;
+  MockSystemInfo system_info;
+  CoreContext context(
+      CoreConfig{"test-token", "test-service", "test-env"},
+      system_info.os_info,
+      system_info.device_info
+  );
+  EventWriter writer = [](Block, Block) { return true; };
+
   clock.FreezeAtMilliseconds(1700000000000);
   RumScopeDependencies deps(config, clock);
   RumApplicationScope application(deps);
@@ -105,7 +114,9 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
 
     SECTION("M do nothing W Propagate is called") {
       // When we propagate a command to our set of zero child scopes
-      array.Propagate(RumCommand::StartAction(base(), RumActionType::Custom, "foo"));
+      array.Propagate(
+          RumCommand::StartAction(base(), RumActionType::Custom, "foo"), context, writer
+      );
 
       // Then nothing happens
       REQUIRE(count_items() == 0);
@@ -152,7 +163,9 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
       REQUIRE(array.items[0]->GetActiveAction() == std::nullopt);
       REQUIRE(array.items[1].has_value());
       REQUIRE(array.items[1]->GetActiveAction() == std::nullopt);
-      array.Propagate(RumCommand::StartAction(base(), RumActionType::Custom, "foo"));
+      array.Propagate(
+          RumCommand::StartAction(base(), RumActionType::Custom, "foo"), context, writer
+      );
 
       // Then our scopes remain alive, and their state is updated in response to the
       // command
@@ -163,7 +176,7 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
 
     SECTION("M pass command to all scopes W Propagate is called {both Close}") {
       // When we propagate a command that will cause both our scopes to close
-      array.Propagate(RumCommand::StopSession(base()));
+      array.Propagate(RumCommand::StopSession(base()), context, writer);
 
       // Then both scopes are removed from the array
       REQUIRE(count_items() == 0);
@@ -174,7 +187,9 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
     ) {
       // When we propagate a command that will cause view-0 to be closed but keep view-1
       // open
-      array.Propagate(RumCommand::StartView(base(), "view-1", "view-1"));
+      array.Propagate(
+          RumCommand::StartView(base(), "view-1", "view-1"), context, writer
+      );
 
       // Then one scope is removed from the array
       REQUIRE(count_items() == 1);
@@ -240,7 +255,9 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
 
     SECTION("M pass command to all scopes W Propagate is called {all RemainOpen}") {
       // When we propagate a command that will update all our scopes and keep them open
-      array.Propagate(RumCommand::StartAction(base(), RumActionType::Custom, "foo"));
+      array.Propagate(
+          RumCommand::StartAction(base(), RumActionType::Custom, "foo"), context, writer
+      );
 
       // Then all our scopes remain alive
       REQUIRE(count_items() == array.items.max_size());
@@ -248,7 +265,7 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
 
     SECTION("M pass command to all scopes W Propagate is called {all Close}") {
       // When we propagate a command that will cause all our scopes to close
-      array.Propagate(RumCommand::StopSession(base()));
+      array.Propagate(RumCommand::StopSession(base()), context, writer);
 
       // Then all scopes are removed from the array
       REQUIRE(count_items() == 0);
