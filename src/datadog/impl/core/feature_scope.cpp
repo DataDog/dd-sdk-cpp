@@ -65,7 +65,21 @@ CoreContext FeatureScope::GetContext() const {
 
 void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callback) {
   DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
-  _context_provider->Update(callback);
+
+  if (_mode == FeatureScope::ExecutionMode::Synchronous) {
+    // Testing mode: execute synchronously on calling thread
+    _context_provider->Update(callback);
+    return;
+  }
+
+  // Production mode: queue for async execution on context thread
+  DATADOG_ASSERT(
+      _context_queue != nullptr, "context_queue is null in OnContextThread mode"
+  );
+  _context_queue->Push([this, callback]() {
+    DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
+    _context_provider->Update(callback);
+  });
 }
 
 bool FeatureScope::WriteEvent(Block event, Block event_metadata) const {
