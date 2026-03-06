@@ -153,7 +153,11 @@ class FeatureScope {
    * By convention, a feature should only modify the member(s) of CoreContext that it
    * exclusively owns: e.g. the RUM feature modifies the `RumFeatureContext` value, etc.
    *
-   * NOTE: CoreContext is modified synchronously. This may change in the future.
+   * In production usage, where _mode == OnContextThread, the update will be pushed
+   * onto the context queue for async execution on the context thread.
+   *
+   * If initialized with FeatureScope::CreateForTesting(), where mode == Synchronous,
+   * the update will be immediately executed on the calling thread.
    */
   void UpdateContext(const std::function<void(CoreContext&)>& callback);
 
