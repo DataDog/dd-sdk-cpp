@@ -50,9 +50,8 @@ using ContextThreadFunc =
 class FeatureScope {
  private:
   /**
-   * Determines how functions passed to OnContextThread will be evaluated. In
-   * production usage, mode is always OnContextThread and _context_queue is always
-   * non-null.
+   * Determines how functions submitted by Features will be executed. In production
+   * usage, mode is always OnContextThread.
    */
   enum class ExecutionMode : uint8_t {
     OnContextThread,  // Used in production: functions are queued for async execution
@@ -87,9 +86,9 @@ class FeatureScope {
   ~FeatureScope() = default;  // Add this line
 
   /**
-   * Creates a FeatureScope for production use, where ExecuteOnContextThread operations
-   * are enqueued on the provided `context_queue` for async execution on the SDK's
-   * context thread.
+   * Creates a FeatureScope for production use, where functions passed to UpdateContext
+   * and ExecuteOnContextThread are enqueued on the provided `context_queue` for async
+   * execution on the SDK's context thread.
    *
    * @param context_provider Provides thread-safe access to CoreContext
    * @param event_generated_func Callback invoked when features generate events
@@ -105,8 +104,9 @@ class FeatureScope {
   );
 
   /**
-   * Creates a FeatureScope for use in unit tests, where ExecuteOnContextThread
-   * operations are executed synchronously on the calling thread.
+   * Creates a FeatureScope for use in unit tests, where functions passed to
+   * UpdateContext and ExecuteOnContextThread are executed synchronously on the calling
+   * thread.
    *
    * @param context_provider Provides thread-safe access to CoreContext
    * @param event_generated_func Callback invoked when features generate events
