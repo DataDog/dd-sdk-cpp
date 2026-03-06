@@ -420,8 +420,8 @@ void Core::Stop() {
   );
 
   // Stop the context queue, then block until the context thread drains the queue and
-  // exits. This ensures all pending feature operations complete before we stop the
-  // storage thread.
+  // exits. This ensures all pending feature work completes before we stop the storage
+  // thread.
   _context_queue->Stop();
   if (_context_thread) {
     _diagnostic_logger.Debug("Joining on context thread");
