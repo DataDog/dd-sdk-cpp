@@ -14,12 +14,49 @@ FeatureScope::FeatureScope(
     CoreContextProvider& context_provider,
     const EventGeneratedFunc& event_generated_func,
     const DiagnosticLogger& in_diagnostic_logger,
+    FeatureScope::ExecutionMode mode,
     Queue<std::function<void()>>* context_queue
 )
     : _context_provider(&context_provider),
       _event_generated_func(event_generated_func),
+      _mode(mode),
       _context_queue(context_queue),
-      diagnostic_logger(in_diagnostic_logger) {}
+      diagnostic_logger(in_diagnostic_logger) {
+  // Invariant: context_queue must be non-null when mode is OnContextThread
+  DATADOG_ASSERT(
+      mode != FeatureScope::ExecutionMode::OnContextThread || context_queue != nullptr,
+      "context_queue must be non-null when ExecutionMode is OnContextThread"
+  );
+}
+
+FeatureScope FeatureScope::Create(
+    CoreContextProvider& context_provider,
+    const EventGeneratedFunc& event_generated_func,
+    const DiagnosticLogger& diagnostic_logger,
+    Queue<std::function<void()>>& context_queue
+) {
+  return FeatureScope(
+      context_provider,
+      event_generated_func,
+      diagnostic_logger,
+      FeatureScope::ExecutionMode::OnContextThread,
+      &context_queue
+  );
+}
+
+FeatureScope FeatureScope::CreateForTesting(
+    CoreContextProvider& context_provider,
+    const EventGeneratedFunc& event_generated_func,
+    const DiagnosticLogger& diagnostic_logger
+) {
+  return FeatureScope(
+      context_provider,
+      event_generated_func,
+      diagnostic_logger,
+      FeatureScope::ExecutionMode::Synchronous,
+      nullptr
+  );
+}
 
 CoreContext FeatureScope::GetContext() const {
   DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
@@ -39,20 +76,21 @@ bool FeatureScope::WriteEvent(Block event, Block event_metadata) const {
 }
 
 void FeatureScope::ExecuteOnContextThread(const ContextThreadFunc& func) {
-  // If no context queue is available (testing mode), execute synchronously
-  if (_context_queue == nullptr) {
+  if (_mode == FeatureScope::ExecutionMode::Synchronous) {
+    // Testing mode: execute synchronously on calling thread
     DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
     const CoreContext context = _context_provider->Get();
     func(context, _event_generated_func);
     return;
   }
 
-  // Queue a thunk that will execute on the context thread
+  // Production mode: queue for async execution on context thread
+  DATADOG_ASSERT(
+      _context_queue != nullptr, "context_queue is null in OnContextThread mode"
+  );
   _context_queue->Push([this, func]() {
     DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
-    // Get a CoreContext snapshot at execution time
     const CoreContext context = _context_provider->Get();
-    // Invoke the user's function with the context and event writer
     func(context, _event_generated_func);
   });
 }

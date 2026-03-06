@@ -54,11 +54,13 @@ class FeatureTest {
     auto diagnostic_handler = [this](const DiagnosticMessage& message) {
       messages.emplace_back(message);
     };
-    feature->OnCoreStarted(FeatureScope(
-        _context_provider,
-        event_generated_func,
-        DiagnosticLogger(diagnostic_handler, DiagnosticLevel::Debug)
-    ));
+    feature->OnCoreStarted(
+        FeatureScope::CreateForTesting(
+            _context_provider,
+            event_generated_func,
+            DiagnosticLogger(diagnostic_handler, DiagnosticLevel::Debug)
+        )
+    );
   }
 
   void Stop(const std::shared_ptr<Feature>& feature) { feature->OnCoreStopping(); }

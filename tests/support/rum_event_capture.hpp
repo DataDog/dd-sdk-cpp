@@ -77,49 +77,52 @@ class RumEventCapture {
             device_info
         )),
         feature_scope(
-            context_provider,
-            [this](Block event, Block event_metadata) {
-              // RUM implementation doesn't produce events with metadata
-              REQUIRE(event_metadata.empty());
+            FeatureScope::CreateForTesting(
+                context_provider,
+                [this](Block event, Block event_metadata) {
+                  // RUM implementation doesn't produce events with metadata
+                  REQUIRE(event_metadata.empty());
 
-              // Require valid JSON object
-              auto obj = nlohmann::json::parse(event);
-              REQUIRE(obj.is_object());
+                  // Require valid JSON object
+                  auto obj = nlohmann::json::parse(event);
+                  REQUIRE(obj.is_object());
 
-              // Validate IDs based on event type
-              if (obj.contains("application") && obj["application"].contains("id")) {
-                REQUIRE(obj["application"]["id"] == this->application_id);
-              }
-              if (obj.contains("session") && obj["session"].contains("id")) {
-                REQUIRE(obj["session"]["id"] == this->session_id);
-              }
-              if (this->view_id != nullptr && obj.contains("view") &&
-                  obj["view"].contains("id")) {
-                REQUIRE(obj["view"]["id"] == this->view_id);
-              }
-
-              // Capture all events
-              all_events.emplace_back(std::move(obj));
-              return true;
-            },
-            DiagnosticLogger(
-                [&](const DiagnosticMessage& message) {
-                  switch (message.level) {
-                    case DiagnosticLevel::Debug:
-                      diagnostics.debug.emplace_back(message.text);
-                      break;
-                    case DiagnosticLevel::Status:
-                      diagnostics.status.emplace_back(message.text);
-                      break;
-                    case DiagnosticLevel::Warning:
-                      diagnostics.warning.emplace_back(message.text);
-                      break;
-                    case DiagnosticLevel::Error:
-                      diagnostics.error.emplace_back(message.text);
-                      break;
+                  // Validate IDs based on event type
+                  if (obj.contains("application") &&
+                      obj["application"].contains("id")) {
+                    REQUIRE(obj["application"]["id"] == this->application_id);
                   }
+                  if (obj.contains("session") && obj["session"].contains("id")) {
+                    REQUIRE(obj["session"]["id"] == this->session_id);
+                  }
+                  if (this->view_id != nullptr && obj.contains("view") &&
+                      obj["view"].contains("id")) {
+                    REQUIRE(obj["view"]["id"] == this->view_id);
+                  }
+
+                  // Capture all events
+                  all_events.emplace_back(std::move(obj));
+                  return true;
                 },
-                DiagnosticLevel::Debug
+                DiagnosticLogger(
+                    [&](const DiagnosticMessage& message) {
+                      switch (message.level) {
+                        case DiagnosticLevel::Debug:
+                          diagnostics.debug.emplace_back(message.text);
+                          break;
+                        case DiagnosticLevel::Status:
+                          diagnostics.status.emplace_back(message.text);
+                          break;
+                        case DiagnosticLevel::Warning:
+                          diagnostics.warning.emplace_back(message.text);
+                          break;
+                        case DiagnosticLevel::Error:
+                          diagnostics.error.emplace_back(message.text);
+                          break;
+                      }
+                    },
+                    DiagnosticLevel::Debug
+                )
             )
         ) {}
 
