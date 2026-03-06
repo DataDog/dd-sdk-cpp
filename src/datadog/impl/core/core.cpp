@@ -7,10 +7,8 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <algorithm>
-#include <condition_variable>
 #include <filesystem>
 #include <iostream>
-#include <mutex>
 #include <sstream>
 
 #include "datadog/impl/assert.hpp"
@@ -530,29 +528,6 @@ std::string_view Core::GetApplicationVersion() const {
       _state >= CoreState::Initialized, "GetApplicationVersion called before Core init"
   );
   return _context_provider->GetHttpContext().application_version;
-}
-
-void Core::FlushContextQueue() {
-  DATADOG_ASSERT(
-      _state == CoreState::Started, "FlushContextQueue called while Core not running"
-  );
-  DATADOG_ASSERT(_context_queue, "_context_queue is null on FlushContextQueue");
-
-  // Use a condition variable to wait until the sentinel function executes
-  std::mutex mutex;
-  std::condition_variable cv;
-  bool sentinel_executed = false;
-
-  // Queue a sentinel function that signals completion
-  _context_queue->Push([&]() {
-    std::lock_guard<std::mutex> lock(mutex);
-    sentinel_executed = true;
-    cv.notify_one();
-  });
-
-  // Wait until the sentinel has been executed by the context thread
-  std::unique_lock<std::mutex> lock(mutex);
-  cv.wait(lock, [&] { return sentinel_executed; });
 }
 
 }  // namespace datadog::impl
