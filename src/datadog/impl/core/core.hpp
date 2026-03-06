@@ -365,14 +365,6 @@ class Core {
    */
   void Stop();
 
-  /**
-   * Blocks until all queued functions on the context thread have been processed.
-   *
-   * This is intended for testing, to ensure deterministic execution of asynchronous
-   * operations. Must only be called when the core is running.
-   */
-  void FlushContextQueue();
-
  private:
   bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
 
