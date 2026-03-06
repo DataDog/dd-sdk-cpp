@@ -38,10 +38,6 @@ struct LoggerState {
   // message is logged; reused between log calls
   LogEvent event;
 
-  // Reusable buffer where the final JSON payload will be encoded prior to being
-  // copied onto the storage thread's queue
-  std::vector<uint8_t> event_buffer;
-
   explicit LoggerState(
       const std::optional<std::string>& in_service_name,
       const std::optional<std::string>& in_logger_name,

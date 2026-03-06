@@ -24,6 +24,22 @@
 
 namespace datadog::impl {
 
+/**
+ * Parameters captured synchronously on the caller thread and passed to the context
+ * thread for async log event processing.
+ */
+struct LogCommandParams {
+  Timestamp timestamp;
+  LogLevel level;
+  std::string message;
+  LoggerEnrichmentConfig enrichment;
+  Attribute global_attributes;
+  Attribute logger_attributes;
+  Attribute message_attributes;
+  std::string service;
+  std::string logger_name;
+};
+
 Logging::Logging(
     const platform::IClock& clock,
     std::string_view service_name,
@@ -91,103 +107,148 @@ void Logging::OnLoggerEmit(
     LogLevel level,
     std::string_view message,
     const Attribute& message_attributes
-) const {
-  // Grab a mutable reference to the LogEvent that represents our payload: each Logger
-  // holds its own mutable LogEvent struct so that multiple OnLoggerEmit calls can build
-  // and generate log events concurrently, so long as each comes from a different Logger
-  LogEvent& ev = mut_state.event;
-  const LoggerState& state = mut_state;
+) {
+  // Phase A: Capture time-sensitive values synchronously on caller thread
 
-  // Clear the subset of LogEvent members that may change between events but which are
-  // not unconditionally set
-  ev.Reset();
+  // Capture timestamp immediately
+  Timestamp timestamp = _clock.Now();
 
-  // Update basic log event properties
-  ev.status = level;
-  if (ev.service.empty()) {
-    ev.service = _default_service_name;
-  }
-  ev.date = _clock.Now();
-  ev.message = message;
+  // Snapshot logger attributes
+  Attribute logger_attributes = mut_state.user_attributes.attribute;
 
-  // Read CoreContext if available, so we can enrich events with additional SDK state
-  if (_scope) {
-    // Obtain a read-only copy of the context
-    const CoreContext ctx = _scope->GetContext();
-
-    // If we're configured to enrich log events with RUM context, write all RUM IDs into
-    // the event (UUID::Zero values will be omitted from the JSON payload)
-    if (enrichment.enable_rum && ctx.rum) {
-      ev.rum_application_id = ctx.rum->application_id;
-      ev.rum_session_id = ctx.rum->session_id;
-      ev.rum_view_id = ctx.rum->view_id;
-      ev.rum_action_id = ctx.rum->action_id;
-    }
-
-    // If we have OS properties, add them to the event payload
-    if (ctx.os) {
-      ev.os.value.emplace(ctx.os->name, ctx.os->version, ctx.os->version_major);
-      if (!ctx.os->build.empty()) {
-        ev.os.value->build = ctx.os->build;
-      }
-    }
-
-    // If we have device properties, add them to the event payload
-    if (ctx.device) {
-      RumDeviceProperties& device = ev.device.value.emplace();
-      if (!ctx.device->type.empty()) {
-        DATADOG_ASSERT(
-            ctx.device->type == "desktop",
-            "DeviceInfo specifies non-desktop platform; log event serialization code "
-            "must be updated"
-        );
-        device.type = RumDeviceType::Desktop;
-      }
-      device.name = ctx.device->name;
-      device.model = ctx.device->model;
-      device.brand = ctx.device->brand;
-      device.architecture = ctx.device->architecture;
-      device.locale = ctx.device->locale;
-      device.time_zone = ctx.device->time_zone;
-    }
-  }
-
-  // Create a shallow copy of the Logging feature's global attributes, so we don't need
-  // to hold a lock during event serialization
+  // Snapshot global attributes with read lock
   Attribute global_attributes;
   {
     std::shared_lock read_lock(_global_attributes_mutex);
     global_attributes = _global_attributes.attribute;
   }
 
-  // Merge the full set of custom, user-specified attribute values into the LogEvent
-  // payload's 'user_attributes' member. User attributes are merged into the event at
-  // top-level, with the following order:
-  //
-  // 1. The global attributes set via Logging::AddAttribute
-  // 2. The logger-level attributes set via Logger::AddAttribute
-  // 3. The message-level attributes supplied in the log call
-  //
-  // If multiple user attributes share the same property name, the value that appears
-  // later in the list will take precedence.
+  // Resolve service name
+  std::string service =
+      mut_state.event.service.empty() ? _default_service_name : mut_state.event.service;
+
+  // Copy logger name (OmitIfEmpty needs .value access)
+  std::string logger_name = mut_state.event.logger_name.value.empty()
+                                ? ""
+                                : mut_state.event.logger_name.value;
+
+  // Package into LogCommandParams
+  LogCommandParams params{
+      timestamp,
+      level,
+      std::string(message),
+      enrichment,
+      global_attributes,
+      logger_attributes,
+      message_attributes,
+      service,
+      logger_name
+  };
+
+  // Dispatch async processing
+  DispatchAsync(params);
+}
+
+void Logging::DispatchAsync(const LogCommandParams& params) {
+  // Phase B: Dispatch to context thread with weak_ptr for shutdown safety
+
+  if (!_scope) {
+    return;
+  }
+
+  // Store reference to scope to satisfy linter's optional access check
+  FeatureScope& scope = *_scope;
+
+  // Capture weak_ptr to self for fail-safe shutdown detection
+  auto weak_logging =
+      std::weak_ptr<Logging>(std::static_pointer_cast<Logging>(shared_from_this()));
+
+  scope.ExecuteOnContextThread(
+      // NOLINTNEXTLINE(bugprone-exception-escape)
+      [weak_logging, params](const CoreContext& context, const EventWriter& writer) {
+        // Check if Logging object still alive
+        auto logging = weak_logging.lock();
+        if (!logging) {
+          // Logging destroyed during shutdown, exit gracefully
+          return;
+        }
+
+        // Safe to proceed - process the log event
+        logging->ProcessLogEvent(params, context, writer);
+      }
+  );
+}
+
+void Logging::ProcessLogEvent(
+    const LogCommandParams& params,
+    const CoreContext& context,
+    const EventWriter& writer
+) const {
+  // Phase C: Build event, enrich, encode, and write on context thread
+
+  // Create a new LogEvent (no reuse from LoggerState)
+  LogEvent ev(params.service, params.logger_name, _sdk_version, 8);
+
+  // Populate basic fields from params
+  ev.status = params.level;
+  ev.date = params.timestamp;
+  ev.message = params.message;
+
+  // Enrich with RUM context if enabled
+  if (params.enrichment.enable_rum && context.rum) {
+    ev.rum_application_id = context.rum->application_id;
+    ev.rum_session_id = context.rum->session_id;
+    ev.rum_view_id = context.rum->view_id;
+    ev.rum_action_id = context.rum->action_id;
+  }
+
+  // Enrich with OS properties
+  if (context.os) {
+    ev.os.value.emplace(
+        context.os->name, context.os->version, context.os->version_major
+    );
+    if (!context.os->build.empty()) {
+      ev.os.value->build = context.os->build;
+    }
+  }
+
+  // Enrich with device properties
+  if (context.device) {
+    RumDeviceProperties& device = ev.device.value.emplace();
+    if (!context.device->type.empty()) {
+      DATADOG_ASSERT(
+          context.device->type == "desktop",
+          "DeviceInfo specifies non-desktop platform; log event serialization code "
+          "must be updated"
+      );
+      device.type = RumDeviceType::Desktop;
+    }
+    device.name = context.device->name;
+    device.model = context.device->model;
+    device.brand = context.device->brand;
+    device.architecture = context.device->architecture;
+    device.locale = context.device->locale;
+    device.time_zone = context.device->time_zone;
+  }
+
+  // Merge attributes with correct precedence: global < logger < message
   AttributeMerge::AssembleObject(
-      mut_state.event.user_attributes,
-      {global_attributes, state.user_attributes.attribute, message_attributes}
+      ev.user_attributes,
+      {params.global_attributes, params.logger_attributes, params.message_attributes}
   );
 
-  // Now that we've fully populated our LogEvent value, serialize it as a JSON object,
-  // with all custom attributes from 'user_attributes' merged in at top level. If any
-  // properties in user_attributes use names that are already used by LogEvent struct
-  // fields, those custom attribute values will be ignored.
-  EncodeJson(mut_state.event_buffer, state.event);
+  // Encode to the shared buffer (accessed only on context thread)
+  EncodeJson(_encode_buffer, ev);
 
-  // Create a view of the JSON payload now held in our buffer, and call WriteEvent,
-  // which will copy our event data onto the storage queue
-  WriteEvent(Block(
-      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-      reinterpret_cast<const char*>(mut_state.event_buffer.data()),
-      mut_state.event_buffer.size()
-  ));
+  // Write the event
+  writer(
+      Block(
+          // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+          reinterpret_cast<const char*>(_encode_buffer.data()),
+          _encode_buffer.size()
+      ),
+      Block{}
+  );
 }
 
 }  // namespace datadog::impl
