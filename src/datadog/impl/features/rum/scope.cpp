@@ -19,23 +19,10 @@ RumScopeDependencies::RumScopeDependencies(
 )
     : application_id(config.application_id),
       clock(in_clock),
-      scope(nullptr),
       _sampling_rate_unit(config.session_sample_rate / 100.0f),
       _sampling_rng(std::random_device{}()),
       _sampling_distribution(0.0f, 1.0f) {
   _encode_buffer.reserve(8192);
-}
-
-void RumScopeDependencies::OnStart(FeatureScope& in_scope) {
-  DATADOG_ASSERT(!scope, "RUM deps has valid scope pointer on SDK start");
-  diagnostic_logger = in_scope.diagnostic_logger;
-  scope = &in_scope;
-}
-
-void RumScopeDependencies::OnStop() {
-  DATADOG_ASSERT(scope, "RUM deps has no valid scope pointer on SDK start");
-  diagnostic_logger = DiagnosticLogger{};
-  scope = nullptr;
 }
 
 bool RumScopeDependencies::ShouldSampleSession() const {

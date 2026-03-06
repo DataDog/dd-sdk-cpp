@@ -8,6 +8,8 @@
 
 #include <cinttypes>
 
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/features/rum/scope.hpp"
 
 namespace datadog::impl {
@@ -65,7 +67,9 @@ class RumResourceScope {
   RumResourceScope& operator=(RumResourceScope&&) = default;
 
   // RumScope interface
-  RumScopeResult Process(const RumCommand& command);
+  RumScopeResult Process(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
 
  private:
   /**
@@ -73,7 +77,10 @@ class RumResourceScope {
    * of a resource (i.e. a StopResource call).
    */
   void SendResourceEvent(
-      const RumCommandParams& base, const RumStopResourcePayload& payload
+      const RumCommandParams& base,
+      const RumStopResourcePayload& payload,
+      const CoreContext& context,
+      const EventWriter& writer
   );
 
   /**
@@ -84,7 +91,9 @@ class RumResourceScope {
   void SendErrorEvent(
       const RumCommandParams& base,
       const RumStopResourcePayload& payload,
-      const RumErrorDetails& error
+      const RumErrorDetails& error,
+      const CoreContext& context,
+      const EventWriter& writer
   );
 
   static UUID ResolveActiveActionId(const RumViewScope& parent);

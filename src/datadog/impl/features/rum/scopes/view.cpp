@@ -48,12 +48,15 @@ void RumViewScope::PopulateContext(struct RumContext& out_context) const {
   out_context.active_view_name = _name;
 }
 
-RumScopeResult RumViewScope::Process(const RumCommand& command) {
+RumScopeResult RumViewScope::Process(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
   // If we have a child action scope, allow it to process this command, and clear it if
   // the scope is closed as a result
   bool has_incremented_action_count = false;
   if (_active_action_scope) {
-    const RumScopeResult action_result = _active_action_scope->Process(command);
+    const RumScopeResult action_result =
+        _active_action_scope->Process(command, context, writer);
     if (action_result == RumScopeResult::Close) {
       if (_active_action_scope->HasSentActionEvent()) {
         _num_actions_completed++;
@@ -64,7 +67,7 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
   }
 
   // Process the command, updating our internal state as needed
-  ViewEventType event_type = HandleCommand(command);
+  ViewEventType event_type = HandleCommand(command, context, writer);
 
   // Determine whether this command targets a specific resource, and forward it to that
   // resource if applicable
@@ -72,7 +75,9 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
   if (!target_resource_key.empty()) {
     // If processing of the command results in a 'resource' or 'error' event being sent,
     // increment the appropriate count
-    auto res = _resource_scopes.Forward(std::string{target_resource_key}, command);
+    auto res = _resource_scopes.Forward(
+        std::string{target_resource_key}, command, context, writer
+    );
     switch (res) {
       case RumResourceScope::Result::SentNoEvent:
         break;
@@ -102,7 +107,7 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
   // Generate a 'view' event if our state has meaningfully changed since the last event
   // we sent
   if (event_type != ViewEventType::None) {
-    SendViewEvent(command);
+    SendViewEvent(command, context, writer);
   }
 
   // If the result of this command is that we're no longer the active view and we no
@@ -116,7 +121,9 @@ RumScopeResult RumViewScope::Process(const RumCommand& command) {
   return RumScopeResult::RemainOpen;
 }
 
-RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& command) {
+RumViewScope::ViewEventType RumViewScope::HandleCommand(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
   // On `StopSession`, any active views should should be implicitly stopped
   if (command.Is<RumStopSessionPayload>()) {
     return HandleStopSession(command.base);
@@ -159,7 +166,9 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
   // or for any other action type we should either a.) open a new action scope with
   // is_continuous false, or b.) drop the action if we already have an active action
   if (command.Is<RumAddActionPayload>()) {
-    return HandleAddAction(command.base, command.As<RumAddActionPayload>());
+    return HandleAddAction(
+        command.base, command.As<RumAddActionPayload>(), context, writer
+    );
   }
 
   // On `StartAction`, we should either a.) open a new action scope with is_continuous
@@ -177,7 +186,9 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(const RumCommand& comman
   // On `AddError`, we should immediately send an error event in the context of this
   // view, updating our view state accordingly
   if (command.Is<RumAddErrorPayload>()) {
-    return HandleAddError(command.base, command.As<RumAddErrorPayload>());
+    return HandleAddError(
+        command.base, command.As<RumAddErrorPayload>(), context, writer
+    );
   }
 
   return ViewEventType::None;
@@ -283,7 +294,10 @@ RumViewScope::ViewEventType RumViewScope::HandleRemoveViewAttribute(
 }
 
 RumViewScope::ViewEventType RumViewScope::HandleAddAction(
-    const RumCommandParams& base, const RumAddActionPayload& payload
+    const RumCommandParams& base,
+    const RumAddActionPayload& payload,
+    const CoreContext& context,
+    const EventWriter& writer
 ) {
   // If already inactive, we can ignore AddAction
   if (!_is_active) {
@@ -292,7 +306,7 @@ RumViewScope::ViewEventType RumViewScope::HandleAddAction(
 
   // A discrete custom action should always be recorded immediately
   if (payload.type == RumActionType::Custom) {
-    ProcessDiscreteCustomAction(base, payload.name);
+    ProcessDiscreteCustomAction(base, payload.name, context, writer);
     return ViewEventType::Full;
   }
 
@@ -353,7 +367,10 @@ RumViewScope::ViewEventType RumViewScope::HandleStartResource(
 }
 
 RumViewScope::ViewEventType RumViewScope::HandleAddError(
-    const RumCommandParams& base, const RumAddErrorPayload& payload
+    const RumCommandParams& base,
+    const RumAddErrorPayload& payload,
+    const CoreContext& context,
+    const EventWriter& writer
 ) {
   // If the view is no longer active, it should report no errors
   if (!_is_active) {
@@ -361,7 +378,7 @@ RumViewScope::ViewEventType RumViewScope::HandleAddError(
   }
 
   // Immediately generate a RUM 'error' event describing the error
-  SendErrorEvent(base, payload);
+  SendErrorEvent(base, payload, context, writer);
 
   // Our error count has been incremented we must update the state of the view
   return ViewEventType::Full;
@@ -394,7 +411,10 @@ void RumViewScope::BecomeInactive(
 }
 
 void RumViewScope::ProcessDiscreteCustomAction(
-    const RumCommandParams& base, std::string_view name
+    const RumCommandParams& base,
+    std::string_view name,
+    const CoreContext& context,
+    const EventWriter& writer
 ) {
   const RumScopeDependencies& deps = _deps;
   const UUID action_id = UUID::Random();
@@ -410,8 +430,9 @@ void RumViewScope::ProcessDiscreteCustomAction(
   );
 
   RumCommandParams base_copy = base;
-  const RumScopeResult result =
-      scope.Process(RumCommand::StopAction(std::move(base_copy), name));
+  const RumScopeResult result = scope.Process(
+      RumCommand::StopAction(std::move(base_copy), name), context, writer
+  );
 
   DATADOG_ASSERT(
       result == RumScopeResult::Close,
@@ -478,7 +499,9 @@ std::string_view RumViewScope::IdentifyTargetResourceKey(const RumCommand& comma
   return std::string_view{};
 }
 
-void RumViewScope::SendViewEvent(const RumCommand& command) {
+void RumViewScope::SendViewEvent(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
   // Resolve references needed to populate required event data
   const RumScopeDependencies& deps = _deps;
   const RumSessionScope& session = _parent;
@@ -538,15 +561,19 @@ void RumViewScope::SendViewEvent(const RumCommand& command) {
   }
 
   // Enrich event with OS and device properties from CoreContext
-  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateCommonProperties(context, ev);
 
-  // Serialize the event to JSON in a shared buffer, then copy that raw event payload
-  // onto the storage thread
-  deps.ProduceEvent(ev);
+  // Serialize the event to JSON in a shared buffer, then write it using the provided
+  // writer callback
+  std::string_view json = deps.EncodeEvent(ev);
+  writer(Block{json.data(), json.size()}, Block{});
 }
 
 void RumViewScope::SendErrorEvent(
-    const RumCommandParams& base, const RumAddErrorPayload& payload
+    const RumCommandParams& base,
+    const RumAddErrorPayload& payload,
+    const CoreContext& context,
+    const EventWriter& writer
 ) {
   DATADOG_ASSERT(_is_active, "SendErrorEvent called while view scope is inactive");
 
@@ -597,9 +624,10 @@ void RumViewScope::SendErrorEvent(
   }
 
   // Enrich event with OS and device properties from CoreContext
-  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateCommonProperties(context, ev);
 
-  deps.ProduceEvent(ev);
+  std::string_view json = deps.EncodeEvent(ev);
+  writer(Block{json.data(), json.size()}, Block{});
   _num_errors_reported++;
 }
 

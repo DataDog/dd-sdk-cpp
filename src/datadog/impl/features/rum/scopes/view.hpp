@@ -12,6 +12,8 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/attribute/typed_attribute.hpp"
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/features/rum/containers/resource_map.hpp"
 #include "datadog/impl/features/rum/scope.hpp"
 #include "datadog/impl/features/rum/scopes/action.hpp"
@@ -144,7 +146,9 @@ class RumViewScope {
   void PopulateContext(struct RumContext& out_context) const;
 
   // RumScope interface
-  RumScopeResult Process(const RumCommand& command);
+  RumScopeResult Process(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
 
  private:
   /**
@@ -158,7 +162,9 @@ class RumViewScope {
    * Updates view state in response to the given command, then returns what sort of view
    * event (if any) we should generate in response.
    */
-  ViewEventType HandleCommand(const RumCommand& command);
+  ViewEventType HandleCommand(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
 
   // Handler functions for individual command types
   ViewEventType HandleStopSession(const RumCommandParams& base);
@@ -175,7 +181,10 @@ class RumViewScope {
       const RumCommandParams& base, const RumRemoveViewAttributePayload& payload
   );
   ViewEventType HandleAddAction(
-      const RumCommandParams& base, const RumAddActionPayload& payload
+      const RumCommandParams& base,
+      const RumAddActionPayload& payload,
+      const CoreContext& context,
+      const EventWriter& writer
   );
   ViewEventType HandleStartAction(
       const RumCommandParams& base, const RumStartActionPayload& payload
@@ -184,7 +193,10 @@ class RumViewScope {
       const RumCommandParams& base, const RumStartResourcePayload& payload
   );
   ViewEventType HandleAddError(
-      const RumCommandParams& base, const RumAddErrorPayload& payload
+      const RumCommandParams& base,
+      const RumAddErrorPayload& payload,
+      const CoreContext& context,
+      const EventWriter& writer
   );
 
   /**
@@ -199,7 +211,12 @@ class RumViewScope {
    */
   void BecomeInactive(const RumCommandParams& base, bool accept_command_attributes);
 
-  void ProcessDiscreteCustomAction(const RumCommandParams& base, std::string_view name);
+  void ProcessDiscreteCustomAction(
+      const RumCommandParams& base,
+      std::string_view name,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
 
   void OpenActionScope(
       const RumCommandParams& base,
@@ -215,12 +232,19 @@ class RumViewScope {
   /**
    * Generates and sends a RUM view event in response to the given command.
    */
-  void SendViewEvent(const RumCommand& command);
+  void SendViewEvent(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
 
   /**
    * Generates and sends a RUM error event in response to the given command.
    */
-  void SendErrorEvent(const RumCommandParams& base, const RumAddErrorPayload& payload);
+  void SendErrorEvent(
+      const RumCommandParams& base,
+      const RumAddErrorPayload& payload,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
 
  private:
   std::reference_wrapper<const RumScopeDependencies> _deps;

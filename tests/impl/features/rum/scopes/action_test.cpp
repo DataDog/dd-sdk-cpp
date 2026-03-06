@@ -46,6 +46,12 @@ class ActionFixture {
   RumEventCapture event_capture;
 
  public:
+  CoreContext GetTestContext() { return event_capture.GetFeatureScope().GetContext(); }
+  EventWriter GetTestWriter() {
+    return [this](Block event, Block metadata) {
+      return event_capture.GetFeatureScope().WriteEvent(event, metadata);
+    };
+  }
   ActionFixture()
       : config(APPLICATION_ID),
         deps(config, clock),
@@ -86,7 +92,6 @@ class ActionFixture {
             Attribute()
         ),
         event_capture(APPLICATION_ID, SESSION_ID, VIEW_ID) {
-    deps.scope = &event_capture.GetFeatureScope();
     deps.diagnostic_logger = event_capture.GetFeatureScope().diagnostic_logger;
     clock.FreezeAtMilliseconds(1700000000000);
   }
@@ -97,7 +102,9 @@ class ActionFixture {
 TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
   SECTION("M close and send event W StopSession is processed") {
     // When we process StopSession
-    const auto result = scope.Process(RumCommand::StopSession(GetBaseParams()));
+    const auto result = scope.Process(
+        RumCommand::StopSession(GetBaseParams()), GetTestContext(), GetTestWriter()
+    );
 
     // Then our action scope is closed
     REQUIRE(result == RumScopeResult::Close);
@@ -112,8 +119,11 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
   SECTION("M close and send event W StartView is processed") {
     // When we process StartView with _any_ view key, at T+5ms
     clock.TickMilliseconds(5);
-    const auto result =
-        scope.Process(RumCommand::StartView(GetBaseParams(), "some-view", "Some View"));
+    const auto result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "some-view", "Some View"),
+        GetTestContext(),
+        GetTestWriter()
+    );
 
     // Then our action scope is closed
     REQUIRE(result == RumScopeResult::Close);
@@ -129,8 +139,11 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
 
   SECTION("M close and send event W StopView is processed") {
     // When we process StopView
-    const auto result =
-        scope.Process(RumCommand::StopView(GetBaseParams(), "some-view"));
+    const auto result = scope.Process(
+        RumCommand::StopView(GetBaseParams(), "some-view"),
+        GetTestContext(),
+        GetTestWriter()
+    );
 
     // Then our action scope is closed
     REQUIRE(result == RumScopeResult::Close);
@@ -148,7 +161,9 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
             GetBaseParams(),
             "some-resource",
             RumRequestDetails{RumResourceMethod::Get, "http://localhost:5000/foo"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our action scope remains open
@@ -168,7 +183,9 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
             GetBaseParams(),
             "some-resource",
             RumRequestDetails{RumResourceMethod::Get, "http://localhost:5000/foo"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our action scope is closed, because the command was processed after the
@@ -198,7 +215,9 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
             GetBaseParams(),
             "some-resource",
             RumRequestDetails{RumResourceMethod::Get, "http://localhost:5000/foo"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our action scope remains open
@@ -206,7 +225,11 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
 
     // Next: When we process StopResource at T+150ms
     clock.TickMilliseconds(100);
-    result = scope.Process(RumCommand::StopResource(GetBaseParams(), "some-resource"));
+    result = scope.Process(
+        RumCommand::StopResource(GetBaseParams(), "some-resource"),
+        GetTestContext(),
+        GetTestWriter()
+    );
 
     // Then our scope is closed, because the timeout has passed and we no longer have
     // pending resources
@@ -233,26 +256,42 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
 
     // When we start a resource 'foo' before timeout, Then our action scope remains open
     clock.TickMilliseconds(50);
-    auto result = scope.Process(RumCommand::StartResource(GetBaseParams(), "foo", req));
+    auto result = scope.Process(
+        RumCommand::StartResource(GetBaseParams(), "foo", req),
+        GetTestContext(),
+        GetTestWriter()
+    );
     REQUIRE(result == RumScopeResult::RemainOpen);
 
     // When we start a resource 'bar' at any point thereafter, so long as 'foo' is still
     // pending, Then our action scope remains open
     clock.TickMilliseconds(100);
-    result = scope.Process(RumCommand::StartResource(GetBaseParams(), "bar", req));
+    result = scope.Process(
+        RumCommand::StartResource(GetBaseParams(), "bar", req),
+        GetTestContext(),
+        GetTestWriter()
+    );
     REQUIRE(result == RumScopeResult::RemainOpen);
 
     // When we stop either one of those two resources, Then our action scope still
     // remains open, because there's still another resource pending
     clock.TickMilliseconds(350);
-    result = scope.Process(RumCommand::StopResource(GetBaseParams(), "foo"));
+    result = scope.Process(
+        RumCommand::StopResource(GetBaseParams(), "foo"),
+        GetTestContext(),
+        GetTestWriter()
+    );
     REQUIRE(result == RumScopeResult::RemainOpen);
 
     // When we stop the final resource, Then our action scope finally closes and sends
     // an event that records 2 resources
     clock.TickMilliseconds(400);
     REQUIRE(event_capture.Actions().empty());
-    result = scope.Process(RumCommand::StopResource(GetBaseParams(), "bar"));
+    result = scope.Process(
+        RumCommand::StopResource(GetBaseParams(), "bar"),
+        GetTestContext(),
+        GetTestWriter()
+    );
     REQUIRE(result == RumScopeResult::Close);
     auto actions = event_capture.Actions();
     REQUIRE(actions.size() == 1);
@@ -268,7 +307,9 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
             GetBaseParams(),
             "some-resource",
             RumRequestDetails{RumResourceMethod::Get, "http://localhost:5000/foo"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our action scope remains open
@@ -279,7 +320,9 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
     result = scope.Process(
         RumCommand::StopResource(
             GetBaseParams(), "some-resource", RumResponseDetails(), RumErrorDetails()
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our scope remains open, because we haven't exceeded the timeout
@@ -288,7 +331,9 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
 
     // Next: When the action scope is closed for any reason and sends its action event
     clock.TickMilliseconds(3);
-    result = scope.Process(RumCommand::StopSession(GetBaseParams()));
+    result = scope.Process(
+        RumCommand::StopSession(GetBaseParams()), GetTestContext(), GetTestWriter()
+    );
     REQUIRE(result == RumScopeResult::Close);
     auto actions = event_capture.Actions();
     REQUIRE(actions.size() == 1);
@@ -309,13 +354,17 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
             GetBaseParams(),
             RumErrorSource::Source,
             RumErrorDetails{"oops", "Error", "stacktrace"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
     REQUIRE(result == RumScopeResult::RemainOpen);
 
     // And we then process StopAction to explicitly end the action 10ms later
     clock.TickMilliseconds(10);
-    result = scope.Process(RumCommand::StopAction(GetBaseParams(), ""));
+    result = scope.Process(
+        RumCommand::StopAction(GetBaseParams(), ""), GetTestContext(), GetTestWriter()
+    );
     REQUIRE(result == RumScopeResult::Close);
     auto actions = event_capture.Actions();
     REQUIRE(actions.size() == 1);

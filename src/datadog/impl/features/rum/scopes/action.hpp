@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/features/rum/scope.hpp"
 
 namespace datadog::impl {
@@ -67,13 +69,20 @@ class RumActionScope {
   void PopulateContext(struct RumContext& out_context) const;
 
   // RumScope interface
-  RumScopeResult Process(const RumCommand& command);
+  RumScopeResult Process(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
 
  private:
   /**
    * Generates and sends a RUM action event in response to the given command.
    */
-  void SendActionEvent(const RumCommand& command, const Timestamp& completed_at);
+  void SendActionEvent(
+      const RumCommand& command,
+      const Timestamp& completed_at,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
 
  private:
   std::reference_wrapper<const RumScopeDependencies> _deps;
