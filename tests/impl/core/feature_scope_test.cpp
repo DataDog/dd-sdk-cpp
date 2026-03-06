@@ -102,21 +102,21 @@ TEST_CASE("FeatureScope thread safety", "[unit][core][thread-safety]") {
   FeatureState feature_c;
 
   // And a separate scope for each feature, initialized from the same context provider
-  FeatureScope scope_a(
+  FeatureScope scope_a = FeatureScope::CreateForTesting(
       context_provider,
       [&](Block event, Block event_metadata) {
         return feature_a.HandleEvent(event, event_metadata);
       },
       DiagnosticLogger{}
   );
-  FeatureScope scope_b(
+  FeatureScope scope_b = FeatureScope::CreateForTesting(
       context_provider,
       [&](Block event, Block event_metadata) {
         return feature_b.HandleEvent(event, event_metadata);
       },
       DiagnosticLogger{}
   );
-  FeatureScope scope_c(
+  FeatureScope scope_c = FeatureScope::CreateForTesting(
       context_provider,
       [&](Block event, Block event_metadata) {
         return feature_c.HandleEvent(event, event_metadata);
