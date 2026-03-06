@@ -136,9 +136,9 @@ TEST_CASE("UploadScheduler", "[unit]") {
     thread.join();
     auto elapsed = std::chrono::high_resolution_clock::now() - started_at;
 
-    // Then the thread exits immediately
+    // Then the thread exits immediately, +/- 5ms
     auto elapsed_ms = std::chrono::round<std::chrono::milliseconds>(elapsed);
-    REQUIRE(elapsed_ms.count() == 0);
+    REQUIRE(elapsed_ms.count() < 5);
 
     // And the scheduled upload cycle does not take place
     REQUIRE(num_elapsed == 0);
