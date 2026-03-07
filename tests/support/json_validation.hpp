@@ -24,6 +24,11 @@ inline nlohmann::json MergeJsonArrays(std::vector<MockHttpRequest>& requests) {
   // Collect a flattened array of JSON values from all requests
   nlohmann::json result = nlohmann::json::array();
   for (const auto& request : requests) {
+    // If request was aborted, skip parsing
+    if (request.aborted) {
+      continue;
+    }
+
     // Request body MUST be a JSON array
     auto arr = nlohmann::json::parse(request.body);
     REQUIRE(arr.is_array());
