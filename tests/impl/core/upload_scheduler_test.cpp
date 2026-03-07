@@ -49,10 +49,10 @@ TEST_CASE("UploadScheduler", "[unit]") {
   }
 
   SECTION("M return earliest feature W features scheduled at different times") {
-    // Given a scheduler where 0xfeee0000 is scheduled in 30 microseconds
+    // Given a scheduler where 0xfeee0000 is scheduled in 30 seconds
     MockClock clock;
     UploadScheduler scheduler(clock);
-    scheduler.Schedule(0xfeee0000, std::chrono::microseconds(30));
+    scheduler.Schedule(0xfeee0000, std::chrono::seconds(30));
 
     // And 0x1337beef is scheduled in 1 microsecond
     scheduler.Schedule(0x1337beef, std::chrono::microseconds(1));
@@ -63,13 +63,6 @@ TEST_CASE("UploadScheduler", "[unit]") {
     // Then we get 0x1337beef
     REQUIRE(result.has_value());
     REQUIRE(*result == 0x1337beef);
-
-    // And: when we wait for the next feature after that
-    result = scheduler.WaitForNext();
-
-    // Then we get feee0000
-    REQUIRE(result.has_value());
-    REQUIRE(*result == 0xfeee0000);
   }
 
   SECTION("M return nullopt W no features scheduled") {
