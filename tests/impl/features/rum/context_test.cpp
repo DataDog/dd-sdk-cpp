@@ -26,6 +26,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.session_id == UUID::Zero);
     REQUIRE(ctx.view_id == UUID::Zero);
     REQUIRE(ctx.action_id == UUID::Zero);
+    REQUIRE(ctx.view_name.empty());
   }
 
   SECTION("M set application_id W application_id is valid") {
@@ -42,6 +43,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.session_id == UUID::Zero);
     REQUIRE(ctx.view_id == UUID::Zero);
     REQUIRE(ctx.action_id == UUID::Zero);
+    REQUIRE(ctx.view_name.empty());
   }
 
   SECTION("M set session_id W session has valid ID and is active and sampled") {
@@ -61,6 +63,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.session_id == *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8"));
     REQUIRE(ctx.view_id == UUID::Zero);
     REQUIRE(ctx.action_id == UUID::Zero);
+    REQUIRE(ctx.view_name.empty());
   }
 
   SECTION("M set view_id W active session has an active view") {
@@ -83,6 +86,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.session_id == *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8"));
     REQUIRE(ctx.view_id == *UUID::Parse("76cb171c-c6d5-4719-adfc-f90c6b57c0a0"));
     REQUIRE(ctx.action_id == UUID::Zero);
+    REQUIRE(ctx.view_name == "Foo");
   }
 
   SECTION("M set action_id W active view has an active action") {
@@ -106,6 +110,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.session_id == *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8"));
     REQUIRE(ctx.view_id == *UUID::Parse("76cb171c-c6d5-4719-adfc-f90c6b57c0a0"));
     REQUIRE(ctx.action_id == *UUID::Parse("860a7264-f20a-4833-8e7c-10f15ef6f873"));
+    REQUIRE(ctx.view_name == "Foo");
   }
 
   SECTION("M not set session_id, view_id, or action_id W session is not sampled") {
@@ -127,6 +132,7 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.session_id == UUID::Zero);
     REQUIRE(ctx.view_id == UUID::Zero);
     REQUIRE(ctx.action_id == UUID::Zero);
+    REQUIRE(ctx.view_name.empty());
   }
 
   SECTION("M not set session_id, view_id, or action_id W session is no longer active") {
@@ -152,5 +158,6 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.session_id == UUID::Zero);
     REQUIRE(ctx.view_id == UUID::Zero);
     REQUIRE(ctx.action_id == UUID::Zero);
+    REQUIRE(ctx.view_name.empty());
   }
 }

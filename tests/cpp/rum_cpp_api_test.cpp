@@ -3410,16 +3410,33 @@ TEST_CASE("RumConfig::SetContextChangeCallback", "[unit][rum][cpp-api]") {
 }
 
 TEST_CASE("RumContextChangeCallback invocation", "[unit][rum][cpp-api]") {
+  // Helper struct that owns string data (RumContext only holds string_view)
+  struct CapturedRumContext {
+    UUID application_id;
+    UUID session_id;
+    UUID view_id;
+    std::string view_name;  // Owned copy
+    UUID action_id;
+
+    CapturedRumContext() = default;
+    explicit CapturedRumContext(const RumContext& ctx)
+        : application_id(ctx.application_id),
+          session_id(ctx.session_id),
+          view_id(ctx.view_id),
+          view_name(ctx.view_name),  // Copy the string
+          action_id(ctx.action_id) {}
+  };
+
   SECTION("M invoke callback W view is started") {
     auto test = CoreTestHarness::Init();
     auto core = CoreTestHarness::WrapForCpp(test);
 
-    RumContext captured_context;
+    CapturedRumContext captured_context;
     bool callback_invoked = false;
 
     RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
     config.SetContextChangeCallback([&](const RumContext& ctx) {
-      captured_context = ctx;
+      captured_context = CapturedRumContext(ctx);
       callback_invoked = true;
     });
 
@@ -3429,12 +3446,13 @@ TEST_CASE("RumContextChangeCallback invocation", "[unit][rum][cpp-api]") {
 
     // Starting a view should trigger callback
     callback_invoked = false;
-    rum->StartView("view1", "View 1");
+    rum->StartView("view1");
 
     REQUIRE(callback_invoked);
     REQUIRE(captured_context.application_id != UUID::Zero);
     REQUIRE(captured_context.session_id != UUID::Zero);
     REQUIRE(captured_context.view_id != UUID::Zero);
+    REQUIRE(captured_context.view_name == "view1");
     REQUIRE(captured_context.action_id == UUID::Zero);
   }
 
@@ -3478,5 +3496,84 @@ TEST_CASE("RumContextChangeCallback invocation", "[unit][rum][cpp-api]") {
     REQUIRE(contexts.size() >= 2);
     // Last context should have action_id set
     REQUIRE(contexts.back().action_id != UUID::Zero);
+  }
+
+  SECTION("M populate view_name W view started with explicit name") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+
+    CapturedRumContext captured_context;
+    bool callback_invoked = false;
+
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextChangeCallback([&](const RumContext& ctx) {
+      captured_context = CapturedRumContext(ctx);
+      callback_invoked = true;
+    });
+
+    auto rum = Rum::Register(core, config);
+    REQUIRE(core->Start());
+
+    // Starting a view with explicit name should populate view_name
+    callback_invoked = false;
+    rum->StartView("view-key", "My Explicit View Name");
+
+    REQUIRE(callback_invoked);
+    REQUIRE(captured_context.view_id != UUID::Zero);
+    REQUIRE(captured_context.view_name == "My Explicit View Name");
+  }
+
+  SECTION("M populate view_name with key W view started without explicit name") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+
+    CapturedRumContext captured_context;
+    bool callback_invoked = false;
+
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextChangeCallback([&](const RumContext& ctx) {
+      captured_context = CapturedRumContext(ctx);
+      callback_invoked = true;
+    });
+
+    auto rum = Rum::Register(core, config);
+    REQUIRE(core->Start());
+
+    // Starting a view without explicit name should use key as view_name
+    callback_invoked = false;
+    rum->StartView("view-key-only");
+
+    REQUIRE(callback_invoked);
+    REQUIRE(captured_context.view_id != UUID::Zero);
+    REQUIRE(captured_context.view_name == "view-key-only");
+  }
+
+  SECTION("M clear view_name W view is stopped") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+
+    std::vector<CapturedRumContext> contexts;
+
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextChangeCallback([&](const RumContext& ctx) {
+      contexts.push_back(CapturedRumContext(ctx));
+    });
+
+    auto rum = Rum::Register(core, config);
+    REQUIRE(core->Start());
+
+    // Clear any contexts from initialization
+    contexts.clear();
+
+    rum->StartView("view1", "View Name");
+    rum->StopView("view1");
+
+    REQUIRE(contexts.size() >= 2);
+    // First callback (after StartView) should have view_name populated
+    REQUIRE(contexts[0].view_id != UUID::Zero);
+    REQUIRE(contexts[0].view_name == "View Name");
+    // Last callback (after StopView) should have empty view_name
+    REQUIRE(contexts.back().view_id == UUID::Zero);
+    REQUIRE(contexts.back().view_name.empty());
   }
 }

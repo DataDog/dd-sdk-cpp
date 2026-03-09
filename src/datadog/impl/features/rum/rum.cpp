@@ -217,7 +217,7 @@ void Rum::UpdateFeatureContext() {
   const RumFeatureContext new_context = _application_snapshot.ToFeatureContext();
 
   if (_scope) {
-    _scope->UpdateContext([new_context](CoreContext& ctx) { ctx.rum = new_context; });
+    _scope->UpdateContext([&new_context](CoreContext& ctx) { ctx.rum = new_context; });
   }
 
   // Check if callback should be invoked

@@ -122,21 +122,25 @@ namespace datadog::impl {
  * event payloads with RUM data, which facilitates correlation in the backend.
  */
 struct RumFeatureContext {
-  UUID application_id;  // UUID::Zero if RUM not initialized
-  UUID session_id;      // UUID::Zero if no active session
-  UUID view_id;         // UUID::Zero if no active view
-  UUID action_id;       // UUID::Zero if no active action
+  UUID application_id;    // UUID::Zero if RUM not initialized
+  UUID session_id;        // UUID::Zero if no active session
+  UUID view_id;           // UUID::Zero if no active view
+  UUID action_id;         // UUID::Zero if no active action
+  std::string view_name;  // Temporary for POC; empty if no view
 
   /**
    * Converts this internal RumFeatureContext to the public RumContext type.
    */
   datadog::RumContext ToPublicContext() const {
-    return datadog::RumContext{application_id, session_id, view_id, action_id};
+    return datadog::RumContext{
+        application_id, session_id, view_id, view_name, action_id
+    };
   }
 
   bool operator==(const RumFeatureContext& other) const {
     return application_id == other.application_id && session_id == other.session_id &&
-           view_id == other.view_id && action_id == other.action_id;
+           view_id == other.view_id && action_id == other.action_id &&
+           view_name == other.view_name;
   }
 
   bool operator!=(const RumFeatureContext& other) const { return !(*this == other); }

@@ -49,6 +49,15 @@ struct RumContext {
   UUID view_id;
 
   /**
+   * Name of the current RUM view. Empty if no view is active (i.e., when
+   * `view_id` is UUID::Zero). When a view is active, contains the explicit
+   * name provided to StartView(), or the key if no name was provided.
+   *
+   * Valid only for the duration of the synchronous callback.
+   */
+  std::string_view view_name;
+
+  /**
    * The current RUM action ID. UUID::Zero if no action is active.
    */
   UUID action_id;
@@ -58,7 +67,8 @@ struct RumContext {
    */
   bool operator==(const RumContext& other) const {
     return application_id == other.application_id && session_id == other.session_id &&
-           view_id == other.view_id && action_id == other.action_id;
+           view_id == other.view_id && action_id == other.action_id &&
+           view_name == other.view_name;
   }
 
   bool operator!=(const RumContext& other) const { return !(*this == other); }
