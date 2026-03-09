@@ -3410,7 +3410,7 @@ TEST_CASE("RumConfig::SetContextChangeCallback", "[unit][rum][cpp-api]") {
 }
 
 TEST_CASE("RumContextChangeCallback invocation", "[unit][rum][cpp-api]") {
-  // Helper struct that owns string data (RumContext only holds string_view)
+  // Helper struct that owns string data (RumContext only holds const char*)
   struct CapturedRumContext {
     UUID application_id;
     UUID session_id;
@@ -3423,7 +3423,7 @@ TEST_CASE("RumContextChangeCallback invocation", "[unit][rum][cpp-api]") {
         : application_id(ctx.application_id),
           session_id(ctx.session_id),
           view_id(ctx.view_id),
-          view_name(ctx.view_name),  // Copy the string
+          view_name(ctx.view_name ? ctx.view_name : ""),  // Copy from const char*
           action_id(ctx.action_id) {}
   };
 

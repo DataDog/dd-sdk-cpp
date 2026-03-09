@@ -133,7 +133,7 @@ struct RumFeatureContext {
    */
   datadog::RumContext ToPublicContext() const {
     return datadog::RumContext{
-        application_id, session_id, view_id, view_name, action_id
+        application_id, session_id, view_id, view_name.c_str(), action_id
     };
   }
 

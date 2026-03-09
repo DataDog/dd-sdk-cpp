@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <cstring>
 #include <functional>
 #include <memory>
 #include <string>
@@ -49,13 +50,16 @@ struct RumContext {
   UUID view_id;
 
   /**
-   * Name of the current RUM view. Empty if no view is active (i.e., when
-   * `view_id` is UUID::Zero). When a view is active, contains the explicit
-   * name provided to StartView(), or the key if no name was provided.
+   * Name of the current RUM view. Points to an empty string if no view is
+   * active (i.e., when `view_id` is UUID::Zero). When a view is active,
+   * contains the explicit name provided to StartView(), or the key if no name
+   * was provided.
    *
-   * Valid only for the duration of the synchronous callback.
+   * This pointer is valid only for the duration of the synchronous callback.
+   * If the string value is needed beyond the callback's lifetime, it must be
+   * copied.
    */
-  std::string_view view_name;
+  const char* view_name;
 
   /**
    * The current RUM action ID. UUID::Zero if no action is active.
@@ -66,9 +70,20 @@ struct RumContext {
    * Compares two RumContext instances for equality.
    */
   bool operator==(const RumContext& other) const {
-    return application_id == other.application_id && session_id == other.session_id &&
-           view_id == other.view_id && action_id == other.action_id &&
-           view_name == other.view_name;
+    // Compare UUIDs
+    if (application_id != other.application_id || session_id != other.session_id ||
+        view_id != other.view_id || action_id != other.action_id) {
+      return false;
+    }
+
+    // Compare view_name strings
+    if (view_name == other.view_name) {
+      return true;  // Same pointer or both null
+    }
+    if (!view_name || !other.view_name) {
+      return false;  // One null, one not
+    }
+    return std::strcmp(view_name, other.view_name) == 0;
   }
 
   bool operator!=(const RumContext& other) const { return !(*this == other); }
