@@ -419,8 +419,7 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
        },
        {},
        {"Rum::SucceedFeatureOperation call ignored: application must supply a "
-        "non-empty "
-        "operation name"}},
+        "non-empty operation name"}},
 
       {"M print error W SucceedFeatureOperation is called with whitespace-only name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
@@ -431,8 +430,7 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
        },
        {},
        {"Rum::SucceedFeatureOperation call ignored: application must supply a "
-        "non-empty "
-        "operation name"}},
+        "non-empty operation name"}},
 
       {"M print error W FailFeatureOperation is called with empty name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {

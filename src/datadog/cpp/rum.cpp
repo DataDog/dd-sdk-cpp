@@ -364,8 +364,7 @@ void Rum::SucceedFeatureOperation(
   if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::SucceedFeatureOperation call ignored: application must supply a "
-        "non-empty "
-        "operation name"
+        "non-empty operation name"
     );
     return;
   }
@@ -374,8 +373,7 @@ void Rum::SucceedFeatureOperation(
   if (!operation_key.empty() && impl::IsBlankString(operation_key)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::SucceedFeatureOperation call ignored: operation_key, if provided, must "
-        "be "
-        "a non-empty string"
+        "be a non-empty string"
     );
     return;
   }
