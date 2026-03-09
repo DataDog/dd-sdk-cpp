@@ -4,6 +4,7 @@ stages:
   - build
   - package
   - release
+  - signal-success
 
 variables:
   # We must explicitly specify `--parallel <jobs>` when building targets that invoke C++
@@ -357,3 +358,14 @@ create-release:
         ARCHIVE_FILENAME=$(basename "$ARCHIVE_PATH")
         echo "- $ARCHIVE_FILENAME"
       done
+
+# Stage 'signal-success' is a no-op that runs after all other CI jobs have passed. The
+# 'dd-protected-branches' ruleset (see https://github.com/DataDog/dd-sdk-cpp/rules)
+# explicitly requires this job to pass before it will allow a PR to be merged.
+
+signal-success:
+  stage: signal-success
+  tags: [arch:amd64]
+  image: alpine:latest
+  script:
+    - echo "All CI jobs were successful!"
