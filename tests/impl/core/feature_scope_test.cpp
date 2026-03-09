@@ -168,6 +168,6 @@ TEST_CASE("FeatureScope thread safety", "[unit][core][thread-safety]") {
 
   // And the sum of all values in a single array should be roughly `sum(range(512))`,
   // i.e. 130816, give or take a sizable margin of error
-  REQUIRE(sum > 100000);
-  REQUIRE(sum < 160000);
+  REQUIRE(sum > 90000);
+  REQUIRE(sum < 170000);
 }

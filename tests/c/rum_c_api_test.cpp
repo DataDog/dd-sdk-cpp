@@ -61,6 +61,12 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
     dd_rum_stop_resource_with_error(
         nullptr, "foo", "Bad times", "RuntimeError", nullptr, false, 0, &obj
     );
+
+    dd_rum_start_feature_operation(nullptr, "checkout", nullptr, nullptr);
+    dd_rum_succeed_feature_operation(nullptr, "checkout", nullptr, nullptr);
+    dd_rum_fail_feature_operation(
+        nullptr, "upload", DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
+    );
   }
 }
 
@@ -650,6 +656,116 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        {"dd_rum_add_error recording an error with no message: application should "
         "supply a non-empty error message"},
        {}},
+
+      // === dd_rum_start/succeed/fail_feature_operation() ===
+
+      {"M print error W dd_rum_start_feature_operation is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_feature_operation(rum, nullptr, nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_start_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_start_feature_operation is called with empty name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_feature_operation(rum, "", nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_start_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_start_feature_operation is called with whitespace-only "
+       "name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_feature_operation(rum, "   ", nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_start_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_start_feature_operation is called with whitespace-only "
+       "key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_feature_operation(rum, "checkout", "   ", nullptr);
+         });
+       },
+       {},
+       {"dd_rum_start_feature_operation call ignored: operation_key, if provided, must "
+        "be a non-empty string"}},
+
+      {"M print no error W dd_rum_start_feature_operation is called with empty key",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           // Empty key means "no key" — valid
+           dd_rum_start_feature_operation(rum, "checkout", "", nullptr);
+         });
+       },
+       {},
+       {}},
+
+      {"M print error W dd_rum_succeed_feature_operation is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_succeed_feature_operation(rum, nullptr, nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_succeed_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_succeed_feature_operation is called with "
+       "whitespace-only "
+       "name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_succeed_feature_operation(rum, "\t", nullptr, nullptr);
+         });
+       },
+       {},
+       {"dd_rum_succeed_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_fail_feature_operation is called with NULL name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_fail_feature_operation(
+               rum, nullptr, DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
+           );
+         });
+       },
+       {},
+       {"dd_rum_fail_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W dd_rum_fail_feature_operation is called with whitespace-only "
+       "name",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_fail_feature_operation(
+               rum, " \n ", DD_RUM_FAILURE_REASON_ABANDONED, nullptr, nullptr
+           );
+         });
+       },
+       {},
+       {"dd_rum_fail_feature_operation call ignored: application must supply a "
+        "non-empty operation name"}},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
@@ -3456,6 +3572,452 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
                                          {"dog", "good"},
                                      }
          );
+       }},
+
+      // === Feature Operations ===
+
+      {"M emit start and end vital events W operation succeeds",
+       [](dd_rum_config_t*) {},
+       [](dd_rum_t* rum, MockClock& clock) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_feature_operation(rum, "checkout", nullptr, nullptr);
+         clock.Tick(std::chrono::milliseconds(500));
+         dd_rum_succeed_feature_operation(rum, "checkout", nullptr, nullptr);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[0], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "start",
+             "id": "${__NONZERO_UUID__}"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000500,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         REQUIRE(vitals[1]["vital"].count("failure_reason") == 0);
+       }},
+
+      {"M emit end vital with failure_reason W operation fails with error",
+       [](dd_rum_config_t*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_feature_operation(rum, "upload", nullptr, nullptr);
+         dd_rum_fail_feature_operation(
+             rum, "upload", DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
+         );
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "upload",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}",
+             "failure_reason": "error"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+       }},
+
+      {"M include operation_key in vital events W operation started with key",
+       [](dd_rum_config_t*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_feature_operation(rum, "checkout", "cart-42", nullptr);
+         dd_rum_succeed_feature_operation(rum, "checkout", "cart-42", nullptr);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[0], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "start",
+             "id": "${__NONZERO_UUID__}",
+             "operation_key": "cart-42"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}",
+             "operation_key": "cart-42"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+       }},
+
+      // Attribute merging tests for operations
+      {"M include command attributes in start vital W StartFeatureOperation with "
+       "attributes",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_attribute_t attrs = dd_attribute_object(2);
+         dd_attribute_t cart_id = dd_attribute_string("cart-123");
+         dd_attribute_t item_count = dd_attribute_int(3);
+         dd_attribute_object_property_set(&attrs, "checkout.cart_id", &cart_id);
+         dd_attribute_object_property_set(&attrs, "checkout.item_count", &item_count);
+         dd_rum_start_feature_operation(rum, "checkout", "", &attrs);
+         dd_attribute_free(&cart_id);
+         dd_attribute_free(&item_count);
+         dd_attribute_free(&attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         REQUIRE(vitals[0]["vital"]["step_type"] == "start");
+         REQUIRE(
+             vitals[0]["context"] ==
+             nlohmann::json{
+                 {"checkout.cart_id", "cart-123"}, {"checkout.item_count", 3}
+             }
+         );
+       }},
+
+      {"M include command attributes in end vital W SucceedFeatureOperation with "
+       "attributes",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_feature_operation(rum, "upload", nullptr, nullptr);
+         dd_attribute_t attrs = dd_attribute_object(1);
+         dd_attribute_t bytes = dd_attribute_int(1024000);
+         dd_attribute_object_property_set(&attrs, "upload.bytes", &bytes);
+         dd_rum_succeed_feature_operation(rum, "upload", "", &attrs);
+         dd_attribute_free(&bytes);
+         dd_attribute_free(&attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(vitals[1]["context"] == nlohmann::json{{"upload.bytes", 1024000}});
+       }},
+
+      {"M include command attributes in end vital W FailFeatureOperation with "
+       "attributes",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_feature_operation(rum, "login", nullptr, nullptr);
+         dd_attribute_t attrs = dd_attribute_object(2);
+         dd_attribute_t error_code = dd_attribute_string("INVALID_CREDS");
+         dd_attribute_t attempt_count = dd_attribute_int(3);
+         dd_attribute_object_property_set(&attrs, "error.code", &error_code);
+         dd_attribute_object_property_set(&attrs, "attempt.count", &attempt_count);
+         dd_rum_fail_feature_operation(
+             rum, "login", DD_RUM_FAILURE_REASON_ERROR, "", &attrs
+         );
+         dd_attribute_free(&error_code);
+         dd_attribute_free(&attempt_count);
+         dd_attribute_free(&attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(vitals[1]["vital"]["failure_reason"] == "error");
+         REQUIRE(
+             vitals[1]["context"] ==
+             nlohmann::json{{"error.code", "INVALID_CREDS"}, {"attempt.count", 3}}
+         );
+       }},
+
+      {"M merge global <- view <- command attributes in vital events",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         // Global: {"able":100, "baker":200}
+         dd_attribute_t able = dd_attribute_int(100);
+         dd_attribute_t baker = dd_attribute_int(200);
+         dd_rum_add_attribute(rum, "able", &able);
+         dd_rum_add_attribute(rum, "baker", &baker);
+         dd_attribute_free(&able);
+         dd_attribute_free(&baker);
+
+         // View: {"baker":222, "charlie":333, "dog":444}
+         dd_attribute_t view_attrs = dd_attribute_object(3);
+         dd_attribute_t baker_view = dd_attribute_int(222);  // shadows global
+         dd_attribute_t charlie = dd_attribute_int(333);
+         dd_attribute_t dog_view = dd_attribute_int(444);
+         dd_attribute_object_property_set(&view_attrs, "baker", &baker_view);
+         dd_attribute_object_property_set(&view_attrs, "charlie", &charlie);
+         dd_attribute_object_property_set(&view_attrs, "dog", &dog_view);
+         dd_rum_start_view_obj(rum, "my-view", "My View", &view_attrs);
+         dd_attribute_free(&baker_view);
+         dd_attribute_free(&charlie);
+         dd_attribute_free(&dog_view);
+         dd_attribute_free(&view_attrs);
+
+         // Operation: {"alpha":1, "bravo":2, "dog":"good"}
+         dd_attribute_t op_attrs = dd_attribute_object(3);
+         dd_attribute_t alpha = dd_attribute_int(1);
+         dd_attribute_t bravo = dd_attribute_int(2);
+         dd_attribute_t dog_op = dd_attribute_string("good");  // shadows view
+         dd_attribute_object_property_set(&op_attrs, "alpha", &alpha);
+         dd_attribute_object_property_set(&op_attrs, "bravo", &bravo);
+         dd_attribute_object_property_set(&op_attrs, "dog", &dog_op);
+         dd_rum_start_feature_operation(rum, "checkout", "", &op_attrs);
+         dd_attribute_free(&alpha);
+         dd_attribute_free(&bravo);
+         dd_attribute_free(&dog_op);
+         dd_attribute_free(&op_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         // Result: global + view + operation, with operation > view > global precedence
+         REQUIRE(
+             vitals[0]["context"] == nlohmann::json{
+                                         {"able", 100},   // from global
+                                         {"baker", 222},  // from view (shadowed global)
+                                         {"charlie", 333},  // from view
+                                         {"alpha", 1},      // from operation
+                                         {"bravo", 2},      // from operation
+                                         {"dog", "good"}
+                                         // from operation (shadowed view and global)
+                                     }
+         );
+       }},
+
+      {"M merge global <- command attributes W operation emitted without active view",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         // Global: {"env":"production", "version":"1.2.3"}
+         dd_attribute_t env = dd_attribute_string("production");
+         dd_attribute_t version = dd_attribute_string("1.2.3");
+         dd_rum_add_attribute(rum, "env", &env);
+         dd_rum_add_attribute(rum, "version", &version);
+         dd_attribute_free(&env);
+         dd_attribute_free(&version);
+
+         // No view started - operation runs in background
+         dd_attribute_t op_attrs = dd_attribute_object(2);
+         dd_attribute_t task_name = dd_attribute_string("sync");
+         dd_attribute_t env_op = dd_attribute_string("staging");  // shadows global
+         dd_attribute_object_property_set(&op_attrs, "task.name", &task_name);
+         dd_attribute_object_property_set(&op_attrs, "env", &env_op);
+         dd_rum_start_feature_operation(rum, "background-sync", "", &op_attrs);
+         dd_attribute_free(&task_name);
+         dd_attribute_free(&env_op);
+         dd_attribute_free(&op_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         REQUIRE(vitals[0]["view"]["id"] == "00000000-0000-0000-0000-000000000000");
+         REQUIRE(
+             vitals[0]["context"] ==
+             nlohmann::json{
+                 {"env", "staging"},    // from operation (shadowed global)
+                 {"version", "1.2.3"},  // from global
+                 {"task.name", "sync"}  // from operation
+             }
+         );
+       }},
+
+      {"M not merge StartFeatureOperation and SucceedFeatureOperation attributes "
+       "together",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+
+         // StartFeatureOperation with {"start.timestamp":"2024-01-01"}
+         dd_attribute_t start_attrs = dd_attribute_object(1);
+         dd_attribute_t start_ts = dd_attribute_string("2024-01-01");
+         dd_attribute_object_property_set(&start_attrs, "start.timestamp", &start_ts);
+         dd_rum_start_feature_operation(rum, "upload", "", &start_attrs);
+         dd_attribute_free(&start_ts);
+         dd_attribute_free(&start_attrs);
+
+         // SucceedFeatureOperation with {"end.timestamp":"2024-01-02", "bytes":5000}
+         dd_attribute_t succeed_attrs = dd_attribute_object(2);
+         dd_attribute_t end_ts = dd_attribute_string("2024-01-02");
+         dd_attribute_t bytes = dd_attribute_int(5000);
+         dd_attribute_object_property_set(&succeed_attrs, "end.timestamp", &end_ts);
+         dd_attribute_object_property_set(&succeed_attrs, "bytes", &bytes);
+         dd_rum_succeed_feature_operation(rum, "upload", "", &succeed_attrs);
+         dd_attribute_free(&end_ts);
+         dd_attribute_free(&bytes);
+         dd_attribute_free(&succeed_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         // Start event has only start attributes
+         REQUIRE(vitals[0]["vital"]["step_type"] == "start");
+         REQUIRE(
+             vitals[0]["context"] == nlohmann::json{{"start.timestamp", "2024-01-01"}}
+         );
+
+         // End event has only end attributes (not merged with start)
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(
+             vitals[1]["context"] ==
+             nlohmann::json{{"end.timestamp", "2024-01-02"}, {"bytes", 5000}}
+         );
+       }},
+
+      {"M omit context field in vital event W no attributes provided",
+       [](dd_rum_config*) {},
+       [](dd_rum_t* rum, MockClock&) {
+         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_feature_operation(
+             rum, "checkout", nullptr, nullptr
+         );  // no attributes
+         dd_rum_succeed_feature_operation(
+             rum, "checkout", nullptr, nullptr
+         );  // no attributes
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[0].count("context") == 0);
+         REQUIRE(vitals[1].count("context") == 0);
        }},
   };
   for (const auto& tt : tests) {

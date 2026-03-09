@@ -60,6 +60,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/json/diagnostic_attribute.cpp
     datadog/impl/diagnostics.cpp
     datadog/impl/error_message.cpp
+    datadog/impl/validation.cpp
 )
 
 # Inject version number from CMake project config

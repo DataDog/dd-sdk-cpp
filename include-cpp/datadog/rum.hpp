@@ -106,6 +106,20 @@ enum class RumResourceType : uint8_t {
 };
 
 /**
+ * Describes the reason why a operation failed.
+ *
+ * This API is in preview and may change in future releases.
+ */
+enum class RumOperationFailureReason : uint8_t {
+  /** Operation failed due to an error. */
+  Error,
+  /** Operation was abandoned (e.g. user navigated away). */
+  Abandoned,
+  /** Operation failed for another reason. */
+  Other
+};
+
+/**
  * Describes a component of the application from which a RUM error originates.
  */
 enum class RumErrorSource : uint8_t {
@@ -386,6 +400,66 @@ class Rum {
       std::string_view message,
       std::string_view type = {},
       std::string_view stack_trace = {},
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records the start of a operation (e.g. login, checkout, upload).
+   *
+   * Each call emits a vital operation step event with step_type "start". The backend
+   * aggregates start/stop steps into full operations with computed duration and success
+   * rate.
+   *
+   * This API is in preview and may change in future releases.
+   *
+   * @param name - The name of the operation. Must be non-empty.
+   * @param operation_key - An optional key to distinguish parallel instances of the
+   * same operation. Must be non-empty if provided.
+   * @param attributes - An optional set of custom attributes for this event.
+   */
+  DATADOG_API void StartFeatureOperation(
+      std::string_view name,
+      std::string_view operation_key = {},
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records the successful completion of a operation.
+   *
+   * Each call emits a vital operation step event with step_type "end" and no failure
+   * reason.
+   *
+   * This API is in preview and may change in future releases.
+   *
+   * @param name - The name of the operation. Must be non-empty.
+   * @param operation_key - An optional key to distinguish parallel instances of the
+   * same operation. Must be non-empty if provided.
+   * @param attributes - An optional set of custom attributes for this event.
+   */
+  DATADOG_API void SucceedFeatureOperation(
+      std::string_view name,
+      std::string_view operation_key = {},
+      const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records the failure of a operation.
+   *
+   * Each call emits a vital operation step event with step_type "end" and the specified
+   * failure reason.
+   *
+   * This API is in preview and may change in future releases.
+   *
+   * @param name - The name of the operation. Must be non-empty.
+   * @param failure_reason - The reason the operation failed.
+   * @param operation_key - An optional key to distinguish parallel instances of the
+   * same operation. Must be non-empty if provided.
+   * @param attributes - An optional set of custom attributes for this event.
+   */
+  DATADOG_API void FailFeatureOperation(
+      std::string_view name,
+      RumOperationFailureReason failure_reason,
+      std::string_view operation_key = {},
       const Attribute& attributes = Attribute()
   );
 
