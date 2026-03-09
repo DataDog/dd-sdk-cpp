@@ -366,6 +366,6 @@ create-release:
 signal-success:
   stage: signal-success
   tags: [arch:amd64]
-  image: alpine:latest
+  image: ${GOLDEN_LINUX_IMAGE}
   script:
     - echo "All CI jobs were successful!"
