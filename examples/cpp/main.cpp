@@ -73,6 +73,16 @@ int main()  // NOLINT(bugprone-exception-escape)
   // Record a RUM Action
   rum->AddAction(datadog::RumActionType::Custom, "Start Menu Navigation");
 
+  // Track a operation that succeeds
+  rum->StartFeatureOperation("Checkout");
+  rum->SucceedFeatureOperation("Checkout");
+
+  // Track a operation that fails
+  rum->StartFeatureOperation("Upload", "profile-photo");
+  rum->FailFeatureOperation(
+      "Upload", datadog::RumOperationFailureReason::Error, "profile-photo"
+  );
+
   // Stop the RUM view
   rum->StopView("main_menu");
 

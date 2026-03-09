@@ -61,6 +61,10 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
       rum->StopResourceWithError(
           "foo", "Bad times", "RuntimeError", "", false, 0, attributes
       );
+
+      rum->StartFeatureOperation("checkout");
+      rum->SucceedFeatureOperation("checkout");
+      rum->FailFeatureOperation("upload", RumOperationFailureReason::Error);
     }
   }
 }
@@ -127,6 +131,9 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->StartAction(RumActionType::Scroll, "scroll1");
     rum->StopAction(RumActionType::Scroll, "scroll1");
     rum->AddError(RumErrorSource::Console, "Internal error", "66");
+    rum->StartFeatureOperation("checkout");
+    rum->SucceedFeatureOperation("checkout");
+    rum->FailFeatureOperation("upload", RumOperationFailureReason::Error);
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -364,6 +371,98 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
        },
        {"Rum::AddError recording an error with no message: application should supply a "
         "non-empty error message"},
+       {}},
+
+      // === StartFeatureOperation() / SucceedFeatureOperation() /
+      // FailFeatureOperation()
+      // ===
+
+      {"M print error W StartFeatureOperation is called with empty name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartFeatureOperation("");
+         });
+       },
+       {},
+       {"Rum::StartFeatureOperation call ignored: application must supply a non-empty "
+        "operation name"}},
+
+      {"M print error W StartFeatureOperation is called with whitespace-only name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartFeatureOperation("   ");
+         });
+       },
+       {},
+       {"Rum::StartFeatureOperation call ignored: application must supply a non-empty "
+        "operation name"}},
+
+      {"M print error W StartFeatureOperation is called with whitespace-only key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartFeatureOperation("checkout", "   ");
+         });
+       },
+       {},
+       {"Rum::StartFeatureOperation call ignored: operation_key, if provided, must be "
+        "a non-empty string"}},
+
+      {"M print error W SucceedFeatureOperation is called with empty name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->SucceedFeatureOperation("");
+         });
+       },
+       {},
+       {"Rum::SucceedFeatureOperation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W SucceedFeatureOperation is called with whitespace-only name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->SucceedFeatureOperation("  \t  ");
+         });
+       },
+       {},
+       {"Rum::SucceedFeatureOperation call ignored: application must supply a "
+        "non-empty operation name"}},
+
+      {"M print error W FailFeatureOperation is called with empty name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->FailFeatureOperation("", RumOperationFailureReason::Error);
+         });
+       },
+       {},
+       {"Rum::FailFeatureOperation call ignored: application must supply a non-empty "
+        "operation name"}},
+
+      {"M print error W FailFeatureOperation is called with whitespace-only name",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->FailFeatureOperation("\n", RumOperationFailureReason::Abandoned);
+         });
+       },
+       {},
+       {"Rum::FailFeatureOperation call ignored: application must supply a non-empty "
+        "operation name"}},
+
+      {"M print no error W StartFeatureOperation is called with empty key",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           // Empty key means "no key" — valid
+           rum->StartFeatureOperation("checkout", "");
+         });
+       },
+       {},
        {}},
   };
   for (const auto& tt : tests) {
@@ -2856,6 +2955,404 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
                                          {"dog", "good"},
                                      }
          );
+       }},
+
+      // === Feature Operations ===
+
+      {"M emit start and end vital events W operation succeeds",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         rum->StartView("my-view", "My View");
+         rum->StartFeatureOperation("checkout");
+         clock.Tick(std::chrono::milliseconds(500));
+         rum->SucceedFeatureOperation("checkout");
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[0], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "start",
+             "id": "${__NONZERO_UUID__}"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000500,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         REQUIRE(vitals[1]["vital"].count("failure_reason") == 0);
+       }},
+
+      {"M emit end vital with failure_reason W operation fails with error",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         rum->StartFeatureOperation("upload");
+         rum->FailFeatureOperation("upload", RumOperationFailureReason::Error);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "upload",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}",
+             "failure_reason": "error"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+       }},
+
+      {"M include operation_key in vital events W operation started with key",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         rum->StartFeatureOperation("checkout", "cart-42");
+         rum->SucceedFeatureOperation("checkout", "cart-42");
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         RequireEventMatch(vitals[0], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "start",
+             "id": "${__NONZERO_UUID__}",
+             "operation_key": "cart-42"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+
+         RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
+           "type": "vital",
+           "date": 1700000000000,
+           "os": {
+             "name": "MockOS",
+             "version": "1.0.0",
+             "build": "12345",
+             "version_major": "1"
+           },
+           "device": {
+             "type": "desktop",
+             "name": "MockDevice",
+             "model": "MockModel",
+             "brand": "MockBrand",
+             "architecture": "x86_64",
+             "locale": "en-US",
+             "time_zone": "UTC"
+           },
+           "application": {"id": "a991ca10-4004-4004-4004-beefbeefbeef"},
+           "session": {"id": "${__NONZERO_UUID__}", "type": "user"},
+           "view": {
+             "id": "${__NONZERO_UUID__}",
+             "url": "my-view",
+             "name": "My View"
+           },
+           "vital": {
+             "name": "checkout",
+             "type": "operation_step",
+             "step_type": "end",
+             "id": "${__NONZERO_UUID__}",
+             "operation_key": "cart-42"
+           },
+           "_dd": {"format_version": 2}
+         })"));
+       }},
+
+      // Attribute merging tests for operations
+      {"M include command attributes in start vital W StartFeatureOperation with "
+       "attributes",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         Attribute attrs = Attribute::Object(2);
+         attrs.SetObjectProperty("checkout.cart_id", Attribute::String("cart-123"));
+         attrs.SetObjectProperty("checkout.item_count", Attribute::Int(3));
+         rum->StartFeatureOperation("checkout", "", attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         REQUIRE(vitals[0]["vital"]["step_type"] == "start");
+         REQUIRE(
+             vitals[0]["context"] ==
+             nlohmann::json{
+                 {"checkout.cart_id", "cart-123"}, {"checkout.item_count", 3}
+             }
+         );
+       }},
+
+      {"M include command attributes in end vital W SucceedFeatureOperation with "
+       "attributes",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         rum->StartFeatureOperation("upload");
+         Attribute attrs = Attribute::Object(1);
+         attrs.SetObjectProperty("upload.bytes", Attribute::Int(1024000));
+         rum->SucceedFeatureOperation("upload", "", attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(vitals[1]["context"] == nlohmann::json{{"upload.bytes", 1024000}});
+       }},
+
+      {"M include command attributes in end vital W FailFeatureOperation with "
+       "attributes",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         rum->StartFeatureOperation("login");
+         Attribute attrs = Attribute::Object(2);
+         attrs.SetObjectProperty("error.code", Attribute::String("INVALID_CREDS"));
+         attrs.SetObjectProperty("attempt.count", Attribute::Int(3));
+         rum->FailFeatureOperation(
+             "login", RumOperationFailureReason::Error, "", attrs
+         );
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(vitals[1]["vital"]["failure_reason"] == "error");
+         REQUIRE(
+             vitals[1]["context"] ==
+             nlohmann::json{{"error.code", "INVALID_CREDS"}, {"attempt.count", 3}}
+         );
+       }},
+
+      {"M merge global <- view <- command attributes in vital events",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // Global: {"able":100, "baker":200}
+         rum->AddAttribute("able", Attribute::Int(100));
+         rum->AddAttribute("baker", Attribute::Int(200));
+
+         // View: {"baker":222, "charlie":333, "dog":444}
+         Attribute view_attrs = Attribute::Object(3);
+         view_attrs.SetObjectProperty("baker", Attribute::Int(222));  // shadows global
+         view_attrs.SetObjectProperty("charlie", Attribute::Int(333));
+         view_attrs.SetObjectProperty("dog", Attribute::Int(444));
+         rum->StartView("my-view", "My View", view_attrs);
+
+         // Operation: {"alpha":1, "bravo":2, "dog":"good"}
+         Attribute op_attrs = Attribute::Object(3);
+         op_attrs.SetObjectProperty("alpha", Attribute::Int(1));
+         op_attrs.SetObjectProperty("bravo", Attribute::Int(2));
+         op_attrs.SetObjectProperty("dog", Attribute::String("good"));  // shadows view
+         rum->StartFeatureOperation("checkout", "", op_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         // Result: global + view + operation, with operation > view > global precedence
+         REQUIRE(
+             vitals[0]["context"] == nlohmann::json{
+                                         {"able", 100},   // from global
+                                         {"baker", 222},  // from view (shadowed global)
+                                         {"charlie", 333},  // from view
+                                         {"alpha", 1},      // from operation
+                                         {"bravo", 2},      // from operation
+                                         {"dog", "good"}
+                                         // from operation (shadowed view and global)
+                                     }
+         );
+       }},
+
+      {"M merge global <- command attributes W operation emitted without active view",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // Global: {"env":"production", "version":"1.2.3"}
+         rum->AddAttribute("env", Attribute::String("production"));
+         rum->AddAttribute("version", Attribute::String("1.2.3"));
+
+         // No view started - operation runs in background
+         Attribute op_attrs = Attribute::Object(2);
+         op_attrs.SetObjectProperty("task.name", Attribute::String("sync"));
+         op_attrs.SetObjectProperty(
+             "env", Attribute::String("staging")
+         );  // shadows global
+         rum->StartFeatureOperation("background-sync", "", op_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 1);
+         REQUIRE(vitals[0]["view"]["id"] == "00000000-0000-0000-0000-000000000000");
+         REQUIRE(
+             vitals[0]["context"] ==
+             nlohmann::json{
+                 {"env", "staging"},    // from operation (shadowed global)
+                 {"version", "1.2.3"},  // from global
+                 {"task.name", "sync"}  // from operation
+             }
+         );
+       }},
+
+      {"M not merge StartFeatureOperation and SucceedFeatureOperation attributes "
+       "together",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+
+         // StartFeatureOperation with {"start.timestamp":"2024-01-01"}
+         Attribute start_attrs = Attribute::Object(1);
+         start_attrs.SetObjectProperty(
+             "start.timestamp", Attribute::String("2024-01-01")
+         );
+         rum->StartFeatureOperation("upload", "", start_attrs);
+
+         // SucceedFeatureOperation with {"end.timestamp":"2024-01-02", "bytes":5000}
+         Attribute succeed_attrs = Attribute::Object(2);
+         succeed_attrs.SetObjectProperty(
+             "end.timestamp", Attribute::String("2024-01-02")
+         );
+         succeed_attrs.SetObjectProperty("bytes", Attribute::Int(5000));
+         rum->SucceedFeatureOperation("upload", "", succeed_attrs);
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+
+         // Start event has only start attributes
+         REQUIRE(vitals[0]["vital"]["step_type"] == "start");
+         REQUIRE(
+             vitals[0]["context"] == nlohmann::json{{"start.timestamp", "2024-01-01"}}
+         );
+
+         // End event has only end attributes (not merged with start)
+         REQUIRE(vitals[1]["vital"]["step_type"] == "end");
+         REQUIRE(
+             vitals[1]["context"] ==
+             nlohmann::json{{"end.timestamp", "2024-01-02"}, {"bytes", 5000}}
+         );
+       }},
+
+      {"M omit context field in vital event W no attributes provided",
+       [](RumConfig&) {},
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+         rum->StartFeatureOperation("checkout");    // no attributes
+         rum->SucceedFeatureOperation("checkout");  // no attributes
+       },
+       [](const nlohmann::json& events) {
+         auto vitals = filter_events("vital", events);
+         REQUIRE(vitals.size() == 2);
+         REQUIRE(vitals[0].count("context") == 0);
+         REQUIRE(vitals[1].count("context") == 0);
        }},
   };
   for (const auto& tt : tests) {

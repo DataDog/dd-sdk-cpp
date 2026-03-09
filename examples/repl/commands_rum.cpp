@@ -131,6 +131,21 @@ std::optional<datadog::RumErrorSource> ParseRumErrorSource(std::string_view s) {
   return std::nullopt;
 }
 
+std::optional<datadog::RumOperationFailureReason> ParseRumFailureReason(
+    std::string_view s
+) {
+  if (s == "error") {
+    return datadog::RumOperationFailureReason::Error;
+  }
+  if (s == "abandoned") {
+    return datadog::RumOperationFailureReason::Abandoned;
+  }
+  if (s == "other") {
+    return datadog::RumOperationFailureReason::Other;
+  }
+  return std::nullopt;
+}
+
 }  // namespace
 
 CommandResult HandleRegisterRum(State& state, const CommandInput&) {
@@ -450,4 +465,87 @@ CommandResult HandleAddError(State& state, const CommandInput& args) {
 
   state.rum->AddError(source, message, type, stack_trace);
   return CommandResult::OK("Rum::AddError()");
+}
+
+CommandResult HandleStartFeatureOperation(State& state, const CommandInput& args) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  // Positional args
+  auto pos = args.Positional();
+  auto name = Unquote(pos[0]);
+  if (name.empty()) {
+    return CommandResult::Error("No operation name given!");
+  }
+
+  // Named args
+  auto named = args.Named();
+  auto key = Unquote(named.Get("key"));
+
+  state.rum->StartFeatureOperation(name, key);
+  return CommandResult::OK("Rum::StartFeatureOperation()");
+}
+
+CommandResult HandleSucceedFeatureOperation(State& state, const CommandInput& args) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  // Positional args
+  auto pos = args.Positional();
+  auto name = Unquote(pos[0]);
+  if (name.empty()) {
+    return CommandResult::Error("No operation name given!");
+  }
+
+  // Named args
+  auto named = args.Named();
+  auto key = Unquote(named.Get("key"));
+
+  state.rum->SucceedFeatureOperation(name, key);
+  return CommandResult::OK("Rum::SucceedFeatureOperation()");
+}
+
+CommandResult HandleFailFeatureOperation(State& state, const CommandInput& args) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  // Positional args
+  auto pos = args.Positional();
+  auto name = Unquote(pos[0]);
+  if (name.empty()) {
+    return CommandResult::Error("No operation name given!");
+  }
+
+  // Named args
+  auto named = args.Named();
+
+  datadog::RumOperationFailureReason reason{datadog::RumOperationFailureReason::Error};
+  auto reason_str = Unquote(named.Get("reason"));
+  if (!reason_str.empty()) {
+    if (auto reason_opt = ParseRumFailureReason(reason_str)) {
+      reason = *reason_opt;
+    } else {
+      return CommandResult::Error("Invalid failure reason!");
+    }
+  }
+
+  auto key = Unquote(named.Get("key"));
+
+  state.rum->FailFeatureOperation(name, reason, key);
+  return CommandResult::OK("Rum::FailFeatureOperation()");
 }
