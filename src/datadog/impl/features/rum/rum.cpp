@@ -131,7 +131,7 @@ void Rum::StopAction(std::string_view new_name, const Attribute& attributes) {
 }
 
 void Rum::StartResource(
-    std::string_view key, RumRequestDetails request, const Attribute& attributes
+    std::string_view key, const RumRequestDetails& request, const Attribute& attributes
 ) {
   Dispatch(RumCommand::StartResource(GetBaseCommandParams(attributes), key, request));
 }
