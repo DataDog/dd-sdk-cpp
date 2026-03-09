@@ -16,7 +16,7 @@ MarkupSafe==3.0.3
 narwhals==2.16.0
 numpy==2.4.2
 packaging==25.0
-pandas==2.3.3
+pandas==3.0.1
 pillow==12.0.0
 plotly==6.5.2
 protobuf==6.33.5
