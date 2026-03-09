@@ -9,10 +9,8 @@
 #include <algorithm>
 #include <cinttypes>
 #include <functional>
-#include <mutex>
 #include <optional>
 #include <random>
-#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -38,15 +36,13 @@ struct RumScopeDependencies {
   const platform::IClock& clock;
 
  private:
-  // Synchronization for internal state
-  mutable std::shared_mutex mutex;
-
   // Internal state used in sampling decisions
   float _sampling_rate_unit;
+  // Sampling state accessed only on the context thread
   mutable std::mt19937 _sampling_rng;
   mutable std::uniform_real_distribution<float> _sampling_distribution;
 
-  // Internal state for encoding RUM event payloads
+  // Reusable buffer for encoding events; accessed only on the context thread
   mutable std::vector<uint8_t> _encode_buffer;
 
  public:
@@ -73,7 +69,6 @@ struct RumScopeDependencies {
    */
   template <typename T>
   std::string_view EncodeEvent(const T& event) const {
-    std::unique_lock write_lock(mutex);
     EncodeJson(_encode_buffer, event);
     return std::string_view(
         reinterpret_cast<const char*>(_encode_buffer.data()), _encode_buffer.size()

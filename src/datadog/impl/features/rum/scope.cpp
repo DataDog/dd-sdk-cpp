@@ -26,8 +26,6 @@ RumScopeDependencies::RumScopeDependencies(
 }
 
 bool RumScopeDependencies::ShouldSampleSession() const {
-  std::unique_lock write_lock(mutex);
-
   // If sampling rate is 100%, all sessions are sampled
   if (_sampling_rate_unit >= 1.0f) {
     return true;
