@@ -179,7 +179,6 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     // Emit a vital event with step_type = Start
     SendVitalEvent(
         command.base,
-        payload.vital_id,
         payload.name,
         RumVitalStepType::Start,
         payload.operation_key,
@@ -233,7 +232,6 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     // Emit a vital event with step_type = End
     SendVitalEvent(
         command.base,
-        payload.vital_id,
         payload.name,
         RumVitalStepType::End,
         payload.operation_key,
@@ -319,7 +317,6 @@ void RumSessionScope::OnClose(const RumCommand& command, EndReason end_reason) {
 
 void RumSessionScope::SendVitalEvent(
     const RumCommandParams& base,
-    const UUID& vital_id,
     std::string_view name,
     RumVitalStepType step_type,
     std::optional<std::string_view> operation_key,
@@ -343,6 +340,7 @@ void RumSessionScope::SendVitalEvent(
   }
 
   // Construct the vital event with required fields
+  const UUID vital_id = UUID::Random();
   RumVitalEvent ev(
       base.issued_at,
       deps.application_id,

@@ -140,7 +140,6 @@ class Rum final : public Feature {
   void StartFeatureOperation(
       std::string_view name,
       std::optional<std::string_view> operation_key,
-      const UUID& vital_id,
       const Attribute& attributes = Attribute()
   );
 
@@ -151,7 +150,6 @@ class Rum final : public Feature {
   void StopFeatureOperation(
       std::string_view name,
       std::optional<std::string_view> operation_key,
-      const UUID& vital_id,
       std::optional<RumOperationFailureReason> failure_reason,
       const Attribute& attributes = Attribute()
   );

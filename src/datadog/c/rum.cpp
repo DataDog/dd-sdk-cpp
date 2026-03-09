@@ -542,8 +542,7 @@ void dd_rum_start_feature_operation(
     cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
   }
 
-  const datadog::UUID vital_id = datadog::UUID::Random();
-  rum->impl->StartFeatureOperation(name, opt_key, vital_id, cpp_attributes);
+  rum->impl->StartFeatureOperation(name, opt_key, cpp_attributes);
 }
 
 void dd_rum_succeed_feature_operation(
@@ -588,10 +587,7 @@ void dd_rum_succeed_feature_operation(
     cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
   }
 
-  const datadog::UUID vital_id = datadog::UUID::Random();
-  rum->impl->StopFeatureOperation(
-      name, opt_key, vital_id, std::nullopt, cpp_attributes
-  );
+  rum->impl->StopFeatureOperation(name, opt_key, std::nullopt, cpp_attributes);
 }
 
 void dd_rum_fail_feature_operation(
@@ -637,11 +633,9 @@ void dd_rum_fail_feature_operation(
     cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
   }
 
-  const datadog::UUID vital_id = datadog::UUID::Random();
   rum->impl->StopFeatureOperation(
       name,
       opt_key,
-      vital_id,
       datadog::RumOperationFailureReason_FromC(failure_reason),
       cpp_attributes
   );

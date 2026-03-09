@@ -172,7 +172,6 @@ class RumSessionScope {
    */
   void SendVitalEvent(
       const RumCommandParams& base,
-      const UUID& vital_id,
       std::string_view name,
       RumVitalStepType step_type,
       std::optional<std::string_view> operation_key,

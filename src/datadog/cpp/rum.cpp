@@ -352,8 +352,7 @@ void Rum::StartFeatureOperation(
   }
 
   if (_impl) {
-    const UUID vital_id = UUID::Random();
-    _impl->StartFeatureOperation(name, opt_key, vital_id, attributes);
+    _impl->StartFeatureOperation(name, opt_key, attributes);
   }
 }
 
@@ -385,8 +384,7 @@ void Rum::SucceedFeatureOperation(
   }
 
   if (_impl) {
-    const UUID vital_id = UUID::Random();
-    _impl->StopFeatureOperation(name, opt_key, vital_id, std::nullopt, attributes);
+    _impl->StopFeatureOperation(name, opt_key, std::nullopt, attributes);
   }
 }
 
@@ -421,8 +419,7 @@ void Rum::FailFeatureOperation(
   }
 
   if (_impl) {
-    const UUID vital_id = UUID::Random();
-    _impl->StopFeatureOperation(name, opt_key, vital_id, failure_reason, attributes);
+    _impl->StopFeatureOperation(name, opt_key, failure_reason, attributes);
   }
 }
 

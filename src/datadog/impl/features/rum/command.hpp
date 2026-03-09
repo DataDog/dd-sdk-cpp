@@ -279,14 +279,11 @@ struct RumStartFeatureOperationPayload {
 
   std::string_view name;
   std::optional<std::string_view> operation_key;
-  UUID vital_id;
 
   explicit RumStartFeatureOperationPayload(
-      std::string_view in_name,
-      std::optional<std::string_view> in_operation_key,
-      const UUID& in_vital_id
+      std::string_view in_name, std::optional<std::string_view> in_operation_key
   )
-      : name(in_name), operation_key(in_operation_key), vital_id(in_vital_id) {}
+      : name(in_name), operation_key(in_operation_key) {}
 };
 
 /**
@@ -300,18 +297,15 @@ struct RumStopFeatureOperationPayload {
 
   std::string_view name;
   std::optional<std::string_view> operation_key;
-  UUID vital_id;
   std::optional<RumOperationFailureReason> failure_reason;
 
   explicit RumStopFeatureOperationPayload(
       std::string_view in_name,
       std::optional<std::string_view> in_operation_key,
-      const UUID& in_vital_id,
       std::optional<RumOperationFailureReason> in_failure_reason
   )
       : name(in_name),
         operation_key(in_operation_key),
-        vital_id(in_vital_id),
         failure_reason(in_failure_reason) {}
 };
 
@@ -424,11 +418,10 @@ struct RumCommand {
   static RumCommand StartFeatureOperation(
       RumCommandParams&& base,
       std::string_view name,
-      std::optional<std::string_view> operation_key,
-      const UUID& vital_id
+      std::optional<std::string_view> operation_key
   ) {
     return RumCommand(
-        std::move(base), RumStartFeatureOperationPayload(name, operation_key, vital_id)
+        std::move(base), RumStartFeatureOperationPayload(name, operation_key)
     );
   }
 
@@ -437,12 +430,11 @@ struct RumCommand {
       RumCommandParams&& base,
       std::string_view name,
       std::optional<std::string_view> operation_key,
-      const UUID& vital_id,
       std::optional<RumOperationFailureReason> failure_reason
   ) {
     return RumCommand(
         std::move(base),
-        RumStopFeatureOperationPayload(name, operation_key, vital_id, failure_reason)
+        RumStopFeatureOperationPayload(name, operation_key, failure_reason)
     );
   }
 
