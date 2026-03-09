@@ -462,9 +462,10 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // Then two vital events are emitted (start + end)
-    REQUIRE(vital_events.size() == 2);
-    const auto& start_ev = vital_events[0].obj;
-    const auto& end_ev = vital_events[1].obj;
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    const auto& start_ev = vitals[0];
+    const auto& end_ev = vitals[1];
     REQUIRE(end_ev["vital"]["step_type"] == "end");
     // Vital ID is a valid, nonzero UUID
     const std::string end_vital_id_str = end_ev["vital"]["id"];
@@ -496,9 +497,10 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // Then the end event includes failure_reason
-    REQUIRE(vital_events.size() == 2);
-    const auto& start_ev = vital_events[0].obj;
-    const auto& end_ev = vital_events[1].obj;
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    const auto& start_ev = vitals[0];
+    const auto& end_ev = vitals[1];
     REQUIRE(end_ev["vital"]["step_type"] == "end");
     REQUIRE(end_ev["vital"]["failure_reason"] == "error");
     // End vital ID is distinct from start vital ID
@@ -536,9 +538,10 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
         )
     );
 
-    REQUIRE(vital_events.size() == 2);
-    const auto& start_ev = vital_events[0].obj;
-    const auto& end_ev = vital_events[1].obj;
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    const auto& start_ev = vitals[0];
+    const auto& end_ev = vitals[1];
     REQUIRE(end_ev["vital"]["failure_reason"] == "abandoned");
     // End vital ID is distinct from start vital ID
     const std::string start_vital_id_str = start_ev["vital"]["id"];
@@ -701,9 +704,10 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     );
 
     // Then the stop event captures the current (non-zero) view context
-    REQUIRE(vital_events.size() == 2);
-    const auto& start_ev = vital_events[0].obj;
-    const auto& end_ev = vital_events[1].obj;
+    vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    const auto& start_ev = vitals[0];
+    const auto& end_ev = vitals[1];
     REQUIRE(end_ev["vital"]["step_type"] == "end");
     REQUIRE(end_ev["view"]["id"] != "00000000-0000-0000-0000-000000000000");
     // End vital ID is distinct from start vital ID
