@@ -1,7 +1,7 @@
 altair==6.0.0
 attrs==25.4.0
 blinker==1.9.0
-cachetools==7.0.1
+cachetools==7.0.2
 certifi==2025.11.12
 charset-normalizer==3.4.4
 click==8.3.1
@@ -18,7 +18,7 @@ numpy==2.4.2
 packaging==25.0
 pandas==3.0.1
 pillow==12.1.1
-plotly==6.5.2
+plotly==6.6.0
 protobuf==6.33.5
 pyarrow==23.0.1
 pydeck==0.9.1
