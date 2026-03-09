@@ -131,7 +131,7 @@ void Rum::StopAction(std::string_view new_name, const Attribute& attributes) {
 }
 
 void Rum::StartResource(
-    std::string_view key, RumRequestDetails request, const Attribute& attributes
+    std::string_view key, const RumRequestDetails& request, const Attribute& attributes
 ) {
   Dispatch(RumCommand::StartResource(GetBaseCommandParams(attributes), key, request));
 }
@@ -151,6 +151,31 @@ void Rum::AddError(
     RumErrorSource source, const RumErrorDetails& error, const Attribute& attributes
 ) {
   Dispatch(RumCommand::AddError(GetBaseCommandParams(attributes), source, error));
+}
+
+void Rum::StartFeatureOperation(
+    std::string_view name,
+    std::optional<std::string_view> operation_key,
+    const Attribute& attributes
+) {
+  Dispatch(
+      RumCommand::StartFeatureOperation(
+          GetBaseCommandParams(attributes), name, operation_key
+      )
+  );
+}
+
+void Rum::StopFeatureOperation(
+    std::string_view name,
+    std::optional<std::string_view> operation_key,
+    std::optional<RumOperationFailureReason> failure_reason,
+    const Attribute& attributes
+) {
+  Dispatch(
+      RumCommand::StopFeatureOperation(
+          GetBaseCommandParams(attributes), name, operation_key, failure_reason
+      )
+  );
 }
 
 RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {

@@ -1328,3 +1328,251 @@ Last 8 instructions at CS:EIP:
     })"));
   }
 }
+
+TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
+  // Given a RumVitalEvent initialized with the minimum set of required properties
+  const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
+  const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+  const UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+  const RumSessionType session_type = RumSessionType::User;
+  const UUID view_id = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
+  const std::string_view view_url = "my-view";
+  const UUID vital_id = *UUID::Parse("11111111-1111-4111-b111-111111111111");
+  const RumVitalType vital_type = RumVitalType::OperationStep;
+  const std::string_view vital_name = "checkout";
+  const RumVitalStepType step_type = RumVitalStepType::Start;
+  RumVitalEvent ev{
+      date,
+      application_id,
+      session_id,
+      session_type,
+      view_id,
+      view_url,
+      vital_id,
+      vital_type,
+      vital_name,
+      step_type
+  };
+
+  SECTION("M produce a minimal vital event W only required values are set") {
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "vital",
+      "vital": {
+        "id": "11111111-1111-4111-b111-111111111111",
+        "name": "checkout",
+        "type": "operation_step",
+        "step_type": "start"
+      }
+    })"));
+  }
+
+  SECTION("M include view name W view name is set") {
+    ev.view.name.value = "Checkout Screen";
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view",
+        "name": "Checkout Screen"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "vital",
+      "vital": {
+        "id": "11111111-1111-4111-b111-111111111111",
+        "name": "checkout",
+        "type": "operation_step",
+        "step_type": "start"
+      }
+    })"));
+  }
+
+  SECTION("M include operation_key W operation_key is set") {
+    ev.vital.operation_key.value = "op-abc-123";
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "vital",
+      "vital": {
+        "id": "11111111-1111-4111-b111-111111111111",
+        "name": "checkout",
+        "type": "operation_step",
+        "step_type": "start",
+        "operation_key": "op-abc-123"
+      }
+    })"));
+  }
+
+  SECTION("M include failure_reason W stop event with failure") {
+    RumVitalEvent end_ev{
+        date,
+        application_id,
+        session_id,
+        session_type,
+        view_id,
+        view_url,
+        vital_id,
+        vital_type,
+        vital_name,
+        RumVitalStepType::End
+    };
+    end_ev.vital.failure_reason.value = RumVitalFailureReason::Error;
+    RequireJsonObject(end_ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "vital",
+      "vital": {
+        "id": "11111111-1111-4111-b111-111111111111",
+        "name": "checkout",
+        "type": "operation_step",
+        "step_type": "end",
+        "failure_reason": "error"
+      }
+    })"));
+  }
+
+  SECTION("M include abandoned failure_reason W operation abandoned") {
+    RumVitalEvent end_ev{
+        date,
+        application_id,
+        session_id,
+        session_type,
+        view_id,
+        view_url,
+        vital_id,
+        vital_type,
+        vital_name,
+        RumVitalStepType::End
+    };
+    end_ev.vital.failure_reason.value = RumVitalFailureReason::Abandoned;
+    end_ev.vital.operation_key.value = "user-42";
+    RequireJsonObject(end_ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "vital",
+      "vital": {
+        "id": "11111111-1111-4111-b111-111111111111",
+        "name": "checkout",
+        "type": "operation_step",
+        "step_type": "end",
+        "operation_key": "user-42",
+        "failure_reason": "abandoned"
+      }
+    })"));
+  }
+
+  SECTION("M include all optional properties W fully-populated event") {
+    ev.view.name.value = "Checkout Screen";
+    ev.vital.operation_key.value = "my-op-key";
+    ev.source.value = RumSource::ReactNative;
+    ev.context.value = Attribute::Object();
+    ev.context.value.SetObjectProperty("custom.key", Attribute::Int(42));
+    ev.os.value.emplace("macOS", "14.5.0", "14");
+    ev.os.value->build = "23F79";
+    auto& device = ev.device.value.emplace();
+    device.type = RumDeviceType::Desktop;
+    device.name = "test-device";
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "source": "react-native",
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view",
+        "name": "Checkout Screen"
+      },
+      "os": {
+        "name": "macOS",
+        "version": "14.5.0",
+        "build": "23F79",
+        "version_major": "14"
+      },
+      "device": {
+        "type": "desktop",
+        "name": "test-device"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "context": {
+        "custom.key": 42
+      },
+      "type": "vital",
+      "vital": {
+        "id": "11111111-1111-4111-b111-111111111111",
+        "name": "checkout",
+        "type": "operation_step",
+        "step_type": "start",
+        "operation_key": "my-op-key"
+      }
+    })"));
+  }
+}

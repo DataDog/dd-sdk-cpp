@@ -6,7 +6,7 @@
 
 #pragma once
 
-#include <string_view>
+#include <string>
 
 #include "datadog/rum.hpp"
 
@@ -16,18 +16,36 @@ namespace datadog::impl {
  * Details of an error reported to RUM by the application.
  */
 struct RumErrorDetails {
-  std::string_view message;
-  std::string_view type;
-  std::string_view stack_trace;
+  std::string message;
+  std::string type;
+  std::string stack_trace;
   bool is_network_error{false};
+
+  RumErrorDetails() = default;
+
+  explicit RumErrorDetails(
+      std::string_view in_message,
+      std::string_view in_type = "",
+      std::string_view in_stack_trace = "",
+      bool in_is_network_error = false
+  )
+      : message(in_message),
+        type(in_type),
+        stack_trace(in_stack_trace),
+        is_network_error(in_is_network_error) {}
 };
 
 /**
  * Details of an HTTP request used to initialize a RUM Resource.
  */
 struct RumRequestDetails {
-  RumResourceMethod method;
-  std::string_view url;
+  RumResourceMethod method{RumResourceMethod::Get};
+  std::string url;
+
+  RumRequestDetails() = default;
+
+  explicit RumRequestDetails(RumResourceMethod in_method, std::string_view in_url)
+      : method(in_method), url(in_url) {}
 };
 
 /**

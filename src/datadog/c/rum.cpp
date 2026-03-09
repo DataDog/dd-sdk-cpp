@@ -6,6 +6,7 @@
 
 #include "datadog/rum.h"
 
+#include <cctype>
 #include <memory>
 
 #include "datadog/core.h"
@@ -17,6 +18,7 @@
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/features/rum/rum.hpp"
 #include "datadog/impl/features/rum/types.hpp"
+#include "datadog/impl/validation.hpp"
 
 static const uint32_t RUM_CONFIG_VERSION = 1;
 
@@ -490,12 +492,153 @@ void dd_rum_stop_resource_with_error(
   // Call StopResource on our RUM feature implementation, passing error details
   const datadog::impl::RumResponseDetails response{status_code};
   const datadog::impl::RumErrorDetails error{
-      error_message ? error_message : std::string_view{},
-      error_type ? error_type : std::string_view{},
-      error_stack_trace ? error_stack_trace : std::string_view{},
+      error_message ? error_message : "",
+      error_type ? error_type : "",
+      error_stack_trace ? error_stack_trace : "",
       is_network_error
   };
   rum->impl->StopResource(key, response, error, cpp_attributes);
+}
+
+void dd_rum_start_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    const char* operation_key,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
+  if (datadog::impl::IsBlankCString(name)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_start_feature_operation call ignored: application must supply a "
+        "non-empty operation name"
+    );
+    return;
+  }
+
+  // If operation_key is provided (non-NULL, non-empty), it must be non-blank
+  if (operation_key && operation_key[0] &&
+      datadog::impl::IsBlankCString(operation_key)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_start_feature_operation call ignored: operation_key, if provided, must "
+        "be a non-empty string"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL or empty means no key
+  std::optional<std::string_view> opt_key;
+  if (operation_key && operation_key[0]) {
+    opt_key = operation_key;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  rum->impl->StartFeatureOperation(name, opt_key, cpp_attributes);
+}
+
+void dd_rum_succeed_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    const char* operation_key,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
+  if (datadog::impl::IsBlankCString(name)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_succeed_feature_operation call ignored: application must supply a "
+        "non-empty operation name"
+    );
+    return;
+  }
+
+  // If operation_key is provided (non-NULL, non-empty), it must be non-blank
+  if (operation_key && operation_key[0] &&
+      datadog::impl::IsBlankCString(operation_key)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_succeed_feature_operation call ignored: operation_key, if provided, "
+        "must be a non-empty string"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL or empty means no key
+  std::optional<std::string_view> opt_key;
+  if (operation_key && operation_key[0]) {
+    opt_key = operation_key;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  rum->impl->StopFeatureOperation(name, opt_key, std::nullopt, cpp_attributes);
+}
+
+void dd_rum_fail_feature_operation(
+    dd_rum_t* rum,
+    const char* name,
+    dd_rum_failure_reason_t failure_reason,
+    const char* operation_key,
+    dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
+  if (datadog::impl::IsBlankCString(name)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_fail_feature_operation call ignored: application must supply a "
+        "non-empty operation name"
+    );
+    return;
+  }
+
+  // If operation_key is provided (non-NULL, non-empty), it must be non-blank
+  if (operation_key && operation_key[0] &&
+      datadog::impl::IsBlankCString(operation_key)) {
+    rum->diagnostic_logger.Error(
+        "dd_rum_fail_feature_operation call ignored: operation_key, if provided, must "
+        "be a non-empty string"
+    );
+    return;
+  }
+
+  // Convert optional operation_key: NULL or empty means no key
+  std::optional<std::string_view> opt_key;
+  if (operation_key && operation_key[0]) {
+    opt_key = operation_key;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  rum->impl->StopFeatureOperation(
+      name,
+      opt_key,
+      datadog::RumOperationFailureReason_FromC(failure_reason),
+      cpp_attributes
+  );
 }
 
 void dd_rum_add_error(
@@ -528,9 +671,7 @@ void dd_rum_add_error(
 
   // Call AddError on our RUM feature implementation
   const datadog::impl::RumErrorDetails error{
-      message ? message : std::string_view{},
-      type ? type : std::string_view{},
-      stack_trace ? stack_trace : std::string_view{}
+      message ? message : "", type ? type : "", stack_trace ? stack_trace : ""
   };
   rum->impl->AddError(datadog::RumErrorSource_FromC(source), error, cpp_attributes);
 }

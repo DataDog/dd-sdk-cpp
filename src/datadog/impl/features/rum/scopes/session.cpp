@@ -6,11 +6,13 @@
 
 #include "datadog/impl/features/rum/scopes/session.hpp"
 
-#include <algorithm>
+#include <string>
 
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/attribute/merge.hpp"
 #include "datadog/impl/features/rum/context.hpp"
 #include "datadog/impl/features/rum/scopes/application.hpp"
+#include "datadog/impl/features/rum/scopes/event_enrichment.hpp"
 
 namespace datadog::impl {
 
@@ -145,6 +147,101 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     _num_views_opened++;
   }
 
+  // -- Handle operation vital events (session-scoped, not delegated to views)
+
+  if (command.Is<RumStartFeatureOperationPayload>()) {
+    const auto& payload = command.As<RumStartFeatureOperationPayload>();
+
+    // Build lookup key for active operation tracking: name + operationKey
+    std::string lookup_key(payload.name);
+    if (payload.operation_key) {
+      lookup_key.append(*payload.operation_key);
+    }
+
+    // Warn if the operation is already active (but never suppress the event)
+    if (_active_operations.count(lookup_key) > 0) {
+      if (payload.operation_key) {
+        _deps.get().diagnostic_logger.Warning(
+            "StartFeatureOperation called for operation that has already been started",
+            {{"name", payload.name}, {"operation_key", *payload.operation_key}}
+        );
+      } else {
+        _deps.get().diagnostic_logger.Warning(
+            "StartFeatureOperation called for operation that has already been started",
+            {{"name", payload.name}}
+        );
+      }
+    }
+
+    // Track this operation as active
+    _active_operations.insert(std::move(lookup_key));
+
+    // Emit a vital event with step_type = Start
+    SendVitalEvent(
+        command.base,
+        payload.name,
+        RumVitalStepType::Start,
+        payload.operation_key,
+        std::nullopt
+    );
+
+    // Vital events are session-scoped: do not propagate to views
+    return RumScopeResult::RemainOpen;
+  }
+
+  if (command.Is<RumStopFeatureOperationPayload>()) {
+    const auto& payload = command.As<RumStopFeatureOperationPayload>();
+
+    // Build lookup key for active operation tracking: name + operationKey
+    std::string lookup_key(payload.name);
+    if (payload.operation_key) {
+      lookup_key.append(*payload.operation_key);
+    }
+
+    // Warn if the operation is not currently active (but never suppress the event)
+    if (_active_operations.erase(lookup_key) == 0) {
+      if (payload.operation_key) {
+        _deps.get().diagnostic_logger.Warning(
+            "StopFeatureOperation called for operation that is not currently active",
+            {{"name", payload.name}, {"operation_key", *payload.operation_key}}
+        );
+      } else {
+        _deps.get().diagnostic_logger.Warning(
+            "StopFeatureOperation called for operation that is not currently active",
+            {{"name", payload.name}}
+        );
+      }
+    }
+
+    // Map RumOperationFailureReason to RumVitalFailureReason
+    std::optional<RumVitalFailureReason> vital_failure_reason;
+    if (payload.failure_reason) {
+      switch (*payload.failure_reason) {
+        case RumOperationFailureReason::Error:
+          vital_failure_reason = RumVitalFailureReason::Error;
+          break;
+        case RumOperationFailureReason::Abandoned:
+          vital_failure_reason = RumVitalFailureReason::Abandoned;
+          break;
+        case RumOperationFailureReason::Other:
+          vital_failure_reason = RumVitalFailureReason::Other;
+          break;
+      }
+    }
+
+    // Emit a vital event with step_type = End
+    SendVitalEvent(
+        command.base,
+        payload.name,
+        RumVitalStepType::End,
+        payload.operation_key,
+        vital_failure_reason
+    );
+
+    // Vital events are session-scoped: do not propagate to views
+    return RumScopeResult::RemainOpen;
+  }
+
   // TODO(RUM-12242): In case of off-view commands, create ApplicationLaunch view if
   // warranted
 
@@ -206,6 +303,9 @@ void RumSessionScope::OnClose(const RumCommand& command, EndReason end_reason) {
     _active_view_on_close.emplace(view.GetKey(), view.GetName(), view.GetAttributes());
   }
 
+  // Clear active operation tracking on session close: the next session starts fresh
+  _active_operations.clear();
+
   // If this session was explicitly stopped, propagate the StopSession command to child
   // views so they can be cleanly finalized and so that final view events can be sent:
   // note that we _don't_ send final view events after session expiration
@@ -213,6 +313,75 @@ void RumSessionScope::OnClose(const RumCommand& command, EndReason end_reason) {
     DATADOG_ASSERT(command.Is<RumStopSessionPayload>(), "stopped by non-StopSession");
     _view_scopes.Propagate(command);
   }
+}
+
+void RumSessionScope::SendVitalEvent(
+    const RumCommandParams& base,
+    std::string_view name,
+    RumVitalStepType step_type,
+    std::optional<std::string_view> operation_key,
+    std::optional<RumVitalFailureReason> failure_reason
+) {
+  const RumScopeDependencies& deps = _deps;
+
+  // Get view context: if there's an active view use its details, otherwise
+  // fall back to zero UUID and empty url
+  UUID view_id = UUID::Zero;
+  std::string_view view_url;
+  std::string_view view_name_str;
+  Attribute view_attributes;
+  const auto view_opt = GetActiveView();
+  if (view_opt) {
+    const RumViewScope& view = *view_opt;
+    view_id = view.GetViewID();
+    view_url = view.GetKey();
+    view_name_str = view.GetName();
+    view_attributes = view.GetAttributes();
+  }
+
+  // Construct the vital event with required fields
+  const UUID vital_id = UUID::Random();
+  RumVitalEvent ev(
+      base.issued_at,
+      deps.application_id,
+      _session_id,
+      RumSessionType::User,
+      view_id,
+      view_url,
+      vital_id,
+      RumVitalType::OperationStep,
+      name,
+      step_type
+  );
+
+  // Set optional view name
+  if (!view_name_str.empty()) {
+    ev.view.name.value = view_name_str;
+  }
+
+  // Set optional vital fields
+  if (operation_key && !operation_key->empty()) {
+    ev.vital.operation_key.value = *operation_key;
+  }
+  if (failure_reason) {
+    ev.vital.failure_reason.value = *failure_reason;
+  }
+
+  // Set 'context' to the full set of user-specified attributes that should be
+  // included in this event, merging: global <- view <- command
+  Attribute merged_attributes = Attribute::Object();
+  AttributeMerge::AssembleObject(
+      merged_attributes, {base.global_attributes, view_attributes, base.attributes}
+  );
+  if (merged_attributes.GetObjectPropertyCount() > 0) {
+    ev.context.value = merged_attributes;
+  }
+
+  // Enrich event with OS and device properties from CoreContext
+  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
+
+  // Serialize and write the event
+  deps.ProduceEvent(ev);
 }
 
 void RumSessionScope::AttemptViewTransfer(

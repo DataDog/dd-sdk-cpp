@@ -269,22 +269,26 @@ struct MockFilesystem {
    * Handles IDirectory::RemoveFile given the relevant file path.
    */
   platform::FilesystemResult<void> HandleRemoveFile(std::filesystem::path relpath) {
-    // Acquire filesystem mutex
-    std::scoped_lock lock(mutex);
+    // Get file reference while holding filesystem mutex
+    std::shared_ptr<MockFileEntry> file;
+    {
+      std::scoped_lock lock(mutex);
 
-    // Check for an existing file entry, propagating IOError from bad directory
-    auto file_result = GetFileEntry(relpath);
-    if (!file_result.has_value()) {
-      return nonstd::make_unexpected(file_result.error());
+      // Check for an existing file entry, propagating IOError from bad directory
+      auto file_result = GetFileEntry(relpath);
+      if (!file_result.has_value()) {
+        return nonstd::make_unexpected(file_result.error());
+      }
+
+      // If FileEntry is null, file does not exist
+      file = *file_result;
+      if (!file) {
+        return nonstd::make_unexpected(platform::FilesystemError::DoesNotExist);
+      }
     }
 
-    // If FileEntry is null, file does not exist
-    auto file = *file_result;
-    if (!file) {
-      return nonstd::make_unexpected(platform::FilesystemError::DoesNotExist);
-    }
-
-    // Acquire file mutex
+    // Acquire file mutex separately to avoid holding both filesystem and file mutex
+    // simultaneously, which can create complex deadlock scenarios
     std::unique_lock file_lock(file->mutex);
 
     // If file is flagged bad, fail with I/O error
@@ -302,10 +306,16 @@ struct MockFilesystem {
       return nonstd::make_unexpected(platform::FilesystemError::Failed);
     }
 
-    // Remove the file entry and return success
-    file_lock.release();
-    files.erase(relpath);
-    num_files_deleted++;
+    // Release file mutex before reacquiring filesystem mutex
+    file_lock.unlock();
+
+    // Remove the file entry from the filesystem map
+    {
+      std::scoped_lock lock(mutex);
+      files.erase(relpath);
+      num_files_deleted++;
+    }
+
     return {};
   }
 
@@ -315,43 +325,48 @@ struct MockFilesystem {
   platform::FilesystemResult<void> HandleMoveFile(
       std::filesystem::path src_relpath, const std::filesystem::path& dst_dir_relpath
   ) {
-    // Acquire filesystem mutex
-    std::scoped_lock lock(mutex);
+    // Get source file reference and prepare destination while holding filesystem mutex
+    std::shared_ptr<MockFileEntry> src_file;
+    std::filesystem::path dst_file_relpath;
+    {
+      std::scoped_lock lock(mutex);
 
-    // Check for an existing source file entry, propagating IOError from bad directory
-    auto src_file_result = GetFileEntry(src_relpath);
-    if (!src_file_result.has_value()) {
-      return nonstd::make_unexpected(src_file_result.error());
-    }
+      // Check for an existing source file entry, propagating IOError from bad directory
+      auto src_file_result = GetFileEntry(src_relpath);
+      if (!src_file_result.has_value()) {
+        return nonstd::make_unexpected(src_file_result.error());
+      }
 
-    // If src FileEntry is null, src file does not exist
-    auto src_file = *src_file_result;
-    if (!src_file) {
-      return nonstd::make_unexpected(platform::FilesystemError::DoesNotExist);
-    }
+      // If src FileEntry is null, src file does not exist
+      src_file = *src_file_result;
+      if (!src_file) {
+        return nonstd::make_unexpected(platform::FilesystemError::DoesNotExist);
+      }
 
-    // If the destination directory does not exist, implicitly create it
-    std::filesystem::path current_path;
-    for (const auto& component : dst_dir_relpath) {
-      current_path /= component;
-      if (dirs.find(current_path) == dirs.end()) {
-        dirs[current_path] = std::make_shared<MockDirEntry>();
+      // If the destination directory does not exist, implicitly create it
+      std::filesystem::path current_path;
+      for (const auto& component : dst_dir_relpath) {
+        current_path /= component;
+        if (dirs.find(current_path) == dirs.end()) {
+          dirs[current_path] = std::make_shared<MockDirEntry>();
+        }
+      }
+
+      // Check for an existing destination file entry, propagating IOError from bad dir
+      dst_file_relpath = dst_dir_relpath / src_relpath.filename();
+      auto dst_file_result = GetFileEntry(dst_file_relpath);
+      if (!dst_file_result.has_value()) {
+        return nonstd::make_unexpected(dst_file_result.error());
+      }
+
+      // If dst FileEntry is not null, dst file already exists and the move should fail
+      if (dst_file_result.value()) {
+        return nonstd::make_unexpected(platform::FilesystemError::AlreadyExists);
       }
     }
 
-    // Check for an existing destination file entry, propagating IOError from bad dir
-    auto dst_file_relpath = dst_dir_relpath / src_relpath.filename();
-    auto dst_file_result = GetFileEntry(dst_file_relpath);
-    if (!dst_file_result.has_value()) {
-      return nonstd::make_unexpected(dst_file_result.error());
-    }
-
-    // If dst FileEntry is not null, dst file already exists and the move should fail
-    if (dst_file_result.value()) {
-      return nonstd::make_unexpected(platform::FilesystemError::AlreadyExists);
-    }
-
-    // Acquire file-level mutex for source file
+    // Acquire file mutex separately to avoid holding both filesystem and file mutex
+    // simultaneously, which can create complex deadlock scenarios
     std::unique_lock src_file_lock(src_file->mutex);
 
     // If src file is flagged bad, fail with I/O error
@@ -369,14 +384,18 @@ struct MockFilesystem {
       return nonstd::make_unexpected(platform::FilesystemError::Failed);
     }
 
-    // Create a new entry for the dst file, containing the contents of the src file,
-    // then release the lock on the source file and remove its file entry
-    files[dst_file_relpath] = std::make_shared<MockFileEntry>(src_file->data);
-    src_file_lock.release();
-    files.erase(src_relpath);
+    // Copy the file data before releasing the file lock
+    std::string file_data = src_file->data;
+    src_file_lock.unlock();
 
-    // Release filesystem lock and return success
-    num_files_deleted++;
+    // Update filesystem map with copied data
+    {
+      std::scoped_lock lock(mutex);
+      files[dst_file_relpath] = std::make_shared<MockFileEntry>(file_data);
+      files.erase(src_relpath);
+      num_files_deleted++;
+    }
+
     return {};
   }
 

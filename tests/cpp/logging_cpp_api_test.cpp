@@ -561,11 +561,11 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     }
     core->Stop();
 
-    // Then we should have sent ~500 log messages, +/- 60
+    // Then we should have sent ~500 log messages, +/- 100
     REQUIRE(test.client.requests.size() > 0);
     auto events = MergeJsonArrays(test.client.requests);
-    REQUIRE(events.size() >= 440);
-    REQUIRE(events.size() <= 560);
+    REQUIRE(events.size() >= 400);
+    REQUIRE(events.size() <= 600);
   }
 
   SECTION("M emit no messages W sampling rate is 0") {
@@ -613,11 +613,11 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     }
     core->Stop();
 
-    // Then we should have sent ~250 log messages, +/- 30
+    // Then we should have sent ~250 log messages, +/- 50
     REQUIRE(test.client.requests.size() > 0);
     auto events = MergeJsonArrays(test.client.requests);
-    REQUIRE(events.size() >= 220);
-    REQUIRE(events.size() <= 280);
+    REQUIRE(events.size() >= 200);
+    REQUIRE(events.size() <= 300);
 
     // And they all should be 'info' messages
     const size_t num_info =

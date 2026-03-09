@@ -70,6 +70,16 @@ int main(int argc, char* argv[]) {
   // Record a RUM Action
   dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "Start Menu Navigation", NULL);
 
+  // Track an operation that succeeds
+  dd_rum_start_feature_operation(rum, "Checkout", NULL, NULL);
+  dd_rum_succeed_feature_operation(rum, "Checkout", NULL, NULL);
+
+  // Track an operation that fails
+  dd_rum_start_feature_operation(rum, "Upload", "profile-photo", NULL);
+  dd_rum_fail_feature_operation(
+      rum, "Upload", DD_RUM_FAILURE_REASON_ERROR, "profile-photo", NULL
+  );
+
   // Stop the RUM view
   dd_rum_stop_view(rum, "main_menu");
 
