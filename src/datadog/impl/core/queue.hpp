@@ -139,8 +139,15 @@ class Queue {
     // visible to all threads
     _is_stopped.store(true, std::memory_order_release);
 
-    // Signal to consumers that it's time to shut down
-    _condition.notify_all();
+    // Signal to consumers that it's time to shut down. We must acquire the mutex
+    // before notifying to prevent a lost wakeup: if we notify without holding the
+    // lock, a consumer thread might evaluate the predicate (seeing false), then we
+    // notify (before it starts waiting), then the consumer starts waiting and misses
+    // the notification entirely.
+    {
+      std::lock_guard<std::mutex> lock(_mutex);
+      _condition.notify_all();
+    }
   }
 
  private:
