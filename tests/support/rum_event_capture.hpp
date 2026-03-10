@@ -19,6 +19,7 @@
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
 
+#include "support/context.hpp"
 #include "support/diagnostics.hpp"
 
 using namespace datadog;
@@ -39,17 +40,6 @@ class RumEventCapture {
   const char* application_id;
   const char* session_id;
   const char* view_id;
-
-  platform::OsInfo os_info{"mock-os", "2.3.4", "mock-build-number", "2"};
-  platform::DeviceInfo device_info{
-      "desktop",
-      "mock-device",
-      "mock-model",
-      "mock-brand",
-      "x86_64",
-      "en-US",
-      "America/New_York"
-  };
 
   CoreContextProvider context_provider;
   FeatureScope feature_scope;
@@ -73,8 +63,8 @@ class RumEventCapture {
         view_id(view_id),
         context_provider(CoreContext(
             CoreConfig{"fake-client-token", "fake-service", "fake-env"},
-            os_info,
-            device_info
+            MOCK_OS_INFO,
+            MOCK_DEVICE_INFO
         )),
         feature_scope(
             FeatureScope::CreateForTesting(

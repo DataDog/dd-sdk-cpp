@@ -8,7 +8,6 @@
 
 #include <array>
 #include <atomic>
-#include <catch2/catch_test_macros.hpp>
 #include <charconv>
 #include <cinttypes>
 #include <utility>
@@ -20,28 +19,13 @@
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/platform/system_info.hpp"
 
+#include "support/catch.hpp"
+#include "support/context.hpp"
 #include "support/diagnostics.hpp"
 #include "support/threading.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
-
-// Initial CoreContext values used in FeatureScope tests
-static const platform::OsInfo MOCK_OS_INFO{
-    "mock-os", "2.3.4", "mock-build-number", "2"
-};
-static const platform::DeviceInfo MOCK_DEVICE_INFO{
-    "desktop",
-    "mock-device",
-    "mock-model",
-    "mock-brand",
-    "x86_64",
-    "en-US",
-    "America/New_York"
-};
-static const CoreContext MOCK_CONTEXT(
-    CoreConfig("client-token", "service", "env"), MOCK_OS_INFO, MOCK_DEVICE_INFO
-);
 
 // FeatureScope tests rely on dummy features that produce events in the form of uint64
 // values; we will buffer up to this number of events in a thread-safe array
