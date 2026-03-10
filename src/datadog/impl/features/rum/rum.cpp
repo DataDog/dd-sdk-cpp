@@ -186,18 +186,18 @@ RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {
 }
 
 void Rum::DispatchAsync(const RumCommand& command) {
+  // If our _scope is no longer valid, the SDK has been stopped prior to this call
   if (!_scope) {
     return;
   }
-
-  // Store reference to scope to satisfy linter's optional access check
   FeatureScope& scope = *_scope;
 
-  // Capture weak_ptr to self for fail-safe shutdown detection. Matches iOS SDK
-  // pattern where closures capture weak references and fail gracefully when
-  // features are deallocated during shutdown.
+  // Capture weak_ptr to self for fail-safe shutdown detection
   auto weak_rum = std::weak_ptr<Rum>(std::static_pointer_cast<Rum>(shared_from_this()));
 
+  // Enqueue a function to run on the context thread, capturing the command being
+  // dispatched: when this function is executed, the context thread will process the
+  // command, updating internal RUM state and potentially producing events
   scope.ExecuteOnContextThread(
       [weak_rum, cmd = command](const CoreContext& context, const EventWriter& writer) {
         // Single-level check: Is Rum object still alive?
@@ -211,24 +211,22 @@ void Rum::DispatchAsync(const RumCommand& command) {
         // _application (all valid as long as Rum is alive)
         rum->_application.Process(cmd, context, writer);
 
-        // After every command, update our RumFeatureContext, which makes current RUM
-        // state available to other features within the SDK
-        rum->UpdateFeatureContext();
+        // After every command, build a RumContext value (in _application_snapshot) that
+        // describes the state of our internal scope tree
+        rum->UpdateApplicationSnapshot();
       }
   );
-}
 
-void Rum::UpdateFeatureContext() {
-  // Build a RumContext value (_application_snapshot) that summarizes the current state
-  // of our internal scope tree
-  UpdateApplicationSnapshot();
-
-  // Write the relevant values to the global RumFeatureContext, so that other features
-  // can enrich their events with the latest RUM context
-  if (_scope) {
-    const RumFeatureContext rum_ctx = _application_snapshot.ToFeatureContext();
-    _scope->UpdateContext([rum_ctx](CoreContext& ctx) { ctx.rum = rum_ctx; });
-  }
+  // Enqueue a context-mutation function that will run immediately following the
+  // processing of the command
+  scope.UpdateContext([weak_rum](CoreContext& ctx) {
+    if (auto rum = weak_rum.lock()) {
+      // _application_snapshot has been updated with the result of processing our
+      // command; write the relevant UUIDs to the global RumFeatureContext, so that
+      // other features can enrich their events with RUM data
+      ctx.rum = rum->_application_snapshot.ToFeatureContext();
+    }
+  });
 }
 
 void Rum::UpdateApplicationSnapshot() {

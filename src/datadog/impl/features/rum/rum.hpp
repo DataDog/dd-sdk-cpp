@@ -161,7 +161,6 @@ class Rum final : public Feature {
 
   void DispatchAsync(const RumCommand& command);
 
-  void UpdateFeatureContext();
   void UpdateApplicationSnapshot();
 
  private:
