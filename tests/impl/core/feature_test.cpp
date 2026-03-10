@@ -28,18 +28,23 @@ class ChattyFeature : public MockFeature {
   ChattyFeature() : MockFeature(CreateFeatureId("HIHI"), "chatty") {}
 
   virtual void Start() override {
-    // Start() should be called once it's OK to write events
-    WriteEvent("hello");
+    _scope->ExecuteOnContextThread(
+        [](const CoreContext&, const impl::EventWriter& writer) { writer("hello", {}); }
+    );
   }
 
   virtual void Stop() override {
-    // Stop() should be called before it stops being OK to write events
-    WriteEvent("goodbye");
+    _scope->ExecuteOnContextThread([](const CoreContext&,
+                                      const impl::EventWriter& writer) {
+      writer("goodbye", {});
+    });
   }
 };
 
 TEST_CASE("Feature", "[unit]") {
-  SECTION("M produce events to storage W WriteEvent is called") {
+  SECTION(
+      "M produce events to storage W FeatureScope::ExecuteOnContextThread is called"
+  ) {
     // Given a running core with a registered feature
     const bool flush_http_requests = false;
     CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);

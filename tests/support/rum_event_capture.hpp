@@ -42,6 +42,7 @@ class RumEventCapture {
   const char* view_id;
 
   CoreContextProvider context_provider;
+  EventGeneratedFunc _event_func;
   FeatureScope feature_scope;
 
  public:
@@ -66,34 +67,34 @@ class RumEventCapture {
             MOCK_OS_INFO,
             MOCK_DEVICE_INFO
         )),
+        _event_func([this](Block event, Block event_metadata) {
+          // RUM implementation doesn't produce events with metadata
+          REQUIRE(event_metadata.empty());
+
+          // Require valid JSON object
+          auto obj = nlohmann::json::parse(event);
+          REQUIRE(obj.is_object());
+
+          // Validate IDs based on event type
+          if (obj.contains("application") && obj["application"].contains("id")) {
+            REQUIRE(obj["application"]["id"] == this->application_id);
+          }
+          if (obj.contains("session") && obj["session"].contains("id")) {
+            REQUIRE(obj["session"]["id"] == this->session_id);
+          }
+          if (this->view_id != nullptr && obj.contains("view") &&
+              obj["view"].contains("id")) {
+            REQUIRE(obj["view"]["id"] == this->view_id);
+          }
+
+          // Capture all events
+          all_events.emplace_back(std::move(obj));
+          return true;
+        }),
         feature_scope(
             FeatureScope::CreateForTesting(
                 context_provider,
-                [this](Block event, Block event_metadata) {
-                  // RUM implementation doesn't produce events with metadata
-                  REQUIRE(event_metadata.empty());
-
-                  // Require valid JSON object
-                  auto obj = nlohmann::json::parse(event);
-                  REQUIRE(obj.is_object());
-
-                  // Validate IDs based on event type
-                  if (obj.contains("application") &&
-                      obj["application"].contains("id")) {
-                    REQUIRE(obj["application"]["id"] == this->application_id);
-                  }
-                  if (obj.contains("session") && obj["session"].contains("id")) {
-                    REQUIRE(obj["session"]["id"] == this->session_id);
-                  }
-                  if (this->view_id != nullptr && obj.contains("view") &&
-                      obj["view"].contains("id")) {
-                    REQUIRE(obj["view"]["id"] == this->view_id);
-                  }
-
-                  // Capture all events
-                  all_events.emplace_back(std::move(obj));
-                  return true;
-                },
+                _event_func,
                 DiagnosticLogger(
                     [&](const DiagnosticMessage& message) {
                       switch (message.level) {
@@ -121,6 +122,16 @@ class RumEventCapture {
    * injected into the code under test.
    */
   FeatureScope& GetFeatureScope() { return feature_scope; }
+
+  /**
+   * Returns the current CoreContext snapshot for use as a test argument.
+   */
+  CoreContext GetContext() const { return context_provider.Get(); }
+
+  /**
+   * Returns the EventWriter for use as a test argument.
+   */
+  const EventGeneratedFunc& GetWriter() const { return _event_func; }
 
   /**
    * Returns the full set of diagnostic messages that were emitted via this object's

@@ -119,34 +119,6 @@ class FeatureScope {
   );
 
   /**
-   * Creates an immutable, thread-safe copy of the CoreContext, which contains all the
-   * external information that a feature might need in order to generate fully-enriched
-   * events.
-   *
-   * NOTE: Our current logging implementation is naively optimized to ensure
-   * as-fast-as-possible best-case performance, and to minimize copying and allocations,
-   * but it may exhibit variable and undesirable worst-case performance when there's
-   * contention on the CoreContext - e.g. if we try to get a copy of the CoreContext in
-   * the main thread while another thread is modifying it, we may end up blocking the
-   * main thread for an unacceptable duration.
-   *
-   * The mobile SDKs optimize for predictable worst-case performance in the main thread
-   * using async dispatch. If we adopted a similar approach: when an API call was
-   * handled on the main thread, rather than calling GetContext() and WriteEvent()
-   * synchronously, we'd instead enqueue a callback to be invoked on a background thread
-   * once a context and writer were ready.
-   *
-   * If we want to guarantee thread safety in this SDK, then using async dispatch may be
-   * a sensible choice - it would presumably ensure predictable main-thread performance
-   * overhead, at the cost of additional complexity, additional copying between threads,
-   * and raw speed in idealized single-threaded usage.
-   *
-   * Until we can profile and evaluate the tradeoffs, though, this straightforward,
-   * synchronous approach prevails.
-   */
-  CoreContext GetContext() const;
-
-  /**
    * Performs a thread-safe write to the SDK's global CoreContext value, allowing a
    * feature to populate up-to-date state that the core or other features may access.
    *
@@ -160,14 +132,6 @@ class FeatureScope {
    * the update will be immediately executed on the calling thread.
    */
   void UpdateContext(const std::function<void(CoreContext&)>& callback);
-
-  /**
-   * Enqueues an arbitrary event payload to be written to disk in the storage thread.
-   *
-   * NOTE: Given that most features inevitably need thread-safe access to the
-   * CoreContext, it may be worthwhile to use async dispatch (see above).
-   */
-  bool WriteEvent(Block event, Block event_metadata) const;
 
   /**
    * Executes a function on the context thread, providing it with a CoreContext

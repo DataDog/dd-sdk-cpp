@@ -58,11 +58,6 @@ FeatureScope FeatureScope::CreateForTesting(
   );
 }
 
-CoreContext FeatureScope::GetContext() const {
-  DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
-  return _context_provider->Get();
-}
-
 void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callback) {
   DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
 
@@ -80,13 +75,6 @@ void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callba
     DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
     _context_provider->Update(callback);
   });
-}
-
-bool FeatureScope::WriteEvent(Block event, Block event_metadata) const {
-  if (_event_generated_func) {
-    return _event_generated_func(event, event_metadata);
-  }
-  return false;
 }
 
 void FeatureScope::ExecuteOnContextThread(const ContextThreadFunc& func) {

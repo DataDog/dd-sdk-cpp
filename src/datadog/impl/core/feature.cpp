@@ -29,13 +29,6 @@ void Feature::OnCoreStopping() {
   _scope.reset();
 }
 
-bool Feature::WriteEvent(Block event, Block event_metadata) const {
-  if (_scope) {
-    return _scope->WriteEvent(event, event_metadata);
-  }
-  return false;
-}
-
 bool Feature::IsRunning() const { return _scope.has_value(); }
 
 }  // namespace datadog::impl

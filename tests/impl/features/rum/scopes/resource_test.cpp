@@ -46,12 +46,8 @@ class ResourceFixture {
   RumEventCapture event_capture;
 
  public:
-  CoreContext GetTestContext() { return event_capture.GetFeatureScope().GetContext(); }
-  EventWriter GetTestWriter() {
-    return [this](Block event, Block metadata) {
-      return event_capture.GetFeatureScope().WriteEvent(event, metadata);
-    };
-  }
+  CoreContext GetTestContext() { return event_capture.GetContext(); }
+  EventWriter GetTestWriter() { return event_capture.GetWriter(); }
   ResourceFixture()
       : config(APPLICATION_ID),
         deps(config, clock),
