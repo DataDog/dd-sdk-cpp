@@ -19,7 +19,7 @@ packaging==26.0
 pandas==3.0.1
 pillow==12.1.1
 plotly==6.5.2
-protobuf==6.33.5
+protobuf==7.34.0
 pyarrow==23.0.1
 pydeck==0.9.1
 python-dateutil==2.9.0.post0
