@@ -96,6 +96,13 @@ static void WriteContextValue(CoreContext& ctx, uint64_t value) {
   ctx.rum->session_id = new_session_id;
 }
 
+static bool GenerateUInt64Event(const EventGeneratedFunc& func, uint64_t value) {
+  char buf[20];
+  auto res = std::to_chars(buf, buf + sizeof(buf), value);
+  REQUIRE(res.ec == std::errc{});
+  return func(Block(buf, res.ptr - buf), {});
+}
+
 /**
  * Returns the arbitrary value that was stored in the provided CoreContext value, or 0
  * if no such value was stored.
@@ -262,10 +269,7 @@ TEST_CASE("FeatureScope", "[unit][core]") {
         scope.ExecuteOnContextThread([](const CoreContext& ctx,
                                         EventGeneratedFunc event_generated_func) {
           // Produce an event whose payload is just a string version of our value
-          char buf[20];
-          auto res = std::to_chars(buf, buf + sizeof(buf), ReadContextValue(ctx));
-          REQUIRE(res.ec == std::errc{});
-          event_generated_func(Block(buf, res.ptr - buf), {});
+          GenerateUInt64Event(event_generated_func, ReadContextValue(ctx));
         });
       }
     });
@@ -294,4 +298,82 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     REQUIRE(sum > 90000);
     REQUIRE(sum < 170000);
   }
+
+  SECTION("M drain queue and execute all enqueued functions W stopped") {
+    // Given a single feature with a FeatureScope
+    FeatureState feature;
+    FeatureScope scope = feature.CreateScope(context_provider, context_queue);
+
+    // And a promise that will block the context thread until we explicitly resolve it
+    std::promise<void> gate;
+    std::future<void> gate_signal = gate.get_future();
+    scope.ExecuteOnContextThread([&](const CoreContext&, EventGeneratedFunc) {
+      gate_signal.wait();
+    });
+
+    // When we enqueue a bunch of functions to run on the context thread
+    for (size_t i = 0; i < MAX_EVENTS; i++) {
+      scope.ExecuteOnContextThread([i](const CoreContext&, EventGeneratedFunc func) {
+        GenerateUInt64Event(func, i);
+      });
+    }
+
+    // And then we signal that the context queue should stop accepting new events due to
+    // shutdown
+    context_queue.Stop();
+
+    // And then we unblock queue processing on the context thread
+    gate.set_value();
+
+    // And then we join on the context thread
+    context_thread.join();
+
+    // Then we end up with events produced by all functions
+    REQUIRE(feature.num_events == MAX_EVENTS);
+    for (size_t i = 0; i < MAX_EVENTS; i++) {
+      REQUIRE(feature.events[i] == i);
+    }
+  }
 }
+
+/*
+TEST_CASE("FeatureScope shutdown safety", "[unit][core][shutdown]") {
+  SECTION("M not use FeatureScope after destruction W lambdas queued on shutdown") {
+    // Given a CoreContextProvider
+    CoreContextProvider context_provider(MOCK_CONTEXT);
+
+    // And a context queue with a one-shot gate to hold the context thread
+    Queue<std::function<void()>> queue;
+    std::promise<void> gate;
+    std::future<void> gate_signal = gate.get_future();
+
+    // Start a context thread that processes the queue
+    std::thread context_thread([&]() {
+      while (auto thunk = queue.Pop()) {
+        (*thunk)();
+      }
+    });
+
+    // Block the context thread by pushing a gating lambda first
+    queue.Push([&]() { gate_signal.wait(); });
+
+    // Now push real work via FeatureScope - these sit behind the gate
+    auto scope = std::make_unique<FeatureScope>(FeatureScope::Create(
+        context_provider, [](Block, Block) { return true; }, DiagnosticLogger{}, queue
+    ));
+    scope->ExecuteOnContextThread([](auto&, auto&) {});
+    scope->ExecuteOnContextThread([](auto&, auto&) {});
+    scope->UpdateContext([](CoreContext&) {});
+
+    // Destroy FeatureScope while those lambdas are still queued
+    scope.reset();
+
+    // Release the gate - context thread will now execute the lambdas
+    // with dangling `this` (ASAN will catch the use-after-free here)
+    gate.set_value();
+
+    queue.Stop();
+    context_thread.join();
+  }
+}
+*/
