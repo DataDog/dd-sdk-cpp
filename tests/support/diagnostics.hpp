@@ -13,6 +13,8 @@
 #include "datadog/core.h"
 #include "datadog/core.hpp"
 
+#include "datadog/impl/diagnostics.hpp"
+
 #include "support/catch.hpp"
 
 using namespace datadog;
@@ -125,25 +127,43 @@ struct DiagnosticMessageBuffer {
   }
 
   /**
-   * Configures an SDK instance initialized via the C++ API to route all diagnostic
-   * messages to this struct.
+   * Creates a DiagnosticHandler function that will copy any messages received into the
+   * vectors held by this DiagnosticMessageBuffer. Uses the types defined in the C++
+   * API (i.e. datadog::DiagnosticHandler), which are also used internally within the
+   * implementation layer.
    */
-  void ConfigureCpp(datadog::CoreConfig& config) {
-    config.SetDiagnosticHandler([&](const datadog::DiagnosticMessage& message) {
+  DiagnosticHandler CreateHandler() {
+    return [this](const DiagnosticMessage& message) {
       switch (message.level) {
-        case datadog::DiagnosticLevel::Debug:
+        case DiagnosticLevel::Debug:
           debug.emplace_back(message.text);
           break;
-        case datadog::DiagnosticLevel::Status:
+        case DiagnosticLevel::Status:
           status.emplace_back(message.text);
           break;
-        case datadog::DiagnosticLevel::Warning:
+        case DiagnosticLevel::Warning:
           warning.emplace_back(message.text);
           break;
-        case datadog::DiagnosticLevel::Error:
+        case DiagnosticLevel::Error:
           error.emplace_back(message.text);
           break;
       }
-    });
+    };
+  }
+
+  /**
+   * Configures an SDK instance initialized via the C++ API to route all diagnostic
+   * messages to this struct.
+   */
+  void ConfigureCpp(CoreConfig& config) {
+    config.SetDiagnosticHandler(CreateHandler());
+  }
+
+  /**
+   * Creates a DiagnosticLogger for use in unit tests: any and all messages emitted via
+   * that DiagnosticLogger will be copied into this DiagnosticMessageBuffer.
+   */
+  impl::DiagnosticLogger CreateTestLogger() {
+    return impl::DiagnosticLogger(CreateHandler(), DiagnosticLevel::Debug);
   }
 };
