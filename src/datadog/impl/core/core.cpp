@@ -395,11 +395,6 @@ void Core::Stop() {
   }
   _diagnostic_logger.Debug("Beginning Core shutdown");
 
-  // Notify each registered feature that the core has stopped
-  for (const auto& feature : _features) {
-    feature.impl->OnCoreStopping();
-  }
-
   // If we were previously started, all background threads should be running
   DATADOG_ASSERT(_context_queue, "_context_queue is invalid on Stop");
   DATADOG_ASSERT(
@@ -419,13 +414,23 @@ void Core::Stop() {
 
   // Stop the context queue, then block until the context thread drains the queue and
   // exits. This ensures all pending feature work completes before we stop the storage
-  // thread.
+  // thread or tear down feature state.
+  // TODO(RUM-15042): Other SDKs abandon the context thread and shut down in a
+  // non-blocking fashion, without draining the context queue
   _context_queue->Stop();
   if (_context_thread) {
     _diagnostic_logger.Debug("Joining on context thread");
     _context_thread->join();
   }
   _context_thread.reset();
+
+  // Notify each registered feature that the core has stopped, now that no more
+  // context-thread functions enqueued by those features may be running
+  for (const auto& feature : _features) {
+    feature.impl->OnCoreStopping();
+  }
+
+  // Destroy the context queue, now that no more features exist
   _context_queue.reset();
 
   // Stop all queue processing, then block until the consumer thread drains the queue
