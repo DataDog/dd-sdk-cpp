@@ -17,8 +17,7 @@
 namespace datadog::impl {
 
 /**
- * Callback invoked by a feature when it generates an event that needs to be enqueued
- * for storage.
+ * Callback that writes an event to storage from the context thread.
  *
  * @param event Arbitrary bytes. Must be non-empty. Will be copied into the storage
  *  queue. Eventually written to a batch with TLVBlockType::Event.
@@ -26,13 +25,6 @@ namespace datadog::impl {
  *  an event that has metadata is eventually written, the metadata will be prepended as
  *  a block of type TLVBlockType::Metadata.
  * @returns whether the event was successfuly enqueued for storage.
- */
-using EventGeneratedFunc = std::function<bool(Block event, Block event_metadata)>;
-
-/**
- * Callback that writes an event to storage from the context thread.
- *
- * Returns whether the event was successfully enqueued.
  */
 using EventWriter = std::function<bool(Block event, Block event_metadata)>;
 
@@ -59,7 +51,7 @@ class FeatureScope {
   };
 
   CoreContextProvider* _context_provider;
-  EventGeneratedFunc _event_generated_func;
+  EventWriter _event_generated_func;
   ExecutionMode _mode;
   Queue<std::function<void()>>* _context_queue;
 
@@ -69,7 +61,7 @@ class FeatureScope {
    */
   explicit FeatureScope(
       CoreContextProvider& context_provider,
-      const EventGeneratedFunc& event_generated_func,
+      const EventWriter& event_writer,
       const DiagnosticLogger& in_diagnostic_logger,
       ExecutionMode mode,
       Queue<std::function<void()>>* context_queue
@@ -91,14 +83,14 @@ class FeatureScope {
    * execution on the SDK's context thread.
    *
    * @param context_provider Provides thread-safe access to CoreContext
-   * @param event_generated_func Callback invoked when features generate events
+   * @param event_writer Callback invoked when features generate events
    * @param diagnostic_logger Logger for diagnostic messages
    * @param context_queue Queue containing thunks to be executed serially by the context
    *  thread; must outlive the FeatureScope
    */
   static FeatureScope Create(
       CoreContextProvider& context_provider,
-      const EventGeneratedFunc& event_generated_func,
+      const EventWriter& event_writer,
       const DiagnosticLogger& diagnostic_logger,
       Queue<std::function<void()>>& context_queue
   );
@@ -109,12 +101,12 @@ class FeatureScope {
    * thread.
    *
    * @param context_provider Provides thread-safe access to CoreContext
-   * @param event_generated_func Callback invoked when features generate events
+   * @param event_writer Callback invoked when features generate events
    * @param diagnostic_logger Logger for diagnostic messages
    */
   static FeatureScope CreateForTesting(
       CoreContextProvider& context_provider,
-      const EventGeneratedFunc& event_generated_func,
+      const EventWriter& event_writer,
       const DiagnosticLogger& diagnostic_logger
   );
 

@@ -26,7 +26,7 @@ class CoolFeature : public MockFeature {
   CoolFeature() : MockFeature(CreateFeatureId("COOL"), "coolfeature") {}
 
   void BlockContextThread(std::future<void>& gate_signal) {
-    _scope->ExecuteOnContextThread([&](const CoreContext&, EventGeneratedFunc) {
+    _scope->ExecuteOnContextThread([&](const CoreContext&, EventWriter) {
       gate_signal.wait();
     });
   }

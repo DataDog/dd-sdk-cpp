@@ -35,7 +35,7 @@ static const size_t MAX_EVENTS = 512;
  * Stand-in for a Feature that interacts with the FeatureScope in order to read
  * CoreContext, mutate CoreContext, and generate events.
  *
- * Provides an EventGeneratedFunc that buffers the event into a thread-safe array with a
+ * Provides an EventWriter that buffers the event into a thread-safe array with a
  * fixed capacity.
  */
 struct FeatureState {
@@ -96,11 +96,15 @@ static void WriteContextValue(CoreContext& ctx, uint64_t value) {
   ctx.rum->session_id = new_session_id;
 }
 
-static bool GenerateUInt64Event(const EventGeneratedFunc& func, uint64_t value) {
+/**
+ * Serializes `value` as a string and passes it to the given EventWriter function,
+ * thereby producing an event whose binary value is a string-encoded uint64_t.
+ */
+static bool GenerateUInt64Event(const EventWriter& event_writer, uint64_t value) {
   char buf[20];
   auto res = std::to_chars(buf, buf + sizeof(buf), value);
   REQUIRE(res.ec == std::errc{});
-  return func(Block(buf, res.ptr - buf), {});
+  return event_writer(Block(buf, res.ptr - buf), {});
 }
 
 /**
@@ -149,7 +153,7 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     // context thread
     int num_executions = 0;
     auto main_thread_id = std::this_thread::get_id();
-    scope.ExecuteOnContextThread([&](const CoreContext&, EventGeneratedFunc) {
+    scope.ExecuteOnContextThread([&](const CoreContext&, EventWriter) {
       num_executions++;
 
       // Then our function is executed on a background thread
@@ -179,7 +183,7 @@ TEST_CASE("FeatureScope", "[unit][core]") {
 
     // And then we enqueue a read-only function that will run thereafter
     int num_executions = 0;
-    scope.ExecuteOnContextThread([&](const CoreContext& ctx, EventGeneratedFunc) {
+    scope.ExecuteOnContextThread([&](const CoreContext& ctx, EventWriter) {
       // Then the CoreContext snapshot passed to our second function reflects the
       // modifications made by the first
       REQUIRE(ReadContextValue(ctx) == 0xbeef);
@@ -212,12 +216,12 @@ TEST_CASE("FeatureScope", "[unit][core]") {
       generation++;
       WriteContextValue(ctx, generation);
     };
-    auto consume = [](const CoreContext& ctx, EventGeneratedFunc event_generated_func) {
+    auto consume = [](const CoreContext& ctx, EventWriter event_writer) {
       const uint64_t value = ReadContextValue(ctx);
       char buf[20];
       auto res = std::to_chars(buf, buf + sizeof(buf), value);
       REQUIRE(res.ec == std::errc{});
-      event_generated_func(Block(buf, res.ptr - buf), {});
+      event_writer(Block(buf, res.ptr - buf), {});
     };
 
     mutate_scope.UpdateContext(mutate);             // Stores generation 1 in context
@@ -267,9 +271,9 @@ TEST_CASE("FeatureScope", "[unit][core]") {
         // On each iteration, enqueue a function that will run on the context thread and
         // produce an event with the latest value read from CoreContext
         scope.ExecuteOnContextThread([](const CoreContext& ctx,
-                                        EventGeneratedFunc event_generated_func) {
+                                        EventWriter event_writer) {
           // Produce an event whose payload is just a string version of our value
-          GenerateUInt64Event(event_generated_func, ReadContextValue(ctx));
+          GenerateUInt64Event(event_writer, ReadContextValue(ctx));
         });
       }
     });
@@ -310,14 +314,14 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     // And a promise that will block the context thread until we explicitly resolve it
     std::promise<void> gate;
     std::future<void> gate_signal = gate.get_future();
-    scope.ExecuteOnContextThread([&](const CoreContext&, EventGeneratedFunc) {
+    scope.ExecuteOnContextThread([&](const CoreContext&, EventWriter) {
       gate_signal.wait();
     });
 
     // When we enqueue a bunch of functions to run on the context thread
     for (size_t i = 0; i < MAX_EVENTS; i++) {
-      scope.ExecuteOnContextThread([i](const CoreContext&, EventGeneratedFunc func) {
-        GenerateUInt64Event(func, i);
+      scope.ExecuteOnContextThread([i](const CoreContext&, EventWriter event_writer) {
+        GenerateUInt64Event(event_writer, i);
       });
     }
 

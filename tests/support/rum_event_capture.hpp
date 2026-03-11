@@ -42,7 +42,7 @@ class RumEventCapture {
   const char* view_id;
 
   CoreContextProvider context_provider;
-  EventGeneratedFunc _event_func;
+  EventWriter _event_func;
   FeatureScope feature_scope;
 
  public:
@@ -131,7 +131,7 @@ class RumEventCapture {
   /**
    * Returns the EventWriter for use as a test argument.
    */
-  const EventGeneratedFunc& GetWriter() const { return _event_func; }
+  const EventWriter& GetWriter() const { return _event_func; }
 
   /**
    * Returns the full set of diagnostic messages that were emitted via this object's

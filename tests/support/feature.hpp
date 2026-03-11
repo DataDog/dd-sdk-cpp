@@ -47,7 +47,7 @@ class FeatureTest {
   explicit FeatureTest(const CoreContext& context) : _context_provider(context) {}
 
   void Start(const std::shared_ptr<Feature>& feature) {
-    auto event_generated_func = [this](Block event, Block event_metadata) {
+    auto event_writer = [this](Block event, Block event_metadata) {
       events.emplace_back(event, event_metadata);
       return true;
     };
@@ -57,7 +57,7 @@ class FeatureTest {
     feature->OnCoreStarted(
         FeatureScope::CreateForTesting(
             _context_provider,
-            event_generated_func,
+            event_writer,
             DiagnosticLogger(diagnostic_handler, DiagnosticLevel::Debug)
         )
     );

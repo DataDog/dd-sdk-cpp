@@ -12,13 +12,13 @@ namespace datadog::impl {
 
 FeatureScope::FeatureScope(
     CoreContextProvider& context_provider,
-    const EventGeneratedFunc& event_generated_func,
+    const EventWriter& event_writer,
     const DiagnosticLogger& in_diagnostic_logger,
     FeatureScope::ExecutionMode mode,
     Queue<std::function<void()>>* context_queue
 )
     : _context_provider(&context_provider),
-      _event_generated_func(event_generated_func),
+      _event_generated_func(event_writer),
       _mode(mode),
       _context_queue(context_queue),
       diagnostic_logger(in_diagnostic_logger) {
@@ -31,13 +31,13 @@ FeatureScope::FeatureScope(
 
 FeatureScope FeatureScope::Create(
     CoreContextProvider& context_provider,
-    const EventGeneratedFunc& event_generated_func,
+    const EventWriter& event_writer,
     const DiagnosticLogger& diagnostic_logger,
     Queue<std::function<void()>>& context_queue
 ) {
   return FeatureScope(
       context_provider,
-      event_generated_func,
+      event_writer,
       diagnostic_logger,
       FeatureScope::ExecutionMode::OnContextThread,
       &context_queue
@@ -46,12 +46,12 @@ FeatureScope FeatureScope::Create(
 
 FeatureScope FeatureScope::CreateForTesting(
     CoreContextProvider& context_provider,
-    const EventGeneratedFunc& event_generated_func,
+    const EventWriter& event_writer,
     const DiagnosticLogger& diagnostic_logger
 ) {
   return FeatureScope(
       context_provider,
-      event_generated_func,
+      event_writer,
       diagnostic_logger,
       FeatureScope::ExecutionMode::Synchronous,
       nullptr

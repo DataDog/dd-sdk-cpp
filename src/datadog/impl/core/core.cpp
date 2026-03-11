@@ -372,16 +372,12 @@ bool Core::Start() {
   // FeatureScope interface that it can use to interoperate with the core
   for (const auto& feature : _features) {
     const FeatureId id = feature.id;
-    EventGeneratedFunc event_generated_func =
-        [this, id](Block event, Block event_metadata) -> bool {
+    EventWriter event_writer = [this, id](Block event, Block event_metadata) -> bool {
       return EnqueueStorageWrite(id, event, event_metadata);
     };
     feature.impl->OnCoreStarted(
         FeatureScope::Create(
-            *_context_provider,
-            event_generated_func,
-            _diagnostic_logger,
-            *_context_queue
+            *_context_provider, event_writer, _diagnostic_logger, *_context_queue
         )
     );
   }
