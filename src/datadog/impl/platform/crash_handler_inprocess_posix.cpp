@@ -39,7 +39,9 @@ static_assert(
 #endif
 
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/platform/crash_context_write.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
 #include "datadog/impl/platform/crash_handler_buildid_cache.hpp"
 #include "datadog/impl/platform/crash_report_write.hpp"
@@ -69,7 +71,8 @@ namespace datadog::platform {
 
 // Pre-opened file descriptor for crash report file to be written
 static volatile sig_atomic_t s_crash_fd = -1;
-static char s_crash_filename[256];  // Path to crash report file
+static char s_crash_filename[256];          // Path to crash report file
+static char s_crash_context_filename[256];  // Path to companion crash context file
 
 // Atomically set to 1 once our signal handler has been called, and never reset. This
 // one-shot reentrancy guard prevents recursive crashes (e.g., if the handler itself
@@ -753,6 +756,12 @@ class InProcessCrashHandler final : public ICrashHandler {
         timestamp_ms,
         getpid()
     );
+    snprintf(
+        s_crash_context_filename,
+        sizeof(s_crash_context_filename),
+        "%s.ctx",
+        s_crash_filename
+    );
 
     // Preemptively open the crash report file and keep it open indefinitely
     s_crash_fd = open(s_crash_filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
@@ -901,11 +910,24 @@ class InProcessCrashHandler final : public ICrashHandler {
       int result = unlink(s_crash_filename);
       (void)result;
     }
+
+    // Delete the crash context file: it's only meaningful if a crash occurred,
+    // and on clean shutdown we don't want it to surface as stale context
+    DeleteCrashContext(s_crash_context_filename);
+  }
+
+  void SetRumContext(impl::RumFeatureContext& rum_ctx) override {
+    if (rum_ctx == _cached_rum_ctx) {
+      return;
+    }
+    _cached_rum_ctx = rum_ctx;
+    WriteCrashContext(s_crash_context_filename, rum_ctx);
   }
 
  private:
   impl::DiagnosticLogger& _logger;
   bool _initialized{false};
+  impl::RumFeatureContext _cached_rum_ctx{};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Init(
