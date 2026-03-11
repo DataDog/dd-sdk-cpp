@@ -17,23 +17,21 @@ namespace datadog::impl {
 /**
  * Entry point for the context thread.
  *
- * The context thread processes functions submitted by features, providing each
- * function with a snapshot of the CoreContext at execution time. This allows
- * features to perform operations asynchronously without blocking their callers.
+ * The context thread continually reads functions from the context queue, execute each
+ * function serially as it's consumed. This allows features to perform operations
+ * asynchronously without blocking their callers.
  *
- * The thread runs until the queue is stopped and drained, processing functions in
- * FIFO order.
+ * Functions are enqueued via FeatureScope::ExecuteOnContextThread et al. - FeatureScope
+ * is responsible for wrapping Feature-provided functions in a thunk that will evaluate
+ * the required parameters (CoreContext and EventWriter) from a CoreContextProvider, so
+ * the context thread itself is dead-simple: it just executes those thunks.
  *
  * @param diagnostic_logger Interface for logging status/warning messages.
  * @param queue Non-owning reference to the thread-safe queue that we read from;
  *  guaranteed to outlive the thread.
- * @param context_provider Non-owning reference to the CoreContextProvider that
- *  supplies context snapshots; guaranteed to outlive the thread.
  */
 void ContextThreadMain(
-    const DiagnosticLogger& diagnostic_logger,
-    Queue<std::function<void()>>& queue,
-    CoreContextProvider& context_provider
+    const DiagnosticLogger& diagnostic_logger, Queue<std::function<void()>>& queue
 );
 
 }  // namespace datadog::impl

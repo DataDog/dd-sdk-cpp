@@ -30,7 +30,7 @@ TEST_CASE("ContextThreadMain", "[unit]") {
   SECTION("M log debug messages W started and stopped cleanly") {
     // When we run ContextThreadMain synchronously on an empty, stopped queue
     context_queue.Stop();
-    ContextThreadMain(diagnostic_logger, context_queue, context_provider);
+    ContextThreadMain(diagnostic_logger, context_queue);
 
     // Then we should have exactly two debug messages that signal thread start and stop
     REQUIRE(diagnostics.debug.size() == 2);
@@ -48,7 +48,7 @@ TEST_CASE("ContextThreadMain", "[unit]") {
     context_queue.Push([&x]() { x++; });
     context_queue.Push([&x]() { x++; });
     context_queue.Stop();
-    ContextThreadMain(diagnostic_logger, context_queue, context_provider);
+    ContextThreadMain(diagnostic_logger, context_queue);
 
     // Then we should have no unexpected diagnostic output
     REQUIRE(diagnostics.debug.size() == 2);

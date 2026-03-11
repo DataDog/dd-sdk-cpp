@@ -323,10 +323,7 @@ bool Core::Start() {
   // Start the context thread that will execute functions submitted by features
   DATADOG_ASSERT(!_context_thread, "_context_thread already exists on Start()");
   _context_thread = std::thread(
-      ContextThreadMain,
-      std::ref(_diagnostic_logger),
-      std::ref(*_context_queue),
-      std::ref(*_context_provider)
+      ContextThreadMain, std::ref(_diagnostic_logger), std::ref(*_context_queue)
   );
 
   // Initialize an upload scheduler to manage the timing of upload cycles for each

@@ -52,7 +52,6 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
 void Rum::Start() {
   // Fully reinitialize RUM application state to clear all sessions/views/etc. from
   // previous runs
-  // Fully reinitialize RUM application state
   _application = RumApplicationScope(_deps);
 
   // Dispatch SDKInit to start first session

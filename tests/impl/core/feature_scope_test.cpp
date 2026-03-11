@@ -134,10 +134,7 @@ TEST_CASE("FeatureScope", "[unit][core]") {
   // executes them serially in the background
   Queue<std::function<void()>> context_queue;
   std::thread context_thread{
-      ContextThreadMain,
-      std::ref(diagnostic_logger),
-      std::ref(context_queue),
-      std::ref(context_provider)
+      ContextThreadMain, std::ref(diagnostic_logger), std::ref(context_queue)
   };
   auto stop_context_thread = [&]() {
     context_queue.Stop();

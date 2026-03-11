@@ -9,9 +9,7 @@
 namespace datadog::impl {
 
 void ContextThreadMain(
-    const DiagnosticLogger& diagnostic_logger,
-    Queue<std::function<void()>>& queue,
-    CoreContextProvider& /* context_provider */
+    const DiagnosticLogger& diagnostic_logger, Queue<std::function<void()>>& queue
 ) {
   diagnostic_logger.Debug("Context thread starting");
 
