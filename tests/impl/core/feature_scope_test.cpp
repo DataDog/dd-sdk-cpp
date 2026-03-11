@@ -300,6 +300,9 @@ TEST_CASE("FeatureScope", "[unit][core]") {
   }
 
   SECTION("M drain queue and execute all enqueued functions W stopped") {
+    // TODO(RUM-15042): Currently the SDK flushes the context queue on shutdown; if this
+    // changes, this test will need to change or else use a test-only flush method
+
     // Given a single feature with a FeatureScope
     FeatureState feature;
     FeatureScope scope = feature.CreateScope(context_provider, context_queue);
@@ -335,45 +338,3 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     }
   }
 }
-
-/*
-TEST_CASE("FeatureScope shutdown safety", "[unit][core][shutdown]") {
-  SECTION("M not use FeatureScope after destruction W lambdas queued on shutdown") {
-    // Given a CoreContextProvider
-    CoreContextProvider context_provider(MOCK_CONTEXT);
-
-    // And a context queue with a one-shot gate to hold the context thread
-    Queue<std::function<void()>> queue;
-    std::promise<void> gate;
-    std::future<void> gate_signal = gate.get_future();
-
-    // Start a context thread that processes the queue
-    std::thread context_thread([&]() {
-      while (auto thunk = queue.Pop()) {
-        (*thunk)();
-      }
-    });
-
-    // Block the context thread by pushing a gating lambda first
-    queue.Push([&]() { gate_signal.wait(); });
-
-    // Now push real work via FeatureScope - these sit behind the gate
-    auto scope = std::make_unique<FeatureScope>(FeatureScope::Create(
-        context_provider, [](Block, Block) { return true; }, DiagnosticLogger{}, queue
-    ));
-    scope->ExecuteOnContextThread([](auto&, auto&) {});
-    scope->ExecuteOnContextThread([](auto&, auto&) {});
-    scope->UpdateContext([](CoreContext&) {});
-
-    // Destroy FeatureScope while those lambdas are still queued
-    scope.reset();
-
-    // Release the gate - context thread will now execute the lambdas
-    // with dangling `this` (ASAN will catch the use-after-free here)
-    gate.set_value();
-
-    queue.Stop();
-    context_thread.join();
-  }
-}
-*/

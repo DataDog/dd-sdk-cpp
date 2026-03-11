@@ -7,12 +7,15 @@
 #include "datadog/impl/core/feature.hpp"
 
 #include <algorithm>
-#include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <future>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 #include "mock/feature.hpp"
 #include "mock/tlv.hpp"
+#include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/threading.hpp"
 
@@ -21,6 +24,12 @@ using namespace datadog::impl;
 class CoolFeature : public MockFeature {
  public:
   CoolFeature() : MockFeature(CreateFeatureId("COOL"), "coolfeature") {}
+
+  void BlockContextThread(std::future<void>& gate_signal) {
+    _scope->ExecuteOnContextThread([&](const CoreContext&, EventGeneratedFunc) {
+      gate_signal.wait();
+    });
+  }
 };
 
 class ChattyFeature : public MockFeature {
@@ -246,5 +255,57 @@ TEST_CASE("Feature thread-safety", "[unit][core][thread-safety]") {
     REQUIRE(events[4999] == "49:99");
     REQUIRE(events[5000] == "main:00");
     REQUIRE(events[5099] == "main:99");
+  }
+
+  SECTION(
+      "M finish executing all queued functions W Core is stopped with a non-empty "
+      "context queue"
+  ) {
+    // TODO(RUM-15042): This test validates the existing behavior, where the SDK drains
+    // the context queue on shutdown, which can cause blocking shutdown time to scale
+    // with the number of SDK operations still pending. If we make shutdown
+    // non-blocking, this test will need to change, or else validate the new test-only
+    // flush-and-stop function.
+
+    // Given a started core with a registered feature
+    CoreTestHarness test = CoreTestHarness::Init();
+    auto feature = std::make_shared<CoolFeature>();
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+
+    // And a promise that will block the context thread until we explicitly resolve it
+    std::promise<void> gate;
+    std::future<void> gate_signal = gate.get_future();
+
+    // When we enqueue a context-thread function that will block indefinitely, pausing
+    // context thread processing until we call gate.set_value()
+    feature->BlockContextThread(gate_signal);
+
+    // And then we enqueue 500 events for write
+    for (uint64_t i = 0; i < 500; i++) {
+      feature->GenerateEvent("A");
+    }
+
+    // And spawn a background thread that will unblock the context thread (since our
+    // Stop() call below is blocking)
+    std::thread t{[&]() {
+      std::this_thread::sleep_for(std::chrono::microseconds(1));
+      gate.set_value();
+    }};
+
+    // And then we shut down the SDK
+    test.core.Stop();
+    t.join();
+
+    // Then all events should have been generated and sent
+    size_t num_events = 0;
+    for (MockHttpRequest& req : test.client.requests) {
+      for (char c : req.body) {
+        if (c == 'A') {
+          num_events++;
+        }
+      }
+    }
+    REQUIRE(num_events == 500);
   }
 }
