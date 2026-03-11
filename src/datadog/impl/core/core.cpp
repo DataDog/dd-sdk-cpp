@@ -13,6 +13,7 @@
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/context_thread.hpp"
+#include "datadog/impl/core/messaging_thread.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/version.hpp"
