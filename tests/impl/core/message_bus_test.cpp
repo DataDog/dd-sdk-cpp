@@ -133,10 +133,9 @@ TEST_CASE("MessageBus — integration", "[unit][core]") {
 
     // When Update() writes a known sentinel value into the RUM session_id
     constexpr uint64_t sentinel = 0xc0ffee;
-    context_provider.Update([](CoreContext& ctx) {
+    context_provider.Update([=](CoreContext& ctx) {
       ctx.rum.emplace();
-      constexpr uint64_t s = 0xc0ffee;
-      std::memcpy(ctx.rum->session_id.bytes.data(), &s, sizeof(s));
+      std::memcpy(ctx.rum->session_id.bytes.data(), &sentinel, sizeof(sentinel));
     });
 
     bus.Stop();
