@@ -6,7 +6,10 @@
 
 #include "datadog/impl/core/core.hpp"
 
+#include <atomic>
 #include <catch2/catch_test_macros.hpp>
+
+#include "datadog/impl/core/feature_message.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
@@ -286,5 +289,60 @@ TEST_CASE("Core Lifecycle", "[unit]") {
     // Then OnCoreStopping() should be called
     REQUIRE(feature->num_start_calls == 1);
     REQUIRE(feature->num_stop_calls == 1);
+  }
+}
+
+/**
+ * Feature that counts received ContextChangedMessages via MakeMessageHandler(), and
+ * triggers a context update (causing one such message to be dispatched) each time the
+ * core starts.
+ */
+class MessageHandlerFeature : public MockFeature {
+ public:
+  std::atomic<int> messages_received{0};
+
+  MessageHandlerFeature()
+      : MockFeature(CreateFeatureId("MHFT"), "message_handler_test") {}
+
+  std::optional<std::function<void(const FeatureMessage&)>>
+  MakeMessageHandler() override {
+    auto weak = weak_from_this();
+    return [weak](const FeatureMessage&) {
+      if (auto self = std::static_pointer_cast<MessageHandlerFeature>(weak.lock())) {
+        self->messages_received.fetch_add(1);
+      }
+    };
+  }
+
+  void Start() override {
+    MockFeature::Start();
+    // Trigger a context update so that a ContextChangedMessage is dispatched to
+    // all registered handlers on each start
+    _scope->UpdateContext([](CoreContext& ctx) { ctx.rum.emplace(); });
+  }
+};
+
+TEST_CASE("Core Messaging", "[unit]") {
+  SECTION(
+      "M deliver messages to handler after restart W core is stopped and "
+      "started again"
+  ) {
+    impl::Core core = _make_core();
+    REQUIRE(core.Init());
+
+    auto feature = std::make_shared<MessageHandlerFeature>();
+    REQUIRE(core.RegisterFeature(feature));
+
+    // First run: start triggers one context update, stop drains both the context
+    // thread and the messaging thread before returning
+    REQUIRE(core.Start());
+    core.Stop();
+    REQUIRE(feature->messages_received.load() == 1);
+
+    // Second run: the handler must still be registered after the restart; the
+    // same context update should deliver a second message
+    REQUIRE(core.Start());
+    core.Stop();
+    REQUIRE(feature->messages_received.load() == 2);
   }
 }
