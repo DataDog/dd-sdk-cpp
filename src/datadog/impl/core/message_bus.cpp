@@ -8,37 +8,9 @@
 
 namespace datadog::impl {
 
-MessageBus::MessageBus(
-    std::vector<std::function<void(const FeatureMessage&)>> handlers,
-    const DiagnosticLogger& logger
-)
-    : _handlers(std::move(handlers)),
-      _logger(logger),
-      _thread(&MessageBus::ThreadMain, this) {}
-
-MessageBus::~MessageBus() {
-  // The owner must call Stop() before destruction; if the thread is still joinable here
-  // the queue was never stopped, which is a programming error.
-  DATADOG_ASSERT(!_thread.joinable(), "MessageBus destroyed without calling Stop()");
-}
+MessageBus::MessageBus(std::vector<std::function<void(const FeatureMessage&)>> handlers)
+    : _handlers(std::move(handlers)) {}
 
 bool MessageBus::Send(FeatureMessage msg) { return _queue.Push(std::move(msg)); }
-
-void MessageBus::Stop() {
-  _queue.Stop();
-  _thread.join();
-}
-
-void MessageBus::ThreadMain() {
-  _logger.Debug("Message bus thread starting");
-
-  while (auto msg = _queue.Pop()) {
-    for (auto& handler : _handlers) {
-      handler(*msg);
-    }
-  }
-
-  _logger.Debug("Message bus thread finished");
-}
 
 }  // namespace datadog::impl

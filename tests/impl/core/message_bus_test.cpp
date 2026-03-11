@@ -8,9 +8,11 @@
 
 #include <atomic>
 #include <functional>
+#include <thread>
 #include <vector>
 
 #include "datadog/impl/core/feature_message.hpp"
+#include "datadog/impl/core/messaging_thread.hpp"
 
 #include "support/catch.hpp"
 #include "support/context.hpp"
@@ -55,11 +57,13 @@ TEST_CASE("MessageBus", "[unit][core]") {
       received.push_back(ReadSentinel(std::get<ContextChangedMessage>(msg)));
     });
 
-    MessageBus bus(std::move(handlers), logger);
+    MessageBus bus(std::move(handlers));
+    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
 
     // When we send a message with a known sentinel and stop the bus
     REQUIRE(bus.Send(MakeMessage(0xbeef)));
-    bus.Stop();
+    bus._queue.Stop();
+    t.join();
 
     // Then the handler received exactly that message
     REQUIRE(received.size() == 1);
@@ -80,12 +84,14 @@ TEST_CASE("MessageBus", "[unit][core]") {
       received_c.push_back(ReadSentinel(std::get<ContextChangedMessage>(msg)));
     });
 
-    MessageBus bus(std::move(handlers), logger);
+    MessageBus bus(std::move(handlers));
+    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
 
     // When we send two messages and stop the bus
     REQUIRE(bus.Send(MakeMessage(1)));
     REQUIRE(bus.Send(MakeMessage(2)));
-    bus.Stop();
+    bus._queue.Stop();
+    t.join();
 
     // Then every handler received both messages, in order
     const std::vector<uint64_t> expected{1, 2};
@@ -100,25 +106,29 @@ TEST_CASE("MessageBus", "[unit][core]") {
     std::vector<std::function<void(const FeatureMessage&)>> handlers;
     handlers.push_back([&](const FeatureMessage&) { count.fetch_add(1); });
 
-    MessageBus bus(std::move(handlers), logger);
+    MessageBus bus(std::move(handlers));
+    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
 
     // When we enqueue several messages and then stop
     const int num_messages = 50;
     for (int i = 0; i < num_messages; i++) {
       bus.Send(MakeMessage(static_cast<uint64_t>(i)));
     }
-    bus.Stop();
+    bus._queue.Stop();
+    t.join();
 
-    // Then all messages were delivered before Stop() returned
+    // Then all messages were delivered before the thread exited
     REQUIRE(count.load() == num_messages);
   }
 
   SECTION("M return false from Send() W bus is stopped") {
     // Given a bus with no handlers
-    MessageBus bus({}, logger);
+    MessageBus bus({});
+    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
 
     // When the bus is stopped
-    bus.Stop();
+    bus._queue.Stop();
+    t.join();
 
     // Then Send() returns false and the message is dropped
     REQUIRE_FALSE(bus.Send(MakeMessage(0xdead)));
@@ -137,10 +147,12 @@ TEST_CASE("MessageBus", "[unit][core]") {
       received.push_back(ReadSentinel(std::get<ContextChangedMessage>(msg)));
     });
 
-    MessageBus bus(std::move(handlers), logger);
+    MessageBus bus(std::move(handlers));
+    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
 
     REQUIRE(bus.Send(MakeMessage(0x42)));
-    bus.Stop();
+    bus._queue.Stop();
+    t.join();
 
     // The active handler still received the message
     REQUIRE(received.size() == 1);

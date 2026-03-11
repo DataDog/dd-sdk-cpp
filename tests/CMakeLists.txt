@@ -29,6 +29,7 @@ add_executable(dd_native_tests
     impl/core/context_test.cpp
     impl/core/context_thread_test.cpp
     impl/core/message_bus_test.cpp
+    impl/core/messaging_thread_test.cpp
     impl/core/core_test.cpp
     impl/core/feature_id_test.cpp
     impl/core/feature_read_test.cpp
