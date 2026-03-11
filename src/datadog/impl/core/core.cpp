@@ -266,6 +266,14 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
       std::move(*event_read_directory),
       std::move(upload_state)
   );
+
+  // Collect the feature's message handler, if it provides one. weak_from_this() is
+  // safe to call here because the feature has been stored in _features and therefore
+  // already has shared ownership.
+  if (auto h = impl->MakeMessageHandler()) {
+    _pending_handlers.push_back(std::move(*h));
+  }
+
   _diagnostic_logger.Debug(
       "Feature registered",
       {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
@@ -318,6 +326,18 @@ bool Core::Start() {
       std::ref(_diagnostic_logger),
       std::ref(*_storage_queue),
       std::ref(_features)
+  );
+
+  // Construct the message bus from any handlers registered by features, wire it into
+  // the context provider so Update() will dispatch ContextChangedMessage values, and
+  // start the messaging thread. This is done before the context thread launches so
+  // that SetMessageBus() requires no synchronization.
+  DATADOG_ASSERT(!_message_bus, "_message_bus already exists on Start()");
+  _message_bus = std::make_unique<MessageBus>(std::move(_pending_handlers));
+  _context_provider->SetMessageBus(_message_bus.get());
+  DATADOG_ASSERT(!_message_bus_thread, "_message_bus_thread already exists on Start()");
+  _message_bus_thread = std::thread(
+      MessagingThreadMain, std::ref(_diagnostic_logger), std::ref(*_message_bus)
   );
 
   // Initialize a thread-safe queue for functions that will execute on the context
@@ -422,14 +442,31 @@ void Core::Stop() {
   }
   _context_thread.reset();
 
+  // Stop the messaging thread after the context thread exits: the context thread is
+  // the primary producer of messages (via Update()), so draining it first prevents new
+  // messages from arriving after we signal the messaging thread to stop. After joining,
+  // detach the bus from the context provider so any stray Update() calls (which should
+  // not happen at this point) do not reference the destroyed bus.
+  DATADOG_ASSERT(_message_bus, "_message_bus is invalid on Stop");
+  DATADOG_ASSERT(
+      _message_bus_thread && _message_bus_thread->joinable(),
+      "_message_bus_thread is non-joinable on Stop"
+  );
+  _message_bus->Stop();
+  _diagnostic_logger.Debug("Joining on messaging thread");
+  _message_bus_thread->join();
+  _message_bus_thread.reset();
+  _context_provider->SetMessageBus(nullptr);
+
   // Notify each registered feature that the core has stopped, now that no more
   // context-thread functions enqueued by those features may be running
   for (const auto& feature : _features) {
     feature.impl->OnCoreStopping();
   }
 
-  // Destroy the context queue, now that no more features exist
+  // Destroy the context queue and message bus, now that no more features exist
   _context_queue.reset();
+  _message_bus.reset();
 
   // Stop all queue processing, then block until the consumer thread drains the queue
   // and exits, at which point it's safe to release the queue
