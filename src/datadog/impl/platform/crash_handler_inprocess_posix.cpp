@@ -72,7 +72,8 @@ namespace datadog::platform {
 // Pre-opened file descriptor for crash report file to be written
 static volatile sig_atomic_t s_crash_fd = -1;
 static char s_crash_filename[256];          // Path to crash report file
-static char s_crash_context_filename[256];  // Path to companion crash context file
+static char s_crash_context_filename[260];  // Path to companion crash context file
+                                            // (.ctx suffix)
 
 // Atomically set to 1 once our signal handler has been called, and never reset. This
 // one-shot reentrancy guard prevents recursive crashes (e.g., if the handler itself
