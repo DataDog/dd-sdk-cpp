@@ -34,6 +34,9 @@ class CrashReporting final : public Feature {
       const HttpContext& context, BatchReader& reader
   ) override;
 
+  std::optional<std::function<void(const FeatureMessage&)>>
+  MakeMessageHandler() override;
+
  protected:
   /**
    * Responds to SDK start by initializing the Crashpad crash handler process.
