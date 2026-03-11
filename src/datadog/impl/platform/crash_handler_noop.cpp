@@ -43,7 +43,7 @@ class NoopCrashHandler final : public ICrashHandler {
    */
   void Shutdown() override {}
 
-  void SetRumContext(impl::RumFeatureContext&) override {}
+  void SetRumContext(const impl::RumFeatureContext&) override {}
 
  private:
   impl::DiagnosticLogger _logger;

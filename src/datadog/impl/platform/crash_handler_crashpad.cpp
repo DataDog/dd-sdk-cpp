@@ -230,7 +230,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // and continue running after SDK shutdown. We don't forcibly terminate it here.
   }
 
-  void SetRumContext(impl::RumFeatureContext& rum_ctx) override {
+  void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     char buf[37];
 

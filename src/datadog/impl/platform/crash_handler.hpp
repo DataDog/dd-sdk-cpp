@@ -88,7 +88,7 @@ class ICrashHandler {
    */
   virtual void Shutdown() = 0;
 
-  virtual void SetRumContext(impl::RumFeatureContext& rum_ctx) = 0;
+  virtual void SetRumContext(const impl::RumFeatureContext& rum_ctx) = 0;
 };
 
 namespace CrashHandler {

@@ -916,7 +916,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     DeleteCrashContext(s_crash_context_filename);
   }
 
-  void SetRumContext(impl::RumFeatureContext& rum_ctx) override {
+  void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
     if (rum_ctx == _cached_rum_ctx) {
       return;
     }
