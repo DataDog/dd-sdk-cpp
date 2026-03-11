@@ -13,4 +13,6 @@ MessageBus::MessageBus(std::vector<std::function<void(const FeatureMessage&)>> h
 
 bool MessageBus::Send(FeatureMessage msg) { return _queue.Push(std::move(msg)); }
 
+void MessageBus::Stop() { _queue.Stop(); }
+
 }  // namespace datadog::impl

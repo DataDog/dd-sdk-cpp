@@ -62,7 +62,7 @@ TEST_CASE("MessageBus", "[unit][core]") {
 
     // When we send a message with a known sentinel and stop the bus
     REQUIRE(bus.Send(MakeMessage(0xbeef)));
-    bus._queue.Stop();
+    bus.Stop();
     t.join();
 
     // Then the handler received exactly that message
@@ -90,7 +90,7 @@ TEST_CASE("MessageBus", "[unit][core]") {
     // When we send two messages and stop the bus
     REQUIRE(bus.Send(MakeMessage(1)));
     REQUIRE(bus.Send(MakeMessage(2)));
-    bus._queue.Stop();
+    bus.Stop();
     t.join();
 
     // Then every handler received both messages, in order
@@ -114,7 +114,7 @@ TEST_CASE("MessageBus", "[unit][core]") {
     for (int i = 0; i < num_messages; i++) {
       bus.Send(MakeMessage(static_cast<uint64_t>(i)));
     }
-    bus._queue.Stop();
+    bus.Stop();
     t.join();
 
     // Then all messages were delivered before the thread exited
@@ -127,7 +127,7 @@ TEST_CASE("MessageBus", "[unit][core]") {
     std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
 
     // When the bus is stopped
-    bus._queue.Stop();
+    bus.Stop();
     t.join();
 
     // Then Send() returns false and the message is dropped
@@ -151,7 +151,7 @@ TEST_CASE("MessageBus", "[unit][core]") {
     std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
 
     REQUIRE(bus.Send(MakeMessage(0x42)));
-    bus._queue.Stop();
+    bus.Stop();
     t.join();
 
     // The active handler still received the message

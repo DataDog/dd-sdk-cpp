@@ -11,6 +11,7 @@
 
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/queue.hpp"
+#include "datadog/impl/diagnostics.hpp"
 
 namespace datadog::impl {
 
@@ -25,7 +26,8 @@ namespace datadog::impl {
  * `MessagingThreadMain` can iterate `_handlers` without any synchronization.
  *
  * `Send()` enqueues a message non-blocking from any thread and returns false if the
- * queue has been stopped (i.e., `_queue.Stop()` has been called).
+ * queue has been stopped. Call `Stop()` to signal shutdown; the messaging thread will
+ * drain any remaining messages before exiting.
  */
 class MessageBus {
  public:
@@ -42,6 +44,16 @@ class MessageBus {
    * queue has been stopped and the message was therefore dropped.
    */
   bool Send(FeatureMessage msg);
+
+  /**
+   * Signals the messaging thread to drain remaining messages and exit. Must be called
+   * before the bus is destroyed; the caller must join the messaging thread after this
+   * returns.
+   */
+  void Stop();
+
+ private:
+  friend void MessagingThreadMain(const DiagnosticLogger&, MessageBus&);
 
   Queue<FeatureMessage> _queue;
   std::vector<std::function<void(const FeatureMessage&)>> _handlers;

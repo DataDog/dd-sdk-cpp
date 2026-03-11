@@ -26,7 +26,7 @@ TEST_CASE("MessagingThreadMain", "[unit][core]") {
   SECTION("M log debug messages on start and stop W run on empty stopped bus") {
     // Given an empty bus with no handlers and a stopped queue
     MessageBus bus({});
-    bus._queue.Stop();
+    bus.Stop();
 
     // When we run the messaging thread synchronously
     MessagingThreadMain(logger, bus);
@@ -64,9 +64,9 @@ TEST_CASE("MessagingThreadMain", "[unit][core]") {
       CoreContext ctx = MOCK_CONTEXT;
       ctx.rum.emplace();
       std::memcpy(ctx.rum->session_id.bytes.data(), &i, sizeof(i));
-      bus._queue.Push(ContextChangedMessage{std::move(ctx)});
+      bus.Send(ContextChangedMessage{std::move(ctx)});
     }
-    bus._queue.Stop();
+    bus.Stop();
 
     // When we run the messaging thread synchronously
     MessagingThreadMain(logger, bus);
