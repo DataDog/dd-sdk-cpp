@@ -39,7 +39,11 @@ CrashReporting::MakeMessageHandler() {
     if (!self || !self->_crash_handler) {
       return;
     }
-    auto rum_ctx = *context_changed->context.rum;
+    const auto& rum_ctx = *context_changed->context.rum;
+    if (self->_last_rum_ctx == rum_ctx) {
+      return;
+    }
+    self->_last_rum_ctx = rum_ctx;
     self->_crash_handler->SetRumContext(rum_ctx);
   };
 }

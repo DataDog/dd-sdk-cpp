@@ -88,6 +88,11 @@ class ICrashHandler {
    */
   virtual void Shutdown() = 0;
 
+  /**
+   * Persists `rum_ctx` so that it is available if a crash occurs before the next
+   * normal SDK shutdown. Only called when the RUM context has actually changed since
+   * the last call.
+   */
   virtual void SetRumContext(const impl::RumFeatureContext& rum_ctx) = 0;
 };
 

@@ -361,17 +361,12 @@ class InProcessCrashHandler final : public ICrashHandler {
   }
 
   void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
-    if (rum_ctx == _cached_rum_ctx) {
-      return;
-    }
-    _cached_rum_ctx = rum_ctx;
     WriteCrashContext(s_crash_context_filename, rum_ctx);
   }
 
  private:
   impl::DiagnosticLogger& _logger;
   bool _initialized{false};
-  impl::RumFeatureContext _cached_rum_ctx{};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Init(
