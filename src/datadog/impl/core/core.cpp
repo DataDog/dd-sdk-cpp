@@ -268,13 +268,6 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
       std::move(upload_state)
   );
 
-  // Collect the feature's message handler, if it provides one. weak_from_this() is
-  // safe to call here because the feature has been stored in _features and therefore
-  // already has shared ownership.
-  if (auto h = impl->MakeMessageHandler()) {
-    _pending_handlers.push_back(std::move(*h));
-  }
-
   _diagnostic_logger.Debug(
       "Feature registered",
       {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
@@ -329,20 +322,36 @@ bool Core::Start() {
       std::ref(_features)
   );
 
-  // Construct the message bus from any handlers registered by features, wire it into
-  // the context provider so Update() will dispatch ContextChangedMessage values, and
-  // start the messaging thread. This is done before the context thread launches so
-  // that SetMessageBus() requires no synchronization.
+  // Iterate through all registered features and call MakeMessageHandler(), allowing
+  // features to register their intent to be notified when messages are sent on the
+  // message bus
+  std::vector<std::function<void(const FeatureMessage&)>> handlers;
+  handlers.reserve(_features.size());
+  for (const auto& f : _features) {
+    if (auto h = f.impl->MakeMessageHandler()) {
+      handlers.push_back(std::move(*h));
+    }
+  }
+
+  // Create the message bus, which will queue all core-to-feature and feature-to-feature
+  // messages that need to be handled by interested features
   DATADOG_ASSERT(!_message_bus, "_message_bus already exists on Start()");
-  _message_bus = std::make_unique<MessageBus>(std::move(_pending_handlers));
+  _message_bus = std::make_unique<MessageBus>(std::move(handlers));
+
+  // Install the MessageBus into the CoreContextProvider so that it can send
+  // ContextChangedMessage in response to updates: context thread doesn't exist yet, so
+  // no synchronization is required here
   _context_provider->SetMessageBus(_message_bus.get());
+
+  // Start the messaging thread, which will invoke relevant message handler functions
+  // for each message sent on the message bus
   DATADOG_ASSERT(!_message_bus_thread, "_message_bus_thread already exists on Start()");
   _message_bus_thread = std::thread(
       MessagingThreadMain, std::ref(_diagnostic_logger), std::ref(*_message_bus)
   );
 
-  // Initialize a thread-safe queue for functions that will execute on the context
-  // thread
+  // Initialize a thread-safe queue for feature-submitted functions that will execute on
+  // the context thread
   DATADOG_ASSERT(!_context_queue, "_context_queue already exists on Start()");
   _context_queue = std::make_unique<Queue<std::function<void()>>>();
 

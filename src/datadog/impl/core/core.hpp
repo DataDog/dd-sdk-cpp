@@ -382,7 +382,6 @@ class Core {
 
   // Initialized before Start in response to user-initiated feature registration
   std::vector<RegisteredFeature> _features;  // May not be modified while running
-  std::vector<std::function<void(const FeatureMessage&)>> _pending_handlers;
 
   // Initialized on Start, cleaned up on Stop
   std::unique_ptr<StorageQueue> _storage_queue;
