@@ -190,18 +190,17 @@ CoreContext CoreContextProvider::Get() const {
 void CoreContextProvider::Update(const std::function<void(CoreContext&)>& callback) {
   // Acquire an exclusive write lock, mutate the context, and capture a snapshot. The
   // lock is released before Send() to minimize contention on the message bus.
-  std::optional<CoreContext> snapshot;
-  {
+  CoreContext snapshot = [&] {
     std::unique_lock lock(_mutex);
     callback(_context);
-    snapshot = _context;
-  }
+    return _context;
+  }();
 
   // CoreContext has been mutated (and we have a valid snapshot): notify all registered
   // message-handlers of the change, so that Features can perform work (on the messaging
   // thread) in response to the updated context
   if (_message_bus) {
-    _message_bus->Send(ContextChangedMessage{std::move(*snapshot)});
+    _message_bus->Send(ContextChangedMessage{std::move(snapshot)});
   }
 }
 
