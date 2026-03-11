@@ -95,6 +95,22 @@ class SymbolizedFrame:
 
 
 @dataclass
+class RumContext:
+    """
+    RUM session identifiers recovered from the crash context file.
+
+    Written alongside crash reports by the SDK whenever the RUM context
+    changes. Each field is a UUID string (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+    or None if that identifier was not active at the time of the crash (i.e.,
+    the binary UUID was all-zeros).
+    """
+    application_id: Optional[str]
+    session_id: Optional[str]
+    view_id: Optional[str]
+    action_id: Optional[str]
+
+
+@dataclass
 class CrashReport:
     """
     Parsed crash report data.
@@ -108,8 +124,11 @@ class CrashReport:
         metadata: Key-value pairs from the metadata section (Signal, PID, TID, etc.)
         stack_frames: Resolved stack frames with module+offset information
         modules: List of loaded modules, sorted by base_address
+        rum_context: RUM session identifiers from the accompanying .ctx file, or
+                     None if the file was absent or could not be parsed
     """
     file_path: Path
     metadata: dict[str, str]
     stack_frames: list[StackFrame]
     modules: list[Module]
+    rum_context: Optional[RumContext] = None

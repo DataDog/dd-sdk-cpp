@@ -15,7 +15,7 @@ import sys
 from enum import Enum
 from pathlib import Path
 from typing import Optional, TextIO
-from .models import CrashReport, StackFrame, SymbolizedFrame, Module
+from .models import CrashReport, StackFrame, SymbolizedFrame, Module, RumContext
 
 
 class OutputMode(str, Enum):
@@ -73,6 +73,20 @@ def format_symbolicated_frame(sym_frame: SymbolizedFrame) -> str:
     return f"  {sym_frame.frame_number}: {sym_frame.function} ({sym_frame.location})"
 
 
+# === RUM Context Formatting ===
+
+def _print_rum_context(rum_context: RumContext, output: TextIO) -> None:
+    """Print non-None RUM context fields as key-value lines."""
+    if rum_context.application_id is not None:
+        output.write(f"Application ID: {rum_context.application_id}\n")
+    if rum_context.session_id is not None:
+        output.write(f"Session ID: {rum_context.session_id}\n")
+    if rum_context.view_id is not None:
+        output.write(f"View ID: {rum_context.view_id}\n")
+    if rum_context.action_id is not None:
+        output.write(f"Action ID: {rum_context.action_id}\n")
+
+
 # === Raw Crash Report Printing ===
 
 def print_raw_crash_report(
@@ -80,6 +94,7 @@ def print_raw_crash_report(
     metadata: dict[str, str],
     stack_addresses: list[int],
     modules: list[Module],
+    rum_context: Optional[RumContext] = None,
     output: TextIO = sys.stdout
 ) -> None:
     """
@@ -94,6 +109,7 @@ def print_raw_crash_report(
         metadata: Parsed metadata dictionary from crash report header
         stack_addresses: Raw addresses from stack frame section
         modules: Parsed Module objects from module section
+        rum_context: Optional RUM session context from the accompanying .ctx file
         output: Output stream (defaults to stdout)
     """
     # === Section 1: Filename ===
@@ -106,6 +122,8 @@ def print_raw_crash_report(
     output.write("=== Crash Metadata ===\n")
     for key, value in metadata.items():
         output.write(f"{key}: {value}\n")
+    if rum_context is not None:
+        _print_rum_context(rum_context, output)
     output.write("\n")
 
     # === Section 3: Raw Stack Trace ===
@@ -162,6 +180,8 @@ def print_crash_report(
         output.write("=== Crash Metadata ===\n")
         for key, value in report.metadata.items():
             output.write(f"{key}: {value}\n")
+        if report.rum_context is not None:
+            _print_rum_context(report.rum_context, output)
         output.write("\n")
 
         # === Section 3: Resolved Stack Trace ===
