@@ -100,7 +100,7 @@ TEST_CASE("MessageBus", "[unit][core]") {
     REQUIRE(received_c == expected);
   }
 
-  SECTION("M drain all queued messages before Stop() returns") {
+  SECTION("M drain all queued messages before messaging thread exits") {
     // Given a bus with a handler that counts deliveries
     std::atomic<int> count{0};
     std::vector<std::function<void(const FeatureMessage&)>> handlers;

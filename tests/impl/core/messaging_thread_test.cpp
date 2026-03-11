@@ -6,6 +6,8 @@
 
 #include "datadog/impl/core/messaging_thread.hpp"
 
+#include <cstring>
+
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/message_bus.hpp"
 
