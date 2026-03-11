@@ -54,21 +54,28 @@ TEST_CASE("Rum context population", "[unit][rum]") {
     REQUIRE(context.rum->action_id == UUID::Zero);
   }
 
-  SECTION("M clear RumFeatureContext W SDK stops") {
-    // Given a running RUM feature which has populated a RumFeatureContext
+  SECTION("M clear RumFeatureContext W SDK restarts") {
+    // Given a RUM feature that has been started, producing a session
     MockClock clock;
     FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
     REQUIRE(test.GetContextSync().rum.has_value() == true);
+    const UUID initial_session_id = test.GetContextSync().rum->session_id;
+    REQUIRE(initial_session_id != UUID::Zero);
 
-    // When RUM is notified that the SDK is shutting down
+    // When the SDK is stopped and then restarted
     test.Stop(rum);
+    test.Start(rum);
 
-    // Then the RumFeatureContext is cleared, ensuring that if the SDK is restarted from
-    // the same instance, our original state doesn't leak in
-    REQUIRE(test.GetContextSync().rum.has_value() == false);
+    // Then the RumFeatureContext reflects a fresh new session, not the stale state
+    // from the previous run
+    CoreContext context = test.GetContextSync();
+    REQUIRE(context.rum.has_value() == true);
+    REQUIRE(context.rum->application_id == APPLICATION_ID);
+    REQUIRE(context.rum->session_id != UUID::Zero);
+    REQUIRE(context.rum->session_id != initial_session_id);
   }
 
   SECTION("M change session_id W session expires and is replaced") {

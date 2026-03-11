@@ -143,6 +143,13 @@ struct CoreContext {
    * Additional context provided by the RUM feature, if in use.
    */
   std::optional<RumFeatureContext> rum;
+
+  /**
+   * Resets all mutable feature-specific context fields to their default (absent) state.
+   * Called by Core at the start of each run to ensure features never inherit stale
+   * context from a previous run.
+   */
+  void Reset();
 };
 
 /**

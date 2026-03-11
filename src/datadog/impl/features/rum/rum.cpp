@@ -59,15 +59,10 @@ void Rum::Start() {
 };
 
 void Rum::Stop() {
-  // On Core shutdown, ensure that any RUM context is purged, so that if the SDK is
-  // restarted it won't inherit old state
-  if (_scope) {
-    _scope->UpdateContext([](CoreContext& ctx) { ctx.rum.reset(); });
-  }
-
   // Note: _application will be destroyed when Rum is destroyed (after Core joins
   // the context thread). In-flight lambdas can safely access _application as long as
-  // weak_ptr.lock() succeeds.
+  // weak_ptr.lock() succeeds. CoreContext is reset by Core::Start() at the top of each
+  // new run, so no context mutation is needed here.
 }
 
 void Rum::AddAttribute(std::string_view name, const Attribute& value) {

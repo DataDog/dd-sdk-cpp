@@ -299,6 +299,11 @@ bool Core::Start() {
     return false;
   }
 
+  // Reset any feature-specific context left over from a previous run, so that features
+  // start clean rather than inheriting stale state from the prior session
+  DATADOG_ASSERT(_context_provider, "_context_provider is null on Start()");
+  _context_provider->Update([](CoreContext& ctx) { ctx.Reset(); });
+
   // Initialize a thread-safe queue that features can write to whenever they produce
   // events that need to be written to disk
   DATADOG_ASSERT(!_storage_queue, "_storage_queue already exists on Start()");
