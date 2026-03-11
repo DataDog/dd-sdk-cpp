@@ -41,13 +41,6 @@ class ChattyFeature : public MockFeature {
         [](const CoreContext&, const impl::EventWriter& writer) { writer("hello", {}); }
     );
   }
-
-  virtual void Stop() override {
-    _scope->ExecuteOnContextThread([](const CoreContext&,
-                                      const impl::EventWriter& writer) {
-      writer("goodbye", {});
-    });
-  }
 };
 
 TEST_CASE("Feature", "[unit]") {
@@ -111,9 +104,9 @@ TEST_CASE("Feature", "[unit]") {
     REQUIRE(!ok);
   }
 
-  SECTION("M be able to produce events W core is started or stopping") {
+  SECTION("M be able to produce events immediately W core is started") {
     // Given an initialized core with a registered feature that generates events in
-    // response to core start and stop
+    // response to core start
     const bool flush_http_requests = false;
     CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
     auto feature = std::make_shared<ChattyFeature>();
@@ -124,15 +117,12 @@ TEST_CASE("Feature", "[unit]") {
     REQUIRE(feature->GenerateEvent("nice weather today"));
     test.core.Stop();
 
-    // Then the resulting batch file should contain all events, including those
-    // generated on start and on stop, in the correct order
+    // Then the resulting batch file should contain both events: the one generated on
+    // start, and then the one we generated explicitly
     std::vector<std::string> relpaths = test.storage.FindFiles("chatty/v1");
     REQUIRE(relpaths.size() == 1);
-    std::string expected = MockTLVFile()
-                               .AppendEvent("hello")
-                               .AppendEvent("nice weather today")
-                               .AppendEvent("goodbye")
-                               .ToString();
+    std::string expected =
+        MockTLVFile().AppendEvent("hello").AppendEvent("nice weather today").ToString();
     REQUIRE(test.storage.Cat(relpaths.front()) == expected);
   }
 
@@ -150,12 +140,13 @@ TEST_CASE("Feature", "[unit]") {
     REQUIRE(feature->GenerateEvent("nice weather today"));
     test.core.Stop();
 
-    // Then core should have successfully uploaded our feature
+    // Then core should have successfully uploaded our feature's events from a batch
+    // file
     REQUIRE(test.client.requests.size() == 1);
     REQUIRE(test.storage.GetNumFilesDeleted() == 1);
     const MockHttpRequest& req = test.client.requests.front();
     REQUIRE(!req.aborted);
-    REQUIRE(req.body == "hello,nice weather today,goodbye");
+    REQUIRE(req.body == "hello,nice weather today");
 
     // And the batch file should have been deleted on successful upload
     std::vector<std::string> relpaths = test.storage.FindFiles("chatty/v1");

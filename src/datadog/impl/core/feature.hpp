@@ -110,21 +110,22 @@ class Feature : public std::enable_shared_from_this<Feature> {
  protected:
   /**
    * Called from the main thread when the SDK has finished starting up. This is the
-   * first point at which events may be generated.
+   * first point at which _scope is valid.
+   *
+   * Once Start() is called, the feature may enqueue work on the context thread via
+   * _scope->ExecuteOnContextThread(), generating events in the process, until Stop() is
+   * called.
    */
   virtual void Start() {}
 
   /**
-   * Called from the main thread when the SDK is about to shut down. This is the last
-   * point at which events may be generated.
+   * Called from the main thread when the SDK is shutting down. This is the last point
+   * at which _scope is valid.
+   *
+   * Once Stop() is called, any work enqueued via _scope->ExecuteOnContextThread() will
+   * be ignored, and the feature may no longer generate events.
    */
   virtual void Stop() {}
-
-  /**
-   * @returns whether the feature has received a call to Start() and has not yet
-   *  received a call to Stop().
-   */
-  bool IsRunning() const;
 
  public:
   /**
