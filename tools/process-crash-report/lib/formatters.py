@@ -12,6 +12,7 @@ in both resolved and symbolicated forms.
 """
 
 import sys
+import uuid
 from enum import Enum
 from pathlib import Path
 from typing import Optional, TextIO
@@ -25,10 +26,12 @@ class OutputMode(str, Enum):
     FULL: Complete output including filename, metadata, resolved stack, and symbolicated stack
     STACK: Only the symbolicated (or resolved if no symbolication) stack trace, no headers
     RAW: Raw parsed binary crash report without resolution or symbolication
+    JSON: RUM Error Event as a JSON object
     """
     FULL = "full"
     STACK = "stack"
     RAW = "raw"
+    JSON = "json"
 
 
 # === Frame Formatting ===
@@ -216,3 +219,109 @@ def print_crash_report(
 
     else:
         raise ValueError(f"Unknown output mode: {mode}")
+
+
+# === RUM Error Event Formatting ===
+
+_SYSTEM_PATH_PREFIXES = (
+    "/System/",
+    "/usr/lib/",
+    "/usr/local/lib/",
+    "/Library/Apple/",
+    "/lib/",
+    "/lib64/",
+    "/usr/lib64/",
+    "C:\\Windows\\System32\\",
+    "C:\\Windows\\SysWOW64\\",
+)
+
+
+def _is_system_module(path: str) -> bool:
+    return any(path.startswith(p) for p in _SYSTEM_PATH_PREFIXES)
+
+
+def _format_binary_image(module: Module) -> dict:
+    return {
+        "uuid": module.build_id,
+        "name": module.name,
+        "is_system": _is_system_module(module.path),
+        "load_address": hex(module.base_address),
+        "max_address": hex(module.end_address),
+    }
+
+
+
+
+def format_rum_error_event(
+    report: CrashReport,
+    symbolized_stack: Optional[list[SymbolizedFrame]],
+) -> dict:
+    """
+    Build a RUM Error Event dict from a crash report.
+
+    Requires that `report.rum_context` contains a non-None `application_id`;
+    raises `ValueError` otherwise. The returned dict conforms to the RUM Error
+    Event schema and is ready to be serialized with `json.dumps`.
+
+    Optional context fields (`session`, `view`, `action`) are included only
+    when the corresponding IDs are present in `report.rum_context`.
+
+    The `error.stack` uses symbolicated frames when `symbolized_stack` is
+    provided, falling back to resolved (module+offset) frames otherwise.
+    """
+    rum_context = report.rum_context
+    if rum_context is None or rum_context.application_id is None:
+        raise ValueError(
+            "No RUM application ID in crash context; "
+            "cannot produce a RUM Error Event"
+        )
+
+    # Extract the raw seconds-since-epoch from the formatted timestamp string
+    # (format: "1770922852 (2026-02-12 18:14:12 UTC)")
+    timestamp_str = report.metadata.get("Timestamp", "0")
+    timestamp_seconds = int(timestamp_str.split()[0])
+    date_ms = timestamp_seconds * 1000
+
+    # Derive a short signal/exception name for the error message
+    if "Signal" in report.metadata:
+        # e.g. "SIGSEGV (11)" → "SIGSEGV"
+        signal_name = report.metadata["Signal"].split()[0]
+    elif "Exception Code" in report.metadata:
+        signal_name = report.metadata["Exception Code"]
+    else:
+        signal_name = "Unknown"
+
+    fault_addr = report.metadata.get("Fault Address", "unknown")
+    error_message = f"{signal_name} at {fault_addr}"
+
+    # Build the newline-delimited stack string (no frame-number prefix)
+    if symbolized_stack is not None:
+        stack_lines = [f"{f.function} ({f.location})" for f in symbolized_stack]
+    else:
+        stack_lines = [format_resolved_frame(f) for f in report.stack_frames]
+    stack_str = "\n".join(stack_lines) + "\n"
+
+    event: dict = {
+        "type": "error",
+        "application": {"id": rum_context.application_id},
+        "date": date_ms,
+        "_dd": {"format_version": 2},
+        "error": {
+            "id": str(uuid.uuid4()),
+            "message": error_message,
+            "source": "source",
+            "stack": stack_str,
+            "is_crash": True,
+        },
+    }
+
+    if rum_context.session_id is not None:
+        event["session"] = {"id": rum_context.session_id, "type": "user"}
+    if rum_context.view_id is not None:
+        event["view"] = {"id": rum_context.view_id, "url": "placeholder"}
+    if rum_context.action_id is not None:
+        event["action"] = {"id": rum_context.action_id}
+
+    event["error"]["binary_images"] = [_format_binary_image(m) for m in report.modules]
+
+    return event

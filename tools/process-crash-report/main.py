@@ -23,10 +23,12 @@ Usage:
     crash report from the .crashes/ directory.
 
 Options:
-    --output {full|stack|raw}       Output mode (default: full)
+    --output {full|stack|raw|json}  Output mode (default: full)
                                     - full: metadata + resolved + symbolicated
                                     - stack: symbolicated stack only
                                     - raw: parsed binary without resolution
+                                    - json: RUM Error Event JSON object (requires
+                                            a RUM application ID in the .ctx file)
 
     --tool {atos|llvm-symbolizer|addr2line|dbh|none|auto}
                                     Symbolication tool (default: auto)
@@ -52,8 +54,12 @@ Examples:
 
     # Show resolved addresses without symbolication
     python3 tools/process-crash-report/main.py --tool none
+
+    # Emit a RUM Error Event JSON object
+    python3 tools/process-crash-report/main.py --output json
 """
 
+import json
 import sys
 from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pathlib import Path
@@ -61,7 +67,7 @@ from pathlib import Path
 # Import lib modules
 from lib.parser import find_latest_crash_report, load_crash_report, parse_crash_report, parse_crash_context
 from lib.symbolizers import get_symbolizer, SymbolizerTool
-from lib.formatters import print_crash_report, print_raw_crash_report, OutputMode
+from lib.formatters import print_crash_report, print_raw_crash_report, format_rum_error_event, OutputMode
 
 
 def main() -> int:
@@ -82,9 +88,9 @@ def main() -> int:
 
     parser.add_argument(
         '--output',
-        choices=['full', 'stack', 'raw'],
+        choices=['full', 'stack', 'raw', 'json'],
         default='full',
-        help='Output mode: full (metadata + stacks), stack (symbolicated only), or raw (parsed binary)'
+        help='Output mode: full (metadata + stacks), stack (symbolicated only), raw (parsed binary), or json (RUM Error Event)'
     )
 
     parser.add_argument(
@@ -173,7 +179,14 @@ def main() -> int:
     output_mode = OutputMode(args.output)
 
     try:
-        print_crash_report(report, symbolized_stack, output_mode)
+        if output_mode == OutputMode.JSON:
+            event = format_rum_error_event(report, symbolized_stack)
+            print(json.dumps(event))
+        else:
+            print_crash_report(report, symbolized_stack, output_mode)
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        return 1
     except Exception as e:
         print(f"Error formatting output: {e}", file=sys.stderr)
         return 1
