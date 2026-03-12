@@ -240,6 +240,19 @@ def _is_system_module(path: str) -> bool:
     return any(path.startswith(p) for p in _SYSTEM_PATH_PREFIXES)
 
 
+def _infer_platform(modules: list[Module]) -> str:
+    # Windows modules carry .exe or .dll in their paths; check these first
+    # since Windows paths may also contain .so in unusual third-party paths.
+    if any(".exe" in m.path or ".dll" in m.path for m in modules):
+        return "win32"
+    if any(".dylib" in m.path for m in modules):
+        return "darwin"
+    if any(".so" in m.path for m in modules):
+        return "linux"
+    # No module-path evidence — fall back to the host platform.
+    return sys.platform
+
+
 def _format_binary_image(module: Module) -> dict:
     return {
         "uuid": module.build_id,
@@ -301,6 +314,14 @@ def format_rum_error_event(
         stack_lines = [format_resolved_frame(f) for f in report.stack_frames]
     stack_str = "\n".join(stack_lines) + "\n"
 
+    _PLATFORM_SOURCE_TYPE = {
+        "win32": "pe",
+        "darwin": "mach-o",
+        "linux": "elf",
+    }
+    platform = _infer_platform(report.modules)
+    source_type = _PLATFORM_SOURCE_TYPE.get(platform, "elf")
+
     event: dict = {
         "type": "error",
         "application": {"id": rum_context.application_id},
@@ -310,6 +331,7 @@ def format_rum_error_event(
             "id": str(uuid.uuid4()),
             "message": error_message,
             "source": "source",
+            "source_type": source_type,
             "stack": stack_str,
             "is_crash": True,
         },
