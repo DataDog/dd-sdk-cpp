@@ -181,7 +181,7 @@ def main() -> int:
     try:
         if output_mode == OutputMode.JSON:
             event = format_rum_error_event(report, symbolized_stack)
-            print(json.dumps(event))
+            print(json.dumps(event, separators=(',', ':')))
         else:
             print_crash_report(report, symbolized_stack, output_mode)
     except ValueError as e:
