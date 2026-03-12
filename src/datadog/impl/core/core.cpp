@@ -343,13 +343,6 @@ bool Core::Start() {
   // no synchronization is required here
   _context_provider->SetMessageBus(_message_bus.get());
 
-  // Start the messaging thread, which will invoke relevant message handler functions
-  // for each message sent on the message bus
-  DATADOG_ASSERT(!_message_bus_thread, "_message_bus_thread already exists on Start()");
-  _message_bus_thread = std::thread(
-      MessagingThreadMain, std::ref(_diagnostic_logger), std::ref(*_message_bus)
-  );
-
   // Initialize a thread-safe queue for feature-submitted functions that will execute on
   // the context thread
   DATADOG_ASSERT(!_context_queue, "_context_queue already exists on Start()");
@@ -413,6 +406,18 @@ bool Core::Start() {
         )
     );
   }
+
+  // Start the messaging thread only after all features have completed OnCoreStarted().
+  // This ensures that any ContextChangedMessages dispatched during startup (e.g. from
+  // a feature calling UpdateContext in its Start()) are not delivered to a feature's
+  // handler before that feature's own OnCoreStarted() has run. Messages enqueued
+  // during the loop above are buffered in the queue and will be drained once this
+  // thread starts.
+  DATADOG_ASSERT(!_message_bus_thread, "_message_bus_thread already exists on Start()");
+  _message_bus_thread = std::thread(
+      MessagingThreadMain, std::ref(_diagnostic_logger), std::ref(*_message_bus)
+  );
+
   return true;
 }
 
