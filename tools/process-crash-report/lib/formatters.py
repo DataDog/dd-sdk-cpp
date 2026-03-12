@@ -255,13 +255,16 @@ def _infer_platform(modules: list[Module]) -> str:
     return sys.platform
 
 
-def _format_binary_image(module: Module) -> dict:
+def _format_binary_image(module: Module, platform: str) -> dict:
+    # TODO: Arch is assumed; we should include it per-module in crash report
+    arch = "arm64" if platform == "darwin" else "x64"
     return {
         "uuid": module.build_id,
         "name": module.name,
         "is_system": _is_system_module(module.path),
         "load_address": hex(module.base_address),
         "max_address": hex(module.end_address),
+        "arch": arch,
     }
 
 
@@ -346,6 +349,6 @@ def format_rum_error_event(
     if rum_context.action_id is not None:
         event["action"] = {"id": rum_context.action_id}
 
-    event["error"]["binary_images"] = [_format_binary_image(m) for m in report.modules]
+    event["error"]["binary_images"] = [_format_binary_image(m, platform) for m in report.modules]
 
     return event
