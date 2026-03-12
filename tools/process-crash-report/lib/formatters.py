@@ -56,6 +56,31 @@ def format_resolved_frame(frame: StackFrame) -> str:
         return f"0x{frame.raw_address:016x} (unresolved)"
 
 
+def _format_rum_frame_darwin(frame: StackFrame) -> str:
+    """
+    Format a stack frame in Apple crash report format for RUM intake.
+
+    The RUM symbolication backend (stacktrace.LegacyParseIOS) expects
+    four whitespace-separated fields per frame:
+
+      <n>   <binary>    0x<abs_addr> 0x<load_addr> + <decimal_offset>
+
+    The parser extracts the absolute instruction address and load address
+    separately, then computes offset = instr_addr - load_addr to look up
+    the symbol. The generic module+offset format is insufficient because
+    it encodes the hex offset but not the load address.
+    """
+    n = frame.frame_number
+    if frame.is_resolved and frame.module is not None and frame.offset is not None:
+        name = frame.module.name
+        abs_addr = f"0x{frame.raw_address:016x}"
+        load_addr = f"0x{frame.module.base_address:016x}"
+        return f"{n}   {name}\t{abs_addr} {load_addr} + {frame.offset}"
+    else:
+        abs_addr = f"0x{frame.raw_address:016x}"
+        return f"{n}   ???\t{abs_addr} 0x0000000000000000 + 0"
+
+
 def format_symbolicated_frame(sym_frame: SymbolizedFrame) -> str:
     """
     Format a symbolicated stack frame.
@@ -307,13 +332,6 @@ def format_rum_error_event(
     fault_addr = report.metadata.get("Fault Address", "unknown")
     error_message = f"{signal_name} at {fault_addr}"
 
-    # Build the newline-delimited stack string (no frame-number prefix)
-    if symbolized_stack is not None:
-        stack_lines = [f"{f.function} ({f.location})" for f in symbolized_stack]
-    else:
-        stack_lines = [format_resolved_frame(f) for f in report.stack_frames]
-    stack_str = "\n".join(stack_lines) + "\n"
-
     _PLATFORM_SOURCE_TYPE = {
         "win32": "pe",
         "darwin": "mach-o",
@@ -321,6 +339,18 @@ def format_rum_error_event(
     }
     platform = _infer_platform(report.modules)
     source_type = _PLATFORM_SOURCE_TYPE.get(platform, "elf")
+
+    # Build the newline-delimited stack string. Symbolicated frames use the
+    # generic "function (location)" format. Unsymbolicated macOS frames use
+    # Apple crash report format so the RUM backend can extract load addresses
+    # for dSYM lookup; other platforms use the generic module+offset format.
+    if symbolized_stack is not None:
+        stack_lines = [f"{f.function} ({f.location})" for f in symbolized_stack]
+    elif platform == "darwin":
+        stack_lines = [_format_rum_frame_darwin(f) for f in report.stack_frames]
+    else:
+        stack_lines = [format_resolved_frame(f) for f in report.stack_frames]
+    stack_str = "\n".join(stack_lines) + "\n"
 
     event: dict = {
         "type": "error",
