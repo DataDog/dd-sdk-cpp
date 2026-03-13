@@ -70,6 +70,7 @@ void CrashReporting::Start() {
       _scope->diagnostic_logger.Status("Crash handler initialized");
     } else {
       _scope->diagnostic_logger.Error("Crash handler initialization failed");
+      _crash_handler.reset();
     }
   }
 }
