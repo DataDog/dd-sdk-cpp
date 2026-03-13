@@ -232,7 +232,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
 
   void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-    char buf[37];
+    char buf[37] = {0};
 
     if (rum_ctx.application_id != _rum_application_id) {
       _rum_application_id = rum_ctx.application_id;
