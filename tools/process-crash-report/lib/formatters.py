@@ -314,7 +314,7 @@ def format_rum_error_event(
 
     _PLATFORM_SOURCE_TYPE = {
         "win32": "pe",
-        "darwin": "ios",
+        "darwin": "mac",
         "linux": "elf",
     }
     platform = _infer_platform(report.modules)
