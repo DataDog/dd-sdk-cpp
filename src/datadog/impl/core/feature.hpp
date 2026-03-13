@@ -138,12 +138,13 @@ class Feature : public std::enable_shared_from_this<Feature> {
   ) = 0;
 
   /**
-   * Called by `Core::RegisterFeature()` after the feature has been stored in the
-   * feature list, at which point `weak_from_this()` is safe to call. If the feature
-   * wants to react to messages dispatched by the `MessageBus`, it should override this
-   * method and return a handler lambda: typically one that captures `weak_from_this()`
+   * Called by `Core::Start()` each time the SDK starts up. If the feature wants to
+   * react to messages dispatched on the `MessageBus`, it should override this method
+   * and return a handler function: typically a lambda that captures `weak_from_this()`
    * so that message delivery is silently skipped if the feature has already been
    * destroyed.
+   *
+   * Implementations must be idempotent, as this function called on every `Start()`.
    *
    * The default implementation returns `std::nullopt`, meaning the feature opts out of
    * message handling entirely.
