@@ -24,7 +24,6 @@ struct DeviceInfo;
 
 namespace datadog::impl {
 
-// Forward declaration — full type used only in context.cpp
 class MessageBus;
 
 /**
