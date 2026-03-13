@@ -9,10 +9,8 @@
 #include <algorithm>
 #include <cinttypes>
 #include <functional>
-#include <mutex>
 #include <optional>
 #include <random>
-#include <shared_mutex>
 #include <string>
 #include <vector>
 
@@ -37,38 +35,20 @@ struct RumScopeDependencies {
   DiagnosticLogger diagnostic_logger;
   const platform::IClock& clock;
 
-  // Reference to the Feature's interface to the core, used for accessing context,
-  // generating events, etc. FeatureScopes aren't created until Core::Start(), and they
-  // only last until Core::Stop(), so this value is only guaranteed to be non-NULL while
-  // the SDK is running.
-  FeatureScope* scope;
-
  private:
-  // Synchronization for internal state
-  mutable std::shared_mutex mutex;
-
   // Internal state used in sampling decisions
   float _sampling_rate_unit;
+  // Sampling state accessed only on the context thread
   mutable std::mt19937 _sampling_rng;
   mutable std::uniform_real_distribution<float> _sampling_distribution;
 
-  // Internal state for encoding RUM event payloads
+  // Reusable buffer for encoding events; accessed only on the context thread
   mutable std::vector<uint8_t> _encode_buffer;
 
  public:
   explicit RumScopeDependencies(
       const RumConfig& config, const platform::IClock& in_clock
   );
-
-  /**
-   * Injects required dependencies that are only initialized upon SDK start.
-   */
-  void OnStart(FeatureScope& in_scope);
-
-  /**
-   * Clears any dependencies that were injected on SDK start.
-   */
-  void OnStop();
 
  public:
   /**
@@ -79,16 +59,20 @@ struct RumScopeDependencies {
    */
   bool ShouldSampleSession() const;
 
+  /**
+   * Encodes a RUM event to JSON without writing it. The caller uses the returned
+   * string_view with the EventWriter callback to actually write the event.
+   *
+   * @param event RUM event to encode
+   * @return JSON-encoded event as a string_view referencing the internal encode buffer.
+   *  Valid until the next call to EncodeEvent().
+   */
   template <typename T>
-  void ProduceEvent(const T& event) const {
-    if (scope) {
-      std::unique_lock write_lock(mutex);
-      EncodeJson(_encode_buffer, event);
-      std::string_view data(
-          reinterpret_cast<char*>(_encode_buffer.data()), _encode_buffer.size()
-      );
-      scope->WriteEvent(data, {});
-    }
+  std::string_view EncodeEvent(const T& event) const {
+    EncodeJson(_encode_buffer, event);
+    return std::string_view(
+        reinterpret_cast<const char*>(_encode_buffer.data()), _encode_buffer.size()
+    );
   }
 };
 

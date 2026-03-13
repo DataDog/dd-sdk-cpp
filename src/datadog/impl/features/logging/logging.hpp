@@ -18,6 +18,10 @@
 
 namespace datadog::impl {
 
+struct LoggerEnrichmentConfig;
+struct LoggerState;
+struct LogCommandParams;
+
 /**
  * Logging feature implementation. Keeps track of global state, creates loggers, and
  * handles generation of log events in response to logger calls.
@@ -64,6 +68,22 @@ class Logging final : public Feature {
       LogLevel level,
       std::string_view message,
       const Attribute& message_attributes
+  );
+
+  /**
+   * Dispatches async log event processing to the context thread via
+   * ExecuteOnContextThread. Creates a weak_ptr for shutdown safety.
+   */
+  void DispatchAsync(const LogCommandParams& params);
+
+  /**
+   * Processes a log event on the context thread. Builds the event, enriches it with
+   * context data, encodes it to JSON, and writes it via the EventWriter.
+   */
+  void ProcessLogEvent(
+      const LogCommandParams& params,
+      const CoreContext& context,
+      const EventWriter& writer
   ) const;
 
  private:
@@ -78,6 +98,9 @@ class Logging final : public Feature {
   // Global attributes applied to all log events
   ObjectAttribute _global_attributes;
   mutable std::shared_mutex _global_attributes_mutex;
+
+  // Reusable buffer for encoding events; accessed only on the context thread
+  mutable std::vector<uint8_t> _encode_buffer;
 
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;

@@ -47,21 +47,31 @@ class FeatureTest {
   explicit FeatureTest(const CoreContext& context) : _context_provider(context) {}
 
   void Start(const std::shared_ptr<Feature>& feature) {
-    auto event_generated_func = [this](Block event, Block event_metadata) {
+    // Mirror Core::Start() by resetting feature context before each run, so tests
+    // observe the same clean-slate guarantee that production code provides
+    _context_provider.Update([](CoreContext& ctx) { ctx.Reset(); });
+
+    auto event_writer = [this](Block event, Block event_metadata) {
       events.emplace_back(event, event_metadata);
       return true;
     };
     auto diagnostic_handler = [this](const DiagnosticMessage& message) {
       messages.emplace_back(message);
     };
-    feature->OnCoreStarted(FeatureScope(
-        _context_provider,
-        event_generated_func,
-        DiagnosticLogger(diagnostic_handler, DiagnosticLevel::Debug)
-    ));
+    feature->OnCoreStarted(
+        FeatureScope::CreateForTesting(
+            _context_provider,
+            event_writer,
+            DiagnosticLogger(diagnostic_handler, DiagnosticLevel::Debug)
+        )
+    );
   }
 
   void Stop(const std::shared_ptr<Feature>& feature) { feature->OnCoreStopping(); }
+
+  void UpdateContext(const std::function<void(CoreContext&)>& callback) {
+    _context_provider.Update(callback);
+  }
 
   inline CoreContext GetContextSync() const { return _context_provider.Get(); }
 };

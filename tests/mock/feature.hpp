@@ -81,7 +81,14 @@ class MockFeature : public impl::Feature {
    * Allows tests to arbitrarily generate events.
    */
   bool GenerateEvent(impl::Block event, impl::Block event_metadata = {}) {
-    return WriteEvent(event, event_metadata);
+    if (!_scope) return false;
+    std::string event_data(event.data(), event.size());
+    std::string metadata(event_metadata.data(), event_metadata.size());
+    _scope->ExecuteOnContextThread([event_data, metadata](
+                                       const impl::CoreContext&,
+                                       const impl::EventWriter& writer
+                                   ) { writer(event_data, metadata); });
+    return true;
   }
 
   /**

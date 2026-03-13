@@ -20,22 +20,12 @@ void Feature::OnCoreStarted(FeatureScope&& feature_scope) {
 }
 
 void Feature::OnCoreStopping() {
-  // Notify the feature that the core is about to stop, while it's still able to write
-  // events
+  // Notify the feature that the core is stopping
   Stop();
 
   // Drop our FeatureScope; the Core is stopped so we must stop all work
   DATADOG_ASSERT(_scope, "Feature has null _scope in OnCoreStop");
   _scope.reset();
 }
-
-bool Feature::WriteEvent(Block event, Block event_metadata) const {
-  if (_scope) {
-    return _scope->WriteEvent(event, event_metadata);
-  }
-  return false;
-}
-
-bool Feature::IsRunning() const { return _scope.has_value(); }
 
 }  // namespace datadog::impl
