@@ -2,6 +2,14 @@
 
 * @DataDog/rum-mobile
 
+## C++ source
+
+/include-c/ @DataDog/cpp-reviewers
+/include-cpp/ @DataDog/cpp-reviewers
+/src/ @DataDog/cpp-reviewers
+/tests/ @DataDog/cpp-reviewers
+/examples/ @DataDog/cpp-reviewers
+
 ## Docs
 
 *README.md @DataDog/documentation @DataDog/rum-mobile
