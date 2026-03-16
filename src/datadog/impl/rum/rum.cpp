@@ -19,8 +19,11 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
       _deps(config, clock),
       _application(_deps),
       _application_snapshot(),
-      _context_change_callback(config.context_change_callback),
       _previous_context() {}
+
+void Rum::SetContextChangeCallback(RumContextChangeCallback callback) {
+  _context_change_callback = std::move(callback);
+}
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
     const HttpContext& context, BatchReader& reader

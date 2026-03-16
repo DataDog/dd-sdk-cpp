@@ -6,16 +6,10 @@
 
 #pragma once
 
-#include <functional>
 #include <memory>
 
 #include "datadog/api.hpp"
 #include "datadog/core.hpp"
-
-// Forward declare the RumContextSnapshot type (defined in rum.hpp)
-namespace datadog {
-struct RumContextSnapshot;
-}
 
 // Forward declare dd-win-prof's config struct (defined in dd-win-prof.h)
 struct _ProfilerConfig;
@@ -69,24 +63,6 @@ class Profiling {
    */
   DATADOG_API static std::shared_ptr<Profiling> Register(
       const std::shared_ptr<class Core>& core, const ProfilerConfig* config = nullptr
-  );
-
-  /**
-   * Creates a callback suitable for use with RumConfig::SetContextChangeCallback().
-   *
-   * When RUM context changes, this callback forwards the new context to
-   * dd-win-prof so that profiling data can be correlated with RUM sessions and
-   * views. The callback holds a weak reference to the Profiling instance, so it
-   * is safe to use even if the Profiling feature is destroyed before RUM.
-   *
-   * Usage:
-   *   auto profiling = Profiling::Register(core, &profilerConfig);
-   *   auto rumConfig = RumConfig(appId)
-   *       .SetContextChangeCallback(Profiling::CreateRumContextBridge(profiling));
-   *   auto rum = Rum::Register(core, rumConfig);
-   */
-  DATADOG_API static std::function<void(const RumContextSnapshot&)> CreateRumContextBridge(
-      const std::shared_ptr<Profiling>& profiling
   );
 
  private:

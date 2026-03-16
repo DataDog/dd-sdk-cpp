@@ -181,7 +181,15 @@ class Rum final : public Feature {
   std::string _request_url;
   std::string _request_headers;
 
-  // Callback invoked when RUM context changes
+ public:
+  /**
+   * Sets a callback invoked whenever RUM context changes. Used internally by
+   * Core to wire RUM context updates to the profiling feature.
+   */
+  void SetContextChangeCallback(RumContextChangeCallback callback);
+
+ private:
+  // Callback invoked when RUM context changes (set by Core, not by customer)
   RumContextChangeCallback _context_change_callback;
 
   // Previous RUM context for change detection

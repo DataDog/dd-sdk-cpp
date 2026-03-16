@@ -7,7 +7,6 @@
 #include "datadog/profiling.hpp"
 
 #include "datadog/core.hpp"
-#include "datadog/rum.hpp"
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
@@ -55,22 +54,6 @@ std::shared_ptr<Profiling> Profiling::Register(
       core->_diagnostic_threshold,
       Profiling::PrivateCtorTag{}
   );
-}
-
-std::function<void(const RumContextSnapshot&)> Profiling::CreateRumContextBridge(
-    const std::shared_ptr<Profiling>& profiling
-) {
-  if (!profiling || !profiling->_impl) {
-    return nullptr;
-  }
-
-  // Capture a weak_ptr so the callback doesn't keep profiling alive
-  std::weak_ptr<impl::Profiling> weak_impl = profiling->_impl;
-  return [weak_impl](const RumContextSnapshot& context) {
-    if (auto impl = weak_impl.lock()) {
-      impl->OnRumContextChanged(context);
-    }
-  };
 }
 
 }  // namespace datadog

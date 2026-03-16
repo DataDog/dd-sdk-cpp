@@ -277,6 +277,7 @@ endif()
 # This must come after dd_native is fully configured so that the profiler module
 # can read and modify its compile/link settings.
 if(DD_ENABLE_PROFILER)
+    target_compile_definitions(dd_native PRIVATE DD_ENABLE_PROFILER=1)
     target_sources(dd_native PRIVATE
         datadog/cpp/profiling.cpp
         datadog/impl/features/profiling/profiling.cpp
