@@ -15,10 +15,15 @@
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/version.hpp"
+#include "datadog/impl/features/rum/rum.hpp"
 #include "datadog/impl/platform/clock.hpp"
 #include "datadog/impl/platform/filesystem.hpp"
 #include "datadog/impl/platform/http.hpp"
 #include "datadog/impl/platform/system_info.hpp"
+
+#ifdef DD_ENABLE_PROFILER
+#include "datadog/impl/features/profiling/profiling.hpp"
+#endif
 
 namespace datadog::impl {
 
@@ -363,6 +368,11 @@ bool Core::Start() {
         FeatureScope(*_context_provider, event_generated_func, _diagnostic_logger)
     );
   }
+
+  // Wire RUM context changes to the profiling feature, if both are registered.
+  // This is done after all features are started so both are fully initialized.
+  WireRumToProfiling();
+
   return true;
 }
 
@@ -490,6 +500,49 @@ std::string_view Core::GetApplicationVersion() const {
       _state >= CoreState::Initialized, "GetApplicationVersion called before Core init"
   );
   return _context_provider->GetHttpContext().application_version;
+}
+
+void Core::WireRumToProfiling() {
+  // Find the RUM and Profiling features among registered features
+  constexpr FeatureId kRumId = CreateFeatureId("RUMM");
+  [[maybe_unused]] constexpr FeatureId kProfilingId = CreateFeatureId("PROF");
+
+  std::shared_ptr<Rum> rum_impl;
+  for (const auto& feature : _features) {
+    if (feature.id == kRumId) {
+      rum_impl = std::dynamic_pointer_cast<Rum>(feature.impl);
+    }
+  }
+
+  if (!rum_impl) {
+    return;  // No RUM feature registered — nothing to wire
+  }
+
+#ifdef DD_ENABLE_PROFILER
+  std::shared_ptr<Profiling> profiling_impl;
+  for (const auto& feature : _features) {
+    if (feature.id == kProfilingId) {
+      profiling_impl = std::dynamic_pointer_cast<Profiling>(feature.impl);
+    }
+  }
+
+  if (!profiling_impl) {
+    return;  // No Profiling feature registered — nothing to wire
+  }
+
+  // Wire RUM context changes → profiling: capture a weak_ptr so the callback
+  // doesn't extend the profiling feature's lifetime
+  std::weak_ptr<Profiling> weak_profiling = profiling_impl;
+  rum_impl->SetContextChangeCallback(
+      [weak_profiling](const datadog::RumContextSnapshot& context) {
+        if (auto prof = weak_profiling.lock()) {
+          prof->OnRumContextChanged(context);
+        }
+      }
+  );
+
+  _diagnostic_logger.Debug("Wired RUM context changes to profiling feature");
+#endif
 }
 
 }  // namespace datadog::impl

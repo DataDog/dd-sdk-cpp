@@ -107,8 +107,6 @@ struct RumConfig {
  private:
   UUID application_id;  // UUID::Zero if uninitialized or invalid
   float session_sample_rate{100.0f};
-  RumContextChangeCallback context_change_callback{nullptr};
-
  public:
   /**
    * Initializes a new RUM configuration object with all required values.
@@ -141,18 +139,6 @@ struct RumConfig {
    * intake; at 0.0, no RUM events are generated. Default is 100.0.
    */
   DATADOG_API RumConfig& SetSessionSampleRate(float value);
-
-  /**
-   * Sets a callback to be invoked whenever RUM context changes.
-   *
-   * The callback will be called with a snapshot of the new RUM context whenever
-   * any of the context UUIDs (application_id, session_id, view_id, action_id)
-   * changes value. The callback is invoked synchronously on the thread calling
-   * RUM API methods.
-   *
-   * Pass nullptr to clear any previously-set callback.
-   */
-  DATADOG_API RumConfig& SetContextChangeCallback(RumContextChangeCallback value);
 };
 
 enum class RumActionType : uint8_t { Tap, Click, Scroll, Swipe, Custom };
