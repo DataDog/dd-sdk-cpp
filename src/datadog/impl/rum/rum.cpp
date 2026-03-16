@@ -7,7 +7,7 @@
 #include "datadog/impl/rum/rum.hpp"
 
 #include <iostream>
-#include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string_view>
 
@@ -18,7 +18,9 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
     : _global_attributes(8),
       _deps(config, clock),
       _application(_deps),
-      _application_snapshot() {}
+      _application_snapshot(),
+      _context_change_callback(config.context_change_callback),
+      _previous_context() {}
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
     const HttpContext& context, BatchReader& reader
@@ -59,10 +61,21 @@ void Rum::Start() {
 };
 
 void Rum::Stop() {
-  // Note: _application will be destroyed when Rum is destroyed (after Core joins
-  // the context thread). In-flight lambdas can safely access _application as long as
-  // weak_ptr.lock() succeeds. CoreContext is reset by Core::Start() at the top of each
-  // new run, so no context mutation is needed here.
+  // On Core shutdown, ensure that any RUM context is purged, so that if the SDK is
+  // restarted it won't inherit old state
+  if (_scope) {
+    _scope->UpdateContext([](CoreContext& ctx) { ctx.rum.reset(); });
+  }
+
+  // Fully reinitialize RUM application state to clear all sessions/views/etc.
+  _application = RumApplicationScope(_deps);
+
+  // Clear the FeatureScope reference in RumScopeDependencies: scopes should no longer
+  // generate events
+  _deps.OnStop();
+
+  // Reset previous context to ensure callback fires on next SDK start
+  _previous_context = RumFeatureContext{};
 }
 
 void Rum::AddAttribute(std::string_view name, const Attribute& value) {
@@ -219,6 +232,14 @@ void Rum::DispatchAsync(const RumCommand& command) {
       // command; write the relevant UUIDs to the global RumFeatureContext, so that
       // other features can enrich their events with RUM data
       ctx.rum = rum->_application_snapshot.ToFeatureContext();
+
+      // Invoke the context change callback if the context has changed
+      // TODO: The Profiling feature should instead listen for ContextChangedMessage
+      if (_context_change_callback && new_context != _previous_context) {
+        _previous_context = new_context;
+        const datadog::RumContextSnapshot callback_context = new_context.ToPublicContext();
+        _context_change_callback(callback_context);
+      }
     }
   });
 }

@@ -398,6 +398,7 @@ class Core {
 
   friend class Logging;
   friend class Rum;
+  friend class Profiling;
   friend class CrashReporting;
   friend struct ::CoreTestHarness;
 };
