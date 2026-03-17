@@ -58,9 +58,9 @@ int main() {
   // 2. Create Core
   datadog::CoreConfig core_config(client_token, "profiling-test", "dev");
   core_config.SetApplicationVersion("1.0.0");
+  core_config.SetSite(datadog::Site::staging);
   core_config.SetEventStorageLocation(".");
   core_config.SetInitialTrackingConsent(datadog::TrackingConsent::Granted);
-  core_config.Internal_UseCustomEndpoint("https://datad0g.com");
 
   auto core = datadog::Core::Create(core_config);
   if (!core) {
