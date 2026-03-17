@@ -16,7 +16,7 @@ Profiling::Profiling(const ProfilerConfig* config) {
   // Call SetupProfiler immediately so dd-win-prof interns all string fields.
   // This avoids needing to deep-copy the config's const char* pointers.
   if (config != nullptr) {
-    _profiler_setup = SetupProfiler(const_cast<ProfilerConfig*>(config));
+    _profiler_setup = SetupProfiler(config);
   } else {
     ProfilerConfig defaults{};
     defaults.size = sizeof(ProfilerConfig);
@@ -35,9 +35,10 @@ void Profiling::Start() {
 }
 
 void Profiling::Stop() {
+  // Don't clear _profiler_setup — StopProfiler/StartProfiler can be called
+  // repeatedly, and Core supports stop/restart cycles.
   if (_profiler_setup) {
     StopProfiler();
-    _profiler_setup = false;
   }
 }
 
