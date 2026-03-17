@@ -92,6 +92,7 @@ enum class Site : uint8_t {
   ap1,
   ap2,
   us1_fed,
+  staging,
 };
 
 /**
