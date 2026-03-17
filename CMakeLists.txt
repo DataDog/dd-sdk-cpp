@@ -49,6 +49,10 @@ endif()
 set(DD_ENABLE_SANITIZERS "${DD_ENABLE_SANITIZERS}" CACHE STRING "Comma-separated list of sanitizers to enable, e.g. 'ASan,UBSan', 'MSan,UBSan', 'TSan'")
 option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_DEVELOPMENT})
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
+option(DD_ENABLE_PROFILER "Enable integration with Datadog Windows Profiler" OFF)
+if(DD_ENABLE_PROFILER AND NOT WIN32)
+    message(FATAL_ERROR "DD_ENABLE_PROFILER is only supported on Windows")
+endif()
 
 # C API targets C99; C++ API targets C++17
 if(DD_IS_TOP_LEVEL)
@@ -57,9 +61,9 @@ if(DD_IS_TOP_LEVEL)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-    # Crashpad requires C++20, so building the SDK with crashpad support requires
-    # targeting C++20
-    if(DD_CRASH_MODE STREQUAL "crashpad")
+    # Crashpad and dd-win-prof both require C++20, so building the SDK with either
+    # enabled requires targeting C++20
+    if(DD_CRASH_MODE STREQUAL "crashpad" OR DD_ENABLE_PROFILER)
         set(CMAKE_CXX_STANDARD 20)
     endif()
 endif()

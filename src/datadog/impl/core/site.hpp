@@ -34,6 +34,8 @@ inline std::string GetIntakeHost(Site site) {
       return "browser-intake-datadoghq.eu";
     case Site::us1_fed:
       return "browser-intake-ddog-gov.com";
+    case Site::staging:
+      return "browser-intake-datad0g.com";
 
     // Fall out to default implementation
     default:

@@ -180,6 +180,17 @@ class Rum final : public Feature {
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;
   std::string _request_headers;
+
+ public:
+  /**
+   * Sets a callback invoked whenever RUM context changes. Used internally by
+   * Core to wire RUM context updates to the profiling feature.
+   */
+  void SetContextChangeCallback(RumContextChangeCallback callback);
+
+ private:
+  // Callback invoked when RUM context changes (set by Core, not by customer)
+  RumContextChangeCallback _context_change_callback;
 };
 
 }  // namespace datadog::impl

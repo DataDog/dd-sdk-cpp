@@ -92,6 +92,7 @@ inline Site Site_FromC(dd_site_t value) {
   static_assert(static_cast<int>(Site::ap1) == DD_SITE_AP1);
   static_assert(static_cast<int>(Site::ap2) == DD_SITE_AP2);
   static_assert(static_cast<int>(Site::us1_fed) == DD_SITE_US1_FED);
+  static_assert(static_cast<int>(Site::staging) == DD_SITE_STAGING);
   return static_cast<Site>(value);
 }
 
@@ -111,6 +112,8 @@ inline const char* Site_ToString(Site value) {
       return "ap2";
     case Site::us1_fed:
       return "us1_fed";
+    case Site::staging:
+      return "staging";
     default:
       return "";
   }

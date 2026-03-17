@@ -27,6 +27,10 @@ if(DATADOG_BUILT_WITH_DD_HTTP_USE_SYSTEM_LIBCURL)
     find_dependency(CURL REQUIRED)
 endif()
 
+# If the SDK was built with profiler support, expose this to consumers so that
+# datadog_enable() can invoke dd_win_prof_copy_runtime_deps() as needed
+set(DATADOG_BUILT_WITH_DD_ENABLE_PROFILER @DD_ENABLE_PROFILER@)
+
 # If the SDK was built with Crashpad support, include CrashpadConfig.cmake, ensuring
 # that crashpad::client and crashpad::handler targets are defined
 set(DATADOG_BUILT_WITH_DD_CRASH_MODE "@DD_CRASH_MODE@")
