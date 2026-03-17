@@ -18,8 +18,7 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
     : _global_attributes(8),
       _deps(config, clock),
       _application(_deps),
-      _application_snapshot(),
-      _previous_context() {}
+      _application_snapshot() {}
 
 void Rum::SetContextChangeCallback(RumContextChangeCallback callback) {
   _context_change_callback = std::move(callback);
@@ -76,9 +75,6 @@ void Rum::Stop() {
   // Clear the FeatureScope reference in RumScopeDependencies: scopes should no longer
   // generate events
   _deps.OnStop();
-
-  // Reset previous context to ensure callback fires on next SDK start
-  _previous_context = RumFeatureContext{};
 }
 
 void Rum::AddAttribute(std::string_view name, const Attribute& value) {
@@ -236,12 +232,10 @@ void Rum::DispatchAsync(const RumCommand& command) {
       // other features can enrich their events with RUM data
       ctx.rum = rum->_application_snapshot.ToFeatureContext();
 
-      // Invoke the context change callback if the context has changed
+      // Notify the callback (if set). Change detection is handled by the recipient.
       // TODO: The Profiling feature should instead listen for ContextChangedMessage
-      if (_context_change_callback && new_context != _previous_context) {
-        _previous_context = new_context;
-        const datadog::RumContextSnapshot callback_context = new_context.ToPublicContext();
-        _context_change_callback(callback_context);
+      if (_context_change_callback) {
+        _context_change_callback(new_context.ToPublicContext());
       }
     }
   });

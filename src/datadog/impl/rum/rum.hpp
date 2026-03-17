@@ -191,9 +191,6 @@ class Rum final : public Feature {
  private:
   // Callback invoked when RUM context changes (set by Core, not by customer)
   RumContextChangeCallback _context_change_callback;
-
-  // Previous RUM context for change detection
-  RumFeatureContext _previous_context;
 };
 
 }  // namespace datadog::impl

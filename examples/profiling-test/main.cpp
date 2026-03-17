@@ -8,15 +8,18 @@
 // Spins CPU for ~15s across 3 RUM view transitions so the profiler
 // collects wall-time / CPU samples tagged with RUM context.
 
-#include <dd-win-prof.h>
-
 #include <chrono>
+#include <cstdint>
 #include <cstdio>
 #include <cstdlib>
-#include <cstring>
 
 #include "datadog.hpp"
 #include "datadog/profiling.hpp"
+
+// dd-win-prof.h uses uint32_t etc. — must come after <cstdint>
+// clang-format off
+#include <dd-win-prof.h>
+// clang-format on
 
 // ---------------------------------------------------------------------------
 // Busy-loop for `duration_ms` milliseconds (no Sleep — we want CPU samples).

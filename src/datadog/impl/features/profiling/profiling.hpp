@@ -10,6 +10,7 @@
 #include <string_view>
 
 #include "datadog/rum.hpp"
+#include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/feature.hpp"
 
@@ -48,21 +49,12 @@ class Profiling final : public Feature {
   void Stop() override;
 
  private:
-  // We store a deep copy of the config so string pointers remain valid.
-  // The original ProfilerConfig uses const char* — we own the strings here.
-  bool _has_config{false};
-  ProfilerConfig _config{};
-
-  // Owned string storage for _config's const char* fields
-  std::string _url;
-  std::string _api_key;
-  std::string _service_environment;
-  std::string _service_name;
-  std::string _service_version;
-  std::string _tags;
-  std::string _pprof_output_directory;
-
   bool _profiler_setup{false};
+
+  // Change detection for RUM context — avoid redundant calls to dd-win-prof
+  datadog::UUID _prev_application_id;
+  datadog::UUID _prev_session_id;
+  datadog::UUID _prev_view_id;
 };
 
 }  // namespace datadog::impl
