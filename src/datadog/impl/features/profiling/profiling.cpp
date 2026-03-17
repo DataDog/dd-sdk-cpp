@@ -48,8 +48,20 @@ std::optional<Report> Profiling::UploadThread_PrepareReport(
   return std::nullopt;
 }
 
+// TODO: RumContextSnapshot passes UUIDs which we convert to strings here. If the
+// copy cost matters, RUM could own pre-formatted string representations and pass
+// const char* pointers directly, avoiding the UUID→string conversion on this side.
 void Profiling::OnRumContextChanged(const datadog::RumContextSnapshot& context) {
   if (!_profiler_setup) {
+    return;
+  }
+
+  // Session end: all UUIDs are zero — clear everything and return
+  if (context.application_id == datadog::UUID::Zero) {
+    _prev_application_id = datadog::UUID::Zero;
+    _prev_session_id = datadog::UUID::Zero;
+    _prev_view_id = datadog::UUID::Zero;
+    ClearRumContext();
     return;
   }
 
@@ -59,12 +71,12 @@ void Profiling::OnRumContextChanged(const datadog::RumContextSnapshot& context) 
     _prev_application_id = context.application_id;
     _prev_session_id = context.session_id;
 
-    const std::string app_id = context.application_id.ToString();
-    const std::string session_id = context.session_id.ToString();
+    _app_id_str = context.application_id.ToString();
+    _session_id_str = context.session_id.ToString();
 
     RumSessionContext session_ctx{};
-    session_ctx.application_id = app_id.c_str();
-    session_ctx.session_id = session_id.c_str();
+    session_ctx.application_id = _app_id_str.c_str();
+    session_ctx.session_id = _session_id_str.c_str();
     SetRumSession(&session_ctx);
   }
 
@@ -75,9 +87,10 @@ void Profiling::OnRumContextChanged(const datadog::RumContextSnapshot& context) 
     if (context.view_id == datadog::UUID::Zero) {
       SetRumView(nullptr);
     } else {
-      const std::string view_id = context.view_id.ToString();
+      _view_id_str = context.view_id.ToString();
+
       RumViewValues view_vals{};
-      view_vals.view_id = view_id.c_str();
+      view_vals.view_id = _view_id_str.c_str();
       view_vals.view_name = context.view_name;
       SetRumView(&view_vals);
     }
