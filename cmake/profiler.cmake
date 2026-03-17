@@ -12,10 +12,12 @@ if(DD_WIN_PROF_SOURCE_DIR)
         SOURCE_DIR "${DD_WIN_PROF_SOURCE_DIR}"
     )
 else()
+    # TODO: Pin to a released tag once the split RUM context API is merged.
+    # For now, this points to a specific commit on main.
     FetchContent_Declare(
         dd-win-prof
         GIT_REPOSITORY https://github.com/DataDog/dd-win-prof.git
-        GIT_TAG        74b9c6f
+        GIT_TAG        13dd010
     )
 endif()
 
