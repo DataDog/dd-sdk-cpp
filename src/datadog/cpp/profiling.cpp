@@ -40,7 +40,6 @@ std::shared_ptr<Profiling> Profiling::Register(
     return std::make_shared<Profiling>(Profiling::PrivateCtorTag{});
   }
 
-  // Initialize our profiling feature implementation (deep-copies config)
   auto profiling_impl = std::make_shared<impl::Profiling>(config);
 
   // Register the feature with the core, returning a no-op interface on failure
