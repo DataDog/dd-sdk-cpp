@@ -46,6 +46,8 @@ class ResourceFixture {
   RumEventCapture event_capture;
 
  public:
+  CoreContext GetTestContext() { return event_capture.GetContext(); }
+  EventWriter GetTestWriter() { return event_capture.GetWriter(); }
   ResourceFixture()
       : config(APPLICATION_ID),
         deps(config, clock),
@@ -86,7 +88,6 @@ class ResourceFixture {
             Attribute()
         ),
         event_capture(APPLICATION_ID, SESSION_ID, VIEW_ID) {
-    deps.scope = &event_capture.GetFeatureScope();
     deps.diagnostic_logger = event_capture.GetFeatureScope().diagnostic_logger;
     clock.FreezeAtMilliseconds(1700000000000);
   }
@@ -109,7 +110,9 @@ TEST_CASE_METHOD(ResourceFixture, "RumResourceScope::Process", "[unit][rum]") {
             GetBaseParams(),
             "my-resource-key",
             RumResponseDetails{403, 16, RumResourceType::Other}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our resource scope is closed
@@ -149,7 +152,9 @@ TEST_CASE_METHOD(ResourceFixture, "RumResourceScope::Process", "[unit][rum]") {
             "my-resource-key",
             RumResponseDetails{100},
             RumErrorDetails{"oh no", "BadException", "stack\ntrace\n"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our resource scope is closed

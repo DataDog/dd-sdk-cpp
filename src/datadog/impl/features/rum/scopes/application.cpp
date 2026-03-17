@@ -25,7 +25,9 @@ void RumApplicationScope::PopulateContext(RumContext& out_context) const {
   out_context.application_id = deps.application_id;
 }
 
-RumScopeResult RumApplicationScope::Process(const RumCommand& command) {
+RumScopeResult RumApplicationScope::Process(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
   // On SDK init, create an initial session
   if (command.Is<RumSDKInitPayload>()) {
     // Open a brand new session scope
@@ -66,7 +68,8 @@ RumScopeResult RumApplicationScope::Process(const RumCommand& command) {
   if (_active_session) {
     // Allow the session to process the command, and potentially propagate it to child
     // views etc.
-    const RumScopeResult session_result = _active_session->Process(command);
+    const RumScopeResult session_result =
+        _active_session->Process(command, context, writer);
 
     // If the session scope was closed in response to the command, update our state and
     // refresh the session if necessary
@@ -92,7 +95,8 @@ RumScopeResult RumApplicationScope::Process(const RumCommand& command) {
 
       // If we've ended up with a new session, propagate the original command to it
       if (_active_session) {
-        const RumScopeResult result = _active_session->Process(command);
+        const RumScopeResult result =
+            _active_session->Process(command, context, writer);
 
         // If we've just created a new session to handle a command, that command should
         // _not_ close the session: if it does, drop the session as if it never existed

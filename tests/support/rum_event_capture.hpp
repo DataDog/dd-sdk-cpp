@@ -19,6 +19,7 @@
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
 
+#include "support/context.hpp"
 #include "support/diagnostics.hpp"
 
 using namespace datadog;
@@ -40,18 +41,8 @@ class RumEventCapture {
   const char* session_id;
   const char* view_id;
 
-  platform::OsInfo os_info{"mock-os", "2.3.4", "mock-build-number", "2"};
-  platform::DeviceInfo device_info{
-      "desktop",
-      "mock-device",
-      "mock-model",
-      "mock-brand",
-      "x86_64",
-      "en-US",
-      "America/New_York"
-  };
-
   CoreContextProvider context_provider;
+  EventWriter _event_func;
   FeatureScope feature_scope;
 
  public:
@@ -73,53 +64,56 @@ class RumEventCapture {
         view_id(view_id),
         context_provider(CoreContext(
             CoreConfig{"fake-client-token", "fake-service", "fake-env"},
-            os_info,
-            device_info
+            MOCK_OS_INFO,
+            MOCK_DEVICE_INFO
         )),
+        _event_func([this](Block event, Block event_metadata) {
+          // RUM implementation doesn't produce events with metadata
+          REQUIRE(event_metadata.empty());
+
+          // Require valid JSON object
+          auto obj = nlohmann::json::parse(event);
+          REQUIRE(obj.is_object());
+
+          // Validate IDs based on event type
+          if (obj.contains("application") && obj["application"].contains("id")) {
+            REQUIRE(obj["application"]["id"] == this->application_id);
+          }
+          if (obj.contains("session") && obj["session"].contains("id")) {
+            REQUIRE(obj["session"]["id"] == this->session_id);
+          }
+          if (this->view_id != nullptr && obj.contains("view") &&
+              obj["view"].contains("id")) {
+            REQUIRE(obj["view"]["id"] == this->view_id);
+          }
+
+          // Capture all events
+          all_events.emplace_back(std::move(obj));
+          return true;
+        }),
         feature_scope(
-            context_provider,
-            [this](Block event, Block event_metadata) {
-              // RUM implementation doesn't produce events with metadata
-              REQUIRE(event_metadata.empty());
-
-              // Require valid JSON object
-              auto obj = nlohmann::json::parse(event);
-              REQUIRE(obj.is_object());
-
-              // Validate IDs based on event type
-              if (obj.contains("application") && obj["application"].contains("id")) {
-                REQUIRE(obj["application"]["id"] == this->application_id);
-              }
-              if (obj.contains("session") && obj["session"].contains("id")) {
-                REQUIRE(obj["session"]["id"] == this->session_id);
-              }
-              if (this->view_id != nullptr && obj.contains("view") &&
-                  obj["view"].contains("id")) {
-                REQUIRE(obj["view"]["id"] == this->view_id);
-              }
-
-              // Capture all events
-              all_events.emplace_back(std::move(obj));
-              return true;
-            },
-            DiagnosticLogger(
-                [&](const DiagnosticMessage& message) {
-                  switch (message.level) {
-                    case DiagnosticLevel::Debug:
-                      diagnostics.debug.emplace_back(message.text);
-                      break;
-                    case DiagnosticLevel::Status:
-                      diagnostics.status.emplace_back(message.text);
-                      break;
-                    case DiagnosticLevel::Warning:
-                      diagnostics.warning.emplace_back(message.text);
-                      break;
-                    case DiagnosticLevel::Error:
-                      diagnostics.error.emplace_back(message.text);
-                      break;
-                  }
-                },
-                DiagnosticLevel::Debug
+            FeatureScope::CreateForTesting(
+                context_provider,
+                _event_func,
+                DiagnosticLogger(
+                    [&](const DiagnosticMessage& message) {
+                      switch (message.level) {
+                        case DiagnosticLevel::Debug:
+                          diagnostics.debug.emplace_back(message.text);
+                          break;
+                        case DiagnosticLevel::Status:
+                          diagnostics.status.emplace_back(message.text);
+                          break;
+                        case DiagnosticLevel::Warning:
+                          diagnostics.warning.emplace_back(message.text);
+                          break;
+                        case DiagnosticLevel::Error:
+                          diagnostics.error.emplace_back(message.text);
+                          break;
+                      }
+                    },
+                    DiagnosticLevel::Debug
+                )
             )
         ) {}
 
@@ -128,6 +122,16 @@ class RumEventCapture {
    * injected into the code under test.
    */
   FeatureScope& GetFeatureScope() { return feature_scope; }
+
+  /**
+   * Returns the current CoreContext snapshot for use as a test argument.
+   */
+  CoreContext GetContext() const { return context_provider.Get(); }
+
+  /**
+   * Returns the EventWriter for use as a test argument.
+   */
+  const EventWriter& GetWriter() const { return _event_func; }
 
   /**
    * Returns the full set of diagnostic messages that were emitted via this object's

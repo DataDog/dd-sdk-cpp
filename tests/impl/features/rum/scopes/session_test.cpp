@@ -21,6 +21,7 @@
 #include "datadog/impl/platform/system_info.hpp"
 
 #include "mock/clock.hpp"
+#include "mock/system_info.hpp"
 #include "support/rum_event_capture.hpp"
 
 using namespace datadog;
@@ -32,11 +33,15 @@ class SessionFixture {
   static constexpr const char* SESSION_ID = "5e551017-4114-4114-4114-beeeefbeeeef";
 
   MockClock clock;
+  MockSystemInfo system_info;
 
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope parent;
   RumSessionScope scope;
+
+  CoreContext context;
+  EventWriter writer;
 
  public:
   SessionFixture(bool is_session_sampled = true)
@@ -54,7 +59,13 @@ class SessionFixture {
                 std::chrono::milliseconds{1700000000000}
             )},
             std::nullopt
-        ) {
+        ),
+        context(
+            CoreConfig{"test-token", "test-service", "test-env"},
+            system_info.os_info,
+            system_info.device_info
+        ),
+        writer([](Block, Block) { return true; }) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -77,7 +88,7 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // When we process any user interaction
     RumScopeResult result =
-        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
     // Then the command is processed and the session scope remains open
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -91,7 +102,7 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
     // When we process any user interaction after 7 minutes
     clock.Tick(std::chrono::minutes(7));
     RumScopeResult result =
-        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
     // Then the scope is still open, as 7m does not exceed our inactivity timeout
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -99,7 +110,8 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // Next: When we process any user interaction 14 minutes thereafter
     clock.Tick(std::chrono::minutes(14));
-    result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+    result =
+        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
     // Then the result is the same, as 14m does not exceed our timeout either, and our
     // previous command refreshed the last-interaction timestamp
@@ -108,7 +120,8 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // Next: When we wait a full 16 minutes before processing the next user interaction
     clock.Tick(std::chrono::minutes(16));
-    result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+    result =
+        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
     // Then our session scope is closed and the command is not handled
     REQUIRE(result == RumScopeResult::Close);
@@ -126,14 +139,17 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
       clock.Tick(std::chrono::minutes(10));
 
       // Then every such interaction is accepted and keeps the session open
-      const auto result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+      const auto result = scope.Process(
+          RumCommand::StopAction(GetBaseParams(), "foo"), context, writer
+      );
       REQUIRE(result == RumScopeResult::RemainOpen);
       REQUIRE(scope.GetEndReason() == std::nullopt);
     }
 
     // Next: When we advance time to T+4h01m and process another user interaction
     clock.Tick(std::chrono::minutes(11));
-    const auto result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+    const auto result =
+        scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"), context, writer);
 
     // Then our session scope is closed and the command is not handled
     REQUIRE(result == RumScopeResult::Close);
@@ -142,7 +158,8 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
 
   SECTION("M close with Stopped W StopSession is processed") {
     // When we process StopSession
-    const auto result = scope.Process(RumCommand::StopSession(GetBaseParams()));
+    const auto result =
+        scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
     // Then the scope is explicitly closed
     REQUIRE(result == RumScopeResult::Close);
@@ -154,7 +171,8 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
   ) {
     // When we process StopSession after 15m+ of inactivity
     clock.Tick(std::chrono::minutes(16));
-    const auto result = scope.Process(RumCommand::StopSession(GetBaseParams()));
+    const auto result =
+        scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
     // Then the scope is closed, but the inactivity takes precendence over the explicit
     // stop call
@@ -170,12 +188,15 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
     // When we process StopSession at T+4h01m since session start
     for (int i = 1; i <= 23; i++) {
       clock.Tick(std::chrono::minutes(10));
-      const auto result = scope.Process(RumCommand::StopAction(GetBaseParams(), "foo"));
+      const auto result = scope.Process(
+          RumCommand::StopAction(GetBaseParams(), "foo"), context, writer
+      );
       REQUIRE(result == RumScopeResult::RemainOpen);
       REQUIRE(scope.GetEndReason() == std::nullopt);
     }
     clock.Tick(std::chrono::minutes(11));
-    const auto result = scope.Process(RumCommand::StopSession(GetBaseParams()));
+    const auto result =
+        scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
     // Then the scope is closed, but the excessive duration takes precendence over the
     // explicit stop call
@@ -188,8 +209,9 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
     REQUIRE(scope.GetActiveView() == std::nullopt);
 
     // When we process StartView
-    const auto result =
-        scope.Process(RumCommand::StartView(GetBaseParams(), "view-a", "View A"));
+    const auto result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "view-a", "View A"), context, writer
+    );
 
     // Then the session has an active view scope that reflects the parameters configured
     // in the command
@@ -206,13 +228,16 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
   SECTION("M start new view W StartView is processed while another view is active") {
     // Given a session with an active view A
     REQUIRE(scope.GetActiveView() == std::nullopt);
-    scope.Process(RumCommand::StartView(GetBaseParams(), "view-a", "View A"));
+    scope.Process(
+        RumCommand::StartView(GetBaseParams(), "view-a", "View A"), context, writer
+    );
     REQUIRE(scope.GetActiveView()->get().GetKey() == "view-a");
     const UUID view_a_id = scope.GetActiveView()->get().GetViewID();
 
     // When we create another view B in response to a StartView command
-    const auto result =
-        scope.Process(RumCommand::StartView(GetBaseParams(), "view-b", "View B"));
+    const auto result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "view-b", "View B"), context, writer
+    );
 
     // Then the session's active view is now B
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -228,13 +253,16 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
   SECTION("M start new view W StartView has same key as active view") {
     // Given a session with an active view with key 'view-a'
     REQUIRE(scope.GetActiveView() == std::nullopt);
-    scope.Process(RumCommand::StartView(GetBaseParams(), "view-a", "View A"));
+    scope.Process(
+        RumCommand::StartView(GetBaseParams(), "view-a", "View A"), context, writer
+    );
     REQUIRE(scope.GetActiveView()->get().GetKey() == "view-a");
     const UUID initial_view_id = scope.GetActiveView()->get().GetViewID();
 
     // When we create another view, also 'view-a', in response to a StartView command
-    const auto result =
-        scope.Process(RumCommand::StartView(GetBaseParams(), "view-a", "View A"));
+    const auto result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "view-a", "View A"), context, writer
+    );
 
     // Then the session's active view changes to the new scope
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -249,11 +277,14 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
 
   SECTION("M deactivate active view W StopView has matching key") {
     // Given a session with 'view-a' active
-    scope.Process(RumCommand::StartView(GetBaseParams(), "view-a", "View A"));
+    scope.Process(
+        RumCommand::StartView(GetBaseParams(), "view-a", "View A"), context, writer
+    );
     REQUIRE(scope.GetActiveView()->get().GetKey() == "view-a");
 
     // When we process a StopView command that targets 'view-a'
-    const auto result = scope.Process(RumCommand::StopView(GetBaseParams(), "view-a"));
+    const auto result =
+        scope.Process(RumCommand::StopView(GetBaseParams(), "view-a"), context, writer);
 
     // Then our session remains open, but it no longer has an active view
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -262,12 +293,15 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
 
   SECTION("M do nothing W StopView does not target any existing view") {
     // Given a session with 'view-a' active
-    scope.Process(RumCommand::StartView(GetBaseParams(), "view-a", "View A"));
+    scope.Process(
+        RumCommand::StartView(GetBaseParams(), "view-a", "View A"), context, writer
+    );
     REQUIRE(scope.GetActiveView()->get().GetKey() == "view-a");
     const UUID initial_view_id = scope.GetActiveView()->get().GetViewID();
 
     // When we process a StopView command that targets 'view-b'
-    const auto result = scope.Process(RumCommand::StopView(GetBaseParams(), "view-b"));
+    const auto result =
+        scope.Process(RumCommand::StopView(GetBaseParams(), "view-b"), context, writer);
 
     // Then our original view scope remains in place: nothing changes
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -288,7 +322,9 @@ TEST_CASE_METHOD(
     REQUIRE(scope.GetActiveView() == std::nullopt);
 
     // When we handle a StartView call
-    auto result = scope.Process(RumCommand::StartView(GetBaseParams(), "foo", ""));
+    auto result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "foo", ""), context, writer
+    );
 
     // The session scope does not create a new view or otherwise update its state, as it
     // doesn't need to send any events
@@ -304,17 +340,23 @@ TEST_CASE_METHOD(
 
     // When we wait 10 minutes between StartView commands, the session remains open
     clock.Tick(std::chrono::minutes(10));
-    auto result = scope.Process(RumCommand::StartView(GetBaseParams(), "foo", ""));
+    auto result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "foo", ""), context, writer
+    );
     REQUIRE(result == RumScopeResult::RemainOpen);
     REQUIRE(scope.GetEndReason() == std::nullopt);
     clock.Tick(std::chrono::minutes(10));
-    result = scope.Process(RumCommand::StartView(GetBaseParams(), "foo", ""));
+    result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "foo", ""), context, writer
+    );
     REQUIRE(result == RumScopeResult::RemainOpen);
     REQUIRE(scope.GetEndReason() == std::nullopt);
 
     // Next: When we wait 16 minutes and process another StartView
     clock.Tick(std::chrono::minutes(16));
-    result = scope.Process(RumCommand::StartView(GetBaseParams(), "foo", ""));
+    result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "foo", ""), context, writer
+    );
 
     // Then the session is closed due to user inactivity
     REQUIRE(result == RumScopeResult::Close);
@@ -334,14 +376,18 @@ TEST_CASE_METHOD(
       clock.Tick(std::chrono::minutes(10));
 
       // Then every such interaction is accepted and keeps the session open
-      auto result = scope.Process(RumCommand::StartView(GetBaseParams(), "foo", ""));
+      auto result = scope.Process(
+          RumCommand::StartView(GetBaseParams(), "foo", ""), context, writer
+      );
       REQUIRE(result == RumScopeResult::RemainOpen);
       REQUIRE(scope.GetEndReason() == std::nullopt);
     }
 
     // Next: When we advance time to T+4h01m and process another user interaction
     clock.Tick(std::chrono::minutes(11));
-    auto result = scope.Process(RumCommand::StartView(GetBaseParams(), "foo", ""));
+    auto result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "foo", ""), context, writer
+    );
 
     // Then the session is closed due to excessive duration
     REQUIRE(result == RumScopeResult::Close);
@@ -355,7 +401,8 @@ TEST_CASE_METHOD(
     REQUIRE(scope.GetEndReason() == std::nullopt);
 
     // When we handle a StopSession call
-    auto result = scope.Process(RumCommand::StopSession(GetBaseParams()));
+    auto result =
+        scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
     // Then the session is closed as usual: the command is heeded even though the
     // session isn't sampled
@@ -384,6 +431,8 @@ class SessionEventFixture {
   RumEventCapture event_capture;
 
  public:
+  CoreContext GetTestContext() { return event_capture.GetContext(); }
+  EventWriter GetTestWriter() { return event_capture.GetWriter(); }
   SessionEventFixture()
       : config(APPLICATION_ID),
         deps(config, clock),
@@ -401,7 +450,6 @@ class SessionEventFixture {
             std::nullopt
         ),
         event_capture(APPLICATION_ID, SESSION_ID, nullptr) {
-    deps.scope = &event_capture.GetFeatureScope();
     deps.diagnostic_logger = event_capture.GetFeatureScope().diagnostic_logger;
     clock.FreezeAtMilliseconds(1700000000000);
   }
@@ -413,7 +461,11 @@ class SessionEventFixture {
   void StartView(
       std::string_view key = "my-view-key", std::string_view name = "My View"
   ) {
-    scope.Process(RumCommand::StartView(GetBaseParams(), key, name));
+    scope.Process(
+        RumCommand::StartView(GetBaseParams(), key, name),
+        GetTestContext(),
+        GetTestWriter()
+    );
   }
 };
 
@@ -424,7 +476,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // When we process a StartFeatureOperation command
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then a vital event is emitted
@@ -451,14 +505,18 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     // Given an active session with a view and an active operation
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // When we stop the operation successfully
     scope.Process(
         RumCommand::StopFeatureOperation(
             GetBaseParams(), "checkout", std::nullopt, std::nullopt
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then two vital events are emitted (start + end)
@@ -486,14 +544,18 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     // Given an active session with a view and an active operation
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "upload", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "upload", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // When we fail the operation with an error reason
     scope.Process(
         RumCommand::StopFeatureOperation(
             GetBaseParams(), "upload", std::nullopt, RumOperationFailureReason::Error
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then the end event includes failure_reason
@@ -518,7 +580,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     scope.Process(
         RumCommand::StartFeatureOperation(
             GetBaseParams(), "checkout", std::string_view{"cart-42"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     auto vitals = event_capture.Vitals();
@@ -529,13 +593,17 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
   SECTION("M emit vital with abandoned failure_reason W abandoned") {
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "login", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "login", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     scope.Process(
         RumCommand::StopFeatureOperation(
             GetBaseParams(), "login", std::nullopt, RumOperationFailureReason::Abandoned
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     auto vitals = event_capture.Vitals();
@@ -556,12 +624,16 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
   SECTION("M warn on duplicate start W same operation started twice") {
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Start the same operation again
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Both events are emitted (warnings never suppress events)
@@ -579,7 +651,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     scope.Process(
         RumCommand::StopFeatureOperation(
             GetBaseParams(), "unknown-op", std::nullopt, std::nullopt
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Event is still emitted despite no matching start
@@ -599,7 +673,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     scope.Process(
         RumCommand::StartFeatureOperation(
             GetBaseParams(), "background-op", std::nullopt
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then a vital event is still emitted with zero-valued view
@@ -616,12 +692,16 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     scope.Process(
         RumCommand::StartFeatureOperation(
             GetBaseParams(), "upload", std::string_view{"file-1"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
     scope.Process(
         RumCommand::StartFeatureOperation(
             GetBaseParams(), "upload", std::string_view{"file-2"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // No warnings - these are distinct operations
@@ -634,7 +714,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     scope.Process(
         RumCommand::StopFeatureOperation(
             GetBaseParams(), "upload", std::string_view{"file-1"}, std::nullopt
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // No warning for stop-with-matching-start
@@ -648,11 +730,15 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Start an operation
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Stop the session (this clears active operations)
-    scope.Process(RumCommand::StopSession(GetBaseParams()));
+    scope.Process(
+        RumCommand::StopSession(GetBaseParams()), GetTestContext(), GetTestWriter()
+    );
 
     // The session ended, so the test verifies no crash occurred and state was cleaned
     // up
@@ -669,7 +755,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     auto params = RumCommandParams(clock.Now(), {}, cmd_attrs);
 
     scope.Process(
-        RumCommand::StartFeatureOperation(std::move(params), "checkout", std::nullopt)
+        RumCommand::StartFeatureOperation(std::move(params), "checkout", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     auto vitals = event_capture.Vitals();
@@ -687,7 +775,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Given no active view - start event has zero view ID
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
     auto vitals = event_capture.Vitals();
     REQUIRE(vitals.size() == 1);
@@ -700,7 +790,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     scope.Process(
         RumCommand::StopFeatureOperation(
             GetBaseParams(), "checkout", std::nullopt, std::nullopt
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then the stop event captures the current (non-zero) view context
@@ -726,14 +818,20 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // When a non-UserInteraction command (operation) is processed
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt)
+        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // And then another minute passes
     clock.Tick(std::chrono::minutes(2));
 
     // Then the session should expire because operations don't refresh inactivity
-    auto result = scope.Process(RumCommand::StartView(GetBaseParams(), "foo", ""));
+    auto result = scope.Process(
+        RumCommand::StartView(GetBaseParams(), "foo", ""),
+        GetTestContext(),
+        GetTestWriter()
+    );
     REQUIRE(result == RumScopeResult::Close);
     REQUIRE(
         scope.GetEndReason().value() ==
@@ -829,9 +927,20 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         Timestamp{},
         std::nullopt
     );
+    MockSystemInfo local_system_info;
+    CoreContext local_context(
+        CoreConfig{"test-token", "test-service", "test-env"},
+        local_system_info.os_info,
+        local_system_info.device_info
+    );
+    EventWriter local_writer = [](Block, Block) { return true; };
 
     // When the session ends for any reason
-    scope.Process(RumCommand::StopSession(RumCommandParams(Timestamp{}, {}, {})));
+    scope.Process(
+        RumCommand::StopSession(RumCommandParams(Timestamp{}, {}, {})),
+        local_context,
+        local_writer
+    );
 
     // And we then populate a RumContext from the session scope
     RumContext ctx;

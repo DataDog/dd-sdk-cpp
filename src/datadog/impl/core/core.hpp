@@ -393,6 +393,9 @@ class Core {
   std::unique_ptr<StorageQueue> _storage_queue;
   std::optional<std::thread> _storage_thread;
 
+  std::unique_ptr<Queue<std::function<void()>>> _context_queue;
+  std::optional<std::thread> _context_thread;
+
   std::unique_ptr<UploadScheduler> _upload_scheduler;
   std::optional<std::thread> _upload_thread;
 

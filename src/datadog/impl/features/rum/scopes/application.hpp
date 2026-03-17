@@ -10,6 +10,8 @@
 #include <random>
 #include <string>
 
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/features/rum/scope.hpp"
 #include "datadog/impl/features/rum/scopes/session.hpp"
 
@@ -108,7 +110,9 @@ class RumApplicationScope {
   void PopulateContext(struct RumContext& out_context) const;
 
   // RumScope interface
-  RumScopeResult Process(const RumCommand& command);
+  RumScopeResult Process(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
 
  private:
   /**

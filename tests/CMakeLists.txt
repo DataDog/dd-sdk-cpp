@@ -27,6 +27,7 @@ add_executable(dd_native_tests
     impl/core/feature_types/rum_test.cpp
     impl/core/block_test.cpp
     impl/core/context_test.cpp
+    impl/core/context_thread_test.cpp
     impl/core/core_test.cpp
     impl/core/feature_id_test.cpp
     impl/core/feature_read_test.cpp

@@ -12,6 +12,7 @@
 #include <sstream>
 
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/context_thread.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/version.hpp"
@@ -303,6 +304,11 @@ bool Core::Start() {
     return false;
   }
 
+  // Reset any feature-specific context left over from a previous run, so that features
+  // start clean rather than inheriting stale state from the prior session
+  DATADOG_ASSERT(_context_provider, "_context_provider is null on Start()");
+  _context_provider->Update([](CoreContext& ctx) { ctx.Reset(); });
+
   // Initialize a thread-safe queue that features can write to whenever they produce
   // events that need to be written to disk
   DATADOG_ASSERT(!_storage_queue, "_storage_queue already exists on Start()");
@@ -319,6 +325,19 @@ bool Core::Start() {
       std::ref(_features)
   );
 
+  // Initialize a thread-safe queue for functions that will execute on the context
+  // thread
+  DATADOG_ASSERT(!_context_queue, "_context_queue already exists on Start()");
+  _context_queue = std::make_unique<Queue<std::function<void()>>>();
+
+  // Start the context thread that will execute functions submitted by features
+  DATADOG_ASSERT(!_context_thread, "_context_thread already exists on Start()");
+  _context_thread = std::thread(
+      ContextThreadMain, std::ref(_diagnostic_logger), std::ref(*_context_queue)
+  );
+
+  // Initialize an upload scheduler to manage the timing of upload cycles for each
+  // feature
   DATADOG_ASSERT(!_upload_scheduler, "_upload_scheduler already exists on Start()");
   _upload_scheduler = std::make_unique<UploadScheduler>(*_subsystems.clock);
 
@@ -360,12 +379,13 @@ bool Core::Start() {
   // FeatureScope interface that it can use to interoperate with the core
   for (const auto& feature : _features) {
     const FeatureId id = feature.id;
-    EventGeneratedFunc event_generated_func =
-        [this, id](Block event, Block event_metadata) -> bool {
+    EventWriter event_writer = [this, id](Block event, Block event_metadata) -> bool {
       return EnqueueStorageWrite(id, event, event_metadata);
     };
     feature.impl->OnCoreStarted(
-        FeatureScope(*_context_provider, event_generated_func, _diagnostic_logger)
+        FeatureScope::Create(
+            *_context_provider, event_writer, _diagnostic_logger, *_context_queue
+        )
     );
   }
 
@@ -383,12 +403,12 @@ void Core::Stop() {
   }
   _diagnostic_logger.Debug("Beginning Core shutdown");
 
-  // Notify each registered feature that the core has stopped
-  for (const auto& feature : _features) {
-    feature.impl->OnCoreStopping();
-  }
-
-  // If we were previously started, the storage and upload threads should be running
+  // If we were previously started, all background threads should be running
+  DATADOG_ASSERT(_context_queue, "_context_queue is invalid on Stop");
+  DATADOG_ASSERT(
+      _context_thread && _context_thread->joinable(),
+      "_context_thread is non-joinable on Stop"
+  );
   DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid on Stop");
   DATADOG_ASSERT(
       _storage_thread && _storage_thread->joinable(),
@@ -399,6 +419,27 @@ void Core::Stop() {
       _upload_thread && _upload_thread->joinable(),
       "_upload_thread is non-joinable on Stop"
   );
+
+  // Stop the context queue, then block until the context thread drains the queue and
+  // exits. This ensures all pending feature work completes before we stop the storage
+  // thread or tear down feature state.
+  // TODO(RUM-15042): Other SDKs abandon the context thread and shut down in a
+  // non-blocking fashion, without draining the context queue
+  _context_queue->Stop();
+  if (_context_thread) {
+    _diagnostic_logger.Debug("Joining on context thread");
+    _context_thread->join();
+  }
+  _context_thread.reset();
+
+  // Notify each registered feature that the core has stopped, now that no more
+  // context-thread functions enqueued by those features may be running
+  for (const auto& feature : _features) {
+    feature.impl->OnCoreStopping();
+  }
+
+  // Destroy the context queue, now that no more features exist
+  _context_queue.reset();
 
   // Stop all queue processing, then block until the consumer thread drains the queue
   // and exits, at which point it's safe to release the queue

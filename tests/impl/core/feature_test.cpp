@@ -7,12 +7,15 @@
 #include "datadog/impl/core/feature.hpp"
 
 #include <algorithm>
-#include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <future>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 #include "mock/feature.hpp"
 #include "mock/tlv.hpp"
+#include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/threading.hpp"
 
@@ -21,6 +24,12 @@ using namespace datadog::impl;
 class CoolFeature : public MockFeature {
  public:
   CoolFeature() : MockFeature(CreateFeatureId("COOL"), "coolfeature") {}
+
+  void BlockContextThread(std::future<void>& gate_signal) {
+    _scope->ExecuteOnContextThread([&](const CoreContext&, EventWriter) {
+      gate_signal.wait();
+    });
+  }
 };
 
 class ChattyFeature : public MockFeature {
@@ -28,18 +37,16 @@ class ChattyFeature : public MockFeature {
   ChattyFeature() : MockFeature(CreateFeatureId("HIHI"), "chatty") {}
 
   virtual void Start() override {
-    // Start() should be called once it's OK to write events
-    WriteEvent("hello");
-  }
-
-  virtual void Stop() override {
-    // Stop() should be called before it stops being OK to write events
-    WriteEvent("goodbye");
+    _scope->ExecuteOnContextThread(
+        [](const CoreContext&, const impl::EventWriter& writer) { writer("hello", {}); }
+    );
   }
 };
 
 TEST_CASE("Feature", "[unit]") {
-  SECTION("M produce events to storage W WriteEvent is called") {
+  SECTION(
+      "M produce events to storage W FeatureScope::ExecuteOnContextThread is called"
+  ) {
     // Given a running core with a registered feature
     const bool flush_http_requests = false;
     CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
@@ -97,9 +104,9 @@ TEST_CASE("Feature", "[unit]") {
     REQUIRE(!ok);
   }
 
-  SECTION("M be able to produce events W core is started or stopping") {
+  SECTION("M be able to produce events immediately W core is started") {
     // Given an initialized core with a registered feature that generates events in
-    // response to core start and stop
+    // response to core start
     const bool flush_http_requests = false;
     CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
     auto feature = std::make_shared<ChattyFeature>();
@@ -110,15 +117,12 @@ TEST_CASE("Feature", "[unit]") {
     REQUIRE(feature->GenerateEvent("nice weather today"));
     test.core.Stop();
 
-    // Then the resulting batch file should contain all events, including those
-    // generated on start and on stop, in the correct order
+    // Then the resulting batch file should contain both events: the one generated on
+    // start, and then the one we generated explicitly
     std::vector<std::string> relpaths = test.storage.FindFiles("chatty/v1");
     REQUIRE(relpaths.size() == 1);
-    std::string expected = MockTLVFile()
-                               .AppendEvent("hello")
-                               .AppendEvent("nice weather today")
-                               .AppendEvent("goodbye")
-                               .ToString();
+    std::string expected =
+        MockTLVFile().AppendEvent("hello").AppendEvent("nice weather today").ToString();
     REQUIRE(test.storage.Cat(relpaths.front()) == expected);
   }
 
@@ -136,12 +140,13 @@ TEST_CASE("Feature", "[unit]") {
     REQUIRE(feature->GenerateEvent("nice weather today"));
     test.core.Stop();
 
-    // Then core should have successfully uploaded our feature
+    // Then core should have successfully uploaded our feature's events from a batch
+    // file
     REQUIRE(test.client.requests.size() == 1);
     REQUIRE(test.storage.GetNumFilesDeleted() == 1);
     const MockHttpRequest& req = test.client.requests.front();
     REQUIRE(!req.aborted);
-    REQUIRE(req.body == "hello,nice weather today,goodbye");
+    REQUIRE(req.body == "hello,nice weather today");
 
     // And the batch file should have been deleted on successful upload
     std::vector<std::string> relpaths = test.storage.FindFiles("chatty/v1");
@@ -241,5 +246,57 @@ TEST_CASE("Feature thread-safety", "[unit][core][thread-safety]") {
     REQUIRE(events[4999] == "49:99");
     REQUIRE(events[5000] == "main:00");
     REQUIRE(events[5099] == "main:99");
+  }
+
+  SECTION(
+      "M finish executing all queued functions W Core is stopped with a non-empty "
+      "context queue"
+  ) {
+    // TODO(RUM-15042): This test validates the existing behavior, where the SDK drains
+    // the context queue on shutdown, which can cause blocking shutdown time to scale
+    // with the number of SDK operations still pending. If we make shutdown
+    // non-blocking, this test will need to change, or else validate the new test-only
+    // flush-and-stop function.
+
+    // Given a started core with a registered feature
+    CoreTestHarness test = CoreTestHarness::Init();
+    auto feature = std::make_shared<CoolFeature>();
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+
+    // And a promise that will block the context thread until we explicitly resolve it
+    std::promise<void> gate;
+    std::future<void> gate_signal = gate.get_future();
+
+    // When we enqueue a context-thread function that will block indefinitely, pausing
+    // context thread processing until we call gate.set_value()
+    feature->BlockContextThread(gate_signal);
+
+    // And then we enqueue 500 events for write
+    for (uint64_t i = 0; i < 500; i++) {
+      feature->GenerateEvent("A");
+    }
+
+    // And spawn a background thread that will unblock the context thread (since our
+    // Stop() call below is blocking)
+    std::thread t{[&]() {
+      std::this_thread::sleep_for(std::chrono::microseconds(1));
+      gate.set_value();
+    }};
+
+    // And then we shut down the SDK
+    test.core.Stop();
+    t.join();
+
+    // Then all events should have been generated and sent
+    size_t num_events = 0;
+    for (MockHttpRequest& req : test.client.requests) {
+      for (char c : req.body) {
+        if (c == 'A') {
+          num_events++;
+        }
+      }
+    }
+    REQUIRE(num_events == 500);
   }
 }

@@ -52,7 +52,9 @@ void RumSessionScope::PopulateContext(RumContext& out_context) const {
   out_context.session_precondition = _precondition;
 }
 
-RumScopeResult RumSessionScope::Process(const RumCommand& command) {
+RumScopeResult RumSessionScope::Process(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
   // -- Determine if the session needs to end, and early-out if so
 
   // If the session already ended in response to a prior command, we should not be
@@ -71,7 +73,7 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     // Before returning control to the application scope, record some state to
     // facilitate view transfer, and (only if explicitly stopped) send final view events
     _end_reason = should_close;
-    OnClose(command, *_end_reason);
+    OnClose(command, *_end_reason, context, writer);
     return RumScopeResult::Close;
   }
 
@@ -113,7 +115,7 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
     // same basic details as the view that was active when our previous session ended:
     // this will be a no-op if we already have an active view or have previously created
     // any views in this session
-    AttemptViewTransfer(command, *_active_view_from_predecessor);
+    AttemptViewTransfer(command, *_active_view_from_predecessor, context, writer);
 
     // Clear last view state, regardless of whether we successfully created a new view,
     // so we don't run these checks again
@@ -182,7 +184,9 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
         payload.name,
         RumVitalStepType::Start,
         payload.operation_key,
-        std::nullopt
+        std::nullopt,
+        context,
+        writer
     );
 
     // Vital events are session-scoped: do not propagate to views
@@ -235,7 +239,9 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
         payload.name,
         RumVitalStepType::End,
         payload.operation_key,
-        vital_failure_reason
+        vital_failure_reason,
+        context,
+        writer
     );
 
     // Vital events are session-scoped: do not propagate to views
@@ -248,7 +254,7 @@ RumScopeResult RumSessionScope::Process(const RumCommand& command) {
   // TODO(RUM-11247): In case of off-view commands, create Background view if warranted
 
   // Propagate the command to any and all child view scopes
-  _view_scopes.Propagate(command);
+  _view_scopes.Propagate(command, context, writer);
 
   // All of the circumstances that cause a session to end are handled up-front in
   // ShouldCloseRatherThanProcessing(): no other command types should result in the
@@ -291,7 +297,12 @@ RumSessionScope::ShouldCloseRatherThanProcessing(const RumCommand& command) cons
   return std::nullopt;
 }
 
-void RumSessionScope::OnClose(const RumCommand& command, EndReason end_reason) {
+void RumSessionScope::OnClose(
+    const RumCommand& command,
+    EndReason end_reason,
+    const CoreContext& context,
+    const EventWriter& writer
+) {
   // If we have an active view, cache its essential details in _active_view_on_close so
   // they can be conveyed to the next session we might create
   DATADOG_ASSERT(!_active_view_on_close, "last active view already cached on close");
@@ -311,7 +322,7 @@ void RumSessionScope::OnClose(const RumCommand& command, EndReason end_reason) {
   // note that we _don't_ send final view events after session expiration
   if (end_reason == EndReason::Stopped) {
     DATADOG_ASSERT(command.Is<RumStopSessionPayload>(), "stopped by non-StopSession");
-    _view_scopes.Propagate(command);
+    _view_scopes.Propagate(command, context, writer);
   }
 }
 
@@ -320,7 +331,9 @@ void RumSessionScope::SendVitalEvent(
     std::string_view name,
     RumVitalStepType step_type,
     std::optional<std::string_view> operation_key,
-    std::optional<RumVitalFailureReason> failure_reason
+    std::optional<RumVitalFailureReason> failure_reason,
+    const CoreContext& context,
+    const EventWriter& writer
 ) {
   const RumScopeDependencies& deps = _deps;
 
@@ -378,14 +391,18 @@ void RumSessionScope::SendVitalEvent(
   }
 
   // Enrich event with OS and device properties from CoreContext
-  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateCommonProperties(context, ev);
 
   // Serialize and write the event
-  deps.ProduceEvent(ev);
+  std::string_view json = deps.EncodeEvent(ev);
+  writer(Block{json.data(), json.size()}, Block{});
 }
 
 void RumSessionScope::AttemptViewTransfer(
-    const RumCommand& command, const RumSessionScope::ViewDetails& prev_view
+    const RumCommand& command,
+    const RumSessionScope::ViewDetails& prev_view,
+    const CoreContext& context,
+    const EventWriter& writer
 ) {
   // If this session is the initial session, or if it's not sampled, then
   // RumApplicationScope should not have provided it with any last_active_view details
@@ -421,7 +438,7 @@ void RumSessionScope::AttemptViewTransfer(
   RumCommandParams base = command.base;
   base.attributes = prev_view.attributes;
   const RumCommand cmd = RumCommand::StartView(std::move(base), view_key, view_name);
-  _view_scopes.Propagate(cmd);
+  _view_scopes.Propagate(cmd, context, writer);
 }
 
 }  // namespace datadog::impl

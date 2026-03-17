@@ -42,7 +42,9 @@ RumResourceScope::RumResourceScope(
   }
 }
 
-RumScopeResult RumResourceScope::Process(const RumCommand& command) {
+RumScopeResult RumResourceScope::Process(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
   // Note that RumViewScope generally only propagates commands that explicitly target a
   // specific resource, and it will propagate such a command only to the scope
   // identified by `key` in the command. Do not expect RumResourceScope to receive any
@@ -64,13 +66,13 @@ RumScopeResult RumResourceScope::Process(const RumCommand& command) {
     // 'error' event whose 'error.resource' properties describe this request, then close
     // the scope (wihthout sending a 'resource' event)
     if (payload.error) {
-      SendErrorEvent(command.base, payload, *payload.error);
+      SendErrorEvent(command.base, payload, *payload.error, context, writer);
       return RumScopeResult::Close;
     }
 
     // Otherwise, StopResource was called, indicating that the application got a valid
     // response: send a 'resource' event and close the scope
-    SendResourceEvent(command.base, payload);
+    SendResourceEvent(command.base, payload, context, writer);
     return RumScopeResult::Close;
   }
 
@@ -80,7 +82,10 @@ RumScopeResult RumResourceScope::Process(const RumCommand& command) {
 }
 
 void RumResourceScope::SendResourceEvent(
-    const RumCommandParams& base, const RumStopResourcePayload& payload
+    const RumCommandParams& base,
+    const RumStopResourcePayload& payload,
+    const CoreContext& context_param,
+    const EventWriter& writer
 ) {
   // A resource scope should only ever send a single event
   DATADOG_ASSERT(
@@ -153,16 +158,19 @@ void RumResourceScope::SendResourceEvent(
   }
 
   // Enrich event with OS and device properties from CoreContext
-  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateCommonProperties(context_param, ev);
 
-  deps.ProduceEvent(ev);
+  std::string_view json = deps.EncodeEvent(ev);
+  writer(Block{json.data(), json.size()}, Block{});
   _result = Result::SentResourceEvent;
 }
 
 void RumResourceScope::SendErrorEvent(
     const RumCommandParams& base,
     const RumStopResourcePayload& payload,
-    const RumErrorDetails& error
+    const RumErrorDetails& error,
+    const CoreContext& context_param,
+    const EventWriter& writer
 ) {
   // A resource scope should only ever send a single event
   DATADOG_ASSERT(
@@ -224,9 +232,10 @@ void RumResourceScope::SendErrorEvent(
   }
 
   // Enrich event with OS and device properties from CoreContext
-  RumEventEnrichment::PopulateCommonProperties(deps.scope, ev);
+  RumEventEnrichment::PopulateCommonProperties(context_param, ev);
 
-  deps.ProduceEvent(ev);
+  std::string_view json = deps.EncodeEvent(ev);
+  writer(Block{json.data(), json.size()}, Block{});
   _result = Result::SentErrorEvent;
 }
 

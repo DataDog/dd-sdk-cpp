@@ -1,7 +1,12 @@
-# Global code owners - RUM Mobile Team
-
+# All changes flag rum-mobile (native and cross-platform RUM SDK developers)
 * @DataDog/rum-mobile
 
-## Docs
+# C++ source changes also flag cpp-reviewers
+/include-c/ @DataDog/cpp-reviewers @DataDog/rum-mobile
+/include-cpp/ @DataDog/cpp-reviewers @DataDog/rum-mobile
+/src/ @DataDog/cpp-reviewers @DataDog/rum-mobile
+/tests/ @DataDog/cpp-reviewers @DataDog/rum-mobile
+/examples/ @DataDog/cpp-reviewers @DataDog/rum-mobile
 
+# Changes to public or contributor-facing docs flag the documentation team
 *README.md @DataDog/documentation @DataDog/rum-mobile

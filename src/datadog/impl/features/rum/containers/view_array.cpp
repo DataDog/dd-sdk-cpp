@@ -80,7 +80,9 @@ RumViewScope& RumViewArray::Push(
   );
 }
 
-void RumViewArray::Propagate(const RumCommand& command) {
+void RumViewArray::Propagate(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
   // Iterate over all view scopes in the order in which they're stored, without respect
   // to creation time etc.
   for (auto& item : items) {
@@ -88,7 +90,7 @@ void RumViewArray::Propagate(const RumCommand& command) {
     if (item) {
       // Process the command, and clear the slot (destroying the RumViewScope) if the
       // scope should be closed as a result
-      RumScopeResult result = item->Process(command);
+      RumScopeResult result = item->Process(command, context, writer);
       if (result == RumScopeResult::Close) {
         item.reset();
       }

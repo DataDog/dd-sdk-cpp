@@ -14,6 +14,8 @@
 
 #include "datadog/uuid.hpp"
 
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/features/rum/containers/view_array.hpp"
 #include "datadog/impl/features/rum/scope.hpp"
@@ -138,7 +140,9 @@ class RumSessionScope {
   void PopulateContext(struct RumContext& out_context) const;
 
   // RumScope interface
-  RumScopeResult Process(const RumCommand& command);
+  RumScopeResult Process(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
 
  private:
   /**
@@ -155,7 +159,12 @@ class RumSessionScope {
    * `command` will _not_ be propagated to child scopes via the normal code path in
    * `Process()`, so `OnClose()` has a chance to do so explicitly if desired.
    */
-  void OnClose(const RumCommand& command, EndReason end_reason);
+  void OnClose(
+      const RumCommand& command,
+      EndReason end_reason,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
 
   /**
    * Attempts to create a new active view scope that's initialized from the details of
@@ -163,7 +172,12 @@ class RumSessionScope {
    * correspond with the timestamp of the given command, but its essential details will
    * be preserved from the previous scope.
    */
-  void AttemptViewTransfer(const RumCommand& command, const ViewDetails& prev_view);
+  void AttemptViewTransfer(
+      const RumCommand& command,
+      const ViewDetails& prev_view,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
 
   /**
    * Constructs and emits a RUM vital event in the context of the current session.
@@ -175,7 +189,9 @@ class RumSessionScope {
       std::string_view name,
       RumVitalStepType step_type,
       std::optional<std::string_view> operation_key,
-      std::optional<RumVitalFailureReason> failure_reason
+      std::optional<RumVitalFailureReason> failure_reason,
+      const CoreContext& context,
+      const EventWriter& writer
   );
 
  private:

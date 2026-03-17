@@ -43,6 +43,8 @@ class ViewFixture {
   RumEventCapture event_capture;
 
  public:
+  CoreContext GetTestContext() { return event_capture.GetContext(); }
+  EventWriter GetTestWriter() { return event_capture.GetWriter(); }
   ViewFixture()
       : config(APPLICATION_ID),
         deps(config, clock),
@@ -71,7 +73,6 @@ class ViewFixture {
             )}
         ),
         event_capture(APPLICATION_ID, SESSION_ID, VIEW_ID) {
-    deps.scope = &event_capture.GetFeatureScope();
     deps.diagnostic_logger = event_capture.GetFeatureScope().diagnostic_logger;
     clock.FreezeAtMilliseconds(1700000000000);
   }
@@ -85,7 +86,9 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
     REQUIRE(scope.IsActive() == true);
 
     // When we process StopSession
-    const auto result = scope.Process(RumCommand::StopSession(GetBaseParams()));
+    const auto result = scope.Process(
+        RumCommand::StopSession(GetBaseParams()), GetTestContext(), GetTestWriter()
+    );
 
     // Then the view scope is rendered inactive
     REQUIRE(scope.IsActive() == false);
@@ -106,7 +109,9 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
   ) {
     // When we process an initial StartView command whose key matches ours
     const auto result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name")
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then the view remains active and open
@@ -126,7 +131,9 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
   ) {
     // Given a view scope that's already seen an initial StartView command
     auto result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name")
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
     );
     REQUIRE(scope.IsActive() == true);
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -134,7 +141,9 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // When we process another StartView command whose key is the same
     result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name")
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then the original view scope is deactivated (and in this case, with no pending
@@ -158,7 +167,9 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
   ) {
     // Given an active view scope with 'my-view-key'
     auto result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name")
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
     );
     REQUIRE(scope.IsActive() == true);
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -166,7 +177,9 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // When we process a StartView command with a different view key
     result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "a-different-view-key", "Different!")
+        RumCommand::StartView(GetBaseParams(), "a-different-view-key", "Different!"),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our original scope is deactivated (and closed), as the newly-created view
@@ -189,7 +202,9 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // When we process a StartView command with a different view key
     auto result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "a-different-view-key", "Different!")
+        RumCommand::StartView(GetBaseParams(), "a-different-view-key", "Different!"),
+        GetTestContext(),
+        GetTestWriter()
     );
 
     // Then our original scope is deactivated and closed, irrespective of whether it
@@ -207,14 +222,20 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
   SECTION("M deactivate and send a final event W StopView has matching key") {
     // Given an active view scope with 'my-view-key'
     auto result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name")
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
     );
     REQUIRE(scope.IsActive() == true);
     REQUIRE(result == RumScopeResult::RemainOpen);
     REQUIRE(event_capture.Views().size() == 1);
 
     // When we process a StopView command that matches 'my-view-key'
-    result = scope.Process(RumCommand::StopView(GetBaseParams(), "my-view-key"));
+    result = scope.Process(
+        RumCommand::StopView(GetBaseParams(), "my-view-key"),
+        GetTestContext(),
+        GetTestWriter()
+    );
 
     // Then our scope is deactivated (and closed), and it generates an event on close
     REQUIRE(scope.IsActive() == false);
@@ -229,14 +250,20 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
   SECTION("M do nothing W StopView has non-matching key") {
     // Given an active view scope with 'my-view-key'
     auto result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name")
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
     );
     REQUIRE(scope.IsActive() == true);
     REQUIRE(result == RumScopeResult::RemainOpen);
     REQUIRE(event_capture.Views().size() == 1);
 
     // When we process a StopView command that targets a different view key
-    result = scope.Process(RumCommand::StopView(GetBaseParams(), "different-key"));
+    result = scope.Process(
+        RumCommand::StopView(GetBaseParams(), "different-key"),
+        GetTestContext(),
+        GetTestWriter()
+    );
 
     // Then our scope remains active and open, and it sends no additional events
     REQUIRE(scope.IsActive() == true);
@@ -250,7 +277,9 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
   SECTION("M remain open until pending resources finish W StopView called") {
     // Given an active view scope with 'my-view-key'
     auto result = scope.Process(
-        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name")
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
     );
     REQUIRE(scope.IsActive() == true);
     REQUIRE(result == RumScopeResult::RemainOpen);
@@ -262,13 +291,19 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
             GetBaseParams(),
             "my-resource-key",
             RumRequestDetails{RumResourceMethod::Get, "/foo"}
-        )
+        ),
+        GetTestContext(),
+        GetTestWriter()
     );
     REQUIRE(result == RumScopeResult::RemainOpen);
     REQUIRE(event_capture.Views().size() == 1);
 
     // When we process a StopView command that matches 'my-view-key'
-    result = scope.Process(RumCommand::StopView(GetBaseParams(), "my-view-key"));
+    result = scope.Process(
+        RumCommand::StopView(GetBaseParams(), "my-view-key"),
+        GetTestContext(),
+        GetTestWriter()
+    );
 
     // Then our scope is deactivated, and it generates an event, but:
     // - the scope remains open due to the pending resource
@@ -284,8 +319,11 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
 
     // Next: when we provide the same (now-inactive but still-open) RumViewScope with a
     // command that stops our pending resource
-    result =
-        scope.Process(RumCommand::StopResource(GetBaseParams(), "my-resource-key"));
+    result = scope.Process(
+        RumCommand::StopResource(GetBaseParams(), "my-resource-key"),
+        GetTestContext(),
+        GetTestWriter()
+    );
 
     // Then our scope is finally closed, and it sends a final event that records the
     // final state of the view with is_active == false and 1 completed resource
@@ -325,8 +363,16 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
       // Given a specific type of command that affects view lifecycle
       DYNAMIC_SECTION(" {" << tt.name << "}") {
         // And a scope that's been rendered inactive by a StopView call
-        scope.Process(RumCommand::StartView(GetBaseParams(), "my-view-key", ""));
-        scope.Process(RumCommand::StopView(GetBaseParams(), "my-view-key"));
+        scope.Process(
+            RumCommand::StartView(GetBaseParams(), "my-view-key", ""),
+            GetTestContext(),
+            GetTestWriter()
+        );
+        scope.Process(
+            RumCommand::StopView(GetBaseParams(), "my-view-key"),
+            GetTestContext(),
+            GetTestWriter()
+        );
         REQUIRE(scope.IsActive() == false);
         auto views = event_capture.Views();
         REQUIRE(views.size() == 2);
@@ -336,7 +382,7 @@ TEST_CASE_METHOD(ViewFixture, "RumSessionScope::Process", "[unit][rum]") {
         // When we process a command that would ordinarily affect this view's lifecycle
         // and cause it to generate an event
         RumCommand cmd = tt.cmd_thunk();
-        auto result = scope.Process(cmd);
+        auto result = scope.Process(cmd, GetTestContext(), GetTestWriter());
 
         // Then the command is ignored, and no new events are generated, because the
         // view is already inactive

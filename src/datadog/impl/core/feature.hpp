@@ -74,8 +74,8 @@ struct FeatureStorageConfig {
  * - If the feature has unique storage requirements, implement `GetStorageConfig()`
  * - If the feature needs initialization/shutdown logic, implement `Start()`/`Stop()`
  * - Define main-thread-callable functions for the required feature-specific operations
- * - In those functions, call `WriteEvent()` for each event the feature generate, using
- *    whatever binary format is appropriate for the feature
+ * - In those functions, call `_scope->ExecuteOnContextThread()` to generate events
+ *    asynchronously on the context thread, using the provided `EventWriter`
  * - Implement `UploadThread_PrepareReport()` to read batches of events (in the same
  *    format) and return a `Report` object describing the resulting HTTP request that
  *    should be made to upload that batch to the appropriate intake endpoint
@@ -110,32 +110,22 @@ class Feature : public std::enable_shared_from_this<Feature> {
  protected:
   /**
    * Called from the main thread when the SDK has finished starting up. This is the
-   * first point at which events may be generated.
+   * first point at which _scope is valid.
+   *
+   * Once Start() is called, the feature may enqueue work on the context thread via
+   * _scope->ExecuteOnContextThread(), generating events in the process, until Stop() is
+   * called.
    */
   virtual void Start() {}
 
   /**
-   * Called from the main thread when the SDK is about to shut down. This is the last
-   * point at which events may be generated.
+   * Called from the main thread when the SDK is shutting down. This is the last point
+   * at which _scope is valid.
+   *
+   * Once Stop() is called, any work enqueued via _scope->ExecuteOnContextThread() will
+   * be ignored, and the feature may no longer generate events.
    */
   virtual void Stop() {}
-
-  /**
-   * Callable from the main thread in order to produce a new event. Copies the given
-   * event payload(s) into the storage queue so that the storage thread can write them
-   * to persistent storage. Once the batch containing this event is ready for upload,
-   * the upload thread will pass it to UploadThread_PrepareReport().
-   *
-   * @returns whether the event was successfully enqueued for storage. If called before
-   *  Start() or after Stop(), always returns false.
-   */
-  bool WriteEvent(Block event, Block event_metadata = {}) const;
-
-  /**
-   * @returns whether the feature has received a call to Start() and has not yet
-   *  received a call to Stop().
-   */
-  bool IsRunning() const;
 
  public:
   /**

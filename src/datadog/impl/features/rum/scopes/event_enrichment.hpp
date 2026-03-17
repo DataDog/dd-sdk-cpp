@@ -22,24 +22,16 @@ struct RumEventEnrichment {
    * Populates a RUM event's `os` and `device` fields with properties retrieved from
    * CoreContext.
    *
-   * @param scope FeatureScope from which to access CoreContext. If null or if
-   *  CoreContext lacks OS/device info, corresponding event fields remain unchanged.
+   * @param context CoreContext containing OS and device info. If CoreContext lacks
+   *  OS/device info, corresponding event fields remain unchanged.
    * @param ev RUM event with `OmitIfNoValue<RumOSProperties> os` and
    *  `OmitIfNoValue<RumDeviceProperties> device` fields, to be modified in-place.
    */
   template <typename T>
-  static void PopulateCommonProperties(const FeatureScope* scope, T& ev) {
-    // Abort if no scope (SDK is not active)
-    if (!scope) {
-      return;
-    }
-
-    // Obtain an immutable, thread-safe copy of the SDK's core context
-    const CoreContext ctx = scope->GetContext();
-
+  static void PopulateCommonProperties(const CoreContext& context, T& ev) {
     // If SystemInfo details are available, populate 'os' and 'device' properties
-    PopulateOsProperties(ctx, ev);
-    PopulateDeviceProperties(ctx, ev);
+    PopulateOsProperties(context, ev);
+    PopulateDeviceProperties(context, ev);
   }
 
  private:

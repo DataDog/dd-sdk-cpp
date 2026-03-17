@@ -54,32 +54,19 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
 }
 
 void Rum::Start() {
-  // Inject a reference to our FeatureScope interface into the RumScopeDependencies that
-  // will be provided to all scopes, so they can generate events etc.
-  if (_scope) {
-    _deps.OnStart(*_scope);
-  } else {
-    DATADOG_ASSERT(false, "Rum has no valid FeatureScope on Start");
-  }
+  // Fully reinitialize RUM application state to clear all sessions/views/etc. from
+  // previous runs
+  _application = RumApplicationScope(_deps);
 
-  // Dispatch an SDKInit command, which should kick off initialization of our first
-  // session when handled by the application scope
-  Dispatch(RumCommand::SDKInit(GetBaseCommandParams()));
+  // Dispatch SDKInit to start first session
+  DispatchAsync(RumCommand::SDKInit(GetBaseCommandParams()));
 };
 
 void Rum::Stop() {
-  // On Core shutdown, ensure that any RUM context is purged, so that if the SDK is
-  // restarted it won't inherit old state
-  if (_scope) {
-    _scope->UpdateContext([](CoreContext& ctx) { ctx.rum.reset(); });
-  }
-
-  // Fully reinitialize RUM application state to clear all sessions/views/etc.
-  _application = RumApplicationScope(_deps);
-
-  // Clear the FeatureScope reference in RumScopeDependencies: scopes should no longer
-  // generate events
-  _deps.OnStop();
+  // Note: _application will be destroyed when Rum is destroyed (after Core joins
+  // the context thread). In-flight lambdas can safely access _application as long as
+  // weak_ptr.lock() succeeds. CoreContext is reset by Core::Start() at the top of each
+  // new run, so no context mutation is needed here.
 }
 
 void Rum::AddAttribute(std::string_view name, const Attribute& value) {
@@ -94,50 +81,52 @@ void Rum::RemoveAttribute(std::string_view name) {
 
 void Rum::StopSession() {
   // Dispatch a StopSession command, which the session scope should handle
-  Dispatch(RumCommand::StopSession(GetBaseCommandParams()));
+  DispatchAsync(RumCommand::StopSession(GetBaseCommandParams()));
 }
 
 void Rum::StartView(
     std::string_view key, std::string_view name, const Attribute& attributes
 ) {
   // Dispatch a StartView command to be handled by the active session
-  Dispatch(RumCommand::StartView(GetBaseCommandParams(attributes), key, name));
+  DispatchAsync(RumCommand::StartView(GetBaseCommandParams(attributes), key, name));
 }
 
 void Rum::AddViewAttribute(std::string_view name, const Attribute& value) {
   // TODO(RUM-11363): Log a warning if there's no active view to receive the command?
-  Dispatch(RumCommand::AddViewAttribute(GetBaseCommandParams(), name, value));
+  DispatchAsync(RumCommand::AddViewAttribute(GetBaseCommandParams(), name, value));
 }
 
 void Rum::RemoveViewAttribute(std::string_view name) {
-  Dispatch(RumCommand::RemoveViewAttribute(GetBaseCommandParams(), name));
+  DispatchAsync(RumCommand::RemoveViewAttribute(GetBaseCommandParams(), name));
 }
 
 void Rum::StopView(std::string_view key, const Attribute& attributes) {
   // Dispatch a StopView command
-  Dispatch(RumCommand::StopView(GetBaseCommandParams(attributes), key));
+  DispatchAsync(RumCommand::StopView(GetBaseCommandParams(attributes), key));
 }
 
 void Rum::AddAction(
     RumActionType type, std::string_view name, const Attribute& attributes
 ) {
-  Dispatch(RumCommand::AddAction(GetBaseCommandParams(attributes), type, name));
+  DispatchAsync(RumCommand::AddAction(GetBaseCommandParams(attributes), type, name));
 }
 
 void Rum::StartAction(
     RumActionType type, std::string_view name, const Attribute& attributes
 ) {
-  Dispatch(RumCommand::StartAction(GetBaseCommandParams(attributes), type, name));
+  DispatchAsync(RumCommand::StartAction(GetBaseCommandParams(attributes), type, name));
 }
 
 void Rum::StopAction(std::string_view new_name, const Attribute& attributes) {
-  Dispatch(RumCommand::StopAction(GetBaseCommandParams(attributes), new_name));
+  DispatchAsync(RumCommand::StopAction(GetBaseCommandParams(attributes), new_name));
 }
 
 void Rum::StartResource(
     std::string_view key, const RumRequestDetails& request, const Attribute& attributes
 ) {
-  Dispatch(RumCommand::StartResource(GetBaseCommandParams(attributes), key, request));
+  DispatchAsync(
+      RumCommand::StartResource(GetBaseCommandParams(attributes), key, request)
+  );
 }
 
 void Rum::StopResource(
@@ -146,7 +135,7 @@ void Rum::StopResource(
     const std::optional<RumErrorDetails>& error,
     const Attribute& attributes
 ) {
-  Dispatch(
+  DispatchAsync(
       RumCommand::StopResource(GetBaseCommandParams(attributes), key, response, error)
   );
 }
@@ -154,7 +143,7 @@ void Rum::StopResource(
 void Rum::AddError(
     RumErrorSource source, const RumErrorDetails& error, const Attribute& attributes
 ) {
-  Dispatch(RumCommand::AddError(GetBaseCommandParams(attributes), source, error));
+  DispatchAsync(RumCommand::AddError(GetBaseCommandParams(attributes), source, error));
 }
 
 void Rum::StartFeatureOperation(
@@ -162,7 +151,7 @@ void Rum::StartFeatureOperation(
     std::optional<std::string_view> operation_key,
     const Attribute& attributes
 ) {
-  Dispatch(
+  DispatchAsync(
       RumCommand::StartFeatureOperation(
           GetBaseCommandParams(attributes), name, operation_key
       )
@@ -175,7 +164,7 @@ void Rum::StopFeatureOperation(
     std::optional<RumOperationFailureReason> failure_reason,
     const Attribute& attributes
 ) {
-  Dispatch(
+  DispatchAsync(
       RumCommand::StopFeatureOperation(
           GetBaseCommandParams(attributes), name, operation_key, failure_reason
       )
@@ -194,35 +183,56 @@ RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {
   return RumCommandParams(issued_at, global_attributes, attributes);
 }
 
-void Rum::Dispatch(const RumCommand& command) {
-  // Refrain from dispatching any commands if we don't have a valid FeatureScope: this
-  // means that the SDK has not yet started or has previously shut down
+void Rum::DispatchAsync(const RumCommand& command) {
+  // If our _scope is no longer valid, the SDK has been stopped prior to this call
   if (!_scope) {
     return;
   }
+  FeatureScope& scope = *_scope;
 
-  // Let the root RumApplicationScope handle the command: each scope will propagate
-  // commands to child scope(s) at their discretion
-  _application.Process(command);
+  // Capture weak_ptr to self for fail-safe shutdown detection
+  auto weak_rum = std::weak_ptr<Rum>(std::static_pointer_cast<Rum>(shared_from_this()));
 
-  // After every command, update our RumFeatureContext, which makes current RUM state
-  // available to other features within the SDK
-  UpdateFeatureContext();
-}
+  // Enqueue a function to run on the context thread, capturing the command being
+  // dispatched: when this function is executed, the context thread will process the
+  // command, updating internal RUM state and potentially producing events
+  scope.ExecuteOnContextThread(
+      [weak_rum, cmd = command](const CoreContext& context, const EventWriter& writer) {
+        // Single-level check: Is Rum object still alive?
+        auto rum = weak_rum.lock();
+        if (!rum) {
+          // Rum destroyed during shutdown, exit gracefully
+          return;
+        }
 
-void Rum::UpdateFeatureContext() {
-  UpdateApplicationSnapshot();
+        // Safe to proceed - processing uses only deps, context, writer, and
+        // _application (all valid as long as Rum is alive)
+        rum->_application.Process(cmd, context, writer);
 
-  const RumFeatureContext new_context = _application_snapshot.ToFeatureContext();
+        // After every command, build a RumContext value (in _application_snapshot) that
+        // describes the state of our internal scope tree
+        rum->UpdateApplicationSnapshot();
+      }
+  );
 
-  if (_scope) {
-    _scope->UpdateContext([&new_context](CoreContext& ctx) { ctx.rum = new_context; });
-  }
+  // Enqueue a context-mutation function that will run immediately following the
+  // processing of the command
+  scope.UpdateContext([weak_rum](CoreContext& ctx) {
+    if (auto rum = weak_rum.lock()) {
+      // _application_snapshot has been updated with the result of processing our
+      // command; write the relevant UUIDs to the global RumFeatureContext, so that
+      // other features can enrich their events with RUM data
+      const RumFeatureContext new_context =
+          rum->_application_snapshot.ToFeatureContext();
+      ctx.rum = new_context;
 
-  // Notify the callback (if set). Change detection is handled by the recipient.
-  if (_context_change_callback) {
-    _context_change_callback(new_context.ToPublicContext());
-  }
+      // Notify the profiling callback (if set). Change detection is handled by
+      // the recipient.
+      if (rum->_context_change_callback) {
+        rum->_context_change_callback(new_context.ToPublicContext());
+      }
+    }
+  });
 }
 
 void Rum::UpdateApplicationSnapshot() {
