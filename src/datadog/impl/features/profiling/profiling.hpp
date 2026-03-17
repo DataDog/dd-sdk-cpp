@@ -55,6 +55,11 @@ class Profiling final : public Feature {
   datadog::UUID _prev_application_id;
   datadog::UUID _prev_session_id;
   datadog::UUID _prev_view_id;
+
+  // Cached string representations — reserved once, reused on each update
+  std::string _app_id_str;
+  std::string _session_id_str;
+  std::string _view_id_str;
 };
 
 }  // namespace datadog::impl
