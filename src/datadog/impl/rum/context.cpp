@@ -54,7 +54,10 @@ RumFeatureContext RumContext::ToFeatureContext() const {
 
   // We have an active action
   return RumFeatureContext{
-      application_id, session_id, active_view_id, active_action_id,
+      application_id,
+      session_id,
+      active_view_id,
+      active_action_id,
       std::move(view_name_str)
   };
 }
