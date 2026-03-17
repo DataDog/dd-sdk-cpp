@@ -38,3 +38,8 @@ target_enable_coverage(dd_native_repl)
 target_enable_sanitizers(dd_native_repl)
 target_include_directories(dd_native_repl PRIVATE .)
 datadog_enable(dd_native_repl)
+
+# Profiling + RUM integration smoke test (requires dd-win-prof)
+if(DD_ENABLE_PROFILER)
+    add_subdirectory(profiling-test)
+endif()

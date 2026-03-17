@@ -95,7 +95,6 @@ struct RumContextSnapshot {
  */
 using RumContextChangeCallback = std::function<void(const RumContextSnapshot&)>;
 
-
 /**
  * Configures the details of the RUM feature upon initialization.
  */
@@ -107,6 +106,7 @@ struct RumConfig {
  private:
   UUID application_id;  // UUID::Zero if uninitialized or invalid
   float session_sample_rate{100.0f};
+
  public:
   /**
    * Initializes a new RUM configuration object with all required values.

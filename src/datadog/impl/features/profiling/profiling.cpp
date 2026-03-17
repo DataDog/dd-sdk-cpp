@@ -33,21 +33,19 @@ Profiling::Profiling(const ProfilerConfig* config) {
 
     _config.url = CopyString(_url, config->url);
     _config.apiKey = CopyString(_api_key, config->apiKey);
-    _config.serviceEnvironment = CopyString(_service_environment, config->serviceEnvironment);
+    _config.serviceEnvironment =
+        CopyString(_service_environment, config->serviceEnvironment);
     _config.serviceName = CopyString(_service_name, config->serviceName);
     _config.serviceVersion = CopyString(_service_version, config->serviceVersion);
     _config.tags = CopyString(_tags, config->tags);
-    _config.pprofOutputDirectory = CopyString(_pprof_output_directory, config->pprofOutputDirectory);
+    _config.pprofOutputDirectory =
+        CopyString(_pprof_output_directory, config->pprofOutputDirectory);
   }
 }
 
-FeatureId Profiling::GetId() const {
-  return CreateFeatureId("PROF");
-}
+FeatureId Profiling::GetId() const { return CreateFeatureId("PROF"); }
 
-std::string_view Profiling::GetName() const {
-  return "profiling";
-}
+std::string_view Profiling::GetName() const { return "profiling"; }
 
 void Profiling::Start() {
   if (_has_config) {
