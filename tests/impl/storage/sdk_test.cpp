@@ -446,4 +446,37 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     // New lockfile created
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/12345.lock"));
   }
+
+  SECTION("does not orphan abandoned directories when lockfile acquisition fails") {
+    // Pre-create root and the lockfile entry, then hold the advisory lock to simulate
+    // another process already owning the lockfile — Initialize() must fail
+    fs.Mkdirs("my-app/storage/.datadog");
+    fs.Touch("my-app/storage/.datadog/12345.lock");
+
+    PlatformPath held_path;
+    REQUIRE(held_path.Encode("my-app/storage/.datadog/12345.lock"));
+    auto held = fs.OpenForWrite(held_path, false, true);
+    REQUIRE(held.value == FilesystemResult::OK);
+    REQUIRE(held.handle != INVALID_FILE_HANDLE);
+
+    CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
+    WriteTestEvent(
+        fs, "my-app/storage", "99999", "main", "rum", "v1", "event.json", "{\"id\": 1}"
+    );
+
+    SdkStorage storage(fs, 12345);
+    REQUIRE(!storage.Initialize(logger, "my-app/storage", "main"));
+
+    // The abandoned directory must be untouched: it retains its own lockfile and can
+    // be recovered by a future process. With the old scan-before-lockfile ordering,
+    // TryClaimAbandonedDirectory would have renamed 99999/ → 12345/ and deleted
+    // 99999.lock before the lockfile acquisition failed, permanently orphaning the
+    // data. With the new lockfile-before-scan ordering, Initialize() fails at lockfile
+    // acquisition and never touches 99999/.
+    REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/99999"));
+    REQUIRE(FileExists(fs, "my-app/storage/.datadog/99999.lock"));
+    REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/12345"));
+
+    fs.Close(held.handle);
+  }
 }
