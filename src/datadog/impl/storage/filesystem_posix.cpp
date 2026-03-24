@@ -94,8 +94,19 @@ class PosixFilesystem final : public IFilesystem {
         return error == 0 ? FilesystemResult::OK : map_errno(error);
       }
 
-      // Filter for regular files only. d_type is reliably populated on modern local
-      // filesystems (ext4, XFS, APFS, HFS+)
+      // d_type is reliably populated on modern local filesystems (ext4, XFS, APFS,
+      // HFS+), but on NFS and some other filesystems it may be DT_UNKNOWN. Fall back
+      // to stat() in that case.
+      if (entry->d_type == DT_UNKNOWN) {
+        char full[MAX_STORAGE_PATH_SIZE + NAME_MAX + 2];
+        snprintf(full, sizeof(full), "%s/%s", path.Get(), entry->d_name);
+        struct stat st;
+        if (stat(full, &st) != 0 || !S_ISREG(st.st_mode)) {
+          continue;
+        }
+        out_names.emplace_back(entry->d_name);
+        continue;
+      }
       if (entry->d_type == DT_REG) {
         out_names.emplace_back(entry->d_name);
       }
@@ -129,7 +140,19 @@ class PosixFilesystem final : public IFilesystem {
         continue;
       }
 
-      // Filter for directories only
+      // d_type is reliably populated on modern local filesystems (ext4, XFS, APFS,
+      // HFS+), but on NFS and some other filesystems it may be DT_UNKNOWN. Fall back
+      // to stat() in that case.
+      if (entry->d_type == DT_UNKNOWN) {
+        char full[MAX_STORAGE_PATH_SIZE + NAME_MAX + 2];
+        snprintf(full, sizeof(full), "%s/%s", path.Get(), entry->d_name);
+        struct stat st;
+        if (stat(full, &st) != 0 || !S_ISDIR(st.st_mode)) {
+          continue;
+        }
+        out_names.emplace_back(entry->d_name);
+        continue;
+      }
       if (entry->d_type == DT_DIR) {
         out_names.emplace_back(entry->d_name);
       }
