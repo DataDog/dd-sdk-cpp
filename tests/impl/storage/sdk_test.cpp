@@ -166,7 +166,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     REQUIRE(fs.GetOpenHandles().size() == 0);
   }
 
-  SECTION("creates new directory structure when no abandoned directories exist") {
+  SECTION("M create new directory structure W no abandoned directories exist") {
     SdkStorage storage(fs, 12345);
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
@@ -179,7 +179,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     REQUIRE(dir_count == 1);
   }
 
-  SECTION("reuses abandoned directory when process is dead (rename optimization)") {
+  SECTION("M reuse abandoned directory via rename W process is dead") {
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
     WriteTestEvent(
         fs,
@@ -235,7 +235,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     ));
   }
 
-  SECTION("migrates events from multiple abandoned directories") {
+  SECTION("M migrate events from all abandoned directories W multiple exist") {
     CreateAbandonedDirectory(fs, "my-app/storage", "88888", "main", "rum", true);
     WriteTestEvent(
         fs,
@@ -318,7 +318,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     ));
   }
 
-  SECTION("skips non-numeric directories during migration scan") {
+  SECTION("M skip non-numeric directories W scanning for abandoned directories") {
     CreateAbandonedDirectory(fs, "my-app/storage", "not-a-pid", "main", "rum", true);
     WriteTestEvent(
         fs,
@@ -352,7 +352,9 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     ));
   }
 
-  SECTION("migrates events from multiple instances and features") {
+  SECTION(
+      "M migrate events from all instances and features W directory claimed via rename"
+  ) {
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "logs", false);
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "worker", "rum", false);
@@ -414,7 +416,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     ));
   }
 
-  SECTION("skips abandoned directories without lockfiles") {
+  SECTION("M skip abandoned directory W no lockfile exists") {
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", false);
     WriteTestEvent(
         fs, "my-app/storage", "99999", "main", "rum", "v1", "event.json", "{\"id\": 1}"
@@ -433,7 +435,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     ));
   }
 
-  SECTION("handles empty abandoned directories") {
+  SECTION("M rename empty abandoned directory W process is dead") {
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
 
     SdkStorage storage(fs, 12345);
@@ -447,7 +449,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/12345.lock"));
   }
 
-  SECTION("does not orphan abandoned directories when lockfile acquisition fails") {
+  SECTION("M not orphan abandoned directory W lockfile acquisition fails") {
     // Pre-create root and the lockfile entry, then hold the advisory lock to simulate
     // another process already owning the lockfile — Initialize() must fail
     fs.Mkdirs("my-app/storage/.datadog");
