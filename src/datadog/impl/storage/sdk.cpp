@@ -126,6 +126,31 @@ bool SdkStorage::Initialize(
     return false;
   }
 
+  // Build lockfile path: <root>/<pid>.lock (sibling to process directory)
+  StoragePath lockfile_path;
+  if (!JoinPaths(lockfile_path, _root.Get(), _pid_str, logger, join_message) ||
+      !lockfile_path.AppendExt(".lock")) {
+    return false;
+  }
+
+  // Encode and acquire lockfile BEFORE creating process directory and before scanning
+  // for abandoned directories: if initialization fails after we rename an abandoned
+  // directory, the renamed directory will have a valid <pid>.lock that future instances
+  // can acquire and migrate from.
+  if (!path.Encode(lockfile_path.CStr())) {
+    logger.Error("Failed to encode lockfile path");
+    return false;
+  }
+
+  const bool append = false;
+  const bool hold_advisory_lock = true;
+  auto opened = _fs.OpenForWrite(path, append, hold_advisory_lock);
+  if (opened.value != FilesystemResult::OK || opened.handle == INVALID_FILE_HANDLE) {
+    logger.Error(lockfile_message);
+    return false;
+  }
+  _lockfile_handle = opened.handle;
+
   // Scan for abandoned process directories to migrate
   bool claimed_abandoned = false;
   {
@@ -153,28 +178,6 @@ bool SdkStorage::Initialize(
       }
     }
   }
-
-  // Build lockfile path: <root>/<pid>.lock (sibling to process directory)
-  StoragePath lockfile_path;
-  if (!JoinPaths(lockfile_path, _root.Get(), _pid_str, logger, join_message) ||
-      !lockfile_path.AppendExt(".lock")) {
-    return false;
-  }
-
-  // Encode and acquire lockfile BEFORE creating process directory
-  if (!path.Encode(lockfile_path.CStr())) {
-    logger.Error("Failed to encode lockfile path");
-    return false;
-  }
-
-  const bool append = false;
-  const bool hold_advisory_lock = true;
-  auto opened = _fs.OpenForWrite(path, append, hold_advisory_lock);
-  if (opened.value != FilesystemResult::OK || opened.handle == INVALID_FILE_HANDLE) {
-    logger.Error(lockfile_message);
-    return false;
-  }
-  _lockfile_handle = opened.handle;
 
   // Build process directory path: <application-storage>/.datadog/<pid> will
   // contain event data for this process, ensuring that we don't contend with other
