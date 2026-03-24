@@ -233,6 +233,9 @@ static void delete_abandoned_directory(
 void SdkStorage::MigrateAbandonedEvents(const DiagnosticLogger& logger) {
   PlatformPath path;
   if (!path.Encode(_root.CStr())) {
+    logger.Warning(
+        "Failed to scan for abandoned event directories: path encoding failed"
+    );
     return;
   }
 
