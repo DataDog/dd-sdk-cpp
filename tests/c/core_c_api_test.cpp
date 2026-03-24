@@ -219,9 +219,18 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          REQUIRE(diagnostics.warning.empty());
          REQUIRE(diagnostics.error.empty());
 
-         // And it should have created a $tmpdir/.datadog subdirectory and written our
+         // And it should have created a per-PID .datadog subdirectory and written our
          // single log event to a batch file in the appropriate feature/consent subdir
-         const std::string path = ".datadog/logs/intermediate-v1";
+         std::string pid_dir;
+         for (const auto& name : tmpdir.ReadDirectoryContents(".datadog")) {
+           if (!name.empty() &&
+               name.find_first_not_of("0123456789") == std::string::npos) {
+             pid_dir = name;
+             break;
+           }
+         }
+         REQUIRE(!pid_dir.empty());
+         const std::string path = ".datadog/" + pid_dir + "/main/logs/intermediate-v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -251,9 +260,18 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          REQUIRE(diagnostics.warning.empty());
          REQUIRE(diagnostics.error.empty());
 
-         // And it should have created a $tmpdir/.datadog subdirectory and written our
+         // And it should have created a per-PID .datadog subdirectory and written our
          // single log event to a batch file in the appropriate feature/consent subdir
-         const std::string path = ".datadog/logs/v1";
+         std::string pid_dir;
+         for (const auto& name : tmpdir.ReadDirectoryContents(".datadog")) {
+           if (!name.empty() &&
+               name.find_first_not_of("0123456789") == std::string::npos) {
+             pid_dir = name;
+             break;
+           }
+         }
+         REQUIRE(!pid_dir.empty());
+         const std::string path = ".datadog/" + pid_dir + "/main/logs/v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -287,9 +305,18 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          REQUIRE(diagnostics.warning.empty());
          REQUIRE(diagnostics.error.empty());
 
-         // And it should have created logs/v1 within the existing $tmpdir/.datadog
-         // directory and written our single log event to a batch file there
-         const std::string path = ".datadog/logs/v1";
+         // And it should have created a per-PID subdirectory within the existing
+         // $tmpdir/.datadog directory and written our single log event to a batch file
+         std::string pid_dir;
+         for (const auto& name : tmpdir.ReadDirectoryContents(".datadog")) {
+           if (!name.empty() &&
+               name.find_first_not_of("0123456789") == std::string::npos) {
+             pid_dir = name;
+             break;
+           }
+         }
+         REQUIRE(!pid_dir.empty());
+         const std::string path = ".datadog/" + pid_dir + "/main/logs/v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -318,18 +345,21 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          // directory
          REQUIRE(!started);
 
-         // And it should produce a diagnostic error describing the problem
+         // And it should produce diagnostic errors describing the problem
          REQUIRE(diagnostics.warning.empty());
-         REQUIRE(diagnostics.error.size() == 1);
+         REQUIRE(diagnostics.error.size() == 2);
          REQUIRE(
              diagnostics.error[0].find(
-                 "SDK initialization failed: event storage subsystem could not be "
-                 "initialized: root storage path is occupied by a file"
+                 "Failed to initialize SDK storage from configured application storage "
+                 "path: unable to create directory"
              ) == 0
          );
+         REQUIRE(
+             diagnostics.error[1] ==
+             "SDK initialization failed: sdk storage subsystem could not be initialized"
+         );
 
-         // And our storage directory should remain unchanged
-         REQUIRE(!tmpdir.DirectoryExists(".datadog/logs"));
+         // And our storage directory should remain unchanged (.datadog is still a file)
          REQUIRE(tmpdir.FileExists(".datadog"));
        }},
 
@@ -348,14 +378,18 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          // directory
          REQUIRE(!started);
 
-         // And it should produce a diagnostic error describing the problem
+         // And it should produce diagnostic errors describing the problem
          REQUIRE(diagnostics.warning.empty());
-         REQUIRE(diagnostics.error.size() == 1);
+         REQUIRE(diagnostics.error.size() == 2);
          REQUIRE(
              diagnostics.error[0].find(
-                 "SDK initialization failed: event storage subsystem could not be "
-                 "initialized: failed to create root storage directory"
+                 "Failed to initialize SDK storage from configured application storage "
+                 "path: unable to create directory"
              ) == 0
+         );
+         REQUIRE(
+             diagnostics.error[1] ==
+             "SDK initialization failed: sdk storage subsystem could not be initialized"
          );
 
          // And our temp directory should remain unchanged

@@ -7,9 +7,12 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <algorithm>
-#include <filesystem>
 #include <iostream>
 #include <sstream>
+
+#ifndef _WIN32
+#include <unistd.h>
+#endif
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/context_thread.hpp"
@@ -21,6 +24,8 @@
 #include "datadog/impl/platform/filesystem.hpp"
 #include "datadog/impl/platform/http.hpp"
 #include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/storage/filesystem.hpp"
+#include "datadog/impl/storage/sdk.hpp"
 
 namespace datadog::impl {
 
@@ -35,11 +40,9 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
     );
   }
 
-  std::filesystem::path storage_root_path = ".datadog";
-  if (!config.event_storage_location.empty()) {
-    storage_root_path =
-        std::filesystem::path(config.event_storage_location) / ".datadog";
-  } else {
+  // Issue a warning if no storage location was configured
+  std::string_view app_storage_path = config.event_storage_location;
+  if (app_storage_path.empty()) {
     impl::DiagnosticLogger{config.diagnostic_handler, config.diagnostic_threshold}
         .Warning(
             "Events will be stored within .datadog/ in the current working directory: "
@@ -48,9 +51,33 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
         );
   }
 
-  // Initialize filesystem storage, creating a Datadog-SDK-managed subdirectory beneath
-  // the configured path
-  auto filesystem_result = platform::Filesystem::Init(storage_root_path.string());
+  // Create the platform filesystem abstraction used by SdkStorage
+  auto storage_filesystem = impl::CreateFilesystem();
+
+#ifdef _WIN32
+  const uint32_t pid = static_cast<uint32_t>(::GetCurrentProcessId());
+#else
+  const uint32_t pid = static_cast<uint32_t>(::getpid());
+#endif
+
+  // Initialize per-PID storage: creates .datadog/<pid>/main/, acquires the process
+  // lockfile, and migrates any events left behind by dead processes
+  auto sdk_storage = std::make_unique<impl::SdkStorage>(*storage_filesystem, pid);
+  if (!sdk_storage->Initialize(
+          impl::DiagnosticLogger{
+              config.diagnostic_handler, config.diagnostic_threshold
+          },
+          app_storage_path,
+          "main"
+      )) {
+    return nonstd::make_unexpected(
+        ErrorMessage("sdk storage subsystem could not be initialized")
+    );
+  }
+
+  // Root the old-style directory abstraction (used by BatchWriter and the upload
+  // thread) at the per-PID events directory instead of the flat .datadog/ root
+  auto filesystem_result = platform::Filesystem::Init(sdk_storage->GetEventsRoot());
   if (!filesystem_result) {
     return nonstd::make_unexpected(filesystem_result.error().AddPrefix(
         "event storage subsystem could not be initialized"
@@ -75,7 +102,12 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
 
   // Return our newly-created subsystems, to be transferred into the Core
   return CoreSubsystems(
-      std::move(clock), std::move(storage_root), std::move(http), std::move(system_info)
+      std::move(clock),
+      std::move(storage_root),
+      std::move(http),
+      std::move(system_info),
+      std::move(storage_filesystem),
+      std::move(sdk_storage)
   );
 }
 

@@ -29,6 +29,8 @@
 #include "datadog/impl/core/upload_thread.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/storage/filesystem.hpp"
+#include "datadog/impl/storage/sdk.hpp"
 
 // Forward declarations
 namespace datadog::platform {
@@ -83,17 +85,25 @@ struct CoreSubsystems {
   std::unique_ptr<platform::IStorageDirectory> storage_root;
   std::unique_ptr<platform::IHttpSubsystem> http;
   std::unique_ptr<platform::ISystemInfo> system_info;
+  // storage_filesystem must be declared before sdk_storage: destruction happens
+  // in reverse order, and SdkStorage holds a reference to IFilesystem.
+  std::unique_ptr<impl::IFilesystem> storage_filesystem;
+  std::unique_ptr<impl::SdkStorage> sdk_storage;
 
   explicit CoreSubsystems(
       std::unique_ptr<platform::IClock>&& in_clock,
       std::unique_ptr<platform::IStorageDirectory>&& in_storage_root,
       std::unique_ptr<platform::IHttpSubsystem>&& in_http,
-      std::unique_ptr<platform::ISystemInfo>&& in_system_info
+      std::unique_ptr<platform::ISystemInfo>&& in_system_info,
+      std::unique_ptr<impl::IFilesystem>&& in_storage_filesystem,
+      std::unique_ptr<impl::SdkStorage>&& in_sdk_storage
   )
       : clock(std::move(in_clock)),
         storage_root(std::move(in_storage_root)),
         http(std::move(in_http)),
-        system_info(std::move(in_system_info)) {}
+        system_info(std::move(in_system_info)),
+        storage_filesystem(std::move(in_storage_filesystem)),
+        sdk_storage(std::move(in_sdk_storage)) {}
 
   /**
    * Initializes the default implementations of platform subsystems, to be injected

@@ -33,7 +33,9 @@ static impl::Core _make_core() {
           std::make_unique<MockClock>(),
           std::make_unique<MockStorageDirectory>(),
           std::make_unique<MockHttpSubsystem>(),
-          std::make_unique<MockSystemInfo>()
+          std::make_unique<MockSystemInfo>(),
+          nullptr,
+          nullptr
       )
   );
 }

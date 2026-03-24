@@ -23,6 +23,8 @@ SdkStorage::~SdkStorage() {
   }
 }
 
+std::string_view SdkStorage::GetEventsRoot() const { return _events_root.Get(); }
+
 bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
   // Build lockfile path: <root>/<abandoned_pid>.lock
   StoragePath lockfile_path;

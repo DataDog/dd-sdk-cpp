@@ -93,7 +93,9 @@ struct CoreTestHarness {
             std::move(_clock),
             std::move(_storage_root),
             std::move(_http),
-            std::move(_system_info)
+            std::move(_system_info),
+            nullptr,
+            nullptr
         )
     );
 
