@@ -10,7 +10,7 @@
 
 namespace datadog::impl {
 
-static const char* filesystem_result_str(FilesystemResult res) {
+const char* FilesystemResultStr(FilesystemResult res) {
   switch (res) {
     case FilesystemResult::OK:
       return "OK";
@@ -106,7 +106,7 @@ bool EnsureDirectoryExists(
       failure_message,
       {{"path", path.CStr()},
        {"operation", "create"},
-       {"error", filesystem_result_str(res)}}
+       {"error", FilesystemResultStr(res)}}
   );
   return false;
 }

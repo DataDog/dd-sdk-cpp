@@ -74,34 +74,6 @@ static uint64_t _timestamp_to_ms(Timestamp timestamp) {
   return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
-static constexpr std::string_view _fs_result_str(FilesystemResult res) {
-  switch (res) {
-    case FilesystemResult::OK:
-      return "OK";
-    case FilesystemResult::AlreadyExistsAsDirectory:
-      return "AlreadyExistsAsDirectory";
-    case FilesystemResult::AlreadyExists:
-      return "AlreadyExists";
-    case FilesystemResult::DoesNotExist:
-      return "DoesNotExist";
-    case FilesystemResult::PermissionDenied:
-      return "PermissionDenied";
-    case FilesystemResult::ReadOnlyFilesystem:
-      return "ReadOnlyFilesystem";
-    case FilesystemResult::OutOfSpace:
-      return "OutOfSpace";
-    case FilesystemResult::PathTooLong:
-      return "PathTooLong";
-    case FilesystemResult::InvalidName:
-      return "InvalidName";
-    case FilesystemResult::LockContention:
-      return "LockContention";
-    case FilesystemResult::UnknownError:
-      return "UnknownError";
-  }
-  return "unknown";
-}
-
 EventStorageConfig EventStorageConfig::FromBatchSize(BatchSize batch_size) {
   const Duration max_file_age = BatchSize_ToMaxFileAgeForWrite(batch_size);
   return EventStorageConfig(max_file_age);
@@ -300,7 +272,7 @@ bool EventStorage::DeletePendingBatches() {
     // If we couldn't delete the file, abort the operation
     _logger.Error(
         "Could not delete batch file on consent change",
-        {{"filename", filename}, {"error", _fs_result_str(result)}}
+        {{"filename", filename}, {"error", FilesystemResultStr(result)}}
     );
     return false;
   }
@@ -400,7 +372,7 @@ bool EventStorage::MigratePendingBatchesToGranted() {
       // leave the file in place, but log a warning and carry on with the migration
       _logger.Warning(
           "Could not delete pending-directory copy of duplicate batch file",
-          {{"filename", filename}, {"error", _fs_result_str(delete_result)}}
+          {{"filename", filename}, {"error", FilesystemResultStr(delete_result)}}
       );
       continue;
     }
@@ -408,7 +380,7 @@ bool EventStorage::MigratePendingBatchesToGranted() {
     // If the move failed for any other reason, abort the migration operation
     _logger.Error(
         "Could not migrate batch file on consent change",
-        {{"filename", filename}, {"error", _fs_result_str(move_result)}}
+        {{"filename", filename}, {"error", FilesystemResultStr(move_result)}}
     );
     return false;
   }

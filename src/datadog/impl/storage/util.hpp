@@ -8,7 +8,11 @@
 
 #include <string_view>
 
+#include "datadog/impl/storage/filesystem.hpp"
+
 namespace datadog::impl {
+
+const char* FilesystemResultStr(FilesystemResult result);
 
 bool AppendPath(
     class StoragePath& dst,
