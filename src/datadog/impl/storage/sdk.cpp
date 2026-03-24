@@ -206,12 +206,28 @@ bool SdkStorage::Initialize(
   // Migrate events from any remaining abandoned directories that couldn't be claimed
   // via directory rename. This handles the case where multiple processes crashed and
   // we've already claimed one directory - we need to migrate events from the others.
-  MigrateAbandonedEvents();
+  MigrateAbandonedEvents(logger);
 
   return true;
 }
 
-void SdkStorage::MigrateAbandonedEvents() {
+static void delete_abandoned_directory(
+    IFilesystem& fs, const StoragePath& dir_path, const DiagnosticLogger& logger
+) {
+  PlatformPath path;
+  if (!path.Encode(dir_path.CStr())) {
+    return;
+  }
+  auto res = fs.DeleteDirectory(path);
+  if (res != FilesystemResult::OK && res != FilesystemResult::DoesNotExist) {
+    logger.Warning(
+        "Failed to clean up abandoned event directory after migration",
+        {{"path", dir_path.Get()}, {"error", FilesystemResultStr(res)}}
+    );
+  }
+}
+
+void SdkStorage::MigrateAbandonedEvents(const DiagnosticLogger& logger) {
   PlatformPath path;
   if (!path.Encode(_root.CStr())) {
     return;
@@ -248,7 +264,7 @@ void SdkStorage::MigrateAbandonedEvents() {
       continue;
     }
 
-    HandleMigrate(name);
+    HandleMigrate(name, logger);
 
     _fs.Close(res.handle);
     _fs.Delete(path);
@@ -256,7 +272,9 @@ void SdkStorage::MigrateAbandonedEvents() {
 }
 
 void SdkStorage::MigrateFilesFromSubdirectory(
-    const StoragePath& from_events_dir, const StoragePath& to_events_dir
+    const StoragePath& from_events_dir,
+    const StoragePath& to_events_dir,
+    const DiagnosticLogger& logger
 ) {
   PlatformPath path;
   PlatformPath src_path;
@@ -288,6 +306,8 @@ void SdkStorage::MigrateFilesFromSubdirectory(
 
     _fs.Rename(src_path, dst_path);
   }
+
+  delete_abandoned_directory(_fs, from_events_dir, logger);
 }
 
 bool SdkStorage::EnsureDestinationDirectoryExists(
@@ -345,7 +365,8 @@ bool SdkStorage::EnsureDestinationDirectoryExists(
 void SdkStorage::MigrateFeatureEvents(
     std::string_view instance_name,
     std::string_view feature_name,
-    const StoragePath& from_feature_root
+    const StoragePath& from_feature_root,
+    const DiagnosticLogger& logger
 ) {
   const char* subdirs[] = {"v1", "intermediate-v1"};
   for (const char* subdir : subdirs) {
@@ -366,12 +387,16 @@ void SdkStorage::MigrateFeatureEvents(
       continue;
     }
 
-    MigrateFilesFromSubdirectory(from_events_dir, to_events_dir);
+    MigrateFilesFromSubdirectory(from_events_dir, to_events_dir, logger);
   }
+
+  delete_abandoned_directory(_fs, from_feature_root, logger);
 }
 
 void SdkStorage::MigrateInstanceDirectory(
-    std::string_view instance_name, const StoragePath& from_instance_root
+    std::string_view instance_name,
+    const StoragePath& from_instance_root,
+    const DiagnosticLogger& logger
 ) {
   PlatformPath path;
   StoragePath from_feature_root;
@@ -391,11 +416,15 @@ void SdkStorage::MigrateInstanceDirectory(
       continue;
     }
 
-    MigrateFeatureEvents(instance_name, feature_name, from_feature_root);
+    MigrateFeatureEvents(instance_name, feature_name, from_feature_root, logger);
   }
+
+  delete_abandoned_directory(_fs, from_instance_root, logger);
 }
 
-void SdkStorage::HandleMigrate(std::string_view from_pid) {
+void SdkStorage::HandleMigrate(
+    std::string_view from_pid, const DiagnosticLogger& logger
+) {
   StoragePath from_process_root;
   StoragePath from_instance_root;
   PlatformPath path;
@@ -421,14 +450,12 @@ void SdkStorage::HandleMigrate(std::string_view from_pid) {
       continue;
     }
 
-    MigrateInstanceDirectory(instance_name, from_instance_root);
+    MigrateInstanceDirectory(instance_name, from_instance_root, logger);
   }
 
-  // Clean up: delete the abandoned process directory. The caller is responsible
-  // for closing and deleting the lockfile.
-  if (path.Encode(from_process_root.CStr())) {
-    _fs.Delete(path);
-  }
+  // Clean up: delete the now-empty abandoned process directory. The caller is
+  // responsible for closing and deleting the lockfile.
+  delete_abandoned_directory(_fs, from_process_root, logger);
 }
 
 }  // namespace datadog::impl

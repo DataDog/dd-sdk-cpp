@@ -29,6 +29,8 @@ static FilesystemResult map_errno(int err) {
       return FilesystemResult::DoesNotExist;
     case EEXIST:
       return FilesystemResult::AlreadyExists;
+    case ENOTEMPTY:
+      return FilesystemResult::DirectoryNotEmpty;
     case EACCES:
     case EPERM:
       return FilesystemResult::PermissionDenied;
@@ -285,6 +287,14 @@ class PosixFilesystem final : public IFilesystem {
 
   FilesystemResult Delete(const PlatformPath& path) override {
     const int result = unlink(path.Get());
+    if (result == 0) {
+      return FilesystemResult::OK;
+    }
+    return map_errno(errno);
+  }
+
+  FilesystemResult DeleteDirectory(const PlatformPath& path) override {
+    const int result = rmdir(path.Get());
     if (result == 0) {
       return FilesystemResult::OK;
     }

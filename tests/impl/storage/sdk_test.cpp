@@ -275,13 +275,12 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     SdkStorage storage(fs, 12345);
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
-    // One directory gets renamed (disappears), others remain but files are migrated
+    // All abandoned directories cleaned up: one via atomic rename, others via
+    // file-by-file migration followed by bottom-up DeleteDirectory
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
-    int renamed_count = 0;
-    if (!DirectoryExists(fs, "my-app/storage/.datadog/88888")) renamed_count++;
-    if (!DirectoryExists(fs, "my-app/storage/.datadog/99999")) renamed_count++;
-    if (!DirectoryExists(fs, "my-app/storage/.datadog/77777")) renamed_count++;
-    REQUIRE(renamed_count == 1);  // Exactly one directory was renamed
+    REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/88888"));
+    REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/99999"));
+    REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/77777"));
 
     // New lockfile created
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/12345.lock"));

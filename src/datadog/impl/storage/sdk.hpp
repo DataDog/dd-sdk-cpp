@@ -32,20 +32,23 @@ class SdkStorage {
   std::string_view GetEventsRoot() const;
 
  private:
-  void MigrateAbandonedEvents();
+  void MigrateAbandonedEvents(const DiagnosticLogger& logger);
 
   bool TryClaimAbandonedDirectory(std::string_view abandoned_pid);
 
-  void HandleMigrate(std::string_view from_pid);
+  void HandleMigrate(std::string_view from_pid, const DiagnosticLogger& logger);
 
   void MigrateInstanceDirectory(
-      std::string_view instance_name, const StoragePath& from_instance_root
+      std::string_view instance_name,
+      const StoragePath& from_instance_root,
+      const DiagnosticLogger& logger
   );
 
   void MigrateFeatureEvents(
       std::string_view instance_name,
       std::string_view feature_name,
-      const StoragePath& from_feature_root
+      const StoragePath& from_feature_root,
+      const DiagnosticLogger& logger
   );
 
   bool EnsureDestinationDirectoryExists(
@@ -55,7 +58,9 @@ class SdkStorage {
   );
 
   void MigrateFilesFromSubdirectory(
-      const StoragePath& from_events_dir, const StoragePath& to_events_dir
+      const StoragePath& from_events_dir,
+      const StoragePath& to_events_dir,
+      const DiagnosticLogger& logger
   );
 
  private:

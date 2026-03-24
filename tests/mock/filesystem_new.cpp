@@ -413,6 +413,31 @@ FilesystemResult MockFilesystem::Delete(const PlatformPath& path) {
   return FilesystemResult::OK;
 }
 
+FilesystemResult MockFilesystem::DeleteDirectory(const PlatformPath& path) {
+  std::string path_str = NormalizePath(path);
+  std::lock_guard global_lock(mutex_);
+
+  if (dirs_.find(path_str) == dirs_.end()) {
+    return FilesystemResult::DoesNotExist;
+  }
+
+  // Fail if any files or subdirectories exist beneath this directory
+  std::string prefix = path_str + "/";
+  for (const auto& [p, _] : files_) {
+    if (p.size() > prefix.size() && p.substr(0, prefix.size()) == prefix) {
+      return FilesystemResult::DirectoryNotEmpty;
+    }
+  }
+  for (const auto& [d, _] : dirs_) {
+    if (d.size() > prefix.size() && d.substr(0, prefix.size()) == prefix) {
+      return FilesystemResult::DirectoryNotEmpty;
+    }
+  }
+
+  dirs_.erase(path_str);
+  return FilesystemResult::OK;
+}
+
 FilesystemResult MockFilesystem::Rename(
     const PlatformPath& src, const PlatformPath& dst
 ) {

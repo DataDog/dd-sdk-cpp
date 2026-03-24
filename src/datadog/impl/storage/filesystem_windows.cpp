@@ -21,6 +21,8 @@ static FilesystemResult map_error(DWORD error) {
       return FilesystemResult::DoesNotExist;
     case ERROR_ALREADY_EXISTS:
       return FilesystemResult::AlreadyExists;
+    case ERROR_DIR_NOT_EMPTY:
+      return FilesystemResult::DirectoryNotEmpty;
     case ERROR_ACCESS_DENIED:
       return FilesystemResult::PermissionDenied;
     case ERROR_WRITE_PROTECT:
@@ -330,6 +332,14 @@ class WindowsFilesystem final : public IFilesystem {
 
   FilesystemResult Delete(const PlatformPath& path) override {
     const BOOL result = DeleteFileW(path.Get());
+    if (result == 0) {
+      return map_error(GetLastError());
+    }
+    return FilesystemResult::OK;
+  }
+
+  FilesystemResult DeleteDirectory(const PlatformPath& path) override {
+    const BOOL result = RemoveDirectoryW(path.Get());
     if (result == 0) {
       return map_error(GetLastError());
     }

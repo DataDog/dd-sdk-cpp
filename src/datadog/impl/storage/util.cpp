@@ -20,6 +20,8 @@ const char* FilesystemResultStr(FilesystemResult res) {
       return "AlreadyExists";
     case FilesystemResult::DoesNotExist:
       return "DoesNotExist";
+    case FilesystemResult::DirectoryNotEmpty:
+      return "DirectoryNotEmpty";
     case FilesystemResult::PermissionDenied:
       return "PermissionDenied";
     case FilesystemResult::ReadOnlyFilesystem:

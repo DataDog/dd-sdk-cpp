@@ -64,6 +64,8 @@ class MockFilesystem : public IFilesystem {
 
   FilesystemResult Delete(const PlatformPath& path) override;
 
+  FilesystemResult DeleteDirectory(const PlatformPath& path) override;
+
   FilesystemResult Rename(const PlatformPath& src, const PlatformPath& dst) override;
 
   // Test helper methods

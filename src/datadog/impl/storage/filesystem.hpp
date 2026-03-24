@@ -39,6 +39,7 @@ enum class FilesystemResult : uint8_t {
   AlreadyExistsAsDirectory,
   AlreadyExists,
   DoesNotExist,
+  DirectoryNotEmpty,
   PermissionDenied,
   ReadOnlyFilesystem,
   OutOfSpace,
@@ -210,6 +211,16 @@ class IFilesystem {
    * or couldn't be deleted.
    */
   virtual FilesystemResult Delete(const PlatformPath& path) = 0;
+
+  /**
+   * Deletes an empty directory at the specified path.
+   *
+   * Fails if the directory is non-empty; the caller must ensure all contents have been
+   * removed before calling this function. Returns OK on success, DoesNotExist if no
+   * directory exists at the path, and an error code if the directory is non-empty or
+   * the operation fails.
+   */
+  virtual FilesystemResult DeleteDirectory(const PlatformPath& path) = 0;
 
   /**
    * Atomically renames a file, given two paths on the same filesystem.
