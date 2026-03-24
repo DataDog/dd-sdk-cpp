@@ -10,10 +10,6 @@
 
 namespace datadog::impl {
 
-void LogPathLengthError(
-    const class DiagnosticLogger& logger, const char* failure_message
-);
-
 bool AppendPath(
     class StoragePath& dst,
     std::string_view name,

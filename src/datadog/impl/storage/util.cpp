@@ -4,8 +4,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include <charconv>
-
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
 #include "datadog/impl/storage/path.hpp"
@@ -38,13 +36,6 @@ static const char* filesystem_result_str(FilesystemResult res) {
       return "UnknownError";
   }
   return "<invalid-enum>";
-}
-
-void LogPathLengthError(
-    const class DiagnosticLogger& logger, const char* failure_message
-) {
-  (void)logger;
-  (void)failure_message;
 }
 
 bool AppendPath(
