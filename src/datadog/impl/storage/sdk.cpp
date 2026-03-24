@@ -423,15 +423,9 @@ void SdkStorage::HandleMigrate(std::string_view from_pid) {
     MigrateInstanceDirectory(instance_name, from_instance_root);
   }
 
-  // Clean up: delete the abandoned process directory and its lockfile
+  // Clean up: delete the abandoned process directory. The caller is responsible
+  // for closing and deleting the lockfile.
   if (path.Encode(from_process_root.CStr())) {
-    _fs.Delete(path);
-  }
-
-  // Build lockfile path: <root>/<from_pid>.lock
-  StoragePath lockfile;
-  if (lockfile.Set(_root.Get()) && lockfile.Append(from_pid) &&
-      lockfile.AppendExt(".lock") && path.Encode(lockfile.CStr())) {
     _fs.Delete(path);
   }
 }
