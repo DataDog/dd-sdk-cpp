@@ -99,7 +99,7 @@ bool SdkStorage::Initialize(
   PlatformPath path;
 
   // Prepare error messages to be logged if any of other path-manipulation or filesystem
-  // helper fuctions fails
+  // helper functions fails
   const char* join_message =
       "Failed to initialize SDK storage from configured application storage path: path "
       "exceeds length limit";
