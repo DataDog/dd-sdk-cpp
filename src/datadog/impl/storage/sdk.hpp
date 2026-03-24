@@ -24,8 +24,6 @@ class SdkStorage {
       std::string_view sdk_instance_name
   );
 
-  void MigrateAbandonedEvents();
-
   /** Returns the per-PID events root: <application-storage>/.datadog/<pid>/<instance>/
    *
    * Valid only after Initialize() returns true. The returned view is stable for the
@@ -34,6 +32,8 @@ class SdkStorage {
   std::string_view GetEventsRoot() const;
 
  private:
+  void MigrateAbandonedEvents();
+
   bool TryClaimAbandonedDirectory(std::string_view abandoned_pid);
 
   void HandleMigrate(std::string_view from_pid);
