@@ -250,18 +250,14 @@ class PosixFilesystem final : public IFilesystem {
   }
 
   FilesystemResult Close(PlatformFileHandle file) override {
-    // Close file descriptor, retry on EINTR. Advisory locks are automatically released
-    // by the kernel when fd is closed.
-    while (true) {
-      const int result = close(file);
-      if (result == 0) {
-        return FilesystemResult::OK;
-      }
-      if (errno == EINTR) {
-        continue;
-      }
-      return map_errno(errno);
+    // On Linux, close() always releases the fd even when it returns EINTR — retrying
+    // would close an already-closed (and potentially reused) fd. Treat EINTR as success
+    // on all POSIX platforms; the fd is gone either way. Advisory locks are released
+    // automatically when the fd is closed.
+    if (close(file) == 0 || errno == EINTR) {
+      return FilesystemResult::OK;
     }
+    return map_errno(errno);
   }
 
   FilesystemResult Delete(const PlatformPath& path) override {
