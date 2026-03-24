@@ -95,8 +95,7 @@ bool SdkStorage::Initialize(
     std::string_view application_storage_path,
     std::string_view sdk_instance_name
 ) {
-  // Use a temporary buffer to build UTF-8 paths, and a
-  // Use a buffer to convert to platform-native paths for filesystem operations
+  // Buffer for converting UTF-8 StoragePaths to platform-native paths for syscalls
   PlatformPath path;
 
   // Prepare error messages to be logged if any of other path-manipulation or filesystem
