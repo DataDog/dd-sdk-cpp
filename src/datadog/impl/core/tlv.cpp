@@ -94,27 +94,6 @@ size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data) {
   return num_bytes;
 }
 
-platform::FilesystemResult<void> EncodeTLVBlock(
-    platform::IFileWriter& file, TLVBlockType type, Block block
-) {
-  // We should not attempt to write empty blocks
-  DATADOG_ASSERT(!block.empty(), "attempted to encode empty TLV block");
-
-  // Encode the header, representing type and size in big-endian byte order
-  char header_buf[TLVBlockHeader::SIZE];
-  const TLVBlockHeader header{type, static_cast<uint32_t>(block.size())};
-  header.Encode(static_cast<char*>(header_buf));
-
-  // Write the six-byte header to the file, propagating error if unsuccessful
-  auto result = file.Write(static_cast<char*>(header_buf), sizeof(header_buf));
-  if (!result) {
-    return result;
-  }
-
-  // Write the block itself to the file
-  return file.Write(block.data(), block.size());
-}
-
 static TLVBlockReadResult _propagate_filesystem_error(platform::FilesystemError err) {
   if (err == platform::FilesystemError::IOError) {
     return TLVBlockReadResult{TLVBlockReadResultType::IOError};

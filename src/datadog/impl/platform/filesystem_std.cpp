@@ -134,62 +134,6 @@ class StdFileReader final : public IFileReader {
 };
 
 /**
- * Wraps a std::ofstream in the IFileWriter interface.
- *
- * Write operations that set the bad bit (indicating a catastrophic I/O problem) will
- * result in `FilesystemError::IOError`, all other failures will result in
- * `FilesystemError::Failed`.
- */
-class StdFileWriter final : public IFileWriter {
- private:
-  const std::filesystem::path _path;
-
- public:
-  explicit StdFileWriter(std::filesystem::path&& path) : _path(std::move(path)) {}
-
-  FilesystemResult<void> Write(const char* src, size_t n) override {
-    // Default-initialize std::ofstream
-    std::ofstream outfile;
-
-    // Attempt to open the file for append
-    const std::ios::openmode mode = std::ios::binary | std::ios::app;
-    outfile.open(_path, mode);
-
-    // If we couldn't open the file, it may be because some parent directory doesn't
-    // yet exist or has been externally deleted
-    if (!outfile) {
-      // Attempt to create the required directories, then retry opening the file
-      std::error_code ec;
-      if (!std::filesystem::create_directories(_path.parent_path(), ec) || ec) {
-        return nonstd::make_unexpected(FilesystemError::Failed);
-      }
-      outfile.open(_path, mode);
-    }
-
-    // If the file still isn't open, there's some other problem: abort
-    if (!outfile) {
-      return nonstd::make_unexpected(FilesystemError::Failed);
-    }
-
-    // File is open: attempt to write all n bytes to the file, then check error bits
-    DATADOG_ASSERT(
-        static_cast<std::streamsize>(n) <= std::numeric_limits<std::streamsize>::max(),
-        "unexpected truncation of file write size"
-    );
-    outfile.write(src, static_cast<std::streamsize>(n));
-    if (outfile.bad()) {
-      return nonstd::make_unexpected(FilesystemError::IOError);
-    }
-    if (outfile.fail()) {
-      return nonstd::make_unexpected(FilesystemError::Failed);
-    }
-
-    // No error; return default expected<void>
-    return {};
-  }
-};
-
-/**
  * Implements IDirectory using std::filesystem, providing access to files and
  * subdirectories that are direct children of the directory indicated by `_path`.
  *
@@ -203,8 +147,6 @@ class StdDirectory : public virtual IDirectory {
 
  public:
   explicit StdDirectory(const std::filesystem::path& path) : _path(path) {}
-
-  const std::filesystem::path& GetPath() const override { return _path; }
 
   FilesystemResult<void> ListFiles(std::vector<std::string>& out_names) const override {
     // Result vector should be cleared by the caller
@@ -259,41 +201,6 @@ class StdDirectory : public virtual IDirectory {
     return {};
   }
 
-  FilesystemResult<void> MoveFile(
-      std::string_view name, const std::filesystem::path& dst_directory_path
-  ) override {
-    // Build the source and destination file paths
-    DATADOG_ASSERT(_is_clean_basename(name), "invalid filename");
-    const std::filesystem::path src_file_path = _path / name;
-    const std::filesystem::path dst_file_path = dst_directory_path / name;
-
-    // Explicitly check whether the destination file already exists, as conflict
-    // handling is platform-dependent and we never want to clobber an existing file
-    std::error_code ec;
-    if (std::filesystem::exists(dst_file_path, ec)) {
-      return nonstd::make_unexpected(FilesystemError::AlreadyExists);
-    }
-    if (ec) {
-      return nonstd::make_unexpected(FilesystemError::Failed);
-    }
-
-    // Preemptively create the destination directory in case it doesn't yet exist
-    std::filesystem::create_directories(dst_file_path.parent_path(), ec);
-    if (ec) {
-      return nonstd::make_unexpected(FilesystemError::Failed);
-    }
-
-    // Perform a rename to move from src to dst
-    std::filesystem::rename(src_file_path, dst_file_path, ec);
-    if (ec == std::errc{}) {
-      return {};
-    }
-    if (ec == std::errc::no_such_file_or_directory) {
-      return nonstd::make_unexpected(FilesystemError::DoesNotExist);
-    }
-    return nonstd::make_unexpected(FilesystemError::Failed);
-  }
-
   FilesystemResult<std::unique_ptr<IFileReader>> OpenForRead(
       std::string_view name
   ) override {
@@ -321,14 +228,6 @@ class StdDirectory : public virtual IDirectory {
     }
     DATADOG_ASSERT(false, "unhandled _check_path_result enum value");
     return nonstd::make_unexpected(FilesystemError::Failed);
-  }
-
-  FilesystemResult<std::unique_ptr<IFileWriter>> PrepareForWrite(
-      std::string_view name
-  ) override {
-    // Initialize a wrapper for a file at the target path
-    DATADOG_ASSERT(_is_clean_basename(name), "invalid filename");
-    return std::make_unique<StdFileWriter>(_path / name);
   }
 
   FilesystemResult<std::unique_ptr<IDirectory>> PrepareSubdirectory(

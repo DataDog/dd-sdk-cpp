@@ -140,48 +140,6 @@ class MockFileReader : public platform::IFileReader {
   }
 };
 
-/**
- * Mock implementation of IFileWriter.
- *
- * Simulates fopen('ab') -> fwrite() -> fclose() on write, without holding a handle.
- */
-class MockFileWriter : public platform::IFileWriter {
- public:
-  std::shared_ptr<MockFileEntry> f;
-  int fd;
-
-  explicit MockFileWriter(std::shared_ptr<MockFileEntry> in_f, int in_fd)
-      : f(in_f), fd(in_fd) {
-    // File writes occur atomically, with close-after-write: keep no handle open
-  }
-
-  virtual platform::FilesystemResult<void> Write(const char* src, size_t n) override {
-    std::lock_guard lock(f->mutex);
-
-    // If anyone else has this file open, fail
-    if (f->reader_fd != 0 || f->writer_fd != 0) {
-      return nonstd::make_unexpected(platform::FilesystemError::Failed);
-    }
-
-    // If file is flagged bad, simulate I/O error
-    if (f->bad) {
-      return nonstd::make_unexpected(platform::FilesystemError::IOError);
-    }
-
-    // If file is flagged fail, simulate problem with file handle
-    if (f->fail) {
-      return nonstd::make_unexpected(platform::FilesystemError::Failed);
-    }
-
-    // Otherwise, open the file for exclusive write, simulating fopen with 'ab';
-    // append all data; then simulate close() and immediate flush
-    f->writer_fd = fd;  // For clarity; mutex makes this irrelevant in mock impl
-    f->data += std::string_view{src, n};
-    f->writer_fd = 0;
-    return {};
-  }
-};
-
 struct MockDirEntry {
   bool bad{false};   // If set, any directory operation will result in an I/O error
   bool fail{false};  // If set, any directory operation will fail
@@ -450,33 +408,6 @@ struct MockFilesystem {
     return std::make_unique<MockFileReader>(file, fd);
   }
 
-  /**
-   * Handles IDirectory::PrepareForWrite given the relevant directory path.
-   */
-  platform::FilesystemResult<std::unique_ptr<platform::IFileWriter>>
-  HandlePrepareForWrite(std::filesystem::path relpath) {
-    // Acquire filesystem mutex
-    std::scoped_lock lock(mutex);
-
-    // Check for an existing file entry, propagating IOError from bad directory
-    auto file_result = GetFileEntry(relpath);
-    if (!file_result.has_value()) {
-      return nonstd::make_unexpected(file_result.error());
-    }
-
-    // If FileEntry is null, file does not yet exist: create a new FileEntry with no
-    // data and no open handles
-    std::shared_ptr<MockFileEntry> file = *file_result;
-    if (!file) {
-      file = std::make_shared<MockFileEntry>("");
-      files[relpath] = file;
-    }
-
-    // Create a writer and give it a shared_ptr to the FileEntry; it'll acquire the
-    // file mutex as needed
-    return std::make_unique<MockFileWriter>(file, next_fd++);
-  }
-
  private:
   /**
    * Retrieves the MockFileEntry at the given path, or nullptr if no such file is known.
@@ -525,8 +456,6 @@ class MockDirectory : public platform::IDirectory {
   MockDirectory(MockFilesystem& in_fs, std::filesystem::path in_relpath)
       : fs(in_fs), relpath(in_relpath) {}
 
-  virtual const std::filesystem::path& GetPath() const override { return relpath; }
-
   virtual platform::FilesystemResult<void> ListFiles(
       std::vector<std::string>& out_names
   ) const override {
@@ -537,20 +466,9 @@ class MockDirectory : public platform::IDirectory {
     return fs.HandleRemoveFile(relpath / name);
   }
 
-  virtual platform::FilesystemResult<void> MoveFile(
-      std::string_view name, const std::filesystem::path& dst_directory_path
-  ) override {
-    return fs.HandleMoveFile(relpath / name, dst_directory_path);
-  }
-
   virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>
   OpenForRead(std::string_view name) override {
     return fs.HandleOpenForRead(relpath / name);
-  }
-
-  virtual platform::FilesystemResult<std::unique_ptr<platform::IFileWriter>>
-  PrepareForWrite(std::string_view name) override {
-    return fs.HandlePrepareForWrite(relpath / name);
   }
 
   virtual platform::FilesystemResult<std::unique_ptr<platform::IDirectory>>
@@ -569,11 +487,6 @@ class MockStorageDirectory : public platform::IStorageDirectory {
 
   MockStorageDirectory() {}
 
-  virtual const std::filesystem::path& GetPath() const override {
-    static std::filesystem::path path{};
-    return path;
-  }
-
   // IDirectory interface implementation - delegate to MockFilesystem
   virtual platform::FilesystemResult<void> ListFiles(
       std::vector<std::string>& out_names
@@ -585,20 +498,9 @@ class MockStorageDirectory : public platform::IStorageDirectory {
     return fs.HandleRemoveFile(name);
   }
 
-  virtual platform::FilesystemResult<void> MoveFile(
-      std::string_view name, const std::filesystem::path& dst_directory_path
-  ) override {
-    return fs.HandleMoveFile(name, dst_directory_path);
-  }
-
   virtual platform::FilesystemResult<std::unique_ptr<platform::IFileReader>>
   OpenForRead(std::string_view name) override {
     return fs.HandleOpenForRead(name);
-  }
-
-  virtual platform::FilesystemResult<std::unique_ptr<platform::IFileWriter>>
-  PrepareForWrite(std::string_view name) override {
-    return fs.HandlePrepareForWrite(name);
   }
 
   virtual platform::FilesystemResult<std::unique_ptr<platform::IDirectory>>

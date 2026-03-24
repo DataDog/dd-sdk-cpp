@@ -32,7 +32,6 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/core/feature_read.cpp
     datadog/impl/core/feature_scope.cpp
     datadog/impl/core/feature.cpp
-    datadog/impl/core/storage_write.cpp
     datadog/impl/core/storage_queue.cpp
     datadog/impl/core/storage_thread.cpp
     datadog/impl/core/tlv.cpp

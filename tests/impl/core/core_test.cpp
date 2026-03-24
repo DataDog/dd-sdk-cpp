@@ -10,10 +10,12 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "datadog/impl/core/feature_message.hpp"
+#include "datadog/impl/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
 #include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
 #include "support/core.hpp"
@@ -22,6 +24,10 @@ using namespace datadog;
 using namespace datadog::impl;
 
 static impl::Core _make_core() {
+  auto fs = std::make_unique<impl::MockFilesystem>();
+  fs->Mkdirs("/mock-events");
+  auto sdk_storage = std::make_unique<impl::SdkStorage>(*fs, 1 /* test pid */);
+  sdk_storage->Initialize(DiagnosticLogger{}, "/mock-events", "main");
   return impl::Core(
       CoreConfig("test-client-token", "initial-service", "initial-env")
           .SetInitialTrackingConsent(TrackingConsent::Granted)
@@ -34,8 +40,8 @@ static impl::Core _make_core() {
           std::make_unique<MockStorageDirectory>(),
           std::make_unique<MockHttpSubsystem>(),
           std::make_unique<MockSystemInfo>(),
-          nullptr,
-          nullptr
+          std::unique_ptr<impl::IFilesystem>(std::move(fs)),
+          std::move(sdk_storage)
       )
   );
 }

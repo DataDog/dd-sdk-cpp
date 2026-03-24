@@ -5,24 +5,12 @@
 // Copyright 2025-Present Datadog, Inc.
 
 #include <algorithm>
-#include <array>
-#include <charconv>
-#include <chrono>
-#include <iostream>
-#include <sstream>
-#include <string>
-#include <string_view>
 #include <vector>
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/core.hpp"
-#include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/storage_queue.hpp"
-#include "datadog/impl/core/storage_write.hpp"
-#include "datadog/impl/core/tlv.hpp"
-#include "datadog/impl/core/types.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
 
 namespace datadog::impl {
 
@@ -32,7 +20,7 @@ static void _handle_tracking_consent_changed(
     const StorageMessage_TrackingConsentChanged& m
 ) {
   for (auto& feature : features) {
-    if (!feature.batch_writer->SetTrackingConsent(m.value)) {
+    if (!feature.event_storage->SetConsent(m.value)) {
       diagnostic_logger.Error(
           "Failed to handle tracking consent change", {{"feature", feature.name}}
       );
@@ -59,15 +47,12 @@ static void _handle_event_generated(
     return;
   }
 
-  // No RegisteredFeature should ever be initialized without a valid BatchWriter
   DATADOG_ASSERT(
-      feature->batch_writer,
-      "feature identified by generated event does not have a valid BatchWriter"
+      feature->event_storage,
+      "feature identified by generated event does not have a valid EventStorage"
   );
 
-  // Use the RegisteredFeature's BatchWriter to process the write operation, only
-  // continuing once the filesystem write operations return
-  const bool write_ok = feature->batch_writer->HandleWrite(
+  const bool write_ok = feature->event_storage->Write(
       Block(reinterpret_cast<const char*>(m.event.data()), m.event.size()),  // NOLINT
       Block(
           reinterpret_cast<const char*>(m.event_metadata.data()),  // NOLINT
@@ -115,6 +100,15 @@ void StorageThreadMain(
             diagnostic_logger, features, item->payload.event_generated
         );
         break;
+    }
+  }
+
+  // Close any open batch file handles so the upload thread can delete the files.
+  // On Windows, open file handles prevent deletion, so we must close before signaling
+  // that the storage thread is done.
+  for (auto& feature : features) {
+    if (feature.event_storage) {
+      feature.event_storage->Flush();
     }
   }
 

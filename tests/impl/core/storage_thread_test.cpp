@@ -11,10 +11,11 @@
 #include <vector>
 
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/storage/event.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/tlv.hpp"
 
 using namespace datadog;
@@ -30,72 +31,56 @@ class FeatureBravo : public MockFeature {
   FeatureBravo() : MockFeature(CreateFeatureId("BRVO"), "bravo") {}
 };
 
+static const std::string EVENTS_ROOT = "/events";
+
 TEST_CASE("StorageThreadMain", "[unit]") {
   // StorageThreadMain consumes from a thread-safe blocking queue and dispatches
-  // function calls to the appropriate feature-specific state in response to message.
+  // function calls to the appropriate feature-specific state in response to messages.
 
-  // In these tests, we can push the desired set of messages into the queue, then stop
-  // queue processing, and then our thread entrypoint can read from the queue until
-  // it's drained.
+  // In these tests, we push the desired set of messages into the queue, stop queue
+  // processing, and then run the thread entrypoint to drain the queue.
 
-  // Common test setup code: populate a RegisteredFeature vector suitable for use by
-  // the storage thread
+  // Common test setup: populate a RegisteredFeature vector for the storage thread
   auto init_features = [](TrackingConsent alpha_consent,
                           TrackingConsent bravo_consent,
-                          MockStorageDirectory& mock_storage,
+                          impl::MockFilesystem& fs,
                           MockClock& clock,
                           std::vector<RegisteredFeature>& out_features) -> void {
-    // Mock storage for Feature Alpha
-    auto alpha = mock_storage.PrepareSubdirectory("alpha");
-    REQUIRE(alpha.has_value());
-    auto alpha_pending = (*alpha)->PrepareSubdirectory("no-upload");
-    REQUIRE(alpha_pending.has_value());
-    auto alpha_granted = (*alpha)->PrepareSubdirectory("yes-upload");
-    REQUIRE(alpha_granted.has_value());
+    fs.Mkdirs(EVENTS_ROOT);
 
-    // Mock storage for Feature Bravo
-    auto bravo = mock_storage.PrepareSubdirectory("bravo");
-    REQUIRE(bravo.has_value());
-    auto bravo_pending = (*bravo)->PrepareSubdirectory("no-upload");
-    REQUIRE(bravo_pending.has_value());
-    auto bravo_granted = (*bravo)->PrepareSubdirectory("yes-upload");
-    REQUIRE(bravo_granted.has_value());
+    auto alpha_storage = std::make_unique<EventStorage>(
+        fs,
+        "alpha",
+        DiagnosticLogger{},
+        alpha_consent,
+        clock,
+        EventStorageConfig::FromBatchSize(BatchSize::Small)
+    );
+    REQUIRE(alpha_storage->Initialize(EVENTS_ROOT));
 
-    // Use default writer config
-    auto writer_config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    auto bravo_storage = std::make_unique<EventStorage>(
+        fs,
+        "bravo",
+        DiagnosticLogger{},
+        bravo_consent,
+        clock,
+        EventStorageConfig::FromBatchSize(BatchSize::Small)
+    );
+    REQUIRE(bravo_storage->Initialize(EVENTS_ROOT));
 
-    // "Register" Alpha
     out_features.emplace_back(
         CreateFeatureId("ALFA"),
         "alpha",
         std::make_shared<FeatureAlpha>(),
-        std::move(*alpha),
-        std::make_unique<BatchWriter>(
-            DiagnosticLogger{},
-            alpha_consent,
-            std::move(*alpha_pending),
-            std::move(*alpha_granted),
-            clock,
-            writer_config
-        ),
+        std::move(alpha_storage),
         nullptr,  // event_read_directory is exclusive to upload thread
         nullptr   // upload_state is exclusive to upload thread
     );
-
-    // "Register" Bravo
     out_features.emplace_back(
         CreateFeatureId("BRVO"),
         "bravo",
         std::make_shared<FeatureBravo>(),
-        std::move(*bravo),
-        std::make_unique<BatchWriter>(
-            DiagnosticLogger{},
-            bravo_consent,
-            std::move(*bravo_pending),
-            std::move(*bravo_granted),
-            clock,
-            writer_config
-        ),
+        std::move(bravo_storage),
         nullptr,  // event_read_directory is exclusive to upload thread
         nullptr   // upload_state is exclusive to upload thread
     );
@@ -105,24 +90,21 @@ TEST_CASE("StorageThreadMain", "[unit]") {
     // Given two registered features Alpha and Bravo, with initial tracking consent:
     // - Alpha (feature ID "ALFA"): NotGranted
     // - Bravo (feature ID "BRVO"): Granted
-    MockStorageDirectory mock_storage;
+    impl::MockFilesystem fs;
     MockClock clock;
+    clock.FreezeAtMilliseconds(1700000000000);
     std::vector<RegisteredFeature> features;
     init_features(
-        TrackingConsent::NotGranted,
-        TrackingConsent::Granted,
-        mock_storage,
-        clock,
-        features
+        TrackingConsent::NotGranted, TrackingConsent::Granted, fs, clock, features
     );
     REQUIRE(features.size() == 2);
 
     // And a queue to which the following messages have been produced:
-    // - Handle write from "ALFA" (should be ignored)
-    // - Handle write from "BRVO" (should be written to granted dir)
+    // - Handle write from "ALFA" (should be ignored: NotGranted)
+    // - Handle write from "BRVO" (should be written to v1/)
     // - Change tracking consent to Pending for all features
-    // - Handle write from "ALFA" (should be written to pending dir)
-    // - Handle write from "BRVO" (should be written to pending dir)
+    // - Handle write from "ALFA" (should be written to intermediate-v1/)
+    // - Handle write from "BRVO" (should be written to intermediate-v1/)
     StorageQueue queue;
     REQUIRE(queue.Push(
         StorageMessage::EventGenerated(CreateFeatureId("ALFA"), "alpha-0", {})
@@ -140,35 +122,34 @@ TEST_CASE("StorageThreadMain", "[unit]") {
         StorageMessage::EventGenerated(CreateFeatureId("BRVO"), "bravo-1", {})
     ));
 
-    // When we run the upload thread and drain the queue
+    // When we run the storage thread and drain the queue
     queue.Stop();
     StorageThreadMain(DiagnosticLogger{}, queue, features);
 
-    // Then 'alpha/no-upload' should contain 'alpha-1'
-    auto alpha_pending_files = mock_storage.FindFiles("alpha/no-upload");
-    REQUIRE(alpha_pending_files.size() == 1);
+    // Then alpha/intermediate-v1 should contain 'alpha-1'
+    auto alpha_pending = fs.FindFiles(EVENTS_ROOT + "/alpha/intermediate-v1");
+    REQUIRE(alpha_pending.size() == 1);
     REQUIRE(
-        mock_storage.Cat(alpha_pending_files.front()) ==
+        fs.Cat(EVENTS_ROOT + "/alpha/intermediate-v1/" + alpha_pending.front()) ==
         MockTLVFile().AppendEvent("alpha-1").ToString()
     );
 
-    // And 'alpha/yes-upload' should be empty
-    auto alpha_granted_files = mock_storage.FindFiles("alpha/yes-upload");
-    REQUIRE(alpha_granted_files.size() == 0);
+    // And alpha/v1 should be empty (alpha-0 was dropped due to NotGranted)
+    REQUIRE(fs.FindFiles(EVENTS_ROOT + "/alpha/v1").empty());
 
-    // And 'bravo/no-upload' should contain 'bravo-1'
-    auto bravo_pending_files = mock_storage.FindFiles("bravo/no-upload");
-    REQUIRE(bravo_pending_files.size() == 1);
+    // And bravo/intermediate-v1 should contain 'bravo-1'
+    auto bravo_pending = fs.FindFiles(EVENTS_ROOT + "/bravo/intermediate-v1");
+    REQUIRE(bravo_pending.size() == 1);
     REQUIRE(
-        mock_storage.Cat(bravo_pending_files.front()) ==
+        fs.Cat(EVENTS_ROOT + "/bravo/intermediate-v1/" + bravo_pending.front()) ==
         MockTLVFile().AppendEvent("bravo-1").ToString()
     );
 
-    // And 'bravo/yes-upload' should contain 'bravo-0'
-    auto bravo_granted_files = mock_storage.FindFiles("bravo/yes-upload");
-    REQUIRE(bravo_granted_files.size() == 1);
+    // And bravo/v1 should contain 'bravo-0'
+    auto bravo_granted = fs.FindFiles(EVENTS_ROOT + "/bravo/v1");
+    REQUIRE(bravo_granted.size() == 1);
     REQUIRE(
-        mock_storage.Cat(bravo_granted_files.front()) ==
+        fs.Cat(EVENTS_ROOT + "/bravo/v1/" + bravo_granted.front()) ==
         MockTLVFile().AppendEvent("bravo-0").ToString()
     );
   }

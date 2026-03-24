@@ -14,9 +14,12 @@
 
 #include "datadog/c/core_glue.hpp"
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/filesystem.hpp"
+#include "mock/filesystem_directory.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
 #include "support/diagnostics.hpp"
@@ -37,6 +40,50 @@ static const CoreConfig MOCK_CORE_CONFIG =
         .SetBatchProcessingLevel(BatchProcessingLevel::Low);
 
 /**
+ * Provides test-friendly access to event storage written by EventStorage via
+ * the new IFilesystem abstraction. Mirrors the interface of MockStorageDirectory
+ * so that existing test assertions can be used without modification.
+ *
+ * FindFiles and Cat accept relative paths (e.g. "coolfeature/v1") and
+ * transparently prepend the SDK events root to form absolute paths in the
+ * underlying MockFilesystem.
+ */
+struct StorageView {
+  impl::MockFilesystem& fs;
+  std::string events_root;
+
+  /**
+   * Returns the set of files under `relpath` within the events root. Each
+   * entry in the result is a relative path of the form `relpath/filename`,
+   * matching the convention of the old MockStorageDirectory::FindFiles.
+   */
+  std::vector<std::string> FindFiles(std::string_view relpath) const {
+    std::string full_dir = events_root + "/" + std::string(relpath);
+    auto basenames = fs.FindFiles(full_dir);
+    std::vector<std::string> result;
+    result.reserve(basenames.size());
+    for (const auto& basename : basenames) {
+      result.push_back(std::string(relpath) + "/" + basename);
+    }
+    return result;
+  }
+
+  /**
+   * Returns the contents of the file at `relpath` within the events root.
+   */
+  std::string Cat(std::string_view relpath) const {
+    return fs.Cat(events_root + "/" + std::string(relpath));
+  }
+
+  /**
+   * Returns the total number of files deleted via the upload thread.
+   */
+  size_t GetNumFilesDeleted() const {
+    return static_cast<size_t>(fs.GetNumFilesDeleted());
+  }
+};
+
+/**
  * Encapsulates test setup, initializing a working Core implementation with mock
  * implementations of platform subsystems.
  *
@@ -51,7 +98,8 @@ struct CoreTestHarness {
 
   impl::Core& core;
   MockClock& clock;
-  MockStorageDirectory& storage;
+  StorageView storage;
+  impl::MockFilesystem& new_filesystem;
   MockHttpClient& client;
 
   std::vector<dd_diagnostic_message_t> c_diagnostics;
@@ -60,26 +108,43 @@ struct CoreTestHarness {
   explicit CoreTestHarness(
       std::unique_ptr<impl::Core>&& in_core,
       MockClock& in_clock,
-      MockStorageDirectory& in_storage,
+      StorageView in_storage,
+      impl::MockFilesystem& in_new_filesystem,
       MockHttpClient& in_client
   )
       : _core(std::move(in_core)),
         core(std::ref(*_core)),
         clock(in_clock),
-        storage(in_storage),
+        storage(std::move(in_storage)),
+        new_filesystem(in_new_filesystem),
         client(in_client) {}
 
   static CoreTestHarness Init(bool flush_http_requests = true) {
     // Create mock implementations of required core subsystems
     auto _clock = std::make_unique<MockClock>();
-    auto _storage_root = std::make_unique<MockStorageDirectory>();
     auto _http = std::make_unique<MockHttpSubsystem>();
     auto _system_info = std::make_unique<MockSystemInfo>();
+    auto _new_fs = std::make_unique<impl::MockFilesystem>();
+
+    // Pre-create the root directory required by SdkStorage::Initialize
+    _new_fs->Mkdirs("/mock-events");
+    auto _sdk_storage = std::make_unique<impl::SdkStorage>(*_new_fs, 1 /* test pid */);
+    if (!_sdk_storage->Initialize(impl::DiagnosticLogger{}, "/mock-events", "main")) {
+      assert(false && "sdk storage init failed in test setup");
+    }
+
+    // Capture the events root before transferring sdk_storage ownership to the core
+    std::string events_root(_sdk_storage->GetEventsRoot());
+
+    // Create an IStorageDirectory adapter so the upload thread can read batch files
+    // written by EventStorage through the new IFilesystem abstraction
+    auto _storage_root =
+        std::make_unique<FilesystemStorageDirectory>(*_new_fs, events_root);
 
     // Capture references to the underlying objects before we transfer ownership out of
     // these unique_ptrs
     MockClock& clock = *_clock;
-    MockStorageDirectory& storage = *_storage_root;
+    impl::MockFilesystem& new_filesystem = *_new_fs;
     MockHttpSubsystem& http = *_http;
 
     // Create the core, giving the core ownership of injected subsystems
@@ -94,8 +159,8 @@ struct CoreTestHarness {
             std::move(_storage_root),
             std::move(_http),
             std::move(_system_info),
-            nullptr,
-            nullptr
+            std::move(_new_fs),
+            std::move(_sdk_storage)
         )
     );
 
@@ -108,9 +173,13 @@ struct CoreTestHarness {
     assert(http.clients.size() == 1 && "core did not create 1 mock HTTP client");
     MockHttpClient* client_ptr = http.clients[0];
 
+    StorageView storage_view{new_filesystem, std::move(events_root)};
+
     // Return a struct that contains all the state we need in order to test - and
     // examine the results of - code that interfaces with the core
-    return CoreTestHarness(std::move(core), clock, storage, *client_ptr);
+    return CoreTestHarness(
+        std::move(core), clock, std::move(storage_view), new_filesystem, *client_ptr
+    );
   }
 
   /**

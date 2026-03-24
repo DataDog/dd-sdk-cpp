@@ -225,96 +225,6 @@ TEST_CASE("MockFilesystem File Reading", "[unit][mock-filesystem]") {
   }
 }
 
-TEST_CASE("MockFilesystem File Writing", "[unit][mock-filesystem]") {
-  MockStorageDirectory storage;
-
-  SECTION("M create file writer W PrepareForWrite") {
-    auto writer_result = storage.PrepareForWrite("test.dat");
-
-    REQUIRE(writer_result.has_value());
-    REQUIRE(writer_result.value() != nullptr);
-  }
-
-  SECTION("M write data to new file W Write called") {
-    // Given a file writer
-    auto writer_result = storage.PrepareForWrite("write_test.dat");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-
-    // When writing data
-    const char* test_data = "Hello, World!";
-    size_t data_len = std::strlen(test_data);
-    auto result = writer->Write(test_data, data_len);
-
-    // Then operation succeeds and file contains expected data
-    REQUIRE(result.has_value());
-
-    auto reader_result = storage.OpenForRead("write_test.dat");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    char buffer[50];
-    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(num_bytes_read.has_value());
-    REQUIRE(num_bytes_read.value() == data_len);
-    REQUIRE(std::memcmp(buffer, test_data, data_len) == 0);
-  }
-
-  SECTION("M append data W multiple writes") {
-    // Given a file writer
-    auto writer_result = storage.PrepareForWrite("append_test.dat");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-
-    // When writing data multiple times
-    const char* data1 = "First";
-    const char* data2 = "Second";
-    auto result1 = writer->Write(data1, std::strlen(data1));
-    auto result2 = writer->Write(data2, std::strlen(data2));
-
-    // Then both operations succeed and file contains concatenated data
-    REQUIRE(result1.has_value());
-    REQUIRE(result2.has_value());
-
-    auto reader_result = storage.OpenForRead("append_test.dat");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    char buffer[50];
-    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(num_bytes_read.has_value());
-    REQUIRE(num_bytes_read.value() == 11);  // "FirstSecond"
-    REQUIRE(std::memcmp(buffer, "FirstSecond", 11) == 0);
-  }
-
-  SECTION("M write binary data W binary content") {
-    // Given a file writer
-    auto writer_result = storage.PrepareForWrite("binary_test.dat");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-
-    // When writing binary data (including null bytes)
-    const char binary_data[] = {
-        0x00, 0x01, 0x02, static_cast<char>(0xFF), static_cast<char>(0xFE), 0x00, 0x03
-    };
-    size_t data_len = sizeof(binary_data);
-    auto result = writer->Write(binary_data, data_len);
-
-    // Then operation succeeds and binary data integrity is preserved
-    REQUIRE(result.has_value());
-
-    auto reader_result = storage.OpenForRead("binary_test.dat");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    char buffer[10];
-    auto num_bytes_read = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(num_bytes_read.has_value());
-    REQUIRE(num_bytes_read.value() == data_len);
-    REQUIRE(std::memcmp(buffer, binary_data, data_len) == 0);
-  }
-}
-
 TEST_CASE("MockFilesystem Exclusive Locking", "[unit][mock-filesystem]") {
   MockStorageDirectory storage;
 
@@ -337,72 +247,6 @@ TEST_CASE("MockFilesystem Exclusive Locking", "[unit][mock-filesystem]") {
     auto reader3_result = storage.OpenForRead("exclusive.txt");
     REQUIRE(reader3_result.has_value());
   }
-
-  SECTION("M prevent write during read W file open for read") {
-    // Given a file is open for read
-    storage.WithExistingFile("write_during_read.txt", "initial data");
-
-    auto reader_result = storage.OpenForRead("write_during_read.txt");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    // When attempting to write to the same file
-    auto writer_result = storage.PrepareForWrite("write_during_read.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-
-    auto write_result = writer->Write("new data", 8);
-
-    // Then write should fail due to exclusive locking
-    REQUIRE_FALSE(write_result.has_value());
-    REQUIRE(write_result.error() == platform::FilesystemError::Failed);
-  }
-
-  SECTION("M prevent read during write W file being written") {
-    storage.WithExistingFile("read_during_write.txt", "initial data");
-
-    // This test demonstrates that writes are atomic (open-write-close)
-    // so there's no persistent "write lock" to test against.
-    // The exclusivity check happens at write time, not at PrepareForWrite time.
-
-    auto writer_result = storage.PrepareForWrite("read_during_write.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-
-    // Reader can be prepared while writer exists (no persistent write lock)
-    auto reader_result = storage.OpenForRead("read_during_write.txt");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    // But write will fail because reader is now open
-    auto write_result = writer->Write("new data", 8);
-    REQUIRE_FALSE(write_result.has_value());
-    REQUIRE(write_result.error() == platform::FilesystemError::Failed);
-  }
-
-  SECTION("M allow write after read closes W sequential access") {
-    // Given a file exists
-    storage.WithExistingFile("sequential.txt", "initial data");
-
-    // When reading first then closing
-    {
-      auto reader_result = storage.OpenForRead("sequential.txt");
-      REQUIRE(reader_result.has_value());
-      auto reader = std::move(reader_result.value());
-
-      char buffer[20];
-      auto read_result = reader->Read(buffer, sizeof(buffer));
-      REQUIRE(read_result.has_value());
-    }  // Reader goes out of scope and closes
-
-    // Then write should succeed after reader is closed
-    auto writer_result = storage.PrepareForWrite("sequential.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-
-    auto write_result = writer->Write("appended", 8);
-    REQUIRE(write_result.has_value());
-  }
 }
 
 TEST_CASE("MockFilesystem Error Simulation", "[unit][mock-filesystem]") {
@@ -419,23 +263,6 @@ TEST_CASE("MockFilesystem Error Simulation", "[unit][mock-filesystem]") {
     // Then we should get an IOError
     REQUIRE(!reader_result.has_value());
     REQUIRE(reader_result.error() == platform::FilesystemError::IOError);
-  }
-
-  SECTION("M simulate I/O error W bad file write") {
-    // Given a file is marked as corrupted
-    storage.WithExistingFile("bad_write.txt", "test data");
-    storage.Corrupt("bad_write.txt");
-
-    // When attempting to write to the corrupted file
-    auto writer_result = storage.PrepareForWrite("bad_write.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-
-    auto write_result = writer->Write("new data", 8);
-
-    // Then write fails with I/O error
-    REQUIRE_FALSE(write_result.has_value());
-    REQUIRE(write_result.error() == platform::FilesystemError::IOError);
   }
 
   SECTION("M simulate I/O error W bad directory") {
@@ -457,266 +284,6 @@ TEST_CASE("MockFilesystem Error Simulation", "[unit][mock-filesystem]") {
   }
 }
 
-TEST_CASE("MockFilesystem MoveFile Operations", "[unit][mock-filesystem]") {
-  MockStorageDirectory storage;
-
-  SECTION("M move file successfully W source exists and destination does not") {
-    // Given source file exists in directory
-    storage.WithExistingFile("srcdir/file.txt", "test content");
-
-    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    // And destination directory exists
-    storage.fs.Mkdirs("dstdir");
-    auto dstdir_result = storage.PrepareSubdirectory("dstdir");
-    REQUIRE(dstdir_result.has_value());
-    auto dstdir = std::move(dstdir_result.value());
-
-    // When moving file from source to destination
-    auto move_result = srcdir->MoveFile("file.txt", "dstdir");
-
-    // Then operation succeeds
-    REQUIRE(move_result.has_value());
-
-    // And file no longer exists in source directory
-    std::vector<std::string> src_files;
-    srcdir->ListFiles(src_files);
-    REQUIRE(src_files.empty());
-
-    // And file exists in destination directory with same content
-    std::vector<std::string> dst_files;
-    dstdir->ListFiles(dst_files);
-    REQUIRE(dst_files.size() == 1);
-    REQUIRE(dst_files[0] == "file.txt");
-
-    auto reader_result = dstdir->OpenForRead("file.txt");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    char buffer[20];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value() == 12);
-    REQUIRE(std::memcmp(buffer, "test content", 12) == 0);
-  }
-
-  SECTION("M return DoesNotExist W source file does not exist") {
-    // Given source directory exists but file does not
-    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    // When attempting to move non-existent file
-    auto move_result = srcdir->MoveFile("nonexistent.txt", "dstdir");
-
-    // Then operation fails with DoesNotExist error
-    REQUIRE_FALSE(move_result.has_value());
-    REQUIRE(move_result.error() == platform::FilesystemError::DoesNotExist);
-  }
-
-  SECTION("M return AlreadyExists W destination file already exists") {
-    // Given source file exists
-    storage.WithExistingFile("srcdir/file.txt", "source content");
-
-    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    // And destination file already exists
-    storage.WithExistingFile("dstdir/file.txt", "destination content");
-
-    auto dstdir_result = storage.PrepareSubdirectory("dstdir");
-    REQUIRE(dstdir_result.has_value());
-    auto dstdir = std::move(dstdir_result.value());
-
-    // When attempting to move file to destination
-    auto move_result = srcdir->MoveFile("file.txt", "dstdir");
-
-    // Then operation fails with AlreadyExists error
-    REQUIRE_FALSE(move_result.has_value());
-    REQUIRE(move_result.error() == platform::FilesystemError::AlreadyExists);
-
-    // And both files remain unchanged
-    auto src_reader = srcdir->OpenForRead("file.txt");
-    REQUIRE(src_reader.has_value());
-    char src_buffer[20];
-    auto src_read = src_reader.value()->Read(src_buffer, sizeof(src_buffer));
-    REQUIRE(std::memcmp(src_buffer, "source content", 14) == 0);
-
-    auto dst_reader = dstdir->OpenForRead("file.txt");
-    REQUIRE(dst_reader.has_value());
-    char dst_buffer[25];
-    auto dst_read = dst_reader.value()->Read(dst_buffer, sizeof(dst_buffer));
-    REQUIRE(std::memcmp(dst_buffer, "destination content", 19) == 0);
-  }
-
-  SECTION("M return IOError W source file marked as bad") {
-    // Given source file exists but is corrupted
-    storage.WithExistingFile("srcdir/bad.txt", "test");
-    storage.Corrupt("srcdir/bad.txt");
-
-    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    // And destination directory exists
-    storage.fs.Mkdirs("dstdir");
-
-    // When attempting to move corrupted file
-    auto move_result = srcdir->MoveFile("bad.txt", "dstdir");
-
-    // Then operation fails with IOError
-    REQUIRE_FALSE(move_result.has_value());
-    REQUIRE(move_result.error() == platform::FilesystemError::IOError);
-  }
-
-  SECTION("M return Failed W source file has open handles") {
-    // Given source file exists and is open for read
-    storage.WithExistingFile("srcdir/locked.txt", "test content");
-
-    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    auto reader_result = srcdir->OpenForRead("locked.txt");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    // And destination directory exists
-    storage.fs.Mkdirs("dstdir");
-
-    // When attempting to move file while it's open
-    auto move_result = srcdir->MoveFile("locked.txt", "dstdir");
-
-    // Then operation fails with Failed error
-    REQUIRE_FALSE(move_result.has_value());
-    REQUIRE(move_result.error() == platform::FilesystemError::Failed);
-
-    // And file remains in source location
-    reader.reset();
-    std::vector<std::string> files;
-    srcdir->ListFiles(files);
-    REQUIRE(files.size() == 1);
-    REQUIRE(files[0] == "locked.txt");
-  }
-
-  SECTION("M return IOError W source directory marked as bad") {
-    // Given source directory is corrupted
-    storage.WithExistingFile("baddir/file.txt", "test");
-    storage.Corrupt("baddir");
-
-    auto srcdir_result = storage.PrepareSubdirectory("baddir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    // And destination directory exists
-    storage.fs.Mkdirs("dstdir");
-
-    // When attempting to move file from corrupted directory
-    auto move_result = srcdir->MoveFile("file.txt", "dstdir");
-
-    // Then operation fails with IOError
-    REQUIRE_FALSE(move_result.has_value());
-    REQUIRE(move_result.error() == platform::FilesystemError::IOError);
-  }
-
-  SECTION("M return IOError W destination directory marked as bad") {
-    // Given source file exists
-    storage.WithExistingFile("srcdir/file.txt", "test");
-
-    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    // And destination directory is corrupted
-    storage.WithExistingFile("baddir/dummy.txt", "dummy");
-    storage.Corrupt("baddir");
-
-    // When attempting to move file to corrupted directory
-    auto move_result = srcdir->MoveFile("file.txt", "baddir");
-
-    // Then operation fails with IOError
-    REQUIRE_FALSE(move_result.has_value());
-    REQUIRE(move_result.error() == platform::FilesystemError::IOError);
-  }
-
-  SECTION("M preserve file content W successful move") {
-    // Given source file with specific binary content
-    const char binary_data[] = {
-        0x00, 0x01, 0x02, static_cast<char>(0xFF), static_cast<char>(0xFE), 0x00, 0x03
-    };
-    storage.WithExistingFile(
-        "srcdir/binary.dat", std::string_view(binary_data, sizeof(binary_data))
-    );
-
-    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    // And destination directory exists
-    storage.fs.Mkdirs("dstdir");
-
-    // When moving file
-    auto move_result = srcdir->MoveFile("binary.dat", "dstdir");
-    REQUIRE(move_result.has_value());
-
-    // Then binary content is preserved exactly
-    auto dstdir_result = storage.PrepareSubdirectory("dstdir");
-    REQUIRE(dstdir_result.has_value());
-    auto dstdir = std::move(dstdir_result.value());
-
-    auto reader_result = dstdir->OpenForRead("binary.dat");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    char buffer[10];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(read_result.value() == sizeof(binary_data));
-    REQUIRE(std::memcmp(buffer, binary_data, sizeof(binary_data)) == 0);
-  }
-
-  SECTION("M move multiple files sequentially W different filenames") {
-    // Given multiple files in source directory
-    storage.WithExistingFile("srcdir/file1.txt", "content1");
-    storage.WithExistingFile("srcdir/file2.txt", "content2");
-    storage.WithExistingFile("srcdir/file3.txt", "content3");
-
-    auto srcdir_result = storage.PrepareSubdirectory("srcdir");
-    REQUIRE(srcdir_result.has_value());
-    auto srcdir = std::move(srcdir_result.value());
-
-    // And destination directory exists
-    storage.fs.Mkdirs("dstdir");
-
-    // When moving all files one by one
-    auto move1 = srcdir->MoveFile("file1.txt", "dstdir");
-    auto move2 = srcdir->MoveFile("file2.txt", "dstdir");
-    auto move3 = srcdir->MoveFile("file3.txt", "dstdir");
-
-    // Then all operations succeed
-    REQUIRE(move1.has_value());
-    REQUIRE(move2.has_value());
-    REQUIRE(move3.has_value());
-
-    // And all files are in destination
-    auto dstdir_result = storage.PrepareSubdirectory("dstdir");
-    REQUIRE(dstdir_result.has_value());
-    auto dstdir = std::move(dstdir_result.value());
-
-    std::vector<std::string> dst_files;
-    dstdir->ListFiles(dst_files);
-    REQUIRE(dst_files.size() == 3);
-
-    // And source is empty
-    std::vector<std::string> src_files;
-    srcdir->ListFiles(src_files);
-    REQUIRE(src_files.empty());
-  }
-}
-
 TEST_CASE("MockFilesystem Subdirectories", "[unit][mock-filesystem]") {
   MockStorageDirectory storage;
 
@@ -725,32 +292,6 @@ TEST_CASE("MockFilesystem Subdirectories", "[unit][mock-filesystem]") {
 
     REQUIRE(subdir_result.has_value());
     REQUIRE(subdir_result.value() != nullptr);
-  }
-
-  SECTION("M operate on files in subdirectory W subdirectory operations") {
-    // Given a subdirectory
-    auto subdir_result = storage.PrepareSubdirectory("subdir");
-    REQUIRE(subdir_result.has_value());
-    auto subdir = std::move(subdir_result.value());
-
-    // When writing to file in subdirectory (this will create the directory)
-    auto writer_result = subdir->PrepareForWrite("sub_file.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
-
-    const char* test_data = "Subdirectory content";
-    auto write_result = writer->Write(test_data, std::strlen(test_data));
-    REQUIRE(write_result.has_value());
-
-    // Then file can be read from subdirectory
-    auto reader_result = subdir->OpenForRead("sub_file.txt");
-    REQUIRE(reader_result.has_value());
-    auto reader = std::move(reader_result.value());
-
-    char buffer[50];
-    auto read_result = reader->Read(buffer, sizeof(buffer));
-    REQUIRE(read_result.has_value());
-    REQUIRE(std::memcmp(buffer, test_data, std::strlen(test_data)) == 0);
   }
 
   SECTION("M list files in subdirectory W ListFiles on subdirectory") {
@@ -774,7 +315,7 @@ TEST_CASE("MockFilesystem Subdirectories", "[unit][mock-filesystem]") {
   }
 
   SECTION("M create nested subdirectories W recursive PrepareSubdirectory") {
-    // When creating nested subdirectory and writing to it
+    // When creating nested subdirectory handle
     auto subdir_result = storage.PrepareSubdirectory("parent");
     REQUIRE(subdir_result.has_value());
     auto subdir = std::move(subdir_result.value());
@@ -783,15 +324,10 @@ TEST_CASE("MockFilesystem Subdirectories", "[unit][mock-filesystem]") {
     REQUIRE(nested_result.has_value());
     auto nested = std::move(nested_result.value());
 
-    auto writer_result = nested->PrepareForWrite("deep_file.txt");
-    REQUIRE(writer_result.has_value());
-    auto writer = std::move(writer_result.value());
+    // And populating it with a file via WithExistingFile
+    storage.WithExistingFile("parent/child/deep_file.txt", "Deep nested content");
 
-    const char* nested_content = "Deep nested content";
-    auto write_result = writer->Write(nested_content, std::strlen(nested_content));
-    REQUIRE(write_result.has_value());
-
-    // Then nested directory structure is created and file can be accessed
+    // Then the file is accessible through the nested IDirectory handle
     auto reader_result = nested->OpenForRead("deep_file.txt");
     REQUIRE(reader_result.has_value());
     auto reader = std::move(reader_result.value());
@@ -799,7 +335,8 @@ TEST_CASE("MockFilesystem Subdirectories", "[unit][mock-filesystem]") {
     char buffer[50];
     auto read_result = reader->Read(buffer, sizeof(buffer));
     REQUIRE(read_result.has_value());
-    REQUIRE(std::memcmp(buffer, nested_content, std::strlen(nested_content)) == 0);
+    const char* expected = "Deep nested content";
+    REQUIRE(std::memcmp(buffer, expected, std::strlen(expected)) == 0);
   }
 }
 
@@ -810,12 +347,10 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]") {
     // Given multiple files for concurrent access
     storage.WithExistingFile("file1.txt", "content1");
     storage.WithExistingFile("file2.txt", "content2");
-    storage.WithExistingFile("file3.txt", "content3");
 
     std::vector<std::thread> threads;
-    std::vector<int> thread_results(3, false);
+    std::vector<int> thread_results(2, false);
 
-    // When running concurrent operations on different files
     // Thread 1: Read file1
     threads.emplace_back([&storage, &thread_results]() {
       auto reader = storage.OpenForRead("file1.txt");
@@ -826,20 +361,11 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]") {
       }
     });
 
-    // Thread 2: Write to file2
-    threads.emplace_back([&storage, &thread_results]() {
-      auto writer = storage.PrepareForWrite("file2.txt");
-      if (writer.has_value()) {
-        auto result = writer.value()->Write("new", 3);
-        thread_results[1] = result.has_value() ? 1 : 0;
-      }
-    });
-
-    // Thread 3: List files
+    // Thread 2: List files
     threads.emplace_back([&storage, &thread_results]() {
       std::vector<std::string> files;
       auto result = storage.ListFiles(files);
-      thread_results[2] = (result.has_value() && files.size() >= 3) ? 1 : 0;
+      thread_results[1] = (result.has_value() && files.size() >= 2) ? 1 : 0;
     });
 
     // Wait for all threads to complete
@@ -847,10 +373,9 @@ TEST_CASE("MockFilesystem Threading Safety", "[unit][mock-filesystem]") {
       t.join();
     }
 
-    // Then all operations should succeed (different files)
+    // Then all operations should succeed
     REQUIRE(thread_results[0] == 1);
     REQUIRE(thread_results[1] == 1);
-    REQUIRE(thread_results[2] == 1);
   }
 
   SECTION("M enforce exclusivity W concurrent access to same file") {

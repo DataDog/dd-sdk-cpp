@@ -23,12 +23,12 @@
 #include "datadog/impl/core/message_bus.hpp"
 #include "datadog/impl/core/queue.hpp"
 #include "datadog/impl/core/storage_queue.hpp"
-#include "datadog/impl/core/storage_write.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/upload_scheduler.hpp"
 #include "datadog/impl/core/upload_thread.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/storage/event.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
 #include "datadog/impl/storage/sdk.hpp"
 
@@ -140,17 +140,12 @@ struct RegisteredFeature {
    * directly.
    */
   std::shared_ptr<Feature> impl;
-  /**
-   * Wrapper for the directory where the feature stores event data. Not used by any
-   * thread; this member simply keeps the IDirectory handle alive in case the platform
-   * filesystem implementation requires resource cleanup on exit.
-   */
-  std::unique_ptr<platform::IDirectory> directory;
 
   /**
    * Interface used by the storage thread to write event data to persistent storage.
+   * The storage thread has exclusive access to this member.
    */
-  std::unique_ptr<BatchWriter> batch_writer;
+  std::unique_ptr<EventStorage> event_storage;
 
   /**
    * Wrapper for the directory that the upload thread will scan for batches of event
@@ -168,16 +163,14 @@ struct RegisteredFeature {
       FeatureId in_id,
       std::string_view in_name,
       const std::shared_ptr<Feature>& in_impl,
-      std::unique_ptr<platform::IDirectory>&& in_directory,
-      std::unique_ptr<BatchWriter>&& in_batch_writer,
+      std::unique_ptr<EventStorage>&& in_event_storage,
       std::unique_ptr<platform::IDirectory>&& in_event_read_directory,
       std::unique_ptr<UploadThreadState>&& in_upload_state
   )
       : id(in_id),
         name(in_name),
         impl(in_impl),
-        directory(std::move(in_directory)),
-        batch_writer(std::move(in_batch_writer)),
+        event_storage(std::move(in_event_storage)),
         event_read_directory(std::move(in_event_read_directory)),
         upload_state(std::move(in_upload_state)) {}
 };
@@ -298,7 +291,7 @@ struct RegisteredFeature {
  * The Core guarantees that this vector and all its RegisteredFeature objects will
  * remain immutable for the lifetime of all threads, and each thread treats these
  * state objects as read-only, obviating the need for synchronization. The storage
- * thread has exclusive access to a feature's `BatchWriter` interface, and the upload
+ * thread has exclusive access to a feature's `EventStorage` interface, and the upload
  * thread has exclusive access to a feature's `UploadThreadState` and
  * `event_read_directory`.
  */

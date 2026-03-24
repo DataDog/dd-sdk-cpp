@@ -102,8 +102,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         feature->GetId(),
         feature->GetName(),
         feature,
-        std::move(*directory),
-        nullptr,  // batch_writer is exclusive to storage thread
+        nullptr,  // event_storage is exclusive to storage thread
         std::move(*granted_subdir),
         std::make_unique<UploadThreadState>(upload_frequency)
     );

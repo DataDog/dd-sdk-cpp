@@ -7,7 +7,6 @@
 #pragma once
 
 #include <cinttypes>
-#include <filesystem>
 #include <memory>
 #include <string_view>
 
@@ -88,36 +87,6 @@ class IFileReader {
 };
 
 /**
- * Handle to a binary file that may be written to. Implies exclusive write access to the
- * underlying file: no two IFileWriter instances will be in use for the same file.
- *
- * To ensure durable event storage is and relatively simple synchronization between
- * writer and reader threads, we use a close-after-write approach: every file write
- * opens the file, appends the relevant data, then closes the file to flush it to disk.
- */
-class IFileWriter {
- protected:
-  IFileWriter() = default;
-
- public:
-  virtual ~IFileWriter() = default;
-
-  // File-writer interfaces will never be copied
-  IFileWriter(const IFileWriter&) = delete;
-  IFileWriter& operator=(const IFileWriter&) = delete;
-
-  // File-writer interfaces may be moved
-  IFileWriter(IFileWriter&&) = default;
-  IFileWriter& operator=(IFileWriter&&) = delete;
-
-  /**
-   * Opens the file for append (a la `fopen("ab")`), writes the provided n bytes at the
-   * end of the file, then closes the file, ensuring that the write is flushed to disk.
-   */
-  virtual FilesystemResult<void> Write(const char* src, size_t n) = 0;
-};
-
-/**
  * Handle to a directory within the Datadog storage root. Permits access to files and
  * subdirectories that are direct children of this directory. All `name` parameters are
  * given as basename only, e.g. "foo.dat" is valid; "foo/bar.dat", "../foo.dat",
@@ -137,11 +106,6 @@ class IDirectory {
   IDirectory& operator=(IDirectory&&) = default;
 
   /**
-   * Returns the path to this directory.
-   */
-  virtual const std::filesystem::path& GetPath() const = 0;
-
-  /**
    * Populates the provided vector with the names of all regular files that exist in
    * this directory.
    *
@@ -158,32 +122,10 @@ class IDirectory {
   virtual FilesystemResult<void> RemoveFile(std::string_view name) = 0;
 
   /**
-   * Given a source file in this directory with the given name, attempts to move that
-   * file into the destination directory given as `dst_directory_path`. If the
-   * destination directory does not yet exist, this operation will attempt to create it
-   * implicitly.
-   *
-   * If the source file does not exist, returns FilesystemError::DoesNotExist. If the
-   * destination directory already contains a file with the given name, returns
-   * FilesystemError::AlreadyExists.
-   */
-  virtual FilesystemResult<void> MoveFile(
-      std::string_view name, const std::filesystem::path& dst_directory_path
-  ) = 0;
-
-  /**
    * Opens an existing file for read, in binary mode, a la `fopen(name, "rb")`. If the
    * file does not exist, returns FilesystemError::DoesNotExist.
    */
   virtual FilesystemResult<std::unique_ptr<IFileReader>> OpenForRead(
-      std::string_view name
-  ) = 0;
-
-  /**
-   * Constructs a new wrapper for a file at the given path. Does not actually open the
-   * file, but ensures that all parent directories exist.
-   */
-  virtual FilesystemResult<std::unique_ptr<IFileWriter>> PrepareForWrite(
       std::string_view name
   ) = 0;
 

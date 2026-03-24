@@ -55,7 +55,7 @@ struct Report {
  * the batch files for a specific feature.
  */
 struct FeatureStorageConfig {
-  // TODO: Implement defaults, use these values in BatchWriter
+  // TODO: Implement defaults
 };
 
 /**
