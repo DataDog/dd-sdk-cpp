@@ -198,7 +198,12 @@ bool SdkStorage::Initialize(
   // If we have multiple SDK instances within the same process, they must be configured
   // with unique "instance names" (default is "main"): we use another layer of nesting
   // to establish <application-storage>/.datadog/<pid>/<instance-name>: this
-  // `_events_root` directory is where feature-specific subdirectories will be created
+  // `_events_root` directory is where feature-specific subdirectories will be created.
+  //
+  // Note: when an abandoned directory is claimed via atomic rename, any sub-directories
+  // under a different instance name will be present under `_process_root` but not under
+  // `_events_root`, and therefore won't be uploaded by this SDK instance. In practice
+  // this is not a concern since "main" is the only instance name used.
   if (!JoinPaths(
           _events_root, _process_root.Get(), sdk_instance_name, logger, join_message
       )) {
