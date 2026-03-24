@@ -304,8 +304,9 @@ bool SdkStorage::EnsureDestinationDirectoryExists(
   if (!path.Encode(instance_dir.CStr())) {
     return false;
   }
-  if (_fs.CreateDirectory(path) != FilesystemResult::OK &&
-      _fs.CreateDirectory(path) != FilesystemResult::AlreadyExistsAsDirectory) {
+  auto res = _fs.CreateDirectory(path);
+  if (res != FilesystemResult::OK &&
+      res != FilesystemResult::AlreadyExistsAsDirectory) {
     return false;
   }
 
@@ -317,8 +318,9 @@ bool SdkStorage::EnsureDestinationDirectoryExists(
   if (!path.Encode(feature_dir.CStr())) {
     return false;
   }
-  if (_fs.CreateDirectory(path) != FilesystemResult::OK &&
-      _fs.CreateDirectory(path) != FilesystemResult::AlreadyExistsAsDirectory) {
+  res = _fs.CreateDirectory(path);
+  if (res != FilesystemResult::OK &&
+      res != FilesystemResult::AlreadyExistsAsDirectory) {
     return false;
   }
 
@@ -330,8 +332,9 @@ bool SdkStorage::EnsureDestinationDirectoryExists(
   if (!path.Encode(events_dir.CStr())) {
     return false;
   }
-  if (_fs.CreateDirectory(path) != FilesystemResult::OK &&
-      _fs.CreateDirectory(path) != FilesystemResult::AlreadyExistsAsDirectory) {
+  res = _fs.CreateDirectory(path);
+  if (res != FilesystemResult::OK &&
+      res != FilesystemResult::AlreadyExistsAsDirectory) {
     return false;
   }
 
