@@ -18,6 +18,7 @@
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_id.hpp"
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/platform/filesystem.hpp"
@@ -135,6 +136,23 @@ class Feature : public std::enable_shared_from_this<Feature> {
   virtual std::optional<Report> UploadThread_PrepareReport(
       const HttpContext& context, class BatchReader& reader
   ) = 0;
+
+  /**
+   * Called by `Core::Start()` each time the SDK starts up. If the feature wants to
+   * react to messages dispatched on the `MessageBus`, it should override this method
+   * and return a handler function: typically a lambda that captures `weak_from_this()`
+   * so that message delivery is silently skipped if the feature has already been
+   * destroyed.
+   *
+   * Implementations must be idempotent, as this function called on every `Start()`.
+   *
+   * The default implementation returns `std::nullopt`, meaning the feature opts out of
+   * message handling entirely.
+   */
+  virtual std::optional<std::function<void(const FeatureMessage&)>>
+  MakeMessageHandler() {
+    return std::nullopt;
+  }
 
  protected:
   std::optional<FeatureScope> _scope;

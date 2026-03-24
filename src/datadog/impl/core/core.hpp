@@ -20,6 +20,7 @@
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature.hpp"
+#include "datadog/impl/core/message_bus.hpp"
 #include "datadog/impl/core/queue.hpp"
 #include "datadog/impl/core/storage_queue.hpp"
 #include "datadog/impl/core/storage_write.hpp"
@@ -388,6 +389,9 @@ class Core {
 
   std::unique_ptr<Queue<std::function<void()>>> _context_queue;
   std::optional<std::thread> _context_thread;
+
+  std::unique_ptr<MessageBus> _message_bus;
+  std::optional<std::thread> _message_bus_thread;
 
   std::unique_ptr<UploadScheduler> _upload_scheduler;
   std::optional<std::thread> _upload_thread;

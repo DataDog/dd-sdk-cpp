@@ -13,6 +13,7 @@
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/context_thread.hpp"
+#include "datadog/impl/core/messaging_thread.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/version.hpp"
@@ -266,6 +267,7 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
       std::move(*event_read_directory),
       std::move(upload_state)
   );
+
   _diagnostic_logger.Debug(
       "Feature registered",
       {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
@@ -320,8 +322,29 @@ bool Core::Start() {
       std::ref(_features)
   );
 
-  // Initialize a thread-safe queue for functions that will execute on the context
-  // thread
+  // Iterate through all registered features and call MakeMessageHandler(), allowing
+  // features to register their intent to be notified when messages are sent on the
+  // message bus
+  std::vector<std::function<void(const FeatureMessage&)>> handlers;
+  handlers.reserve(_features.size());
+  for (const auto& f : _features) {
+    if (auto h = f.impl->MakeMessageHandler()) {
+      handlers.push_back(std::move(*h));
+    }
+  }
+
+  // Create the message bus, which will queue all core-to-feature and feature-to-feature
+  // messages that need to be handled by interested features
+  DATADOG_ASSERT(!_message_bus, "_message_bus already exists on Start()");
+  _message_bus = std::make_unique<MessageBus>(std::move(handlers));
+
+  // Install the MessageBus into the CoreContextProvider so that it can send
+  // ContextChangedMessage in response to updates: context thread doesn't exist yet, so
+  // no synchronization is required here
+  _context_provider->SetMessageBus(_message_bus.get());
+
+  // Initialize a thread-safe queue for feature-submitted functions that will execute on
+  // the context thread
   DATADOG_ASSERT(!_context_queue, "_context_queue already exists on Start()");
   _context_queue = std::make_unique<Queue<std::function<void()>>>();
 
@@ -383,6 +406,18 @@ bool Core::Start() {
         )
     );
   }
+
+  // Start the messaging thread only after all features have completed OnCoreStarted().
+  // This ensures that any ContextChangedMessages dispatched during startup (e.g. from
+  // a feature calling UpdateContext in its Start()) are not delivered to a feature's
+  // handler before that feature's own OnCoreStarted() has run. Messages enqueued
+  // during the loop above are buffered in the queue and will be drained once this
+  // thread starts.
+  DATADOG_ASSERT(!_message_bus_thread, "_message_bus_thread already exists on Start()");
+  _message_bus_thread = std::thread(
+      MessagingThreadMain, std::ref(_diagnostic_logger), std::ref(*_message_bus)
+  );
+
   return true;
 }
 
@@ -422,14 +457,31 @@ void Core::Stop() {
   }
   _context_thread.reset();
 
+  // Stop the messaging thread after the context thread exits: the context thread is
+  // the primary producer of messages (via Update()), so draining it first prevents new
+  // messages from arriving after we signal the messaging thread to stop. After joining,
+  // detach the bus from the context provider so any stray Update() calls (which should
+  // not happen at this point) do not reference the destroyed bus.
+  DATADOG_ASSERT(_message_bus, "_message_bus is invalid on Stop");
+  DATADOG_ASSERT(
+      _message_bus_thread && _message_bus_thread->joinable(),
+      "_message_bus_thread is non-joinable on Stop"
+  );
+  _message_bus->Stop();
+  _diagnostic_logger.Debug("Joining on messaging thread");
+  _message_bus_thread->join();
+  _message_bus_thread.reset();
+  _context_provider->SetMessageBus(nullptr);
+
   // Notify each registered feature that the core has stopped, now that no more
   // context-thread functions enqueued by those features may be running
   for (const auto& feature : _features) {
     feature.impl->OnCoreStopping();
   }
 
-  // Destroy the context queue, now that no more features exist
+  // Destroy the context queue and message bus, now that no more features exist
   _context_queue.reset();
+  _message_bus.reset();
 
   // Stop all queue processing, then block until the consumer thread drains the queue
   // and exits, at which point it's safe to release the queue

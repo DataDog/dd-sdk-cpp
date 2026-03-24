@@ -12,6 +12,7 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/message_bus.hpp"
 #include "datadog/impl/core/version.hpp"
 
 namespace datadog::impl {
@@ -187,10 +188,23 @@ CoreContext CoreContextProvider::Get() const {
 }
 
 void CoreContextProvider::Update(const std::function<void(CoreContext&)>& callback) {
-  // Acquire an exclusive write lock, then allow the callback to mutate the context
-  std::unique_lock lock(_mutex);
-  callback(_context);
+  // Acquire an exclusive write lock, mutate the context, and capture a snapshot. The
+  // lock is released before Send() to minimize contention on the message bus.
+  CoreContext snapshot = [&] {
+    std::unique_lock lock(_mutex);
+    callback(_context);
+    return _context;
+  }();
+
+  // CoreContext has been mutated (and we have a valid snapshot): notify all registered
+  // message-handlers of the change, so that Features can perform work (on the messaging
+  // thread) in response to the updated context
+  if (_message_bus) {
+    _message_bus->Send(ContextChangedMessage{std::move(snapshot)});
+  }
 }
+
+void CoreContextProvider::SetMessageBus(MessageBus* bus) { _message_bus = bus; }
 
 const HttpContext& CoreContextProvider::GetHttpContext() const {
   std::shared_lock lock(_mutex);

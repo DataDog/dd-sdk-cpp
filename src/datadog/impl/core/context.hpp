@@ -24,6 +24,8 @@ struct DeviceInfo;
 
 namespace datadog::impl {
 
+class MessageBus;
+
 /**
  * SDK configuration details that influence how HTTP requests are built. Immutable for
  * the lifetime of the Core.
@@ -159,6 +161,7 @@ class CoreContextProvider {
  private:
   CoreContext _context;
   mutable std::shared_mutex _mutex;
+  MessageBus* _message_bus{nullptr};
 
  public:
   explicit CoreContextProvider(const CoreContext& context);
@@ -171,6 +174,10 @@ class CoreContextProvider {
   /**
    * Mutates the current CoreContext value, by invoking the provided callback after
    * obtaining exclusive write access.
+   *
+   * After mutation, dispatches a `ContextChangedMessage` on the `MessageBus`, carrying
+   * an immutable snapshot of the updated context to any Features that have registered
+   * an interest in receiving notifications of context changes.
    */
   void Update(const std::function<void(CoreContext&)>& callback);
 
@@ -178,6 +185,14 @@ class CoreContextProvider {
    * Synchronously returns an immutable reference to the HttpContext value.
    */
   const HttpContext& GetHttpContext() const;
+
+  /**
+   * Registers the `MessageBus` that `Update()` will dispatch `ContextChangedMessage`
+   * values to. Pass `nullptr` to detach the bus (e.g. during shutdown). Called by
+   * `Core::Start()` before the context thread launches; no synchronization is needed
+   * because the context thread is not yet running at that point.
+   */
+  void SetMessageBus(MessageBus* bus);
 };
 
 }  // namespace datadog::impl
