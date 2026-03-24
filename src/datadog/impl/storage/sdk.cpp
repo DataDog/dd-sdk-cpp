@@ -226,7 +226,7 @@ void SdkStorage::MigrateAbandonedEvents() {
     if (name == _pid_str) {
       continue;
     }
-    if (!std::all_of(name.begin(), name.end(), isdigit)) {
+    if (!std::all_of(name.begin(), name.end(), ::isdigit)) {
       continue;
     }
 
