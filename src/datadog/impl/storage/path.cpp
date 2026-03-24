@@ -26,6 +26,30 @@ static const char PATH_SEP = '/';
 #endif
 
 /**
+ * Returns true if `path` contains `..` as a complete path component — i.e., a segment
+ * that is exactly `..`, delimited by `/` or `\` (or at the start/end of the string).
+ * A substring match (e.g. `a..b`) is not considered a path traversal attempt and
+ * returns false.
+ */
+static bool contains_dotdot_component(std::string_view path) {
+  size_t pos = 0;
+  for (;;) {
+    const size_t sep = path.find_first_of("/\\", pos);
+    const auto component = (sep == std::string_view::npos)
+                               ? path.substr(pos)
+                               : path.substr(pos, sep - pos);
+    if (component == "..") {
+      return true;
+    }
+    if (sep == std::string_view::npos) {
+      break;
+    }
+    pos = sep + 1;
+  }
+  return false;
+}
+
+/**
  * Given a UTF-8 string, returns true if the last character in the string is treated as
  * a path separator on the current platform. On POSIX systems, this is effectively
  * `path.endswith('/')`, but on Windows it's `path.endswith('/') || path.endswith('\\')`
@@ -63,8 +87,9 @@ static std::string_view::size_type find_final_slash(std::string_view path) {
 }
 
 bool StoragePath::Set(std::string_view path) {
-  // Reject if the path contains "..", to prevent relative path traversal
-  if (path.find("..") != std::string_view::npos) {
+  // Reject if the path contains ".." as a path component, to prevent relative path
+  // traversal
+  if (contains_dotdot_component(path)) {
     return false;
   }
 
@@ -87,8 +112,9 @@ bool StoragePath::Set(std::string_view path) {
 }
 
 bool StoragePath::Append(std::string_view name) {
-  // Reject if new path component contains "..", to prevent relative path traversal
-  if (name.find("..") != std::string_view::npos) {
+  // Reject if new path component contains ".." as a component, to prevent relative path
+  // traversal
+  if (contains_dotdot_component(name)) {
     return false;
   }
 

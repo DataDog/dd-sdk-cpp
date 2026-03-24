@@ -252,13 +252,14 @@ TEST_CASE("StoragePath", "[unit][storage]") {
     REQUIRE(path.Get() == "foo");
   }
 
-  SECTION("M fail W Append is called with name that contains double-dot") {
+  SECTION(
+      "M fail W Append is called with name that contains double-dot as path token"
+  ) {
 #ifdef WIN32
-    auto value = GENERATE(
-        "..", "../..", "../bar", "bar/..", "..\\..", "..\\bar", "bar\\..", "a..z"
-    );
+    auto value =
+        GENERATE("..", "../..", "../bar", "bar/..", "..\\..", "..\\bar", "bar\\..");
 #else
-    auto value = GENERATE("..", "../..", "../bar", "bar/..", "a..z");
+    auto value = GENERATE("..", "../..", "../bar", "bar/..");
 #endif
     StoragePath path;
     REQUIRE(path.Set("/tmp/foo"));
