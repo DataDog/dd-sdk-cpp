@@ -172,7 +172,9 @@ bool SdkStorage::Initialize(
           // Try to claim this abandoned directory
           if (TryClaimAbandonedDirectory(name)) {
             claimed_abandoned = true;
-            break;  // Successfully claimed, stop searching
+            // Claimed one abandoned directory via O(1) atomic rename; any remaining
+            // abandoned directories are handled by MigrateAbandonedEvents() below.
+            break;
           }
         }
       }
