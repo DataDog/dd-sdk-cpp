@@ -154,32 +154,48 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
       DiagnosticLevel::Debug
   );
 
-  SECTION("M return empty string_view W Get is called on uninitialized") {
+  SECTION("M close lockfile handle W SdkStorage is destroyed") {
+    // Given a storage instance that has been initialized (acquiring a lockfile handle)
     fs.Mkdirs("my-app/storage");
 
     {
       SdkStorage storage(fs, 12345);
       const bool ok = storage.Initialize(logger, "my-app/storage", "main");
       REQUIRE(ok);
+
+      // When the lockfile handle is open
       REQUIRE(fs.GetOpenHandles().size() == 1);
     }
+
+    // Then the handle is closed on destruction
     REQUIRE(fs.GetOpenHandles().size() == 0);
   }
 
   SECTION("M create new directory structure W no abandoned directories exist") {
+    // Given no pre-existing .datadog directories
     SdkStorage storage(fs, 12345);
+
+    // When Initialize is called
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
+    // Then the lockfile is created
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/12345.lock"));
 
+    // And the per-process directory and instance subdirectory are created
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345/main"));
 
+    // And no other subdirectories were created under .datadog
     int dir_count = CountSubdirectories(fs, "my-app/storage/.datadog");
     REQUIRE(dir_count == 1);
+
+    // And GetEventsRoot returns the path to the instance subdirectory
+    REQUIRE(storage.GetEventsRoot() == "my-app/storage/.datadog/12345/main");
   }
 
   SECTION("M reuse abandoned directory via rename W process is dead") {
+    // Given an abandoned directory for a dead process with events in both v1 and
+    // intermediate-v1, and a lockfile that can be acquired (process is dead)
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
     WriteTestEvent(
         fs,
@@ -202,17 +218,18 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
         "{\"id\": 2, \"type\": \"action\"}"
     );
 
+    // When Initialize is called
     SdkStorage storage(fs, 12345);
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
-    // Directory was renamed atomically from 99999 to 12345
+    // Then the abandoned directory is renamed atomically to our PID
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/99999"));
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
 
-    // New lockfile created
+    // And our lockfile is created
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/12345.lock"));
 
-    // Events preserved in renamed directory
+    // And the events are preserved under the renamed directory
     REQUIRE(VerifyEventFile(
         fs,
         "my-app/storage",
@@ -236,6 +253,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
   }
 
   SECTION("M migrate events from all abandoned directories W multiple exist") {
+    // Given three abandoned directories for dead processes, each with events
     CreateAbandonedDirectory(fs, "my-app/storage", "88888", "main", "rum", true);
     WriteTestEvent(
         fs,
@@ -272,20 +290,21 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
         "{\"id\": 3, \"source\": \"77777\"}"
     );
 
+    // When Initialize is called
     SdkStorage storage(fs, 12345);
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
-    // All abandoned directories cleaned up: one via atomic rename, others via
-    // file-by-file migration followed by bottom-up DeleteDirectory
+    // Then all abandoned directories are removed: one via atomic rename, the rest
+    // via file-by-file migration followed by recursive deletion
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/88888"));
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/99999"));
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/77777"));
 
-    // New lockfile created
+    // And our lockfile is created
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/12345.lock"));
 
-    // All events migrated to 12345
+    // And all events are migrated to our directory
     REQUIRE(VerifyEventFile(
         fs,
         "my-app/storage",
@@ -319,6 +338,7 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
   }
 
   SECTION("M skip non-numeric directories W scanning for abandoned directories") {
+    // Given a directory whose name is not a valid PID (cannot be an abandoned process)
     CreateAbandonedDirectory(fs, "my-app/storage", "not-a-pid", "main", "rum", true);
     WriteTestEvent(
         fs,
@@ -331,14 +351,12 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
         "{\"id\": 1}"
     );
 
+    // When Initialize is called
     SdkStorage storage(fs, 12345);
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
-    // Both directories should exist (non-numeric dir not claimed)
+    // Then the non-numeric directory is left untouched
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/not-a-pid"));
-    REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
-
-    // Non-numeric directory's lockfile and events should remain untouched
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/not-a-pid.lock"));
     REQUIRE(VerifyEventFile(
         fs,
@@ -350,11 +368,15 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
         "event.json",
         "{\"id\": 1}"
     ));
+
+    // And our new directory is created normally
+    REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
   }
 
   SECTION(
       "M migrate events from all instances and features W directory claimed via rename"
   ) {
+    // Given a single abandoned directory containing multiple instances and features
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "logs", false);
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "worker", "rum", false);
@@ -383,14 +405,16 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
         "{\"id\": 3}"
     );
 
+    // When Initialize is called
     SdkStorage storage(fs, 12345);
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
-    // Directory was renamed atomically, preserving all instances/features
+    // Then the directory is renamed atomically to our PID, preserving the full
+    // directory tree across all instances and features
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/99999"));
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
 
-    // All events migrated to 12345, structure preserved
+    // And all events are accessible under the renamed directory
     REQUIRE(VerifyEventFile(
         fs, "my-app/storage", "12345", "main", "rum", "v1", "event1.json", "{\"id\": 1}"
     ));
@@ -417,41 +441,46 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
   }
 
   SECTION("M skip abandoned directory W no lockfile exists") {
+    // Given a directory for a numeric PID but with no accompanying lockfile
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", false);
     WriteTestEvent(
         fs, "my-app/storage", "99999", "main", "rum", "v1", "event.json", "{\"id\": 1}"
     );
 
+    // When Initialize is called
     SdkStorage storage(fs, 12345);
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
-    // Both directories should exist (no lockfile means can't verify process death)
+    // Then the directory is not claimed (without a lockfile we cannot verify the
+    // process is dead, so we leave it alone)
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/99999"));
-    REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
-
-    // Events remain in original directory, not migrated
     REQUIRE(VerifyEventFile(
         fs, "my-app/storage", "99999", "main", "rum", "v1", "event.json", "{\"id\": 1}"
     ));
+
+    // And our new directory is created normally
+    REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
   }
 
   SECTION("M rename empty abandoned directory W process is dead") {
+    // Given an empty abandoned directory for a dead process
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
 
+    // When Initialize is called
     SdkStorage storage(fs, 12345);
     REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
 
-    // Empty directory was renamed atomically from 99999 to 12345
+    // Then the empty directory is renamed atomically to our PID
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/99999"));
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/12345"));
 
-    // New lockfile created
+    // And our lockfile is created
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/12345.lock"));
   }
 
   SECTION("M not orphan abandoned directory W lockfile acquisition fails") {
-    // Pre-create root and the lockfile entry, then hold the advisory lock to simulate
-    // another process already owning the lockfile — Initialize() must fail
+    // Given an abandoned directory with events, and our own lockfile slot already
+    // held by another process (simulating a race or a stale lock)
     fs.Mkdirs("my-app/storage/.datadog");
     fs.Touch("my-app/storage/.datadog/12345.lock");
 
@@ -466,15 +495,17 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
         fs, "my-app/storage", "99999", "main", "rum", "v1", "event.json", "{\"id\": 1}"
     );
 
+    // When Initialize is called
     SdkStorage storage(fs, 12345);
+
+    // Then Initialize fails because the lockfile cannot be acquired
     REQUIRE(!storage.Initialize(logger, "my-app/storage", "main"));
 
-    // The abandoned directory must be untouched: it retains its own lockfile and can
+    // And the abandoned directory is untouched — it retains its own lockfile and can
     // be recovered by a future process. With the old scan-before-lockfile ordering,
     // TryClaimAbandonedDirectory would have renamed 99999/ → 12345/ and deleted
     // 99999.lock before the lockfile acquisition failed, permanently orphaning the
-    // data. With the new lockfile-before-scan ordering, Initialize() fails at lockfile
-    // acquisition and never touches 99999/.
+    // data. With lockfile-before-scan ordering, Initialize() aborts before scanning.
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/99999"));
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/99999.lock"));
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/12345"));
