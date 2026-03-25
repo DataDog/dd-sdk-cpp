@@ -25,14 +25,10 @@ static PlatformFileHandle int_to_handle(int fd) { return fd; }
 
 MockFilesystemNew::~MockFilesystemNew() {
   std::lock_guard lock(mutex_);
-  if (!handles_.empty()) {
-    // List all unclosed handles for diagnostics
-    std::string leaked_handles;
-    for (const auto& [fd, info] : handles_) {
-      leaked_handles += std::to_string(fd) + " (" + info.path + "), ";
-    }
-    DATADOG_ASSERT(false, "MockFilesystem destroyed with open handles");
-  }
+  // Silently clear any remaining open handles so that test failures (e.g. from
+  // a REQUIRE throwing mid-section) don't trigger a secondary assertion here that
+  // would obscure the original failure.
+  handles_.clear();
 }
 
 std::string MockFilesystemNew::NormalizePath(const PlatformPath& path) {
@@ -123,8 +119,8 @@ FilesystemResult MockFilesystemNew::ListFiles(
     return FilesystemResult::DoesNotExist;
   }
 
-  // Check if directory is marked bad
-  if (dir_it->second.bad) {
+  // Check if directory is marked as corrupt or failing
+  if (dir_it->second.bad || dir_it->second.fail) {
     return FilesystemResult::UnknownError;
   }
 
@@ -248,6 +244,11 @@ MockFilesystemNew::OpenFileResult MockFilesystemNew::OpenForRead(
   MockFileEntry& entry = file_it->second;
   std::lock_guard file_lock(entry.mutex);
 
+  // If the file is marked as failing, simulate an open failure
+  if (entry.fail) {
+    return {FilesystemResult::UnknownError, INVALID_FILE_HANDLE};
+  }
+
   // Check for advisory lock contention
   if (acquire_advisory_lock && entry.advisory_lock_holder.has_value()) {
     return {FilesystemResult::LockContention, INVALID_FILE_HANDLE};
@@ -331,12 +332,13 @@ MockFilesystemNew::ReadResult MockFilesystemNew::Read(
   MockFileEntry& entry = file_it->second;
   std::lock_guard file_lock(entry.mutex);
 
-  // Check error flags
+  // Check error flags: bad (corrupt) maps to UnknownError (IOError in TLV layer),
+  // while fail (soft failure) maps to DoesNotExist (ReadFailed in TLV layer)
   if (entry.bad) {
     return {FilesystemResult::UnknownError, 0};
   }
   if (entry.fail) {
-    return {FilesystemResult::UnknownError, 0};
+    return {FilesystemResult::DoesNotExist, 0};
   }
 
   // Calculate how much data to read

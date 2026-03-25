@@ -160,17 +160,6 @@ else()
     endif()
 endif()
 
-# Platform-specific support for file I/O
-option(DD_FILESYSTEM_USE_DEFAULT "Use default filesystem implementation. If disabled, you must supply an implementation of platform/filesystem.hpp in a file specified as DD_FILESYSTEM_SRC" ON)
-if(DD_FILESYSTEM_USE_DEFAULT)
-    target_sources(dd_native PRIVATE datadog/impl/platform/filesystem_std.cpp)
-else()
-    set(DD_FILESYSTEM_SRC "" CACHE STRING "Path to custom implementation of platform/filesystem.hpp")
-    if(DD_FILESYSTEM_SRC)
-        target_sources(dd_native PRIVATE ${DD_FILESYSTEM_SRC})
-    endif()
-endif()
-
 # Platform-specific support for HTTP client functionality
 option(DD_HTTP_USE_DEFAULT "Use default HTTP client implementation. If disabled, you must supply an implementation of platform/http.hpp in a file specified as DD_HTTP_SRC" ON)
 if(DD_HTTP_USE_DEFAULT)

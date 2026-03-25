@@ -14,7 +14,7 @@
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/tlv.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
+#include "datadog/impl/storage/filesystem.hpp"
 
 namespace datadog::impl {
 
@@ -55,15 +55,16 @@ enum class BatchReadError : uint8_t {
  */
 class BatchReader {
  private:
-  platform::IFileReader& _file;
+  IFilesystem& _fs;
+  PlatformFileHandle _handle;
   std::vector<char>& _block_data_buffer;
 
  public:
   /**
-   * Initializes a new BatchReader to read TLV data from a file that's open for read,
-   * using the provided buffer to store each block as it's read.
+   * Initializes a new BatchReader to read TLV data from a file opened for read via
+   * `fs`, using the provided buffer to store each block as it's read.
    */
-  BatchReader(platform::IFileReader& file, std::vector<char>& buffer);
+  BatchReader(IFilesystem& fs, PlatformFileHandle handle, std::vector<char>& buffer);
 
   /**
    * Attempts to read the next block of TLV data from the open file, returning

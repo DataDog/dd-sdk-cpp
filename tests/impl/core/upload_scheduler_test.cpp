@@ -19,7 +19,6 @@
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/tlv.hpp"
 

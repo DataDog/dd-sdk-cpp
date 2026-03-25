@@ -94,23 +94,23 @@ size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data) {
   return num_bytes;
 }
 
-static TLVBlockReadResult _propagate_filesystem_error(platform::FilesystemError err) {
-  if (err == platform::FilesystemError::IOError) {
+static TLVBlockReadResult _propagate_filesystem_error(FilesystemResult err) {
+  if (err == FilesystemResult::UnknownError) {
     return TLVBlockReadResult{TLVBlockReadResultType::IOError};
   }
   return TLVBlockReadResult{TLVBlockReadResultType::ReadFailed};
 }
 
 TLVBlockReadResult ReadTLVBlock(
-    platform::IFileReader& file, std::vector<char>& out_block_data
+    IFilesystem& fs, PlatformFileHandle handle, std::vector<char>& out_block_data
 ) {
   // Read the next six bytes of the file, which should contain the next block's header
   char header_buf[TLVBlockHeader::SIZE];
-  auto result = file.Read(static_cast<char*>(header_buf), sizeof(header_buf));
-  if (!result) {
-    return _propagate_filesystem_error(result.error());
+  auto result = fs.Read(handle, static_cast<char*>(header_buf), sizeof(header_buf));
+  if (result.value != FilesystemResult::OK) {
+    return _propagate_filesystem_error(result.value);
   }
-  const size_t num_header_bytes_read = *result;
+  const size_t num_header_bytes_read = result.bytes_read;
 
   // If we read exactly zero bytes, we've made it to the end of the file cleanly, and
   // there are no more blocks to read
@@ -137,11 +137,11 @@ TLVBlockReadResult ReadTLVBlock(
   out_block_data.resize(header->block_size);
 
   // Read the next N bytes, where N is the block size indicated in the header
-  result = file.Read(out_block_data.data(), out_block_data.size());
-  if (!result) {
-    return _propagate_filesystem_error(result.error());
+  result = fs.Read(handle, out_block_data.data(), out_block_data.size());
+  if (result.value != FilesystemResult::OK) {
+    return _propagate_filesystem_error(result.value);
   }
-  const size_t num_value_bytes_read = *result;
+  const size_t num_value_bytes_read = result.bytes_read;
 
   // If the advertised size in the header took us past the end of the file, we don't
   // have a valid block

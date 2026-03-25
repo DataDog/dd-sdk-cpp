@@ -69,7 +69,6 @@ add_executable(dd_native_tests
     impl/json/attribute_test.cpp
     impl/json/optional_test.cpp
     impl/platform/clock_test.cpp
-    impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
     impl/platform/system_info_test.cpp
     impl/storage/event_test.cpp
@@ -81,7 +80,6 @@ add_executable(dd_native_tests
     impl/json_test.cpp
     impl/validation_test.cpp
     mock/filesystem_new.cpp
-    mock/filesystem_mock_test.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp
     support/attribute_debug.cpp

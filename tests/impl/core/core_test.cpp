@@ -14,7 +14,6 @@
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem.hpp"
 #include "mock/filesystem_new.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
@@ -37,7 +36,6 @@ static impl::Core _make_core() {
           .SetBatchProcessingLevel(BatchProcessingLevel::Low),
       CoreSubsystems(
           std::make_unique<MockClock>(),
-          std::make_unique<MockStorageDirectory>(),
           std::make_unique<MockHttpSubsystem>(),
           std::make_unique<MockSystemInfo>(),
           std::unique_ptr<impl::IFilesystem>(std::move(fs)),

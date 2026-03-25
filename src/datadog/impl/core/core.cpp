@@ -18,11 +18,11 @@
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/version.hpp"
 #include "datadog/impl/platform/clock.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
 #include "datadog/impl/platform/http.hpp"
 #include "datadog/impl/platform/system_info.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
 #include "datadog/impl/storage/sdk.hpp"
+#include "datadog/impl/storage/util.hpp"
 
 namespace datadog::impl {
 
@@ -72,16 +72,6 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
     );
   }
 
-  // Root the IDirectory abstraction (used by the upload thread) at the per-PID
-  // events directory instead of the flat .datadog/ root
-  auto filesystem_result = platform::Filesystem::Init(sdk_storage->GetEventsRoot());
-  if (!filesystem_result) {
-    return nonstd::make_unexpected(filesystem_result.error().AddPrefix(
-        "event storage subsystem could not be initialized"
-    ));
-  }
-  auto storage_root = std::move(*filesystem_result);
-
   // Prepare whatever HTTP client library we'll use to create HTTP clients
   auto http_result = platform::Http::Init();
   if (!http_result) {
@@ -100,7 +90,6 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
   // Return our newly-created subsystems, to be transferred into the Core
   return CoreSubsystems(
       std::move(clock),
-      std::move(storage_root),
       std::move(http),
       std::move(system_info),
       std::move(storage_filesystem),
@@ -119,9 +108,6 @@ Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
           ))
       ),
       _subsystems(std::move(subsystems)) {
-  DATADOG_ASSERT(
-      _subsystems.storage_root, "Core created with no root storage directory"
-  );
   DATADOG_ASSERT(_subsystems.http, "Core created with no HTTP subsystem");
   DATADOG_ASSERT(_subsystems.system_info, "Core created with no system info subsystem");
 
@@ -234,42 +220,18 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
     return false;
   }
 
-  // The upload thread needs its own handle to the granted-consent directory, which
-  // EventStorage has just created; navigate to it via the legacy IStorageDirectory
-  // abstraction that the upload thread reads through
-  auto feature_dir = _subsystems.storage_root->PrepareSubdirectory(name);
-  if (!feature_dir) {
-    _diagnostic_logger.Error(
-        "Failed to register feature: upload directory could not be opened",
-        {{"feature", name},
-         {"feature_id", static_cast<int64_t>(id)},
-         {"fs_error_type", static_cast<int64_t>(feature_dir.error())}}
-    );
-    return false;
-  }
-  auto event_read_directory =
-      (*feature_dir)->PrepareSubdirectory(EventStorage::GRANTED_SUBDIRECTORY_NAME);
-  if (!event_read_directory) {
-    _diagnostic_logger.Error(
-        "Failed to register feature: upload subdirectory could not be opened",
-        {{"feature", name},
-         {"feature_id", static_cast<int64_t>(id)},
-         {"subdir_name", EventStorage::GRANTED_SUBDIRECTORY_NAME},
-         {"fs_error_type", static_cast<int64_t>(event_read_directory.error())}}
-    );
-    return false;
-  }
+  // Build the path to the granted-consent subdirectory that the upload thread will
+  // scan for batch files: this is the same directory that EventStorage just created
+  StoragePath event_read_path;
+  event_read_path.Set(_subsystems.sdk_storage->GetEventsRoot());
+  event_read_path.Append(name);
+  event_read_path.Append(EventStorage::GRANTED_SUBDIRECTORY_NAME);
 
   // Initialize the feature-specific state used by the upload thread
   auto upload_state = std::make_unique<UploadThreadState>(_config.upload_frequency);
 
   _features.emplace_back(
-      id,
-      name,
-      impl,
-      std::move(event_storage),
-      std::move(*event_read_directory),
-      std::move(upload_state)
+      id, name, impl, std::move(event_storage), event_read_path, std::move(upload_state)
   );
 
   _diagnostic_logger.Debug(
@@ -384,7 +346,8 @@ bool Core::Start() {
       std::ref(*_subsystems.clock),
       std::ref(*_upload_scheduler),
       std::ref(_features),
-      std::ref(*_http_client)
+      std::ref(*_http_client),
+      std::ref(*_subsystems.storage_filesystem)
   );
 
   _diagnostic_logger.Status(
@@ -541,7 +504,8 @@ void Core::Stop() {
           _features,
           *_http_client,
           mut_filenames,
-          mut_read_buffer
+          mut_read_buffer,
+          *_subsystems.storage_filesystem
       );
     }
   }

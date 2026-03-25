@@ -12,6 +12,7 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/storage/event.hpp"
+#include "datadog/impl/storage/path.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
@@ -73,16 +74,16 @@ TEST_CASE("StorageThreadMain", "[unit]") {
         "alpha",
         std::make_shared<FeatureAlpha>(),
         std::move(alpha_storage),
-        nullptr,  // event_read_directory is exclusive to upload thread
-        nullptr   // upload_state is exclusive to upload thread
+        StoragePath{},  // event_read_path is exclusive to upload thread
+        nullptr         // upload_state is exclusive to upload thread
     );
     out_features.emplace_back(
         CreateFeatureId("BRVO"),
         "bravo",
         std::make_shared<FeatureBravo>(),
         std::move(bravo_storage),
-        nullptr,  // event_read_directory is exclusive to upload thread
-        nullptr   // upload_state is exclusive to upload thread
+        StoragePath{},  // event_read_path is exclusive to upload thread
+        nullptr         // upload_state is exclusive to upload thread
     );
   };
 

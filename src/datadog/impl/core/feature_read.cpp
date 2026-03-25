@@ -10,14 +10,16 @@
 
 namespace datadog::impl {
 
-BatchReader::BatchReader(platform::IFileReader& file, std::vector<char>& buffer)
-    : _file(file), _block_data_buffer(buffer) {}
+BatchReader::BatchReader(
+    IFilesystem& fs, PlatformFileHandle handle, std::vector<char>& buffer
+)
+    : _fs(fs), _handle(handle), _block_data_buffer(buffer) {}
 
 nonstd::expected<std::optional<TLVBlock>, BatchReadError> BatchReader::ReadNext() {
   // Read and parse the TLV header at the current file position, then read the
   // adjacent block data into the buffer, returning a result that contains a
   // lightweight view of that buffer
-  const TLVBlockReadResult result = ReadTLVBlock(_file, _block_data_buffer);
+  const TLVBlockReadResult result = ReadTLVBlock(_fs, _handle, _block_data_buffer);
   switch (result.type) {
     // Successful read; continue
     case TLVBlockReadResultType::Success:

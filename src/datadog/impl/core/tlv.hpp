@@ -11,7 +11,7 @@
 #include <optional>
 
 #include "datadog/impl/core/block.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
+#include "datadog/impl/storage/filesystem.hpp"
 
 namespace datadog::impl {
 
@@ -80,18 +80,17 @@ struct TLVBlockReadResult {
 /**
  * Reads the next block of TLV-formatted data from the open file.
  *
- * @param file The open input file to read from.
- * @param out_block_data A mutable reference to the vector where the block data (just
- *  the 'V' portion of the TLV block, not including the 'TL' header) will be written. If
- *  successful, out_block_data is guaranteed to be the exact size indicated by the
- *  length encoded in the block header.
+ * `fs` is the filesystem implementation, and `handle` is the open file handle to read
+ * from. `out_block_data` is a mutable reference to the vector where the block data
+ * (just the 'V' portion of the TLV block, not including the 'TL' header) will be
+ * written. If successful, out_block_data is guaranteed to be the exact size indicated
+ * by the length encoded in the block header.
  *
- * @returns a struct indicating the result of the operation: if result.type is Success,
- *  other values may be read. If result.type is EndOfFile, no further reads should be
- *  attempted. Any other result type indicates a read failure.
+ * On success, result.type is Success and other fields may be read. On EndOfFile, no
+ * further reads should be attempted. Any other result type indicates a read failure.
  */
 TLVBlockReadResult ReadTLVBlock(
-    platform::IFileReader& file, std::vector<char>& out_block_data
+    IFilesystem& fs, PlatformFileHandle handle, std::vector<char>& out_block_data
 );
 
 }  // namespace datadog::impl

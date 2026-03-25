@@ -21,7 +21,6 @@
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/tlv.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
 #include "datadog/impl/platform/http.hpp"
 
 namespace datadog::impl {

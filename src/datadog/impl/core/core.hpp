@@ -29,12 +29,12 @@
 #include "datadog/impl/platform/system_info.hpp"
 #include "datadog/impl/storage/event.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
+#include "datadog/impl/storage/path.hpp"
 #include "datadog/impl/storage/sdk.hpp"
 
 // Forward declarations
 namespace datadog::platform {
 class IClock;
-class IStorageDirectory;
 class IHttpSubsystem;
 class IHttpClient;
 }  // namespace datadog::platform
@@ -81,7 +81,6 @@ enum class CoreState : uint8_t {
  */
 struct CoreSubsystems {
   std::unique_ptr<platform::IClock> clock;
-  std::unique_ptr<platform::IStorageDirectory> storage_root;
   std::unique_ptr<platform::IHttpSubsystem> http;
   std::unique_ptr<platform::ISystemInfo> system_info;
   // storage_filesystem must be declared before sdk_storage: destruction happens
@@ -91,14 +90,12 @@ struct CoreSubsystems {
 
   explicit CoreSubsystems(
       std::unique_ptr<platform::IClock>&& in_clock,
-      std::unique_ptr<platform::IStorageDirectory>&& in_storage_root,
       std::unique_ptr<platform::IHttpSubsystem>&& in_http,
       std::unique_ptr<platform::ISystemInfo>&& in_system_info,
       std::unique_ptr<impl::IFilesystem>&& in_storage_filesystem,
       std::unique_ptr<impl::SdkStorage>&& in_sdk_storage
   )
       : clock(std::move(in_clock)),
-        storage_root(std::move(in_storage_root)),
         http(std::move(in_http)),
         system_info(std::move(in_system_info)),
         storage_filesystem(std::move(in_storage_filesystem)),
@@ -147,11 +144,11 @@ struct RegisteredFeature {
   std::unique_ptr<EventStorage> event_storage;
 
   /**
-   * Wrapper for the directory that the upload thread will scan for batches of event
-   * data to upload: i.e. the subdirectory associated with TrackingConsent::Granted.
-   * This handle is exclusively used by the upload thread.
+   * Path to the directory that the upload thread will scan for batches of event data
+   * to upload: i.e. the subdirectory associated with TrackingConsent::Granted. This
+   * path is exclusively used by the upload thread.
    */
-  std::unique_ptr<platform::IDirectory> event_read_directory;
+  StoragePath event_read_path;
   /**
    * Stores feature-specific timing details and other state information, for use by
    * the upload thread.
@@ -163,14 +160,14 @@ struct RegisteredFeature {
       std::string_view in_name,
       const std::shared_ptr<Feature>& in_impl,
       std::unique_ptr<EventStorage>&& in_event_storage,
-      std::unique_ptr<platform::IDirectory>&& in_event_read_directory,
+      const StoragePath& in_event_read_path,
       std::unique_ptr<UploadThreadState>&& in_upload_state
   )
       : id(in_id),
         name(in_name),
         impl(in_impl),
         event_storage(std::move(in_event_storage)),
-        event_read_directory(std::move(in_event_read_directory)),
+        event_read_path(in_event_read_path),
         upload_state(std::move(in_upload_state)) {}
 };
 

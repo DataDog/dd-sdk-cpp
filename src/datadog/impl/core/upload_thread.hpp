@@ -18,6 +18,7 @@
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/clock.hpp"
 #include "datadog/impl/platform/http.hpp"
+#include "datadog/impl/storage/filesystem.hpp"
 
 namespace datadog::impl {
 
@@ -101,7 +102,8 @@ Duration Internal_HandleUploadProc(
     std::vector<struct RegisteredFeature>& features,
     platform::IHttpClient& http_client,
     std::vector<std::string>& mut_filenames,
-    std::vector<char>& mut_read_buffer
+    std::vector<char>& mut_read_buffer,
+    IFilesystem& fs
 );
 
 /**
@@ -129,7 +131,8 @@ void UploadThreadMain(
     const platform::IClock& clock,
     class UploadScheduler& scheduler,
     std::vector<struct RegisteredFeature>& features,
-    platform::IHttpClient& http_client
+    platform::IHttpClient& http_client,
+    IFilesystem& fs
 );
 
 }  // namespace datadog::impl

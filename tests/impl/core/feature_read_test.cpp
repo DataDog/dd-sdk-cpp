@@ -10,7 +10,9 @@
 #include <string_view>
 #include <vector>
 
-#include "mock/filesystem.hpp"
+#include "datadog/impl/storage/path.hpp"
+
+#include "mock/filesystem_new.hpp"
 #include "mock/tlv.hpp"
 
 using namespace datadog::impl;
@@ -18,20 +20,22 @@ using namespace datadog::impl;
 TEST_CASE("BatchReader", "[unit]") {
   SECTION("M read event blocks W file is valid") {
     // Given a mock file with two valid TLV event blocks
-    MockStorageDirectory storage;
+    MockFilesystemNew fs;
     MockTLVFile()
         .AppendEvent(Block{"Hello"})
         .AppendEvent(Block{"hi"})
-        .WriteTo(storage, "hello.dat");
+        .WriteTo(fs, "hello.dat");
 
-    auto infile = storage.OpenForRead("hello.dat");
-    REQUIRE(infile.has_value());
+    impl::PlatformPath pp;
+    pp.Encode("hello.dat");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
 
     // And a reusable read buffer
     std::vector<char> buffer;
 
     // And a BatchReader initialized to read from that file into that buffer
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(fs, handle, buffer);
 
     // When we read the first block
     auto block_0_res = reader.ReadNext();
@@ -67,23 +71,28 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(block_2_res.has_value());
     std::optional<TLVBlock> block_2 = *block_2_res;
     REQUIRE(!block_2.has_value());
+
+    fs.Close(handle);
   }
 
   SECTION("M read all blocks W file contains metadata + event blocks") {
     // Given a mock file with two valid TLV event blocks
-    MockStorageDirectory storage;
+    MockFilesystemNew fs;
     MockTLVFile()
         .AppendMetadata(Block{"metadata-0"})
         .AppendEvent(Block{"event-0"})
         .AppendMetadata(Block{"metadata-1"})
         .AppendEvent(Block{"event-1"})
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
+
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
 
     // And a BatchReader
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(fs, handle, buffer);
 
     // When we read until EOF and concatenate everything into a string
     std::string s;
@@ -108,21 +117,26 @@ TEST_CASE("BatchReader", "[unit]") {
 
     // And we have the expected data once we're done reading
     REQUIRE(s == "metadata-0event-0metadata-1event-1");
+
+    fs.Close(handle);
   }
 
   SECTION("M return IOError W file read fails due to low-level filesystem error") {
     // Given a mock file with two valid TLV event blocks
-    MockStorageDirectory storage;
+    MockFilesystemNew fs;
     MockTLVFile()
         .AppendEvent(Block{"event-0"})
         .AppendEvent(Block{"event-1"})
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
+
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
 
     // And a BatchReader
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(fs, handle, buffer);
 
     // When we read the first block under normal conditions
     auto block_0_res = reader.ReadNext();
@@ -134,7 +148,7 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(block_0->data == "event-0");
 
     // Next: Given external conditions that prevent file reads
-    storage.Corrupt("foo");
+    fs.Corrupt("foo");
 
     // When we attempt to read the next block
     auto block_1_res = reader.ReadNext();
@@ -142,19 +156,25 @@ TEST_CASE("BatchReader", "[unit]") {
     // Then we get an error indicating the file couldn't be read
     REQUIRE(!block_1_res.has_value());
     REQUIRE(block_1_res.error() == BatchReadError::IOError);
+
+    fs.Close(handle);
   }
 
   SECTION("M return FailedRead W file read fails due to invalid file state") {
     // Given a mock file with two valid TLV event blocks
-    MockStorageDirectory storage;
+    MockFilesystemNew fs;
     MockTLVFile()
         .AppendEvent(Block{"event-0"})
         .AppendEvent(Block{"event-1"})
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
+
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
+
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(fs, handle, buffer);
 
     // And normal conditions that have allowed us to read the first block
     auto block_0_res = reader.ReadNext();
@@ -164,25 +184,31 @@ TEST_CASE("BatchReader", "[unit]") {
     REQUIRE(block_0->data == "event-0");
 
     // When we attempt a read operation that will fail due to issues with our handle
-    storage.SetFail("foo", true);
+    fs.SetFail("foo", true);
     auto block_1_res = reader.ReadNext();
 
     // Then we get an error indicating the read operation failed
     REQUIRE(!block_1_res.has_value());
     REQUIRE(block_1_res.error() == BatchReadError::FailedRead);
+
+    fs.Close(handle);
   }
 
   SECTION("M return InvalidBlockFormat W file contains a TLV header w/o data") {
     // Given a mock file with a header that indicates 32 bytes of data to follow,
     // but no actual data after the header
-    MockStorageDirectory storage;
+    MockFilesystemNew fs;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{TLVBlockType::Event, 32})
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
+
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
+
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(fs, handle, buffer);
 
     // When we attempt to read the next block
     auto block_res = reader.ReadNext();
@@ -190,20 +216,26 @@ TEST_CASE("BatchReader", "[unit]") {
     // Then we get an error indicating the file contents are not valid TLV
     REQUIRE(!block_res.has_value());
     REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
+
+    fs.Close(handle);
   }
 
-  SECTION("M return InvalidBlockFormat W file has TLV header indicating zero size") {
+  SECTION("M return InvalidBlockFormat W file has unrecognized TLV block type") {
     // Given a mock file containing an otherwise well-formed TLV block that encodes
     // the block type with a value that does not correspond to a known TLVBlockType
-    MockStorageDirectory storage;
+    MockFilesystemNew fs;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{static_cast<TLVBlockType>(0x0002), 7})
         .AppendBytes("event-0")
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
+
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
+
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(fs, handle, buffer);
 
     // When we attempt to read from that file
     auto block_res = reader.ReadNext();
@@ -211,20 +243,26 @@ TEST_CASE("BatchReader", "[unit]") {
     // Then we get an error indicating the file contents are not valid TLV
     REQUIRE(!block_res.has_value());
     REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
+
+    fs.Close(handle);
   }
 
   SECTION("M return InvalidBlockFormat W file has TLV header indicating zero size") {
     // Given a mock file containing an otherwise well-formed TLV block that shows a
     // length of zero for its value
-    MockStorageDirectory storage;
+    MockFilesystemNew fs;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{TLVBlockType::Event, 0})
         .AppendBytes("event-0")
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
+
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
+
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(fs, handle, buffer);
 
     // When we attempt to read from that file
     auto block_res = reader.ReadNext();
@@ -232,41 +270,55 @@ TEST_CASE("BatchReader", "[unit]") {
     // Then we get an error indicating the file contents are not valid TLV
     REQUIRE(!block_res.has_value());
     REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
+
+    fs.Close(handle);
   }
 
   SECTION("M return InvalidBlockFormat W file contains non-TLV data") {
     // Given a mock file that does not contain valid TLV data
-    MockStorageDirectory storage;
-    storage.WithExistingFile("foo", "this is not TLV-encoded binary data");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
-    std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    MockFilesystemNew fs;
+    fs.Touch("foo", "this is not TLV-encoded binary data");
 
-    // When we attempt to read from that ifle
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
+
+    std::vector<char> buffer;
+    BatchReader reader(fs, handle, buffer);
+
+    // When we attempt to read from that file
     auto block_res = reader.ReadNext();
 
     // Then we get an error indicating the file contents are not valid TLV
     REQUIRE(!block_res.has_value());
     REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
+
+    fs.Close(handle);
   }
 
   SECTION("M return nullopt W file is empty") {
     // Given a mock file that is entirely empty
-    MockStorageDirectory storage;
-    storage.WithExistingFile("foo", "");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
-    std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    MockFilesystemNew fs;
+    fs.Touch("foo", "");
 
-    // When we attempt to read from that ifle
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
+
+    std::vector<char> buffer;
+    BatchReader reader(fs, handle, buffer);
+
+    // When we attempt to read from that file
     auto block_res = reader.ReadNext();
 
     // Then we get a successful read result with a nullopt value, indicating that we've
     // reached EOF
     REQUIRE(block_res.has_value());
     REQUIRE(*block_res == std::nullopt);
+
+    fs.Close(handle);
   }
 
   SECTION("M reuse buffer W multiple reads") {
@@ -281,18 +333,21 @@ TEST_CASE("BatchReader", "[unit]") {
     buffer.reserve(256);
 
     // And a mock file that contains valid TLV event blocks for each string
-    MockStorageDirectory storage;
+    MockFilesystemNew fs;
     MockTLVFile(4096)
         .AppendEvent(value_a_1024)
         .AppendEvent(value_b_768)
         .AppendEvent(value_c_16380)
         .AppendEvent(value_d_16384)
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
+
+    impl::PlatformPath pp;
+    pp.Encode("foo");
+    auto [open_result, handle] = fs.OpenForRead(pp, false);
+    REQUIRE(open_result == impl::FilesystemResult::OK);
 
     // And a reader initialized to use our buffer
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(fs, handle, buffer);
     REQUIRE(buffer.capacity() == 256);
 
     // When we read the block with 'a' x 1024
@@ -352,5 +407,7 @@ TEST_CASE("BatchReader", "[unit]") {
     block_res = reader.ReadNext();
     REQUIRE(block_res.has_value());
     REQUIRE(*block_res == std::nullopt);
+
+    fs.Close(handle);
   }
 }

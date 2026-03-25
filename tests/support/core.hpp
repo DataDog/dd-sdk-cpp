@@ -17,8 +17,6 @@
 #include "datadog/impl/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
-#include "mock/filesystem.hpp"
-#include "mock/filesystem_directory.hpp"
 #include "mock/filesystem_new.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
@@ -136,11 +134,6 @@ struct CoreTestHarness {
     // Capture the events root before transferring sdk_storage ownership to the core
     std::string events_root(_sdk_storage->GetEventsRoot());
 
-    // Create an IStorageDirectory adapter so the upload thread can read batch files
-    // written by EventStorage through the new IFilesystem abstraction
-    auto _storage_root =
-        std::make_unique<FilesystemStorageDirectory>(*_new_fs, events_root);
-
     // Capture references to the underlying objects before we transfer ownership out of
     // these unique_ptrs
     MockClock& clock = *_clock;
@@ -156,7 +149,6 @@ struct CoreTestHarness {
         config,
         impl::CoreSubsystems(
             std::move(_clock),
-            std::move(_storage_root),
             std::move(_http),
             std::move(_system_info),
             std::move(_new_fs),
