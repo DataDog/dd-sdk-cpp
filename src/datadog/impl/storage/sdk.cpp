@@ -213,6 +213,13 @@ bool SdkStorage::Initialize(
     return false;
   }
 
+  // TODO(RUM-15284): Both the atomic-rename fast-path above and the file-by-file
+  // MigrateAbandonedEvents() call below run synchronously on the calling thread,
+  // blocking SDK initialization. In the common case (at most one dead process),
+  // the rename keeps this O(1), but if multiple processes have crashed with large
+  // backlogs, file-by-file migration for the remaining directories can be slow.
+  // Consider offloading this work to the storage thread post-init.
+
   // Migrate events from any remaining abandoned directories that couldn't be claimed
   // via directory rename. This handles the case where multiple processes crashed and
   // we've already claimed one directory - we need to migrate events from the others.
@@ -317,6 +324,12 @@ void SdkStorage::MigrateFilesFromSubdirectory(
       continue;
     }
 
+    // Batch filenames are millisecond timestamps. If two dead processes both wrote a
+    // file with the same timestamp, this rename will silently overwrite the destination
+    // file. On POSIX, rename(2) is atomic and clobbers the target; MoveFileExA with
+    // MOVEFILE_REPLACE_EXISTING does the same on Windows. In practice this is unlikely
+    // since it requires two concurrently-running processes to create a batch file at
+    // the exact same millisecond, but it is a known edge case.
     _fs.Rename(src_path, dst_path);
   }
 
