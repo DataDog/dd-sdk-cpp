@@ -97,8 +97,8 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
     // Build the StoragePath that the upload thread will use to scan for batches
     StoragePath event_read_path;
-    event_read_path.Set(feature->GetName());
-    event_read_path.Append("yes-upload");
+    REQUIRE(event_read_path.Set(feature->GetName()));
+    REQUIRE(event_read_path.Append("yes-upload"));
 
     out_features.emplace_back(
         feature->GetId(),

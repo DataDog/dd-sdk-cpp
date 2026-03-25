@@ -138,7 +138,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   SECTION("M write concatenated TLV blocks W called as functor") {
     // Given a TLVBatchWriter initialized from an open batch file
     PlatformPath pp;
-    pp.Encode("three-events.dat");
+    REQUIRE(pp.Encode("three-events.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == FilesystemResult::OK);
     BatchReader reader{fs, handle, batch_reader_buffer};
@@ -162,7 +162,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   SECTION("M write in multiple parts W buffer size is small") {
     // Given a TLVBatchWriter initialized from an open batch file
     PlatformPath pp;
-    pp.Encode("three-events.dat");
+    REQUIRE(pp.Encode("three-events.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == FilesystemResult::OK);
     BatchReader reader{fs, handle, batch_reader_buffer};
@@ -192,7 +192,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   SECTION("M encode properly W prefix, delimiter, and suffix are empty") {
     // Given a TLVBatchWriter initialized with empty strings for formatting
     PlatformPath pp;
-    pp.Encode("three-events.dat");
+    REQUIRE(pp.Encode("three-events.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == FilesystemResult::OK);
     BatchReader reader{fs, handle, batch_reader_buffer};
@@ -215,7 +215,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     const char* delimiter = "\r\n";
     const char* suffix = "\r\nEND\r\n";
     PlatformPath pp;
-    pp.Encode("three-events.dat");
+    REQUIRE(pp.Encode("three-events.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == FilesystemResult::OK);
     BatchReader reader{fs, handle, batch_reader_buffer};
@@ -267,7 +267,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     for (size_t size : {1, 2, 3, 4, 5, 7, 9, 15, 16, 17, 25, 35}) {
       // And a fresh TLVBatchWriter for each iteration
       PlatformPath pp;
-      pp.Encode("three-events.dat");
+      REQUIRE(pp.Encode("three-events.dat"));
       auto [open_result, handle] = fs.OpenForRead(pp, false);
       REQUIRE(open_result == FilesystemResult::OK);
       BatchReader reader{fs, handle, batch_reader_buffer};
@@ -291,7 +291,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   SECTION("M abort request W file is empty") {
     // Given a TLVBatchWriter initialized from an empty file
     PlatformPath pp;
-    pp.Encode("empty.dat");
+    REQUIRE(pp.Encode("empty.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == FilesystemResult::OK);
     BatchReader reader{fs, handle, batch_reader_buffer};
@@ -309,7 +309,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   SECTION("M abort request W file contains only metadata blocks") {
     // Given a TLVBatchWriter initialized from a file with only metadata
     PlatformPath pp;
-    pp.Encode("only-metadata.dat");
+    REQUIRE(pp.Encode("only-metadata.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == FilesystemResult::OK);
     BatchReader reader{fs, handle, batch_reader_buffer};
@@ -327,7 +327,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   SECTION("M abort request W file read fails due to IO error") {
     // Given a TLVBatchWriter initialized from a valid batch file
     PlatformPath pp;
-    pp.Encode("badfile.dat");
+    REQUIRE(pp.Encode("badfile.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == FilesystemResult::OK);
     BatchReader reader{fs, handle, batch_reader_buffer};
@@ -350,7 +350,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   SECTION("M abort request W file read fails due to invalid format") {
     // Given a TLVBatchWriter initialized from an invalid TLV file
     PlatformPath pp;
-    pp.Encode("nontlv.dat");
+    REQUIRE(pp.Encode("nontlv.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == FilesystemResult::OK);
     BatchReader reader{fs, handle, batch_reader_buffer};

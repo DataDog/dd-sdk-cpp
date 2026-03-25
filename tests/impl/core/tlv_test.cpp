@@ -179,7 +179,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
         .AppendEvent("event-0")
         .WriteTo(fs, "foo");
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -226,7 +226,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     MockFilesystem fs;
     MockTLVFile().AppendEvent("test").WriteTo(fs, "corruptible");
     impl::PlatformPath pp;
-    pp.Encode("corruptible");
+    REQUIRE(pp.Encode("corruptible"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
     fs.Corrupt("corruptible");
@@ -245,7 +245,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     MockFilesystem fs;
     MockTLVFile().AppendEvent("test").WriteTo(fs, "failing");
     impl::PlatformPath pp;
-    pp.Encode("failing");
+    REQUIRE(pp.Encode("failing"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
     fs.SetFail("failing", true);
@@ -267,7 +267,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     malformed_file.AppendBytes(std::string_view{"\x99\x99\x00\x00\x00\x04test", 10});
     malformed_file.WriteTo(fs, "malformed");
     impl::PlatformPath pp;
-    pp.Encode("malformed");
+    REQUIRE(pp.Encode("malformed"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -288,7 +288,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     zero_size_file.AppendBytes(std::string_view{"\x00\x00\x00\x00\x00\x00", 6});
     zero_size_file.WriteTo(fs, "zero_size");
     impl::PlatformPath pp;
-    pp.Encode("zero_size");
+    REQUIRE(pp.Encode("zero_size"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -306,7 +306,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     MockFilesystem fs;
     fs.Touch("partial_header", std::string_view{"\x00\x01\x00", 3});
     impl::PlatformPath pp;
-    pp.Encode("partial_header");
+    REQUIRE(pp.Encode("partial_header"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -328,7 +328,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     incomplete_file.AppendBytes("12345");
     incomplete_file.WriteTo(fs, "incomplete");
     impl::PlatformPath pp;
-    pp.Encode("incomplete");
+    REQUIRE(pp.Encode("incomplete"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -346,7 +346,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     MockFilesystem fs;
     fs.Touch("empty", "");
     impl::PlatformPath pp;
-    pp.Encode("empty");
+    REQUIRE(pp.Encode("empty"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -365,7 +365,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
     std::string large_data(5000, 'L');  // 5KB of data
     MockTLVFile().AppendMetadata(large_data).WriteTo(fs, "large");
     impl::PlatformPath pp;
-    pp.Encode("large");
+    REQUIRE(pp.Encode("large"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -403,7 +403,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
         .AppendEvent("med")                     // 3 bytes
         .WriteTo(fs, "multi_size");
     impl::PlatformPath pp;
-    pp.Encode("multi_size");
+    REQUIRE(pp.Encode("multi_size"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 

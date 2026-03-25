@@ -27,7 +27,7 @@ TEST_CASE("BatchReader", "[unit]") {
         .WriteTo(fs, "hello.dat");
 
     impl::PlatformPath pp;
-    pp.Encode("hello.dat");
+    REQUIRE(pp.Encode("hello.dat"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -86,7 +86,7 @@ TEST_CASE("BatchReader", "[unit]") {
         .WriteTo(fs, "foo");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -130,7 +130,7 @@ TEST_CASE("BatchReader", "[unit]") {
         .WriteTo(fs, "foo");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -169,7 +169,7 @@ TEST_CASE("BatchReader", "[unit]") {
         .WriteTo(fs, "foo");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -203,7 +203,7 @@ TEST_CASE("BatchReader", "[unit]") {
         .WriteTo(fs, "foo");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -230,7 +230,7 @@ TEST_CASE("BatchReader", "[unit]") {
         .WriteTo(fs, "foo");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -257,7 +257,7 @@ TEST_CASE("BatchReader", "[unit]") {
         .WriteTo(fs, "foo");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -280,7 +280,7 @@ TEST_CASE("BatchReader", "[unit]") {
     fs.Touch("foo", "this is not TLV-encoded binary data");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -303,7 +303,7 @@ TEST_CASE("BatchReader", "[unit]") {
     fs.Touch("foo", "");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 
@@ -342,7 +342,7 @@ TEST_CASE("BatchReader", "[unit]") {
         .WriteTo(fs, "foo");
 
     impl::PlatformPath pp;
-    pp.Encode("foo");
+    REQUIRE(pp.Encode("foo"));
     auto [open_result, handle] = fs.OpenForRead(pp, false);
     REQUIRE(open_result == impl::FilesystemResult::OK);
 

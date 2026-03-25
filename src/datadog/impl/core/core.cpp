@@ -223,9 +223,15 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   // Build the path to the granted-consent subdirectory that the upload thread will
   // scan for batch files: this is the same directory that EventStorage just created
   StoragePath event_read_path;
-  event_read_path.Set(_subsystems.sdk_storage->GetEventsRoot());
-  event_read_path.Append(name);
-  event_read_path.Append(EventStorage::GRANTED_SUBDIRECTORY_NAME);
+  if (!event_read_path.Set(_subsystems.sdk_storage->GetEventsRoot()) ||
+      !event_read_path.Append(name) ||
+      !event_read_path.Append(EventStorage::GRANTED_SUBDIRECTORY_NAME)) {
+    _diagnostic_logger.Error(
+        "Failed to register feature: storage path too long",
+        {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
+    );
+    return false;
+  }
 
   // Initialize the feature-specific state used by the upload thread
   auto upload_state = std::make_unique<UploadThreadState>(_config.upload_frequency);

@@ -110,10 +110,15 @@ static _process_and_upload_batch_result _process_and_upload_batch(
 ) {
   // Build the full path to the batch file and open it for read
   StoragePath file_path;
-  file_path.Set(dir_path.Get());
-  file_path.Append(filename);
   PlatformPath pp;
-  pp.Encode(file_path.CStr());
+  if (!file_path.Set(dir_path.Get()) || !file_path.Append(filename) ||
+      !pp.Encode(file_path.CStr())) {
+    diagnostic_logger.Warning(
+        "Failed to build batch file path",
+        {{"feature", feature_impl.GetName()}, {"filename", filename}}
+    );
+    return _process_and_upload_batch_result::retryable_failure;
+  }
   auto [open_result, handle] = fs.OpenForRead(pp, false);
   if (open_result != FilesystemResult::OK) {
     // If we failed to open the file for any reason, leave it in place and abort the
@@ -192,7 +197,9 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
 
   // Build a platform path for the event storage directory so we can call ListFiles
   PlatformPath dir_pp;
-  dir_pp.Encode(feature.event_read_path.CStr());
+  if (!dir_pp.Encode(feature.event_read_path.CStr())) {
+    return feature.upload_state->current_delay;
+  }
 
   // Retrieve a list of all filenames in the relevant directory
   mut_filenames.clear();
@@ -253,10 +260,15 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // If this file is too old to process, delete it and continue
     if (file_age >= config.max_file_age_for_read) {
       StoragePath file_path;
-      file_path.Set(feature.event_read_path.Get());
-      file_path.Append(filename);
       PlatformPath file_pp;
-      file_pp.Encode(file_path.CStr());
+      if (!file_path.Set(feature.event_read_path.Get()) ||
+          !file_path.Append(filename) || !file_pp.Encode(file_path.CStr())) {
+        diagnostic_logger.Warning(
+            "Failed to build path for outdated batch file",
+            {{"feature", feature.name}, {"filename", filename}}
+        );
+        continue;
+      }
       if (fs.Delete(file_pp) == FilesystemResult::OK) {
         diagnostic_logger.Debug(
             "Deleted outdated batch file",
@@ -320,10 +332,15 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // or because it's somehow malformed, delete it
     if (should_delete_batch) {
       StoragePath file_path;
-      file_path.Set(feature.event_read_path.Get());
-      file_path.Append(filename);
       PlatformPath file_pp;
-      file_pp.Encode(file_path.CStr());
+      if (!file_path.Set(feature.event_read_path.Get()) ||
+          !file_path.Append(filename) || !file_pp.Encode(file_path.CStr())) {
+        diagnostic_logger.Warning(
+            "Failed to build path for batch file deletion",
+            {{"feature", feature.name}, {"filename", filename}}
+        );
+        continue;
+      }
       if (fs.Delete(file_pp) == FilesystemResult::OK) {
         diagnostic_logger.Debug(
             "Deleted batch file", {{"feature", feature.name}, {"filename", filename}}

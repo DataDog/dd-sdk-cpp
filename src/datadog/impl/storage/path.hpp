@@ -34,7 +34,7 @@ class StoragePath {
    * Returns true if the value was successfully stored; false if it exceeds the buffer
    * size or contains "..".
    */
-  bool Set(std::string_view path);
+  [[nodiscard]] bool Set(std::string_view path);
 
   /**
    * Modifies the value in-place, updating the buffer to concatenate the given path
@@ -43,7 +43,7 @@ class StoragePath {
    * Returns true if the value was successfully updated; false if it would exceed the
    * buffer size or if `name` contains "..".
    */
-  bool Append(std::string_view name);
+  [[nodiscard]] bool Append(std::string_view name);
 
   /**
    * Modifies the value in-place, appending the given extension directly without a path
@@ -53,7 +53,7 @@ class StoragePath {
    * Returns true if successful; false if would exceed buffer size or `ext` contains
    * "..".
    */
-  bool AppendExt(std::string_view ext);
+  [[nodiscard]] bool AppendExt(std::string_view ext);
 
   /**
    * Modifies the value in-place, updating the buffer to strip off the last path
@@ -104,7 +104,7 @@ class StoragePath {
  */
 class PlatformPath {
  public:
-  bool Encode(const char* utf8_path);
+  [[nodiscard]] bool Encode(const char* utf8_path);
 
 #ifdef _WIN32
   const wchar_t* Get() const { return _buf.data(); };
