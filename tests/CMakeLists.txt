@@ -73,12 +73,14 @@ add_executable(dd_native_tests
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
     impl/platform/system_info_test.cpp
+    impl/storage/filesystem_test.cpp
     impl/storage/path_test.cpp
     impl/diagnostics_test.cpp
     impl/error_message_test.cpp
     impl/json_test.cpp
     impl/validation_test.cpp
     mock/filesystem_mock_test.cpp
+    mock/filesystem_new.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp
     support/attribute_debug.cpp

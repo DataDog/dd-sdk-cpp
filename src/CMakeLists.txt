@@ -69,7 +69,13 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
 # impl/storage
 target_sources(dd_native PRIVATE
     datadog/impl/storage/path.cpp
+    datadog/impl/storage/util.cpp
 )
+if(WIN32)
+    target_sources(dd_native PRIVATE datadog/impl/storage/filesystem_windows.cpp)
+else()
+    target_sources(dd_native PRIVATE datadog/impl/storage/filesystem_posix.cpp)
+endif()
 
 # Inject version number from CMake project config
 target_compile_definitions(dd_native PUBLIC DATADOG_BUILD_VERSION="${ddsdkcpp_VERSION}")
