@@ -10,7 +10,7 @@
 #include <vector>
 
 #include "mock/clock.hpp"
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 #include "support/catch.hpp"
 #include "support/diagnostics.hpp"
@@ -20,7 +20,7 @@ using namespace datadog::impl;
 
 namespace {
 
-bool DirectoryExists(MockFilesystemNew& fs, std::string_view path) {
+bool DirectoryExists(MockFilesystem& fs, std::string_view path) {
   PlatformPath pp;
   std::string s(path);
   if (!pp.Encode(s.c_str())) {
@@ -33,7 +33,7 @@ bool DirectoryExists(MockFilesystemNew& fs, std::string_view path) {
 }  // namespace
 
 TEST_CASE("EventStorage", "[unit][storage]") {
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   MockClock clock;
   clock.FreezeAtMilliseconds(1700000000000LL);
   DiagnosticMessageBuffer diagnostics;

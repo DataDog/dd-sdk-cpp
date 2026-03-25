@@ -20,7 +20,7 @@
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/tlv.hpp"
 
@@ -88,7 +88,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
           };
 
   auto register_feature = [](UploadFrequency upload_frequency,
-                             MockFilesystemNew& fs,
+                             MockFilesystem& fs,
                              const std::shared_ptr<Feature>& feature,
                              std::vector<RegisteredFeature>& out_features) -> void {
     // Create the per-feature directory hierarchy in the mock filesystem
@@ -110,7 +110,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     );
   };
 
-  auto find_files = [](MockFilesystemNew& fs,
+  auto find_files = [](MockFilesystem& fs,
                        std::string_view dir) -> std::vector<std::string> {
     auto basenames = fs.FindFiles(std::string(dir));
     std::vector<std::string> result;
@@ -125,7 +125,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // Given a single registered feature with no event data present
     MockClock clock;
     MockHttpClient client;
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
@@ -167,7 +167,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
@@ -237,7 +237,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
       " {respecting min file age for read}"
   ) {
     // Given a directory with a series of batch files of different ages
-    auto init_files = [](MockFilesystemNew& fs) {
+    auto init_files = [](MockFilesystem& fs) {
       // Test begins at 1700000000000ms
       fs.Touch(
           "alpha/yes-upload/1699999955000",
@@ -290,7 +290,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         MockClock clock;
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        MockFilesystemNew fs;
+        MockFilesystem fs;
         const auto [core_config, config, context] = init_config(
             tt.batch_size, UploadFrequency::Average, BatchProcessingLevel::Medium
         );
@@ -346,7 +346,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
 
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
@@ -422,7 +422,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         MockClock clock;
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        MockFilesystemNew fs;
+        MockFilesystem fs;
         const auto [core_config, config, context] = init_config(
             BatchSize::Medium, tt.upload_frequency, BatchProcessingLevel::Medium
         );
@@ -489,7 +489,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         MockClock clock;
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        MockFilesystemNew fs;
+        MockFilesystem fs;
         const auto [core_config, config, context] = init_config(
             BatchSize::Medium, tt.upload_frequency, BatchProcessingLevel::Medium
         );
@@ -544,7 +544,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
   ) {
     // Given a directory with 101 batch files, all of which were created long enough
     // ago to be eligible for upload
-    auto init_files = [](MockFilesystemNew& fs) {
+    auto init_files = [](MockFilesystem& fs) {
       // Test begins at 1700000000000ms
       const std::string contents = MockTLVFile().AppendEvent("event").ToString();
       for (int i = 0; i < 101; i++) {
@@ -572,7 +572,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         MockClock clock;
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        MockFilesystemNew fs;
+        MockFilesystem fs;
         const auto [core_config, config, context] = init_config(
             BatchSize::Medium, UploadFrequency::Average, tt.batch_processing_level
         );
@@ -626,7 +626,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // Given a single registered feature with a single batch of event data
     MockClock clock;
     MockHttpClient client;
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
@@ -676,7 +676,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
@@ -738,7 +738,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
@@ -792,7 +792,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
@@ -843,7 +843,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
@@ -895,7 +895,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );

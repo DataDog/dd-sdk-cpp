@@ -17,7 +17,7 @@
 #include "datadog/impl/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
 #include "support/diagnostics.hpp"
@@ -47,7 +47,7 @@ static const CoreConfig MOCK_CORE_CONFIG =
  * underlying MockFilesystem.
  */
 struct StorageView {
-  MockFilesystemNew& fs;
+  MockFilesystem& fs;
   std::string events_root;
 
   /**
@@ -97,7 +97,7 @@ struct CoreTestHarness {
   impl::Core& core;
   MockClock& clock;
   StorageView storage;
-  MockFilesystemNew& new_filesystem;
+  MockFilesystem& new_filesystem;
   MockHttpClient& client;
 
   std::vector<dd_diagnostic_message_t> c_diagnostics;
@@ -107,7 +107,7 @@ struct CoreTestHarness {
       std::unique_ptr<impl::Core>&& in_core,
       MockClock& in_clock,
       StorageView in_storage,
-      MockFilesystemNew& in_new_filesystem,
+      MockFilesystem& in_new_filesystem,
       MockHttpClient& in_client
   )
       : _core(std::move(in_core)),
@@ -122,7 +122,7 @@ struct CoreTestHarness {
     auto _clock = std::make_unique<MockClock>();
     auto _http = std::make_unique<MockHttpSubsystem>();
     auto _system_info = std::make_unique<MockSystemInfo>();
-    auto _new_fs = std::make_unique<MockFilesystemNew>();
+    auto _new_fs = std::make_unique<MockFilesystem>();
 
     // Pre-create the root directory required by SdkStorage::Initialize
     _new_fs->Mkdirs("/mock-events");
@@ -137,7 +137,7 @@ struct CoreTestHarness {
     // Capture references to the underlying objects before we transfer ownership out of
     // these unique_ptrs
     MockClock& clock = *_clock;
-    MockFilesystemNew& new_filesystem = *_new_fs;
+    MockFilesystem& new_filesystem = *_new_fs;
     MockHttpSubsystem& http = *_http;
 
     // Create the core, giving the core ownership of injected subsystems

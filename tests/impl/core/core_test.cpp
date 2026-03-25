@@ -14,7 +14,7 @@
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
 #include "support/core.hpp"
@@ -23,7 +23,7 @@ using namespace datadog;
 using namespace datadog::impl;
 
 static impl::Core _make_core() {
-  auto fs = std::make_unique<MockFilesystemNew>();
+  auto fs = std::make_unique<MockFilesystem>();
   fs->Mkdirs("/mock-events");
   auto sdk_storage = std::make_unique<impl::SdkStorage>(*fs, 1 /* test pid */);
   sdk_storage->Initialize(DiagnosticLogger{}, "/mock-events", "main");

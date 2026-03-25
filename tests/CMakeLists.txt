@@ -79,7 +79,7 @@ add_executable(dd_native_tests
     impl/error_message_test.cpp
     impl/json_test.cpp
     impl/validation_test.cpp
-    mock/filesystem_new.cpp
+    mock/filesystem.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp
     support/attribute_debug.cpp

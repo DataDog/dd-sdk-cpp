@@ -10,7 +10,7 @@
 
 #include "datadog/impl/storage/path.hpp"
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 
 using namespace datadog::impl;
@@ -173,7 +173,7 @@ TEST_CASE("EncodeTLVBlock", "[unit]") {
 TEST_CASE("ReadTLVBlock", "[unit]") {
   SECTION("M read all blocks successfully W given valid TLV file") {
     // Given a file 'foo' containing a metadata block and an event block
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendMetadata("metadata-0")
         .AppendEvent("event-0")
@@ -223,7 +223,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M return IOError W file read operation encounters I/O error") {
     // Given a file that suddenly becomes unreadable after being opened
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile().AppendEvent("test").WriteTo(fs, "corruptible");
     impl::PlatformPath pp;
     pp.Encode("corruptible");
@@ -242,7 +242,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M return ReadFailed W file read operation fails") {
     // Given a file we suddenly can't read from after it's open
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile().AppendEvent("test").WriteTo(fs, "failing");
     impl::PlatformPath pp;
     pp.Encode("failing");
@@ -261,7 +261,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M return Malformed W file contains invalid TLV header") {
     // Given a file with invalid block type in header
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile malformed_file;
     // Manually create invalid header: type 0x9999 (unknown), size 4
     malformed_file.AppendBytes(std::string_view{"\x99\x99\x00\x00\x00\x04test", 10});
@@ -282,7 +282,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M return Malformed W file contains zero-size block") {
     // Given a file with zero block size in header
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile zero_size_file;
     // Create header with Event type but zero size
     zero_size_file.AppendBytes(std::string_view{"\x00\x00\x00\x00\x00\x00", 6});
@@ -303,7 +303,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M return Malformed W file has incomplete header") {
     // Given a file with only partial header (less than 6 bytes)
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     fs.Touch("partial_header", std::string_view{"\x00\x01\x00", 3});
     impl::PlatformPath pp;
     pp.Encode("partial_header");
@@ -321,7 +321,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M return Malformed W file has incomplete block data") {
     // Given a file with valid header but insufficient block data
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile incomplete_file;
     // Header says size is 10 bytes, but we only provide 5
     incomplete_file.AppendBytes(std::string_view{"\x00\x01\x00\x00\x00\x0a", 6});
@@ -343,7 +343,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M return EndOfFile W file is empty") {
     // Given an empty file
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     fs.Touch("empty", "");
     impl::PlatformPath pp;
     pp.Encode("empty");
@@ -361,7 +361,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M handle large block size properly W buffer needs reallocation") {
     // Given a file with a large block
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     std::string large_data(5000, 'L');  // 5KB of data
     MockTLVFile().AppendMetadata(large_data).WriteTo(fs, "large");
     impl::PlatformPath pp;
@@ -396,7 +396,7 @@ TEST_CASE("ReadTLVBlock", "[unit]") {
 
   SECTION("M reuse buffer efficiently W multiple reads of different sizes") {
     // Given a file with blocks of different sizes
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendEvent("small")                   // 5 bytes
         .AppendMetadata("much_larger_content")  // 19 bytes

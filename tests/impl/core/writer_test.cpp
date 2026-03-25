@@ -14,7 +14,7 @@
 #include "datadog/impl/platform/http.hpp"
 #include "datadog/impl/storage/path.hpp"
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 
 using namespace datadog;
@@ -90,7 +90,7 @@ TEST_CASE("StringWriter", "[unit]") {
 
 TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   // Prepare a mock filesystem with batch files for testing
-  MockFilesystemNew fs;
+  MockFilesystem fs;
 
   // Format unique JSON events, 8 bytes in length, e.g. '{"id":0}', and interleave
   // metadata blocks that just contain the ASCII bytes 'metadata'

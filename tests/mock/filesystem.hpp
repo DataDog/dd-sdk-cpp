@@ -24,16 +24,16 @@
  * Thread-safe via mutex-protected shared state. Detects resource leaks by asserting
  * on unclosed handles in destructor.
  */
-class MockFilesystemNew : public datadog::impl::IFilesystem {
+class MockFilesystem : public datadog::impl::IFilesystem {
  public:
-  MockFilesystemNew() = default;
-  ~MockFilesystemNew() override;
+  MockFilesystem() = default;
+  ~MockFilesystem() override;
 
   // Noncopyable, non-movable (due to mutex members)
-  MockFilesystemNew(const MockFilesystemNew&) = delete;
-  MockFilesystemNew& operator=(const MockFilesystemNew&) = delete;
-  MockFilesystemNew(MockFilesystemNew&&) = delete;
-  MockFilesystemNew& operator=(MockFilesystemNew&&) = delete;
+  MockFilesystem(const MockFilesystem&) = delete;
+  MockFilesystem& operator=(const MockFilesystem&) = delete;
+  MockFilesystem(MockFilesystem&&) = delete;
+  MockFilesystem& operator=(MockFilesystem&&) = delete;
 
   // IFilesystem interface implementation
   datadog::impl::FilesystemResult CreateDirectory(

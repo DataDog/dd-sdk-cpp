@@ -12,7 +12,7 @@
 
 #include "datadog/impl/storage/path.hpp"
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 
 using namespace datadog::impl;
@@ -20,7 +20,7 @@ using namespace datadog::impl;
 TEST_CASE("BatchReader", "[unit]") {
   SECTION("M read event blocks W file is valid") {
     // Given a mock file with two valid TLV event blocks
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendEvent(Block{"Hello"})
         .AppendEvent(Block{"hi"})
@@ -77,7 +77,7 @@ TEST_CASE("BatchReader", "[unit]") {
 
   SECTION("M read all blocks W file contains metadata + event blocks") {
     // Given a mock file with two valid TLV event blocks
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendMetadata(Block{"metadata-0"})
         .AppendEvent(Block{"event-0"})
@@ -123,7 +123,7 @@ TEST_CASE("BatchReader", "[unit]") {
 
   SECTION("M return IOError W file read fails due to low-level filesystem error") {
     // Given a mock file with two valid TLV event blocks
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendEvent(Block{"event-0"})
         .AppendEvent(Block{"event-1"})
@@ -162,7 +162,7 @@ TEST_CASE("BatchReader", "[unit]") {
 
   SECTION("M return FailedRead W file read fails due to invalid file state") {
     // Given a mock file with two valid TLV event blocks
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendEvent(Block{"event-0"})
         .AppendEvent(Block{"event-1"})
@@ -197,7 +197,7 @@ TEST_CASE("BatchReader", "[unit]") {
   SECTION("M return InvalidBlockFormat W file contains a TLV header w/o data") {
     // Given a mock file with a header that indicates 32 bytes of data to follow,
     // but no actual data after the header
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{TLVBlockType::Event, 32})
         .WriteTo(fs, "foo");
@@ -223,7 +223,7 @@ TEST_CASE("BatchReader", "[unit]") {
   SECTION("M return InvalidBlockFormat W file has unrecognized TLV block type") {
     // Given a mock file containing an otherwise well-formed TLV block that encodes
     // the block type with a value that does not correspond to a known TLVBlockType
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{static_cast<TLVBlockType>(0x0002), 7})
         .AppendBytes("event-0")
@@ -250,7 +250,7 @@ TEST_CASE("BatchReader", "[unit]") {
   SECTION("M return InvalidBlockFormat W file has TLV header indicating zero size") {
     // Given a mock file containing an otherwise well-formed TLV block that shows a
     // length of zero for its value
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{TLVBlockType::Event, 0})
         .AppendBytes("event-0")
@@ -276,7 +276,7 @@ TEST_CASE("BatchReader", "[unit]") {
 
   SECTION("M return InvalidBlockFormat W file contains non-TLV data") {
     // Given a mock file that does not contain valid TLV data
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     fs.Touch("foo", "this is not TLV-encoded binary data");
 
     impl::PlatformPath pp;
@@ -299,7 +299,7 @@ TEST_CASE("BatchReader", "[unit]") {
 
   SECTION("M return nullopt W file is empty") {
     // Given a mock file that is entirely empty
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     fs.Touch("foo", "");
 
     impl::PlatformPath pp;
@@ -333,7 +333,7 @@ TEST_CASE("BatchReader", "[unit]") {
     buffer.reserve(256);
 
     // And a mock file that contains valid TLV event blocks for each string
-    MockFilesystemNew fs;
+    MockFilesystem fs;
     MockTLVFile(4096)
         .AppendEvent(value_a_1024)
         .AppendEvent(value_b_768)
