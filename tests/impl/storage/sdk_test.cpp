@@ -24,7 +24,7 @@ namespace {
  * <root>/.datadog/<pid>.lock
  */
 void CreateAbandonedDirectory(
-    MockFilesystem& fs,
+    MockFilesystemNew& fs,
     std::string_view root,
     std::string_view pid,
     std::string_view instance,
@@ -47,7 +47,7 @@ void CreateAbandonedDirectory(
  * Helper function to write a test event file in an abandoned directory.
  */
 void WriteTestEvent(
-    MockFilesystem& fs,
+    MockFilesystemNew& fs,
     std::string_view root,
     std::string_view pid,
     std::string_view instance,
@@ -66,7 +66,7 @@ void WriteTestEvent(
  * Helper function to verify an event file exists and has the expected content.
  */
 bool VerifyEventFile(
-    MockFilesystem& fs,
+    MockFilesystemNew& fs,
     std::string_view root,
     std::string_view pid,
     std::string_view instance,
@@ -89,7 +89,7 @@ bool VerifyEventFile(
 /**
  * Helper function to check if a directory exists.
  */
-bool DirectoryExists(MockFilesystem& fs, std::string_view path) {
+bool DirectoryExists(MockFilesystemNew& fs, std::string_view path) {
   PlatformPath platform_path;
   std::string path_str(path);
   if (!platform_path.Encode(path_str.c_str())) {
@@ -102,7 +102,7 @@ bool DirectoryExists(MockFilesystem& fs, std::string_view path) {
 /**
  * Helper function to check if a file exists.
  */
-bool FileExists(MockFilesystem& fs, std::string_view path) {
+bool FileExists(MockFilesystemNew& fs, std::string_view path) {
   try {
     fs.Cat(std::string(path));
     return true;
@@ -114,7 +114,7 @@ bool FileExists(MockFilesystem& fs, std::string_view path) {
 /**
  * Helper function to count subdirectories in a directory.
  */
-int CountSubdirectories(MockFilesystem& fs, std::string_view path) {
+int CountSubdirectories(MockFilesystemNew& fs, std::string_view path) {
   PlatformPath platform_path;
   std::string path_str(path);
   if (!platform_path.Encode(path_str.c_str())) {
@@ -130,7 +130,7 @@ int CountSubdirectories(MockFilesystem& fs, std::string_view path) {
 }  // namespace
 
 TEST_CASE("SdkStorage", "[unit][storage]") {
-  MockFilesystem fs;
+  MockFilesystemNew fs;
   fs.Mkdirs("my-app/storage");
 
   DiagnosticMessageBuffer diagnostics;

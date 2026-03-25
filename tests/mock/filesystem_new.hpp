@@ -16,8 +16,6 @@
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
 
-namespace datadog::impl {
-
 /**
  * Mock filesystem implementation for testing.
  *
@@ -26,47 +24,59 @@ namespace datadog::impl {
  * Thread-safe via mutex-protected shared state. Detects resource leaks by asserting
  * on unclosed handles in destructor.
  */
-class MockFilesystem : public IFilesystem {
+class MockFilesystemNew : public datadog::impl::IFilesystem {
  public:
-  MockFilesystem() = default;
-  ~MockFilesystem() override;
+  MockFilesystemNew() = default;
+  ~MockFilesystemNew() override;
 
   // Noncopyable, non-movable (due to mutex members)
-  MockFilesystem(const MockFilesystem&) = delete;
-  MockFilesystem& operator=(const MockFilesystem&) = delete;
-  MockFilesystem(MockFilesystem&&) = delete;
-  MockFilesystem& operator=(MockFilesystem&&) = delete;
+  MockFilesystemNew(const MockFilesystemNew&) = delete;
+  MockFilesystemNew& operator=(const MockFilesystemNew&) = delete;
+  MockFilesystemNew(MockFilesystemNew&&) = delete;
+  MockFilesystemNew& operator=(MockFilesystemNew&&) = delete;
 
   // IFilesystem interface implementation
-  FilesystemResult CreateDirectory(const PlatformPath& path) override;
-
-  FilesystemResult ListFiles(
-      const PlatformPath& path, std::vector<std::string>& out_names
+  datadog::impl::FilesystemResult CreateDirectory(
+      const datadog::impl::PlatformPath& path
   ) override;
 
-  FilesystemResult ListSubdirectories(
-      const PlatformPath& path, std::vector<std::string>& out_names
+  datadog::impl::FilesystemResult ListFiles(
+      const datadog::impl::PlatformPath& path, std::vector<std::string>& out_names
+  ) override;
+
+  datadog::impl::FilesystemResult ListSubdirectories(
+      const datadog::impl::PlatformPath& path, std::vector<std::string>& out_names
   ) override;
 
   OpenFileResult OpenForWrite(
-      const PlatformPath& path, bool append, bool hold_advisory_lock
+      const datadog::impl::PlatformPath& path, bool append, bool hold_advisory_lock
   ) override;
 
   OpenFileResult OpenForRead(
-      const PlatformPath& path, bool acquire_advisory_lock
+      const datadog::impl::PlatformPath& path, bool acquire_advisory_lock
   ) override;
 
-  WriteResult Write(PlatformFileHandle file, const char* src, size_t n) override;
+  WriteResult Write(
+      datadog::impl::PlatformFileHandle file, const char* src, size_t n
+  ) override;
 
-  ReadResult Read(PlatformFileHandle file, char* dst, size_t n) override;
+  ReadResult Read(datadog::impl::PlatformFileHandle file, char* dst, size_t n) override;
 
-  FilesystemResult Close(PlatformFileHandle file) override;
+  datadog::impl::FilesystemResult Close(
+      datadog::impl::PlatformFileHandle file
+  ) override;
 
-  FilesystemResult Delete(const PlatformPath& path) override;
+  datadog::impl::FilesystemResult Delete(
+      const datadog::impl::PlatformPath& path
+  ) override;
 
-  FilesystemResult DeleteDirectory(const PlatformPath& path) override;
+  datadog::impl::FilesystemResult DeleteDirectory(
+      const datadog::impl::PlatformPath& path
+  ) override;
 
-  FilesystemResult Rename(const PlatformPath& src, const PlatformPath& dst) override;
+  datadog::impl::FilesystemResult Rename(
+      const datadog::impl::PlatformPath& src, const datadog::impl::PlatformPath& dst
+  ) override;
 
   // Test helper methods
   void Touch(std::string_view path, std::string_view initial_data = "");
@@ -108,11 +118,9 @@ class MockFilesystem : public IFilesystem {
   mutable std::mutex mutex_;
 
   // Helper methods
-  static std::string NormalizePath(const PlatformPath& path);
+  static std::string NormalizePath(const datadog::impl::PlatformPath& path);
   static std::string GetParentPath(const std::string& path);
   static std::string GetBasename(const std::string& path);
   bool IsDirectory(const std::string& path);
   bool IsFile(const std::string& path);
 };
-
-}  // namespace datadog::impl

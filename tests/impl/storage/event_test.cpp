@@ -18,13 +18,9 @@
 using namespace datadog;
 using namespace datadog::impl;
 
-// mock/tlv.hpp pulls in mock/filesystem.hpp which defines a global-namespace
-// ImplFS; qualify the new implementation explicitly to avoid ambiguity.
-using ImplFS = datadog::impl::MockFilesystem;
-
 namespace {
 
-bool DirectoryExists(ImplFS& fs, std::string_view path) {
+bool DirectoryExists(MockFilesystemNew& fs, std::string_view path) {
   PlatformPath pp;
   std::string s(path);
   if (!pp.Encode(s.c_str())) {
@@ -37,7 +33,7 @@ bool DirectoryExists(ImplFS& fs, std::string_view path) {
 }  // namespace
 
 TEST_CASE("EventStorage", "[unit][storage]") {
-  ImplFS fs;
+  MockFilesystemNew fs;
   MockClock clock;
   clock.FreezeAtMilliseconds(1700000000000LL);
   DiagnosticMessageBuffer diagnostics;
@@ -215,7 +211,8 @@ TEST_CASE("EventStorage", "[unit][storage]") {
     // With max_file_size=16, the second write would bring the file to 32 bytes, so a
     // new file is opened instead.
     //
-    // Given an EventStorage configured with a max file size of exactly one event's worth
+    // Given an EventStorage configured with a max file size of exactly one event's
+    // worth
     EventStorageConfig config{std::chrono::hours{1}};
     config.max_file_size = 16;
     EventStorage storage(

@@ -24,7 +24,7 @@ using namespace datadog;
 using namespace datadog::impl;
 
 static impl::Core _make_core() {
-  auto fs = std::make_unique<impl::MockFilesystem>();
+  auto fs = std::make_unique<MockFilesystemNew>();
   fs->Mkdirs("/mock-events");
   auto sdk_storage = std::make_unique<impl::SdkStorage>(*fs, 1 /* test pid */);
   sdk_storage->Initialize(DiagnosticLogger{}, "/mock-events", "main");

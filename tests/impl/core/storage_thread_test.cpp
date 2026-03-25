@@ -43,7 +43,7 @@ TEST_CASE("StorageThreadMain", "[unit]") {
   // Common test setup: populate a RegisteredFeature vector for the storage thread
   auto init_features = [](TrackingConsent alpha_consent,
                           TrackingConsent bravo_consent,
-                          impl::MockFilesystem& fs,
+                          MockFilesystemNew& fs,
                           MockClock& clock,
                           std::vector<RegisteredFeature>& out_features) -> void {
     fs.Mkdirs(EVENTS_ROOT);
@@ -90,7 +90,7 @@ TEST_CASE("StorageThreadMain", "[unit]") {
     // Given two registered features Alpha and Bravo, with initial tracking consent:
     // - Alpha (feature ID "ALFA"): NotGranted
     // - Bravo (feature ID "BRVO"): Granted
-    impl::MockFilesystem fs;
+    MockFilesystemNew fs;
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     std::vector<RegisteredFeature> features;
