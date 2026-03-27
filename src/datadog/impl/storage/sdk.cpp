@@ -26,10 +26,10 @@ SdkStorage::~SdkStorage() {
 std::string_view SdkStorage::GetEventsRoot() const { return _process_root.Get(); }
 
 bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
-  // Build lockfile path: <root>/<abandoned_pid>.lock
+  // Build lockfile path: <_instance_root>/<abandoned_pid>.lock
   StoragePath lockfile_path;
-  if (!lockfile_path.Set(_root.Get()) || !lockfile_path.Append(abandoned_pid) ||
-      !lockfile_path.AppendExt(".lock")) {
+  if (!lockfile_path.Set(_instance_root.Get()) ||
+      !lockfile_path.Append(abandoned_pid) || !lockfile_path.AppendExt(".lock")) {
     return false;
   }
 
@@ -57,14 +57,14 @@ bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
   }
 
   // Successfully locked = process dead, directory abandoned
-  // Build paths for rename: <root>/<abandoned_pid>/ → <root>/<current_pid>/
+  // <_instance_root>/<abandoned_pid>/ -> <_instance_root>/<current_pid>/
   StoragePath src_path;
   StoragePath dst_path;
-  if (!src_path.Set(_root.Get()) || !src_path.Append(abandoned_pid)) {
+  if (!src_path.Set(_instance_root.Get()) || !src_path.Append(abandoned_pid)) {
     _fs.Close(opened.handle);
     return false;
   }
-  if (!dst_path.Set(_root.Get()) || !dst_path.Append(_pid_str)) {
+  if (!dst_path.Set(_instance_root.Get()) || !dst_path.Append(_pid_str)) {
     _fs.Close(opened.handle);
     return false;
   }
@@ -117,24 +117,33 @@ bool SdkStorage::Initialize(
   *res.ptr = '\0';
   _pid_str = std::string_view{_pid_str_buffer.data()};
 
-  // Root SDK storage directory is <application-storage>/.datadog/<sdk-instance-name>/:
-  // this is the only directory where this SDK instance will read or write files
-  if (!JoinPaths(_root, application_storage_path, ".datadog", logger, join_message)) {
+  // Root SDK storage directory is <application-storage>/.datadog/: this is the only
+  // directory where the SDK will read or write files
+  if (!JoinPaths(
+          _datadog_root, application_storage_path, ".datadog", logger, join_message
+      )) {
     return false;
   }
-  if (!EnsureDirectoryExists(_root, path, _fs, logger, mkdir_message)) {
-    return false;
-  }
-  if (!AppendPath(_root, sdk_instance_name, logger, join_message)) {
-    return false;
-  }
-  if (!EnsureDirectoryExists(_root, path, _fs, logger, mkdir_message)) {
+  if (!EnsureDirectoryExists(_datadog_root, path, _fs, logger, mkdir_message)) {
     return false;
   }
 
-  // Build lockfile path: <root>/<pid>.lock
+  // All event files are stored within <application-storage>/.datadog/<instance-name>,
+  // by PID - this SDK instance will only read or write event files to the subdirectory
+  // with its own PID, and it will only attempt to migrate old event files from within
+  // _instance_root
+  if (!JoinPaths(
+          _instance_root, _datadog_root.Get(), sdk_instance_name, logger, join_message
+      )) {
+    return false;
+  }
+  if (!EnsureDirectoryExists(_instance_root, path, _fs, logger, mkdir_message)) {
+    return false;
+  }
+
+  // Build lockfile path: <_instance_root>/<pid>.lock
   StoragePath lockfile_path;
-  if (!JoinPaths(lockfile_path, _root.Get(), _pid_str, logger, join_message) ||
+  if (!JoinPaths(lockfile_path, _instance_root.Get(), _pid_str, logger, join_message) ||
       !lockfile_path.AppendExt(".lock")) {
     return false;
   }
@@ -158,7 +167,7 @@ bool SdkStorage::Initialize(
   bool claimed_abandoned = false;
   {
     PlatformPath scan_path;
-    if (scan_path.Encode(_root.CStr())) {
+    if (scan_path.Encode(_instance_root.CStr())) {
       std::vector<std::string> subdirs;
       if (_fs.ListSubdirectories(scan_path, subdirs) == FilesystemResult::OK) {
         for (const std::string& name : subdirs) {
@@ -184,10 +193,10 @@ bool SdkStorage::Initialize(
     }
   }
 
-  // Build process directory path: <application-storage>/.datadog/<pid> will
+  // Build process directory path: <application-storage>/.datadog/<instance>/<pid> will
   // contain event data for this process, ensuring that we don't contend with other
   // processes of the same application that may be running concurrently
-  if (!JoinPaths(_process_root, _root.Get(), _pid_str, logger, join_message)) {
+  if (!JoinPaths(_process_root, _instance_root.Get(), _pid_str, logger, join_message)) {
     return false;
   }
 
@@ -231,7 +240,7 @@ static void delete_abandoned_directory(
 
 void SdkStorage::MigrateAbandonedEvents(const DiagnosticLogger& logger) {
   PlatformPath path;
-  if (!path.Encode(_root.CStr())) {
+  if (!path.Encode(_instance_root.CStr())) {
     logger.Warning(
         "Failed to scan for abandoned event directories: path encoding failed"
     );
@@ -252,8 +261,8 @@ void SdkStorage::MigrateAbandonedEvents(const DiagnosticLogger& logger) {
       continue;
     }
 
-    // Build lockfile path: <root>/<name>.lock
-    if (!lockfile_path.Set(_root.Get()) || !lockfile_path.Append(name) ||
+    // Build lockfile path: <_instance_root>/<name>.lock
+    if (!lockfile_path.Set(_instance_root.Get()) || !lockfile_path.Append(name) ||
         !lockfile_path.AppendExt(".lock")) {
       continue;
     }
@@ -393,8 +402,9 @@ void SdkStorage::HandleMigrate(
   StoragePath from_feature_root;
   PlatformPath path;
 
-  // Build source process root: <root>/<abandoned_pid>/
-  if (!from_process_root.Set(_root.Get()) || !from_process_root.Append(from_pid)) {
+  // Build source process root: <_instance_root>/<abandoned_pid>/
+  if (!from_process_root.Set(_instance_root.Get()) ||
+      !from_process_root.Append(from_pid)) {
     return;
   }
 

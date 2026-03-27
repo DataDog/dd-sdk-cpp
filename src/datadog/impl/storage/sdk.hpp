@@ -28,6 +28,23 @@ namespace datadog::impl {
  *
  * Each Core instance has its own SdkStorage interface, which is rooted at this path.
  *
+ * === Global Artifact Storage ===
+ *
+ * The SDK is primarily concerned with storing event data, which is collected and
+ * batched per-feature, segregated into SDK instance and PID directories, as described
+ * in the "Event Storage" section below.
+ *
+ * However, some features need to store global, process-wide artifacts, such as crash
+ * dumps. These files are kept in "artifact" directories (identified with dot-prefixed
+ * names) directly beneath .datadog/, e.g.:
+ *
+ * - <application-storage>/.datadog/.crashes/
+ *
+ * Unlike event data, these files are not segregated by SDK instance name or PID,
+ * requiring that the relevant feature take its own measures to prevent contention. For
+ * example, the CrashReporting feature may only be enabled once per process, and it
+ * uses filesystem locks when writing and reading files in .crashes/.
+ *
  * === Event Storage ===
  *
  * Because an application might run multiple processes concurrently, each SDK instance
@@ -120,10 +137,11 @@ class SdkStorage {
   std::array<char, 11> _pid_str_buffer{};  // Null-terminated string data for _pid
   std::string_view _pid_str;               // _pid as a string, for use in paths
 
-  StoragePath _root;          // <application-storage-path>/.datadog/<sdk-instance-name>
-  StoragePath _process_root;  // <_root>/<pid>/
+  StoragePath _datadog_root;   // <application-storage-path>/.datadog
+  StoragePath _instance_root;  // <_datadog_root>/<sdk-instance-name>
+  StoragePath _process_root;   // <_instance_root>/<pid>/
 
-  PlatformFileHandle _lockfile_handle{INVALID_FILE_HANDLE};  // <_root>/<pid>.lock
+  PlatformFileHandle _lockfile_handle{INVALID_FILE_HANDLE};  // <_instance_root>/<pid>.lock
 };
 
 }  // namespace datadog::impl
