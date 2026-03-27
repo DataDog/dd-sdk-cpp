@@ -23,7 +23,7 @@ SdkStorage::~SdkStorage() {
   }
 }
 
-std::string_view SdkStorage::GetEventsRoot() const { return _events_root.Get(); }
+std::string_view SdkStorage::GetEventsRoot() const { return _process_root.Get(); }
 
 bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
   // Build lockfile path: <root>/<abandoned_pid>.lock
@@ -117,31 +117,34 @@ bool SdkStorage::Initialize(
   *res.ptr = '\0';
   _pid_str = std::string_view{_pid_str_buffer.data()};
 
-  // Root SDK storage directory is <application-storage>/.datadog: this is the only
-  // directory where the SDK will read or write files
+  // Root SDK storage directory is <application-storage>/.datadog/<sdk-instance-name>/:
+  // this is the only directory where this SDK instance will read or write files
   if (!JoinPaths(_root, application_storage_path, ".datadog", logger, join_message)) {
     return false;
   }
   if (!EnsureDirectoryExists(_root, path, _fs, logger, mkdir_message)) {
     return false;
   }
+  if (!AppendPath(_root, sdk_instance_name, logger, join_message)) {
+    return false;
+  }
+  if (!EnsureDirectoryExists(_root, path, _fs, logger, mkdir_message)) {
+    return false;
+  }
 
-  // Build lockfile path: <root>/<pid>.lock (sibling to process directory)
+  // Build lockfile path: <root>/<pid>.lock
   StoragePath lockfile_path;
   if (!JoinPaths(lockfile_path, _root.Get(), _pid_str, logger, join_message) ||
       !lockfile_path.AppendExt(".lock")) {
     return false;
   }
-
-  // Encode and acquire lockfile BEFORE creating process directory and before scanning
-  // for abandoned directories: if initialization fails after we rename an abandoned
-  // directory, the renamed directory will have a valid <pid>.lock that future instances
-  // can acquire and migrate from.
   if (!path.Encode(lockfile_path.CStr())) {
     logger.Error("Failed to encode lockfile path");
     return false;
   }
 
+  // Open <pid>.lock and hold a lock on it, to signal to other processes that we manage
+  // any directory named <pid> for as long as this process remains alive
   const bool append = false;
   const bool hold_advisory_lock = true;
   auto opened = _fs.OpenForWrite(path, append, hold_advisory_lock);
@@ -193,24 +196,6 @@ bool SdkStorage::Initialize(
     if (!EnsureDirectoryExists(_process_root, path, _fs, logger, mkdir_message)) {
       return false;
     }
-  }
-
-  // If we have multiple SDK instances within the same process, they must be configured
-  // with unique "instance names" (default is "main"): we use another layer of nesting
-  // to establish <application-storage>/.datadog/<pid>/<instance-name>: this
-  // `_events_root` directory is where feature-specific subdirectories will be created.
-  //
-  // Note: when an abandoned directory is claimed via atomic rename, any sub-directories
-  // under a different instance name will be present under `_process_root` but not under
-  // `_events_root`, and therefore won't be uploaded by this SDK instance. In practice
-  // this is not a concern since "main" is the only instance name used.
-  if (!JoinPaths(
-          _events_root, _process_root.Get(), sdk_instance_name, logger, join_message
-      )) {
-    return false;
-  }
-  if (!EnsureDirectoryExists(_events_root, path, _fs, logger, mkdir_message)) {
-    return false;
   }
 
   // TODO(RUM-15284): Both the atomic-rename fast-path above and the file-by-file
@@ -337,35 +322,19 @@ void SdkStorage::MigrateFilesFromSubdirectory(
 }
 
 bool SdkStorage::EnsureDestinationDirectoryExists(
-    std::string_view instance_name,
-    std::string_view feature_name,
-    std::string_view subdir
+    std::string_view feature_name, std::string_view subdir
 ) {
   PlatformPath path;
 
-  // Create instance directory
-  StoragePath instance_dir;
-  if (!instance_dir.Set(_process_root.Get()) || !instance_dir.Append(instance_name)) {
-    return false;
-  }
-  if (!path.Encode(instance_dir.CStr())) {
-    return false;
-  }
-  auto res = _fs.CreateDirectory(path);
-  if (res != FilesystemResult::OK &&
-      res != FilesystemResult::AlreadyExistsAsDirectory) {
-    return false;
-  }
-
   // Create feature directory
   StoragePath feature_dir;
-  if (!feature_dir.Set(instance_dir.Get()) || !feature_dir.Append(feature_name)) {
+  if (!feature_dir.Set(_process_root.Get()) || !feature_dir.Append(feature_name)) {
     return false;
   }
   if (!path.Encode(feature_dir.CStr())) {
     return false;
   }
-  res = _fs.CreateDirectory(path);
+  auto res = _fs.CreateDirectory(path);
   if (res != FilesystemResult::OK &&
       res != FilesystemResult::AlreadyExistsAsDirectory) {
     return false;
@@ -389,7 +358,6 @@ bool SdkStorage::EnsureDestinationDirectoryExists(
 }
 
 void SdkStorage::MigrateFeatureEvents(
-    std::string_view instance_name,
     std::string_view feature_name,
     const StoragePath& from_feature_root,
     const DiagnosticLogger& logger
@@ -402,14 +370,13 @@ void SdkStorage::MigrateFeatureEvents(
       continue;
     }
 
-    if (!EnsureDestinationDirectoryExists(instance_name, feature_name, subdir)) {
+    if (!EnsureDestinationDirectoryExists(feature_name, subdir)) {
       continue;
     }
 
     StoragePath to_events_dir;
     if (!to_events_dir.Set(_process_root.Get()) ||
-        !to_events_dir.Append(instance_name) || !to_events_dir.Append(feature_name) ||
-        !to_events_dir.Append(subdir)) {
+        !to_events_dir.Append(feature_name) || !to_events_dir.Append(subdir)) {
       continue;
     }
 
@@ -419,40 +386,11 @@ void SdkStorage::MigrateFeatureEvents(
   delete_abandoned_directory(_fs, from_feature_root, logger);
 }
 
-void SdkStorage::MigrateInstanceDirectory(
-    std::string_view instance_name,
-    const StoragePath& from_instance_root,
-    const DiagnosticLogger& logger
-) {
-  PlatformPath path;
-  StoragePath from_feature_root;
-
-  if (!path.Encode(from_instance_root.CStr())) {
-    return;
-  }
-
-  std::vector<std::string> feature_names;
-  if (_fs.ListSubdirectories(path, feature_names) != FilesystemResult::OK) {
-    return;
-  }
-
-  for (const std::string& feature_name : feature_names) {
-    if (!from_feature_root.Set(from_instance_root.Get()) ||
-        !from_feature_root.Append(feature_name)) {
-      continue;
-    }
-
-    MigrateFeatureEvents(instance_name, feature_name, from_feature_root, logger);
-  }
-
-  delete_abandoned_directory(_fs, from_instance_root, logger);
-}
-
 void SdkStorage::HandleMigrate(
     std::string_view from_pid, const DiagnosticLogger& logger
 ) {
   StoragePath from_process_root;
-  StoragePath from_instance_root;
+  StoragePath from_feature_root;
   PlatformPath path;
 
   // Build source process root: <root>/<abandoned_pid>/
@@ -460,23 +398,22 @@ void SdkStorage::HandleMigrate(
     return;
   }
 
-  // List all instance directories (e.g., "main")
+  // List feature directories directly under the abandoned PID directory
   if (!path.Encode(from_process_root.CStr())) {
     return;
   }
-  std::vector<std::string> instance_names;
-  if (_fs.ListSubdirectories(path, instance_names) != FilesystemResult::OK) {
+  std::vector<std::string> feature_names;
+  if (_fs.ListSubdirectories(path, feature_names) != FilesystemResult::OK) {
     return;
   }
 
-  // For each instance directory
-  for (const std::string& instance_name : instance_names) {
-    if (!from_instance_root.Set(from_process_root.Get()) ||
-        !from_instance_root.Append(instance_name)) {
+  for (const std::string& feature_name : feature_names) {
+    if (!from_feature_root.Set(from_process_root.Get()) ||
+        !from_feature_root.Append(feature_name)) {
       continue;
     }
 
-    MigrateInstanceDirectory(instance_name, from_instance_root, logger);
+    MigrateFeatureEvents(feature_name, from_feature_root, logger);
   }
 
   // Clean up: delete the now-empty abandoned process directory. The caller is
