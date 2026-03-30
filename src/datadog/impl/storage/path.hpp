@@ -64,6 +64,11 @@ class StoragePath {
   void Pop();
 
   /**
+   * Returns a string_view for the final component of the path, slash-delimited.
+   */
+  std::string_view Basename() const;
+
+  /**
    * Returns a string_view for the path value currently held in the buffer.
    */
   std::string_view Get() const { return std::string_view(_buf.data(), _len); }

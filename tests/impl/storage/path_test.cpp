@@ -200,6 +200,71 @@ TEST_CASE("StoragePath", "[unit][storage]") {
     REQUIRE(std::strcmp(path.CStr(), "/foo/bar/baz") == 0);
   }
 
+  SECTION("M return empty string W Basename is called on empty path") {
+    StoragePath path;
+    REQUIRE(path.Basename() == "");
+  }
+
+  SECTION(
+      "M return only path component W Basename is called on single-component path"
+  ) {
+    StoragePath path;
+    REQUIRE(path.Set("foo"));
+    REQUIRE(path.Basename() == "foo");
+  }
+
+  SECTION(
+      "M return only path component W Basename is called on single-component path with "
+      "trailing slash"
+  ) {
+    StoragePath path;
+    REQUIRE(path.Set("foo/"));
+    REQUIRE(path.Basename() == "foo");
+  }
+
+  SECTION(
+      "M return only path component W Basename is called on single-component path with "
+      "trailing and leading slash"
+  ) {
+    StoragePath path;
+    REQUIRE(path.Set("/foo/"));
+    REQUIRE(path.Basename() == "foo");
+  }
+
+  SECTION(
+      "M return final path component W Basename is called on multi-component path"
+  ) {
+    StoragePath path;
+    REQUIRE(path.Set("/foo/bar.baz"));
+    REQUIRE(path.Basename() == "bar.baz");
+  }
+
+  SECTION(
+      "M return final path component W Basename is called on multi-component path with "
+      "trailing slash"
+  ) {
+    StoragePath path;
+    REQUIRE(path.Set("/foo/bar.baz/"));
+    REQUIRE(path.Basename() == "bar.baz");
+  }
+
+#ifdef _WIN32
+  SECTION("M treat backslash as path delimiter W Basename is called") {
+    // On Windows, a trailing backslash is recognized as a delimiter
+    StoragePath path;
+    REQUIRE(path.Set("C:\\Temp\\foo\\"));
+    REQUIRE(path.Append("bar"));
+    REQUIRE(path.Basename() == "bar");
+  }
+#else
+  SECTION("M treat backlash as ordinary filename character W Basename is called") {
+    // On all other platforms, a backslash has no special meaning
+    StoragePath path;
+    REQUIRE(path.Set("/tmp/foo\\bar"));
+    REQUIRE(path.Basename() == "foo\\bar");
+  }
+#endif
+
   SECTION("M concatenate paths W Append is called with valid parent path") {
     // Given '/tmp/foo' + 'bar', resulting path joins both with OS-specific slash char
     StoragePath path;

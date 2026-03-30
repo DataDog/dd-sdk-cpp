@@ -211,6 +211,27 @@ void StoragePath::Pop() {
   _len = sep_pos;
 }
 
+std::string_view StoragePath::Basename() const {
+  // If the path ends with a trailing slash, shrink our temporary view of the string so
+  // we skip past that separator when scanning backward
+  std::string_view path = Get();
+  if (has_trailing_slash(path)) {
+    path = std::string_view{CStr(), _len - 1};
+  }
+
+  // Find the position of the last significant path separator in the string: if there is
+  // none, then return the string as-is
+  auto sep_pos = find_final_slash(path);
+  if (sep_pos == std::string_view::npos) {
+    return path;
+  }
+
+  // Otherwise, return a view of the contents of the string immediately following the
+  // separator
+  const size_t basename_len = path.size() - sep_pos - 1;
+  return std::string_view{path.data() + sep_pos + 1, basename_len};
+}
+
 bool PlatformPath::Encode(const char* utf8_path) {
 #ifdef _WIN32
   // Determine how many UTF-16 code units are required to represent the given UTF-8
