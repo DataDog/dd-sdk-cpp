@@ -15,15 +15,14 @@
 
 namespace datadog::impl {
 
-SdkStorage::SdkStorage(IFilesystem& fs, uint32_t pid) : _fs(fs), _pid(pid) {}
+SdkStorage::SdkStorage(IFilesystem& in_fs, DiagnosticLogger& in_logger, uint32_t in_pid)
+    : _fs(in_fs), _logger(in_logger), _pid(in_pid) {}
 
 SdkStorage::~SdkStorage() {
   if (_lockfile_handle != INVALID_FILE_HANDLE) {
     _fs.Close(_lockfile_handle);
   }
 }
-
-std::string_view SdkStorage::GetEventsRoot() const { return _process_root.Get(); }
 
 bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
   // Build lockfile path: <_instance_root>/<abandoned_pid>.lock
@@ -91,10 +90,22 @@ bool SdkStorage::TryClaimAbandonedDirectory(std::string_view abandoned_pid) {
 }
 
 bool SdkStorage::Initialize(
-    const impl::DiagnosticLogger& logger,
-    std::string_view application_storage_path,
-    std::string_view sdk_instance_name
+    std::string_view application_storage_path, std::string_view sdk_instance_name
 ) {
+  // Require that SDK instance name is a valid directory name _without_ a dot prefix, as
+  // the dot prefix is used to differentiate artifact storage directories
+  // (CoreConfig does not currently expose instance name as a configurable option: when
+  // it does, it should validate names at the API layer to ensure they conform to this
+  // expectation)
+  if (sdk_instance_name.empty() || sdk_instance_name[0] == '.') {
+    DATADOG_ASSERT(false, "Invalid SDK instance name");
+    _logger.Error(
+        "Unexpected SDK instance name: name must be non-empty and non-dot-prefixed",
+        {{"sdk_instance_name", sdk_instance_name}}
+    );
+    return false;
+  }
+
   // Buffer for converting UTF-8 StoragePaths to platform-native paths for syscalls
   PlatformPath path;
 
@@ -120,11 +131,11 @@ bool SdkStorage::Initialize(
   // Root SDK storage directory is <application-storage>/.datadog/: this is the only
   // directory where the SDK will read or write files
   if (!JoinPaths(
-          _datadog_root, application_storage_path, ".datadog", logger, join_message
+          _datadog_root, application_storage_path, ".datadog", _logger, join_message
       )) {
     return false;
   }
-  if (!EnsureDirectoryExists(_datadog_root, path, _fs, logger, mkdir_message)) {
+  if (!EnsureDirectoryExists(_datadog_root, path, _fs, _logger, mkdir_message)) {
     return false;
   }
 
@@ -133,22 +144,24 @@ bool SdkStorage::Initialize(
   // with its own PID, and it will only attempt to migrate old event files from within
   // _instance_root
   if (!JoinPaths(
-          _instance_root, _datadog_root.Get(), sdk_instance_name, logger, join_message
+          _instance_root, _datadog_root.Get(), sdk_instance_name, _logger, join_message
       )) {
     return false;
   }
-  if (!EnsureDirectoryExists(_instance_root, path, _fs, logger, mkdir_message)) {
+  if (!EnsureDirectoryExists(_instance_root, path, _fs, _logger, mkdir_message)) {
     return false;
   }
 
   // Build lockfile path: <_instance_root>/<pid>.lock
   StoragePath lockfile_path;
-  if (!JoinPaths(lockfile_path, _instance_root.Get(), _pid_str, logger, join_message) ||
+  if (!JoinPaths(
+          lockfile_path, _instance_root.Get(), _pid_str, _logger, join_message
+      ) ||
       !lockfile_path.AppendExt(".lock")) {
     return false;
   }
   if (!path.Encode(lockfile_path.CStr())) {
-    logger.Error("Failed to encode lockfile path");
+    _logger.Error("Failed to encode lockfile path");
     return false;
   }
 
@@ -158,7 +171,7 @@ bool SdkStorage::Initialize(
   const bool hold_advisory_lock = true;
   auto opened = _fs.OpenForWrite(path, append, hold_advisory_lock);
   if (opened.value != FilesystemResult::OK || opened.handle == INVALID_FILE_HANDLE) {
-    logger.Error(lockfile_message);
+    _logger.Error(lockfile_message);
     return false;
   }
   _lockfile_handle = opened.handle;
@@ -196,13 +209,15 @@ bool SdkStorage::Initialize(
   // Build process directory path: <application-storage>/.datadog/<instance>/<pid> will
   // contain event data for this process, ensuring that we don't contend with other
   // processes of the same application that may be running concurrently
-  if (!JoinPaths(_process_root, _instance_root.Get(), _pid_str, logger, join_message)) {
+  if (!JoinPaths(
+          _process_root, _instance_root.Get(), _pid_str, _logger, join_message
+      )) {
     return false;
   }
 
   // Create process directory (unless we claimed an abandoned one via rename)
   if (!claimed_abandoned) {
-    if (!EnsureDirectoryExists(_process_root, path, _fs, logger, mkdir_message)) {
+    if (!EnsureDirectoryExists(_process_root, path, _fs, _logger, mkdir_message)) {
       return false;
     }
   }
@@ -217,9 +232,31 @@ bool SdkStorage::Initialize(
   // Migrate events from any remaining abandoned directories that couldn't be claimed
   // via directory rename. This handles the case where multiple processes crashed and
   // we've already claimed one directory - we need to migrate events from the others.
-  MigrateAbandonedEvents(logger);
+  MigrateAbandonedEvents();
 
   return true;
+}
+
+std::optional<ArtifactStorage> SdkStorage::InitializeArtifactStorage(
+    std::string_view directory_name
+) {
+  std::optional<ArtifactStorage> artifacts;
+  artifacts.emplace(_fs, _logger);
+  if (!artifacts->Initialize(_datadog_root.Get(), directory_name)) {
+    return std::nullopt;
+  }
+  return artifacts;
+}
+
+std::optional<FeatureEventStorage> SdkStorage::InitializeFeatureEventStorage(
+    std::string_view feature_name
+) {
+  std::optional<FeatureEventStorage> feature_events;
+  feature_events.emplace(_fs, _logger);
+  if (!feature_events->Initialize(_instance_root.Get(), feature_name)) {
+    return std::nullopt;
+  }
+  return feature_events;
 }
 
 static void delete_abandoned_directory(
@@ -238,10 +275,10 @@ static void delete_abandoned_directory(
   }
 }
 
-void SdkStorage::MigrateAbandonedEvents(const DiagnosticLogger& logger) {
+void SdkStorage::MigrateAbandonedEvents() {
   PlatformPath path;
   if (!path.Encode(_instance_root.CStr())) {
-    logger.Warning(
+    _logger.Warning(
         "Failed to scan for abandoned event directories: path encoding failed"
     );
     return;
@@ -278,7 +315,7 @@ void SdkStorage::MigrateAbandonedEvents(const DiagnosticLogger& logger) {
       continue;
     }
 
-    HandleMigrate(name, logger);
+    HandleMigrate(name);
 
     _fs.Close(res.handle);
     _fs.Delete(path);
@@ -286,9 +323,7 @@ void SdkStorage::MigrateAbandonedEvents(const DiagnosticLogger& logger) {
 }
 
 void SdkStorage::MigrateFilesFromSubdirectory(
-    const StoragePath& from_events_dir,
-    const StoragePath& to_events_dir,
-    const DiagnosticLogger& logger
+    const StoragePath& from_events_dir, const StoragePath& to_events_dir
 ) {
   PlatformPath path;
   PlatformPath src_path;
@@ -327,7 +362,7 @@ void SdkStorage::MigrateFilesFromSubdirectory(
     _fs.Rename(src_path, dst_path);
   }
 
-  delete_abandoned_directory(_fs, from_events_dir, logger);
+  delete_abandoned_directory(_fs, from_events_dir, _logger);
 }
 
 bool SdkStorage::EnsureDestinationDirectoryExists(
@@ -367,9 +402,7 @@ bool SdkStorage::EnsureDestinationDirectoryExists(
 }
 
 void SdkStorage::MigrateFeatureEvents(
-    std::string_view feature_name,
-    const StoragePath& from_feature_root,
-    const DiagnosticLogger& logger
+    std::string_view feature_name, const StoragePath& from_feature_root
 ) {
   const char* subdirs[] = {"v1", "intermediate-v1"};
   for (const char* subdir : subdirs) {
@@ -389,15 +422,13 @@ void SdkStorage::MigrateFeatureEvents(
       continue;
     }
 
-    MigrateFilesFromSubdirectory(from_events_dir, to_events_dir, logger);
+    MigrateFilesFromSubdirectory(from_events_dir, to_events_dir);
   }
 
-  delete_abandoned_directory(_fs, from_feature_root, logger);
+  delete_abandoned_directory(_fs, from_feature_root, _logger);
 }
 
-void SdkStorage::HandleMigrate(
-    std::string_view from_pid, const DiagnosticLogger& logger
-) {
+void SdkStorage::HandleMigrate(std::string_view from_pid) {
   StoragePath from_process_root;
   StoragePath from_feature_root;
   PlatformPath path;
@@ -423,12 +454,12 @@ void SdkStorage::HandleMigrate(
       continue;
     }
 
-    MigrateFeatureEvents(feature_name, from_feature_root, logger);
+    MigrateFeatureEvents(feature_name, from_feature_root);
   }
 
   // Clean up: delete the now-empty abandoned process directory. The caller is
   // responsible for closing and deleting the lockfile.
-  delete_abandoned_directory(_fs, from_process_root, logger);
+  delete_abandoned_directory(_fs, from_process_root, _logger);
 }
 
 }  // namespace datadog::impl

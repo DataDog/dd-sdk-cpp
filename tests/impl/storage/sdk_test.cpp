@@ -159,8 +159,8 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     fs.Mkdirs("my-app/storage");
 
     {
-      SdkStorage storage(fs, 12345);
-      const bool ok = storage.Initialize(logger, "my-app/storage", "main");
+      SdkStorage storage(fs, logger, 12345);
+      const bool ok = storage.Initialize("my-app/storage", "main");
       REQUIRE(ok);
 
       // When the lockfile handle is open
@@ -173,10 +173,10 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
 
   SECTION("M create new directory structure W no abandoned directories exist") {
     // Given no pre-existing .datadog directories
-    SdkStorage storage(fs, 12345);
+    SdkStorage storage(fs, logger, 12345);
 
     // When Initialize is called
-    REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
+    REQUIRE(storage.Initialize("my-app/storage", "main"));
 
     // Then the lockfile is created
     REQUIRE(FileExists(fs, "my-app/storage/.datadog/main/12345.lock"));
@@ -187,9 +187,6 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     // And no other subdirectories were created under .datadog/main
     int dir_count = CountSubdirectories(fs, "my-app/storage/.datadog/main");
     REQUIRE(dir_count == 1);
-
-    // And GetEventsRoot returns the path to the per-PID directory
-    REQUIRE(storage.GetEventsRoot() == "my-app/storage/.datadog/main/12345");
   }
 
   SECTION("M reuse abandoned directory via rename W process is dead") {
@@ -218,8 +215,8 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     );
 
     // When Initialize is called
-    SdkStorage storage(fs, 12345);
-    REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
+    SdkStorage storage(fs, logger, 12345);
+    REQUIRE(storage.Initialize("my-app/storage", "main"));
 
     // Then the abandoned directory is renamed atomically to our PID
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/main/99999"));
@@ -290,8 +287,8 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     );
 
     // When Initialize is called
-    SdkStorage storage(fs, 12345);
-    REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
+    SdkStorage storage(fs, logger, 12345);
+    REQUIRE(storage.Initialize("my-app/storage", "main"));
 
     // Then all abandoned directories are removed: one via atomic rename, the rest
     // via file-by-file migration followed by recursive deletion
@@ -351,8 +348,8 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     );
 
     // When Initialize is called
-    SdkStorage storage(fs, 12345);
-    REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
+    SdkStorage storage(fs, logger, 12345);
+    REQUIRE(storage.Initialize("my-app/storage", "main"));
 
     // Then the non-numeric directory is left untouched
     REQUIRE(DirectoryExists(fs, "my-app/storage/.datadog/main/not-a-pid"));
@@ -403,8 +400,8 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     );
 
     // When Initialize is called
-    SdkStorage storage(fs, 12345);
-    REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
+    SdkStorage storage(fs, logger, 12345);
+    REQUIRE(storage.Initialize("my-app/storage", "main"));
 
     // Then the directory is renamed atomically to our PID, preserving all features
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/main/99999"));
@@ -444,8 +441,8 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     );
 
     // When Initialize is called
-    SdkStorage storage(fs, 12345);
-    REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
+    SdkStorage storage(fs, logger, 12345);
+    REQUIRE(storage.Initialize("my-app/storage", "main"));
 
     // Then the directory is not claimed (without a lockfile we cannot verify the
     // process is dead, so we leave it alone)
@@ -463,8 +460,8 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     CreateAbandonedDirectory(fs, "my-app/storage", "99999", "main", "rum", true);
 
     // When Initialize is called
-    SdkStorage storage(fs, 12345);
-    REQUIRE(storage.Initialize(logger, "my-app/storage", "main"));
+    SdkStorage storage(fs, logger, 12345);
+    REQUIRE(storage.Initialize("my-app/storage", "main"));
 
     // Then the empty directory is renamed atomically to our PID
     REQUIRE(!DirectoryExists(fs, "my-app/storage/.datadog/main/99999"));
@@ -492,10 +489,10 @@ TEST_CASE("SdkStorage", "[unit][storage]") {
     );
 
     // When Initialize is called
-    SdkStorage storage(fs, 12345);
+    SdkStorage storage(fs, logger, 12345);
 
     // Then Initialize fails because the lockfile cannot be acquired
-    REQUIRE(!storage.Initialize(logger, "my-app/storage", "main"));
+    REQUIRE(!storage.Initialize("my-app/storage", "main"));
 
     // And the abandoned directory is untouched — it retains its own lockfile and can
     // be recovered by a future process. With the old scan-before-lockfile ordering,

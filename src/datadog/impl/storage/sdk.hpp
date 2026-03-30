@@ -6,7 +6,11 @@
 
 #pragma once
 
+#include <optional>
+
 #include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/storage/artifact.hpp"
+#include "datadog/impl/storage/feature_event.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
 #include "datadog/impl/storage/path.hpp"
 
@@ -87,37 +91,98 @@ class SdkStorage {
    * Creates a new SdkStorage instance which will use the given IFilesystem interface
    * for file operations.
    */
-  explicit SdkStorage(IFilesystem& fs, uint32_t pid);
+  explicit SdkStorage(IFilesystem& in_fs, DiagnosticLogger& in_logger, uint32_t in_pid);
 
   /**
    * Ensures that the current-PID lockfile is closed when this object leaves scope.
    */
   ~SdkStorage();
 
+  /**
+   * Given the path to application-specific storage directory and the name of the SDK
+   * instance that we're storing files for, prepares the directories required for
+   * on-disk storage of data for that SDK instance, while also handling migration of
+   * abandoned data from old processes that are no longer running.
+   *
+   * sdk_instance_name must not begin with a dot. Most applications will have a single
+   * SDK instance with the default name of 'main'.
+   *
+   * Upon successful initialization, guarantees that:
+   *
+   * 1. A storage directory exists at <application-storage>/.datadog/<instance>/<pid>/
+   *    where the SDK will be able to create use for event storage
+   *
+   * 2. An accompanying file at <application-storage>/.datadog/<instance>/<pid>.lock
+   *    exists, and SdkStorage holds a lock on this file for its lifetime
+   *
+   * 3. A best-effort attempt was made to migrate event data from other <pid>
+   *    subdirectories into ours
+   *
+   * Returns true if all required directories were created and the lockfile was
+   * successfully acquired. If migration of abandoned event data fails, warnings will be
+   * logged, but initialization will continue without failing.
+   */
   bool Initialize(
-      const impl::DiagnosticLogger& logger,
-      std::string_view application_storage_path,
-      std::string_view sdk_instance_name
+      std::string_view application_storage_path, std::string_view sdk_instance_name
   );
 
-  /** Returns the per-PID events root: <application-storage>/.datadog/<instance>/<pid>/
+  /**
+   * Prepares an arbitrarily-named subdirectory within <application-storage>/.datadog/
+   * that a feature implementation can use to persist files between processes.
    *
-   * Valid only after Initialize() returns true. The returned view is stable for the
-   * lifetime of this SdkStorage instance.
+   * directory_name must begin with '.' to differentiate artifact storage directories
+   * from SDK instance names used for PID-specific event storage directories.
+   *
+   * Artifact storage directories come with no guarantees or constraints re: locking or
+   * multi-process support - it's up to each feature to manage contention as necessary.
+   * For example, we use <application-storage>/.datadog/.crashes/ to store crash dumps.
+   * Only one SDK instance per process is allowed to manage crash dumps, and the Crash
+   * Reporting implementation handles multi-process contention by manually acquiring
+   * advisory locks on the crash dump files that it writes and reads.
+   *
+   * Returns a valid ArtifactStorage value if directory initialization is successful;
+   * returns std::nullopt otherwise.
    */
-  std::string_view GetEventsRoot() const;
+  std::optional<ArtifactStorage> InitializeArtifactStorage(
+      std::string_view directory_name
+  );
+
+  /**
+   * Prepares a directory at <application-storage>/.datadog/<instance>/<pid>/<feature>/,
+   * with separate subdirectories for consent-pending and consent-granted event storage,
+   * that the core can use to store batches of event data on behalf of that feature.
+   *
+   * Feature-specific event directories seamlessly handle the case of multiple SDK
+   * instances within the same process, along with the case of multiple processes with
+   * the same SDK configuration running concurrently:
+   *
+   * 1. Each uniquely-named SDK instance stores events within its own subdirectory (e.g.
+   *    <application-storage>/.datadog/main vs. <application-storage>/.datadog/other),
+   *    with all reading/writing/migration of event data confined to an
+   *    instance-specific directory.
+   *
+   * 2. A single SDK instance within a single process (as represented by SdkStorage)
+   *    holds a lock on <instance>/<pid>.lock for as long as it's running, and
+   *    similarly-configured SDK instances in _other_ processes will respect that lock,
+   *    leaving any events in <instance>/<pid>/ untouched for as long any existing
+   *    process still owns them.
+   *
+   * Returns a valid FeatureEventStorage value if directory initialization is
+   * successful; returns std::nullopt otherwise.
+   */
+  std::optional<FeatureEventStorage> InitializeFeatureEventStorage(
+      std::string_view feature_name
+  );
 
  private:
-  void MigrateAbandonedEvents(const DiagnosticLogger& logger);
+  void MigrateAbandonedEvents();
 
   bool TryClaimAbandonedDirectory(std::string_view abandoned_pid);
 
-  void HandleMigrate(std::string_view from_pid, const DiagnosticLogger& logger);
+  void HandleMigrate(std::string_view from_pid);
 
   void MigrateFeatureEvents(
-      std::string_view feature_name,
-      const StoragePath& from_feature_root,
-      const DiagnosticLogger& logger
+      std::string_view feature_name, const StoragePath& from_feature_root
   );
 
   bool EnsureDestinationDirectoryExists(
@@ -125,13 +190,12 @@ class SdkStorage {
   );
 
   void MigrateFilesFromSubdirectory(
-      const StoragePath& from_events_dir,
-      const StoragePath& to_events_dir,
-      const DiagnosticLogger& logger
+      const StoragePath& from_events_dir, const StoragePath& to_events_dir
   );
 
  private:
   IFilesystem& _fs;  // Long-lived reference to filesystem interface
+  DiagnosticLogger& _logger;
 
   uint32_t _pid;                           // Current process's PID
   std::array<char, 11> _pid_str_buffer{};  // Null-terminated string data for _pid
@@ -141,7 +205,9 @@ class SdkStorage {
   StoragePath _instance_root;  // <_datadog_root>/<sdk-instance-name>
   StoragePath _process_root;   // <_instance_root>/<pid>/
 
-  PlatformFileHandle _lockfile_handle{INVALID_FILE_HANDLE};  // <_instance_root>/<pid>.lock
+  PlatformFileHandle _lockfile_handle{
+      INVALID_FILE_HANDLE
+  };  // <_instance_root>/<pid>.lock
 };
 
 }  // namespace datadog::impl
