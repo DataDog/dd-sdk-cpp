@@ -66,6 +66,20 @@ TEST_CASE("StoragePath", "[unit][storage]") {
     REQUIRE(std::strcmp(path.CStr(), "/tmp/hi") == 0);
   }
 
+  SECTION("M overwrite held value W MustSet is called") {
+    // Given a StoragePath value that currently holds /foo/bar/baz
+    StoragePath src_path;
+    REQUIRE(src_path.Set("/foo/bar/baz"));
+
+    // When we call MustSet to initialize another StoragePath value with that path
+    StoragePath dst_path;
+    dst_path.MustSet(src_path);
+
+    // Then the value returned by Get()/CStr() reflects the new value
+    REQUIRE(dst_path.Get() == "/foo/bar/baz");
+    REQUIRE(std::strcmp(dst_path.CStr(), "/foo/bar/baz") == 0);
+  }
+
   SECTION("M store empty string W Set is called with empty string") {
     // Given a StoragePath value that currently holds /foo/bar/baz
     StoragePath path;

@@ -37,6 +37,14 @@ class StoragePath {
   [[nodiscard]] bool Set(std::string_view path);
 
   /**
+   * Updates the buffer to hold a copy of the value held in another StoragePath. Since
+   * storing a value can only fail if the input value exceeds MAX_STORAGE_PATH_SIZE, and
+   * since the input value is already held in another StoragePath buffer, this operation
+   * can not fail.
+   */
+  void MustSet(const StoragePath& other);
+
+  /**
    * Modifies the value in-place, updating the buffer to concatenate the given path
    * component onto the currently-held path. `name` must not contain "..".
    *

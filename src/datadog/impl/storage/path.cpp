@@ -8,6 +8,8 @@
 
 #include <algorithm>
 
+#include "datadog/impl/assert.hpp"
+
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -109,6 +111,17 @@ bool StoragePath::Set(std::string_view path) {
   // Store total string length in bytes, excluding null terminator
   _len = path.size();
   return true;
+}
+
+void StoragePath::MustSet(const StoragePath& other) {
+  // Set() can only fail if the input string exceeds MAX_STORAGE_PATH_SIZE, and since
+  // the input value in this case is already held in a StoragePath buffer, failure is
+  // impossible
+  if (!Set(other.Get())) {
+    DATADOG_ASSERT(
+        false, "StoragePath::Set() failed on assignment from another StoragePath"
+    );
+  }
 }
 
 bool StoragePath::Append(std::string_view name) {
