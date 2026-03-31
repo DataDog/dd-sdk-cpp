@@ -237,7 +237,7 @@ class WindowsFilesystem final : public IFilesystem {
   }
 
   OpenFileResult OpenForRead(
-      const PlatformPath& path, bool acquire_advisory_lock
+      const PlatformPath& path, bool hold_advisory_lock
   ) override {
     // Open file for reading, and allow concurrent reads and writes by other processes:
     // we rely on cooperative advisory locks, not Windows share modes, for file locking
@@ -256,7 +256,7 @@ class WindowsFilesystem final : public IFilesystem {
     }
 
     // If advisory lock requested, attempt non-blocking exclusive lock
-    if (acquire_advisory_lock) {
+    if (hold_advisory_lock) {
       OVERLAPPED overlapped = {};
       const BOOL lock_result = LockFileEx(
           handle,
@@ -278,7 +278,7 @@ class WindowsFilesystem final : public IFilesystem {
     return {FilesystemResult::OK, handle};
   }
 
-  WriteResult Write(PlatformFileHandle file, const char* src, size_t n) override {
+  WriteResult Write(PlatformFileHandle handle, const char* src, size_t n) override {
     // Write exactly N bytes, looping on partial writes.
     // WriteFile() may write fewer bytes than requested, so we loop until all
     // data is written.
@@ -286,7 +286,7 @@ class WindowsFilesystem final : public IFilesystem {
     while (total < n) {
       DWORD written;
       const BOOL result = WriteFile(
-          file, src + total, static_cast<DWORD>(n - total), &written, nullptr
+          handle, src + total, static_cast<DWORD>(n - total), &written, nullptr
       );
 
       if (result == 0) {
@@ -300,11 +300,11 @@ class WindowsFilesystem final : public IFilesystem {
     return {FilesystemResult::OK, static_cast<size_t>(total)};
   }
 
-  ReadResult Read(PlatformFileHandle file, char* dst, size_t n) override {
+  ReadResult Read(PlatformFileHandle handle, char* dst, size_t n) override {
     // Read up to N bytes
     DWORD bytes_read;
     const BOOL result = ReadFile(
-        file,
+        handle,
         dst,
         static_cast<DWORD>(n),
         &bytes_read,
@@ -320,10 +320,10 @@ class WindowsFilesystem final : public IFilesystem {
     return {FilesystemResult::OK, static_cast<size_t>(bytes_read)};
   }
 
-  FilesystemResult Close(PlatformFileHandle file) override {
+  FilesystemResult Close(PlatformFileHandle handle) override {
     // Close file handle: any advisory lock will be automatically released by Windows
     // when the handle is closed
-    const BOOL result = CloseHandle(file);
+    const BOOL result = CloseHandle(handle);
     if (result == 0) {
       return map_error(GetLastError());
     }

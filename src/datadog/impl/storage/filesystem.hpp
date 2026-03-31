@@ -151,15 +151,15 @@ class IFilesystem {
    *
    * File must already exist. If no file exists at the given path, returns DoesNotExist.
    *
-   * If `acquire_advisory_lock` is called, the function will make a non-blocking attempt
-   * to acquire an exclusive lock on the file. If unable to acquire a lock, closes the
-   * file and returns LockContention. If a lock is acquired, it remains held until
-   * Close() is called on the resulting file handle.
+   * If `hold_advisory_lock` is true, the function will make a non-blocking attempt to
+   * acquire an exclusive lock on the file. If unable to acquire a lock, closes the file
+   * and returns LockContention. If a lock is acquired, it remains held until Close() is
+   * called on the resulting file handle.
    *
    * On success, returns {OK, handle}. On failure, returns {error, INVALID_FILE_HANDLE}.
    */
   virtual OpenFileResult OpenForRead(
-      const PlatformPath& path, bool acquire_advisory_lock
+      const PlatformPath& path, bool hold_advisory_lock
   ) = 0;
 
   struct WriteResult {
@@ -175,7 +175,7 @@ class IFilesystem {
    * On success, returns {OK, n}. On failure, returns {error, num_bytes_written}, with
    * a num_bytes_written value greater than 0 indicating that a partial write occurred.
    */
-  virtual WriteResult Write(PlatformFileHandle file, const char* src, size_t n) = 0;
+  virtual WriteResult Write(PlatformFileHandle handle, const char* src, size_t n) = 0;
 
   struct ReadResult {
     FilesystemResult value;
@@ -193,7 +193,7 @@ class IFilesystem {
    * On success, returns {OK, bytes_read}, with a bytes_read value of 0 indicating EOF.
    * On failure, returns {error, 0}.
    */
-  virtual ReadResult Read(PlatformFileHandle file, char* dst, size_t n) = 0;
+  virtual ReadResult Read(PlatformFileHandle handle, char* dst, size_t n) = 0;
 
   /**
    * Closes an open file handle.
@@ -202,7 +202,7 @@ class IFilesystem {
    *
    * May return error if final flush fails.
    */
-  virtual FilesystemResult Close(PlatformFileHandle file) = 0;
+  virtual FilesystemResult Close(PlatformFileHandle handle) = 0;
 
   /**
    * Deletes a regular file.

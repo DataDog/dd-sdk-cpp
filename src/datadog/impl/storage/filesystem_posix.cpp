@@ -202,7 +202,7 @@ class PosixFilesystem final : public IFilesystem {
   }
 
   OpenFileResult OpenForRead(
-      const PlatformPath& path, bool acquire_advisory_lock
+      const PlatformPath& path, bool hold_advisory_lock
   ) override {
     // Open file read-only; retry on EINTR
     int fd = -1;
@@ -218,7 +218,7 @@ class PosixFilesystem final : public IFilesystem {
     }
 
     // If advisory lock requested, attempt non-blocking exclusive lock
-    if (acquire_advisory_lock) {
+    if (hold_advisory_lock) {
       while (true) {
         const int lock_result = flock(fd, LOCK_EX | LOCK_NB);
         if (lock_result == 0) {
@@ -237,12 +237,12 @@ class PosixFilesystem final : public IFilesystem {
     return {FilesystemResult::OK, fd};
   }
 
-  WriteResult Write(PlatformFileHandle file, const char* src, size_t n) override {
+  WriteResult Write(PlatformFileHandle handle, const char* src, size_t n) override {
     // Write exactly N bytes, looping to retry on partial writes and EINTR, ensuring
     // that all data is written even if a write() call returns < n
     size_t total = 0;
     while (total < n) {
-      const ssize_t result = write(file, src + total, n - total);
+      const ssize_t result = write(handle, src + total, n - total);
       if (result < 0) {
         if (errno == EINTR) {
           continue;
@@ -258,11 +258,11 @@ class PosixFilesystem final : public IFilesystem {
     return {FilesystemResult::OK, total};
   }
 
-  ReadResult Read(PlatformFileHandle file, char* dst, size_t n) override {
+  ReadResult Read(PlatformFileHandle handle, char* dst, size_t n) override {
     // Read up to N bytes in a single syscall (no looping except to retry in case of
     // EINTR)
     while (true) {
-      const ssize_t result = read(file, dst, n);
+      const ssize_t result = read(handle, dst, n);
       if (result < 0) {
         if (errno == EINTR) {
           continue;
@@ -274,12 +274,12 @@ class PosixFilesystem final : public IFilesystem {
     }
   }
 
-  FilesystemResult Close(PlatformFileHandle file) override {
+  FilesystemResult Close(PlatformFileHandle handle) override {
     // On Linux, close() always releases the fd even when it returns EINTR — retrying
     // would close an already-closed (and potentially reused) fd. Treat EINTR as success
     // on all POSIX platforms; the fd is gone either way. Advisory locks are released
     // automatically when the fd is closed.
-    if (close(file) == 0 || errno == EINTR) {
+    if (close(handle) == 0 || errno == EINTR) {
       return FilesystemResult::OK;
     }
     return map_errno(errno);
