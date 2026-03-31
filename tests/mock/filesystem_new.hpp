@@ -16,111 +16,92 @@
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
 
+using namespace datadog;
+
 /**
  * Mock filesystem implementation for testing.
- *
- * Provides an in-memory simulation of filesystem operations that matches Windows
- * implementation behavior with permissive share modes and exclusive advisory locks.
- * Thread-safe via mutex-protected shared state. Detects resource leaks by asserting
- * on unclosed handles in destructor.
  */
-class MockFilesystemNew : public datadog::impl::IFilesystem {
- public:
-  MockFilesystemNew() = default;
-  ~MockFilesystemNew() override;
+class MockFilesystemNew : public impl::IFilesystem {
+  // Global mutex used to synchronize access to _dirs, _files, _handles, etc., such that
+  // all threads under test see a consistent view of the simulated disk
+  mutable std::mutex _mutex;
+  impl::PlatformFileHandle _next_handle{1};
 
-  // Noncopyable, non-movable (due to mutex members)
-  MockFilesystemNew(const MockFilesystemNew&) = delete;
-  MockFilesystemNew& operator=(const MockFilesystemNew&) = delete;
-  MockFilesystemNew(MockFilesystemNew&&) = delete;
-  MockFilesystemNew& operator=(MockFilesystemNew&&) = delete;
-
-  // IFilesystem interface implementation
-  datadog::impl::FilesystemResult CreateDirectory(
-      const datadog::impl::PlatformPath& path
-  ) override;
-
-  datadog::impl::FilesystemResult ListFiles(
-      const datadog::impl::PlatformPath& path, std::vector<std::string>& out_names
-  ) override;
-
-  datadog::impl::FilesystemResult ListSubdirectories(
-      const datadog::impl::PlatformPath& path, std::vector<std::string>& out_names
-  ) override;
-
-  OpenFileResult OpenForWrite(
-      const datadog::impl::PlatformPath& path, bool append, bool hold_advisory_lock
-  ) override;
-
-  OpenFileResult OpenForRead(
-      const datadog::impl::PlatformPath& path, bool acquire_advisory_lock
-  ) override;
-
-  WriteResult Write(
-      datadog::impl::PlatformFileHandle file, const char* src, size_t n
-  ) override;
-
-  ReadResult Read(datadog::impl::PlatformFileHandle file, char* dst, size_t n) override;
-
-  datadog::impl::FilesystemResult Close(
-      datadog::impl::PlatformFileHandle file
-  ) override;
-
-  datadog::impl::FilesystemResult Delete(
-      const datadog::impl::PlatformPath& path
-  ) override;
-
-  datadog::impl::FilesystemResult DeleteDirectory(
-      const datadog::impl::PlatformPath& path
-  ) override;
-
-  datadog::impl::FilesystemResult Rename(
-      const datadog::impl::PlatformPath& src, const datadog::impl::PlatformPath& dst
-  ) override;
-
-  // Test helper methods
-  void Touch(std::string_view path, std::string_view initial_data = "");
-  void Mkdirs(std::string_view path);
-  void Corrupt(std::string_view path);
-  void SetFail(std::string_view path, bool fail);
-  std::string Cat(std::string_view path);
-  std::vector<std::string> FindFiles(std::string_view path);
-  int GetNumFilesDeleted() const;
-  std::vector<int> GetOpenHandles() const;
-
- private:
-  struct MockFileEntry {
-    std::string data;
-    std::vector<int> open_handles;
-    std::optional<int> advisory_lock_holder;
-    bool bad = false;
-    bool fail = false;
-    mutable std::mutex mutex;
-  };
-
+  // Maintain a mapping of normalized paths to details of known directories
   struct MockDirEntry {
-    bool bad = false;
-    bool fail = false;
+    // If not OK, all operations directly targeting this directory will fail
+    impl::FilesystemResult status;
   };
+  std::map<std::string, MockDirEntry> _dirs;
 
-  struct HandleInfo {
+  // Maintain a mapping of normalized paths to details of known files
+  struct MockFileEntry {
+    // Contents stored for this file
+    std::string data;
+    // List of open file handles
+    std::vector<impl::PlatformFileHandle> open_handles;
+    // File handle that holds lock, or INVALID_FILE_HANDLE if not locked
+    impl::PlatformFileHandle advisory_lock_holder{impl::INVALID_FILE_HANDLE};
+    // If not OK, all operations directly targeting this file will fail with this result
+    impl::FilesystemResult status;
+  };
+  std::map<std::string, MockFileEntry> _files;
+
+  // Maintain a lookup with the details of all extant file handles
+  struct MockHandleInfo {
+    // Path of the associated file, so we can look up MockFileEntry from handle
     std::string path;
+    // True if the file was opened for write
     bool is_write;
+    // True if the this handle maintains an advisory lock for exclusive access
     bool has_advisory_lock;
+    // Position into the file at which the next read via this handle will start
     size_t read_offset;
   };
+  std::map<impl::PlatformFileHandle, MockHandleInfo> _handles;
 
-  std::map<std::string, MockFileEntry> files_;
-  std::map<std::string, MockDirEntry> dirs_;
-  std::map<int, HandleInfo> handles_;
-  int next_fd_ = 1;
-  int num_files_deleted_ = 0;
-  mutable std::mutex mutex_;
+  // IFilesystem uses PlatformPath, which varies by OS; normalize to std::string values
+  // with '/' as delimiter in order to generate paths used for lookup keys etc.
+  static std::string NormalizePath(const impl::PlatformPath& path);
+  static std::string GetParentPath(const std::string& normalized_path);
+  static std::string GetBasename(const std::string& normalized_path);
 
-  // Helper methods
-  static std::string NormalizePath(const datadog::impl::PlatformPath& path);
-  static std::string GetParentPath(const std::string& path);
-  static std::string GetBasename(const std::string& path);
-  bool IsDirectory(const std::string& path);
-  bool IsFile(const std::string& path);
+ public:
+  // IFilesystem interface
+  impl::FilesystemResult CreateDirectory(const impl::PlatformPath& path) override;
+  impl::FilesystemResult ListFiles(
+      const impl::PlatformPath& path, std::vector<std::string>& out_names
+  ) override;
+  impl::FilesystemResult ListSubdirectories(
+      const impl::PlatformPath& path, std::vector<std::string>& out_names
+  ) override;
+  OpenFileResult OpenForWrite(
+      const impl::PlatformPath& path, bool append, bool hold_advisory_lock
+  ) override;
+  OpenFileResult OpenForRead(
+      const impl::PlatformPath& path, bool hold_advisory_lock
+  ) override;
+  WriteResult Write(
+      impl::PlatformFileHandle handle, const char* src, size_t n
+  ) override;
+  ReadResult Read(impl::PlatformFileHandle handle, char* dst, size_t n) override;
+  impl::FilesystemResult Close(impl::PlatformFileHandle handle) override;
+  impl::FilesystemResult Delete(const impl::PlatformPath& path) override;
+  impl::FilesystemResult DeleteDirectory(const impl::PlatformPath& path) override;
+  impl::FilesystemResult Rename(
+      const impl::PlatformPath& src, const impl::PlatformPath& dst
+  ) override;
+
+  // Helper functions for initializing mock filesystem state during tests
+  void Mkdirs(std::string_view path);
+  void Touch(std::string_view path, std::string_view initial_data = "");
+  void SetStatus(std::string_view path, impl::FilesystemResult status);
+  void LockFile(std::string_view path);
+  void UnlockFile(std::string_view path);
+
+  // Helper functions for inspecting filesystem state modified by code under test
+  bool IsDirectory(std::string_view path);
+  bool IsFile(std::string_view path);
+  bool IsFileLocked(std::string_view path);
+  std::string Cat(std::string_view path);
 };
