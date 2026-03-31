@@ -58,6 +58,24 @@ bool AppendPath(
   return true;
 }
 
+bool AppendExtensionToPath(
+    class StoragePath& dst,
+    std::string_view ext,
+    const class DiagnosticLogger& logger,
+    const char* failure_message
+) {
+  if (!dst.AppendExt(ext)) {
+    logger.Error(
+        failure_message,
+        {{"path", dst.Get()},
+         {"ext", ext},
+         {"max_storage_path_size", MAX_STORAGE_PATH_SIZE}}
+    );
+    return false;
+  }
+  return true;
+}
+
 bool JoinPaths(
     StoragePath& dst,
     std::string_view parent,
@@ -95,7 +113,7 @@ bool EnsureDirectoryExists(
 
   // Use platform filesystem APIs to create the desired directory, and/or detect whether
   // it's a directory if it already exists
-  auto res = fs.CreateDirectory(platform_path);
+  const FilesystemResult res = fs.CreateDirectory(platform_path);
   if (res == FilesystemResult::OK ||
       res == FilesystemResult::AlreadyExistsAsDirectory) {
     // There is now a valid directory at `path`; mission accomplished
@@ -111,6 +129,37 @@ bool EnsureDirectoryExists(
        {"error", FilesystemResultStr(res)}}
   );
   return false;
+}
+
+bool DeleteEmptyDirectory(
+    const class StoragePath& path,
+    class PlatformPath& platform_path,
+    class IFilesystem& fs,
+    const class DiagnosticLogger& logger,
+    const char* failure_message
+) {
+  // Convert to platform-native path encoding for IFilesystem call
+  if (!platform_path.Encode(path.CStr())) {
+    logger.Error(failure_message, {{"path", path.CStr()}, {"operation", "encode"}});
+    return false;
+  }
+
+  // Attempt to delete the directory: this uses rmdir/RemoveDirectoryW, requiring that
+  // the directory be empty
+  const FilesystemResult res = fs.DeleteDirectory(platform_path);
+  if (res != FilesystemResult::OK) {
+    // Log an error message that includes the result enum and report failure
+    logger.Error(
+        failure_message,
+        {{"path", path.CStr()},
+         {"operation", "create"},
+         {"error", FilesystemResultStr(res)}}
+    );
+    return false;
+  }
+
+  // Success: directory has been deleted
+  return true;
 }
 
 }  // namespace datadog::impl
