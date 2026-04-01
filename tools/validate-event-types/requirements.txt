@@ -5,5 +5,5 @@ jsonschema==4.26.0
 jsonschema-specifications==2025.9.1
 referencing==0.37.0
 rpds-py==0.30.0
-smmap==5.0.2
+smmap==5.0.3
 typing_extensions==4.15.0
