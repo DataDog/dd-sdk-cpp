@@ -245,7 +245,8 @@ enum class RumSource : uint8_t {
   ReactNative,
   Roku,
   Unity,
-  KotlinMultiplatform
+  KotlinMultiplatform,
+  RumCpp
 };
 DATADOG_STRING_ENUM(
     StringRumSource,
@@ -257,7 +258,8 @@ DATADOG_STRING_ENUM(
     DATADOG_ENUM_VALUE(RumSource::ReactNative, "react-native"),
     DATADOG_ENUM_VALUE(RumSource::Roku, "roku"),
     DATADOG_ENUM_VALUE(RumSource::Unity, "unity"),
-    DATADOG_ENUM_VALUE(RumSource::KotlinMultiplatform, "kotlin-multiplatform")
+    DATADOG_ENUM_VALUE(RumSource::KotlinMultiplatform, "kotlin-multiplatform"),
+    DATADOG_ENUM_VALUE(RumSource::RumCpp, "rum-cpp")
 )
 
 struct RumUserProperties {
@@ -423,7 +425,7 @@ struct RumDeviceProperties {
   OmitIfNoValue<bool> power_saving_mode;
   OmitIfNoValue<float> brightness_level;
 
-  RumDeviceProperties() {};
+  RumDeviceProperties(){};
 };
 DATADOG_JSON_STRUCT(
     RumDeviceProperties,
@@ -571,7 +573,7 @@ struct RumViewEvent {
       OmitIfNoValue<LCP> lcp;
       OmitIfNoValue<FBC> fbc;
 
-      Performance() {};
+      Performance(){};
     };
     struct Accessibility {
       // From _view-accessibility-schema.json
@@ -598,7 +600,7 @@ struct RumViewEvent {
       OmitIfFalse<bool> speak_selection_enabled{false};
       OmitIfFalse<bool> rtl_enabled{false};
 
-      Accessibility() {};
+      Accessibility(){};
     };
     // From _common-schema.json
     UUID id;
@@ -663,7 +665,7 @@ struct RumViewEvent {
     // From view-schema.json
     // NYI(web): scroll
 
-    Display() {};
+    Display(){};
   };
   struct Internal {
     struct Session {
@@ -671,7 +673,7 @@ struct RumViewEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session(){};
     };
     struct Configuration {
       // From _common-schema.json
@@ -742,16 +744,13 @@ struct RumViewEvent {
       : date(in_date),
         application(Application{in_application_id}),
         session(Session{in_session_id, in_session_type}),
-        view(
-            View{
-                in_view_id,
-                in_view_url,
-                in_view_time_spent,
-                in_view_action_count,
-                in_view_error_count,
-                in_view_resource_count
-            }
-        ),
+        view(View{
+            in_view_id,
+            in_view_url,
+            in_view_time_spent,
+            in_view_action_count,
+            in_view_error_count,
+            in_view_resource_count}),
         _dd(Internal{in_internal_document_version}) {}
 };
 DATADOG_JSON_STRUCT(
@@ -1010,7 +1009,7 @@ struct RumActionEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display(){};
   };
   struct Action {
     struct Target {
@@ -1046,7 +1045,7 @@ struct RumActionEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session(){};
     };
     struct Configuration {
       // From _common-schema.json
@@ -1298,7 +1297,7 @@ struct RumResourceEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display(){};
   };
   struct Action {
     // From _action-child-schema.json
@@ -1356,7 +1355,7 @@ struct RumResourceEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session(){};
     };
     struct Configuration {
       // From _common-schema.json
@@ -1663,7 +1662,7 @@ struct RumErrorEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display(){};
   };
   struct Action {
     // From _action-child-schema.json
@@ -1694,13 +1693,13 @@ struct RumErrorEvent {
       OmitIfEmpty<std::string> exception_codes;
       OmitIfEmpty<std::string> path;
 
-      Meta() {};
+      Meta(){};
     };
     struct Csp {
       // From error-schema.json
       OmitIfNoValue<StringRumCspDisposition> disposition;
 
-      Csp() {};
+      Csp(){};
     };
     // From error-schema.json
     OmitIfZero<UUID> id;
@@ -1736,7 +1735,7 @@ struct RumErrorEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session(){};
     };
     struct Configuration {
       // From _common-schema.json
@@ -2001,7 +2000,7 @@ struct RumVitalEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display(){};
   };
   struct Vital {
     // From _vital-common-schema.json
@@ -2027,7 +2026,7 @@ struct RumVitalEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session(){};
     };
     struct Configuration {
       // From _common-schema.json

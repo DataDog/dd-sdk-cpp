@@ -13,8 +13,59 @@
 #include "datadog/logging.h"
 
 #include "support/catch.hpp"
+#include "support/core.hpp"
 #include "support/diagnostics.hpp"
 #include "support/tempdir.hpp"
+
+using namespace datadog;
+
+TEST_CASE("dd_core_config_add_additional_configuration", "[unit][core][c-api]") {
+  SECTION("M safely do nothing W config is null") {
+    dd_core_config_add_additional_configuration(nullptr, "_dd.source", "unity");
+  }
+
+  SECTION("M safely do nothing W key is null") {
+    dd_core_config_t config;
+    dd_core_config_init(&config, "token", "service", "env");
+    dd_core_config_add_additional_configuration(&config, nullptr, "unity");
+    dd_core_config_destroy(&config);
+  }
+
+  SECTION("M safely do nothing W value is null") {
+    dd_core_config_t config;
+    dd_core_config_init(&config, "token", "service", "env");
+    dd_core_config_add_additional_configuration(&config, "_dd.source", nullptr);
+    dd_core_config_destroy(&config);
+  }
+
+  SECTION("M store and apply _dd.source override W key is _dd.source") {
+    // Given a config with a _dd.source override
+    dd_core_config_t config;
+    dd_core_config_init(&config, "token", "service", "env");
+    dd_core_config_set_event_storage_location(&config, ".");
+    dd_core_config_add_additional_configuration(&config, "_dd.source", "unity");
+
+    // When we create a core from that config
+    dd_core_t* core = dd_core_create(&config);
+    dd_core_config_destroy(&config);
+
+    // Then the core is valid (source override doesn't prevent initialization)
+    REQUIRE(core != nullptr);
+    dd_core_destroy(core);
+  }
+}
+
+TEST_CASE("dd_core_config_destroy", "[unit][core][c-api]") {
+  SECTION("M safely do nothing W config is null") {
+    dd_core_config_destroy(nullptr);
+  }
+
+  SECTION("M safely do nothing W no additional_configuration was added") {
+    dd_core_config_t config;
+    dd_core_config_init(&config, "token", "service", "env");
+    dd_core_config_destroy(&config);
+  }
+}
 
 TEST_CASE("dd_core null safety", "[unit][core][c-api]") {
   SECTION("M safely do nothing W target object is null") {
@@ -403,5 +454,59 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
       dd_logging_destroy(logging);
       dd_core_destroy(core);
     }
+  }
+}
+
+TEST_CASE(
+    "dd_core_config additional_configuration overrides in network requests",
+    "[unit][core][c-api]"
+) {
+  SECTION("M use overridden source in request URL and headers W _dd.source set") {
+    // Given a core configured with a _dd.source override
+    CoreConfig config = MOCK_CORE_CONFIG;
+    config.AddAdditionalConfiguration("_dd.source", "unity");
+    auto test = CoreTestHarness::Init(config);
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+    dd_core_start(core);
+
+    // When we emit a log event and stop the core
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+
+    // Then the HTTP request reflects the overridden source
+    REQUIRE(test.client.requests.size() == 1);
+    const auto& req = test.client.requests.front();
+    REQUIRE(req.url.find("ddsource=unity") != std::string::npos);
+    REQUIRE(req.headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M use overridden sdk_version in request headers W _dd.sdk_version set") {
+    // Given a core configured with a _dd.sdk_version override
+    CoreConfig config = MOCK_CORE_CONFIG;
+    config.AddAdditionalConfiguration("_dd.sdk_version", "99.0.0");
+    auto test = CoreTestHarness::Init(config);
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+    dd_core_start(core);
+
+    // When we emit a log event and stop the core
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+
+    // Then the HTTP request reflects the overridden SDK version
+    REQUIRE(test.client.requests.size() == 1);
+    const auto& req = test.client.requests.front();
+    REQUIRE(req.headers.find("DD-EVP-ORIGIN-VERSION: 99.0.0\n") != std::string::npos);
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
   }
 }

@@ -25,8 +25,21 @@ HttpContext::HttpContext(const CoreConfig& config)
       service(config.service),
       env(config.env),
       application_version(config.application_version),
-      source("unity")  // TODO(RUM-7416): "rum-cpp" is not yet supported as a source
-{}
+      source("rum-cpp"),
+      sdk_version(std::string(SDK_VERSION))
+{
+  const auto& ac = config.additional_configuration;
+
+  auto source_it = ac.find("_dd.source");
+  if (source_it != ac.end()) {
+    source = source_it->second;
+  }
+
+  auto sdk_version_it = ac.find("_dd.sdk_version");
+  if (sdk_version_it != ac.end()) {
+    sdk_version = sdk_version_it->second;
+  }
+}
 
 void HttpContext::BuildRequestURL(
     std::string_view path, bool with_ddsource, std::string& out_url
@@ -124,7 +137,7 @@ void HttpContext::BuildRequestHeaders(
       (content_type_header.size() + content_type.size() + 1) +
       (dd_api_key.size() + client_token.size() + 1) +
       (dd_evp_origin.size() + source.size() + 1) +
-      (dd_evp_origin_version.size() + SDK_VERSION.size() + 1) +
+      (dd_evp_origin_version.size() + sdk_version.size() + 1) +
       (dd_request_id.size() + HYPHENATED_UUID_LEN + 1) +
       (user_agent_header.size() + user_agent.size() + 1 + feature_headers.size());
 
@@ -148,7 +161,7 @@ void HttpContext::BuildRequestHeaders(
 
   // Concatenate DD-EVP-ORIGIN-VERSION
   out_headers += dd_evp_origin_version;
-  out_headers += SDK_VERSION;
+  out_headers += sdk_version;
   out_headers += '\n';
 
   // Concatenate DD-REQUEST-ID

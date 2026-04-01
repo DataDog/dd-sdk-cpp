@@ -197,13 +197,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(client.requests.size() == 1);
     const MockHttpRequest& request = client.requests[0];
     REQUIRE(
-        request.url == "https://browser-intake-datadoghq.com/api/v1/test?ddsource=unity"
+        request.url == "https://browser-intake-datadoghq.com/api/v1/test?ddsource=rum-cpp"
     );
     REQUIRE(
         request.headers.find(
             "Content-Type: text/plain\n"
             "DD-API-KEY: mock-client-token\n"
-            "DD-EVP-ORIGIN: unity\n"
+            "DD-EVP-ORIGIN: rum-cpp\n"
             "DD-EVP-ORIGIN-VERSION: 0.2.0\n"
         ) == 0
     );

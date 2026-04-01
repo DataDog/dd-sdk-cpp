@@ -10,6 +10,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 
 #include "datadog/api.hpp"
 
@@ -185,6 +186,7 @@ struct CoreConfig {
   BatchSize batch_size{BatchSize::Medium};
   UploadFrequency upload_frequency{UploadFrequency::Average};
   BatchProcessingLevel batch_processing_level{BatchProcessingLevel::Medium};
+  std::unordered_map<std::string, std::string> additional_configuration;
 
   struct InternalOptions {
     size_t num_http_requests_per_feature_to_flush_on_stop{0};
@@ -320,6 +322,14 @@ struct CoreConfig {
    * @see @ref datadog::BatchProcessingLevel
    */
   DATADOG_API CoreConfig& SetBatchProcessingLevel(BatchProcessingLevel value);
+
+  /**
+   * Adds a key-value string pair to the additional configuration. Intended for use by
+   * multi-platform SDKs built on top of this C++ SDK to override SDK-level metadata.
+   */
+  DATADOG_API CoreConfig& AddAdditionalConfiguration(
+      std::string_view key, std::string_view value
+  );
 
   /**
    * FOR INTERNAL USE ONLY - This function is not part of the public API and may change

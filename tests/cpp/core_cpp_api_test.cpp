@@ -8,6 +8,7 @@
 #include "datadog/logging.hpp"
 
 #include "support/catch.hpp"
+#include "support/core.hpp"
 #include "support/diagnostics.hpp"
 #include "support/tempdir.hpp"
 
@@ -333,3 +334,74 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
     }
   }
 }
+
+TEST_CASE("CoreConfig AddAdditionalConfiguration", "[unit][core][cpp-api]") {
+  SECTION("M store _dd.source and apply it W AddAdditionalConfiguration called") {
+    // Given a config with a _dd.source override
+    CoreConfig config("token", "service", "env");
+    config.SetEventStorageLocation(".");
+    config.AddAdditionalConfiguration("_dd.source", "unity");
+
+    // When we create a core from that config (no crash / rejection)
+    auto core = Core::Create(config);
+
+    // Then the core is valid
+    REQUIRE(core != nullptr);
+  }
+
+  SECTION("M overwrite existing key W AddAdditionalConfiguration called twice") {
+    CoreConfig config("token", "service", "env");
+    config.AddAdditionalConfiguration("_dd.source", "unity");
+    config.AddAdditionalConfiguration("_dd.source", "flutter");
+
+    // The second call should silently overwrite the first; creation should succeed
+    config.SetEventStorageLocation(".");
+    auto core = Core::Create(config);
+    REQUIRE(core != nullptr);
+  }
+}
+
+TEST_CASE(
+    "CoreConfig additional_configuration overrides in network requests",
+    "[unit][core][cpp-api]"
+) {
+  SECTION("M use overridden source in request URL and headers W _dd.source set") {
+    // Given a core configured with a _dd.source override
+    CoreConfig config = MOCK_CORE_CONFIG;
+    config.AddAdditionalConfiguration("_dd.source", "unity");
+    auto test = CoreTestHarness::Init(config);
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we emit a log event and stop the core
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then the HTTP request reflects the overridden source
+    REQUIRE(test.client.requests.size() == 1);
+    const auto& req = test.client.requests.front();
+    REQUIRE(req.url.find("ddsource=unity") != std::string::npos);
+    REQUIRE(req.headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
+  }
+
+  SECTION("M use overridden sdk_version in request headers W _dd.sdk_version set") {
+    // Given a core configured with a _dd.sdk_version override
+    CoreConfig config = MOCK_CORE_CONFIG;
+    config.AddAdditionalConfiguration("_dd.sdk_version", "99.0.0");
+    auto test = CoreTestHarness::Init(config);
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we emit a log event and stop the core
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then the HTTP request reflects the overridden SDK version
+    REQUIRE(test.client.requests.size() == 1);
+    const auto& req = test.client.requests.front();
+    REQUIRE(req.headers.find("DD-EVP-ORIGIN-VERSION: 99.0.0\n") != std::string::npos);
+  }
+}
+
