@@ -33,8 +33,7 @@ HttpContext::HttpContext(const CoreConfig& config)
           config.internal_options.sdk_version.empty()
               ? std::string(SDK_VERSION)
               : config.internal_options.sdk_version
-      )
-{}
+      ) {}
 
 void HttpContext::BuildRequestURL(
     std::string_view path, bool with_ddsource, std::string& out_url

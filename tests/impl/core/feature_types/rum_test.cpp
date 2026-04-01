@@ -39,7 +39,8 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
       view_action_count,
       view_error_count,
       view_resource_count,
-      internal_document_version};
+      internal_document_version
+  };
 
   SECTION("M produce a minimal view event W only required values are set") {
     RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
@@ -502,7 +503,8 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
       view_url,
       action_type,
       action_id,
-      action_duration};
+      action_duration
+  };
 
   SECTION("M produce a minimal action event W only required values are set") {
     RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
@@ -740,7 +742,8 @@ TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
       view_url,
       resource_id,
       resource_type,
-      resource_url};
+      resource_url
+  };
 
   SECTION("M produce a minimal resource event W only required values are set") {
     RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
@@ -1028,7 +1031,8 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
       view_id,
       view_url,
       error_message,
-      error_source};
+      error_source
+  };
 
   SECTION("M produce a minimal error event W only required values are set") {
     RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
@@ -1347,7 +1351,8 @@ TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
       vital_id,
       vital_type,
       vital_name,
-      step_type};
+      step_type
+  };
 
   SECTION("M produce a minimal vital event W only required values are set") {
     RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
@@ -1445,7 +1450,8 @@ TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
         vital_id,
         vital_type,
         vital_name,
-        RumVitalStepType::End};
+        RumVitalStepType::End
+    };
     end_ev.vital.failure_reason.value = RumVitalFailureReason::Error;
     RequireJsonObject(end_ev, DATADOG_RUM_EVENT_LITERAL(R"({
       "date": 946684799999,
@@ -1485,7 +1491,8 @@ TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
         vital_id,
         vital_type,
         vital_name,
-        RumVitalStepType::End};
+        RumVitalStepType::End
+    };
     end_ev.vital.failure_reason.value = RumVitalFailureReason::Abandoned;
     end_ev.vital.operation_key.value = "user-42";
     RequireJsonObject(end_ev, DATADOG_RUM_EVENT_LITERAL(R"({

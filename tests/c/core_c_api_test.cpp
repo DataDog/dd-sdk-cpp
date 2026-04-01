@@ -430,7 +430,8 @@ TEST_CASE(
     "dd_core_config internal_options overrides in network requests",
     "[unit][core][c-api]"
 ) {
-  SECTION("M use overridden source in request URL and headers W internal_options.source set"
+  SECTION(
+      "M use overridden source in request URL and headers W internal_options.source set"
   ) {
     // Given a core configured with a source override in internal_options
     CoreConfig config = MOCK_CORE_CONFIG;
@@ -457,7 +458,8 @@ TEST_CASE(
   }
 
   SECTION(
-      "M use overridden sdk_version in request headers W internal_options.sdk_version set"
+      "M use overridden sdk_version in request headers W internal_options.sdk_version "
+      "set"
   ) {
     // Given a core configured with a sdk_version override in internal_options
     CoreConfig config = MOCK_CORE_CONFIG;

@@ -53,7 +53,8 @@ TEST_CASE("HttpContext BuildRequestURL", "[unit]") {
   SECTION("M append ddsource parameter W with_ddsource is true and path has no query") {
     context.BuildRequestURL("/api/v1/logs", true, result_url);
     REQUIRE(
-        result_url == "https://browser-intake-datadoghq.com/api/v1/logs?ddsource=rum-cpp"
+        result_url ==
+        "https://browser-intake-datadoghq.com/api/v1/logs?ddsource=rum-cpp"
     );
   }
 

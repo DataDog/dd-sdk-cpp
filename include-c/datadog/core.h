@@ -171,7 +171,6 @@ DATADOG_API void dd_core_config_init(
     const char* env
 );
 
-
 /**
  * Supplies a callback function that will be invoked whenever the SDK emits a diagnostic
  * message whose level meets or exceeds the configured diagnostic threshold.
@@ -295,7 +294,6 @@ DATADOG_API void dd_core_config_set_upload_frequency(
 DATADOG_API void dd_core_config_set_batch_processing_level(
     dd_core_config_t* config, dd_batch_processing_level_t value
 );
-
 
 // === SDK Core ===
 

@@ -335,7 +335,9 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
   }
 }
 
-TEST_CASE("CoreConfig Internal_SetSource / Internal_SetSdkVersion", "[unit][core][cpp-api]") {
+TEST_CASE(
+    "CoreConfig Internal_SetSource / Internal_SetSdkVersion", "[unit][core][cpp-api]"
+) {
   SECTION("M apply source override W Internal_SetSource called") {
     // Given a config with a _dd.source override
     CoreConfig config("token", "service", "env");
@@ -404,4 +406,3 @@ TEST_CASE(
     REQUIRE(req.headers.find("DD-EVP-ORIGIN-VERSION: 99.0.0\n") != std::string::npos);
   }
 }
-
