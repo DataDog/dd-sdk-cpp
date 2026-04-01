@@ -335,12 +335,12 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
   }
 }
 
-TEST_CASE("CoreConfig AddAdditionalConfiguration", "[unit][core][cpp-api]") {
-  SECTION("M store _dd.source and apply it W AddAdditionalConfiguration called") {
+TEST_CASE("CoreConfig Internal_SetSource / Internal_SetSdkVersion", "[unit][core][cpp-api]") {
+  SECTION("M apply source override W Internal_SetSource called") {
     // Given a config with a _dd.source override
     CoreConfig config("token", "service", "env");
     config.SetEventStorageLocation(".");
-    config.AddAdditionalConfiguration("_dd.source", "unity");
+    config.Internal_SetSource("unity");
 
     // When we create a core from that config (no crash / rejection)
     auto core = Core::Create(config);
@@ -349,10 +349,10 @@ TEST_CASE("CoreConfig AddAdditionalConfiguration", "[unit][core][cpp-api]") {
     REQUIRE(core != nullptr);
   }
 
-  SECTION("M overwrite existing key W AddAdditionalConfiguration called twice") {
+  SECTION("M overwrite existing value W Internal_SetSource called twice") {
     CoreConfig config("token", "service", "env");
-    config.AddAdditionalConfiguration("_dd.source", "unity");
-    config.AddAdditionalConfiguration("_dd.source", "flutter");
+    config.Internal_SetSource("unity");
+    config.Internal_SetSource("flutter");
 
     // The second call should silently overwrite the first; creation should succeed
     config.SetEventStorageLocation(".");
@@ -362,13 +362,13 @@ TEST_CASE("CoreConfig AddAdditionalConfiguration", "[unit][core][cpp-api]") {
 }
 
 TEST_CASE(
-    "CoreConfig additional_configuration overrides in network requests",
+    "CoreConfig Internal_SetSource / Internal_SetSdkVersion in network requests",
     "[unit][core][cpp-api]"
 ) {
   SECTION("M use overridden source in request URL and headers W _dd.source set") {
     // Given a core configured with a _dd.source override
     CoreConfig config = MOCK_CORE_CONFIG;
-    config.AddAdditionalConfiguration("_dd.source", "unity");
+    config.Internal_SetSource("unity");
     auto test = CoreTestHarness::Init(config);
     auto core = CoreTestHarness::WrapForCpp(test);
     auto logging = Logging::Register(core);
@@ -388,7 +388,7 @@ TEST_CASE(
   SECTION("M use overridden sdk_version in request headers W _dd.sdk_version set") {
     // Given a core configured with a _dd.sdk_version override
     CoreConfig config = MOCK_CORE_CONFIG;
-    config.AddAdditionalConfiguration("_dd.sdk_version", "99.0.0");
+    config.Internal_SetSdkVersion("99.0.0");
     auto test = CoreTestHarness::Init(config);
     auto core = CoreTestHarness::WrapForCpp(test);
     auto logging = Logging::Register(core);

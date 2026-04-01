@@ -129,12 +129,13 @@ typedef enum {
 typedef struct dd_internal_options {
   bool flush_http_requests_on_stop;
   const char* custom_endpoint_url;
+  const char* source;
+  const char* sdk_version;
 } dd_internal_options_t;
 
 /**
  * Top-level configuration options for the Datadog SDK. Initialize with
- * dd_core_config_init(), then call dd_core_config_set_<value>(). Call
- * dd_core_config_destroy() when the config is no longer needed.
+ * dd_core_config_init(), then call dd_core_config_set_<value>().
  */
 typedef struct dd_core_config {
   uint32_t version;
@@ -152,7 +153,6 @@ typedef struct dd_core_config {
   dd_upload_frequency_t upload_frequency;
   dd_batch_processing_level_t batch_processing_level;
   dd_internal_options_t internal_options;
-  void* _additional_configuration_impl;  // Internal; do not access directly
 } dd_core_config_t;
 
 /**
@@ -171,11 +171,6 @@ DATADOG_API void dd_core_config_init(
     const char* env
 );
 
-/**
- * Frees any memory allocated by setter functions on this config. Must be called when
- * the config is no longer needed (safe to call after dd_core_create() returns).
- */
-DATADOG_API void dd_core_config_destroy(dd_core_config_t* config);
 
 /**
  * Supplies a callback function that will be invoked whenever the SDK emits a diagnostic
@@ -301,14 +296,6 @@ DATADOG_API void dd_core_config_set_batch_processing_level(
     dd_core_config_t* config, dd_batch_processing_level_t value
 );
 
-/**
- * Adds a key-value string pair to the additional configuration. Intended for use by
- * multi-platform SDKs built on top of this C++ SDK to override SDK-level metadata.
- * Copies the key and value strings internally.
- */
-DATADOG_API void dd_core_config_add_additional_configuration(
-    dd_core_config_t* config, const char* key, const char* value
-);
 
 // === SDK Core ===
 

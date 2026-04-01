@@ -8,16 +8,12 @@
 
 #include <iostream>
 #include <memory>
-#include <string>
-#include <unordered_map>
 
 #include "datadog/c/core_glue.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/platform/filesystem.hpp"
 #include "datadog/impl/platform/http.hpp"
-
-using AdditionalConfigurationMap = std::unordered_map<std::string, std::string>;
 
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
 
@@ -39,10 +35,11 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     DD_UPLOAD_FREQUENCY_AVERAGE,       // upload_frequency
     DD_BATCH_PROCESSING_LEVEL_MEDIUM,  // batch_processing_level
     {
-        false,   // internal_options.flush_http_requests_on_stop
-        nullptr  // internal_options.custom_endpoint_url
-    },
-    nullptr  // _additional_configuration_impl
+        false,    // internal_options.flush_http_requests_on_stop
+        nullptr,  // internal_options.custom_endpoint_url
+        nullptr,  // internal_options.source
+        nullptr   // internal_options.sdk_version
+    }
 };
 
 extern "C" {
@@ -67,31 +64,6 @@ void dd_core_config_init(
   config->client_token = client_token;
   config->service = service;
   config->env = env;
-}
-
-void dd_core_config_destroy(dd_core_config_t* config) {
-  if (!config) {
-    return;
-  }
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  delete static_cast<AdditionalConfigurationMap*>(config->_additional_configuration_impl
-  );
-  config->_additional_configuration_impl = nullptr;
-}
-
-void dd_core_config_add_additional_configuration(
-    dd_core_config_t* config, const char* key, const char* value
-) {
-  if (!config || !key || !value) {
-    return;
-  }
-  if (!config->_additional_configuration_impl) {
-    // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-    config->_additional_configuration_impl = new AdditionalConfigurationMap();
-  }
-  auto* map =
-      static_cast<AdditionalConfigurationMap*>(config->_additional_configuration_impl);
-  (*map)[key] = value;
 }
 
 void dd_core_config_set_diagnostic_handler(

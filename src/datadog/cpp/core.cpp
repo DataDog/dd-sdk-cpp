@@ -94,13 +94,6 @@ CoreConfig& CoreConfig::SetBatchProcessingLevel(BatchProcessingLevel value) {
   return *this;
 }
 
-CoreConfig& CoreConfig::AddAdditionalConfiguration(
-    std::string_view key, std::string_view value
-) {
-  additional_configuration[std::string(key)] = std::string(value);
-  return *this;
-}
-
 CoreConfig& CoreConfig::Internal_FlushHttpRequestsOnStop() {
   const size_t value = std::numeric_limits<size_t>::max();
   internal_options.num_http_requests_per_feature_to_flush_on_stop = value;
@@ -109,6 +102,16 @@ CoreConfig& CoreConfig::Internal_FlushHttpRequestsOnStop() {
 
 CoreConfig& CoreConfig::Internal_UseCustomEndpoint(std::string_view value) {
   internal_options.custom_endpoint_url = value;
+  return *this;
+}
+
+CoreConfig& CoreConfig::Internal_SetSource(std::string_view value) {
+  internal_options.source = value;
+  return *this;
+}
+
+CoreConfig& CoreConfig::Internal_SetSdkVersion(std::string_view value) {
+  internal_options.sdk_version = value;
   return *this;
 }
 

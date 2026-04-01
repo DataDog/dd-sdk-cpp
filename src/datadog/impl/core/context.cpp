@@ -25,21 +25,16 @@ HttpContext::HttpContext(const CoreConfig& config)
       service(config.service),
       env(config.env),
       application_version(config.application_version),
-      source("rum-cpp"),
-      sdk_version(std::string(SDK_VERSION))
-{
-  const auto& ac = config.additional_configuration;
-
-  auto source_it = ac.find("_dd.source");
-  if (source_it != ac.end()) {
-    source = source_it->second;
-  }
-
-  auto sdk_version_it = ac.find("_dd.sdk_version");
-  if (sdk_version_it != ac.end()) {
-    sdk_version = sdk_version_it->second;
-  }
-}
+      source(
+          config.internal_options.source.empty() ? "rum-cpp"
+                                                 : config.internal_options.source
+      ),
+      sdk_version(
+          config.internal_options.sdk_version.empty()
+              ? std::string(SDK_VERSION)
+              : config.internal_options.sdk_version
+      )
+{}
 
 void HttpContext::BuildRequestURL(
     std::string_view path, bool with_ddsource, std::string& out_url

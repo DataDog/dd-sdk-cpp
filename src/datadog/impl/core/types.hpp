@@ -7,8 +7,6 @@
 #pragma once
 
 #include <chrono>
-#include <string>
-#include <unordered_map>
 
 #include "datadog/core.h"
 #include "datadog/core.hpp"
@@ -262,15 +260,11 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
       config.internal_options.custom_endpoint_url[0]) {
     cpp_config.Internal_UseCustomEndpoint(config.internal_options.custom_endpoint_url);
   }
-
-  // Copy additional configuration entries, if any
-  if (config._additional_configuration_impl) {
-    const auto* map = static_cast<const std::unordered_map<std::string, std::string>*>(
-        config._additional_configuration_impl
-    );
-    for (const auto& [key, value] : *map) {
-      cpp_config.AddAdditionalConfiguration(key, value);
-    }
+  if (config.internal_options.source && config.internal_options.source[0]) {
+    cpp_config.Internal_SetSource(config.internal_options.source);
+  }
+  if (config.internal_options.sdk_version && config.internal_options.sdk_version[0]) {
+    cpp_config.Internal_SetSdkVersion(config.internal_options.sdk_version);
   }
 
   return cpp_config;

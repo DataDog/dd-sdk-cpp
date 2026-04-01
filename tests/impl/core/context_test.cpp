@@ -172,28 +172,28 @@ TEST_CASE("HttpContext BuildRequestHeaders", "[unit]") {
   }
 }
 
-TEST_CASE("HttpContext additional_configuration overrides", "[unit]") {
-  SECTION("M use rum-cpp as default source W no additional_configuration set") {
+TEST_CASE("HttpContext internal_options source/sdk_version overrides", "[unit]") {
+  SECTION("M use rum-cpp as default source W no source override set") {
     CoreConfig config("token", "service", "env");
     HttpContext context(config);
     REQUIRE(context.source == "rum-cpp");
   }
 
-  SECTION("M override source W _dd.source set in additional_configuration") {
+  SECTION("M override source W Internal_SetSource called") {
     CoreConfig config("token", "service", "env");
-    config.AddAdditionalConfiguration("_dd.source", "unity");
+    config.Internal_SetSource("unity");
     HttpContext context(config);
     REQUIRE(context.source == "unity");
   }
 
-  SECTION("M override sdk_version W _dd.sdk_version set in additional_configuration") {
+  SECTION("M override sdk_version W Internal_SetSdkVersion called") {
     CoreConfig config("token", "service", "env");
-    config.AddAdditionalConfiguration("_dd.sdk_version", "99.0.0");
+    config.Internal_SetSdkVersion("99.0.0");
     HttpContext context(config);
     REQUIRE(context.sdk_version == "99.0.0");
   }
 
-  SECTION("M use SDK_VERSION as default sdk_version W no additional_configuration set") {
+  SECTION("M use SDK_VERSION as default sdk_version W no sdk_version override set") {
     CoreConfig config("token", "service", "env");
     HttpContext context(config);
     REQUIRE(context.sdk_version == std::string(SDK_VERSION));
@@ -201,7 +201,7 @@ TEST_CASE("HttpContext additional_configuration overrides", "[unit]") {
 
   SECTION("M reflect overridden source in request URL W _dd.source set") {
     CoreConfig config("token", "service", "env");
-    config.AddAdditionalConfiguration("_dd.source", "unity");
+    config.Internal_SetSource("unity");
     HttpContext context(config);
     std::string url;
     context.BuildRequestURL("/api/v1/rum", true, url);
@@ -210,7 +210,7 @@ TEST_CASE("HttpContext additional_configuration overrides", "[unit]") {
 
   SECTION("M reflect overridden source in request headers W _dd.source set") {
     CoreConfig config("token", "service", "env");
-    config.AddAdditionalConfiguration("_dd.source", "unity");
+    config.Internal_SetSource("unity");
     HttpContext context(config);
     std::string headers;
     context.BuildRequestHeaders("application/json", "", headers);
@@ -219,7 +219,7 @@ TEST_CASE("HttpContext additional_configuration overrides", "[unit]") {
 
   SECTION("M reflect overridden sdk_version in request headers W _dd.sdk_version set") {
     CoreConfig config("token", "service", "env");
-    config.AddAdditionalConfiguration("_dd.sdk_version", "99.0.0");
+    config.Internal_SetSdkVersion("99.0.0");
     HttpContext context(config);
     std::string headers;
     context.BuildRequestHeaders("application/json", "", headers);
