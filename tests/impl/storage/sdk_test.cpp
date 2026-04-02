@@ -6,6 +6,7 @@
 
 #include "datadog/impl/storage/sdk.hpp"
 
+#include <algorithm>
 #include <cstring>
 
 #include "mock/filesystem_new.hpp"
