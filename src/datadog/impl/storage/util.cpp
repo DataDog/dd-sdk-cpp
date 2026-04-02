@@ -148,8 +148,8 @@ bool DeleteEmptyDirectory(
   // the directory be empty
   const FilesystemResult res = fs.DeleteDirectory(platform_path);
   if (res != FilesystemResult::OK) {
-    // Log an error message that includes the result enum and report failure
-    logger.Error(
+    // Log a warning message that includes the result enum and report failure
+    logger.Warning(
         failure_message,
         {{"path", path.CStr()},
          {"operation", "create"},

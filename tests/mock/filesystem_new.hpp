@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cinttypes>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -22,6 +23,24 @@ using namespace datadog;
  * Mock filesystem implementation for testing.
  */
 class MockFilesystemNew : public impl::IFilesystem {
+ public:
+  /**
+   * Flags for use with SimulateFailure(), controlling which operations will fail with
+   * the given mock FilesystemResult value when attempted on mock files or directories
+   * at (or, in some cases, one level beneath) the given path.
+   */
+  enum class FailureFlags : uint8_t {
+    Mkdir = (1 << 1),   // CreateDirectory will fail with target dir as parent
+    Ls = (1 << 2),      // ListFiles and ListSubdirectories will fail in target dir
+    Open = (1 << 3),    // OpenForRead and OpenForWrite will fail on file; in target dir
+    IO = (1 << 4),      // Read and Write will fail on handles opened for this file
+    Close = (1 << 5),   // Close will fail on handles opened for this file
+    Rename = (1 << 6),  // Rename will fail for target file or dir
+    Delete = (1 << 7),  // Delete and DeleteDirectory will fail for target file or dir
+    All = 0xff
+  };
+
+ private:
   // Global mutex used to synchronize access to _dirs, _files, _handles, etc., such that
   // all threads under test see a consistent view of the simulated disk
   mutable std::mutex _mutex;
@@ -31,6 +50,8 @@ class MockFilesystemNew : public impl::IFilesystem {
   struct MockDirEntry {
     // If not OK, all operations directly targeting this directory will fail
     impl::FilesystemResult status;
+    // If not All, only specified operations will fail with non-OK status
+    FailureFlags status_flags;
   };
   std::map<std::string, MockDirEntry> _dirs;
 
@@ -44,6 +65,8 @@ class MockFilesystemNew : public impl::IFilesystem {
     impl::PlatformFileHandle advisory_lock_holder{impl::INVALID_FILE_HANDLE};
     // If not OK, all operations directly targeting this file will fail with this result
     impl::FilesystemResult status;
+    // If not All, only specified operations will fail with non-OK status
+    FailureFlags status_flags;
   };
   std::map<std::string, MockFileEntry> _files;
 
@@ -65,6 +88,20 @@ class MockFilesystemNew : public impl::IFilesystem {
   static std::string NormalizePath(const impl::PlatformPath& path);
   static std::string GetParentPath(const std::string& normalized_path);
   static std::string GetBasename(const std::string& normalized_path);
+
+  // Helper for evaluating simulated failure flags for either a file or dir entry
+  template <typename T>
+  std::optional<impl::FilesystemResult> HasSimulatedFailure(
+      const T& entry, FailureFlags op
+  ) const {
+    if (entry.status == impl::FilesystemResult::OK) {
+      return std::nullopt;
+    }
+    if ((static_cast<uint8_t>(entry.status_flags) & static_cast<uint8_t>(op)) == 0) {
+      return std::nullopt;
+    }
+    return entry.status;
+  }
 
  public:
   // IFilesystem interface
@@ -95,7 +132,12 @@ class MockFilesystemNew : public impl::IFilesystem {
   // Helper functions for initializing mock filesystem state during tests
   void Mkdirs(std::string_view path);
   void Touch(std::string_view path, std::string_view initial_data = "");
-  void SetStatus(std::string_view path, impl::FilesystemResult status);
+  void SimulateFailure(
+      std::string_view path,
+      impl::FilesystemResult status,
+      FailureFlags flags = FailureFlags::All
+  );
+  void ClearSimulatedFailure(std::string_view path);
   void LockFile(std::string_view path);
   void UnlockFile(std::string_view path);
 

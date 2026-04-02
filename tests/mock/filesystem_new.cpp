@@ -75,16 +75,17 @@ FilesystemResult MockFilesystemNew::CreateDirectory(const PlatformPath& path) {
   const std::string normalized_path = NormalizePath(path);
   std::lock_guard lock(_mutex);
 
-  // Report mock failure if parent dir has non-OK status set
-  const std::string parent_dir_path = GetParentPath(normalized_path);
-  auto parent_dir = _dirs.find(parent_dir_path);
-  if (parent_dir != _dirs.end() && parent_dir->second.status != FilesystemResult::OK) {
-    return parent_dir->second.status;
-  }
-
   // Report DoesNotExist if parent dir does not exist
-  if (parent_dir == _dirs.end()) {
+  const std::string parent_dir_path = GetParentPath(normalized_path);
+  auto found_parent_dir = _dirs.find(parent_dir_path);
+  if (found_parent_dir == _dirs.end()) {
     return FilesystemResult::DoesNotExist;
+  }
+  const MockDirEntry& parent_dir = found_parent_dir->second;
+
+  // Report mock failure if parent dir has non-OK status set
+  if (auto status = HasSimulatedFailure(parent_dir, FailureFlags::Mkdir)) {
+    return *status;
   }
 
   // Report AlreadyExists (error) if the target path is already occupied by a file
@@ -112,15 +113,16 @@ FilesystemResult MockFilesystemNew::ListFiles(
   // Clear output vector
   out_names.clear();
 
-  // Report mock failure if target dir has non-OK status set
-  auto dir = _dirs.find(normalized_path);
-  if (dir != _dirs.end() && dir->second.status != FilesystemResult::OK) {
-    return dir->second.status;
-  }
-
   // Report DoesNotExist if target directory doesn't exist
-  if (dir == _dirs.end()) {
+  auto found_dir = _dirs.find(normalized_path);
+  if (found_dir == _dirs.end()) {
     return FilesystemResult::DoesNotExist;
+  }
+  const MockDirEntry& dir = found_dir->second;
+
+  // Report mock failure if target dir has non-OK status set
+  if (auto status = HasSimulatedFailure(dir, FailureFlags::Ls)) {
+    return *status;
   }
 
   // Iterate over our full list of known files, filtering down to only the set of files
@@ -137,8 +139,11 @@ FilesystemResult MockFilesystemNew::ListFiles(
     if (file_path.find('/', prefix_len + 1) != std::string::npos) {
       continue;
     }
-    out_names.push_back(file_path.substr(prefix_len + 1));
+    out_names.push_back(file_path.substr(prefix_len));
   }
+
+  // Sort alphabetically for deterministic results
+  std::sort(out_names.begin(), out_names.end());
 
   // We've populated out_names; return OK
   return FilesystemResult::OK;
@@ -153,22 +158,23 @@ FilesystemResult MockFilesystemNew::ListSubdirectories(
   // Clear output vector
   out_names.clear();
 
-  // Report mock failure if target dir has non-OK status set
-  auto dir = _dirs.find(normalized_path);
-  if (dir != _dirs.end() && dir->second.status != FilesystemResult::OK) {
-    return dir->second.status;
-  }
-
   // Report DoesNotExist if target directory doesn't exist
-  if (dir == _dirs.end()) {
+  auto found_dir = _dirs.find(normalized_path);
+  if (found_dir == _dirs.end()) {
     return FilesystemResult::DoesNotExist;
+  }
+  const MockDirEntry& dir = found_dir->second;
+
+  // Report mock failure if target dir has non-OK status set
+  if (auto status = HasSimulatedFailure(dir, FailureFlags::Ls)) {
+    return *status;
   }
 
   // Iterate over our full list of known directories, filtering down to only the set of
   // directories that are direct children of the target directory
   const std::string prefix = normalized_path.empty() ? "" : (normalized_path + "/");
   const size_t prefix_len = prefix.size();
-  for (const auto& [dir_path, entry] : _files) {
+  for (const auto& [dir_path, entry] : _dirs) {
     const size_t n = dir_path.size();
     // Skip files that don't begin with the parent-directory prefix
     if (n <= prefix_len || dir_path.find(prefix) != 0) {
@@ -178,7 +184,7 @@ FilesystemResult MockFilesystemNew::ListSubdirectories(
     if (dir_path.find('/', prefix_len + 1) != std::string::npos) {
       continue;
     }
-    out_names.push_back(dir_path.substr(prefix_len + 1));
+    out_names.push_back(dir_path.substr(prefix_len));
   }
 
   // We've populated out_names; return OK
@@ -191,16 +197,17 @@ IFilesystem::OpenFileResult MockFilesystemNew::OpenForWrite(
   std::string normalized_path = NormalizePath(path);
   std::lock_guard lock(_mutex);
 
-  // Report mock failure if parent dir has non-OK status set
-  const std::string parent_dir_path = GetParentPath(normalized_path);
-  auto parent_dir = _dirs.find(parent_dir_path);
-  if (parent_dir != _dirs.end() && parent_dir->second.status != FilesystemResult::OK) {
-    return {parent_dir->second.status, INVALID_FILE_HANDLE};
-  }
-
   // Report DoesNotExist if parent dir does not exist
-  if (parent_dir == _dirs.end()) {
+  const std::string parent_dir_path = GetParentPath(normalized_path);
+  auto found_parent_dir = _dirs.find(parent_dir_path);
+  if (found_parent_dir == _dirs.end()) {
     return {FilesystemResult::DoesNotExist, INVALID_FILE_HANDLE};
+  }
+  const MockDirEntry& parent_dir = found_parent_dir->second;
+
+  // Report mock failure if parent dir has non-OK status set
+  if (auto status = HasSimulatedFailure(parent_dir, FailureFlags::Open)) {
+    return {*status, INVALID_FILE_HANDLE};
   }
 
   // Report AlreadyExistsAsDirectory (error) if target path is occupied by a directory
@@ -219,8 +226,8 @@ IFilesystem::OpenFileResult MockFilesystemNew::OpenForWrite(
   MockFileEntry& file = _files[normalized_path];
 
   // If tests have manually set a non-OK status for this file, fail with that result
-  if (file.status != FilesystemResult::OK) {
-    return {file.status, INVALID_FILE_HANDLE};
+  if (auto status = HasSimulatedFailure(file, FailureFlags::Open)) {
+    return {*status, INVALID_FILE_HANDLE};
   }
 
   // Report LockContention if we want to hold an advisory lock but someone already holds
@@ -263,9 +270,12 @@ IFilesystem::OpenFileResult MockFilesystemNew::OpenForRead(
 
   // Report mock failure if parent dir has non-OK status set
   const std::string parent_dir_path = GetParentPath(normalized_path);
-  auto parent_dir = _dirs.find(parent_dir_path);
-  if (parent_dir != _dirs.end() && parent_dir->second.status != FilesystemResult::OK) {
-    return {parent_dir->second.status, INVALID_FILE_HANDLE};
+  auto found_parent_dir = _dirs.find(parent_dir_path);
+  if (found_parent_dir != _dirs.end()) {
+    const MockDirEntry& parent_dir = found_parent_dir->second;
+    if (auto status = HasSimulatedFailure(parent_dir, FailureFlags::Open)) {
+      return {*status, INVALID_FILE_HANDLE};
+    }
   }
 
   // Check for a FileEntry, reporting DoesNotExist if not found
@@ -276,8 +286,8 @@ IFilesystem::OpenFileResult MockFilesystemNew::OpenForRead(
   MockFileEntry& file = found->second;
 
   // If tests have manually set a non-OK status for this file, fail with that result
-  if (file.status != FilesystemResult::OK) {
-    return {file.status, INVALID_FILE_HANDLE};
+  if (auto status = HasSimulatedFailure(file, FailureFlags::Open)) {
+    return {*status, INVALID_FILE_HANDLE};
   }
 
   // Report LockContention if we want to hold an advisory lock but someone already holds
@@ -330,8 +340,8 @@ IFilesystem::WriteResult MockFilesystemNew::Write(
   MockFileEntry& file = found_file->second;
 
   // If tests have manually set a non-OK status for this file, fail with that result
-  if (file.status != FilesystemResult::OK) {
-    return {file.status, 0};
+  if (auto status = HasSimulatedFailure(file, FailureFlags::IO)) {
+    return {*status, 0};
   }
 
   // Append to the stored contents of the file
@@ -362,8 +372,8 @@ IFilesystem::ReadResult MockFilesystemNew::Read(
   const MockFileEntry& file = found_file->second;
 
   // If tests have manually set a non-OK status for this file, fail with that result
-  if (file.status != FilesystemResult::OK) {
-    return {file.status, 0};
+  if (auto status = HasSimulatedFailure(file, FailureFlags::IO)) {
+    return {*status, 0};
   }
 
   // Figure out how much data we can read from the file via this handle
@@ -402,6 +412,11 @@ FilesystemResult MockFilesystemNew::Close(PlatformFileHandle handle) {
   }
   MockFileEntry& file = found_file->second;
 
+  // If tests have manually set a non-OK status for this file, fail with that result
+  if (auto status = HasSimulatedFailure(file, FailureFlags::Close)) {
+    return *status;
+  }
+
   // Remove this handle from the list of open handles for this file
   file.open_handles.erase(
       std::remove(file.open_handles.begin(), file.open_handles.end(), handle),
@@ -432,8 +447,8 @@ FilesystemResult MockFilesystemNew::Delete(const PlatformPath& path) {
   MockFileEntry& file = found->second;
 
   // If tests have manually set a non-OK status for this file, fail with that result
-  if (file.status != FilesystemResult::OK) {
-    return file.status;
+  if (auto status = HasSimulatedFailure(file, FailureFlags::Delete)) {
+    return *status;
   }
 
   // If the file has any open handles, fail on deletion, simulating default Windows/NTFS
@@ -463,8 +478,8 @@ FilesystemResult MockFilesystemNew::DeleteDirectory(const PlatformPath& path) {
   MockDirEntry& dir = found->second;
 
   // If tests have manually set a non-OK status for this dir, fail with that result
-  if (dir.status != FilesystemResult::OK) {
-    return dir.status;
+  if (auto status = HasSimulatedFailure(dir, FailureFlags::Delete)) {
+    return *status;
   }
 
   // If any files or subdirectories exist beneath this directory, fail with
@@ -508,20 +523,24 @@ FilesystemResult MockFilesystemNew::Rename(
 
   // If tests have manually set a non-OK status for this file or dir, fail with that
   // result
-  if (is_file && found_src_file->second.status != FilesystemResult::OK) {
-    return found_src_file->second.status;
-  }
-  if (is_dir && found_src_dir->second.status != FilesystemResult::OK) {
-    return found_src_dir->second.status;
+  if (is_file) {
+    if (auto st = HasSimulatedFailure(found_src_file->second, FailureFlags::Rename)) {
+      return *st;
+    }
+  } else {
+    if (auto st = HasSimulatedFailure(found_src_dir->second, FailureFlags::Rename)) {
+      return *st;
+    }
   }
 
   // Similarly, if tests have set a non-OK status for the destination directory, fail
   // with that result
   const std::string dst_parent_dir_path = GetParentPath(normalized_dst);
   auto dst_parent_dir = _dirs.find(dst_parent_dir_path);
-  if (dst_parent_dir != _dirs.end() &&
-      dst_parent_dir->second.status != FilesystemResult::OK) {
-    return dst_parent_dir->second.status;
+  if (dst_parent_dir != _dirs.end()) {
+    if (auto st = HasSimulatedFailure(dst_parent_dir->second, FailureFlags::Open)) {
+      return *st;
+    }
   }
 
   // Report AlreadyExists if the destination path is already occupied
@@ -571,7 +590,7 @@ FilesystemResult MockFilesystemNew::Rename(
       // Advance iterator after extracting current directory entry's node from the map,
       // then mutate key and reinsert
       auto node = _dirs.extract(it++);
-      node.key() = new_prefix + node.key().substr(old_prefix.size() + 1);
+      node.key() = new_prefix + node.key().substr(old_prefix.size());
       _dirs.insert(std::move(node));
     } else {
       // Advance directory iterator normally
@@ -587,14 +606,14 @@ FilesystemResult MockFilesystemNew::Rename(
         if (found_handle != _handles.end() &&
             found_handle->second.path.find(old_prefix) == 0) {
           found_handle->second.path =
-              new_prefix + found_handle->second.path.substr(old_prefix.size() + 1);
+              new_prefix + found_handle->second.path.substr(old_prefix.size());
         }
       }
 
       // Advance iterator after extracting current file entry's node from the map, then
       // mutate key and reinsert
       auto node = _files.extract(it++);
-      node.key() = new_prefix + node.key().substr(old_prefix.size() + 1);
+      node.key() = new_prefix + node.key().substr(old_prefix.size());
       _files.insert(std::move(node));
     } else {
       // Advance file iterator normally
@@ -651,19 +670,27 @@ void MockFilesystemNew::Touch(std::string_view path, std::string_view initial_da
   _files[path_str].data = std::string(initial_data);
 }
 
-void MockFilesystemNew::SetStatus(std::string_view path, FilesystemResult status) {
+void MockFilesystemNew::SimulateFailure(
+    std::string_view path, FilesystemResult status, FailureFlags flags
+) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
 
   auto file = _files.find(path_str);
   if (file != _files.end()) {
     file->second.status = status;
+    file->second.status_flags = flags;
   }
 
   auto dir = _dirs.find(path_str);
   if (dir != _dirs.end()) {
     dir->second.status = status;
+    dir->second.status_flags = flags;
   }
+}
+
+void MockFilesystemNew::ClearSimulatedFailure(std::string_view path) {
+  SimulateFailure(path, FilesystemResult::OK);
 }
 
 void MockFilesystemNew::LockFile(std::string_view path) {
