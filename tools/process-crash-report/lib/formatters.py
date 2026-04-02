@@ -31,7 +31,7 @@ class OutputMode(str, Enum):
     FULL = "full"
     STACK = "stack"
     RAW = "raw"
-    JSON = "json"
+    RUM = "rum"
 
 
 # === Frame Formatting ===

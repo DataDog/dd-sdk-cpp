@@ -23,12 +23,12 @@ Usage:
     crash report from the .crashes/ directory.
 
 Options:
-    --output {full|stack|raw|json}  Output mode (default: full)
+    --output {full|stack|raw|rum}   Output mode (default: full)
                                     - full: metadata + resolved + symbolicated
                                     - stack: symbolicated stack only
                                     - raw: parsed binary without resolution
-                                    - json: RUM Error Event JSON object (requires
-                                            a RUM application ID in the .ctx file)
+                                    - rum: RUM Error Event JSON object (requires
+                                           a RUM application ID in the .ctx file)
 
     --tool {atos|llvm-symbolizer|addr2line|dbh|none|auto}
                                     Symbolication tool (default: auto)
@@ -56,7 +56,7 @@ Examples:
     python3 tools/process-crash-report/main.py --tool none
 
     # Emit a RUM Error Event JSON object
-    python3 tools/process-crash-report/main.py --output json
+    python3 tools/process-crash-report/main.py --output rum
 """
 
 import json
@@ -88,9 +88,9 @@ def main() -> int:
 
     parser.add_argument(
         '--output',
-        choices=['full', 'stack', 'raw', 'json'],
+        choices=['full', 'stack', 'raw', 'rum'],
         default='full',
-        help='Output mode: full (metadata + stacks), stack (symbolicated only), raw (parsed binary), or json (RUM Error Event)'
+        help='Output mode: full (metadata + stacks), stack (symbolicated only), raw (parsed binary), or rum (RUM Error Event)'
     )
 
     parser.add_argument(
@@ -179,7 +179,7 @@ def main() -> int:
     output_mode = OutputMode(args.output)
 
     try:
-        if output_mode == OutputMode.JSON:
+        if output_mode == OutputMode.RUM:
             event = format_rum_error_event(report, symbolized_stack)
             print(json.dumps(event, separators=(',', ':')))
         else:
