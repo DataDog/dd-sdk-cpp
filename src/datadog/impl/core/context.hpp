@@ -60,8 +60,7 @@ struct HttpContext {
 
   /**
    * The SDK version reported in the DD-EVP-ORIGIN-VERSION header. Defaults to the SDK
-   * version at build time; overridable via CoreConfig::AddAdditionalConfiguration with
-   * key "_dd.sdk_version".
+   * version at build time; overridable via CoreConfig::Internal_SetSdkVersion.
    */
   std::string sdk_version;
 
