@@ -7,6 +7,8 @@
 #pragma once
 
 #include <optional>
+#include <string>
+#include <vector>
 
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/storage/artifact.hpp"
@@ -98,6 +100,12 @@ class SdkStorage {
    */
   ~SdkStorage();
 
+  // Noncopyable, nonmovable: SdkStorage is owned by (and exclusively used by) Core
+  SdkStorage(const SdkStorage&) = delete;
+  SdkStorage& operator=(const SdkStorage&) = delete;
+  SdkStorage(SdkStorage&&) noexcept = delete;
+  SdkStorage& operator=(SdkStorage&&) noexcept = delete;
+
   /**
    * Given the path to application-specific storage directory and the name of the SDK
    * instance that we're storing files for, prepares the directories required for
@@ -175,22 +183,93 @@ class SdkStorage {
   );
 
  private:
-  void MigrateAbandonedEvents();
+  /**
+   * Scans _instance_root for existing <pid>/ directories containing event data, and
+   * renames the first such directory that's been abandoned, such that it now lies at
+   * _process_root.
+   *
+   * Temporarily acquires a lock on <pid>.lock for the old-process directory, to detect
+   * whether it's been abandoned. On successful directory rename, deletes <pid>.lock.
+   *
+   * Returns true if the directory at _process_root now exists, regardless of whether
+   * that's due to a directory rename or because such a directory already existed.
+   */
+  bool TryInitializeProcessRootFromAbandonedProcessDirectory(PlatformPath& path);
 
-  bool TryClaimAbandonedDirectory(std::string_view abandoned_pid);
+  /**
+   * Scans _instance_root for existing <pid>/ directories containing event data, and
+   * iterates through all such directories that have been abandoned, attempting to
+   * migrate all abandoned batch files into _process_root.
+   */
+  void MigrateAbandonedEventsToProcessRoot(PlatformPath& path);
 
-  void HandleMigrate(std::string_view from_pid);
-
-  void MigrateFeatureEvents(
-      std::string_view feature_name, const StoragePath& from_feature_root
+  /**
+   * Given the name of a process-level directory relative to _instance_root, populates
+   * pid_subdir_path with the full path to that directory (i.e. <old-pid>/), and
+   * populates pid_lockfile_path with the path to the lockfile for that directory (i.e.
+   * <old-pid>.lock).
+   */
+  bool BuildProcessDirectoryPaths(
+      std::string_view pid_subdir_name,
+      StoragePath& pid_subdir_path,
+      StoragePath& pid_lockfile_path
   );
 
-  bool EnsureDestinationDirectoryExists(
-      std::string_view feature_name, std::string_view subdir
+  /**
+   * Given the path to a <pid>.lock file, attempts to open that file for write,
+   * acquiring an advisory lock for that file in the process. Handles filesystem errors
+   * with appropriate diagnostic logging.
+   *
+   * Returns a valid file handle if this process now holds a lock on that file; returns
+   * INVALID_FILE_HANDLE otherwise.
+   */
+  PlatformFileHandle AcquireAbandonedProcessDirectory(
+      PlatformPath& path, const StoragePath& pid_lockfile_path
   );
 
-  void MigrateFilesFromSubdirectory(
-      const StoragePath& from_events_dir, const StoragePath& to_events_dir
+  /**
+   * Given a process-level directory at <instance>/<old-pid>/ (for which we've already
+   * acquired <instance>/<old-pid>.lock), attempts to migrate all event files from
+   * <instance>/<old-pid>/<feature>/... to <instance>/<new-pid>/<feature>/..., then
+   * deletes <instance>/<old-pid>/.
+   */
+  bool HandleProcessDirectoryMigration(
+      PlatformPath& path, const StoragePath& pid_subdir_path
+  );
+
+  /**
+   * Given the name of a <feature>/ directory that exists within <instance>/<old-pid>/,
+   * creates an directory at <instance>/<new-pid>/<feature>/, moves all batch files from
+   * the old path to the new path (recursing exactly one level deep into consent-level
+   * subdirectories), then deletes <instance>/<old-pid>/<feature>/.
+   */
+  bool HandleFeatureDirectoryMigration(
+      PlatformPath& path,
+      const StoragePath& pid_subdir_path,
+      std::string_view feature_name
+  );
+
+  /**
+   * Given a source and destination path:
+   * - src: <instance>/<old-pid>/<feature>/<consent>/
+   * - dst: <instance>/<new-pid>/<feature>/<consent>/
+   * ...ensures that the dst directory exists, then moves all files from src to dst,
+   * then deletes src.
+   */
+  bool HandleConsentDirectoryMigration(
+      PlatformPath& path,
+      const StoragePath& src_dir_path,
+      const StoragePath& dst_dir_path
+  );
+
+  /**
+   * Given a directory path, uses the provided vector to store the result of
+   * _fs.ListFiles(), then iterates over all files found and deletes them.
+   */
+  bool DeleteLooseFilesInDirectory(
+      PlatformPath& path,
+      const StoragePath& dir_path,
+      std::vector<std::string>& out_filenames
   );
 
  private:
@@ -205,9 +284,7 @@ class SdkStorage {
   StoragePath _instance_root;  // <_datadog_root>/<sdk-instance-name>
   StoragePath _process_root;   // <_instance_root>/<pid>/
 
-  PlatformFileHandle _lockfile_handle{
-      INVALID_FILE_HANDLE
-  };  // <_instance_root>/<pid>.lock
+  PlatformFileHandle _lockfile_handle{INVALID_FILE_HANDLE};  // <pid>.lock
 };
 
 }  // namespace datadog::impl
