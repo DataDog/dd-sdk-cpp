@@ -299,7 +299,9 @@ bool SdkStorage::TryInitializeProcessRootFromAbandonedProcessDirectory(
   // and all its event data by simply renaming the directory to reflect our own PID
   for (const std::string& subdir_name : subdirs) {
     // Only consider directories whose names are integer-only; silently ignore others
-    if (!std::all_of(subdir_name.begin(), subdir_name.end(), ::isdigit)) {
+    if (!std::all_of(subdir_name.begin(), subdir_name.end(), [](unsigned char c) {
+          return std::isdigit(c);
+        })) {
       continue;
     }
 
@@ -440,7 +442,9 @@ void SdkStorage::MigrateAbandonedEventsToProcessRoot(PlatformPath& path) {
     }
 
     // Only consider directories whose names are integer-only; silently ignore others
-    if (!std::all_of(subdir_name.begin(), subdir_name.end(), ::isdigit)) {
+    if (!std::all_of(subdir_name.begin(), subdir_name.end(), [](unsigned char c) {
+          return std::isdigit(c);
+        })) {
       continue;
     }
 
