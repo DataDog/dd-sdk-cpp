@@ -54,7 +54,7 @@ struct HttpContext {
   /**
    * The 'source' value indicating the Datadog SDK product in use: 'rum-cpp' for native
    * C++ applications; or another value if used by a multi-platform SDK (overridable via
-   * CoreConfig::AddAdditionalConfiguration with key "_dd.source").
+   * CoreConfig::Internal_SetSource).
    */
   std::string source;
 
