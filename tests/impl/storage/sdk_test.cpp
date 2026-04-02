@@ -235,45 +235,33 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
 
           // And the error indicates the path that was over the limit, and it's the
           // subdirectory that we expected to trip the limit
-          auto want_err_substr = [&application_storage_path](std::string s) {
-          // The SDK builds paths using the canonical delimiter for the platform,
-          // and diagnostic output is JSON-encoded. On Windows, path separators
-          // are backslashes, which JSON encodes as "\\". We use "\\" as the
-          // delimiter when constructing expected JSON fragments to search for.
-#ifdef _WIN32
-            const std::string delim = "\\\\";
-            size_t rep_pos = 0;
-            while ((rep_pos = s.find('/', rep_pos)) != std::string::npos) {
-              s.replace(rep_pos, 1, delim);
-              rep_pos += delim.size();
-            }
-#else
-            const std::string delim = "/";
-#endif
-
-            // Given the relative path that we expect tripped the limit, come up with
-            // the corresponding diagnostic error substring - e.g. for "foo/bar/baz", we
-            // want `"parent_path":"<application_storage_path>/foo/bar","name":"baz"`
-            std::string parent_path = application_storage_path;
-            std::string name = s;
-            const size_t last_delim_pos = s.rfind(delim);
-            if (last_delim_pos != std::string::npos) {
-              // Split on delimiter, append head to 'parent_path'; assign tail to 'name'
-              std::string dirname = s.substr(0, last_delim_pos);
-              name = s.substr(last_delim_pos + delim.size());
-              parent_path += delim + dirname;
+          auto want_err_substr = [&application_storage_path](std::string_view s) {
+            // Split on the last '/' to get the parent directory and leaf name
+            std::string parent_path;
+            std::string name;
+            const size_t last_slash = s.rfind('/');
+            if (last_slash != std::string_view::npos) {
+              parent_path =
+                  application_storage_path + "/" + std::string(s.substr(0, last_slash));
+              name = std::string(s.substr(last_slash + 1));
+            } else {
+              parent_path = application_storage_path;
+              name = std::string(s);
             }
 
-            // If we expect the failure to be due to insufficient space to append a file
-            // extension, the error message will be formatted slightly differently
+            // If the leaf has an extension (e.g. "12345.lock"), the error will be
+            // formatted differently from a plain directory name
             const size_t dot_pos = name.find_last_of('.');
             if (dot_pos != std::string::npos && dot_pos > 0 &&
                 dot_pos < name.size() - 1) {
-              std::string path_noext = parent_path + delim + name.substr(0, dot_pos);
-              std::string ext = name.substr(dot_pos);
-              return "\"path\":\"" + path_noext + "\",\"ext\":\"" + ext + "\"";
+              const std::string path_noext =
+                  parent_path + "/" + name.substr(0, dot_pos);
+              const std::string ext = name.substr(dot_pos);
+              return "\"path\":" + GetJsonLiteralForPath(path_noext) +
+                     ",\"ext\":" + GetJsonLiteralForPath(ext);
             }
-            return "\"parent_path\":\"" + parent_path + "\",\"name\":\"" + name + "\"";
+            return "\"parent_path\":" + GetJsonLiteralForPath(parent_path) +
+                   ",\"name\":" + GetJsonLiteralForPath(name);
           };
           REQUIRE(err.find(want_err_substr(tt.want_relpath)) != std::string::npos);
         }
