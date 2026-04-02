@@ -6,7 +6,6 @@
 
 #include "datadog/impl/storage/sdk.hpp"
 
-#include <algorithm>
 #include <cstring>
 
 #include "mock/filesystem_new.hpp"
@@ -237,12 +236,19 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
           // And the error indicates the path that was over the limit, and it's the
           // subdirectory that we expected to trip the limit
           auto want_err_substr = [&application_storage_path](std::string s) {
-          // The SDK builds paths using the canonical delimiter for the platform
+          // The SDK builds paths using the canonical delimiter for the platform,
+          // and diagnostic output is JSON-encoded. On Windows, path separators
+          // are backslashes, which JSON encodes as "\\". We use "\\" as the
+          // delimiter when constructing expected JSON fragments to search for.
 #ifdef _WIN32
-            const char delim = '\\';
-            std::replace(s.begin(), s.end(), '/', delim);
+            const std::string delim = "\\\\";
+            size_t rep_pos = 0;
+            while ((rep_pos = s.find('/', rep_pos)) != std::string::npos) {
+              s.replace(rep_pos, 1, delim);
+              rep_pos += delim.size();
+            }
 #else
-            const char delim = '/';
+            const std::string delim = "/";
 #endif
 
             // Given the relative path that we expect tripped the limit, come up with
@@ -250,11 +256,11 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
             // want `"parent_path":"<application_storage_path>/foo/bar","name":"baz"`
             std::string parent_path = application_storage_path;
             std::string name = s;
-            const size_t last_delim_pos = s.find_last_of(delim);
+            const size_t last_delim_pos = s.rfind(delim);
             if (last_delim_pos != std::string::npos) {
-              // Split on '/', append head to 'parent_path'; assign tail to 'name'
+              // Split on delimiter, append head to 'parent_path'; assign tail to 'name'
               std::string dirname = s.substr(0, last_delim_pos);
-              name = s.substr(last_delim_pos + 1);
+              name = s.substr(last_delim_pos + delim.size());
               parent_path += delim + dirname;
             }
 
