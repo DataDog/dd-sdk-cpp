@@ -196,13 +196,13 @@ class WindowsFilesystem final : public IFilesystem {
     // positioning
     const DWORD desired_access = append ? FILE_APPEND_DATA : GENERIC_WRITE;
 
-    // Open file with share mode, allowing other processes to read from (but not write
-    // to) the file while we have it open. We rely on cooperative advisory locks, not
-    // Windows share modes, for file locking.
+    // Open file with share mode, allowing other processes to read from and write to the
+    // file while we have it open. We rely on cooperative advisory locks, not Windows
+    // share modes, for file locking.
     HANDLE handle = CreateFileW(
         path.Get(),
         desired_access,
-        FILE_SHARE_READ,
+        FILE_SHARE_READ | FILE_SHARE_WRITE,
         nullptr,
         creation_disposition,
         FILE_ATTRIBUTE_NORMAL,
