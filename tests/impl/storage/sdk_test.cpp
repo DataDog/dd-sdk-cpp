@@ -12,6 +12,7 @@
 #include "mock/filesystem_new.hpp"
 #include "support/catch.hpp"
 #include "support/diagnostics.hpp"
+#include "support/filesystem.hpp"
 
 using namespace datadog::impl;
 
@@ -802,24 +803,6 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
     // which can fail. These tests attempt to cover all practical error paths to ensure
     // that the SDK responds as expected to all filesystem conditions.
     SECTION("{error handling}") {
-      // Helper function for validating diagnostic warnings/errors printed in order to
-      // report failures due to filesystem errors
-      auto require_fs_error = [](const std::string& s,
-                                 std::string_view fs_error,
-                                 std::string_view path,
-                                 std::string_view message_substr) {
-        std::string want_path(path);
-#ifdef _WIN32
-        std::replace(want_path.begin(), want_path.end(), '/', '\\');
-#endif
-        const std::string error_json = "\"error\":\"" + std::string(fs_error) + "\"";
-        // Omit leading quote on "path" so it also matches "src_path" etc.
-        const std::string path_json = "path\":\"" + std::string(want_path) + "\"";
-        REQUIRE(s.find(error_json) != std::string::npos);
-        REQUIRE(s.find(path_json) != std::string::npos);
-        REQUIRE(s.find(message_substr) != std::string::npos);
-      };
-
       // === _fs.ListSubdirectories() failure cases ===
 
       SECTION(
@@ -850,13 +833,13 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         // twice, first for the initial migrate-via-rename optimization, then again for
         // the file-by-file migration attempt)
         REQUIRE(diagnostics.warning.size() == 2);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "UnknownError",
             "app/.datadog/main",
             "unable to list subdirectories"
         );
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[1],
             "UnknownError",
             "app/.datadog/main",
@@ -892,7 +875,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         // And we get a warning indicating that migration of PID 444's data failed due
         // to a failure to list directories
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "UnknownError",
             "app/.datadog/main/444",
@@ -938,7 +921,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         // And we get a warning indicating that migration of PID 444's data failed due
         // to a failure to list directories
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "UnknownError",
             "app/.datadog/main/444/foo",
@@ -977,7 +960,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         // And we get a warning indicating that migration of PID 444's data failed due
         // to a failure to list files
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "UnknownError",
             "app/.datadog/main/444/bar/v1",
@@ -1012,7 +995,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         // And we get a warning indicating that migration of PID 333's data failed due
         // to a rename failure
         REQUIRE(diagnostics.warning.size() == 2);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "PermissionDenied",
             "app/.datadog/main/333",
@@ -1021,7 +1004,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
 
         // And another warning indicates that file-by-file migration of PID 333's data
         // also failed
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[1],
             "PermissionDenied",
             "app/.datadog/main/333",
@@ -1061,7 +1044,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         // And a warning indicates the reason for the failed migration of PID 444's
         // 'bar' event data
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "OutOfSpace",
             "app/.datadog/main/444/bar/v1/1700000000600",
@@ -1097,7 +1080,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
 
         // And we get a warning about the failed delete
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "ReadOnlyFilesystem",
             "app/.datadog/main/333.lock",
@@ -1132,7 +1115,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
 
         // And we get a warning about the failed delete
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "ReadOnlyFilesystem",
             "app/.datadog/main/444.lock",
@@ -1171,7 +1154,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
 
         // And we get a warning about the failed delete
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "UnknownError",
             "app/.datadog/main/444/bar/v1/1700000000600",
@@ -1204,7 +1187,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
 
         // And we get a warning about the failed delete
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0], "UnknownError", path, "unable to delete loose file"
         );
       }
@@ -1235,7 +1218,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
 
         // And we get a warning about the failed delete
         REQUIRE(diagnostics.warning.size() == 1);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "UnknownError",
             path,
@@ -1283,7 +1266,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
 
         // And we get a warning about the failure to open the lockfile
         REQUIRE(diagnostics.warning.size() > 0);
-        require_fs_error(
+        RequireFilesystemError(
             diagnostics.warning[0],
             "ReadOnlyFilesystem",
             path,
