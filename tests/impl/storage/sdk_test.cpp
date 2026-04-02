@@ -337,9 +337,6 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
         // And we get a single error indicating that we failed a required filesystem
         // operation targeting the expected path
         std::string path = tt.want_relpath;
-#ifdef _WIN32
-        std::replace(path.begin(), path.end(), '/', '\\');
-#endif
         REQUIRE(diagnostics.error.size() == 1);
         RequireFilesystemError(
             diagnostics.error[0], "PermissionDenied", path, "unable"
