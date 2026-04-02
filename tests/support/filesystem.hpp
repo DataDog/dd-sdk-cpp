@@ -7,10 +7,29 @@
 #pragma once
 
 #include <algorithm>
+#include <cinttypes>
 #include <string>
 #include <string_view>
+#include <vector>
+
+#include "datadog/impl/json.hpp"
 
 #include "support/catch.hpp"
+
+/**
+ * Given a '/'-delimited path used in tests, returns a JSON string literal representing
+ * that path, properly quoted and escaped, using the appropriate path delimiter for the
+ * current platform.
+ */
+std::string GetJsonLiteralForPath(std::string_view path) {
+  std::string path_str(path);
+#ifdef _WIN32
+  std::replace(path_str.begin(), path_str.end(), '/', '\\');
+#endif
+  std::vector<uint8_t> buffer;
+  datadog::impl::EncodeJson(buffer, path_str);
+  return std::string(buffer.begin(), buffer.end());
+}
 
 /**
  * Helper function used in tests that expect diagnostic messages to be logged indicating
@@ -30,18 +49,8 @@ void RequireFilesystemError(
   REQUIRE(s.find(error_json) != std::string::npos);
 
   // Line should include the path we expected the failed operation to target
-  std::string want_path(path);
-#ifdef _WIN32
-  // Tests uniformly use forward slashes, but Windows paths are backslash-delimited and
-  // will also be JSON-encoded in diagnostic output
-  size_t pos = 0;
-  while ((pos = want_path.find('/', pos)) != std::string::npos) {
-    want_path.replace(pos, 1, "\\\\");
-    pos += 2;
-  }
-#endif
   // Omit leading quote on "path" so it matches "src_path" et al.
-  const std::string path_json = "path\":\"" + std::string(want_path) + "\"";
+  const std::string path_json = "path\":" + GetJsonLiteralForPath(path);
   REQUIRE(s.find(path_json) != std::string::npos);
 
   // Line should include the expected message substring
