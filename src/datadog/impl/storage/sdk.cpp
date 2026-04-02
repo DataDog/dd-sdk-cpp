@@ -554,7 +554,7 @@ PlatformFileHandle SdkStorage::AcquireAbandonedProcessDirectory(
         "Failed to encode path value from pid_lockfile_path",
         {{"value", pid_lockfile_path.Get()}}
     );
-    return false;
+    return INVALID_FILE_HANDLE;
   }
   const bool append = false;  // Lockfile has no contents; clobbering is fine
   const bool hold_advisory_lock = true;
