@@ -529,12 +529,19 @@ TEST_CASE("StoragePath", "[unit][storage]") {
   }
 
   SECTION("M chain AppendExt W building complex path") {
+#ifdef _WIN32
+    std::string_view root = "C:\\TEMP";
+    std::string_view want = "C:\\TEMP\\myfile.txt.tmp";
+#else
+    std::string_view root = "/tmp";
+    std::string_view want = "/tmp/myfile.txt.tmp";
+#endif
     StoragePath path;
-    REQUIRE(path.Set("/tmp"));
+    REQUIRE(path.Set(root));
     REQUIRE(path.Append("myfile"));
     REQUIRE(path.AppendExt(".txt"));
     REQUIRE(path.AppendExt(".tmp"));
-    REQUIRE(path.Get() == "/tmp/myfile.txt.tmp");
+    REQUIRE(path.Get() == want);
   }
 
   SECTION("M remove trailing path component W Pop is called") {
