@@ -17,6 +17,25 @@
 
 using namespace datadog::impl;
 
+/**
+ * PlatfomFileHandle is void* (HANDLE) on Windows and int on POSIX - we use uintptr_t
+ * internally, but casting without triggering warnings requires a different approach
+ * depending on pointer type vs. int literal type.
+ */
+static PlatformFileHandle to_handle(uintptr_t x) {
+#ifdef _WIN32
+  return reinterpret_cast<PlatformFileHandle>(x);
+#else
+  return static_cast<PlatformFileHandle>(x);
+#endif
+}
+
+/**
+ * Mock handle value used as a sentinel when test code uses LockFile() / UnlockFile() to
+ * simulate an external process holding or releasing the lock on a mock file.
+ */
+static const PlatformFileHandle SIMULATED_ADVISORY_LOCK_HANDLE = to_handle(8675309);
+
 std::string MockFilesystemNew::NormalizePath(const PlatformPath& path) {
 #ifdef _WIN32
   // On Windows, PlatformPath holds a UTF-16 string in a wchar_t buffer: convert to
@@ -238,7 +257,7 @@ IFilesystem::OpenFileResult MockFilesystemNew::OpenForWrite(
   }
 
   // OK to open: store the details of a new file handle before returning it
-  PlatformFileHandle handle = _next_handle++;
+  PlatformFileHandle handle = to_handle(_next_handle++);
 
   // If we haven't opened in append mode, truncate the file
   if (!append) {
@@ -298,7 +317,7 @@ IFilesystem::OpenFileResult MockFilesystemNew::OpenForRead(
   }
 
   // OK to open: store the details of a new file handle before returning it
-  PlatformFileHandle handle = _next_handle++;
+  PlatformFileHandle handle = to_handle(_next_handle++);
 
   // Keep track of handle state within the file entry
   file.open_handles.push_back(handle);
@@ -701,7 +720,7 @@ void MockFilesystemNew::LockFile(std::string_view path) {
   auto file = _files.find(path_str);
   if (file != _files.end() &&
       file->second.advisory_lock_holder == INVALID_FILE_HANDLE) {
-    file->second.advisory_lock_holder = 8675309;
+    file->second.advisory_lock_holder = SIMULATED_ADVISORY_LOCK_HANDLE;
   }
 }
 
@@ -710,7 +729,8 @@ void MockFilesystemNew::UnlockFile(std::string_view path) {
   std::lock_guard lock(_mutex);
 
   auto file = _files.find(path_str);
-  if (file != _files.end() && file->second.advisory_lock_holder == 8675309) {
+  if (file != _files.end() &&
+      file->second.advisory_lock_holder == SIMULATED_ADVISORY_LOCK_HANDLE) {
     file->second.advisory_lock_holder = INVALID_FILE_HANDLE;
   }
 }

@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <cstdint>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -44,7 +45,7 @@ class MockFilesystemNew : public impl::IFilesystem {
   // Global mutex used to synchronize access to _dirs, _files, _handles, etc., such that
   // all threads under test see a consistent view of the simulated disk
   mutable std::mutex _mutex;
-  impl::PlatformFileHandle _next_handle{1};
+  uintptr_t _next_handle{1};
 
   // Maintain a mapping of normalized paths to details of known directories
   struct MockDirEntry {
