@@ -963,11 +963,20 @@ TEST_CASE("IFilesystem path handling", "[unit][storage][filesystem]") {
     // When we create the file
     const auto open_result =
         fs->OpenForWrite(MakePlatformPath(file_path), false, false);
+
+// Then the file is created successfully
+#ifdef _WIN32
+    // TODO(RUM-15442): On Windows, paths are effectively limited to MAX_PATH (260
+    // chars), since Win32 file APIs will reject any paths exceeding that limit with
+    // ERROR_PATH_NOT_FOUND. We can enable long path support by prepending `\\?\` in
+    // PlatformPath::Encode(), but using `\\?\` requires absolute paths and disables
+    // forward-slash normalization, so we'd want to take care when making those changes.
+    // For now, we assert that Windows *can't* handle a path of this length.
+    REQUIRE(open_result.value == FilesystemResult::DoesNotExist);
+#else
     REQUIRE(open_result.value == FilesystemResult::OK);
-
     fs->Close(open_result.handle);
-
-    // Then the file is created successfully
     REQUIRE(temp.FileExists(long_filename));
+#endif
   }
 }
