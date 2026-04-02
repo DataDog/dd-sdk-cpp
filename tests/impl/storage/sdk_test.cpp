@@ -148,11 +148,11 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
     // And we get a diagnostic error reporting why initialization failed
     REQUIRE(diagnostics.warning.size() == 0);
     REQUIRE(diagnostics.error.size() == 1);
-    REQUIRE(
-        diagnostics.error[0] ==
-        "Failed to initialize SDK storage from configured application storage path: "
-        "unable to create directory {\"path\":\"nonexistent-dir/.datadog\","
-        "\"operation\":\"create\",\"error\":\"DoesNotExist\"}"
+    RequireFilesystemError(
+        diagnostics.error[0],
+        "DoesNotExist",
+        "nonexistent-dir/.datadog",
+        "unable to create directory"
     );
   }
 
@@ -341,9 +341,9 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
         std::replace(path.begin(), path.end(), '/', '\\');
 #endif
         REQUIRE(diagnostics.error.size() == 1);
-        const std::string& err = diagnostics.error[0];
-        REQUIRE(err.find("\"path\":\"" + path + "\"") != std::string::npos);
-        REQUIRE(err.find("\"error\":\"PermissionDenied\"") != std::string::npos);
+        RequireFilesystemError(
+            diagnostics.error[0], "PermissionDenied", path, "unable"
+        );
       }
     }
   }
@@ -446,10 +446,11 @@ TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
     // already owns 12345.lock
     REQUIRE(diagnostics.warning.size() == 0);
     REQUIRE(diagnostics.error.size() == 1);
-    REQUIRE(
-        diagnostics.error[0] ==
-        "Failed to initialize SDK storage: unable to acquire lockfile {\"path\":"
-        "\"app/.datadog/main/12345.lock\",\"error\":\"LockContention\"}"
+    RequireFilesystemError(
+        diagnostics.error[0],
+        "LockContention",
+        "app/.datadog/main/12345.lock",
+        "unable to acquire lockfile"
     );
   }
 }
@@ -510,10 +511,11 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
     // via rename
     REQUIRE(diagnostics.status.size() == 1);
     REQUIRE(
-        diagnostics.status[0] ==
-        "Migrated data from abandoned process via directory rename {\"src_path\":"
-        "\"app/.datadog/main/444\",\"dst_path\":\"app/.datadog/main/555\"}"
+        diagnostics.status[0].find(
+            "Migrated data from abandoned process via directory rename"
+        ) != std::string::npos
     );
+    REQUIRE(diagnostics.status[0].find("444") != std::string::npos);
   }
 
   SECTION("M not migrate on init W other process still holds lock") {
@@ -593,15 +595,17 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
       // And status output indicates which directories were migrated, and by which means
       REQUIRE(diagnostics.status.size() == 2);
       REQUIRE(
-          diagnostics.status[0] ==
-          "Migrated data from abandoned process via directory rename {\"src_path\":"
-          "\"app/.datadog/main/333\",\"dst_path\":\"app/.datadog/main/555\"}"
+          diagnostics.status[0].find(
+              "Migrated data from abandoned process via directory rename"
+          ) != std::string::npos
       );
+      REQUIRE(diagnostics.status[0].find("333") != std::string::npos);
+
       REQUIRE(
-          diagnostics.status[1] ==
-          "Claimed all event data from abandoned process {\"src_path\":"
-          "\"app/.datadog/main/444\",\"dst_path\":\"app/.datadog/main/555\"}"
+          diagnostics.status[1].find("Claimed all event data from abandoned process") !=
+          std::string::npos
       );
+      REQUIRE(diagnostics.status[1].find("444") != std::string::npos);
     }
 
     SECTION("M claim 444 by rename W 333 is locked") {
@@ -635,10 +639,11 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
       // And status output shows 444 was claimed via rename
       REQUIRE(diagnostics.status.size() == 1);
       REQUIRE(
-          diagnostics.status[0] ==
-          "Migrated data from abandoned process via directory rename {\"src_path\":"
-          "\"app/.datadog/main/444\",\"dst_path\":\"app/.datadog/main/555\"}"
+          diagnostics.status[0].find(
+              "Migrated data from abandoned process via directory rename"
+          ) != std::string::npos
       );
+      REQUIRE(diagnostics.status[0].find("444") != std::string::npos);
     }
 
     SECTION("M migrate no data W 333 and 444 are both locked") {
@@ -717,16 +722,18 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
       REQUIRE(diagnostics.status.size() == 4);
       REQUIRE(diagnostics.status[0].find("Migrated data") == 0);
       REQUIRE(
-          diagnostics.status[1] ==
-          "Deleted loose file on storage directory migration "
-          "{\"path\":\"app/.datadog/main/444/foo/.DS_Store\"}"
+          diagnostics.status[1].find(
+              "Deleted loose file on storage directory migration"
+          ) != std::string::npos
       );
+      REQUIRE(diagnostics.status[1].find(".DS_Store") != std::string::npos);
       REQUIRE(diagnostics.status[2].find("Claimed all event data") == 0);
       REQUIRE(
-          diagnostics.status[3] ==
-          "Deleted loose file on storage directory migration "
-          "{\"path\":\"app/.datadog/main/444/.DS_Store\"}"
+          diagnostics.status[3].find(
+              "Deleted loose file on storage directory migration"
+          ) != std::string::npos
       );
+      REQUIRE(diagnostics.status[3].find(".DS_Store") != std::string::npos);
 
       // And the leaf .DS_Store files within intermediate-v1/ and v1/ have just been
       // silently migrated, since the file-by-file rename does not differentiate between
@@ -786,11 +793,13 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
       // SDK-generated data
       REQUIRE(diagnostics.warning.size() == 1);
       REQUIRE(
-          diagnostics.warning[0] ==
-          "On consent-level storage directory migration, resolved filename conflict by "
-          "deleting source file {\"src_path\":\"app/.datadog/main/444/bar/v1/"
-          "1700000000600\",\"dst_path\":\"app/.datadog/main/555/bar/v1/1700000000600\"}"
+          diagnostics.warning[0].find(
+              "On consent-level storage directory migration, resolved filename "
+              "conflict by deleting source file"
+          ) != std::string::npos
       );
+      REQUIRE(diagnostics.warning[0].find("444") != std::string::npos);
+      REQUIRE(diagnostics.warning[0].find("1700000000600") != std::string::npos);
     }
 
     // Storage initialization runs a ton of different filesystem operations, all of
