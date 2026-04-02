@@ -553,6 +553,25 @@ TEST_CASE("IFilesystem advisory locking", "[unit][storage][filesystem]") {
     fs->Close(first_open.handle);
   }
 
+  SECTION("M preserve file contents W lock contention on non-append write open") {
+    // Given a file with existing content
+    temp.WriteFile("preserved.txt", "important data");
+    StoragePath file_path;
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("preserved.txt")));
+
+    // And a reader holding the advisory lock (exclusive, but without truncating)
+    const auto reader = fs->OpenForRead(MakePlatformPath(file_path), true);
+    REQUIRE(reader.value == FilesystemResult::OK);
+
+    // When a writer attempts a non-append open with advisory locking and fails
+    const auto writer = fs->OpenForWrite(MakePlatformPath(file_path), false, true);
+    REQUIRE(writer.value == FilesystemResult::LockContention);
+
+    // Then the file contents are intact — the failed open must not truncate the file
+    fs->Close(reader.handle);
+    REQUIRE(temp.ReadFileContents("preserved.txt") == "important data");
+  }
+
   SECTION("M acquire lock W reading with advisory lock") {
     // Given an existing file
     temp.WriteFile("readlocked.txt", "content");
