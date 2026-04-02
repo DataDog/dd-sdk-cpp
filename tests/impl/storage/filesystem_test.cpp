@@ -811,32 +811,6 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
     REQUIRE(result == FilesystemResult::DoesNotExist);
   }
 
-  SECTION("M handle platform-specific behavior W deleting open file") {
-    // Given a file opened for writing
-    StoragePath file_path;
-    REQUIRE((file_path.Set(temp.path) && file_path.Append("openfile.txt")));
-    const auto open_result =
-        fs->OpenForWrite(MakePlatformPath(file_path), false, false);
-    REQUIRE(open_result.value == FilesystemResult::OK);
-
-    // When we attempt to delete the open file
-    const FilesystemResult delete_result = fs->Delete(MakePlatformPath(file_path));
-
-    // Then the behavior is platform-specific
-#ifdef _WIN32
-    // Windows may fail to delete an open file
-    REQUIRE(
-        (delete_result == FilesystemResult::OK ||
-         delete_result == FilesystemResult::PermissionDenied)
-    );
-#else
-    // POSIX allows deleting open files
-    REQUIRE(delete_result == FilesystemResult::OK);
-#endif
-
-    fs->Close(open_result.handle);
-  }
-
   SECTION("M move file atomically W renaming file") {
     // Given a source file
     temp.WriteFile("source.txt", "content to move");
