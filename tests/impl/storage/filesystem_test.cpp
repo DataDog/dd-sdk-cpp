@@ -203,7 +203,9 @@ TEST_CASE("IFilesystem file enumeration", "[unit][storage][filesystem]") {
     REQUIRE(result == FilesystemResult::DoesNotExist);
   }
 
-  SECTION("M return DoesNotExist W ListSubdirectories called on non-existent directory") {
+  SECTION(
+      "M return DoesNotExist W ListSubdirectories called on non-existent directory"
+  ) {
     StoragePath nonexistent;
     REQUIRE((nonexistent.Set(temp.path) && nonexistent.Append("nonexistent")));
 
@@ -827,7 +829,9 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
     REQUIRE(result == FilesystemResult::DoesNotExist);
   }
 
-  SECTION("M return DirectoryNotEmpty W DeleteDirectory called on non-empty directory") {
+  SECTION(
+      "M return DirectoryNotEmpty W DeleteDirectory called on non-empty directory"
+  ) {
     // Given a directory with a file in it
     temp.Mkdirs("nonempty");
     temp.WriteFile("nonempty/file.txt", "content");
