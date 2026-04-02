@@ -583,9 +583,11 @@ FilesystemResult MockFilesystemNew::Rename(
 
     // Unlink the std::pair<std::string, MockFileEntry> item from the STL map, mutate
     // its key to index it under the desired destination path, and reinsert it
-    auto node = _files.extract(found_src_file);
-    node.key() = normalized_dst;
-    _files.insert(std::move(node));
+    {
+      auto node = _files.extract(found_src_file);
+      node.key() = normalized_dst;
+      _files.insert(std::move(node));
+    }
 
     // There are no files handles to fix up, and no child files/directories, so we're
     // done here: file successfully renamed
