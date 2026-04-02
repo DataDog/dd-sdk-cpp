@@ -103,7 +103,7 @@ class PosixFilesystem final : public IFilesystem {
         char full[MAX_STORAGE_PATH_SIZE + NAME_MAX + 2];
         snprintf(full, sizeof(full), "%s/%s", path.Get(), entry->d_name);
         struct stat st;
-        if (stat(full, &st) != 0 || !S_ISREG(st.st_mode)) {
+        if (lstat(full, &st) != 0 || !S_ISREG(st.st_mode)) {
           continue;
         }
         out_names.emplace_back(entry->d_name);
@@ -149,7 +149,7 @@ class PosixFilesystem final : public IFilesystem {
         char full[MAX_STORAGE_PATH_SIZE + NAME_MAX + 2];
         snprintf(full, sizeof(full), "%s/%s", path.Get(), entry->d_name);
         struct stat st;
-        if (stat(full, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        if (lstat(full, &st) != 0 || !S_ISDIR(st.st_mode)) {
           continue;
         }
         out_names.emplace_back(entry->d_name);
