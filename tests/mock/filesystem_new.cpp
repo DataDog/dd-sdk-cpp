@@ -28,17 +28,17 @@ std::string MockFilesystemNew::NormalizePath(const PlatformPath& path) {
   const int num_utf8_bytes = WideCharToMultiByte(
       CP_UTF8, WC_ERR_INVALID_CHARS, wstr, -1, nullptr, 0, nullptr, nullptr
   );
-  if (num_utf_8_bytes == 0) {
+  if (num_utf8_bytes == 0) {
     return {};
   }
-  std::string utf8(size_needed - 1, '\0');
+  std::string utf8(num_utf8_bytes - 1, '\0');
   const int result = WideCharToMultiByte(
       CP_UTF8,
       WC_ERR_INVALID_CHARS,
       wstr,
       -1,
       utf8.data(),
-      size_needed,
+      num_utf8_bytes,
       nullptr,
       nullptr
   );
