@@ -188,9 +188,11 @@ class WindowsFilesystem final : public IFilesystem {
   OpenFileResult OpenForWrite(
       const PlatformPath& path, bool append, bool hold_advisory_lock
   ) override {
-    // OPEN_ALWAYS appends if files already exists, creating it if it doesn't.
-    // CREATE_ALWAYS replaces the file if it already exists, creating it if it doesn't.
-    const DWORD creation_disposition = append ? OPEN_ALWAYS : CREATE_ALWAYS;
+    // Both paths use OPEN_ALWAYS: opens an existing file without truncating it, or
+    // creates a new empty file if none exists. We avoid CREATE_ALWAYS on the non-append
+    // path because it truncates unconditionally during CreateFileW, before any lock can
+    // be acquired - truncation is deferred until after the lock is held.
+    const DWORD creation_disposition = OPEN_ALWAYS;
 
     // FILE_APPEND_DATA restricts writes to end of file; GENERIC_WRITE allows arbitrary
     // positioning
@@ -230,6 +232,22 @@ class WindowsFilesystem final : public IFilesystem {
         const DWORD lock_error = GetLastError();
         CloseHandle(handle);
         return {map_error(lock_error), INVALID_FILE_HANDLE};
+      }
+    }
+
+    // If not opened in append mode, truncate now that the lock (if any) is held
+    if (!append) {
+      // SetFilePointer(FILE_BEGIN) and SetEndOfFile(0) truncate the file, equivalent to
+      // opening with CREATE_ALWAYS
+      if (SetFilePointer(handle, 0, nullptr, FILE_BEGIN) == INVALID_SET_FILE_POINTER) {
+        const DWORD seek_error = GetLastError();
+        CloseHandle(handle);
+        return {map_error(seek_error), INVALID_FILE_HANDLE};
+      }
+      if (SetEndOfFile(handle) == 0) {
+        const DWORD trunc_error = GetLastError();
+        CloseHandle(handle);
+        return {map_error(trunc_error), INVALID_FILE_HANDLE};
       }
     }
 

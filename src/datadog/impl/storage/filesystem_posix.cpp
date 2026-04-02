@@ -164,9 +164,13 @@ class PosixFilesystem final : public IFilesystem {
   OpenFileResult OpenForWrite(
       const PlatformPath& path, bool append, bool hold_advisory_lock
   ) override {
-    // Construct open flags: always wronly + creat, then append or trunc
+    // When appending, include O_APPEND so writes go to end of file. When not
+    // appending, omit O_TRUNC here - truncation must be deferred until after the
+    // advisory lock is acquired, to avoid destroying file contents on contention
     int flags = O_WRONLY | O_CREAT;
-    flags |= append ? O_APPEND : O_TRUNC;
+    if (append) {
+      flags |= O_APPEND;
+    }
 
     // Open file with permissions 0600 (owner read/write only), and retry on EINTR
     int fd = -1;
@@ -191,10 +195,27 @@ class PosixFilesystem final : public IFilesystem {
         if (errno == EINTR) {
           continue;
         }
-        // Lock failed - close fd and return error
+        // Lock failed: close fd and return error
         const int lock_error = errno;
-        close(fd);  // Ignore close errors here
+        close(fd);
         return {map_errno(lock_error), INVALID_FILE_HANDLE};
+      }
+    }
+
+    // If the caller doesn't want append semantics, truncate the file now that we're
+    // past the advisory-lock check
+    if (!append) {
+      // This is equivalent to opening with O_TRUNC
+      while (true) {
+        if (ftruncate(fd, 0) == 0) {
+          break;
+        }
+        if (errno == EINTR) {
+          continue;
+        }
+        const int trunc_error = errno;
+        close(fd);
+        return {map_errno(trunc_error), INVALID_FILE_HANDLE};
       }
     }
 
