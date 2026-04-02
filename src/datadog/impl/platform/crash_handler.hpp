@@ -11,6 +11,7 @@
 
 namespace datadog::impl {
 class DiagnosticLogger;
+struct RumFeatureContext;
 }  // namespace datadog::impl
 
 namespace datadog::platform {
@@ -86,6 +87,13 @@ class ICrashHandler {
    *  like `virtual bool IsProcessGlobal()` or `IsReversible()` etc.
    */
   virtual void Shutdown() = 0;
+
+  /**
+   * Persists `rum_ctx` so that it is available if a crash occurs before the next
+   * normal SDK shutdown. Only called when the RUM context has actually changed since
+   * the last call.
+   */
+  virtual void SetRumContext(const impl::RumFeatureContext& rum_ctx) = 0;
 };
 
 namespace CrashHandler {

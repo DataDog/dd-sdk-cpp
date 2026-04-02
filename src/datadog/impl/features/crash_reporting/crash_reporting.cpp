@@ -6,7 +6,10 @@
 
 #include "datadog/impl/features/crash_reporting/crash_reporting.hpp"
 
+#include <memory>
+
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/writer.hpp"
 
 namespace datadog::impl {
@@ -22,6 +25,27 @@ std::optional<Report> CrashReporting::UploadThread_PrepareReport(
   (void)context;
   (void)reader;
   return std::nullopt;
+}
+
+std::optional<std::function<void(const FeatureMessage&)>>
+CrashReporting::MakeMessageHandler() {
+  const auto weak_self = weak_from_this();
+  return [weak_self](const FeatureMessage& msg) {
+    const auto* context_changed = std::get_if<ContextChangedMessage>(&msg);
+    if (!context_changed || !context_changed->context.rum) {
+      return;
+    }
+    auto self = std::static_pointer_cast<CrashReporting>(weak_self.lock());
+    if (!self || !self->_crash_handler) {
+      return;
+    }
+    const auto& rum_ctx = *context_changed->context.rum;
+    if (self->_last_rum_ctx == rum_ctx) {
+      return;
+    }
+    self->_last_rum_ctx = rum_ctx;
+    self->_crash_handler->SetRumContext(rum_ctx);
+  };
 }
 
 void CrashReporting::Start() {
@@ -46,6 +70,7 @@ void CrashReporting::Start() {
       _scope->diagnostic_logger.Status("Crash handler initialized");
     } else {
       _scope->diagnostic_logger.Error("Crash handler initialization failed");
+      _crash_handler.reset();
     }
   }
 }

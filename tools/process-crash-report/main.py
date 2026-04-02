@@ -59,7 +59,7 @@ from argparse import ArgumentParser, RawDescriptionHelpFormatter
 from pathlib import Path
 
 # Import lib modules
-from lib.parser import find_latest_crash_report, load_crash_report, parse_crash_report
+from lib.parser import find_latest_crash_report, load_crash_report, parse_crash_report, parse_crash_context
 from lib.symbolizers import get_symbolizer, SymbolizerTool
 from lib.formatters import print_crash_report, print_raw_crash_report, OutputMode
 
@@ -122,7 +122,8 @@ def main() -> int:
     if args.output == 'raw':
         try:
             metadata, stack_addresses, modules = parse_crash_report(crash_report_path)
-            print_raw_crash_report(crash_report_path, metadata, stack_addresses, modules)
+            rum_context = parse_crash_context(crash_report_path.with_suffix('.ctx'))
+            print_raw_crash_report(crash_report_path, metadata, stack_addresses, modules, rum_context)
             return 0
         except FileNotFoundError as e:
             print(f"Error: {e}", file=sys.stderr)

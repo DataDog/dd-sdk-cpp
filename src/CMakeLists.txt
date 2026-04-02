@@ -211,8 +211,9 @@ elseif(DD_CRASH_MODE STREQUAL "inprocess")
         message(FATAL_ERROR "In-process crash handler not supported on this platform")
     endif()
 
-    # In-process implementation needs to write crash report files
+    # In-process implementation needs to write crash report and context files
     target_sources(dd_native PRIVATE
+        datadog/impl/platform/crash_context_write.cpp
         datadog/impl/platform/crash_report_write.cpp
         datadog/impl/platform/crash_handler_buildid_cache.cpp
     )

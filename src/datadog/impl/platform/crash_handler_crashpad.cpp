@@ -14,6 +14,7 @@
 #include "client/crashpad_client.h"
 #include "client/settings.h"
 
+#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
 
@@ -31,8 +32,10 @@
 // them safe to read during a crash. The Crashpad handler will automatically resolve
 // these values and include them as annotations when the crash dump is uploaded.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-static crashpad::StringAnnotation<64> s_test_annotation1("test_annotation1");
-static crashpad::StringAnnotation<64> s_test_annotation2("test_annotation2");
+static crashpad::StringAnnotation<37> s_rum_application_id("rum.application_id");
+static crashpad::StringAnnotation<37> s_rum_session_id("rum.session_id");
+static crashpad::StringAnnotation<37> s_rum_view_id("rum.view_id");
+static crashpad::StringAnnotation<37> s_rum_action_id("rum.action_id");
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
@@ -159,9 +162,11 @@ class CrashpadCrashHandler final : public ICrashHandler {
       return false;
     }
 
-    // Set initial annotation values as a test
-    s_test_annotation1.Set("foo");
-    s_test_annotation2.Set("bar");
+    // Clear annotation values, if any were set previously
+    s_rum_application_id.Set("");
+    s_rum_session_id.Set("");
+    s_rum_view_id.Set("");
+    s_rum_action_id.Set("");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
@@ -225,9 +230,61 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // and continue running after SDK shutdown. We don't forcibly terminate it here.
   }
 
+  void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+    char buf[37] = {0};
+
+    if (rum_ctx.application_id != _rum_application_id) {
+      _rum_application_id = rum_ctx.application_id;
+      if (_rum_application_id == UUID::Zero) {
+        s_rum_application_id.Set("");
+      } else {
+        _rum_application_id.ToBytes(buf, std::size(buf));
+        s_rum_application_id.Set(buf);
+      }
+    }
+
+    if (rum_ctx.session_id != _rum_session_id) {
+      _rum_session_id = rum_ctx.session_id;
+      if (_rum_session_id == UUID::Zero) {
+        s_rum_session_id.Set("");
+      } else {
+        _rum_session_id.ToBytes(buf, std::size(buf));
+        s_rum_session_id.Set(buf);
+      }
+    }
+
+    if (rum_ctx.view_id != _rum_view_id) {
+      _rum_view_id = rum_ctx.view_id;
+      if (_rum_view_id == UUID::Zero) {
+        s_rum_view_id.Set("");
+      } else {
+        _rum_view_id.ToBytes(buf, std::size(buf));
+        s_rum_view_id.Set(buf);
+      }
+    }
+
+    if (rum_ctx.action_id != _rum_action_id) {
+      _rum_action_id = rum_ctx.action_id;
+      if (_rum_action_id == UUID::Zero) {
+        s_rum_action_id.Set("");
+      } else {
+        _rum_action_id.ToBytes(buf, std::size(buf));
+        s_rum_action_id.Set(buf);
+      }
+    }
+    // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+  };
+
  private:
   impl::DiagnosticLogger _logger;
   std::string _handler_exe_path;
+
+  // Values cached on last call to SetRumContext
+  UUID _rum_application_id;
+  UUID _rum_session_id;
+  UUID _rum_view_id;
+  UUID _rum_action_id;
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Init(

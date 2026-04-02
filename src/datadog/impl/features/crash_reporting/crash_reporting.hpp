@@ -12,6 +12,7 @@
 #include <string_view>
 
 #include "datadog/impl/core/feature.hpp"
+#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/platform/clock.hpp"
 #include "datadog/impl/platform/crash_handler.hpp"
 
@@ -34,6 +35,9 @@ class CrashReporting final : public Feature {
       const HttpContext& context, BatchReader& reader
   ) override;
 
+  std::optional<std::function<void(const FeatureMessage&)>>
+  MakeMessageHandler() override;
+
  protected:
   /**
    * Responds to SDK start by initializing the Crashpad crash handler process.
@@ -53,6 +57,10 @@ class CrashReporting final : public Feature {
 
   // Platform-specific crash handler implementation
   std::unique_ptr<platform::ICrashHandler> _crash_handler;
+
+  // Last RUM context forwarded to the crash handler; used to suppress redundant
+  // SetRumContext calls when the context hasn't actually changed
+  std::optional<RumFeatureContext> _last_rum_ctx;
 };
 
 }  // namespace datadog::impl

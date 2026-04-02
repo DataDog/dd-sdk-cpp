@@ -20,7 +20,7 @@ import signal
 from pathlib import Path
 from datetime import datetime, timezone
 from typing import Optional
-from .models import CrashReport, Module
+from .models import CrashReport, Module, RumContext
 
 
 # === Magic Constants ===
@@ -35,6 +35,14 @@ CRASH_REPORT_FOOTER_MAGIC = 0xddff
 # Size constants (in bytes)
 UINT64_SIZE = 8
 HEADER_SIZE = 64  # 8 uint64_t values
+
+# Magic constants for .ctx files (crash_context.hpp)
+CRASH_CONTEXT_HEADER_MAGIC = 0xdc01
+CRASH_CONTEXT_FILE_VERSION = 1
+CRASH_CONTEXT_FOOTER_MAGIC = 0xdcff
+
+# .ctx file size: 2× uint64_t (header magic + version) + 4× 16-byte UUID + 1× uint64_t (footer)
+CRASH_CONTEXT_FILE_SIZE = 2 * UINT64_SIZE + 4 * 16 + UINT64_SIZE
 
 
 # === Platform-Specific Signal/Exception Mapping ===
@@ -106,6 +114,90 @@ def _format_timestamp(timestamp: int) -> str:
         return str(timestamp)
 
 
+# === Crash Context Parsing ===
+
+def _uuid_bytes_to_str(data: bytes) -> Optional[str]:
+    """
+    Convert 16 raw UUID bytes to the standard string representation.
+
+    Returns None if all bytes are zero (indicating "not set"), otherwise
+    formats as xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx using the byte order
+    defined by RFC 4122 (bytes 0-3, 4-5, 6-7, 8-9, 10-15).
+    """
+    if all(b == 0 for b in data):
+        return None
+    hex_str = data.hex()
+    return f"{hex_str[0:8]}-{hex_str[8:12]}-{hex_str[12:16]}-{hex_str[16:20]}-{hex_str[20:32]}"
+
+
+def parse_crash_context(file_path: Path) -> Optional[RumContext]:
+    """
+    Parse a crash context (.ctx) file produced by the SDK's crash handler.
+
+    The .ctx file is written atomically whenever the active RUM context changes
+    and is deleted on clean shutdown. It contains the RUM session identifiers
+    (application, session, view, and action IDs) active at the time of the crash.
+
+    The binary format is defined in crash_context.hpp:
+      0x00  8B  header magic  (0xdc01, little-endian uint64_t)
+      0x08  8B  version       (0x0001, little-endian uint64_t)
+      0x10  16B application_id UUID (raw bytes)
+      0x20  16B session_id UUID
+      0x30  16B view_id UUID
+      0x40  16B action_id UUID
+      0x50  8B  footer magic  (0xdcff, little-endian uint64_t)
+
+    Returns None (without raising) if the file is absent, has an unexpected
+    size, or contains an invalid magic number. UUID fields that are all-zeros
+    are represented as None in the returned RumContext.
+    """
+    try:
+        data = file_path.read_bytes()
+    except FileNotFoundError:
+        return None
+    except OSError:
+        return None
+
+    if len(data) != CRASH_CONTEXT_FILE_SIZE:
+        print(
+            f"Warning: .ctx file has unexpected size "
+            f"(expected {CRASH_CONTEXT_FILE_SIZE}, got {len(data)}): {file_path}",
+            file=sys.stderr
+        )
+        return None
+
+    header_magic, version = struct.unpack_from('<2Q', data, 0)
+    if header_magic != CRASH_CONTEXT_HEADER_MAGIC:
+        print(
+            f"Warning: .ctx file has invalid header magic "
+            f"(expected 0x{CRASH_CONTEXT_HEADER_MAGIC:x}, got 0x{header_magic:x}): {file_path}",
+            file=sys.stderr
+        )
+        return None
+
+    footer_magic, = struct.unpack_from('<Q', data, CRASH_CONTEXT_FILE_SIZE - UINT64_SIZE)
+    if footer_magic != CRASH_CONTEXT_FOOTER_MAGIC:
+        print(
+            f"Warning: .ctx file has invalid footer magic "
+            f"(expected 0x{CRASH_CONTEXT_FOOTER_MAGIC:x}, got 0x{footer_magic:x}): {file_path}",
+            file=sys.stderr
+        )
+        return None
+
+    offset = 2 * UINT64_SIZE  # skip header magic + version
+    application_id = _uuid_bytes_to_str(data[offset:offset + 16]); offset += 16
+    session_id = _uuid_bytes_to_str(data[offset:offset + 16]); offset += 16
+    view_id = _uuid_bytes_to_str(data[offset:offset + 16]); offset += 16
+    action_id = _uuid_bytes_to_str(data[offset:offset + 16])
+
+    return RumContext(
+        application_id=application_id,
+        session_id=session_id,
+        view_id=view_id,
+        action_id=action_id,
+    )
+
+
 # === Crash Report Discovery ===
 
 def find_latest_crash_report(crashes_dir: Path) -> Optional[Path]:
@@ -127,7 +219,7 @@ def find_latest_crash_report(crashes_dir: Path) -> Optional[Path]:
         return None
 
     crash_files = sorted(
-        crashes_dir.glob('crash_*'),
+        (p for p in crashes_dir.glob('crash_*') if not p.suffix),
         reverse=True  # Most recent first (lexical sort)
     )
 
@@ -327,9 +419,13 @@ def load_crash_report(file_path: Path) -> CrashReport:
     # Resolve addresses to stack frames
     stack_frames = resolve_stack_trace(stack_addresses, modules)
 
+    # Load the accompanying .ctx file if present
+    rum_context = parse_crash_context(file_path.with_suffix('.ctx'))
+
     return CrashReport(
         file_path=file_path,
         metadata=metadata,
         stack_frames=stack_frames,
-        modules=modules
+        modules=modules,
+        rum_context=rum_context,
     )
