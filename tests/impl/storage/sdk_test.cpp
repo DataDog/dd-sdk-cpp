@@ -19,8 +19,8 @@ using namespace datadog::impl;
 TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
   // Given a mock filesystem with an existing application-specific storage directory
   MockFilesystemNew fs;
-  fs.Mkdirs("my-app/storage");
-  REQUIRE(!fs.IsDirectory("my-app/storage/.datadog"));
+  fs.Mkdirs("app");
+  REQUIRE(!fs.IsDirectory("app/.datadog"));
 
   // And a logger that will buffer all diagnostic messages emitted
   DiagnosticMessageBuffer diagnostics;
@@ -31,16 +31,16 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
     SdkStorage storage(fs, logger, 12345);
 
     // When we initialize storage with a valid, preexisting storage directory path
-    const bool ok = storage.Initialize("my-app/storage", "main");
+    const bool ok = storage.Initialize("app", "main");
 
     // Then initialization succeeds
     REQUIRE(ok);
 
     // And the initialization process prepares the requisite instance-level
     // and process-level subdirectories beneath <application-storage/.datadog/
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog"));
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/main"));
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/main/12345"));
+    REQUIRE(fs.IsDirectory("app/.datadog"));
+    REQUIRE(fs.IsDirectory("app/.datadog/main"));
+    REQUIRE(fs.IsDirectory("app/.datadog/main/12345"));
 
     // And no errors or warnings are reported
     REQUIRE(diagnostics.error.size() == 0);
@@ -50,7 +50,7 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
   SECTION("M create artifact storage directory W InitializeArtifactStorage is called") {
     // Given properly-initialized SDK storage
     SdkStorage storage(fs, logger, 12345);
-    REQUIRE(storage.Initialize("my-app/storage", "main"));
+    REQUIRE(storage.Initialize("app", "main"));
 
     // When we call InitializeArtifactStorage to prepare an arbitrary, feature-specific
     // subdirectory for artifacts that we want to persist to disk
@@ -60,7 +60,7 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
     REQUIRE(artifacts.has_value());
 
     // And we now have a subdirectory in which to store things
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/.things"));
+    REQUIRE(fs.IsDirectory("app/.datadog/.things"));
 
     // And no errors or warnings are reported
     REQUIRE(diagnostics.error.size() == 0);
@@ -73,7 +73,7 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
   ) {
     // Given properly-initialized SDK storage
     SdkStorage storage(fs, logger, 12345);
-    REQUIRE(storage.Initialize("my-app/storage", "main"));
+    REQUIRE(storage.Initialize("app", "main"));
 
     // When we call InitializeFeatureEventStorage to prepare a set of directories to
     // store event data on behalf of a specific feature
@@ -84,9 +84,9 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
 
     // And we now have a feature-level storage directory, with subdirectories for both
     // consent-pending and consent-granted events
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/main/12345/foo"));
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/main/12345/foo/intermediate-v1"));
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/main/12345/foo/v1"));
+    REQUIRE(fs.IsDirectory("app/.datadog/main/12345/foo"));
+    REQUIRE(fs.IsDirectory("app/.datadog/main/12345/foo/intermediate-v1"));
+    REQUIRE(fs.IsDirectory("app/.datadog/main/12345/foo/v1"));
 
     // And no errors or warnings are reported
     REQUIRE(diagnostics.error.size() == 0);
@@ -96,17 +96,17 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
   SECTION("M initialize successfully W directories already exist") {
     // Given a filesystem where the directories that the SDK wants to create already
     // exist
-    fs.Mkdirs("my-app/storage/.datadog/.things");
-    fs.Mkdirs("my-app/storage/.datadog/main/12345/foo/intermediate-v1");
-    fs.Mkdirs("my-app/storage/.datadog/main/12345/foo/v1");
+    fs.Mkdirs("app/.datadog/.things");
+    fs.Mkdirs("app/.datadog/main/12345/foo/intermediate-v1");
+    fs.Mkdirs("app/.datadog/main/12345/foo/v1");
 
     // And some existing files in those directories
-    fs.Touch("my-app/storage/.datadog/.things/blob", "thing blob");
-    fs.Touch("my-app/storage/.datadog/main/12345/foo/v1/blob", "foo blob");
+    fs.Touch("app/.datadog/.things/blob", "thing blob");
+    fs.Touch("app/.datadog/main/12345/foo/v1/blob", "foo blob");
 
     // When we initialize an SDK instance
     SdkStorage storage(fs, logger, 12345);
-    const bool ok = storage.Initialize("my-app/storage", "main");
+    const bool ok = storage.Initialize("app", "main");
 
     // Then it picks up on those existing directories and initializes without error
     REQUIRE(ok);
@@ -120,13 +120,13 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
     REQUIRE(events.has_value());
 
     // And all our directories still exist
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/.things"));
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/main/12345/foo/intermediate-v1"));
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/main/12345/foo/v1"));
+    REQUIRE(fs.IsDirectory("app/.datadog/.things"));
+    REQUIRE(fs.IsDirectory("app/.datadog/main/12345/foo/intermediate-v1"));
+    REQUIRE(fs.IsDirectory("app/.datadog/main/12345/foo/v1"));
 
     // And existing files remain untouched
-    REQUIRE(fs.Cat("my-app/storage/.datadog/.things/blob") == "thing blob");
-    REQUIRE(fs.Cat("my-app/storage/.datadog/main/12345/foo/v1/blob") == "foo blob");
+    REQUIRE(fs.Cat("app/.datadog/.things/blob") == "thing blob");
+    REQUIRE(fs.Cat("app/.datadog/main/12345/foo/v1/blob") == "foo blob");
 
     // And no errors or warnings are reported
     REQUIRE(diagnostics.error.size() == 0);
@@ -292,20 +292,14 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
       std::string want_relpath;
     };
     std::vector<TestParams> tests = {
-        {"my-app/storage", "", "", "my-app/storage/.datadog"},
-        {"my-app/storage/.datadog", "", "", "my-app/storage/.datadog/main"},
-        {"my-app/storage/.datadog/main",
-         "",
-         "",
-         "my-app/storage/.datadog/main/12345.lock"},
-        {"my-app/storage/.datadog/main/12345",
+        {"app", "", "", "app/.datadog"},
+        {"app/.datadog", "", "", "app/.datadog/main"},
+        {"app/.datadog/main", "", "", "app/.datadog/main/12345.lock"},
+        {"app/.datadog/main/12345", "", "foobar", "app/.datadog/main/12345/foobar"},
+        {"app/.datadog/main/12345/foobar",
          "",
          "foobar",
-         "my-app/storage/.datadog/main/12345/foobar"},
-        {"my-app/storage/.datadog/main/12345/foobar",
-         "",
-         "foobar",
-         "my-app/storage/.datadog/main/12345/foobar/intermediate-v1"}
+         "app/.datadog/main/12345/foobar/intermediate-v1"}
     };
     for (const auto& tt : tests) {
       DYNAMIC_SECTION(
@@ -323,7 +317,7 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
 
         // When we attempt to initialize SDK storage
         SdkStorage storage(fs, logger, 12345);
-        bool ok = storage.Initialize("my-app/storage", "main");
+        bool ok = storage.Initialize("app", "main");
 
         // And optionally initialize artifact storage
         if (ok && !tt.artifact_dir_name.empty()) {
@@ -358,8 +352,8 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
 TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
   // Given a mock filesystem with an existing application-specific storage directory
   MockFilesystemNew fs;
-  fs.Mkdirs("my-app/storage");
-  REQUIRE(!fs.IsDirectory("my-app/storage/.datadog"));
+  fs.Mkdirs("app");
+  REQUIRE(!fs.IsDirectory("app/.datadog"));
 
   // And a logger that will buffer all diagnostic messages emitted
   DiagnosticMessageBuffer diagnostics;
@@ -368,14 +362,14 @@ TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
   SECTION("M create <pid>.lock and acquire lock W Initialize is called") {
     // When we initialize a storage object for SDK instance 'main' in PID 12345
     SdkStorage storage(fs, logger, 12345);
-    REQUIRE(storage.Initialize("my-app/storage", "main"));
+    REQUIRE(storage.Initialize("app", "main"));
 
     // Then main/12345.lock is created alongside the main/12345/ directory
-    REQUIRE(fs.IsDirectory("my-app/storage/.datadog/main/12345"));
-    REQUIRE(fs.IsFile("my-app/storage/.datadog/main/12345.lock"));
+    REQUIRE(fs.IsDirectory("app/.datadog/main/12345"));
+    REQUIRE(fs.IsFile("app/.datadog/main/12345.lock"));
 
     // And 12345.lock is locked
-    REQUIRE(fs.IsFileLocked("my-app/storage/.datadog/main/12345.lock"));
+    REQUIRE(fs.IsFileLocked("app/.datadog/main/12345.lock"));
 
     // And no errors or warnings are reported
     REQUIRE(diagnostics.error.size() == 0);
@@ -384,22 +378,22 @@ TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
 
   SECTION("M release <pid>.lock W leaving scope after successful initialization") {
     // Given that 12345.lock does not yet exist
-    REQUIRE(!fs.IsFile("my-app/storage/.datadog/main/12345.lock"));
+    REQUIRE(!fs.IsFile("app/.datadog/main/12345.lock"));
 
     // When we initialize a storage object and acquire 12345.lock
     {
       SdkStorage storage(fs, logger, 12345);
-      REQUIRE(storage.Initialize("my-app/storage", "main"));
-      REQUIRE(fs.IsFileLocked("my-app/storage/.datadog/main/12345.lock"));
+      REQUIRE(storage.Initialize("app", "main"));
+      REQUIRE(fs.IsFileLocked("app/.datadog/main/12345.lock"));
 
       // And allow SdkStorage to go out of scope and be destroyed
     }
 
     // Then the lock file remains on disk
-    REQUIRE(fs.IsFile("my-app/storage/.datadog/main/12345.lock"));
+    REQUIRE(fs.IsFile("app/.datadog/main/12345.lock"));
 
     // And we no longer hold a lock on the file
-    REQUIRE(!fs.IsFileLocked("my-app/storage/.datadog/main/12345.lock"));
+    REQUIRE(!fs.IsFileLocked("app/.datadog/main/12345.lock"));
 
     // And no errors or warnings are reported
     REQUIRE(diagnostics.error.size() == 0);
@@ -408,22 +402,22 @@ TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
 
   SECTION("M Initialize OK W <pid>.lock already exists but is available") {
     // Given an existing file main/12345.lock which is NOT currently locked
-    fs.Touch("my-app/storage/.datadog/main/12345.lock");
-    REQUIRE(fs.IsFile("my-app/storage/.datadog/main/12345.lock"));
-    REQUIRE(!fs.IsFileLocked("my-app/storage/.datadog/main/12345.lock"));
+    fs.Touch("app/.datadog/main/12345.lock");
+    REQUIRE(fs.IsFile("app/.datadog/main/12345.lock"));
+    REQUIRE(!fs.IsFileLocked("app/.datadog/main/12345.lock"));
 
     // When we initialize a storage object for SDK instance 'main' in PID 12345
     SdkStorage storage(fs, logger, 12345);
-    const bool ok = storage.Initialize("my-app/storage", "main");
+    const bool ok = storage.Initialize("app", "main");
 
     // Then initialization is successful
     REQUIRE(ok);
 
     // And the lock file still exists at the same path
-    REQUIRE(fs.IsFile("my-app/storage/.datadog/main/12345.lock"));
+    REQUIRE(fs.IsFile("app/.datadog/main/12345.lock"));
 
     // And it's now been claimed
-    REQUIRE(fs.IsFileLocked("my-app/storage/.datadog/main/12345.lock"));
+    REQUIRE(fs.IsFileLocked("app/.datadog/main/12345.lock"));
 
     // And no errors or warnings are reported
     REQUIRE(diagnostics.error.size() == 0);
@@ -432,21 +426,21 @@ TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
 
   SECTION("M fail to Initialize W <pid>.lock already exists and is already locked") {
     // Given an existing file main/12345.lock which is already locked
-    fs.Touch("my-app/storage/.datadog/main/12345.lock");
-    fs.LockFile("my-app/storage/.datadog/main/12345.lock");
-    REQUIRE(fs.IsFile("my-app/storage/.datadog/main/12345.lock"));
-    REQUIRE(fs.IsFileLocked("my-app/storage/.datadog/main/12345.lock"));
+    fs.Touch("app/.datadog/main/12345.lock");
+    fs.LockFile("app/.datadog/main/12345.lock");
+    REQUIRE(fs.IsFile("app/.datadog/main/12345.lock"));
+    REQUIRE(fs.IsFileLocked("app/.datadog/main/12345.lock"));
 
     // When we initialize a storage object for SDK instance 'main' in PID 12345
     SdkStorage storage(fs, logger, 12345);
-    const bool ok = storage.Initialize("my-app/storage", "main");
+    const bool ok = storage.Initialize("app", "main");
 
     // Then initialization fails
     REQUIRE(!ok);
 
     // And the lock file still exists at the same path and is still locked
-    REQUIRE(fs.IsFile("my-app/storage/.datadog/main/12345.lock"));
-    REQUIRE(fs.IsFileLocked("my-app/storage/.datadog/main/12345.lock"));
+    REQUIRE(fs.IsFile("app/.datadog/main/12345.lock"));
+    REQUIRE(fs.IsFileLocked("app/.datadog/main/12345.lock"));
 
     // And we get an error explaining that initialization failed because another process
     // already owns 12345.lock
@@ -455,7 +449,7 @@ TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
     REQUIRE(
         diagnostics.error[0] ==
         "Failed to initialize SDK storage: unable to acquire lockfile {\"path\":"
-        "\"my-app/storage/.datadog/main/12345.lock\",\"error\":\"LockContention\"}"
+        "\"app/.datadog/main/12345.lock\",\"error\":\"LockContention\"}"
     );
   }
 }
