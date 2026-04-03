@@ -147,6 +147,7 @@ class MockFilesystemNew : public impl::IFilesystem {
   void UnlockFile(std::string_view path);
 
   // Helper functions for inspecting filesystem state modified by code under test
+  std::vector<std::string> Ls(std::string_view path);
   bool IsDirectory(std::string_view path);
   bool IsFile(std::string_view path);
   bool IsFileLocked(std::string_view path);

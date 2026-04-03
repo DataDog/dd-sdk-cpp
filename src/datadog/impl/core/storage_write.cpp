@@ -21,7 +21,8 @@
 #include "datadog/impl/core/storage_queue.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/storage/util.hpp"
 
 // Global version number applied to all event data stored persistently; may be bumped in
 // the event of breaking changes in order to abandon previously-written events on disk.
@@ -30,12 +31,6 @@
 #define DATADOG_EVENT_STORAGE_VERSION "1"  // NOLINT(cppcoreguidelines-macro-usage)
 
 namespace datadog::impl {
-
-// Use (e.g.) 'v1' to store events gathered while tracking consent is granted;
-// 'intermediate-v1' for events gathered while tracking consent is pending
-const char* BatchWriter::PENDING_SUBDIRECTORY_NAME =
-    "intermediate-v" DATADOG_EVENT_STORAGE_VERSION;
-const char* BatchWriter::GRANTED_SUBDIRECTORY_NAME = "v" DATADOG_EVENT_STORAGE_VERSION;
 
 // Maximum possible base-10 digits in a uint64_t, without null terminator
 static const size_t MAX_UINT64_DECIMAL_DIGITS = 20;
@@ -77,39 +72,25 @@ static uint64_t _timestamp_to_ms(Timestamp timestamp) {
   return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
-static constexpr std::string_view _fs_error_string(platform::FilesystemError err) {
-  switch (err) {
-    case platform::FilesystemError::DoesNotExist:
-      return "target/source file does not exist";
-    case platform::FilesystemError::AlreadyExists:
-      return "destination file already exists";
-    case platform::FilesystemError::Failed:
-      return "operation failed";
-    case platform::FilesystemError::IOError:
-      return "low-level I/O error";
-  }
-  return "unknown error";
-}
-
 BatchWriterConfig BatchWriterConfig::FromBatchSize(BatchSize batch_size) {
   const Duration max_file_age = BatchSize_ToMaxFileAgeForWrite(batch_size);
   return BatchWriterConfig(max_file_age);
 }
 
 BatchWriter::BatchWriter(
-    const DiagnosticLogger& diagnostic_logger,
-    TrackingConsent consent,
-    std::unique_ptr<platform::IDirectory>&& pending_directory,
-    std::unique_ptr<platform::IDirectory>&& granted_directory,
-    const platform::IClock& clock,
-    BatchWriterConfig config
+    const DiagnosticLogger& in_diagnostic_logger,
+    TrackingConsent in_consent,
+    IFilesystem& in_fs,
+    FeatureEventStorage& in_storage,
+    const platform::IClock& in_clock,
+    BatchWriterConfig in_config
 )
-    : _diagnostic_logger(diagnostic_logger),
-      _consent(consent),
-      _pending_directory(std::move(pending_directory)),
-      _granted_directory(std::move(granted_directory)),
-      _clock(clock),
-      _config(config) {}
+    : _diagnostic_logger(in_diagnostic_logger),
+      _consent(in_consent),
+      _fs(in_fs),
+      _storage(in_storage),
+      _clock(in_clock),
+      _config(in_config) {}
 
 bool BatchWriter::SetTrackingConsent(TrackingConsent value) {
   // Ignore spurious change events
@@ -124,20 +105,19 @@ bool BatchWriter::SetTrackingConsent(TrackingConsent value) {
   // Clear all state that pertains to the directory where we've been writing files, as
   // we may be switching to a new directory
   _last_known_filenames.clear();
-  _last_file.reset();
-  _last_file_details.Reset(0);
+  _active_file.Clear();
 
   // If tracking consent has been revoked, delete all pending data
   if (value == TrackingConsent::NotGranted) {
     // Allow data that was collected while consent was granted to be drained and
     // uploaded; no new data will be fed in
-    return DeletePendingBatches();
+    return _storage.DeletePendingBatches();
   }
 
   // If tracking consent has been granted, migrate all event data from the pending
   // directory to the granted directory, so the upload thread will be able to read it
   if (value == TrackingConsent::Granted) {
-    return MigratePendingBatchesToGranted();
+    return _storage.MigratePendingBatchesToGranted();
   }
 
   // If tracking consent has been changed back to pending, do nothing: the storage
@@ -151,15 +131,11 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
 
   // Branch on tracking consent to determine the appropriate place for the new event
   switch (_consent) {
-    // If consent has been granted, write to the directory that the upload thread is
-    // reading from
+    // If consent is granted or pending, write the event to the latest batch file in the
+    // appropriate directory
     case TrackingConsent::Granted:
-      return WriteEventTo(*_granted_directory, event, event_metadata);
-
-    // If consent is pending, write to an intermediate directory so that data is
-    // captured locally but not yet uploaded
     case TrackingConsent::Pending:
-      return WriteEventTo(*_pending_directory, event, event_metadata);
+      return FlushEvent(event, event_metadata);
 
     // If consent has been explicitly revoked, store no data
     case TrackingConsent::NotGranted:
@@ -169,166 +145,16 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
   return false;
 }
 
-bool BatchWriter::DeletePendingBatches() {
-  // Thread-safety/synchronization considerations:
-  //
-  // 1. We only delete from _pending_directory, which the upload thread never reads
-  //    from, so we don't have to worry about contention with other threads
-  // 2. The storage thread performs deletion synchronously, i.e. there can be no file
-  //    writes happening concurrently during deletion
-  // 3. When the storage thread _does_ perform writes, it does so atomically and closes
-  //    the file, so there are no open handles to any of the files we're deleting
-  //
-  // Therefore, we can safely assume that we have exclusive access to _pending_directory
-  // during this function call.
-
-  // Retrieve an up-to-date list of filenames in the target directory: we assume
-  // exclusive access to _pending_directory for the duration of this operation, so this
-  // set of files should not change on disk except in response to our RemoveFile calls
-  if (!CacheKnownFilenames(*_pending_directory)) {
-    // If we're unable to read filenames from the directory, we can't proceed: consider
-    // the delete operation failed and leave the SDK nonfunctional
-    _diagnostic_logger.Error(
-        "Could not delete batch files on consent change: failed to read filenames from "
-        "directory"
-    );
+bool BatchWriter::FlushEvent(Block event, Block event_metadata) {
+  // Resolve the appropriate directory path for our current consent value
+  if (_consent == TrackingConsent::NotGranted) {
+    DATADOG_ASSERT(false, "attempted FlushEvent with consent NotGranted");
     return false;
   }
+  const StoragePath& consent_dir_path = _consent == TrackingConsent::Granted
+                                            ? _storage.GetGrantedPath()
+                                            : _storage.GetPendingPath();
 
-  // Iterate over all filenames, attempting to delete each file
-  for (const std::string& filename : _last_known_filenames) {
-    // Call RemoveFile, and continue if successfully deleted
-    auto result = _pending_directory->RemoveFile(filename);
-    if (result.has_value()) {
-      _diagnostic_logger.Debug(
-          "Deleted batch file due to consent change", {{"filename", filename}}
-      );
-      continue;
-    }
-
-    // If we couldn't delete the the file, abort the operation
-    const platform::FilesystemError err = result.error();
-    _diagnostic_logger.Error(
-        "Could not delete batch file on consent change",
-        {{"filename", filename}, {"error", _fs_error_string(err)}}
-    );
-    return false;
-  }
-
-  // All files deleted
-  return true;
-}
-
-bool BatchWriter::MigratePendingBatchesToGranted() {
-  // Thread-safety/synchronization considerations:
-  //
-  // 1. We move files *from* _pending_directory: as with DeletePendingBatches(), this
-  //    function call happens synchronously on the storage thread, so we don't have to
-  //    worry about concurrent writes or open file handles
-  // 2. We move files *into* _granted_directory: we need to consider that the upload
-  //    thread may be reading from this directory while we're moving files into it.
-  //    However:
-  // 3. _pending_directory and _granted_directory are guaranteed to be on the same
-  //    filesystem (since they're subdirectories within an SDK-controlled directory),
-  //    and therefore a file rename operation is atomic on both POSIX and Windows: the
-  //    upload thread will never see a "partially-moved" file.
-  //
-  // Additional considerations re: filename conflicts:
-  //
-  // - The files we're moving are named with timestamps indicating file creation time,
-  //   so if we're switching from pending to granted, it's extremely unlikely that
-  //   _granted_directory will already contain a file with the same name as a file being
-  //   moved from _pending_directory. However, it _is_ technically possibly in the event
-  //   of system clock adjustments, external filesystem tampering, or extremely rapid
-  //   tracking consent changes.
-  //
-  // - In the unlikely event of a conflict, we leave the file in _granted_directory
-  //   intact, and we delete the file from _pending_directory. As long as we either move
-  //   the file or delete it in response to a conflict, the operation continues
-  //   successfully.
-
-  // We should have a valid interface to the destination directory: get its path so we
-  // can efficiently move files into it
-  DATADOG_ASSERT(
-      _granted_directory, "invalid granted directory on batch file migration"
-  );
-  const std::filesystem::path& granted_directory_path = _granted_directory->GetPath();
-  if (granted_directory_path.empty()) {
-    // Migrating to an destination directory of "" could potentially move batch files
-    // into the current working directory, which we don't want to allow
-    DATADOG_ASSERT(false, "empty granted directory path on batch file migration");
-    _diagnostic_logger.Error(
-        "Could not migrate batch files on consent change: unable to determine "
-        "destination directory path"
-    );
-    return false;
-  }
-
-  // Retrieve an up-to-date list of filenames in the source directory: we assume
-  // exclusive access to _pending_directory for the duration of this operation, so
-  // this set of files should not change on disk except in response to our MoveFile
-  // and RemoveFile calls
-  if (!CacheKnownFilenames(*_pending_directory)) {
-    // If we're unable to read filenames from the directory, we can't proceed: consider
-    // the move operation failed and leave the SDK nonfunctional
-    _diagnostic_logger.Error(
-        "Could not migrate batch files on consent change: failed to read filenames "
-        "from source directory"
-    );
-    return false;
-  }
-
-  // Iterate over all filenames, attempting to move each file
-  for (const std::string& filename : _last_known_filenames) {
-    // If MoveFile succeeds, we've successfully migrated this file and we can continue
-    // to the next one
-    auto move_result = _pending_directory->MoveFile(filename, granted_directory_path);
-    if (move_result.has_value()) {
-      _diagnostic_logger.Debug(
-          "Migrated batch file due to consent change", {{"filename", filename}}
-      );
-      continue;
-    }
-
-    // If the move failed because a destination file exists with the same name, attempt
-    // to resolve the conflict by deleting the source file and proceeding
-    if (move_result.error() == platform::FilesystemError::AlreadyExists) {
-      // If we can successfully delete the source file (leaving the existing destination
-      // file as-is), we can continue with the operation
-      auto delete_result = _pending_directory->RemoveFile(filename);
-      if (delete_result.has_value()) {
-        _diagnostic_logger.Debug(
-            "Deleted pending-directory copy of duplicate batch file",
-            {{"filename", filename}}
-        );
-        continue;
-      }
-
-      // Otherwise, we have a file conflict and we're unable to delete the source file:
-      // leave the file in place, but log a warning and carry on with the migration
-      _diagnostic_logger.Warning(
-          "Could not delete pending-directory copy of duplicate batch file",
-          {{"filename", filename}, {"error", _fs_error_string(delete_result.error())}}
-      );
-      continue;
-    }
-
-    // If the move failed for any other reason, abort the migration operation
-    _diagnostic_logger.Error(
-        "Could not migrate batch file on consent change",
-        {{"filename", filename}, {"error", _fs_error_string(move_result.error())}}
-    );
-    return false;
-  }
-
-  // We were able to list batch files, and all batch files with non-conflicting names
-  // were successfully moved
-  return true;
-}
-
-bool BatchWriter::WriteEventTo(
-    platform::IDirectory& directory, Block event, Block event_metadata
-) {
   // If we don't permit at least 1 write per file, reject all writes
   if (_config.max_writes_per_file <= 0) {
     return false;
@@ -353,15 +179,32 @@ bool BatchWriter::WriteEventTo(
 
   // Determine which file we should write to, and abort if we were unable to resolve an
   // appropriate writable file
-  platform::IFileWriter* file =
-      PrepareFileForNextWrite(directory, event, event_metadata);
-  if (!file) {
+  StoragePath* file_path =
+      PrepareFileForNextWrite(consent_dir_path, event, event_metadata);
+  if (!file_path) {
     // If this error occurs, it's likely due to an underlying I/O error, or else we're
     // flooding the storage thread with 100+ batches worth of event data in a very small
     // time span, such that there are no available timestamps left to use as filenames
     _diagnostic_logger.Error("Event dropped; could not prepare batch file for write");
     return false;
   }
+
+  // Open the file for write: we re-open batch files on each write, closing after each
+  // event written, in order to ensure that events are reliably flushed as soon as
+  // they're handled by the storage thread
+  const bool append = true;
+  const bool hold_advisory_lock = false;
+  auto open_res = FilesystemWrapper(_fs).OpenForWrite(
+      file_path->CStr(), append, hold_advisory_lock
+  );
+  if (open_res.value != FilesystemResult::OK) {
+    _diagnostic_logger.Error(
+        "Event dropped; could not open batch file for write",
+        {{"path", file_path->Get()}, {"error", FilesystemResultStr(open_res.value)}}
+    );
+    return false;
+  }
+  File& file = open_res.file;
 
   // We maintain a reusable buffer to concatenate all this data into a single contiguous
   // region, so we can write it to file atomically: to avoid excessive allocations,
@@ -388,75 +231,82 @@ bool BatchWriter::WriteEventTo(
     write_addr += metadata_tlv_size;
   }
 
-  // Write the event block
+  // Encode the event block into our write buffer
   const size_t event_tlv_size = EncodeTLVBlock(
       write_addr, write_buffer_end - write_addr, TLVBlockType::Event, event
   );
   DATADOG_ASSERT(event_tlv_size > 0, "Failed to write TLV event block to buffer");
   write_addr += event_tlv_size;  // NOLINT(clang-analyzer-deadcode.DeadStores)
-  DATADOG_ASSERT(write_addr == write_buffer_end, "Unexpected number of bytes written");
+  DATADOG_ASSERT(write_addr == write_buffer_end, "Unexpected number of bytes encoded");
 
   // Perform a single atomic write to ensure that header + data (and metadata + event,
   // if applicable) are written together, all-or-nothing
-  const auto ok = file->Write(_write_buffer.data(), _write_buffer.size());
-  if (!ok) {
+  const auto write_res = file.Write(_write_buffer.data(), _write_buffer.size());
+  if (write_res.value != FilesystemResult::OK) {
     // Write failed: log an error, drop the event, and carry on attempting to write
     // future events
-    _diagnostic_logger.Error("Event dropped; write to batch file failed");
+    _diagnostic_logger.Error(
+        "Event dropped; write to batch file failed",
+        {{"path", file_path->Get()}, {"error", FilesystemResultStr(write_res.value)}}
+    );
     return false;
   }
 
+  // File::~File() will close the file handle automatically in the event of failure, but
+  // close it explicitly after a successful write
+  const auto close_res = file.Close();
+  if (close_res != FilesystemResult::OK) {
+    _diagnostic_logger.Warning(
+        "Failed to close batch file after event write",
+        {{"path", file_path->Get()}, {"error", FilesystemResultStr(close_res)}}
+    );
+  }
+
   // Write successful; update our current-file state
-  _last_file_details.num_writes++;
-  _last_file_details.num_bytes_written += num_bytes;
+  _active_file.num_writes++;
+  _active_file.num_bytes_written += write_res.bytes_written;
   return true;
 }
 
-platform::IFileWriter* BatchWriter::PrepareFileForNextWrite(
-    platform::IDirectory& directory, Block event, Block event_metadata
+StoragePath* BatchWriter::PrepareFileForNextWrite(
+    const StoragePath& consent_dir_path, Block event, Block event_metadata
 ) {
   // Check our last-used file's age, size, etc. to see if we can reuse it
   const Timestamp current_time = _clock.Now();
   if (CanReuseFileForNextWrite(current_time, event, event_metadata)) {
-    return _last_file.get();
+    return &_active_file.path;
   }
 
   // If not, prepare to write a new file: start by figuring out what to name it
-  const auto next = GetFilenameForNextWrite(directory, current_time);
+  const auto next = GetFilenameForNextWrite(consent_dir_path, current_time);
   if (!next) {
     // Failed to resolve new filename (i.e. listing directory contents failed, or all
     // potential filenames are in use); can't proceed with file creation
-    _last_file = nullptr;
+    _active_file.Clear();
     return nullptr;
   }
-
-  // Defer to our filesystem implementation to get an interface for writing to this file
-  auto file = directory.PrepareForWrite(next->second);
-  if (!file) {
-    // Failed to prepare file; can't proceed with write
-    _last_file = nullptr;
-    return nullptr;
-  }
+  const uint64_t next_filename_ms = next->first;
+  const std::string& next_filename = next->second;
 
   // Reset our state to reflect that we have a new file, then return a non-owning
-  // pointer to that file
-  _last_file = std::move(*file);
-  _last_file_details.Reset(next->first);
-  return _last_file.get();
+  // pointer to the buffer that holds the path to that file
+  if (!_active_file.Reset(consent_dir_path, next_filename, next_filename_ms)) {
+    return nullptr;
+  }
+  return &_active_file.path;
 }
 
 bool BatchWriter::CanReuseFileForNextWrite(
     Timestamp current_time, Block event, Block event_metadata
 ) const {
   // If we have no current file, we need a new one
-  if (!_last_file) {
+  if (_active_file.path.Get().empty()) {
     return false;
   }
 
   // If the current file is older than our maximum age for a writable file, leave it
   // alone and start a new file
-  const Timestamp presumed_creation_time =
-      _ms_to_timestamp(_last_file_details.filename_ms);
+  const Timestamp presumed_creation_time = _ms_to_timestamp(_active_file.filename_ms);
   const Duration presumed_age = current_time - presumed_creation_time;
   if (presumed_age > _config.max_file_age) {
     return false;
@@ -464,7 +314,7 @@ bool BatchWriter::CanReuseFileForNextWrite(
 
   // If we've reached our hard limit on the number of events recorded in a single file,
   // it's time to start a new batch
-  if (_last_file_details.num_writes >= _config.max_writes_per_file) {
+  if (_active_file.num_writes >= _config.max_writes_per_file) {
     return false;
   }
 
@@ -479,7 +329,7 @@ bool BatchWriter::CanReuseFileForNextWrite(
   // If the file would exceed our hard limit on file size after write, it's time to call
   // it quits on that file and start a new one
   const size_t expected_size_after_write =
-      _last_file_details.num_bytes_written + num_bytes_to_write;
+      _active_file.num_bytes_written + num_bytes_to_write;
   if (expected_size_after_write > _config.max_file_size) {
     return false;
   }
@@ -490,13 +340,13 @@ bool BatchWriter::CanReuseFileForNextWrite(
 }
 
 std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextWrite(
-    const platform::IDirectory& directory, Timestamp current_time
+    const StoragePath& consent_dir_path, Timestamp current_time
 ) const {
   // Our new file will use a filename that reflects the current timestamp, but it's
   // possible that a file already exists with that name, and we don't want to reuse any
   // existing files that we didn't create ourselves: so start by retrieving the list of
   // existing filenames in our target directory
-  if (!CacheKnownFilenames(directory)) {
+  if (!CacheKnownFilenames(consent_dir_path)) {
     // Failed to list directory contents; can't proceed with file creation
     return std::nullopt;
   }
@@ -548,11 +398,22 @@ std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextW
   return std::nullopt;
 }
 
-bool BatchWriter::CacheKnownFilenames(const platform::IDirectory& directory) const {
+bool BatchWriter::CacheKnownFilenames(const StoragePath& consent_dir_path) const {
+  // Ensure that our vector is empty before we attempt to populate it
   _last_known_filenames.clear();
-  if (!directory.ListFiles(_last_known_filenames)) {
+
+  // Retrieve a directory listing (regular files only), caching the results
+  FilesystemWrapper fsw(_fs);
+  const auto res = fsw.ListFiles(consent_dir_path.CStr(), _last_known_filenames);
+  if (res != FilesystemResult::OK) {
+    _diagnostic_logger.Warning(
+        "Failed to examine existing batch files on event write: unable to list files",
+        {{"path", consent_dir_path.Get()}, {"error", FilesystemResultStr(res)}}
+    );
     return false;
   }
+
+  // Sort filenames for deterministic iteration in timestamp-name-order
   std::sort(_last_known_filenames.begin(), _last_known_filenames.end());
   return true;
 }
