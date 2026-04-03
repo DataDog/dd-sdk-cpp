@@ -129,6 +129,8 @@ typedef enum {
 typedef struct dd_internal_options {
   bool flush_http_requests_on_stop;
   const char* custom_endpoint_url;
+  const char* source;
+  const char* sdk_version;
 } dd_internal_options_t;
 
 /**

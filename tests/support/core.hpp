@@ -69,7 +69,7 @@ struct CoreTestHarness {
         storage(in_storage),
         client(in_client) {}
 
-  static CoreTestHarness Init(bool flush_http_requests = true) {
+  static CoreTestHarness Init(CoreConfig config, bool flush_http_requests = true) {
     // Create mock implementations of required core subsystems
     auto _clock = std::make_unique<MockClock>();
     auto _storage_root = std::make_unique<MockStorageDirectory>();
@@ -82,8 +82,6 @@ struct CoreTestHarness {
     MockStorageDirectory& storage = *_storage_root;
     MockHttpSubsystem& http = *_http;
 
-    // Create the core, giving the core ownership of injected subsystems
-    CoreConfig config = MOCK_CORE_CONFIG;
     if (flush_http_requests) {
       config.Internal_FlushHttpRequestsOnStop();
     }
@@ -109,6 +107,10 @@ struct CoreTestHarness {
     // Return a struct that contains all the state we need in order to test - and
     // examine the results of - code that interfaces with the core
     return CoreTestHarness(std::move(core), clock, storage, *client_ptr);
+  }
+
+  static CoreTestHarness Init(bool flush_http_requests = true) {
+    return Init(MOCK_CORE_CONFIG, flush_http_requests);
   }
 
   /**

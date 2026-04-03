@@ -189,6 +189,8 @@ struct CoreConfig {
   struct InternalOptions {
     size_t num_http_requests_per_feature_to_flush_on_stop{0};
     std::string custom_endpoint_url;
+    std::string source;
+    std::string sdk_version;
   } internal_options;
 
  public:
@@ -332,6 +334,24 @@ struct CoreConfig {
    * without notice. Do not use in production code.
    */
   DATADOG_API CoreConfig& Internal_UseCustomEndpoint(std::string_view value);
+
+  /**
+   * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+   * without notice. Do not use in production code.
+   *
+   * Overrides the source identifier sent in HTTP requests (e.g. `ddsource=` URL
+   * parameter and `DD-EVP-ORIGIN` header). Defaults to `"rum-cpp"`.
+   */
+  DATADOG_API CoreConfig& Internal_SetSource(std::string_view value);
+
+  /**
+   * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+   * without notice. Do not use in production code.
+   *
+   * Overrides the SDK version sent in the `DD-EVP-ORIGIN-VERSION` header. Defaults to
+   * the version of this SDK at build time.
+   */
+  DATADOG_API CoreConfig& Internal_SetSdkVersion(std::string_view value);
 };
 
 // === SDK Core ===

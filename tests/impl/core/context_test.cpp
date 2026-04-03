@@ -32,7 +32,7 @@ TEST_CASE("HttpContext constructor", "[unit]") {
     REQUIRE(context.service == "test_service");
     REQUIRE(context.env == "test_env");
     REQUIRE(context.application_version == "1.2.3");
-    REQUIRE(context.source == "unity");  // TODO: Update when cpp source exists
+    REQUIRE(context.source == "rum-cpp");
     REQUIRE_FALSE(context.intake_origin.empty());
   }
 }
@@ -52,9 +52,9 @@ TEST_CASE("HttpContext BuildRequestURL", "[unit]") {
 
   SECTION("M append ddsource parameter W with_ddsource is true and path has no query") {
     context.BuildRequestURL("/api/v1/logs", true, result_url);
-    // TODO: Update when cpp source exists
     REQUIRE(
-        result_url == "https://browser-intake-datadoghq.com/api/v1/logs?ddsource=unity"
+        result_url ==
+        "https://browser-intake-datadoghq.com/api/v1/logs?ddsource=rum-cpp"
     );
   }
 
@@ -62,11 +62,10 @@ TEST_CASE("HttpContext BuildRequestURL", "[unit]") {
       "M append ddsource with ampersand W with_ddsource is true and path has query"
   ) {
     context.BuildRequestURL("/api/v1/logs?existing=param", true, result_url);
-    // TODO: Update when cpp source exists
     REQUIRE(
         result_url ==
         "https://browser-intake-datadoghq.com/api/v1/"
-        "logs?existing=param&ddsource=unity"
+        "logs?existing=param&ddsource=rum-cpp"
     );
   }
 
@@ -111,8 +110,7 @@ TEST_CASE("HttpContext BuildRequestHeaders", "[unit]") {
     REQUIRE(
         result_headers.find("DD-API-KEY: test_client_token_456\n") != std::string::npos
     );
-    // TODO: Update when cpp source exists
-    REQUIRE(result_headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
+    REQUIRE(result_headers.find("DD-EVP-ORIGIN: rum-cpp\n") != std::string::npos);
 
     // And DD-REQUEST-ID is set to a random valid, nonzero UUID
     const size_t request_id_pos = result_headers.find("DD-REQUEST-ID: ");
@@ -125,9 +123,10 @@ TEST_CASE("HttpContext BuildRequestHeaders", "[unit]") {
     // TODO: Update when real User-Agent generation is implemented
     REQUIRE(result_headers.find("User-Agent: nobody\n") != std::string::npos);
 
-    // And DD-EVP-ORIGIN-VERSION matches SDK_VERSION stamped into library build
+    // And DD-EVP-ORIGIN-VERSION matches sdk_version on the context (defaults to
+    // SDK_VERSION stamped into library build)
     std::string expected_version_header = "DD-EVP-ORIGIN-VERSION: ";
-    expected_version_header += SDK_VERSION;
+    expected_version_header += context.sdk_version;
     expected_version_header += "\n";
     REQUIRE(result_headers.find(expected_version_header) != std::string::npos);
 
@@ -171,6 +170,61 @@ TEST_CASE("HttpContext BuildRequestHeaders", "[unit]") {
     // Then no second allocation should occur
     REQUIRE(result_headers.capacity() >= first_capacity);  // Memory reused
     REQUIRE(result_headers.back() == '\n');
+  }
+}
+
+TEST_CASE("HttpContext internal_options source/sdk_version overrides", "[unit]") {
+  SECTION("M use rum-cpp as default source W no source override set") {
+    CoreConfig config("token", "service", "env");
+    HttpContext context(config);
+    REQUIRE(context.source == "rum-cpp");
+  }
+
+  SECTION("M override source W Internal_SetSource called") {
+    CoreConfig config("token", "service", "env");
+    config.Internal_SetSource("unity");
+    HttpContext context(config);
+    REQUIRE(context.source == "unity");
+  }
+
+  SECTION("M override sdk_version W Internal_SetSdkVersion called") {
+    CoreConfig config("token", "service", "env");
+    config.Internal_SetSdkVersion("99.0.0");
+    HttpContext context(config);
+    REQUIRE(context.sdk_version == "99.0.0");
+  }
+
+  SECTION("M use SDK_VERSION as default sdk_version W no sdk_version override set") {
+    CoreConfig config("token", "service", "env");
+    HttpContext context(config);
+    REQUIRE(context.sdk_version == std::string(SDK_VERSION));
+  }
+
+  SECTION("M reflect overridden source in request URL W _dd.source set") {
+    CoreConfig config("token", "service", "env");
+    config.Internal_SetSource("unity");
+    HttpContext context(config);
+    std::string url;
+    context.BuildRequestURL("/api/v1/rum", true, url);
+    REQUIRE(url.find("ddsource=unity") != std::string::npos);
+  }
+
+  SECTION("M reflect overridden source in request headers W _dd.source set") {
+    CoreConfig config("token", "service", "env");
+    config.Internal_SetSource("unity");
+    HttpContext context(config);
+    std::string headers;
+    context.BuildRequestHeaders("application/json", "", headers);
+    REQUIRE(headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
+  }
+
+  SECTION("M reflect overridden sdk_version in request headers W _dd.sdk_version set") {
+    CoreConfig config("token", "service", "env");
+    config.Internal_SetSdkVersion("99.0.0");
+    HttpContext context(config);
+    std::string headers;
+    context.BuildRequestHeaders("application/json", "", headers);
+    REQUIRE(headers.find("DD-EVP-ORIGIN-VERSION: 99.0.0\n") != std::string::npos);
   }
 }
 

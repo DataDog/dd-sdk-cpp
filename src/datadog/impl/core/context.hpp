@@ -53,12 +53,16 @@ struct HttpContext {
   std::string application_version;
   /**
    * The 'source' value indicating the Datadog SDK product in use: 'rum-cpp' for native
-   * C++ applications; or another value if used by a multi-platform SDK.
-   *
-   * TODO(RUM-7416): Currently hardcoded to 'unity' due to lack of backend support for a
-   * cpp-specific 'source' type.
+   * C++ applications; or another value if used by a multi-platform SDK (overridable via
+   * CoreConfig::Internal_SetSource).
    */
   std::string source;
+
+  /**
+   * The SDK version reported in the DD-EVP-ORIGIN-VERSION header. Defaults to the SDK
+   * version at build time; overridable via CoreConfig::Internal_SetSdkVersion.
+   */
+  std::string sdk_version;
 
   /**
    * Initializes a new context from the user-supplied config.

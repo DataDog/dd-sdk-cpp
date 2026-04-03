@@ -105,6 +105,16 @@ CoreConfig& CoreConfig::Internal_UseCustomEndpoint(std::string_view value) {
   return *this;
 }
 
+CoreConfig& CoreConfig::Internal_SetSource(std::string_view value) {
+  internal_options.source = value;
+  return *this;
+}
+
+CoreConfig& CoreConfig::Internal_SetSdkVersion(std::string_view value) {
+  internal_options.sdk_version = value;
+  return *this;
+}
+
 Core::Core(Core::PrivateCtorTag)
     : _impl(nullptr),
       _diagnostic_handler(nullptr),

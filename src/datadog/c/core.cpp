@@ -35,8 +35,10 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     DD_UPLOAD_FREQUENCY_AVERAGE,       // upload_frequency
     DD_BATCH_PROCESSING_LEVEL_MEDIUM,  // batch_processing_level
     {
-        false,   // internal_options.flush_http_requests_on_stop
-        nullptr  // internal_options.custom_endpoint_url
+        false,    // internal_options.flush_http_requests_on_stop
+        nullptr,  // internal_options.custom_endpoint_url
+        nullptr,  // internal_options.source
+        nullptr   // internal_options.sdk_version
     }
 };
 

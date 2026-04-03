@@ -260,6 +260,12 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
       config.internal_options.custom_endpoint_url[0]) {
     cpp_config.Internal_UseCustomEndpoint(config.internal_options.custom_endpoint_url);
   }
+  if (config.internal_options.source && config.internal_options.source[0]) {
+    cpp_config.Internal_SetSource(config.internal_options.source);
+  }
+  if (config.internal_options.sdk_version && config.internal_options.sdk_version[0]) {
+    cpp_config.Internal_SetSdkVersion(config.internal_options.sdk_version);
+  }
 
   return cpp_config;
 }

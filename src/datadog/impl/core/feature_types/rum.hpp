@@ -250,7 +250,8 @@ enum class RumSource : uint8_t {
   ReactNative,
   Roku,
   Unity,
-  KotlinMultiplatform
+  KotlinMultiplatform,
+  RumCpp
 };
 DATADOG_STRING_ENUM(
     StringRumSource,
@@ -262,7 +263,8 @@ DATADOG_STRING_ENUM(
     DATADOG_ENUM_VALUE(RumSource::ReactNative, "react-native"),
     DATADOG_ENUM_VALUE(RumSource::Roku, "roku"),
     DATADOG_ENUM_VALUE(RumSource::Unity, "unity"),
-    DATADOG_ENUM_VALUE(RumSource::KotlinMultiplatform, "kotlin-multiplatform")
+    DATADOG_ENUM_VALUE(RumSource::KotlinMultiplatform, "kotlin-multiplatform"),
+    DATADOG_ENUM_VALUE(RumSource::RumCpp, "rum-cpp")
 )
 
 struct RumUserProperties {

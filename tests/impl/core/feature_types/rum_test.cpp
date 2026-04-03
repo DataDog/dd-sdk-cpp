@@ -135,7 +135,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
     ev.build_version = "my-build-version";
     ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
     ev.ddtags = "service:my-service,env:test,foo:bar";
-    ev.source = RumSource::Unity;
+    ev.source = RumSource::RumCpp;
 
     // RumUserProperties
     ev.usr.value.emplace();
@@ -296,7 +296,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "unity",
+      "source": "rum-cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",
@@ -540,7 +540,7 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
     ev.build_version = "my-build-version";
     ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
     ev.ddtags = "service:my-service,env:test,foo:bar";
-    ev.source = RumSource::Unity;
+    ev.source = RumSource::RumCpp;
 
     // RumUserProperties
     ev.usr.value.emplace();
@@ -633,7 +633,7 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "unity",
+      "source": "rum-cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",
@@ -779,7 +779,7 @@ TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
     ev.build_version = "my-build-version";
     ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
     ev.ddtags = "service:my-service,env:test,foo:bar";
-    ev.source = RumSource::Unity;
+    ev.source = RumSource::RumCpp;
 
     // RumUserProperties
     ev.usr.value.emplace();
@@ -899,7 +899,7 @@ TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "unity",
+      "source": "rum-cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",
@@ -1067,7 +1067,7 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
     ev.build_version = "my-build-version";
     ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
     ev.ddtags = "service:my-service,env:test,foo:bar";
-    ev.source = RumSource::Unity;
+    ev.source = RumSource::RumCpp;
 
     // RumUserProperties
     ev.usr.value.emplace();
@@ -1210,7 +1210,7 @@ Last 8 instructions at CS:EIP:
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "unity",
+      "source": "rum-cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",
