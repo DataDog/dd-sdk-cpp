@@ -73,6 +73,7 @@ add_executable(dd_native_tests
     impl/platform/filesystem_test.cpp
     impl/platform/http_test.cpp
     impl/platform/system_info_test.cpp
+    impl/storage/feature_event_test.cpp
     impl/storage/filesystem_test.cpp
     impl/storage/path_test.cpp
     impl/storage/sdk_test.cpp
