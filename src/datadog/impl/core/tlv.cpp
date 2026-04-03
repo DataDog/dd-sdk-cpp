@@ -6,9 +6,11 @@
 
 #include "datadog/impl/core/tlv.hpp"
 
+#include <array>
 #include <cstring>
 
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/storage/util.hpp"
 
 namespace datadog::impl {
 
@@ -94,88 +96,58 @@ size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data) {
   return num_bytes;
 }
 
-platform::FilesystemResult<void> EncodeTLVBlock(
-    platform::IFileWriter& file, TLVBlockType type, Block block
-) {
-  // We should not attempt to write empty blocks
-  DATADOG_ASSERT(!block.empty(), "attempted to encode empty TLV block");
+TLVBlockHeaderReadResult ReadTLVBlockHeader(DiagnosticLogger& logger, File& file) {
+  // Attempt to read the next six bytes from the file, failing with a warning if the
+  // read fails or if there isn't enough data available
+  std::array<char, TLVBlockHeader::SIZE> buf{};
+  const IFilesystem::ReadResult res = file.Read(buf.data(), buf.size());
 
-  // Encode the header, representing type and size in big-endian byte order
-  char header_buf[TLVBlockHeader::SIZE];
-  const TLVBlockHeader header{type, static_cast<uint32_t>(block.size())};
-  header.Encode(static_cast<char*>(header_buf));
-
-  // Write the six-byte header to the file, propagating error if unsuccessful
-  auto result = file.Write(static_cast<char*>(header_buf), sizeof(header_buf));
-  if (!result) {
-    return result;
+  // If we've reached the end of the file cleanly, there are no more blocks to read, and
+  // we're done with the file: signal EOF
+  const bool eof = res.value == FilesystemResult::OK && res.bytes_read == 0;
+  if (eof) {
+    return TLVBlockHeaderReadResult{TLVBlockHeaderReadResult::Status::EndOfFile};
   }
 
-  // Write the block itself to the file
-  return file.Write(block.data(), block.size());
-}
-
-static TLVBlockReadResult _propagate_filesystem_error(platform::FilesystemError err) {
-  if (err == platform::FilesystemError::IOError) {
-    return TLVBlockReadResult{TLVBlockReadResultType::IOError};
-  }
-  return TLVBlockReadResult{TLVBlockReadResultType::ReadFailed};
-}
-
-TLVBlockReadResult ReadTLVBlock(
-    platform::IFileReader& file, std::vector<char>& out_block_data
-) {
-  // Read the next six bytes of the file, which should contain the next block's header
-  char header_buf[TLVBlockHeader::SIZE];
-  auto result = file.Read(static_cast<char*>(header_buf), sizeof(header_buf));
-  if (!result) {
-    return _propagate_filesystem_error(result.error());
-  }
-  const size_t num_header_bytes_read = *result;
-
-  // If we read exactly zero bytes, we've made it to the end of the file cleanly, and
-  // there are no more blocks to read
-  if (num_header_bytes_read == 0) {
-    return TLVBlockReadResult(TLVBlockReadResultType::EndOfFile);
+  // If we encountered a filesystem error, or if we read an incomplete header (more than
+  // 0 bytes but less than the header size), log a warning and signal failure
+  if (res.value != FilesystemResult::OK || res.bytes_read < TLVBlockHeader::SIZE) {
+    logger.Warning(
+        "Failed to read TLV block header from file",
+        {{"error", FilesystemResultStr(res.value)}, {"num_bytes_read", res.bytes_read}}
+    );
+    return TLVBlockHeaderReadResult{TLVBlockHeaderReadResult::Status::Error};
   }
 
-  // If we read something but it wasn't the six bytes we asked for, the file does not
-  // contain a complete TLV header
-  if (num_header_bytes_read != sizeof(header_buf)) {
-    return TLVBlockReadResult(TLVBlockReadResultType::Malformed);
-  }
-
-  // We've read a header: decode it, and if it doesn't have a valid block type or size,
-  // it's not a valid header
-  std::optional<const TLVBlockHeader> header =
-      TLVBlockHeader::Decode(static_cast<const char*>(header_buf));
+  // Parse the header, failing with a warning if it doesn't have a valid TLV Block type
+  // value or the expected format
+  auto header = TLVBlockHeader::Decode(buf.data());
   if (!header) {
-    return TLVBlockReadResult(TLVBlockReadResultType::Malformed);
+    logger.Warning("Failed to parse TLV block header from file: invalid format");
+    return TLVBlockHeaderReadResult{TLVBlockHeaderReadResult::Status::Error};
   }
 
+  // We've successfully read a valid TLV block header; return it
+  return TLVBlockHeaderReadResult{TLVBlockHeaderReadResult::Status::Success, *header};
+}
+
+bool ReadTLVBlockData(
+    DiagnosticLogger& logger, File& file, size_t size, std::vector<char>& out_value
+) {
   // Ensure we can fit the block data in our reusable buffer, reallocating as needed
-  out_block_data.reserve(QuantizeBufferSize(header->block_size));
-  out_block_data.resize(header->block_size);
+  out_value.reserve(QuantizeBufferSize(size));
+  out_value.resize(size);
 
   // Read the next N bytes, where N is the block size indicated in the header
-  result = file.Read(out_block_data.data(), out_block_data.size());
-  if (!result) {
-    return _propagate_filesystem_error(result.error());
+  const auto res = file.Read(out_value.data(), out_value.size());
+  if (res.value != FilesystemResult::OK || res.bytes_read != size) {
+    logger.Warning(
+        "Failed to read TLV block data from file",
+        {{"error", FilesystemResultStr(res.value)}, {"num_bytes_read", res.bytes_read}}
+    );
+    return false;
   }
-  const size_t num_value_bytes_read = *result;
-
-  // If the advertised size in the header took us past the end of the file, we don't
-  // have a valid block
-  if (num_value_bytes_read != header->block_size) {
-    return TLVBlockReadResult(TLVBlockReadResultType::Malformed);
-  }
-
-  // We got the whole block, and its data is now held in our reusable buffer: return
-  // success, along with the details from our header
-  DATADOG_ASSERT(
-      out_block_data.size() == header->block_size, "unexpected block size post-read"
-  );
-  return TLVBlockReadResult{*header};
+  return true;
 }
 
 }  // namespace datadog::impl

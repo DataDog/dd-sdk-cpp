@@ -17,6 +17,7 @@
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
 
 using namespace datadog;
 
@@ -129,6 +130,9 @@ class MockFilesystemNew : public impl::IFilesystem {
   impl::FilesystemResult Rename(
       const impl::PlatformPath& src, const impl::PlatformPath& dst
   ) override;
+
+  // Helper allowing tests to succinctly obtain a convenient wrapper interface
+  impl::FilesystemWrapper Wrapper() { return impl::FilesystemWrapper(*this); }
 
   // Helper functions for initializing mock filesystem state during tests
   void Mkdirs(std::string_view path);
