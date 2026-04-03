@@ -13,8 +13,9 @@
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/platform/http.hpp"
 
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/tlv.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -88,8 +89,12 @@ TEST_CASE("StringWriter", "[unit]") {
 }
 
 TEST_CASE("TLVBatchWriter", "[unit][writer]") {
-  // Prepare a storage directory with mock batch files for testing
-  MockStorageDirectory storage;
+  // Given a diagnostic logger that will buffer messages
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+
+  // And a mock filesystem containing mock batch files for testing
+  MockFilesystemNew fs;
 
   // Format unique JSON events, 8 bytes in length, e.g. '{"id":0}', and interleave
   // metadata blocks that just contain the ASCII bytes 'metadata'
@@ -107,28 +112,28 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
                               .AppendEvent(event_1)
                               .AppendMetadata(event_metadata)
                               .AppendEvent(event_2);
-  mock_file.WriteTo(storage, "three-events.dat");
+  mock_file.WriteTo(fs, "three-events.dat");
 
   // badfile.dat contains the same, but we'll corrupt it during the test so we need to
   // isolate it, because mock filesystem state is shared among all the tests below
-  mock_file.WriteTo(storage, "badfile.dat");
+  mock_file.WriteTo(fs, "badfile.dat");
 
   // trailing-metadata.dat contains the same, but it has an extra metadata block to
   // simulate an incomplete storage-thread write
-  mock_file.AppendMetadata(event_metadata).WriteTo(storage, "trailing-metadata.dat");
+  mock_file.AppendMetadata(event_metadata).WriteTo(fs, "trailing-metadata.dat");
 
   // only-metadata.dat is just three metadata blocks
   MockTLVFile(256)
       .AppendMetadata(event_metadata)
       .AppendMetadata(event_metadata)
       .AppendMetadata(event_metadata)
-      .WriteTo(storage, "only-metadata.dat");
+      .WriteTo(fs, "only-metadata.dat");
 
   // empty.dat has no event data; it's just an empty file
-  storage.WithExistingFile("empty.dat", std::string_view{});
+  fs.Touch("empty.dat", std::string_view{});
 
   // nontlv.dat is not a valid TLV file
-  storage.WithExistingFile("nontlv.dat", "hello world");
+  fs.Touch("nontlv.dat", "hello world");
 
   // Given that set of files, and a reusable buffer that our BatchReader instances
   // will use to store each block as it's read from the file
@@ -136,9 +141,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
 
   SECTION("M write concatenated TLV blocks W called as functor") {
     // Given a TLVBatchWriter initialized from an open batch file
-    auto infile = storage.OpenForRead("three-events.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
+    auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
     platform::HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we demand the next (up to) 256 bytes
@@ -157,9 +162,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
 
   SECTION("M write in multiple parts W buffer size is small") {
     // Given a TLVBatchWriter initialized from an open batch file
-    auto infile = storage.OpenForRead("three-events.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
+    auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
     platform::HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we demand the first 16 bytes
@@ -184,9 +189,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
 
   SECTION("M encode properly W prefix, delimiter, and suffix are empty") {
     // Given a TLVBatchWriter initialized with empty strings for formatting
-    auto infile = storage.OpenForRead("three-events.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
+    auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
     platform::HttpBodyWriter writer = TLVBatchWriter{reader, "", "", ""};
 
     // When we demand the full contents 256 bytes
@@ -204,9 +209,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     const char* prefix = "";
     const char* delimiter = "\r\n";
     const char* suffix = "\r\nEND\r\n";
-    auto infile = storage.OpenForRead("three-events.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
+    auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
     platform::HttpBodyWriter writer = TLVBatchWriter{reader, prefix, delimiter, suffix};
 
     // And a write buffer
@@ -253,9 +258,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     // And a variety of different chunk sizes
     for (size_t size : {1, 2, 3, 4, 5, 7, 9, 15, 16, 17, 25, 35}) {
       // And a fresh TLVBatchWriter for each iteration
-      auto infile = storage.OpenForRead("three-events.dat");
-      REQUIRE(infile.has_value());
-      BatchReader reader{*infile->get(), batch_reader_buffer};
+      auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
+      REQUIRE(infile.value == FilesystemResult::OK);
+      BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
       platform::HttpBodyWriter writer =
           TLVBatchWriter{reader, prefix, delimiter, suffix};
 
@@ -274,9 +279,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
 
   SECTION("M abort request W file is empty") {
     // Given a TLVBatchWriter initialized from an empty file
-    auto infile = storage.OpenForRead("empty.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
+    auto infile = fs.Wrapper().OpenForRead("empty.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
     platform::HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we demand the contents
@@ -289,9 +294,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
 
   SECTION("M abort request W file contains only metadata blocks") {
     // Given a TLVBatchWriter initialized from a file with only metadata
-    auto infile = storage.OpenForRead("only-metadata.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
+    auto infile = fs.Wrapper().OpenForRead("only-metadata.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
     platform::HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we demand the full contents
@@ -304,9 +309,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
 
   SECTION("M abort request W file read fails due to IO error") {
     // Given a TLVBatchWriter initialized from a valid batch file
-    auto infile = storage.OpenForRead("badfile.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
+    auto infile = fs.Wrapper().OpenForRead("badfile.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
     platform::HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we read successfully once
@@ -315,7 +320,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     REQUIRE(num_bytes_written == 16);
 
     // And then corrupt the file before the next write
-    storage.Corrupt("badfile.dat");
+    fs.SimulateFailure("badfile.dat", FilesystemResult::UnknownError);
 
     // Then the next write returns abort
     num_bytes_written = writer(buffer + 16, 16);
@@ -324,9 +329,9 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
 
   SECTION("M abort request W file read fails due to invalid format") {
     // Given a TLVBatchWriter initialized from an invalid TLV file
-    auto infile = storage.OpenForRead("nontlv.dat");
-    REQUIRE(infile.has_value());
-    BatchReader reader{*infile->get(), batch_reader_buffer};
+    auto infile = fs.Wrapper().OpenForRead("nontlv.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
     platform::HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we attempt to write
