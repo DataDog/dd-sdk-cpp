@@ -9,6 +9,7 @@
 #include <string_view>
 
 #include "datadog/impl/storage/filesystem.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
 
 namespace datadog::impl {
 
@@ -61,8 +62,7 @@ bool JoinPaths(
  */
 bool EnsureDirectoryExists(
     const class StoragePath& path,
-    class PlatformPath& platform_path,
-    class IFilesystem& fs,
+    FilesystemWrapper& fsw,
     const class DiagnosticLogger& logger,
     const char* failure_message
 );
@@ -75,32 +75,9 @@ bool EnsureDirectoryExists(
  */
 bool DeleteEmptyDirectory(
     const class StoragePath& path,
-    class PlatformPath& platform_path,
-    class IFilesystem& fs,
+    FilesystemWrapper& fsw,
     const class DiagnosticLogger& logger,
     const char* failure_message
 );
-
-/**
- * RAII wrapper used to ensure that file handles are closed when no longer in scope.
- */
-struct FileHandleWrapper {
-  class IFilesystem& fs;
-  PlatformFileHandle handle;
-
-  explicit FileHandleWrapper(class IFilesystem& in_fs, PlatformFileHandle in_handle)
-      : fs(in_fs), handle(in_handle) {}
-
-  ~FileHandleWrapper() {
-    if (handle != INVALID_FILE_HANDLE) {
-      fs.Close(handle);
-    }
-  }
-
-  FileHandleWrapper(const FileHandleWrapper&) = delete;
-  FileHandleWrapper& operator=(const FileHandleWrapper&) = delete;
-  FileHandleWrapper(FileHandleWrapper&&) = delete;
-  FileHandleWrapper& operator=(FileHandleWrapper&&) = delete;
-};
 
 }  // namespace datadog::impl

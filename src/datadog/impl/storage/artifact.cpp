@@ -7,6 +7,7 @@
 #include "datadog/impl/storage/artifact.hpp"
 
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/storage/util.hpp"
 
 namespace datadog::impl {
@@ -44,8 +45,8 @@ bool ArtifactStorage::Initialize(
 
   // Create the directory if it doesn't exist, failing on creation error and succeeding
   // if the directory already exists
-  PlatformPath pp;
-  if (!EnsureDirectoryExists(_root, pp, _fs, _logger, mkdir_message)) {
+  FilesystemWrapper fsw(_fs);
+  if (!EnsureDirectoryExists(_root, fsw, _logger, mkdir_message)) {
     return false;
   }
 

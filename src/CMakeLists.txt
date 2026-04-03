@@ -70,6 +70,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
 target_sources(dd_native PRIVATE
     datadog/impl/storage/artifact.cpp
     datadog/impl/storage/feature_event.cpp
+    datadog/impl/storage/filesystem_wrapper.cpp
     datadog/impl/storage/path.cpp
     datadog/impl/storage/sdk.cpp
     datadog/impl/storage/util.cpp

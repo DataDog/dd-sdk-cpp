@@ -4,8 +4,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include "datadog/impl/storage/util.hpp"
+
 #include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/storage/filesystem.hpp"
 #include "datadog/impl/storage/path.hpp"
 
 namespace datadog::impl {
@@ -32,6 +33,8 @@ const char* FilesystemResultStr(FilesystemResult res) {
       return "PathTooLong";
     case FilesystemResult::InvalidName:
       return "InvalidName";
+    case FilesystemResult::PathEncodingFailed:
+      return "PathEncodingFailed";
     case FilesystemResult::LockContention:
       return "LockContention";
     case FilesystemResult::UnknownError:
@@ -97,23 +100,13 @@ bool JoinPaths(
 
 bool EnsureDirectoryExists(
     const StoragePath& path,
-    PlatformPath& platform_path,
-    IFilesystem& fs,
+    FilesystemWrapper& fsw,
     const DiagnosticLogger& logger,
     const char* failure_message
 ) {
-  // Convert from the SDK's canonical UTF-8 path representation to the platform's
-  // required string encoding for paths: on Windows this converts to UTF-16 and should
-  // always succeed so long as the input path is valid UTF-8; on other platforms this
-  // does nothing and will never fail
-  if (!platform_path.Encode(path.CStr())) {
-    logger.Error(failure_message, {{"path", path.CStr()}, {"operation", "encode"}});
-    return false;
-  }
-
   // Use platform filesystem APIs to create the desired directory, and/or detect whether
   // it's a directory if it already exists
-  const FilesystemResult res = fs.CreateDirectory(platform_path);
+  const FilesystemResult res = fsw.CreateDirectory(path.CStr());
   if (res == FilesystemResult::OK ||
       res == FilesystemResult::AlreadyExistsAsDirectory) {
     // There is now a valid directory at `path`; mission accomplished
@@ -133,20 +126,13 @@ bool EnsureDirectoryExists(
 
 bool DeleteEmptyDirectory(
     const class StoragePath& path,
-    class PlatformPath& platform_path,
-    class IFilesystem& fs,
+    FilesystemWrapper& fsw,
     const class DiagnosticLogger& logger,
     const char* failure_message
 ) {
-  // Convert to platform-native path encoding for IFilesystem call
-  if (!platform_path.Encode(path.CStr())) {
-    logger.Error(failure_message, {{"path", path.CStr()}, {"operation", "encode"}});
-    return false;
-  }
-
   // Attempt to delete the directory: this uses rmdir/RemoveDirectoryW, requiring that
   // the directory be empty
-  const FilesystemResult res = fs.DeleteDirectory(platform_path);
+  const FilesystemResult res = fsw.DeleteDirectory(path.CStr());
   if (res != FilesystemResult::OK) {
     // Log a warning message that includes the result enum and report failure
     logger.Warning(
