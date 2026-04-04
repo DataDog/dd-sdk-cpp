@@ -38,7 +38,7 @@ struct MockReport {
   std::string body;
 
   std::vector<TLVBlockCopy> blocks_read;
-  std::optional<impl::BatchReadError> last_read_error;
+  std::optional<impl::BatchReader::Result::Status> last_read_status;
 };
 
 /**
@@ -107,23 +107,24 @@ class MockFeature : public impl::Feature {
     // Read all TLV blocks into a vector, serially
     bool read_ok = true;
     while (true) {
-      // If read failed, stop reading and store the error
+      // Store the result of the most recent read
       auto result = reader.ReadNext();
-      if (!result) {
-        report.last_read_error = result.error();
+      report.last_read_status = result.status;
+
+      // If read failed, abort
+      if (result.status == impl::BatchReader::Result::Status::Error) {
         read_ok = false;
         break;
       }
 
-      // Block read OK; handle block if we have one
-      std::optional<impl::TLVBlock> block = *result;
-      if (block) {
-        // We successfully read a full block; copy its data to vector
-        report.blocks_read.emplace_back(block->type, block->data);
-      } else {
-        // There are no more blocks to read: we're done
+      // If the BatchReader has reached EOF, we're done: no more blocks to read
+      if (result.status == impl::BatchReader::Result::Status::EndOfFile) {
         break;
       }
+
+      // We successfully read a full block; copy its data to vector
+      DATADOG_ASSERT(result.status == impl::BatchReader::Result::Status::Success, "");
+      report.blocks_read.emplace_back(result.block.type, result.block.data);
     }
 
     // If any reads failed, produce no report and early-out

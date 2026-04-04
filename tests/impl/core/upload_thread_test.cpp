@@ -191,7 +191,8 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(report.blocks_read[0].data == Block{"event-0"});
     REQUIRE(report.blocks_read[1].type == TLVBlockType::Event);
     REQUIRE(report.blocks_read[1].data == Block{"event-1"});
-    REQUIRE(!report.last_read_error.has_value());
+    REQUIRE(report.last_read_status.has_value());
+    REQUIRE(report.last_read_status.value() == BatchReader::Result::Status::EndOfFile);
 
     // And one HTTP request is made as a result
     REQUIRE(client.requests.size() == 1);
