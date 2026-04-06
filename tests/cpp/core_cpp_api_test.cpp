@@ -4,8 +4,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <string>
+
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
+
+#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/platform/system_info.hpp"
 
 #include "support/catch.hpp"
 #include "support/core.hpp"
@@ -13,6 +18,11 @@
 #include "support/tempdir.hpp"
 
 using namespace datadog;
+
+static std::string GetPidString() {
+  impl::DiagnosticLogger logger{};
+  return std::to_string(platform::SystemInfo::Init(logger)->GetPid());
+}
 
 TEST_CASE("Core null safety", "[unit][core][cpp-api]") {
   SECTION("M safely do nothing W this wraps nullptr") {
@@ -130,7 +140,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api]") {
   }
 }
 
-TEST_CASE("Core event storage location", "[unit][core][c-api]") {
+TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
   // These tests use actual filesystem operations (in conjunction with TempDirectory)
   // to validate that the SDK writes events to the appropriate directory as configured.
   // We set up the SDK with logging, then produce a log event, then exit without
@@ -162,7 +172,8 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
 
          // And it should have created a $tmpdir/.datadog subdirectory and written our
          // single log event to a batch file in the appropriate feature/consent subdir
-         const std::string path = ".datadog/logs/intermediate-v1";
+         const std::string path =
+             ".datadog/main/" + GetPidString() + "/logs/intermediate-v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -192,7 +203,7 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
 
          // And it should have created a $tmpdir/.datadog subdirectory and written our
          // single log event to a batch file in the appropriate feature/consent subdir
-         const std::string path = ".datadog/logs/v1";
+         const std::string path = ".datadog/main/" + GetPidString() + "/logs/v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -226,7 +237,7 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
 
          // And it should have created logs/v1 within the existing $tmpdir/.datadog
          // directory and written our single log event to a batch file there
-         const std::string path = ".datadog/logs/v1";
+         const std::string path = ".datadog/main/" + GetPidString() + "/logs/v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -255,18 +266,18 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
          // directory
          REQUIRE(!started);
 
-         // And it should produce a diagnostic error describing the problem
+         // And it should produce diagnostic errors describing the problem
          REQUIRE(diagnostics.warning.empty());
-         REQUIRE(diagnostics.error.size() == 1);
+         REQUIRE(diagnostics.error.size() == 2);
+         REQUIRE(diagnostics.error[0].find("AlreadyExists") != std::string::npos);
          REQUIRE(
-             diagnostics.error[0].find(
-                 "SDK initialization failed: event storage subsystem could not be "
-                 "initialized: root storage path is occupied by a file"
-             ) == 0
+             diagnostics.error[1] ==
+             "Core initialization failed: could not initialize SDK storage"
          );
 
          // And our storage directory should remain unchanged
-         REQUIRE(!tmpdir.DirectoryExists(".datadog/logs"));
+         const std::string feature_path = ".datadog/main/" + GetPidString() + "/logs";
+         REQUIRE(!tmpdir.DirectoryExists(feature_path));
          REQUIRE(tmpdir.FileExists(".datadog"));
        }},
 
@@ -283,14 +294,13 @@ TEST_CASE("Core event storage location", "[unit][core][c-api]") {
          // directory
          REQUIRE(!started);
 
-         // And it should produce a diagnostic error describing the problem
+         // And it should produce diagnostic errors describing the problem
          REQUIRE(diagnostics.warning.empty());
-         REQUIRE(diagnostics.error.size() == 1);
+         REQUIRE(diagnostics.error.size() == 2);
+         REQUIRE(diagnostics.error[0].find("DoesNotExist") != std::string::npos);
          REQUIRE(
-             diagnostics.error[0].find(
-                 "SDK initialization failed: event storage subsystem could not be "
-                 "initialized: failed to create root storage directory"
-             ) == 0
+             diagnostics.error[1] ==
+             "Core initialization failed: could not initialize SDK storage"
          );
 
          // And our temp directory should remain unchanged
