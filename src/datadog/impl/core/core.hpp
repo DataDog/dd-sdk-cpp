@@ -293,10 +293,10 @@ class Core {
    */
   ~Core();
 
-  // Core is not copyable, _is_ move-constructible, is not move-assignable
+  // Core is not copyable, not movable
   Core(const Core&) = delete;
   Core& operator=(const Core&) = delete;
-  Core(Core&&) noexcept = default;
+  Core(Core&&) noexcept = delete;
   Core& operator=(Core&&) noexcept = delete;
 
   /**
