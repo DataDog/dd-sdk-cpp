@@ -132,7 +132,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
   SECTION("M take no action W no batch files are present") {
     // Given a single registered feature with no event data present
-    MockClock clock;
     MockHttpClient client;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
@@ -170,7 +169,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
   SECTION("M process available batch files W batch files are present") {
     // Given a single registered feature
-    MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
     const auto [core_config, config, context] = init_config(
@@ -290,7 +288,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     for (const auto& tt : tests) {
       DYNAMIC_SECTION(tt.name) {
         // Given a single registered feature
-        MockClock clock;
+
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
         const auto [core_config, config, context] = init_config(
@@ -342,7 +340,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
       " {respecting min file age for read}"
   ) {
     // Given a single registered feature
-    MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
 
@@ -416,7 +413,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     for (const auto& tt : tests) {
       DYNAMIC_SECTION(tt.name) {
         // Given a single registered feature with a single batch of event data
-        MockClock clock;
+
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
         fs.Touch(
@@ -478,7 +475,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     for (const auto& tt : tests) {
       DYNAMIC_SECTION(tt.name) {
         // Given a single registered feature with a single batch of event data
-        MockClock clock;
+
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
         fs.Touch(
@@ -555,7 +552,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     for (const auto& tt : tests) {
       DYNAMIC_SECTION(tt.name) {
         // Given a single registered feature
-        MockClock clock;
+
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
         const auto [core_config, config, context] = init_config(
@@ -607,7 +604,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
   SECTION("M take no action W unable to list files in directory") {
     // Given a single registered feature with a single batch of event data
-    MockClock clock;
     MockHttpClient client;
     fs.Touch(
         alpha_granted_prefix + "1699999955000",
@@ -652,7 +648,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
   SECTION("M retain batch and halt processing W unable to open batch file for read") {
     // Given a single registered feature with three eligible batches
-    MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
     fs.Touch(
@@ -712,7 +707,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
   SECTION("M reject batch and continue processing W unable to process batch") {
     // Given a single registered feature with three eligible batches, the second of
     // which does not contain valid TLV data
-    MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
     fs.Touch(
@@ -762,7 +756,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
   SECTION("M retain batch and halt processing W upload fails due to network error") {
     // Given a single registered feature with a single eligible batch
-    MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
     fs.Touch(
@@ -809,7 +802,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
   SECTION("M retain batch and halt processing W upload gets HTTP server error") {
     // Given a single registered feature with a single eligible batch
-    MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
     fs.Touch(
@@ -857,7 +849,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
   SECTION("M reject batch and continue processing W upload gets HTTP client error") {
     // Given a single registered feature with two eligible batches that can be read
     // and processed without error
-    MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
     fs.Touch(
