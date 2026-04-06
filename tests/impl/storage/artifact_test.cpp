@@ -18,7 +18,7 @@ TEST_CASE("ArtifactStorage paths", "[unit][storage]") {
   // Given a platform-appropriate root application storage path, and the expected prefix
   // for our artifact storage directory
 #ifdef _WIN32
-  std::string root = "C:\\Users\\jqpublic\\AppData\\Local\\someapp";
+  std::string root = "C:/Users/jqpublic/AppData/Local/someapp";
   std::string want_path = root + "\\.datadog\\.somestuff";
 #else
   std::string root = "/home/jqpublic/.local/share/someapp";

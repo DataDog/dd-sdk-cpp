@@ -19,7 +19,7 @@ TEST_CASE("FeatureEventStorage paths", "[unit][storage]") {
   // Given a platform-appropriate root application storage path, and the expected prefix
   // for our feature's event storage
 #ifdef _WIN32
-  std::string root = "C:\\Users\\jqpublic\\AppData\\Local\\someapp";
+  std::string root = "C:/Users/jqpublic/AppData/Local/someapp";
   std::string want_prefix = root + "\\.datadog\\main\\555\\foo\\";
 #else
   std::string root = "/home/jqpublic/.local/share/someapp";
