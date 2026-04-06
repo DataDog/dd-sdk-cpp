@@ -6,6 +6,7 @@
 
 #include "datadog/impl/core/storage_write.hpp"
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
 #include <string>
