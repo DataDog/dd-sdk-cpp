@@ -320,6 +320,7 @@ class LinuxSystemInfo final : public ISystemInfo {
     _device_info.time_zone = GetLinuxTimezone(logger);
   }
 
+  int64_t GetPid() const override { return static_cast<int64_t>(getpid()); }
   const OsInfo& GetOsInfo() const override { return _os_info; }
   const DeviceInfo& GetDeviceInfo() const override { return _device_info; }
 };
