@@ -84,11 +84,10 @@ class ISystemInfo {
   ISystemInfo& operator=(ISystemInfo&&) = delete;
 
   /**
-   * Returns the PID of the current process as an `int64_t`, cast from the
-   * native type (`pid_t` on POSIX, `DWORD` on Windows).
+   * Returns the PID of the current process as a signed 64-bit integer.
    *
-   * The caller is responsible for validating the returned value (e.g.,
-   * verifying it is positive before use).
+   * The caller should validate the result as needed to verify that it's a valid (i.e.
+   * positive, nonzero) process ID.
    */
   virtual int64_t GetPid() const = 0;
 
