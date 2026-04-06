@@ -65,19 +65,21 @@ TEST_CASE("Feature", "[unit]") {
 
     // Then our mock filesystem should contain a single batch file in the storage
     // directory for our feature
-    std::vector<std::string> relpaths = test.storage.FindFiles("coolfeature/v1");
-    REQUIRE(relpaths.size() == 1);
-    REQUIRE(relpaths.front() == "coolfeature/v1/1708675309000");
+    auto names = test.fs.Ls("app/.datadog/main/12345/coolfeature/v1");
+    REQUIRE(names.size() == 1);
+    REQUIRE(names.front() == "1708675309000");
 
     // And that file should contain the event data and metadata that our feature
     // generated, batched and encoded in TLV format
-    std::string expected = MockTLVFile()
-                               .AppendEvent("event-0")
-                               .AppendMetadata("metadata-1")
-                               .AppendEvent("event-1")
-                               .AppendEvent("event-2")
-                               .ToString();
-    REQUIRE(test.storage.Cat(relpaths.front()) == expected);
+    REQUIRE(
+        test.fs.Cat("app/.datadog/main/12345/coolfeature/v1/" + names.front()) ==
+        MockTLVFile()
+            .AppendEvent("event-0")
+            .AppendMetadata("metadata-1")
+            .AppendEvent("event-1")
+            .AppendEvent("event-2")
+            .ToString()
+    );
   }
 
   SECTION("M generate events only W core is running") {
@@ -119,11 +121,12 @@ TEST_CASE("Feature", "[unit]") {
 
     // Then the resulting batch file should contain both events: the one generated on
     // start, and then the one we generated explicitly
-    std::vector<std::string> relpaths = test.storage.FindFiles("chatty/v1");
-    REQUIRE(relpaths.size() == 1);
-    std::string expected =
-        MockTLVFile().AppendEvent("hello").AppendEvent("nice weather today").ToString();
-    REQUIRE(test.storage.Cat(relpaths.front()) == expected);
+    auto names = test.fs.Ls("app/.datadog/main/12345/chatty/v1");
+    REQUIRE(names.size() == 1);
+    REQUIRE(
+        test.fs.Cat("app/.datadog/main/12345/chatty/v1/" + names.front()) ==
+        MockTLVFile().AppendEvent("hello").AppendEvent("nice weather today").ToString()
+    );
   }
 
   SECTION("M upload batches W events are produced") {
@@ -143,14 +146,13 @@ TEST_CASE("Feature", "[unit]") {
     // Then core should have successfully uploaded our feature's events from a batch
     // file
     REQUIRE(test.client.requests.size() == 1);
-    REQUIRE(test.storage.GetNumFilesDeleted() == 1);
     const MockHttpRequest& req = test.client.requests.front();
     REQUIRE(!req.aborted);
     REQUIRE(req.body == "hello,nice weather today");
 
     // And the batch file should have been deleted on successful upload
-    std::vector<std::string> relpaths = test.storage.FindFiles("chatty/v1");
-    REQUIRE(relpaths.size() == 0);
+    auto names = test.fs.Ls("app/.datadog/main/12345/chatty/v1");
+    REQUIRE(names.size() == 0);
   }
 
   SECTION("M upload multiple batches W many events are produced") {
@@ -169,7 +171,6 @@ TEST_CASE("Feature", "[unit]") {
     // Then core should have successfully uploaded 3 batches for our feature, since
     // the default limit is 500 events per batch
     REQUIRE(test.client.requests.size() == 3);
-    REQUIRE(test.storage.GetNumFilesDeleted() == 3);
 
     // And those requests should encode our first 500 events, the next 500 events,
     // and then the final 24
@@ -187,6 +188,10 @@ TEST_CASE("Feature", "[unit]") {
     REQUIRE(test.client.requests[0].body == events_from(0, 500));
     REQUIRE(test.client.requests[1].body == events_from(500, 500));
     REQUIRE(test.client.requests[2].body == events_from(1000, 24));
+
+    // And the batch file should have been deleted on successful upload
+    auto names = test.fs.Ls("app/.datadog/main/12345/chatty/v1");
+    REQUIRE(names.size() == 0);
   }
 }
 

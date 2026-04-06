@@ -16,7 +16,7 @@
 #include "datadog/impl/core/core.hpp"
 
 #include "mock/clock.hpp"
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
 #include "support/diagnostics.hpp"
@@ -30,6 +30,7 @@ static void on_c_diagnostic(const dd_diagnostic_message_t* message, void* userda
  */
 static const CoreConfig MOCK_CORE_CONFIG =
     CoreConfig("mock-client-token", "mock-service", "mock-env")
+        .SetEventStorageLocation("app")
         .SetInitialTrackingConsent(TrackingConsent::Granted)
         .SetApplicationVersion("mock-application-version")
         .SetBatchSize(BatchSize::Small)
@@ -51,7 +52,7 @@ struct CoreTestHarness {
 
   impl::Core& core;
   MockClock& clock;
-  MockStorageDirectory& storage;
+  MockFilesystemNew& fs;
   MockHttpClient& client;
 
   std::vector<dd_diagnostic_message_t> c_diagnostics;
@@ -60,38 +61,41 @@ struct CoreTestHarness {
   explicit CoreTestHarness(
       std::unique_ptr<impl::Core>&& in_core,
       MockClock& in_clock,
-      MockStorageDirectory& in_storage,
+      MockFilesystemNew& in_fs,
       MockHttpClient& in_client
   )
       : _core(std::move(in_core)),
         core(std::ref(*_core)),
         clock(in_clock),
-        storage(in_storage),
+        fs(in_fs),
         client(in_client) {}
 
   static CoreTestHarness Init(CoreConfig config, bool flush_http_requests = true) {
     // Create mock implementations of required core subsystems
     auto _clock = std::make_unique<MockClock>();
-    auto _storage_root = std::make_unique<MockStorageDirectory>();
+    auto _fs = std::make_unique<MockFilesystemNew>();
     auto _http = std::make_unique<MockHttpSubsystem>();
     auto _system_info = std::make_unique<MockSystemInfo>();
 
     // Capture references to the underlying objects before we transfer ownership out of
     // these unique_ptrs
     MockClock& clock = *_clock;
-    MockStorageDirectory& storage = *_storage_root;
+    MockFilesystemNew& fs = *_fs;
     MockHttpSubsystem& http = *_http;
 
+    // MOCK_CORE_CONFIG configures the SDK to store data in a directory called 'app';
+    // create that directory on the mock filesystem
+    fs.Mkdirs("app");
+
+    // Create the core, giving the core ownership of injected subsystems
+    CoreConfig config = MOCK_CORE_CONFIG;
     if (flush_http_requests) {
       config.Internal_FlushHttpRequestsOnStop();
     }
     auto core = std::make_unique<impl::Core>(
         config,
         impl::CoreSubsystems(
-            std::move(_clock),
-            std::move(_storage_root),
-            std::move(_http),
-            std::move(_system_info)
+            std::move(_clock), std::move(_fs), std::move(_http), std::move(_system_info)
         )
     );
 
@@ -106,7 +110,7 @@ struct CoreTestHarness {
 
     // Return a struct that contains all the state we need in order to test - and
     // examine the results of - code that interfaces with the core
-    return CoreTestHarness(std::move(core), clock, storage, *client_ptr);
+    return CoreTestHarness(std::move(core), clock, fs, *client_ptr);
   }
 
   static CoreTestHarness Init(bool flush_http_requests = true) {

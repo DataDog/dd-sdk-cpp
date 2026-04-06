@@ -7,7 +7,6 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <algorithm>
-#include <filesystem>
 #include <iostream>
 #include <sstream>
 
@@ -35,28 +34,15 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
     );
   }
 
-  std::filesystem::path storage_root_path = ".datadog";
-  if (!config.event_storage_location.empty()) {
-    storage_root_path =
-        std::filesystem::path(config.event_storage_location) / ".datadog";
-  } else {
-    impl::DiagnosticLogger{config.diagnostic_handler, config.diagnostic_threshold}
-        .Warning(
-            "Events will be stored within .datadog/ in the current working directory: "
-            "application should call SetEventStorageLocation to specify a suitable "
-            "application-specific directory where .datadog/ can be created"
-        );
+  // Create an instance of IFilesystem, which wraps platform-specific APIs for examining
+  // and modifying directories and files, performing file I/O, and managing advisory
+  // locks on files
+  std::unique_ptr<IFilesystem> fs = CreateFilesystem();
+  if (!fs) {
+    return nonstd::make_unexpected(
+        ErrorMessage("filesystem interface could not be initialized")
+    );
   }
-
-  // Initialize filesystem storage, creating a Datadog-SDK-managed subdirectory beneath
-  // the configured path
-  auto filesystem_result = platform::Filesystem::Init(storage_root_path.string());
-  if (!filesystem_result) {
-    return nonstd::make_unexpected(filesystem_result.error().AddPrefix(
-        "event storage subsystem could not be initialized"
-    ));
-  }
-  auto storage_root = std::move(*filesystem_result);
 
   // Prepare whatever HTTP client library we'll use to create HTTP clients
   auto http_result = platform::Http::Init();
@@ -75,7 +61,7 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
 
   // Return our newly-created subsystems, to be transferred into the Core
   return CoreSubsystems(
-      std::move(clock), std::move(storage_root), std::move(http), std::move(system_info)
+      std::move(clock), std::move(fs), std::move(http), std::move(system_info)
   );
 }
 
@@ -90,9 +76,7 @@ Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
           ))
       ),
       _subsystems(std::move(subsystems)) {
-  DATADOG_ASSERT(
-      _subsystems.storage_root, "Core created with no root storage directory"
-  );
+  DATADOG_ASSERT(_subsystems.fs, "Core created with no filesystem interface");
   DATADOG_ASSERT(_subsystems.http, "Core created with no HTTP subsystem");
   DATADOG_ASSERT(_subsystems.system_info, "Core created with no system info subsystem");
 
@@ -136,11 +120,40 @@ bool Core::Init() {
       _state == CoreState::Uninitialized, "Core::Init called multiple times"
   );
 
+  // Required subsystems are injected on construction; they should all be present
+  DATADOG_ASSERT(_subsystems.system_info != nullptr, "Core has no ISystemInfo on Init");
+  DATADOG_ASSERT(_subsystems.http != nullptr, "Core has no IHttpSubsystem on Init");
+  DATADOG_ASSERT(_subsystems.fs != nullptr, "Core has no IFilesystem on Init");
+
+  // Get the PID value for the process in which we're running
+  const int64_t pid = _subsystems.system_info->GetPid();
+  if (pid <= 0) {
+    // In practice, getpid() and GetCurrentProcessId() are guaranteed to return a
+    // positive nonzero value
+    _diagnostic_logger.Error(
+        "Core initialization failed: got invalid PID", {{"pid", pid}}
+    );
+    return false;
+  }
+
   // Create a single HTTP client
   _http_client = _subsystems.http->CreateClient();
   if (!_http_client) {
     _diagnostic_logger.Error(
         "Core initialization failed: could not create HTTP client"
+    );
+    return false;
+  }
+
+  // Initialize a storage directory for this SDK instance, beneath the configured
+  // application storage directory
+  // TODO(RUM-15284): SdkStorage::Initialize migrates old processes' event data into our
+  // new storage directory- this may scale with the amount of leftover data, and could
+  // potentially be offloaded to the storage thread to avoid blocking SDK init.
+  _storage.emplace(*_subsystems.fs, _diagnostic_logger, pid);
+  if (!_storage->Initialize(_config.event_storage_location, "main")) {
+    _diagnostic_logger.Error(
+        "Core initialization failed: could not initialize SDK storage"
     );
     return false;
   }
@@ -152,8 +165,12 @@ bool Core::Init() {
 }
 
 bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
+  // Interrogate the feature to get its identifying details: FourCC ID for quick
+  // comparison internally; short, lowercase feature name for logs, event storage
+  // directory, etc.
   const FeatureId id = impl->GetId();
   const std::string_view name = impl->GetName();
+
   // Features may only be registered after init but before the core is started
   if (_state != CoreState::Initialized) {
     if (_state == CoreState::Started) {
@@ -169,6 +186,13 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
     }
     return false;
   }
+
+  // Successful SdkStorage initialization is a precondition of successful Core::Init():
+  // since State == Initialized, SdkStorage must be valid
+  DATADOG_ASSERT(_subsystems.fs, "IFilesystem uninitialized on feature registration");
+  DATADOG_ASSERT(
+      _storage.has_value(), "SdkStorage uninitialized on feature registration"
+  );
 
   // Don't allow a feature to be registered with a duplicate ID (each feature must have
   // a unique ID, and each feature may only be registered once), and don't alllow two
@@ -186,43 +210,15 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
     return false;
   }
 
-  // Initialize a subdirectory within our root storage directory that will contain files
-  // written on behalf of this feature
-  auto feature_subdir = _subsystems.storage_root->PrepareSubdirectory(name);
-  if (!feature_subdir) {
+  // Prepare a FeatureEventStorage interface, creating the requisite storage directories
+  // on disk for this feature's events
+  auto events = _storage->InitializeFeatureEventStorage(name);
+  if (!events) {
+    // FeatureEventStorage will log more descriptive diagnostic messages in the event of
+    // failure; just log the practical result for us (can't register feature) and abort
     _diagnostic_logger.Error(
-        "Failed to register feature: storage directory could not be initialized",
-        {{"feature", name},
-         {"feature_id", static_cast<int64_t>(id)},
-         {"fs_error_type", static_cast<int64_t>(feature_subdir.error())}}
-    );
-    return false;
-  }
-
-  // Initialize two subdirectories within that feature directory: one that we'll write
-  // to when tracking consent is pending, and another to contain the files that the user
-  // has consented to being uploaded: the upload thread will read from the latter
-  auto pending_subdir =
-      (*feature_subdir)->PrepareSubdirectory(BatchWriter::PENDING_SUBDIRECTORY_NAME);
-  if (!pending_subdir) {
-    _diagnostic_logger.Error(
-        "Failed to register feature: storage subdirectory could not be initialized",
-        {{"feature", name},
-         {"feature_id", static_cast<int64_t>(id)},
-         {"subdir_name", BatchWriter::PENDING_SUBDIRECTORY_NAME},
-         {"fs_error_type", static_cast<int64_t>(feature_subdir.error())}}
-    );
-    return false;
-  }
-  auto granted_subdir =
-      (*feature_subdir)->PrepareSubdirectory(BatchWriter::GRANTED_SUBDIRECTORY_NAME);
-  if (!granted_subdir) {
-    _diagnostic_logger.Error(
-        "Failed to register feature: storage subdirectory could not be initialized",
-        {{"feature", name},
-         {"feature_id", static_cast<int64_t>(id)},
-         {"subdir_name", BatchWriter::GRANTED_SUBDIRECTORY_NAME},
-         {"fs_error_type", static_cast<int64_t>(feature_subdir.error())}}
+        "Failed to register feature: could not initialize event storage",
+        {{"feature", name}, {"feature_id", static_cast<int64_t>(id)}}
     );
     return false;
   }
@@ -233,27 +229,11 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   auto batch_writer = std::make_unique<BatchWriter>(
       _diagnostic_logger,
       _config.tracking_consent,
-      std::move(*pending_subdir),
-      std::move(*granted_subdir),
+      *_subsystems.fs,
+      *events,
       *_subsystems.clock,
       writer_config
   );
-
-  // Prepare a separate interface to the directory that the upload thread should read
-  // from: this is the same location on disk that the storage thread may write to (i.e.
-  // granted_subdir), but we want each thread to have its own handle
-  auto event_read_directory =
-      (*feature_subdir)->PrepareSubdirectory(BatchWriter::GRANTED_SUBDIRECTORY_NAME);
-  if (!event_read_directory) {
-    _diagnostic_logger.Error(
-        "Failed to register feature: upload subdirectory could not be initialized",
-        {{"feature", name},
-         {"feature_id", static_cast<int64_t>(id)},
-         {"subdir_name", BatchWriter::GRANTED_SUBDIRECTORY_NAME},
-         {"fs_error_type", static_cast<int64_t>(feature_subdir.error())}}
-    );
-    return false;
-  }
 
   // Initialize the feature-specific state used by the upload thread
   auto upload_state = std::make_unique<UploadThreadState>(_config.upload_frequency);
@@ -261,10 +241,9 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   _features.emplace_back(
       id,
       name,
+      std::move(events),
       impl,
-      std::move(*feature_subdir),
       std::move(batch_writer),
-      std::move(*event_read_directory),
       std::move(upload_state)
   );
 

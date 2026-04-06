@@ -29,11 +29,12 @@
 #include "datadog/impl/core/upload_thread.hpp"
 #include "datadog/impl/diagnostics.hpp"
 #include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/storage/filesystem.hpp"
+#include "datadog/impl/storage/sdk.hpp"
 
 // Forward declarations
 namespace datadog::platform {
 class IClock;
-class IStorageDirectory;
 class IHttpSubsystem;
 class IHttpClient;
 }  // namespace datadog::platform
@@ -80,18 +81,18 @@ enum class CoreState : uint8_t {
  */
 struct CoreSubsystems {
   std::unique_ptr<platform::IClock> clock;
-  std::unique_ptr<platform::IStorageDirectory> storage_root;
+  std::unique_ptr<IFilesystem> fs;
   std::unique_ptr<platform::IHttpSubsystem> http;
   std::unique_ptr<platform::ISystemInfo> system_info;
 
   explicit CoreSubsystems(
       std::unique_ptr<platform::IClock>&& in_clock,
-      std::unique_ptr<platform::IStorageDirectory>&& in_storage_root,
+      std::unique_ptr<IFilesystem>&& in_fs,
       std::unique_ptr<platform::IHttpSubsystem>&& in_http,
       std::unique_ptr<platform::ISystemInfo>&& in_system_info
   )
       : clock(std::move(in_clock)),
-        storage_root(std::move(in_storage_root)),
+        fs(std::move(in_fs)),
         http(std::move(in_http)),
         system_info(std::move(in_system_info)) {}
 
@@ -122,6 +123,11 @@ struct RegisteredFeature {
    */
   std::string name;
   /**
+   * Interface used to store this feature's event data on disk, batched into files in
+   * preparation for upload.
+   */
+  std::unique_ptr<FeatureEventStorage> storage;
+  /**
    * Pointer to the feature-specific implementation. Uses shared ownership semantics
    * so that the API layer can retain references via std::weak_ptr or std::shared_ptr.
    *
@@ -131,23 +137,9 @@ struct RegisteredFeature {
    */
   std::shared_ptr<Feature> impl;
   /**
-   * Wrapper for the directory where the feature stores event data. Not used by any
-   * thread; this member simply keeps the IDirectory handle alive in case the platform
-   * filesystem implementation requires resource cleanup on exit.
-   */
-  std::unique_ptr<platform::IDirectory> directory;
-
-  /**
    * Interface used by the storage thread to write event data to persistent storage.
    */
   std::unique_ptr<BatchWriter> batch_writer;
-
-  /**
-   * Wrapper for the directory that the upload thread will scan for batches of event
-   * data to upload: i.e. the subdirectory associated with TrackingConsent::Granted.
-   * This handle is exclusively used by the upload thread.
-   */
-  std::unique_ptr<platform::IDirectory> event_read_directory;
   /**
    * Stores feature-specific timing details and other state information, for use by
    * the upload thread.
@@ -157,18 +149,16 @@ struct RegisteredFeature {
   explicit RegisteredFeature(
       FeatureId in_id,
       std::string_view in_name,
+      std::unique_ptr<FeatureEventStorage>&& in_storage,
       const std::shared_ptr<Feature>& in_impl,
-      std::unique_ptr<platform::IDirectory>&& in_directory,
       std::unique_ptr<BatchWriter>&& in_batch_writer,
-      std::unique_ptr<platform::IDirectory>&& in_event_read_directory,
       std::unique_ptr<UploadThreadState>&& in_upload_state
   )
       : id(in_id),
         name(in_name),
+        storage(std::move(in_storage)),
         impl(in_impl),
-        directory(std::move(in_directory)),
         batch_writer(std::move(in_batch_writer)),
-        event_read_directory(std::move(in_event_read_directory)),
         upload_state(std::move(in_upload_state)) {}
 };
 
@@ -289,8 +279,7 @@ struct RegisteredFeature {
  * remain immutable for the lifetime of all threads, and each thread treats these
  * state objects as read-only, obviating the need for synchronization. The storage
  * thread has exclusive access to a feature's `BatchWriter` interface, and the upload
- * thread has exclusive access to a feature's `UploadThreadState` and
- * `event_read_directory`.
+ * thread has exclusive access to a feature's `UploadThreadState`.
  */
 class Core {
  public:
@@ -304,11 +293,11 @@ class Core {
    */
   ~Core();
 
-  // Core is noncopyable but movable
+  // Core is not copyable, _is_ move-constructible, is not move-assignable
   Core(const Core&) = delete;
   Core& operator=(const Core&) = delete;
   Core(Core&&) noexcept = default;
-  Core& operator=(Core&&) noexcept = default;
+  Core& operator=(Core&&) noexcept = delete;
 
   /**
    * Updates the configured tracking consent value.
@@ -377,8 +366,9 @@ class Core {
   std::unique_ptr<CoreContextProvider> _context_provider;
   CoreSubsystems _subsystems;
 
-  // Initialized on Init; entirely implementation-controlled
+  // Initialized on Init, before features can be registered
   std::unique_ptr<platform::IHttpClient> _http_client;
+  std::optional<SdkStorage> _storage;
 
   // Initialized before Start in response to user-initiated feature registration
   std::vector<RegisteredFeature> _features;  // May not be modified while running
