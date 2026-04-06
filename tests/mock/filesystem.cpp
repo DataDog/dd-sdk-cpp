@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 
 #include <algorithm>
 #include <cstring>
@@ -36,7 +36,7 @@ static PlatformFileHandle to_handle(uintptr_t x) {
  */
 static const PlatformFileHandle SIMULATED_ADVISORY_LOCK_HANDLE = to_handle(8675309);
 
-std::string MockFilesystemNew::NormalizePath(const PlatformPath& path) {
+std::string MockFilesystem::NormalizePath(const PlatformPath& path) {
 #ifdef _WIN32
   // On Windows, PlatformPath holds a UTF-16 string in a wchar_t buffer: convert to
   // UTF-8 and normalize
@@ -75,7 +75,7 @@ std::string MockFilesystemNew::NormalizePath(const PlatformPath& path) {
 #endif
 }
 
-std::string MockFilesystemNew::GetParentPath(const std::string& normalized_path) {
+std::string MockFilesystem::GetParentPath(const std::string& normalized_path) {
   const size_t pos = normalized_path.find_last_of('/');
   if (pos == std::string::npos) {
     return "";
@@ -83,7 +83,7 @@ std::string MockFilesystemNew::GetParentPath(const std::string& normalized_path)
   return normalized_path.substr(0, pos);
 }
 
-std::string MockFilesystemNew::GetBasename(const std::string& normalized_path) {
+std::string MockFilesystem::GetBasename(const std::string& normalized_path) {
   const size_t pos = normalized_path.find_last_of('/');
   if (pos == std::string::npos) {
     return normalized_path;
@@ -91,7 +91,7 @@ std::string MockFilesystemNew::GetBasename(const std::string& normalized_path) {
   return normalized_path.substr(pos + 1);
 }
 
-FilesystemResult MockFilesystemNew::CreateDirectory(const PlatformPath& path) {
+FilesystemResult MockFilesystem::CreateDirectory(const PlatformPath& path) {
   const std::string normalized_path = NormalizePath(path);
   std::lock_guard lock(_mutex);
 
@@ -124,7 +124,7 @@ FilesystemResult MockFilesystemNew::CreateDirectory(const PlatformPath& path) {
   return FilesystemResult::OK;
 }
 
-FilesystemResult MockFilesystemNew::ListFiles(
+FilesystemResult MockFilesystem::ListFiles(
     const PlatformPath& path, std::vector<std::string>& out_names
 ) {
   const std::string normalized_path = NormalizePath(path);
@@ -169,7 +169,7 @@ FilesystemResult MockFilesystemNew::ListFiles(
   return FilesystemResult::OK;
 }
 
-FilesystemResult MockFilesystemNew::ListSubdirectories(
+FilesystemResult MockFilesystem::ListSubdirectories(
     const PlatformPath& path, std::vector<std::string>& out_names
 ) {
   const std::string normalized_path = NormalizePath(path);
@@ -211,7 +211,7 @@ FilesystemResult MockFilesystemNew::ListSubdirectories(
   return FilesystemResult::OK;
 }
 
-IFilesystem::OpenFileResult MockFilesystemNew::OpenForWrite(
+IFilesystem::OpenFileResult MockFilesystem::OpenForWrite(
     const PlatformPath& path, bool append, bool hold_advisory_lock
 ) {
   std::string normalized_path = NormalizePath(path);
@@ -282,7 +282,7 @@ IFilesystem::OpenFileResult MockFilesystemNew::OpenForWrite(
   return {FilesystemResult::OK, handle};
 }
 
-IFilesystem::OpenFileResult MockFilesystemNew::OpenForRead(
+IFilesystem::OpenFileResult MockFilesystem::OpenForRead(
     const PlatformPath& path, bool hold_advisory_lock
 ) {
   const std::string normalized_path = NormalizePath(path);
@@ -337,7 +337,7 @@ IFilesystem::OpenFileResult MockFilesystemNew::OpenForRead(
   return {FilesystemResult::OK, handle};
 }
 
-IFilesystem::WriteResult MockFilesystemNew::Write(
+IFilesystem::WriteResult MockFilesystem::Write(
     PlatformFileHandle handle, const char* src, size_t n
 ) {
   std::lock_guard lock(_mutex);
@@ -371,7 +371,7 @@ IFilesystem::WriteResult MockFilesystemNew::Write(
   return {FilesystemResult::OK, n};
 }
 
-IFilesystem::ReadResult MockFilesystemNew::Read(
+IFilesystem::ReadResult MockFilesystem::Read(
     PlatformFileHandle handle, char* dst, size_t n
 ) {
   std::lock_guard lock(_mutex);
@@ -414,7 +414,7 @@ IFilesystem::ReadResult MockFilesystemNew::Read(
   return {FilesystemResult::OK, num_bytes_to_read};
 }
 
-FilesystemResult MockFilesystemNew::Close(PlatformFileHandle handle) {
+FilesystemResult MockFilesystem::Close(PlatformFileHandle handle) {
   std::lock_guard lock(_mutex);
 
   // Look up the handle value, reporting UnknownError if no such handle exists
@@ -455,7 +455,7 @@ FilesystemResult MockFilesystemNew::Close(PlatformFileHandle handle) {
   return FilesystemResult::OK;
 }
 
-FilesystemResult MockFilesystemNew::Delete(const PlatformPath& path) {
+FilesystemResult MockFilesystem::Delete(const PlatformPath& path) {
   const std::string normalized_path = NormalizePath(path);
   std::lock_guard lock(_mutex);
 
@@ -486,7 +486,7 @@ FilesystemResult MockFilesystemNew::Delete(const PlatformPath& path) {
   return FilesystemResult::OK;
 }
 
-FilesystemResult MockFilesystemNew::DeleteDirectory(const PlatformPath& path) {
+FilesystemResult MockFilesystem::DeleteDirectory(const PlatformPath& path) {
   const std::string normalized_path = NormalizePath(path);
   std::lock_guard lock(_mutex);
 
@@ -524,7 +524,7 @@ FilesystemResult MockFilesystemNew::DeleteDirectory(const PlatformPath& path) {
   return FilesystemResult::OK;
 }
 
-FilesystemResult MockFilesystemNew::Rename(
+FilesystemResult MockFilesystem::Rename(
     const PlatformPath& src, const PlatformPath& dst
 ) {
   const std::string normalized_src = NormalizePath(src);
@@ -647,7 +647,7 @@ FilesystemResult MockFilesystemNew::Rename(
   return FilesystemResult::OK;
 }
 
-void MockFilesystemNew::Mkdirs(std::string_view path) {
+void MockFilesystem::Mkdirs(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
 
@@ -667,7 +667,7 @@ void MockFilesystemNew::Mkdirs(std::string_view path) {
   }
 }
 
-void MockFilesystemNew::Touch(std::string_view path, std::string_view initial_data) {
+void MockFilesystem::Touch(std::string_view path, std::string_view initial_data) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
 
@@ -692,7 +692,7 @@ void MockFilesystemNew::Touch(std::string_view path, std::string_view initial_da
   _files[path_str].data = std::string(initial_data);
 }
 
-void MockFilesystemNew::SimulateFailure(
+void MockFilesystem::SimulateFailure(
     std::string_view path, FilesystemResult status, FailureFlags flags
 ) {
   std::string path_str(path);
@@ -711,11 +711,11 @@ void MockFilesystemNew::SimulateFailure(
   }
 }
 
-void MockFilesystemNew::ClearSimulatedFailure(std::string_view path) {
+void MockFilesystem::ClearSimulatedFailure(std::string_view path) {
   SimulateFailure(path, FilesystemResult::OK);
 }
 
-void MockFilesystemNew::LockFile(std::string_view path) {
+void MockFilesystem::LockFile(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
 
@@ -726,7 +726,7 @@ void MockFilesystemNew::LockFile(std::string_view path) {
   }
 }
 
-void MockFilesystemNew::UnlockFile(std::string_view path) {
+void MockFilesystem::UnlockFile(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
 
@@ -737,7 +737,7 @@ void MockFilesystemNew::UnlockFile(std::string_view path) {
   }
 }
 
-std::vector<std::string> MockFilesystemNew::Ls(std::string_view path) {
+std::vector<std::string> MockFilesystem::Ls(std::string_view path) {
   std::vector<std::string> names;
   std::lock_guard lock(_mutex);
 
@@ -776,19 +776,19 @@ std::vector<std::string> MockFilesystemNew::Ls(std::string_view path) {
   return names;
 }
 
-bool MockFilesystemNew::IsDirectory(std::string_view path) {
+bool MockFilesystem::IsDirectory(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
   return _dirs.find(path_str) != _dirs.end();
 }
 
-bool MockFilesystemNew::IsFile(std::string_view path) {
+bool MockFilesystem::IsFile(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
   return _files.find(path_str) != _files.end();
 }
 
-bool MockFilesystemNew::IsFileLocked(std::string_view path) {
+bool MockFilesystem::IsFileLocked(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
 
@@ -799,7 +799,7 @@ bool MockFilesystemNew::IsFileLocked(std::string_view path) {
   return "";
 }
 
-std::string MockFilesystemNew::Cat(std::string_view path) {
+std::string MockFilesystem::Cat(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
 

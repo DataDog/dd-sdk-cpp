@@ -8,7 +8,7 @@
 
 #include "datadog/impl/storage/sdk.hpp"
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "support/catch.hpp"
 #include "support/diagnostics.hpp"
 #include "support/filesystem.hpp"
@@ -27,7 +27,7 @@ TEST_CASE("FeatureEventStorage paths", "[unit][storage]") {
 #endif
 
   // And a successfully-initialized a FeatureEventStorage instance within that root dir
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs(root);
   DiagnosticMessageBuffer diagnostics;
   DiagnosticLogger logger = diagnostics.CreateTestLogger();
@@ -57,7 +57,7 @@ TEST_CASE("FeatureEventStorage paths", "[unit][storage]") {
 
 TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
   // Given a filesystem with application files stored in app/
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs("app");
 
   // And a diagnostic logger that will capture all messages emitted
@@ -140,7 +140,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.SimulateFailure(
           "app/.datadog/main/555/foo/intermediate-v1",
           FilesystemResult::PermissionDenied,
-          MockFilesystemNew::FailureFlags::Ls
+          MockFilesystem::FailureFlags::Ls
       );
 
       // When we attempt to delete pending batches
@@ -172,7 +172,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.SimulateFailure(
           "app/.datadog/main/555/foo/intermediate-v1/1700000000000",
           FilesystemResult::PermissionDenied,
-          MockFilesystemNew::FailureFlags::Delete
+          MockFilesystem::FailureFlags::Delete
       );
 
       // When we attempt to delete pending batches
@@ -320,7 +320,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.SimulateFailure(
           "app/.datadog/main/555/foo/intermediate-v1/1700000000000",
           FilesystemResult::PermissionDenied,
-          MockFilesystemNew::FailureFlags::Delete
+          MockFilesystem::FailureFlags::Delete
       );
 
       // When we migrate pending batches
@@ -359,7 +359,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.SimulateFailure(
           "app/.datadog/main/555/foo/intermediate-v1",
           FilesystemResult::PermissionDenied,
-          MockFilesystemNew::FailureFlags::Ls
+          MockFilesystem::FailureFlags::Ls
       );
 
       // When we attempt to migrate pending batches
@@ -392,7 +392,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.SimulateFailure(
           "app/.datadog/main/555/foo/intermediate-v1/1700000000000",
           FilesystemResult::OutOfSpace,
-          MockFilesystemNew::FailureFlags::Rename
+          MockFilesystem::FailureFlags::Rename
       );
 
       // When we attempt to migrate pending batches

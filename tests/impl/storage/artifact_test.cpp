@@ -8,7 +8,7 @@
 
 #include "datadog/impl/storage/sdk.hpp"
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "support/catch.hpp"
 #include "support/diagnostics.hpp"
 
@@ -26,7 +26,7 @@ TEST_CASE("ArtifactStorage paths", "[unit][storage]") {
 #endif
 
   // And a successfully-initialized a ArtifactStorage instance within that root dir
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs(root);
   DiagnosticMessageBuffer diagnostics;
   DiagnosticLogger logger = diagnostics.CreateTestLogger();

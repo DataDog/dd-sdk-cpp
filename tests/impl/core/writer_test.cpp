@@ -13,7 +13,7 @@
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/platform/http.hpp"
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 #include "support/diagnostics.hpp"
 
@@ -94,7 +94,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   DiagnosticLogger logger = diagnostics.CreateTestLogger();
 
   // And a mock filesystem containing mock batch files for testing
-  MockFilesystemNew fs;
+  MockFilesystem fs;
 
   // Format unique JSON events, 8 bytes in length, e.g. '{"id":0}', and interleave
   // metadata blocks that just contain the ASCII bytes 'metadata'

@@ -16,7 +16,7 @@
 #include "datadog/impl/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 #include "support/diagnostics.hpp"
 
@@ -34,7 +34,7 @@ TEST_CASE("BatchWriter", "[unit]") {
 
   // And a mock filesystem with a fully initialized FeatureEventStorage interface that
   // will manage app/.datadog/main/555/foo
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs("app");
   SdkStorage sdk_storage(fs, logger, 555);
   REQUIRE(sdk_storage.Initialize("app", "main"));

@@ -66,7 +66,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/validation.cpp
 )
 
-# impl/storage
+# impl/storage, with IFilesystem implementation determined per-platform
 target_sources(dd_native PRIVATE
     datadog/impl/storage/artifact.cpp
     datadog/impl/storage/feature_event.cpp
@@ -159,17 +159,6 @@ else()
     set(DD_CLOCK_SRC "" CACHE STRING "Path to custom implementation of platform/clock.hpp")
     if(DD_CLOCK_SRC)
         target_sources(dd_native PRIVATE ${DD_CLOCK_SRC})
-    endif()
-endif()
-
-# Platform-specific support for file I/O
-option(DD_FILESYSTEM_USE_DEFAULT "Use default filesystem implementation. If disabled, you must supply an implementation of platform/filesystem.hpp in a file specified as DD_FILESYSTEM_SRC" ON)
-if(DD_FILESYSTEM_USE_DEFAULT)
-    target_sources(dd_native PRIVATE datadog/impl/platform/filesystem_std.cpp)
-else()
-    set(DD_FILESYSTEM_SRC "" CACHE STRING "Path to custom implementation of platform/filesystem.hpp")
-    if(DD_FILESYSTEM_SRC)
-        target_sources(dd_native PRIVATE ${DD_FILESYSTEM_SRC})
     endif()
 endif()
 
