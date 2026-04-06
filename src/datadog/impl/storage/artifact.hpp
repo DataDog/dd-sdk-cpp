@@ -41,7 +41,7 @@ class ArtifactStorage {
    * Returns the full path to the artifact directory. May only be called after
    * Initialize() has completed successfully.
    */
-  std::string_view GetPath() const;
+  const StoragePath& GetPath() const { return _root; }
 
  private:
   IFilesystem& _fs;

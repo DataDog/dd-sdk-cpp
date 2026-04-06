@@ -56,7 +56,7 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
     auto artifacts = storage.InitializeArtifactStorage(".things");
 
     // Then the call succeeds and returns a valid ArtifactStorage value
-    REQUIRE(artifacts.has_value());
+    REQUIRE(artifacts != nullptr);
 
     // And we now have a subdirectory in which to store things
     REQUIRE(fs.IsDirectory("app/.datadog/.things"));
@@ -79,7 +79,7 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
     auto events = storage.InitializeFeatureEventStorage("foo");
 
     // Then the call succeeds and returns a valid FeatureEventStorage value
-    REQUIRE(events.has_value());
+    REQUIRE(events != nullptr);
 
     // And we now have a feature-level storage directory, with subdirectories for both
     // consent-pending and consent-granted events
@@ -115,8 +115,8 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
     auto events = storage.InitializeFeatureEventStorage("foo");
 
     // Then they work fine too
-    REQUIRE(artifacts.has_value());
-    REQUIRE(events.has_value());
+    REQUIRE(artifacts != nullptr);
+    REQUIRE(events != nullptr);
 
     // And all our directories still exist
     REQUIRE(fs.IsDirectory("app/.datadog/.things"));
@@ -209,14 +209,14 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
         // storage with the given name if desired
         if (ok && !tt.artifact_dir_name.empty()) {
           auto artifacts = storage.InitializeArtifactStorage(tt.artifact_dir_name);
-          ok = artifacts.has_value();
+          ok = artifacts != nullptr;
         }
 
         // And, if we still haven't failed, we initialize event storage for a feature
         // with the given name if desired
         if (ok && !tt.feature_name.empty()) {
           auto events = storage.InitializeFeatureEventStorage(tt.feature_name);
-          ok = events.has_value();
+          ok = events != nullptr;
         }
 
         // Then we get the result asserted by this test case
@@ -316,13 +316,13 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
         // And optionally initialize artifact storage
         if (ok && !tt.artifact_dir_name.empty()) {
           auto artifacts = storage.InitializeArtifactStorage(tt.artifact_dir_name);
-          ok = artifacts.has_value();
+          ok = artifacts != nullptr;
         }
 
         // And optionally initialize feature event storage
         if (ok && !tt.feature_name.empty()) {
           auto events = storage.InitializeFeatureEventStorage(tt.feature_name);
-          ok = events.has_value();
+          ok = events != nullptr;
         }
 
         // Then storage initialization fails

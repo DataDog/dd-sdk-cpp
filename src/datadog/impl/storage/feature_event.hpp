@@ -63,7 +63,7 @@ class FeatureEventStorage {
    *
    * May only be called after Initialize() has completed successfully.
    */
-  std::string_view GetPendingPath() const;
+  const StoragePath& GetPendingPath() const { return _pending_root; }
 
   /**
    * Returns the path to the directory where batches of event data are stored for this
@@ -72,7 +72,7 @@ class FeatureEventStorage {
    *
    * May only be called after Initialize() has completed successfully.
    */
-  std::string_view GetGrantedPath() const;
+  const StoragePath& GetGrantedPath() const { return _granted_root; }
 
  private:
   IFilesystem& _fs;

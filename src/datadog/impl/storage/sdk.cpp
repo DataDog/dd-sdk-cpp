@@ -172,7 +172,7 @@ bool SdkStorage::Initialize(
   return true;
 }
 
-std::optional<ArtifactStorage> SdkStorage::InitializeArtifactStorage(
+std::unique_ptr<ArtifactStorage> SdkStorage::InitializeArtifactStorage(
     std::string_view directory_name
 ) {
   // Initialize() must succeed before it's legal to call this function
@@ -182,15 +182,14 @@ std::optional<ArtifactStorage> SdkStorage::InitializeArtifactStorage(
   );
 
   // Defer to ArtifactStorage::Initialize()
-  std::optional<ArtifactStorage> artifacts;
-  artifacts.emplace(_fs, _logger);
+  auto artifacts = std::make_unique<ArtifactStorage>(_fs, _logger);
   if (!artifacts->Initialize(_datadog_root.Get(), directory_name)) {
-    return std::nullopt;
+    return nullptr;
   }
   return artifacts;
 }
 
-std::optional<FeatureEventStorage> SdkStorage::InitializeFeatureEventStorage(
+std::unique_ptr<FeatureEventStorage> SdkStorage::InitializeFeatureEventStorage(
     std::string_view feature_name
 ) {
   // Initialize() must succeed before it's legal to call this function
@@ -200,10 +199,9 @@ std::optional<FeatureEventStorage> SdkStorage::InitializeFeatureEventStorage(
   );
 
   // Defer to FeatureEventStorage::Initialize()
-  std::optional<FeatureEventStorage> feature_events;
-  feature_events.emplace(_fs, _logger);
+  auto feature_events = std::make_unique<FeatureEventStorage>(_fs, _logger);
   if (!feature_events->Initialize(_process_root.Get(), feature_name)) {
-    return std::nullopt;
+    return nullptr;
   }
   return feature_events;
 }
