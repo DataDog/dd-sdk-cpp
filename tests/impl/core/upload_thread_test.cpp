@@ -7,7 +7,6 @@
 #include "datadog/impl/core/upload_thread.hpp"
 
 #include <atomic>
-#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cinttypes>
 #include <memory>
@@ -16,57 +15,86 @@
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/http_client.hpp"
 #include "mock/tlv.hpp"
+#include "support/catch.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
 
 TEST_CASE("UploadThreadState", "[unit]") {
-  // Test all valid upload frequency values
-  std::array<UploadFrequency, 3> frequencies{
+  // Given any of our three valid UploadFrequency values
+  auto frequency = GENERATE(
       UploadFrequency::Frequent, UploadFrequency::Average, UploadFrequency::Rare
-  };
-  for (const UploadFrequency frequency : frequencies) {
-    // When we create UploadThreadState with the configured frequency
-    UploadThreadState state(frequency);
+  );
 
-    // Then the delay values should be set
-    REQUIRE(state.min_delay > Duration{0});
-    REQUIRE(state.current_delay > Duration{0});
-    REQUIRE(state.max_delay > Duration{0});
+  // When we create UploadThreadState with the configured frequency
+  UploadThreadState state(frequency);
 
-    // And max should be not be less than min
-    REQUIRE(state.max_delay >= state.min_delay);
+  // Then the delay values should be set
+  REQUIRE(state.min_delay > Duration{0});
+  REQUIRE(state.current_delay > Duration{0});
+  REQUIRE(state.max_delay > Duration{0});
 
-    // And initial delay should be somewhere in the middle
-    const Duration initial_delay = state.current_delay;
-    REQUIRE(initial_delay > state.min_delay);
-    REQUIRE(initial_delay < state.max_delay);
+  // And max should be not be less than min
+  REQUIRE(state.max_delay >= state.min_delay);
 
-    // And incrementing the delay should increase it toward max
-    const Duration increased_delay = state.IncreaseDelayTowardMax();
-    REQUIRE(increased_delay == state.current_delay);
-    REQUIRE(increased_delay > initial_delay);
-    REQUIRE(increased_delay < state.max_delay);
+  // And initial delay should be somewhere in the middle
+  const Duration initial_delay = state.current_delay;
+  REQUIRE(initial_delay > state.min_delay);
+  REQUIRE(initial_delay < state.max_delay);
 
-    // And resetting the delay should instantly jump it to min
-    const Duration reset_delay = state.ResetDelayToMin();
-    REQUIRE(reset_delay == state.min_delay);
+  // And incrementing the delay should increase it toward max
+  const Duration increased_delay = state.IncreaseDelayTowardMax();
+  REQUIRE(increased_delay == state.current_delay);
+  REQUIRE(increased_delay > initial_delay);
+  REQUIRE(increased_delay < state.max_delay);
 
-    // And incrementing it many times should eventually clamp it to the max
-    for (int i = 0; i < 500; i++) {
-      state.IncreaseDelayTowardMax();
-    }
-    REQUIRE(state.current_delay == state.max_delay);
+  // And resetting the delay should instantly jump it to min
+  const Duration reset_delay = state.ResetDelayToMin();
+  REQUIRE(reset_delay == state.min_delay);
+
+  // And incrementing it many times should eventually clamp it to the max
+  for (int i = 0; i < 500; i++) {
+    state.IncreaseDelayTowardMax();
   }
+  REQUIRE(state.current_delay == state.max_delay);
 }
 
 TEST_CASE("HandleUploadProc", "[unit]") {
+  // Given a predictable, controllable system clock
+  MockClock clock;
+
+  // And a diagnostic logger that will capture all messages emitted
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+
+  // And a mock filesystem that will store SDK data at app/.datadog/
+  MockFilesystemNew fs;
+  fs.Mkdirs("app");
+
+  // And a root storage directory for our SDK instance
+  SdkStorage storage(fs, logger, 12345);
+  REQUIRE(storage.Initialize("app", "main"));
+
+  // And a mock feature implementation that we can inspect to see what upload-thread
+  // requests were initiated
+  auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
+
+  // And a FeatureEventStorage interface for that feature
+  auto alpha_events = storage.InitializeFeatureEventStorage("alpha");
+  REQUIRE(alpha_events != nullptr);
+  const std::string alpha_granted_dir = "app/.datadog/main/12345/alpha/v1";
+  const std::string alpha_granted_prefix = alpha_granted_dir + "/";
+
+  // And a function that will initialize a set of common config objects based on our
+  // desired SDK configuration parameters
   auto init_config = [](BatchSize batch_size,
                         UploadFrequency upload_frequency,
                         BatchProcessingLevel batch_processing_level)
@@ -86,51 +114,42 @@ TEST_CASE("HandleUploadProc", "[unit]") {
             );
           };
 
-  auto register_feature = [](UploadFrequency upload_frequency,
-                             MockStorageDirectory& mock_storage,
-                             const std::shared_ptr<Feature>& feature,
-                             std::vector<RegisteredFeature>& out_features) -> void {
-    // Prepare a storage directory with a subdirectory for granted events, which is
-    // the only directory the upload thread knows about
-    auto directory = mock_storage.PrepareSubdirectory(feature->GetName());
-    REQUIRE(directory.has_value());
-    auto granted_subdir = (*directory)->PrepareSubdirectory("yes-upload");
-    REQUIRE(granted_subdir.has_value());
-
-    // "Register" the feature
-    out_features.emplace_back(
-        feature->GetId(),
-        feature->GetName(),
-        feature,
-        std::move(*directory),
+  // And a function that will initialize a vector containing a single RegisteredFeature
+  // entry that contains appropriate UploadThreadState for our mock 'alpha' feature
+  auto register_feature =
+      [&](UploadFrequency upload_frequency) -> std::vector<RegisteredFeature> {
+    std::vector<RegisteredFeature> features;
+    features.emplace_back(
+        alpha->GetId(),
+        alpha->GetName(),
+        std::move(alpha_events),
+        alpha,
         nullptr,  // batch_writer is exclusive to storage thread
-        std::move(*granted_subdir),
         std::make_unique<UploadThreadState>(upload_frequency)
     );
+    return features;
   };
 
   SECTION("M take no action W no batch files are present") {
     // Given a single registered feature with no event data present
     MockClock clock;
     MockHttpClient client;
-    MockStorageDirectory storage;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -143,7 +162,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(client.requests.empty());
 
     // And our storage directory remains as empty as it ever was
-    REQUIRE(storage.FindFiles("alpha/yes-upload").empty());
+    REQUIRE(fs.Ls(alpha_granted_dir).empty());
 
     // And our next cycle for the feature is scheduled with the default delay
     REQUIRE(delay_until_next_cycle == std::chrono::seconds(50));
@@ -154,17 +173,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockStorageDirectory storage;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // And a batch of event data that was written a minute ago
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999940000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999940000",
         MockTLVFile().AppendEvent("event-0").AppendEvent("event-1").ToString()
     );
 
@@ -172,12 +188,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -213,7 +230,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(request.aborted == false);
 
     // And our storage directory is now empty, because the batch was deleted
-    REQUIRE(storage.FindFiles("alpha/yes-upload").empty());
+    REQUIRE(fs.Ls(alpha_granted_dir).empty());
 
     // And our next cycle for the feature is scheduled with the minimum delay,
     // because we successfully uploaded a batch
@@ -225,22 +242,22 @@ TEST_CASE("HandleUploadProc", "[unit]") {
       " {respecting min file age for read}"
   ) {
     // Given a directory with a series of batch files of different ages
-    auto init_files = [](MockStorageDirectory& storage) {
+    auto init_files = [&]() {
       // Test begins at 1700000000000ms
-      storage.WithExistingFile(
-          "alpha/yes-upload/1699999955000",
+      fs.Touch(
+          alpha_granted_prefix + "1699999955000",
           MockTLVFile().AppendEvent("created-45s-ago").ToString()
       );
-      storage.WithExistingFile(
-          "alpha/yes-upload/1699999985000",
+      fs.Touch(
+          alpha_granted_prefix + "1699999985000",
           MockTLVFile().AppendEvent("created-15s-ago").ToString()
       );
-      storage.WithExistingFile(
-          "alpha/yes-upload/1699999995000",
+      fs.Touch(
+          alpha_granted_prefix + "1699999995000",
           MockTLVFile().AppendEvent("created-5s-ago").ToString()
       );
-      storage.WithExistingFile(
-          "alpha/yes-upload/1699999999000",
+      fs.Touch(
+          alpha_granted_prefix + "1699999999000",
           MockTLVFile().AppendEvent("created-1s-ago").ToString()
       );
     };
@@ -257,19 +274,17 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         {"{BatchSize::Small ~ 3s}",
          BatchSize::Small,
          {"created-45s-ago", "created-15s-ago", "created-5s-ago"},
-         {"alpha/yes-upload/1699999999000"}},
+         {"1699999999000"}},
 
         {"{BatchSize::Medium ~ 10s}",
          BatchSize::Medium,
          {"created-45s-ago", "created-15s-ago"},
-         {"alpha/yes-upload/1699999995000", "alpha/yes-upload/1699999999000"}},
+         {"1699999995000", "1699999999000"}},
 
         {"{BatchSize::Large ~ 35s}",
          BatchSize::Large,
          {"created-45s-ago"},
-         {"alpha/yes-upload/1699999985000",
-          "alpha/yes-upload/1699999995000",
-          "alpha/yes-upload/1699999999000"}},
+         {"1699999985000", "1699999995000", "1699999999000"}},
     };
 
     for (const auto& tt : tests) {
@@ -278,27 +293,25 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         MockClock clock;
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        MockStorageDirectory storage;
         const auto [core_config, config, context] = init_config(
             tt.batch_size, UploadFrequency::Average, BatchProcessingLevel::Medium
         );
-        auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-        std::vector<RegisteredFeature> features;
-        register_feature(UploadFrequency::Average, storage, alpha, features);
+        auto features = register_feature(UploadFrequency::Average);
 
         // And our set of four batch files
-        init_files(storage);
+        init_files();
 
         // When we process uploads for that feature
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
-            DiagnosticLogger{},
+            logger,
             config,
             *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
+            fs,
             client,
             filenames,
             read_buffer
@@ -314,9 +327,9 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         }
 
         // And only the files that were too new for upload remain on disk
-        auto relpaths = storage.FindFiles("alpha/yes-upload");
-        std::sort(relpaths.begin(), relpaths.end());
-        REQUIRE(relpaths == tt.want_remaining_batch_files);
+        auto names = fs.Ls(alpha_granted_dir);
+        std::sort(names.begin(), names.end());
+        REQUIRE(names == tt.want_remaining_batch_files);
 
         // And our delay is reduced to minimum due to successful cycle
         REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
@@ -333,26 +346,23 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
 
-    MockStorageDirectory storage;
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // And a set of three batch files: one older than 18 hours, one eligible for
     // upload, and one too new to upload
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699827200000",
+    fs.Touch(
+        alpha_granted_prefix + "1699827200000",
         MockTLVFile().AppendEvent("created-48h-ago").ToString()
     );
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999985000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999985000",
         MockTLVFile().AppendEvent("created-15s-ago").ToString()
     );
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999999000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999999000",
         MockTLVFile().AppendEvent("created-1s-ago").ToString()
     );
 
@@ -360,12 +370,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -378,9 +389,9 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
     // And only the file that was too new for upload remains on disk: both the
     // too-old-to-upload batch and the successfully-uploaded batch are deleted
-    auto relpaths = storage.FindFiles("alpha/yes-upload");
-    REQUIRE(relpaths.size() == 1);
-    REQUIRE(relpaths[0] == "alpha/yes-upload/1699999999000");
+    auto names = fs.Ls(alpha_granted_dir);
+    REQUIRE(names.size() == 1);
+    REQUIRE(names[0] == "1699999999000");
 
     // And our delay is reduced to minimum due to successful cycle
     REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
@@ -408,28 +419,26 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         MockClock clock;
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        MockStorageDirectory storage;
-        storage.WithExistingFile(
-            "alpha/yes-upload/1699999955000",
+        fs.Touch(
+            alpha_granted_prefix + "1699999955000",
             MockTLVFile().AppendEvent("event").ToString()
         );
         const auto [core_config, config, context] = init_config(
             BatchSize::Medium, tt.upload_frequency, BatchProcessingLevel::Medium
         );
-        auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-        std::vector<RegisteredFeature> features;
-        register_feature(tt.upload_frequency, storage, alpha, features);
+        auto features = register_feature(tt.upload_frequency);
 
         // When we process uploads for that feature
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
-            DiagnosticLogger{},
+            logger,
             config,
             *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
+            fs,
             client,
             filenames,
             read_buffer
@@ -438,7 +447,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         // Then our single batch is processed and uploaded
         REQUIRE(alpha->reports.size() == 1);
         REQUIRE(client.requests.size() == 1);
-        REQUIRE(storage.FindFiles("alpha/yes-upload").empty());
+        REQUIRE(fs.Ls(alpha_granted_dir).empty());
 
         // And our delay is reduced to the appropriate minimum interval for our
         // given batch size
@@ -472,17 +481,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         MockClock clock;
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        MockStorageDirectory storage;
-        storage.WithExistingFile(
-            "alpha/yes-upload/1699999955000",
+        fs.Touch(
+            alpha_granted_prefix + "1699999955000",
             MockTLVFile().AppendEvent("event").ToString()
         );
         const auto [core_config, config, context] = init_config(
             BatchSize::Medium, tt.upload_frequency, BatchProcessingLevel::Medium
         );
-        auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-        std::vector<RegisteredFeature> features;
-        register_feature(tt.upload_frequency, storage, alpha, features);
+        auto features = register_feature(tt.upload_frequency);
 
         // And an HTTP client that is unable to complete requests
         client.SimulateTransientNetworkError();
@@ -491,12 +497,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
-            DiagnosticLogger{},
+            logger,
             config,
             *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
+            fs,
             client,
             filenames,
             read_buffer
@@ -506,7 +513,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         // so remains on disk
         REQUIRE(alpha->reports.size() == 1);
         REQUIRE(client.requests.size() == 1);
-        REQUIRE(storage.FindFiles("alpha/yes-upload").size() == 1);
+        REQUIRE(fs.Ls(alpha_granted_dir).size() == 1);
 
         // And our delay is reduced to the appropriate minimum interval for our
         // given batch size
@@ -524,13 +531,12 @@ TEST_CASE("HandleUploadProc", "[unit]") {
   ) {
     // Given a directory with 101 batch files, all of which were created long enough
     // ago to be eligible for upload
-    auto init_files = [](MockStorageDirectory& storage) {
+    auto init_files = [&]() {
       // Test begins at 1700000000000ms
       const std::string contents = MockTLVFile().AppendEvent("event").ToString();
       for (int i = 0; i < 101; i++) {
         const std::string filename = std::to_string(1699999955000 + i);
-        const std::string relpath = "alpha/yes-upload/" + filename;
-        storage.WithExistingFile(relpath, contents);
+        fs.Touch(alpha_granted_prefix + filename, contents);
       }
     };
 
@@ -552,27 +558,25 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         MockClock clock;
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        MockStorageDirectory storage;
         const auto [core_config, config, context] = init_config(
             BatchSize::Medium, UploadFrequency::Average, tt.batch_processing_level
         );
-        auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-        std::vector<RegisteredFeature> features;
-        register_feature(UploadFrequency::Average, storage, alpha, features);
+        auto features = register_feature(UploadFrequency::Average);
 
         // And our set of 101 batch files
-        init_files(storage);
+        init_files();
 
         // When we process uploads for that feature
         std::vector<std::string> filenames;
         std::vector<char> read_buffer;
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
-            DiagnosticLogger{},
+            logger,
             config,
             *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
+            fs,
             client,
             filenames,
             read_buffer
@@ -586,14 +590,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
         // And only the files that did not make the cutoff remain on disk, with
         // older batches deleted and newer batches remaining
-        std::vector<std::string> want_relpaths;
+        std::vector<std::string> want_names;
         for (size_t i = tt.want_num_processed; i < 101; i++) {
           const std::string filename = std::to_string(1699999955000 + i);
-          want_relpaths.emplace_back("alpha/yes-upload/" + filename);
+          want_names.emplace_back(filename);
         }
-        auto relpaths = storage.FindFiles("alpha/yes-upload");
-        std::sort(relpaths.begin(), relpaths.end());
-        REQUIRE(relpaths == want_relpaths);
+        auto names = fs.Ls(alpha_granted_dir);
+        std::sort(names.begin(), names.end());
+        REQUIRE(names == want_names);
 
         // And our delay is reduced to minimum due to successful cycle
         REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
@@ -605,30 +609,29 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // Given a single registered feature with a single batch of event data
     MockClock clock;
     MockHttpClient client;
-    MockStorageDirectory storage;
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999955000", MockTLVFile().AppendEvent("event").ToString()
+    fs.Touch(
+        alpha_granted_prefix + "1699999955000",
+        MockTLVFile().AppendEvent("event").ToString()
     );
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // And a filesystem that will not permit the SDK to read directory contents
-    storage.SetFail("alpha/yes-upload", true);
+    fs.SimulateFailure(alpha_granted_dir, FilesystemResult::UnknownError);
 
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -639,9 +642,9 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(client.requests.empty());
 
     // And our event data remains on disk
-    auto relpaths = storage.FindFiles("alpha/yes-upload");
-    REQUIRE(relpaths.size() == 1);
-    REQUIRE(relpaths[0] == "alpha/yes-upload/1699999955000");
+    auto names = fs.Ls(alpha_granted_dir);
+    REQUIRE(names.size() == 1);
+    REQUIRE(names[0] == "1699999955000");
 
     // And our initial delay remains unmodified
     REQUIRE(delay_until_next_cycle == std::chrono::seconds(50));
@@ -652,39 +655,39 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockStorageDirectory storage;
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999955000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999955000",
         MockTLVFile().AppendEvent("event-0").ToString()
     );
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999956000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999956000",
         MockTLVFile().AppendEvent("event-1").ToString()
     );
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999957000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999957000",
         MockTLVFile().AppendEvent("event-2").ToString()
     );
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // And a filesystem that will prevent the second file from being read
-    storage.SetFail("alpha/yes-upload/1699999956000", true);
+    fs.SimulateFailure(
+        alpha_granted_prefix + "1699999956000", FilesystemResult::UnknownError
+    );
 
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -696,11 +699,11 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(client.requests[0].body == "event-0");
 
     // And our other two batches remain on disk
-    auto relpaths = storage.FindFiles("alpha/yes-upload");
-    std::sort(relpaths.begin(), relpaths.end());
-    REQUIRE(relpaths.size() == 2);
-    REQUIRE(relpaths[0] == "alpha/yes-upload/1699999956000");
-    REQUIRE(relpaths[1] == "alpha/yes-upload/1699999957000");
+    auto names = fs.Ls(alpha_granted_dir);
+    std::sort(names.begin(), names.end());
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "1699999956000");
+    REQUIRE(names[1] == "1699999957000");
 
     // And this feature's upload delay is increased due to failure
     REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
@@ -712,33 +715,31 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockStorageDirectory storage;
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999955000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999955000",
         MockTLVFile().AppendEvent("event-0").ToString()
     );
-    storage.WithExistingFile("alpha/yes-upload/1699999956000", "invalid-tlv-format");
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999957000",
+    fs.Touch(alpha_granted_prefix + "1699999956000", "invalid-tlv-format");
+    fs.Touch(
+        alpha_granted_prefix + "1699999957000",
         MockTLVFile().AppendEvent("event-2").ToString()
     );
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // When we process uploads for that feature
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -752,7 +753,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
     // And no batches remain on disk, as both the successfully-uploaded batches and
     // the malformed batch were deleted
-    REQUIRE(storage.FindFiles("alpha/yes-upload").empty());
+    REQUIRE(fs.Ls(alpha_granted_dir).empty());
 
     // And this feature's upload delay is reduced because the cycle finished with a
     // successful upload
@@ -764,17 +765,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockStorageDirectory storage;
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999955000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999955000",
         MockTLVFile().AppendEvent("event-0").ToString()
     );
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // And an HTTP client that will fail to complete requests
     client.SimulateTransientNetworkError();
@@ -783,12 +781,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -800,9 +799,9 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(client.requests[0].body == "event-0");
 
     // But the file remains on disk, as upload was not successful
-    auto relpaths = storage.FindFiles("alpha/yes-upload");
-    REQUIRE(relpaths.size() == 1);
-    REQUIRE(relpaths[0] == "alpha/yes-upload/1699999955000");
+    auto names = fs.Ls(alpha_granted_dir);
+    REQUIRE(names.size() == 1);
+    REQUIRE(names[0] == "1699999955000");
 
     // And this feature's upload delay is increased due to failure
     REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
@@ -813,17 +812,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockStorageDirectory storage;
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999955000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999955000",
         MockTLVFile().AppendEvent("event-0").ToString()
     );
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // And an HTTP client that will get a 502 response
     client.SimulateResponse(502);
@@ -832,12 +828,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -849,9 +846,9 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(client.requests[0].body == "event-0");
 
     // But the file remains on disk, as upload was not successful
-    auto relpaths = storage.FindFiles("alpha/yes-upload");
-    REQUIRE(relpaths.size() == 1);
-    REQUIRE(relpaths[0] == "alpha/yes-upload/1699999955000");
+    auto names = fs.Ls(alpha_granted_dir);
+    REQUIRE(names.size() == 1);
+    REQUIRE(names[0] == "1699999955000");
 
     // And this feature's upload delay is increased due to failure
     REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
@@ -863,21 +860,18 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     MockClock clock;
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    MockStorageDirectory storage;
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999955000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999955000",
         MockTLVFile().AppendEvent("event-0").ToString()
     );
-    storage.WithExistingFile(
-        "alpha/yes-upload/1699999956000",
+    fs.Touch(
+        alpha_granted_prefix + "1699999956000",
         MockTLVFile().AppendEvent("event-1").ToString()
     );
     const auto [core_config, config, context] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
-    auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
-    std::vector<RegisteredFeature> features;
-    register_feature(UploadFrequency::Average, storage, alpha, features);
+    auto features = register_feature(UploadFrequency::Average);
 
     // And an HTTP client that will get a 400 response
     client.SimulateResponse(400);
@@ -886,12 +880,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     std::vector<std::string> filenames;
     std::vector<char> read_buffer;
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        DiagnosticLogger{},
+        logger,
         config,
         *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
+        fs,
         client,
         filenames,
         read_buffer
@@ -904,7 +899,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(client.requests[1].body == "event-1");
 
     // And both batches are deleted, as they were rejected by the server
-    REQUIRE(storage.FindFiles("alpha/yes-upload").empty());
+    REQUIRE(fs.Ls(alpha_granted_dir).empty());
 
     // And this feature's upload delay is increased due to failure
     REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));

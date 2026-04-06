@@ -359,6 +359,7 @@ bool Core::Start() {
       std::ref(*_subsystems.clock),
       std::ref(*_upload_scheduler),
       std::ref(_features),
+      std::ref(*_subsystems.fs),
       std::ref(*_http_client)
   );
 
@@ -514,6 +515,7 @@ void Core::Stop() {
           *_subsystems.clock,
           feature.id,
           _features,
+          *_subsystems.fs,
           *_http_client,
           mut_filenames,
           mut_read_buffer
