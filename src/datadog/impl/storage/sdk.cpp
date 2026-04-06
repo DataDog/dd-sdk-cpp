@@ -15,7 +15,7 @@
 
 namespace datadog::impl {
 
-SdkStorage::SdkStorage(IFilesystem& in_fs, DiagnosticLogger& in_logger, uint32_t in_pid)
+SdkStorage::SdkStorage(IFilesystem& in_fs, DiagnosticLogger& in_logger, int64_t in_pid)
     : _fs(in_fs), _logger(in_logger), _pid(in_pid) {}
 
 bool SdkStorage::Initialize(
@@ -35,11 +35,21 @@ bool SdkStorage::Initialize(
     return false;
   }
 
+  // Ensure that we've been initialized with a valid process ID: on some systems,
+  // negative or zero values have special meaning, but getpid()/GetCurrentProcessId()
+  // should always return a positive, nonzero value
+  if (_pid <= 0) {
+    _logger.Error(
+        "Failed to initialize SDK storage: invalid process ID", {{"pid", _pid}}
+    );
+    return false;
+  }
+
   // Convert our PID to string for easy comparison and path-building
   auto res = std::to_chars(
       _pid_str_buffer.data(), _pid_str_buffer.data() + _pid_str_buffer.size() - 1, _pid
   );
-  DATADOG_ASSERT(res.ec == std::errc{}, "Failed to convert uint32_t PID to string");
+  DATADOG_ASSERT(res.ec == std::errc{}, "Failed to convert int64_t PID to string");
   *res.ptr = '\0';
   _pid_str = std::string_view{_pid_str_buffer.data()};
 
@@ -237,9 +247,7 @@ bool SdkStorage::TryInitializeProcessRootFromAbandonedProcessDirectory(
       _logger.Status(
           "Storage migration short-circuited: a process-level storage directory "
           "already exists with our PID as its name",
-          {{"parent_path", _instance_root.Get()},
-           {"name", subdir_name},
-           {"pid", static_cast<uint64_t>(_pid)}}
+          {{"parent_path", _instance_root.Get()}, {"name", subdir_name}, {"pid", _pid}}
       );
       return true;
     }

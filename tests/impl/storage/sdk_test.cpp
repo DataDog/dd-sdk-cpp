@@ -6,6 +6,7 @@
 
 #include "datadog/impl/storage/sdk.hpp"
 
+#include <cstdint>
 #include <cstring>
 
 #include "mock/filesystem_new.hpp"
@@ -44,6 +45,21 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
     // And no errors or warnings are reported
     REQUIRE(diagnostics.error.size() == 0);
     REQUIRE(diagnostics.warning.size() == 0);
+  }
+
+  SECTION("M fail initialization W PID is not positive") {
+    // Given a storage object constructed with an invalid (non-positive) PID value
+    const int64_t bad_pid = GENERATE(as<int64_t>{}, 0, -1, -999);
+    SdkStorage storage(fs, logger, bad_pid);
+
+    // When we attempt to initialize storage
+    const bool ok = storage.Initialize("app", "main");
+
+    // Then initialization fails
+    REQUIRE(!ok);
+
+    // And an error is reported
+    REQUIRE(diagnostics.error.size() > 0);
   }
 
   SECTION("M create artifact storage directory W InitializeArtifactStorage is called") {

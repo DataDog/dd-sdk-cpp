@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -95,7 +96,7 @@ class SdkStorage {
    * Creates a new SdkStorage instance which will use the given IFilesystem interface
    * for file operations.
    */
-  explicit SdkStorage(IFilesystem& in_fs, DiagnosticLogger& in_logger, uint32_t in_pid);
+  explicit SdkStorage(IFilesystem& in_fs, DiagnosticLogger& in_logger, int64_t in_pid);
 
   /**
    * Given the path to application-specific storage directory and the name of the SDK
@@ -267,8 +268,8 @@ class SdkStorage {
   IFilesystem& _fs;  // Long-lived reference to filesystem interface
   DiagnosticLogger& _logger;
 
-  uint32_t _pid;                           // Current process's PID
-  std::array<char, 11> _pid_str_buffer{};  // Null-terminated string data for _pid
+  int64_t _pid;                            // Current process's PID
+  std::array<char, 21> _pid_str_buffer{};  // Null-terminated string data for _pid
   std::string_view _pid_str;               // _pid as a string, for use in paths
 
   StoragePath _datadog_root;   // <application-storage-path>/.datadog
