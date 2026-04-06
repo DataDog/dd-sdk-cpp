@@ -469,8 +469,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
 
     // Then no events are generated and no requests are sent, as any API calls
     // made before core start are simply no-ops
-    REQUIRE(test.storage.FindFiles("logging/v1").size() == 0);
-    REQUIRE(test.storage.GetNumFilesDeleted() == 0);
+    REQUIRE(test.fs.Ls("app/.datadog/main/12345/logging/intermediate-v1").size() == 0);
+    REQUIRE(test.fs.Ls("app/.datadog/main/12345/logging/v1").size() == 0);
     REQUIRE(test.client.requests.size() == 0);
 
     // Cleanup
@@ -495,8 +495,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
 
     // Then no events are generated and no requests are sent, as any API calls
     // made after core stop are simply no-ops
-    REQUIRE(test.storage.FindFiles("logging/v1").size() == 0);
-    REQUIRE(test.storage.GetNumFilesDeleted() == 0);
+    REQUIRE(test.fs.Ls("app/.datadog/main/12345/logging/intermediate-v1").size() == 0);
+    REQUIRE(test.fs.Ls("app/.datadog/main/12345/logging/v1").size() == 0);
     REQUIRE(test.client.requests.size() == 0);
 
     // Cleanup
