@@ -7,6 +7,7 @@
 #pragma once
 
 #include <initializer_list>
+#include <mutex>
 #include <string_view>
 #include <vector>
 
@@ -87,6 +88,7 @@ struct DiagnosticAsserts {
  * a fully-functional SDK instance.
  */
 struct DiagnosticMessageBuffer {
+  mutable std::mutex mutex;
   std::vector<std::string> debug;
   std::vector<std::string> status;
   std::vector<std::string> warning;
@@ -96,6 +98,7 @@ struct DiagnosticMessageBuffer {
    * Returns the total number of diagnostic messages contained in the buffer.
    */
   size_t TotalSize() const {
+    std::lock_guard lock(mutex);
     return debug.size() + status.size() + warning.size() + error.size();
   }
 
@@ -108,6 +111,7 @@ struct DiagnosticMessageBuffer {
     dd_core_config_set_diagnostic_handler(
         config, [](const dd_diagnostic_message_t* message, void* userdata) {
           auto buf_ptr = reinterpret_cast<DiagnosticMessageBuffer*>(userdata);
+          std::lock_guard lock(buf_ptr->mutex);
           switch (message->level) {
             case DD_DIAGNOSTIC_LEVEL_DEBUG:
               buf_ptr->debug.emplace_back(message->text);
@@ -134,6 +138,7 @@ struct DiagnosticMessageBuffer {
    */
   DiagnosticHandler CreateHandler() {
     return [this](const DiagnosticMessage& message) {
+      std::lock_guard lock(mutex);
       switch (message.level) {
         case DiagnosticLevel::Debug:
           debug.emplace_back(message.text);
