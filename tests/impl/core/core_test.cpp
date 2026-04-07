@@ -17,16 +17,19 @@
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
 #include "support/core.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
 
-static impl::Core _make_core() {
+static impl::Core _make_core(DiagnosticMessageBuffer& diagnostics) {
   auto fs = std::make_unique<MockFilesystem>();
   fs->Mkdirs("app");
   return impl::Core(
       CoreConfig("test-client-token", "initial-service", "initial-env")
           .SetEventStorageLocation("app")
+          .SetDiagnosticHandler(diagnostics.CreateHandler())
+          .SetDiagnosticThreshold(datadog::DiagnosticLevel::Debug)
           .SetInitialTrackingConsent(TrackingConsent::Granted)
           .SetApplicationVersion("1.0.0")
           .SetBatchSize(BatchSize::Small)
@@ -54,9 +57,12 @@ class NameConflictFeature : public MockFeature {
 };
 
 TEST_CASE("Core Lifecycle", "[unit]") {
+  // Given a buffer where we'll accumulate all diagnostic messages emitted
+  DiagnosticMessageBuffer diagnostics;
+
   SECTION("M create Core in Uninitialized state W constructor called") {
     // When Core is constructed
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
 
     // Then the core should be in Uninitialized state
     // Note: We can't directly access _state, but we can infer state from behavior
@@ -66,7 +72,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M transition to Initialized state W Init called on Uninitialized core") {
     // Given an uninitialized core
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
 
     // When Init() is called
     bool result = core.Init();
@@ -81,7 +87,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M register feature successfully W core is Initialized") {
     // Given an initialized core
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     // When a feature is registered
@@ -94,7 +100,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M reject feature registration W core is Uninitialized") {
     // Given an uninitialized core
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
 
     // When a feature is registered
     auto feature = std::make_shared<TestFeature>();
@@ -106,7 +112,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M reject feature registration W same feature ID registered twice") {
     // Given an initialized core with one feature
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     auto feature1 = std::make_shared<TestFeature>();
@@ -122,7 +128,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M reject feature registration W same feature name registered twice") {
     // Given an initialized core with one feature
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     auto feature1 = std::make_shared<TestFeature>();
@@ -138,7 +144,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M start successfully W core is Initialized with registered features") {
     // Given an initialized core with a registered feature
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     auto feature = std::make_shared<TestFeature>();
@@ -160,7 +166,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M fail to start W core is Uninitialized") {
     // Given an uninitialized core
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
 
     // When Start() is called
     bool result = core.Start();
@@ -171,7 +177,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M fail to start W no features registered") {
     // Given an initialized core with no features
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     // When Start() is called
@@ -183,7 +189,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M return to Initialized state W Stop called on Started core") {
     // Given a started core
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     auto feature = std::make_shared<TestFeature>();
@@ -200,7 +206,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M handle multiple Stop calls safely W Stop called repeatedly") {
     // Given a stopped core
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     auto feature = std::make_shared<TestFeature>();
@@ -217,7 +223,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M handle Stop safely W called before Start") {
     // Given an initialized core that was never started
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     // When Stop() is called
@@ -228,7 +234,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M accept tracking consent changes W called in any state") {
     // Given a core in various states
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
 
     // When SetTrackingConsent is called before Init
     core.SetTrackingConsent(TrackingConsent::NotGranted);
@@ -254,7 +260,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
   SECTION("M call Stop automatically W destructor invoked") {
     // Given a started core in a scope
     {
-      impl::Core core = _make_core();
+      impl::Core core = _make_core(diagnostics);
       REQUIRE(core.Init());
 
       auto feature = std::make_shared<TestFeature>();
@@ -271,7 +277,7 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
   SECTION("M notify registered features W starting and stopping") {
     // Given a core with a registered feature
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
     auto feature = std::make_shared<TestFeature>();
     REQUIRE(core.RegisterFeature(feature));
@@ -326,11 +332,13 @@ class MessageHandlerFeature : public MockFeature {
 };
 
 TEST_CASE("Core Messaging", "[unit]") {
+  DiagnosticMessageBuffer diagnostics;
+
   SECTION(
       "M deliver messages to handler after restart W core is stopped and "
       "started again"
   ) {
-    impl::Core core = _make_core();
+    impl::Core core = _make_core(diagnostics);
     REQUIRE(core.Init());
 
     auto feature = std::make_shared<MessageHandlerFeature>();

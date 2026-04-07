@@ -24,6 +24,7 @@ TEST_CASE("Core null safety", "[unit][core][cpp-api]") {
   SECTION("M safely do nothing W this wraps nullptr") {
     // Given a CoreConfig that lacks required parameters
     CoreConfig config("", "", "");
+    config.SetDiagnosticHandler(nullptr);
 
     // When we create a Core from that config
     auto core = Core::Create(config);
