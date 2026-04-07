@@ -73,9 +73,8 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
 TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
   SECTION("M accept config W dd_rum_config_init was called") {
     // Given a valid core
-    dd_core_config_t core_config;
-    dd_core_config_init(&core_config, "my-client-token", "my-service", "my-env");
-    dd_core_t* core = dd_core_create(&core_config);
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
 
     // And a config struct that's been initialized with the bare-minimum set of values
     dd_rum_config config;
@@ -94,9 +93,8 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
 
   SECTION("M accept config W version is 1") {
     // Given a valid core
-    dd_core_config_t core_config;
-    dd_core_config_init(&core_config, "my-client-token", "my-service", "my-env");
-    dd_core_t* core = dd_core_create(&core_config);
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
 
     // And a config struct that's been initialized with the bare-minimum set of values
     dd_rum_config config;
@@ -119,9 +117,8 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
 
   SECTION("M reject config W version not set") {
     // Given a valid core
-    dd_core_config_t core_config;
-    dd_core_config_init(&core_config, "my-client-token", "my-service", "my-env");
-    dd_core_t* core = dd_core_create(&core_config);
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
 
     // And a config struct that's just zero-filled
     dd_rum_config config;
@@ -142,9 +139,8 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
     const char* application_ids[2] = {"", nullptr};
     for (const char* application_id : application_ids) {
       // Given a valid core
-      dd_core_config_t core_config;
-      dd_core_config_init(&core_config, "my-client-token", "my-service", "my-env");
-      dd_core_t* core = dd_core_create(&core_config);
+      auto test = CoreTestHarness::Init();
+      dd_core_t* core = CoreTestHarness::WrapForC(test);
 
       // And a config struct that's initialized with our empty/zero application ID
       dd_rum_config config;
