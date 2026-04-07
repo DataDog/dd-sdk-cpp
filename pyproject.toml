@@ -6,12 +6,6 @@ name = "dd-sdk-cpp-tools"
 version = "0.1.0"
 requires-python = ">=3.12"
 
-# This is a trivial pyproject.toml used solely to manage dependencies; we don't release
-# any Python source from this repo
-[build-system]
-requires = ["setuptools"]
-build-backend = "setuptools.build_meta"
-
 # Some tools are simple scripts that just require a stock Python interpreter. Use -e to
 # install deps for specific tools (pip install -e '.[integration-test,repl-profile]'),
 # or install everything with: pip install -e '.[all]'
@@ -55,3 +49,14 @@ all = [
   "dd-sdk-cpp-tools[repl-profile]",
   "dd-sdk-cpp-tools[validate-event-types]"
 ]
+
+# This is a trivial pyproject.toml used solely to manage dependencies; we don't release
+# any Python source from this repo
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.build_meta"
+
+# Configure setuptools not to scan src/ for Python packages: src/ contains our C++
+# library implementation, not Python source
+[tool.setuptools]
+packages = []
