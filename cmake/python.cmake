@@ -8,10 +8,17 @@ if(DD_SYSTEM_PYTHON)
     return()
 endif()
 
+# Allow the DD_SYSTEM_PYTHON environment variable to override the PATH lookup
+if(DEFINED ENV{DD_SYSTEM_PYTHON})
+    set(DD_SYSTEM_PYTHON $ENV{DD_SYSTEM_PYTHON} CACHE FILEPATH "Path to system Python 3.12+ interpreter")
+endif()
+
 # find_package(Python3 ...) will preferentially resolve the system Python interpreter
 # before checking the PATH: on MacOS, this gives us an ancient version of pip that can't
 # install modern packages - so perform a manual PATH lookup first
-find_program(DD_SYSTEM_PYTHON python3)
+if(NOT DD_SYSTEM_PYTHON)
+    find_program(DD_SYSTEM_PYTHON python3)
+endif()
 
 # If that didn't work, fall back to find_package()
 if(NOT DD_SYSTEM_PYTHON)

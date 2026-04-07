@@ -29,11 +29,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   ninja-build
 
 # Install Python 3.12 (not available in stock Ubuntu repos as of 22.04), for scripts
-# declared in pyproject.toml, and install it as the system's default Python interpreter
+# declared in pyproject.toml
 RUN add-apt-repository ppa:deadsnakes/ppa \
   && apt update \
   && apt install --no-install-recommends -y python3.12 python3.12-venv \
-  && update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.12 1
+  && python3.12 -m ensurepip
+
+# We still need the stock Python 3.10 to remain installed as the system-wide default
+# (for add-apt-repository etc.), so use an env var to override Python interpreter
+# resolution in our CMake build
+ENV DD_SYSTEM_PYTHON=/usr/bin/python3.12
 
 # Use Ninja by default for CMake builds on Linux: it's ~6x faster than Make
 ENV CMAKE_GENERATOR=Ninja
