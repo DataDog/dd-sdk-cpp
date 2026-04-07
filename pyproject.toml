@@ -1,0 +1,51 @@
+# Dependencies for all of the Python scripts within tools/. These tools are not strictly
+# required to build the SDK from source as a library consumer: rather, they're ancillary
+# tools used in a full development environment.
+[project]
+name = "dd-sdk-cpp-tools"
+version = "0.1.0"
+requires-python = ">=3.12"
+
+# Some tools are simple scripts that just require a stock Python interpreter. Use -e to
+# install deps for specific tools (pip install -e '.[integration-test,repl-profile]'),
+# or install everything with: pip install -e '.[all]'
+dependencies = []
+
+# Begin tool-specific dependencies
+[project.optional-dependencies]
+
+# tools/bootstrap-crashpad: simple script used to pull crashpad into the build when
+# configured with DD_CRASH_MODE=crashpad; no dependencies
+bootstrap-crashpad = []
+
+# tools/generate-windows-timezone-mapping: offline tool used to generate C++ header
+# defining a static mapping of Win32 timezone names to IANA names; no dependencies
+generate-windows-timezone-mapping = []
+
+# tools/integration-test: runner for repl-based integration tests; requires mitmproxy to
+# intercept HTTP requests
+integration-test = ["mitmproxy"]
+
+# tools/process-crash-report: offline tool used to parse binary crash dumps written by
+# the SDK when built with DD_CRASH_MODE=inprocess
+process-crash-report = []
+
+# tools/repl-profile: runner for repl-based profiling benchmarks; requires
+# datadog-api-client to submit metrics to the relevant internal Datadog org, requires
+# additional deps for visualization tool used to interactively examine results
+repl-profile = ["datadog-api-client", "streamlit", "pandas", "plotly"]
+
+# tools/validate-event-types: parses JSON literals from tests/ and ensures that they
+# conform to the rum-events-format schema; requires jsonschema and referencing for
+# validation; gitpython to clone rum-events-format repo
+validate-event-types = ["jsonschema", "referencing", "gitpython"]
+
+# Dummy target to install dependencies for all tools
+all = [
+  "dd-sdk-cpp-tools[bootstrap-crashpad]",
+  "dd-sdk-cpp-tools[generate-windows-timezone-mapping]",
+  "dd-sdk-cpp-tools[integration-test]",
+  "dd-sdk-cpp-tools[process-crash-report]",
+  "dd-sdk-cpp-tools[repl-profile]",
+  "dd-sdk-cpp-tools[validate-event-types]"
+]
