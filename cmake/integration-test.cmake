@@ -27,13 +27,12 @@ add_custom_command(
 )
 
 # Define a integration-test-venv target that requires a .venv and ensures it has the
-# latest dependencies installed as specified in requirements.txt
+# latest dependencies installed as specified in pyproject.toml
 add_custom_target(integration-test-venv
     DEPENDS ${INTEGRATION_TEST_VENV_PYTHON}
-    COMMAND ${INTEGRATION_TEST_VENV_PYTHON} -m pip install -r ${DD_SDK_ROOT_DIR}/tools/integration-test/requirements.txt
+    COMMAND ${INTEGRATION_TEST_VENV_PYTHON} -m pip install -e "${DD_SDK_ROOT_DIR}[integration-test]"
     COMMENT "Installing Python dependencies for tools/integration-test"
 )
-
 
 # Define a integration-test target that requires a .venv with all dependencies, and
 # that uses the venv's Python interpreter to run tools/integration-test/main.py,

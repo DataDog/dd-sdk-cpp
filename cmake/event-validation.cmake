@@ -40,13 +40,12 @@ add_custom_command(
 )
 
 # Define a validate-event-types-venv target that requires a .venv and ensures it has the
-# latest dependencies installed as specified in requirements.txt
+# latest dependencies installed as specified in pyproject.toml
 add_custom_target(validate-event-types-venv
     DEPENDS ${EVENT_VALIDATION_VENV_PYTHON}
-    COMMAND ${EVENT_VALIDATION_VENV_PYTHON} -m pip install -r ${DD_SDK_ROOT_DIR}/tools/validate-event-types/requirements.txt
+    COMMAND ${EVENT_VALIDATION_VENV_PYTHON} -m pip install -e "${DD_SDK_ROOT_DIR}[validate-event-types]"
     COMMENT "Installing Python dependencies for tools/validate-event-types"
 )
-
 
 # Define a validate-event-types target that requires a .venv with all dependencies, and
 # that uses the venv's Python interpreter to run tools/validate-event-types/main.py,
