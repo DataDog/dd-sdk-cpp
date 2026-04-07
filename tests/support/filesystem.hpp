@@ -118,10 +118,12 @@ inline void PruneDotDatadogDir() {
   REQUIRE(num_entries_in_datadog_root == 1);
 
   // There should only be two items (<pid>/ and <pid>.lock) in the main/ directory
-  size_t num_entries_in_instance_root{0};
-  for (const auto& _ : std::filesystem::directory_iterator(datadog_root / "main")) {
-    num_entries_in_instance_root++;
-  }
+  const auto instance_root_iter =
+      std::filesystem::directory_iterator(datadog_root / "main");
+  const size_t num_entries_in_instance_root = std::distance(
+      std::filesystem::begin(instance_root_iter),
+      std::filesystem::end(instance_root_iter)
+  );
   REQUIRE(num_entries_in_instance_root == 2);
 
   // The SDK code under test should have created <pid>/ and <pid>.lock, within an
