@@ -16,13 +16,13 @@
 #include <string_view>
 #include <vector>
 
-#include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/core/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/storage/util.hpp"
 #include "datadog/impl/core/storage_queue.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/storage/filesystem_wrapper.hpp"
-#include "datadog/impl/storage/util.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 // Global version number applied to all event data stored persistently; may be bumped in
 // the event of breaking changes in order to abandon previously-written events on disk.

@@ -9,7 +9,7 @@
 #include <vector>
 
 #include "datadog/impl/core/storage_queue.hpp"
-#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog::impl {
 

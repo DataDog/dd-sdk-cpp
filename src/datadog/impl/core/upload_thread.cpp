@@ -15,13 +15,13 @@
 #include <string>
 #include <thread>
 
-#include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature_read.hpp"
+#include "datadog/impl/core/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/storage/util.hpp"
 #include "datadog/impl/core/upload_scheduler.hpp"
-#include "datadog/impl/storage/filesystem_wrapper.hpp"
-#include "datadog/impl/storage/util.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog::impl {
 

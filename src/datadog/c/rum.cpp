@@ -14,11 +14,11 @@
 
 #include "datadog/c/core_glue.hpp"
 #include "datadog/c/rum_glue.hpp"
-#include "datadog/impl/attribute/types.hpp"
+#include "datadog/impl/core/attribute/types.hpp"
 #include "datadog/impl/core/core.hpp"
-#include "datadog/impl/features/rum/rum.hpp"
-#include "datadog/impl/features/rum/types.hpp"
-#include "datadog/impl/validation.hpp"
+#include "datadog/impl/core/util/validation.hpp"
+#include "datadog/impl/rum/rum.hpp"
+#include "datadog/impl/rum/types.hpp"
 
 static const uint32_t RUM_CONFIG_VERSION = 1;
 

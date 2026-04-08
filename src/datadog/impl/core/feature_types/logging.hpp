@@ -9,11 +9,11 @@
 #include "datadog/attribute.hpp"
 #include "datadog/logging.hpp"
 
+#include "datadog/impl/core/events/enum.hpp"
+#include "datadog/impl/core/events/omissible.hpp"
+#include "datadog/impl/core/events/struct.hpp"
+#include "datadog/impl/core/events/timestamp.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/events/enum.hpp"
-#include "datadog/impl/events/omissible.hpp"
-#include "datadog/impl/events/struct.hpp"
-#include "datadog/impl/events/timestamp.hpp"
 
 namespace datadog::impl {
 

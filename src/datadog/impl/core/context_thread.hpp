@@ -10,7 +10,7 @@
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/queue.hpp"
-#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog::impl {
 

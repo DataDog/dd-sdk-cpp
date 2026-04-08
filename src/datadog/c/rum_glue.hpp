@@ -11,7 +11,7 @@
 #include "datadog/rum.h"
 
 #include "datadog/c/core_glue.hpp"
-#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog::impl {
 class Rum;

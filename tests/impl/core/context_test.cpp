@@ -11,8 +11,8 @@
 
 #include "datadog/uuid.hpp"
 
+#include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/version.hpp"
-#include "datadog/impl/platform/system_info.hpp"
 
 using namespace datadog::impl;
 using namespace datadog;

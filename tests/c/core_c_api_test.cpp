@@ -13,8 +13,8 @@
 #include "datadog/core.h"
 #include "datadog/logging.h"
 
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/core/platform/system_info.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 #include "support/catch.hpp"
 #include "support/core.hpp"

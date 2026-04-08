@@ -22,63 +22,64 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/cpp/rum.cpp
     datadog/cpp/uuid.cpp
     datadog/cpp/version.cpp
-    datadog/impl/attribute/cow.cpp
-    datadog/impl/attribute/merge.cpp
+    datadog/impl/core/
+    datadog/impl/core/attribute/cow.cpp
+    datadog/impl/core/attribute/merge.cpp
+    datadog/impl/core/json/primitives/bool.cpp
+    datadog/impl/core/json/primitives/float.cpp
+    datadog/impl/core/json/primitives/integer.cpp
+    datadog/impl/core/json/primitives/null.cpp
+    datadog/impl/core/json/primitives/string.cpp
+    datadog/impl/core/json/primitives/timestamp.cpp
+    datadog/impl/core/json/primitives/uuid.cpp
+    datadog/impl/core/json/attribute.cpp
+    datadog/impl/core/json/diagnostic_attribute.cpp
+    datadog/impl/core/util/diagnostics.cpp
+    datadog/impl/core/util/error_message.cpp
+    datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp
     datadog/impl/core/context.cpp
-    datadog/impl/core/message_bus.cpp
-    datadog/impl/core/messaging_thread.cpp
     datadog/impl/core/core.cpp
     datadog/impl/core/feature_read.cpp
     datadog/impl/core/feature_scope.cpp
     datadog/impl/core/feature.cpp
-    datadog/impl/core/storage_write.cpp
+    datadog/impl/core/message_bus.cpp
+    datadog/impl/core/messaging_thread.cpp
     datadog/impl/core/storage_queue.cpp
     datadog/impl/core/storage_thread.cpp
+    datadog/impl/core/storage_write.cpp
     datadog/impl/core/tlv.cpp
     datadog/impl/core/upload_scheduler.cpp
     datadog/impl/core/upload_thread.cpp
     datadog/impl/core/writer.cpp
-    datadog/impl/features/logging/logger.cpp
-    datadog/impl/features/logging/logging.cpp
-    datadog/impl/features/crash_reporting/crash_reporting.cpp
-    datadog/impl/features/rum/containers/resource_map.cpp
-    datadog/impl/features/rum/containers/view_array.cpp
-    datadog/impl/features/rum/scopes/action.cpp
-    datadog/impl/features/rum/scopes/application.cpp
-    datadog/impl/features/rum/scopes/resource.cpp
-    datadog/impl/features/rum/scopes/session.cpp
-    datadog/impl/features/rum/scopes/view.cpp
-    datadog/impl/features/rum/context.cpp
-    datadog/impl/features/rum/rum.cpp
-    datadog/impl/features/rum/scope.cpp
-    datadog/impl/json/primitives/bool.cpp
-    datadog/impl/json/primitives/float.cpp
-    datadog/impl/json/primitives/integer.cpp
-    datadog/impl/json/primitives/null.cpp
-    datadog/impl/json/primitives/string.cpp
-    datadog/impl/json/primitives/timestamp.cpp
-    datadog/impl/json/primitives/uuid.cpp
-    datadog/impl/json/attribute.cpp
-    datadog/impl/json/diagnostic_attribute.cpp
-    datadog/impl/diagnostics.cpp
-    datadog/impl/error_message.cpp
-    datadog/impl/validation.cpp
+    datadog/impl/crash_reporting/crash_reporting.cpp
+    datadog/impl/logging/logger.cpp
+    datadog/impl/logging/logging.cpp
+    datadog/impl/rum/containers/resource_map.cpp
+    datadog/impl/rum/containers/view_array.cpp
+    datadog/impl/rum/context.cpp
+    datadog/impl/rum/rum.cpp
+    datadog/impl/rum/scope.cpp
+    datadog/impl/rum/scopes/action.cpp
+    datadog/impl/rum/scopes/application.cpp
+    datadog/impl/rum/scopes/resource.cpp
+    datadog/impl/rum/scopes/session.cpp
+    datadog/impl/rum/scopes/view.cpp
 )
 
-# impl/storage, with IFilesystem implementation determined per-platform
+# core/storage, with IFilesystem implementation determined per-platform
 target_sources(dd_native PRIVATE
-    datadog/impl/storage/artifact.cpp
-    datadog/impl/storage/feature_event.cpp
-    datadog/impl/storage/filesystem_wrapper.cpp
-    datadog/impl/storage/path.cpp
-    datadog/impl/storage/sdk.cpp
-    datadog/impl/storage/util.cpp
+    datadog/impl/core/storage/artifact.cpp
+    datadog/impl/core/storage/feature_event.cpp
+    datadog/impl/core/storage/filesystem_wrapper.cpp
+    datadog/impl/core/storage/path.cpp
+    datadog/impl/core/storage/sdk.cpp
+    datadog/impl/core/storage/util.cpp
 )
 if(WIN32)
-    target_sources(dd_native PRIVATE datadog/impl/storage/filesystem_windows.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/core/storage/filesystem_windows.cpp)
 else()
-    target_sources(dd_native PRIVATE datadog/impl/storage/filesystem_posix.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/core/storage/filesystem_posix.cpp)
 endif()
 
 # Inject version number from CMake project config
@@ -154,7 +155,7 @@ endif()
 # Platform-specific support for system clock functionality
 option(DD_CLOCK_USE_DEFAULT "Use default clock implementation. If disabled, you must supply an implementation of platform/clock.hpp in a file specified as DD_CLOCK_SRC" ON)
 if(DD_CLOCK_USE_DEFAULT)
-    target_sources(dd_native PRIVATE datadog/impl/platform/clock_std.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/core/platform/clock_std.cpp)
 else()
     set(DD_CLOCK_SRC "" CACHE STRING "Path to custom implementation of platform/clock.hpp")
     if(DD_CLOCK_SRC)
@@ -174,7 +175,7 @@ if(DD_HTTP_USE_DEFAULT)
     target_link_libraries(dd_native PRIVATE CURL::libcurl)
     get_target_property(CURL_INCLUDE_DIRS CURL::libcurl INTERFACE_INCLUDE_DIRECTORIES)
     target_include_directories(dd_native SYSTEM PRIVATE ${CURL_INCLUDE_DIRS})
-    target_sources(dd_native PRIVATE datadog/impl/platform/http_curl.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/core/platform/http_curl.cpp)
 else()
     set(DD_HTTP_SRC "" CACHE STRING "Path to custom implementation of platform/http.hpp")
     if(DD_HTTP_SRC)
@@ -186,12 +187,12 @@ endif()
 option(DD_SYSTEMINFO_USE_DEFAULT "Use default system info implementation. If disabled, you must supply an implementation of platform/system_info.hpp in a file specified as DD_SYSTEMINFO_SRC" ON)
 if(DD_SYSTEMINFO_USE_DEFAULT)
     if(WIN32)
-        target_sources(dd_native PRIVATE datadog/impl/platform/system_info_windows.cpp)
+        target_sources(dd_native PRIVATE datadog/impl/core/platform/system_info_windows.cpp)
     elseif(APPLE)
-        target_sources(dd_native PRIVATE datadog/impl/platform/system_info_macos.cpp)
+        target_sources(dd_native PRIVATE datadog/impl/core/platform/system_info_macos.cpp)
         target_link_libraries(dd_native PRIVATE "-framework CoreFoundation")
     elseif(UNIX)
-        target_sources(dd_native PRIVATE datadog/impl/platform/system_info_linux.cpp)
+        target_sources(dd_native PRIVATE datadog/impl/core/platform/system_info_linux.cpp)
     endif()
 else()
     set(DD_SYSTEMINFO_SRC "" CACHE STRING "Path to custom implementation of platform/system_info.hpp")
@@ -202,14 +203,14 @@ endif()
 
 # Crash handler implementation selection, based on DD_CRASH_MODE
 if(DD_CRASH_MODE STREQUAL "noop")
-    target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_noop.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/core/platform/crash_handler_noop.cpp)
 elseif(DD_CRASH_MODE STREQUAL "inprocess")
     # Select platform-specific in-process crash handler implementation
     if(WIN32)
-        target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_inprocess_windows.cpp)
+        target_sources(dd_native PRIVATE datadog/impl/core/platform/crash_handler_inprocess_windows.cpp)
     elseif(UNIX)
         # Unified POSIX implementation for Linux and macOS
-        target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_inprocess_posix.cpp)
+        target_sources(dd_native PRIVATE datadog/impl/core/platform/crash_handler_inprocess_posix.cpp)
         target_compile_options(dd_native PRIVATE -fno-omit-frame-pointer)
     else()
         message(FATAL_ERROR "In-process crash handler not supported on this platform")
@@ -217,9 +218,9 @@ elseif(DD_CRASH_MODE STREQUAL "inprocess")
 
     # In-process implementation needs to write crash report and context files
     target_sources(dd_native PRIVATE
-        datadog/impl/platform/crash_context_write.cpp
-        datadog/impl/platform/crash_report_write.cpp
-        datadog/impl/platform/crash_handler_buildid_cache.cpp
+        datadog/impl/core/platform/crash_context_write.cpp
+        datadog/impl/core/platform/crash_report_write.cpp
+        datadog/impl/core/platform/crash_handler_buildid_cache.cpp
     )
 elseif(DD_CRASH_MODE STREQUAL "crashpad")
     # If building with crashpad support, integrate crashpad as a dependency: this
@@ -228,7 +229,7 @@ elseif(DD_CRASH_MODE STREQUAL "crashpad")
     # binary-compatible builds, this script must run after compile/link options for
     # dd_native are fully configured.
     include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
-    target_sources(dd_native PRIVATE datadog/impl/platform/crash_handler_crashpad.cpp)
+    target_sources(dd_native PRIVATE datadog/impl/core/platform/crash_handler_crashpad.cpp)
 else()
     message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
 endif()

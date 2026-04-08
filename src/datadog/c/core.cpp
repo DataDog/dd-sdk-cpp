@@ -11,8 +11,8 @@
 
 #include "datadog/c/core_glue.hpp"
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/core/platform/http.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/platform/http.hpp"
 
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
 

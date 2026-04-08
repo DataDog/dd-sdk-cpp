@@ -8,9 +8,9 @@
 
 #include <cstring>
 
-#include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/feature_read.hpp"
 #include "datadog/impl/core/tlv.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog::impl {
 

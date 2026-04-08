@@ -9,7 +9,7 @@
 #include <memory>
 
 #include "datadog/impl/core/core.hpp"
-#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 struct dd_core {
   std::unique_ptr<datadog::impl::Core> impl;

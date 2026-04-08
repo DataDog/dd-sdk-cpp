@@ -7,7 +7,7 @@
 #pragma once
 
 #include "datadog/impl/core/context.hpp"
-#include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/core/platform/system_info.hpp"
 
 static const datadog::platform::OsInfo MOCK_OS_INFO{
     "mock-os", "2.3.4", "mock-build-number", "2"

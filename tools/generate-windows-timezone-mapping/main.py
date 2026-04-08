@@ -14,7 +14,7 @@ Usage:
     python3 generate-windows-timezone-mapping.py
 
 Output:
-    src/datadog/impl/platform/windows_timezone_mapping.hpp
+    src/datadog/impl/core/platform/windows_timezone_mapping.hpp
 """
 import sys
 import subprocess
@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 CLDR_URL = "https://raw.githubusercontent.com/unicode-org/cldr/refs/heads/main/common/supplemental/windowsZones.xml"
-OUTPUT_FILE = "src/datadog/impl/platform/windows_timezone_mapping.hpp"
+OUTPUT_FILE = "src/datadog/impl/core/platform/windows_timezone_mapping.hpp"
 
 
 def fetch_windows_zones_xml() -> str:

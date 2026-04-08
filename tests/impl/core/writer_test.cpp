@@ -10,8 +10,8 @@
 #include <cstring>
 
 #include "datadog/impl/core/feature_read.hpp"
+#include "datadog/impl/core/platform/http.hpp"
 #include "datadog/impl/core/tlv.hpp"
-#include "datadog/impl/platform/http.hpp"
 
 #include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"

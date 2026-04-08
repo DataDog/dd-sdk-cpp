@@ -12,8 +12,8 @@
 #include <string>
 #include <vector>
 
-#include "datadog/impl/storage/feature_event.hpp"
-#include "datadog/impl/storage/sdk.hpp"
+#include "datadog/impl/core/storage/feature_event.hpp"
+#include "datadog/impl/core/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/filesystem.hpp"

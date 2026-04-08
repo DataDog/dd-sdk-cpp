@@ -22,7 +22,7 @@
 #include <windows.h>
 #endif
 
-#include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 /**
  * Returns the path to a suitable system-wide temp file directory.

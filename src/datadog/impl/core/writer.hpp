@@ -12,7 +12,7 @@
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/feature_read.hpp"
-#include "datadog/impl/platform/http.hpp"
+#include "datadog/impl/core/platform/http.hpp"
 
 namespace datadog::impl {
 

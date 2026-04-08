@@ -14,7 +14,7 @@
 #include "datadog/core.h"
 #include "datadog/core.hpp"
 
-#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 #include "support/catch.hpp"
 

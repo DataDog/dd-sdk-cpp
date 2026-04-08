@@ -10,7 +10,7 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 extern "C" {
 

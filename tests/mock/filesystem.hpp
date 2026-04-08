@@ -15,9 +15,9 @@
 #include <string_view>
 #include <vector>
 
-#include "datadog/impl/assert.hpp"
-#include "datadog/impl/storage/filesystem.hpp"
-#include "datadog/impl/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/core/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 using namespace datadog;
 

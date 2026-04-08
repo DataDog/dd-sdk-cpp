@@ -11,7 +11,7 @@
 
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/queue.hpp"
-#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog::impl {
 

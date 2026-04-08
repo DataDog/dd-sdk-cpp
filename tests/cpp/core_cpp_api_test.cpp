@@ -9,8 +9,8 @@
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
 
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/core/platform/system_info.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 #include "support/catch.hpp"
 #include "support/core.hpp"

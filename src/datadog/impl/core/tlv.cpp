@@ -9,8 +9,8 @@
 #include <array>
 #include <cstring>
 
-#include "datadog/impl/assert.hpp"
-#include "datadog/impl/storage/util.hpp"
+#include "datadog/impl/core/storage/util.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog::impl {
 

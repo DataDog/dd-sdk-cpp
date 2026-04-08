@@ -14,14 +14,14 @@
 
 #include "nonstd/expected.hpp"
 
-#include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_id.hpp"
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
+#include "datadog/impl/core/platform/http.hpp"
 #include "datadog/impl/core/tlv.hpp"
-#include "datadog/impl/platform/http.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog::impl {
 
