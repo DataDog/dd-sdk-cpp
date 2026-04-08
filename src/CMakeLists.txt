@@ -280,7 +280,7 @@ if(DD_ENABLE_PROFILER)
     target_compile_definitions(dd_native PRIVATE DD_ENABLE_PROFILER=1)
     target_sources(dd_native PRIVATE
         datadog/cpp/profiling.cpp
-        datadog/impl/features/profiling/profiling.cpp
+        datadog/impl/profiling/profiling.cpp
     )
     include(${DD_SDK_ROOT_DIR}/cmake/profiler.cmake)
 endif()

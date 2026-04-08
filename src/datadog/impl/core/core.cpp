@@ -21,7 +21,7 @@
 #include "datadog/impl/core/version.hpp"
 
 #ifdef DD_ENABLE_PROFILER
-#include "datadog/impl/features/profiling/profiling.hpp"
+#include "datadog/impl/profiling/profiling.hpp"
 #endif
 
 namespace datadog::impl {
