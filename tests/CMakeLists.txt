@@ -90,7 +90,7 @@ add_executable(dd_native_tests
 # Add Windows-specific tests
 if(WIN32)
     target_sources(dd_native_tests PRIVATE
-        impl/platform/windows_timezone_mapping_test.cpp
+        impl/core/platform/windows_timezone_mapping_test.cpp
     )
 endif()
 
