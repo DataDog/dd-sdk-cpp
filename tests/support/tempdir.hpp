@@ -103,14 +103,26 @@ struct TempDirectory {
   // Provide convenience functions for tests to examine the directory
 
   bool FileExists(std::string_view filename) const {
+#if __cplusplus >= 202002L
+    std::filesystem::path file_path =
+        std::filesystem::path(std::u8string(path.begin(), path.end())) /
+        std::filesystem::path(std::u8string(filename.begin(), filename.end()));
+#else
     std::filesystem::path file_path =
         std::filesystem::u8path(path) / std::filesystem::u8path(filename);
+#endif
     return std::filesystem::exists(file_path);
   }
 
   bool DirectoryExists(std::string_view dirname) const {
+#if __cplusplus >= 202002L
+    std::filesystem::path dir_path =
+        std::filesystem::path(std::u8string(path.begin(), path.end())) /
+        std::filesystem::path(std::u8string(dirname.begin(), dirname.end()));
+#else
     std::filesystem::path dir_path =
         std::filesystem::u8path(path) / std::filesystem::u8path(dirname);
+#endif
     return std::filesystem::exists(dir_path) && std::filesystem::is_directory(dir_path);
   }
 
