@@ -23,7 +23,7 @@
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context.hpp"
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 // NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
@@ -51,7 +51,7 @@ static void write_uint64(FileHandle fd, uint64_t value) {
   write_bytes(fd, &value, sizeof(value));
 }
 
-void WriteCrashContext(const char* filename, const impl::RumFeatureContext& rum_ctx) {
+void WriteCrashContext(const char* filename, const RumFeatureContext& rum_ctx) {
   // Write to a .tmp file first, then atomically rename to the final path. This
   // ensures readers on the next launch never observe a partially-written file.
   char tmp[512];
@@ -111,4 +111,4 @@ void DeleteCrashContext(const char* filename) {
 // NOLINTEND(cppcoreguidelines-pro-type-vararg)
 // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

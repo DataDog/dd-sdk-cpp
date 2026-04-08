@@ -13,7 +13,7 @@
 
 #include "datadog/impl/crash_reporting/data/crash_report.hpp"
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 #ifdef _WIN32
 using CrashReportFileHandle = HANDLE;
@@ -59,4 +59,4 @@ void WriteCrashReportStackFrame(CrashReportFileHandle fd, uint64_t raw_address);
  */
 void WriteCrashReportFooter(CrashReportFileHandle fd);
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

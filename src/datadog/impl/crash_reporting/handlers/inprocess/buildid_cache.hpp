@@ -9,7 +9,7 @@
 #include <cstddef>
 #include <cstdint>
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 static constexpr size_t kMaxCachedModules = 256;
 static constexpr size_t kMaxBuildIdLength = 64;
@@ -65,4 +65,4 @@ void PopulateBuildIdCache();
  */
 const char* FindCachedBuildId(uintptr_t base_address);
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

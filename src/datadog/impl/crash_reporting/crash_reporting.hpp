@@ -55,8 +55,8 @@ class CrashReporting final : public Feature {
   // Configuration: path to the crashpad_handler executable
   const std::string _handler_exe_path;
 
-  // Platform-specific crash handler implementation
-  std::unique_ptr<platform::ICrashHandler> _crash_handler;
+  // Platform-specific, DD_CRASH_MODE-specific crash handler implementation
+  std::unique_ptr<ICrashHandler> _crash_handler;
 
   // Last RUM context forwarded to the crash handler; used to suppress redundant
   // SetRumContext calls when the context hasn't actually changed

@@ -10,7 +10,7 @@ namespace datadog::impl {
 struct RumFeatureContext;
 }
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 /**
  * Creates or overwrites a crash context file at `filename`, writing the current RUM
@@ -20,11 +20,11 @@ namespace datadog::platform {
  * context and attach it to any crash report found on disk. Call `DeleteCrashContext` on
  * clean shutdown to remove it.
  */
-void WriteCrashContext(const char* filename, const impl::RumFeatureContext& rum_ctx);
+void WriteCrashContext(const char* filename, const RumFeatureContext& rum_ctx);
 
 /**
  * Deletes the crash context file at `filename`, if any such file exists.
  */
 void DeleteCrashContext(const char* filename);
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

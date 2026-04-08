@@ -20,11 +20,11 @@
  * 0x0050: <CrashContextFooterMagic>
  */
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 static const uint64_t CrashContextHeaderMagic = 0xdc01;
 static const uint64_t CrashContextFileVersion = 1;
 
 static const uint64_t CrashContextFooterMagic = 0xdcff;
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

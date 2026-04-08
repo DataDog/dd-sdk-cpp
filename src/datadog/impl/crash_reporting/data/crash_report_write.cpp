@@ -13,7 +13,7 @@
 #include <array>
 #include <cstddef>
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
 
@@ -118,4 +118,4 @@ void WriteCrashReportFooter(CrashReportFileHandle fd) {
 
 // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl
