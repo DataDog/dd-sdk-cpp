@@ -11,7 +11,7 @@
 #include <windows.h>
 #endif
 
-#include "datadog/impl/core/platform/crash_report.hpp"
+#include "datadog/impl/crash_reporting/data/crash_report.hpp"
 
 namespace datadog::platform {
 

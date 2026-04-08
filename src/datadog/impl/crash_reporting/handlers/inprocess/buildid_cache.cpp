@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "crash_handler_buildid_cache.hpp"
+#include "datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.hpp"
 
 #ifdef _WIN32
 // clang-format off

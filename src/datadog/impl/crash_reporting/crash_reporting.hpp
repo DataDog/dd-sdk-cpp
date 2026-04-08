@@ -14,7 +14,7 @@
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/platform/crash_handler.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
 
 namespace datadog::impl {
 

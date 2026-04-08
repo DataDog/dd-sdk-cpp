@@ -15,8 +15,8 @@
 #include "client/settings.h"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/platform/crash_handler.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN

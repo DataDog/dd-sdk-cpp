@@ -21,12 +21,12 @@
 #include <ctime>
 
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/platform/crash_context_write.hpp"
-#include "datadog/impl/core/platform/crash_handler.hpp"
-#include "datadog/impl/core/platform/crash_handler_buildid_cache.hpp"
-#include "datadog/impl/core/platform/crash_report_write.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
+#include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
+#include "datadog/impl/crash_reporting/data/crash_report_write.hpp"
+#include "datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.hpp"
 
 namespace datadog::platform {
 

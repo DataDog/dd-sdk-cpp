@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/platform/crash_context_write.hpp"
+#include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -21,7 +21,7 @@
 #include <cstdio>
 
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/platform/crash_context.hpp"
+#include "datadog/impl/crash_reporting/data/crash_context.hpp"
 
 namespace datadog::platform {
 

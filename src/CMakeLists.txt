@@ -52,19 +52,6 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/core/upload_scheduler.cpp
     datadog/impl/core/upload_thread.cpp
     datadog/impl/core/writer.cpp
-    datadog/impl/crash_reporting/crash_reporting.cpp
-    datadog/impl/logging/logger.cpp
-    datadog/impl/logging/logging.cpp
-    datadog/impl/rum/containers/resource_map.cpp
-    datadog/impl/rum/containers/view_array.cpp
-    datadog/impl/rum/context.cpp
-    datadog/impl/rum/rum.cpp
-    datadog/impl/rum/scope.cpp
-    datadog/impl/rum/scopes/action.cpp
-    datadog/impl/rum/scopes/application.cpp
-    datadog/impl/rum/scopes/resource.cpp
-    datadog/impl/rum/scopes/session.cpp
-    datadog/impl/rum/scopes/view.cpp
 )
 
 # core/storage, with IFilesystem implementation determined per-platform
@@ -201,27 +188,64 @@ else()
     endif()
 endif()
 
-# Crash handler implementation selection, based on DD_CRASH_MODE
+# === logging ===
+
+target_sources(dd_native PRIVATE
+    datadog/impl/logging/logger.cpp
+    datadog/impl/logging/logging.cpp
+)
+
+# === rum ===
+
+target_sources(dd_native PRIVATE
+    datadog/impl/rum/containers/resource_map.cpp
+    datadog/impl/rum/containers/view_array.cpp
+    datadog/impl/rum/context.cpp
+    datadog/impl/rum/rum.cpp
+    datadog/impl/rum/scope.cpp
+    datadog/impl/rum/scopes/action.cpp
+    datadog/impl/rum/scopes/application.cpp
+    datadog/impl/rum/scopes/resource.cpp
+    datadog/impl/rum/scopes/session.cpp
+    datadog/impl/rum/scopes/view.cpp
+)
+
+# === crash_reporting ===
+
+target_sources(dd_native PRIVATE
+    datadog/impl/crash_reporting/crash_reporting.cpp
+)
+
 if(DD_CRASH_MODE STREQUAL "noop")
-    target_sources(dd_native PRIVATE datadog/impl/core/platform/crash_handler_noop.cpp)
+    # No-op crash handler implementation requires no additional code
+    target_sources(dd_native PRIVATE
+        datadog/impl/crash_reporting/handlers/noop/crash_handler_noop.cpp
+    )
 elseif(DD_CRASH_MODE STREQUAL "inprocess")
-    # Select platform-specific in-process crash handler implementation
+    # In-process crash handler needs to write binary crash report files
+    target_sources(dd_native PRIVATE
+        datadog/impl/crash_reporting/data/crash_context_write.cpp
+        datadog/impl/crash_reporting/data/crash_report_write.cpp
+    )
+
+    # In-process crash handler needs to cache module build IDs, in addition to compiling
+    # a platform-specific ICrashHandler implementation (POSIX or Windows)
+    target_sources(dd_native PRIVATE
+        datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.cpp
+    )
     if(WIN32)
-        target_sources(dd_native PRIVATE datadog/impl/core/platform/crash_handler_inprocess_windows.cpp)
+        target_sources(dd_native PRIVATE
+            datadog/impl/crash_reporting/handlers/inprocess/crash_handler_inprocess_windows.cpp
+        )
     elseif(UNIX)
-        # Unified POSIX implementation for Linux and macOS
-        target_sources(dd_native PRIVATE datadog/impl/core/platform/crash_handler_inprocess_posix.cpp)
+        target_sources(dd_native PRIVATE
+            datadog/impl/crash_reporting/handlers/inprocess/crash_handler_inprocess_posix.cpp
+        )
+        # POSIX stack-walking currently depends on intact frame pointers
         target_compile_options(dd_native PRIVATE -fno-omit-frame-pointer)
     else()
         message(FATAL_ERROR "In-process crash handler not supported on this platform")
     endif()
-
-    # In-process implementation needs to write crash report and context files
-    target_sources(dd_native PRIVATE
-        datadog/impl/core/platform/crash_context_write.cpp
-        datadog/impl/core/platform/crash_report_write.cpp
-        datadog/impl/core/platform/crash_handler_buildid_cache.cpp
-    )
 elseif(DD_CRASH_MODE STREQUAL "crashpad")
     # If building with crashpad support, integrate crashpad as a dependency: this
     # adds an ExternalProject target that will build crashpad, then adds the
@@ -229,7 +253,9 @@ elseif(DD_CRASH_MODE STREQUAL "crashpad")
     # binary-compatible builds, this script must run after compile/link options for
     # dd_native are fully configured.
     include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
-    target_sources(dd_native PRIVATE datadog/impl/core/platform/crash_handler_crashpad.cpp)
+    target_sources(dd_native PRIVATE
+        datadog/impl/crash_reporting/handlers/crashpad/crash_handler_crashpad.cpp
+    )
 else()
     message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
 endif()
