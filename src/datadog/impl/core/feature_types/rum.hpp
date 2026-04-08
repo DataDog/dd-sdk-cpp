@@ -136,6 +136,14 @@ struct RumFeatureContext {
         application_id, session_id, view_id, view_name.c_str(), action_id
     };
   }
+
+  bool operator==(const RumFeatureContext& other) const {
+    return application_id == other.application_id && session_id == other.session_id &&
+           view_id == other.view_id && action_id == other.action_id &&
+           view_name == other.view_name;
+  }
+
+  bool operator!=(const RumFeatureContext& other) const { return !(*this == other); }
 };
 
 DATADOG_STRING_ENUM(
