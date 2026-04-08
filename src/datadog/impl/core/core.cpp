@@ -19,6 +19,7 @@
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
+#include "datadog/impl/rum/rum.hpp"
 
 #ifdef DD_ENABLE_PROFILER
 #include "datadog/impl/profiling/profiling.hpp"
