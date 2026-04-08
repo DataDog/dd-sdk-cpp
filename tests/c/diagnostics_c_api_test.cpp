@@ -11,7 +11,10 @@
 
 #include "support/filesystem.hpp"
 
-TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
+TEST_CASE(
+    "dd_core_config diagnostic messages",
+    "[unit][diagnostics][c-api][writes-to-cwd-datadog]"
+) {
   // These tests verify that when you register a diagnostic handler callback via the C
   // API, the SDK invokes that callback properly in a variety of different situations,
   // in response to errors occurring in the API layer as well as in the implementation

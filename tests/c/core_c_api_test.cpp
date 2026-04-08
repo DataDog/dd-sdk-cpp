@@ -50,7 +50,7 @@ TEST_CASE("dd_core null safety", "[unit][core][c-api]") {
   }
 }
 
-TEST_CASE("dd_core_config validation", "[unit][core][c-api]") {
+TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datadog]") {
   // Capture diagnostic messages that would be printed to stderr by default
   DiagnosticMessageBuffer diagnostics;
 

@@ -37,7 +37,7 @@ TEST_CASE("Core null safety", "[unit][core][cpp-api]") {
   }
 }
 
-TEST_CASE("Core validation", "[unit][core][cpp-api]") {
+TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
   // Capture diagnostic messages that would be printed to stderr by default
   DiagnosticMessageBuffer diagnostics;
 
