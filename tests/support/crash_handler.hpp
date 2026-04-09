@@ -1,0 +1,36 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+//
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-Present Datadog, Inc.
+
+#pragma once
+
+#include <optional>
+#include <string_view>
+
+#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
+
+using namespace datadog;
+
+class MockCrashHandler : public impl::ICrashHandler {
+ public:
+  size_t num_set_rum_context_calls{0};
+  std::optional<impl::RumFeatureContext> last_rum_ctx;
+
+  // ICrashHandler interface
+  bool Initialize(
+      impl::DiagnosticLogger logger, std::string_view helper_exe_path
+  ) override {
+    (void)logger;
+    (void)helper_exe_path;
+    return true;
+  }
+
+  void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
+    num_set_rum_context_calls++;
+    last_rum_ctx = rum_ctx;
+  };
+};

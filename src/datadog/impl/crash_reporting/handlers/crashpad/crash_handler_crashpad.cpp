@@ -114,17 +114,14 @@ namespace datadog::impl {
  */
 class CrashpadCrashHandler final : public ICrashHandler {
  public:
-  explicit CrashpadCrashHandler(
-      DiagnosticLogger& logger, std::string_view handler_exe_path
-  )
-      : _logger(logger), _handler_exe_path(handler_exe_path) {}
+  CrashpadCrashHandler() = default;
 
-  bool Initialize() override {
+  bool Initialize(DiagnosticLogger logger, std::string_view helper_exe_path) override {
     // TODO(RUM-14025): Re-enable uploads when work on Crashpad support resumes
     const bool enable_crashpad_uploads = false;
 
     // Prepare Crashpad client options
-    std::filesystem::path crashpad_handler_path = _handler_exe_path;
+    std::filesystem::path crashpad_handler_path = helper_exe_path;
     if (crashpad_handler_path.empty()) {
       crashpad_handler_path = get_crashpad_handler_path();
     }
@@ -158,7 +155,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
         attachments
     );
     if (!started) {
-      _logger.Error("Failed to start Crashpad handler");
+      logger.Error("Failed to start Crashpad handler");
       return false;
     }
 
@@ -225,11 +222,6 @@ class CrashpadCrashHandler final : public ICrashHandler {
     return true;
   }
 
-  void Shutdown() override {
-    // Note: The crashpad handler process is designed to outlive the application
-    // and continue running after SDK shutdown. We don't forcibly terminate it here.
-  }
-
   void SetRumContext(const RumFeatureContext& rum_ctx) override {
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     char buf[37] = {0};
@@ -277,9 +269,6 @@ class CrashpadCrashHandler final : public ICrashHandler {
   };
 
  private:
-  DiagnosticLogger _logger;
-  std::string _handler_exe_path;
-
   // Values cached on last call to SetRumContext
   UUID _rum_application_id;
   UUID _rum_session_id;
@@ -287,10 +276,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
   UUID _rum_action_id;
 };
 
-std::unique_ptr<ICrashHandler> CrashHandler::Init(
-    DiagnosticLogger& logger, std::string_view handler_exe_path
-) {
-  return std::make_unique<CrashpadCrashHandler>(logger, handler_exe_path);
+std::unique_ptr<ICrashHandler> CrashHandler::Create() {
+  return std::make_unique<CrashpadCrashHandler>();
 }
 
 }  // namespace datadog::impl

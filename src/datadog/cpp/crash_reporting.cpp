@@ -10,6 +10,8 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
+#include "datadog/impl/crash_reporting/crash_handler_init.hpp"
 #include "datadog/impl/crash_reporting/crash_reporting.hpp"
 
 namespace datadog {
@@ -58,11 +60,26 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
     return std::make_shared<CrashReporting>(CrashReporting::PrivateCtorTag{});
   }
 
-  // Extract handler executable path from config
-  std::string_view handler_exe_path = config.handler_exe_path;
+  // TODO(RUM-14020): Prepare .datadog/.crashes/ via ArtifactStorage and convey the full
+  // path to both ICrashHandler and CrashReporting
+
+  // Initialize an ICrashHandler implementation and get a pointer to the global handler
+  // instance, which persists throughout the lifetime of the process: this will only
+  // return a valid pointer the first time it's called, ensuring that only a single
+  // instance of the CrashReporting feature is empowered to handle and upload crashes
+  impl::ICrashHandler* handler = impl::CrashHandler::InitializeOnce(
+      impl::DiagnosticLogger{core->_diagnostic_handler, core->_diagnostic_threshold},
+      config.handler_exe_path
+  );
+
+  // If handler initialization failed, or if crash reporting is being enabled for an SDK
+  // instance after the first, return a no-op CrashReporting interface
+  if (!handler) {
+    return std::make_shared<CrashReporting>(CrashReporting::PrivateCtorTag{});
+  }
 
   // Initialize our CrashReporting feature implementation
-  auto crash_reporting_impl = std::make_shared<impl::CrashReporting>(handler_exe_path);
+  auto crash_reporting_impl = std::make_shared<impl::CrashReporting>(*handler);
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(crash_reporting_impl)) {
