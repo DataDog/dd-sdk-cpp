@@ -28,7 +28,7 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
 
   // And a mock ICrashHandler injected into a valid CrashReporting feature
   MockCrashHandler handler;
-  auto crash_reporting = std::make_shared<CrashReporting>(handler);
+  auto crash_reporting = std::make_shared<datadog::impl::CrashReporting>(handler);
   REQUIRE(crash_reporting);
 
   // And a message handler callback returned by the feature implementation
