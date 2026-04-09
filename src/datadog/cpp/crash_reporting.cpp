@@ -60,8 +60,12 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
     return std::make_shared<CrashReporting>(CrashReporting::PrivateCtorTag{});
   }
 
-  // TODO(RUM-14020): Prepare .datadog/.crashes/ via ArtifactStorage and convey the full
-  // path to both ICrashHandler and CrashReporting
+  // Prepare a directory at <application-storage>/.datadog/.crashes/ to contain
+  // crash-related artifacts
+  auto storage = core->_impl->InitializeArtifactStorage(".crashes");
+  if (!storage) {
+    return std::make_shared<CrashReporting>(CrashReporting::PrivateCtorTag{});
+  }
 
   // Initialize an ICrashHandler implementation and get a pointer to the global handler
   // instance, which persists throughout the lifetime of the process: this will only
@@ -69,6 +73,7 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
   // instance of the CrashReporting feature is empowered to handle and upload crashes
   impl::ICrashHandler* handler = impl::CrashHandler::InitializeOnce(
       impl::DiagnosticLogger{core->_diagnostic_handler, core->_diagnostic_threshold},
+      storage->GetPath().Get(),
       config.handler_exe_path
   );
 
@@ -79,7 +84,8 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
   }
 
   // Initialize our CrashReporting feature implementation
-  auto crash_reporting_impl = std::make_shared<impl::CrashReporting>(*handler);
+  auto crash_reporting_impl =
+      std::make_shared<impl::CrashReporting>(*handler, storage->GetPath());
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(crash_reporting_impl)) {

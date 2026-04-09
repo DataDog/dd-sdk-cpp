@@ -13,7 +13,12 @@
 
 namespace datadog::impl {
 
-CrashReporting::CrashReporting(ICrashHandler& handler) : _handler(handler) {}
+CrashReporting::CrashReporting(
+    ICrashHandler& handler, const StoragePath& crash_storage_dir_path
+)
+    : _handler(handler) {
+  _crash_storage_dir_path.MustSet(crash_storage_dir_path);
+}
 
 std::optional<Report> CrashReporting::UploadThread_PrepareReport(
     const HttpContext& context, BatchReader& reader

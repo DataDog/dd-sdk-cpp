@@ -30,11 +30,15 @@ namespace CrashHandler {
  *  lifetime of the process: the handler MAY store the logger value and use it later.
  *  However, the handler MUST NOT use the logger during a crash, as it can not be
  *  assumed that the diagnostic-handler callback is async-signal-safe.
+ * @param crash_storage_dir_path Path to the directory where this handler may store
+ *  crash-related artifacts.
  * @param helper_exe_path Configured path to a helper executable that may be used by the
  *  crash handler, if any. Valid only for the scope of the function call.
  */
 ICrashHandler* InitializeOnce(
-    DiagnosticLogger logger, std::string_view helper_exe_path
+    DiagnosticLogger logger,
+    std::string_view crash_storage_dir_path,
+    std::string_view helper_exe_path
 );
 
 }  // namespace CrashHandler

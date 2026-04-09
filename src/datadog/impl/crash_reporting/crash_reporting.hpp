@@ -14,6 +14,7 @@
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
 
 namespace datadog::impl {
@@ -53,7 +54,9 @@ namespace datadog::impl {
  */
 class CrashReporting final : public Feature {
  public:
-  explicit CrashReporting(ICrashHandler& handler);
+  explicit CrashReporting(
+      ICrashHandler& handler, const StoragePath& crash_storage_dir_path
+  );
 
   // Feature interface
   FeatureId GetId() const override { return CreateFeatureId("CRSH"); }
@@ -70,6 +73,8 @@ class CrashReporting final : public Feature {
  private:
   // Reference to the process-global crash handler implementation
   ICrashHandler& _handler;
+
+  StoragePath _crash_storage_dir_path;
 
   // Last RUM context forwarded to the crash handler; used to suppress redundant
   // SetRumContext calls when the context hasn't actually changed

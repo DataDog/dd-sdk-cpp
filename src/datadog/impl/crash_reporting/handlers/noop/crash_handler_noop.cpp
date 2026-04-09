@@ -29,7 +29,12 @@ class NoopCrashHandler final : public ICrashHandler {
    * Initializes the no-op crash handler implementation, doing nothing and
    * unconditionally returning true.
    */
-  bool Initialize(DiagnosticLogger logger, std::string_view helper_exe_path) override {
+  bool Initialize(
+      DiagnosticLogger logger,
+      std::string_view crash_storage_dir_path,
+      std::string_view helper_exe_path
+  ) override {
+    (void)crash_storage_dir_path;
     (void)helper_exe_path;
 
     // Include some local log output to signal that CrashReporting API calls will do

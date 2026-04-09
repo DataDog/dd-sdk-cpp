@@ -22,9 +22,12 @@ class MockCrashHandler : public impl::ICrashHandler {
 
   // ICrashHandler interface
   bool Initialize(
-      impl::DiagnosticLogger logger, std::string_view helper_exe_path
+      impl::DiagnosticLogger logger,
+      std::string_view crash_storage_dir_path,
+      std::string_view helper_exe_path
   ) override {
     (void)logger;
+    (void)crash_storage_dir_path;
     (void)helper_exe_path;
     return true;
   }
