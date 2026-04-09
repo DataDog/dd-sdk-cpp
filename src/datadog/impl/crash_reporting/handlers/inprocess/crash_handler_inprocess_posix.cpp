@@ -637,8 +637,14 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
 
   // The provided ucontext value contains CPU register states saved at time of crash:
   // different CPU architectures use different register names, and the layout of
-  // ucontext_t is not standardized across Linux and macOS.
-  ucontext_t* uc = reinterpret_cast<ucontext_t*>(ucontext_raw);
+  // ucontext_t is not standardized across Linux and macOS. Copying into a local buffer
+  // ensures correct alignment on access, as ucontext_t requires 16-byte alignment but
+  // ucontext_raw may not be 16-byte-aligned.
+  alignas(ucontext_t) unsigned char ucontext_buf[sizeof(ucontext_t)];
+  for (size_t i = 0; i < sizeof(ucontext_t); i++) {
+    ucontext_buf[i] = reinterpret_cast<const unsigned char*>(ucontext_raw)[i];
+  }
+  ucontext_t* uc = reinterpret_cast<ucontext_t*>(ucontext_buf);
 
   // Retrieve the values of two key registers required to reconstruct the call stack:
   // - ip (instruction pointer / program counter): indicates the address of the
