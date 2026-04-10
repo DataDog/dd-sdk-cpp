@@ -225,17 +225,30 @@ class IFilesystem {
   virtual FilesystemResult DeleteDirectory(const PlatformPath& path) = 0;
 
   /**
-   * Atomically renames a file, given two paths on the same filesystem.
+   * Renames a file or directory, effectively moving from src to dst, failing with
+   * AlreadyExists if dst is occupied.
    *
-   * If a file or directory already exists at the destination path, refrains from moving
-   * the file and returns AlreadyExists, leaving both source and destination files
-   * intact.
+   * If both src and dst are paths on the same filesystem, the move will be atomic.
    *
    * Returns OK on success, or an error code if the source file doesn't exist, the
    * destination path is occupied, the paths point to different filesystems, or the
    * rename operation failed.
+   *
+   * This function is useful for migration operations, where we want to explicitly
+   * handle filename conflicts between src and dst. For a simpler rename operation that
+   * will clobber an existing destination file with a preemptive check, use
+   * ReplaceFile().
    */
   virtual FilesystemResult Rename(const PlatformPath& src, const PlatformPath& dst) = 0;
+
+  /**
+   * Renames a file from src to dst, clobbering any existing dst file if one exists.
+   *
+   * If both src and dst are paths on the same filesystem, the move will be atomic.
+   */
+  virtual FilesystemResult ReplaceFile(
+      const PlatformPath& src, const PlatformPath& dst
+  ) = 0;
 };
 
 /**

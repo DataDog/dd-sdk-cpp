@@ -373,6 +373,18 @@ class WindowsFilesystem final : public IFilesystem {
     }
     return FilesystemResult::OK;
   }
+
+  FilesystemResult ReplaceFile(
+      const PlatformPath& src, const PlatformPath& dst
+  ) override {
+    // Atomically rename src to dst, using MOVEFILE_REPLACE_EXISTING to clobber any
+    // existing file
+    const BOOL result = MoveFileExW(src.Get(), dst.Get(), MOVEFILE_REPLACE_EXISTING);
+    if (result == 0) {
+      return map_error(GetLastError());
+    }
+    return FilesystemResult::OK;
+  }
 };
 
 std::unique_ptr<IFilesystem> CreateFilesystem() {
