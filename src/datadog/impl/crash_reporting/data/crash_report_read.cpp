@@ -70,6 +70,8 @@ std::optional<CrashReportFile> ReadCrashReport(File& file) {
 
   // Dispatch on magic to parse variable-length module and stack frame entries, until we
   // encounter the footer or an unrecognized token
+  size_t num_modules_parsed = 0;
+  size_t num_stack_frames_parsed = 0;
   for (;;) {
     // Read the next 8-byte value from the file, aborting if we've hit EOF without
     // seeing the footer magic
@@ -86,6 +88,12 @@ std::optional<CrashReportFile> ReadCrashReport(File& file) {
     // If it's any other magic value, branch to the appropriate routine to handle that
     // data. If it's not a recognized magic value, abort.
     if (token == CrashReportModuleMagic) {
+      // Set a sane upper bound on the number of module entries that a valid crash
+      // report file can contain, to prevent runaway parsing or unbounded allocation
+      if (++num_modules_parsed > 4096) {
+        return std::nullopt;
+      }
+
       // Module magic introduces details of a loaded module: add a new entry into our
       // result struct's modules vector, then populate that value with module details
       // read from the file
@@ -103,6 +111,11 @@ std::optional<CrashReportFile> ReadCrashReport(File& file) {
         return std::nullopt;
       }
     } else if (token == CrashReportStackFrameMagic) {
+      // Set an upper bound on stack frames
+      if (++num_stack_frames_parsed > 512) {
+        return std::nullopt;
+      }
+
       // Stack frame magic introduces a raw stack frame address; read it and push it
       // onto our result's struct's stack address vector
       uint64_t address{};
