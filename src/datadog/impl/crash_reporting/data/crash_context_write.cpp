@@ -6,109 +6,78 @@
 
 #include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
 
-#ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-#else
-#include <fcntl.h>
-#include <sys/stat.h>
-#include <unistd.h>
-#endif
-
-#include <cstddef>
-#include <cstdint>
-#include <cstdio>
-
 #include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context.hpp"
 
 namespace datadog::impl {
 
-// NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-// NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
-
-#ifdef _WIN32
-using FileHandle = HANDLE;
-static const FileHandle kInvalidHandle = INVALID_HANDLE_VALUE;
-#else
-using FileHandle = int;
-static const FileHandle kInvalidHandle = -1;
-#endif
-
-static void write_bytes(FileHandle fd, const void* data, size_t size) {
-#ifdef _WIN32
-  DWORD written = 0;
-  WriteFile(fd, data, static_cast<DWORD>(size), &written, nullptr);
-  (void)written;
-#else
-  ssize_t result = write(fd, data, size);
-  (void)result;
-#endif
+static bool write_bytes(
+    IFilesystem& fs, PlatformFileHandle handle, const void* data, size_t size
+) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  auto res = fs.Write(handle, reinterpret_cast<const char*>(data), size);
+  return res.value == FilesystemResult::OK && res.bytes_written == size;
 }
 
-static void write_uint64(FileHandle fd, uint64_t value) {
-  write_bytes(fd, &value, sizeof(value));
+static bool write_uint64(IFilesystem& fs, PlatformFileHandle handle, uint64_t value) {
+  return write_bytes(fs, handle, &value, sizeof(value));
 }
 
-void WriteCrashContext(const char* filename, const RumFeatureContext& rum_ctx) {
-  // Write to a .tmp file first, then atomically rename to the final path. This
-  // ensures readers on the next launch never observe a partially-written file.
-  char tmp[512];
-#ifdef _WIN32
-  _snprintf_s(tmp, sizeof(tmp), _TRUNCATE, "%s.tmp", filename);
-#else
-  snprintf(tmp, sizeof(tmp), "%s.tmp", filename);
-#endif
+bool WriteCrashContext(
+    IFilesystem& fs,
+    const PlatformPath& path,
+    const PlatformPath& tmp_path,
+    const RumFeatureContext& rum_ctx
+) {
+  // Write to <crash>.ctx.tmp first, to ensure that readers on next launch never observe
+  // a partially-written file. We can truncate any existing file and disregard locking.
+  const bool append = false;
+  const bool hold_advisory_lock = false;
+  const auto open_res = fs.OpenForWrite(tmp_path, append, hold_advisory_lock);
+  if (open_res.value != FilesystemResult::OK) {
+    return false;
+  }
+  const PlatformFileHandle handle = open_res.handle;
 
-#ifdef _WIN32
-  FileHandle fd = CreateFileA(
-      tmp, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr
-  );
-#else
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
-  FileHandle fd = open(tmp, O_CREAT | O_WRONLY | O_TRUNC, 0644);
-#endif
-
-  if (fd == kInvalidHandle) {
-    return;
+  // Write all required data to the temporary file
+  bool write_ok = write_uint64(fs, handle, CrashContextHeaderMagic);
+  if (write_ok) {
+    write_ok = write_uint64(fs, handle, CrashContextFileVersion);
+  }
+  if (write_ok) {
+    write_ok = write_bytes(fs, handle, rum_ctx.application_id.bytes.data(), 16);
+  }
+  if (write_ok) {
+    write_ok = write_bytes(fs, handle, rum_ctx.session_id.bytes.data(), 16);
+  }
+  if (write_ok) {
+    write_ok = write_bytes(fs, handle, rum_ctx.view_id.bytes.data(), 16);
+  }
+  if (write_ok) {
+    write_ok = write_bytes(fs, handle, rum_ctx.action_id.bytes.data(), 16);
+  }
+  if (write_ok) {
+    write_ok = write_uint64(fs, handle, CrashContextFooterMagic);
   }
 
-  write_uint64(fd, CrashContextHeaderMagic);
-  write_uint64(fd, CrashContextFileVersion);
-  write_bytes(fd, rum_ctx.application_id.bytes.data(), 16);
-  write_bytes(fd, rum_ctx.session_id.bytes.data(), 16);
-  write_bytes(fd, rum_ctx.view_id.bytes.data(), 16);
-  write_bytes(fd, rum_ctx.action_id.bytes.data(), 16);
-  write_uint64(fd, CrashContextFooterMagic);
+  // Nothing more to write: close the .tmp file, ignoring failure
+  const auto close_res = fs.Close(handle);
+  (void)close_res;
 
-#ifdef _WIN32
-  CloseHandle(fd);
-  // MoveFileExA with MOVEFILE_REPLACE_EXISTING is the closest Windows equivalent
-  // to an atomic rename; it replaces the destination in a single operation
-  MoveFileExA(tmp, filename, MOVEFILE_REPLACE_EXISTING);
-#else
-  close(fd);
-  // rename() is atomic on POSIX when src and dst are on the same filesystem,
-  // which is guaranteed here since both paths share the same .crashes/ directory
-  rename(tmp, filename);
-#endif
+  // If we didn't write a complete file, delete the .tmp file, effectively dropping the
+  // context update and leaving any existing context intact, even though it may be out
+  // of date
+  if (!write_ok) {
+    const auto delete_res = fs.Delete(tmp_path);
+    (void)delete_res;
+    return false;
+  }
+
+  // Wrote to .tmp file successfully: perform an atomic rename to clobber any existing
+  // .ctx file, making the latest context values encoded in our .tmp file current
+  auto replace_res = fs.ReplaceFile(tmp_path, path);
+  return replace_res == FilesystemResult::OK;
 }
-
-void DeleteCrashContext(const char* filename) {
-  char tmp[512];
-#ifdef _WIN32
-  DeleteFileA(filename);
-  _snprintf_s(tmp, sizeof(tmp), _TRUNCATE, "%s.tmp", filename);
-  DeleteFileA(tmp);
-#else
-  unlink(filename);
-  snprintf(tmp, sizeof(tmp), "%s.tmp", filename);
-  unlink(tmp);
-#endif
-}
-
-// NOLINTEND(cppcoreguidelines-pro-type-vararg)
-// NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 
 }  // namespace datadog::impl

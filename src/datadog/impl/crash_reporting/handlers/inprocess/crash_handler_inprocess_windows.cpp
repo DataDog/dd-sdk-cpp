@@ -19,8 +19,12 @@
 
 #include <cinttypes>
 #include <ctime>
+#include <type_traits>
 
 #include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/core/storage/path.hpp"
+#include "datadog/impl/core/storage/util.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
@@ -42,10 +46,12 @@ static_assert(
 //   safe to allocate, call ordinary system functions, etc.
 // - Subsequently used during crash, where we're constrained to exception-safe routines
 
-// Pre-opened file handle for crash report file to be written
+// Pre-opened file handle for crash report file to be written, along with UTF-16 paths
+// to the crash report file and its accompanying .ctx file
 static HANDLE s_crash_file = INVALID_HANDLE_VALUE;
-static char s_crash_filename[MAX_PATH];          // Path to crash report file
-static char s_crash_context_filename[MAX_PATH];  // Path to companion crash context file
+static PlatformPath s_crash_file_path;              // <crash>
+static PlatformPath s_crash_context_file_path;      // <crash>.ctx
+static PlatformPath s_crash_context_tmp_file_path;  // <crash>.ctx.tmp
 
 // Original exception filter to restore on shutdown
 static LPTOP_LEVEL_EXCEPTION_FILTER s_old_filter = nullptr;
@@ -243,31 +249,17 @@ class InProcessCrashHandler final : public ICrashHandler {
    */
   bool Initialize(
       DiagnosticLogger logger,
-      std::string_view crash_storage_dir_path,
+      IFilesystem& fs,
+      const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path
   ) override {
-    (void)crash_storage_dir_path;
+    // The in-process handler doesn't use a helper executable
     (void)helper_exe_path;
 
     // Set up the crash handler in stages, cleaning up on failure at each step
     DATADOG_ASSERT(!_initialized, "InProcessCrashHandler::Initialize called twice");
 
-    // Create directory to contain crashes, aborting on failure
-    // TODO(WIP): Store crashes relative to SDK storage root
-    // Using CreateDirectoryA (narrow/ANSI API) for simplicity: this may fail with
-    // non-ASCII paths, which is a known limitation
-    if (!CreateDirectoryA(".crashes", nullptr)) {
-      const DWORD err = GetLastError();
-      if (err != ERROR_ALREADY_EXISTS) {
-        logger.Error("Failed to create .crashes directory");
-        return false;
-      }
-    }
-
-    // Format a filename for this process's crash report file, with timestamp and PID:
-    // note that the mere presence of this file does not indicate that a crash occurred,
-    // and the timestamp is SDK start time (to ensure uniqueness), not crash time.
-    // Format: crash_<system-timestamp-in-ms>_<pid>
+    // Get the current system timestamp, in milliseconds, for use in filenames
     FILETIME ft;
     GetSystemTimeAsFileTime(&ft);
     ULARGE_INTEGER uli;
@@ -275,37 +267,86 @@ class InProcessCrashHandler final : public ICrashHandler {
     uli.HighPart = ft.dwHighDateTime;
     // Convert from 100-nanosecond intervals since 1601 to milliseconds since Unix epoch
     uint64_t timestamp_ms = (uli.QuadPart / 10000) - 11644473600000ULL;
+
+    // Prepare the filename for crash reports written by this process:
+    // crash_<system-timestamp-in-ms>_<pid>
+    char crash_filename[64];
     _snprintf_s(
-        s_crash_filename,
-        sizeof(s_crash_filename),
+        crash_filename,
+        sizeof(crash_filename),
         _TRUNCATE,
-        ".crashes\\crash_%" PRIu64 "_%lu",
+        "crash_%" PRIu64 "_%lu",
         timestamp_ms,
         static_cast<unsigned long>(GetCurrentProcessId())
     );
-    _snprintf_s(
-        s_crash_context_filename,
-        sizeof(s_crash_context_filename),
-        _TRUNCATE,
-        "%s.ctx",
-        s_crash_filename
+
+    // Build the full path to a file with that name in the .datadog/.crashes/ directory,
+    // and encode it as UTF-16 and store it in a static PlatformPath buffer
+    StoragePath crash_file_path;
+    crash_file_path.MustSet(crash_storage_dir_path);
+    if (!crash_file_path.Append(crash_filename)) {
+      logger.Error("Failed to initialize in-process crash handler: path too long");
+      return false;
+    }
+    if (!s_crash_file_path.Encode(crash_file_path.CStr())) {
+      logger.Error(
+          "Failed to initialize in-process crash handler: path encoding failed"
+      );
+      return false;
+    }
+
+    // Build the path to an accompanying crash_<system-timestamp-in-ms>_<pid>.ctx file
+    StoragePath tmp_file_path;
+    tmp_file_path.MustSet(crash_file_path);
+    if (!tmp_file_path.AppendExt(".ctx")) {
+      logger.Error("Failed to initialize in-process crash handler: path too long");
+      return false;
+    }
+    if (!s_crash_context_file_path.Encode(tmp_file_path.CStr())) {
+      logger.Error(
+          "Failed to initialize in-process crash handler: path encoding failed"
+      );
+      return false;
+    }
+
+    // Append .tmp so we can use a write-then-rename pattern for context file updates
+    if (!tmp_file_path.AppendExt(".tmp")) {
+      logger.Error("Failed to initialize in-process crash handler: path too long");
+      return false;
+    }
+    if (!s_crash_context_tmp_file_path.Encode(tmp_file_path.CStr())) {
+      logger.Error(
+          "Failed to initialize in-process crash handler: path encoding failed"
+      );
+      return false;
+    }
+
+    // On Windows, PlatformPath holds the UTF-16-encoded string in its own buffer, so
+    // it's safe to use these paths for the rest of the process, even after our
+    // temporary StoragePath values are gone
+    static_assert(
+        sizeof(PlatformPath) > sizeof(StoragePath), "Unexpected PlatformPath size"
     );
 
     // Preemptively open the crash report file and keep it open indefinitely
-    s_crash_file = CreateFileA(
-        s_crash_filename,
-        GENERIC_WRITE,
-        FILE_SHARE_READ,  // Allow other processes to read the file while we write
-        nullptr,          // No security attributes
-        CREATE_ALWAYS,    // Always create new file, overwriting if it exists
-        FILE_ATTRIBUTE_NORMAL,
-        nullptr  // No template file
-    );
-
-    if (s_crash_file == INVALID_HANDLE_VALUE) {
-      logger.Error("Failed to create crash file");
+    const bool append = false;
+    const bool hold_advisory_lock = true;
+    auto open_res = fs.OpenForWrite(s_crash_file_path, append, hold_advisory_lock);
+    if (open_res.value != FilesystemResult::OK) {
+      logger.Error(
+          "Failed to initialize in-process crash handler: could not create crash file",
+          {{"path", crash_file_path.Get()},
+           {"error", FilesystemResultStr(open_res.value)}}
+      );
       return false;
     }
+    s_crash_file = open_res.handle;
+
+    // On Windows, PlatformFileHandle is an alias for HANDLE, so we can use native Win32
+    // API functions to write to this file in the exception-safe crash path
+    static_assert(
+        std::is_same_v<decltype(s_crash_file), HANDLE>, "Unexpected file handle type"
+    );
 
     // Install our unhandled exception filter: SetUnhandledExceptionFilter sets a
     // top-level exception handler that's called when no other handlers catch an
@@ -363,17 +404,22 @@ class InProcessCrashHandler final : public ICrashHandler {
     // files will be handled cleanly by subsequent SDK instances; non-empty files may
     // contain partial crash data worth investigating).
     if (got_size && file_size.QuadPart == 0) {
-      const BOOL deleted = DeleteFileA(s_crash_filename);
-      (void)deleted;  // Ignore result; file cleanup is best-effort
+      BOOL deleted = DeleteFileW(s_crash_file_path.Get());
+      if (deleted) {
+        // Also delete any accompanying context files, ignoring result since file
+        // cleanup is best-effort
+        deleted = DeleteFileW(s_crash_context_file_path.Get());
+        (void)deleted;
+        deleted = DeleteFileW(s_crash_context_tmp_file_path.Get());
+        (void)deleted;
+      }
     }
-
-    // Delete the crash context file: it's only meaningful if a crash occurred,
-    // and on clean shutdown we don't want it to surface as stale context
-    DeleteCrashContext(s_crash_context_filename);
   }
 
-  void SetRumContext(const RumFeatureContext& rum_ctx) override {
-    WriteCrashContext(s_crash_context_filename, rum_ctx);
+  void SetRumContext(IFilesystem& fs, const RumFeatureContext& rum_ctx) override {
+    WriteCrashContext(
+        fs, s_crash_context_file_path, s_crash_context_tmp_file_path, rum_ctx
+    );
   }
 
  private:

@@ -565,6 +565,14 @@ const platform::IClock& Core::GetClock() const {
   return *_subsystems.clock;
 }
 
+IFilesystem& Core::GetFilesystem() const {
+  DATADOG_ASSERT(
+      _state >= CoreState::Initialized, "GetFilesystem called before Core init"
+  );
+  DATADOG_ASSERT(_subsystems.fs, "IFilesystem not present after Core init");
+  return *_subsystems.fs;
+}
+
 std::string_view Core::GetServiceName() const {
   DATADOG_ASSERT(
       _state >= CoreState::Initialized, "GetServiceName called before Core init"

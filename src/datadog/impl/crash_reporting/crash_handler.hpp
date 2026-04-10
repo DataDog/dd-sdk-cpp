@@ -13,6 +13,8 @@
 
 namespace datadog::impl {
 
+class IFilesystem;
+class StoragePath;
 struct RumFeatureContext;
 
 /**
@@ -44,7 +46,8 @@ class ICrashHandler {
    */
   virtual bool Initialize(
       DiagnosticLogger logger,
-      std::string_view crash_storage_dir_path,
+      IFilesystem& fs,
+      const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path
   ) = 0;
 
@@ -65,7 +68,7 @@ class ICrashHandler {
    * normal SDK shutdown. Only called when the RUM context has actually changed since
    * the last call.
    */
-  virtual void SetRumContext(const RumFeatureContext& rum_ctx) = 0;
+  virtual void SetRumContext(IFilesystem& fs, const RumFeatureContext& rum_ctx) = 0;
 };
 
 namespace CrashHandler {

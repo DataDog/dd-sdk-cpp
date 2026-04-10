@@ -23,16 +23,21 @@ class MockCrashHandler : public impl::ICrashHandler {
   // ICrashHandler interface
   bool Initialize(
       impl::DiagnosticLogger logger,
-      std::string_view crash_storage_dir_path,
+      impl::IFilesystem& fs,
+      const impl::StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path
   ) override {
     (void)logger;
+    (void)fs;
     (void)crash_storage_dir_path;
     (void)helper_exe_path;
     return true;
   }
 
-  void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
+  void SetRumContext(
+      impl::IFilesystem& fs, const impl::RumFeatureContext& rum_ctx
+  ) override {
+    (void)fs;
     num_set_rum_context_calls++;
     last_rum_ctx = rum_ctx;
   };

@@ -7,24 +7,26 @@
 #pragma once
 
 namespace datadog::impl {
+class IFilesystem;
+class PlatformPath;
 struct RumFeatureContext;
-}
+}  // namespace datadog::impl
 
 namespace datadog::impl {
 
 /**
- * Creates or overwrites a crash context file at `filename`, writing the current RUM
- * session identifiers in binary format.
+ * Creates or overwrites a crash context file at `path`, writing the current RUM session
+ * identifiers in binary format. Uses a write-then-rename pattern, first flushing the
+ * complete file to `tmp_path` before replacing the original file.
  *
  * The file persists across crashes so the next SDK launch can recover the session
- * context and attach it to any crash report found on disk. Call `DeleteCrashContext` on
- * clean shutdown to remove it.
+ * context and attach it to any crash report found on disk.
  */
-void WriteCrashContext(const char* filename, const RumFeatureContext& rum_ctx);
-
-/**
- * Deletes the crash context file at `filename`, if any such file exists.
- */
-void DeleteCrashContext(const char* filename);
+bool WriteCrashContext(
+    IFilesystem& fs,
+    const PlatformPath& path,
+    const PlatformPath& tmp_path,
+    const RumFeatureContext& rum_ctx
+);
 
 }  // namespace datadog::impl

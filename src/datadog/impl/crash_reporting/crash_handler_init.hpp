@@ -13,6 +13,9 @@
 
 namespace datadog::impl {
 
+class IFilesystem;
+class StoragePath;
+
 namespace CrashHandler {
 
 /**
@@ -37,7 +40,8 @@ namespace CrashHandler {
  */
 ICrashHandler* InitializeOnce(
     DiagnosticLogger logger,
-    std::string_view crash_storage_dir_path,
+    IFilesystem& fs,
+    const StoragePath& crash_storage_dir_path,
     std::string_view helper_exe_path
 );
 

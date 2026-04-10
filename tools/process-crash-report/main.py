@@ -20,7 +20,7 @@ Usage:
     python3 tools/process-crash-report/main.py [crash_report_path] [options]
 
     If no crash report path is provided, the tool will use the most recent
-    crash report from the .crashes/ directory.
+    crash report from the .datadog/.crashes/ directory.
 
 Options:
     --output {full|stack|raw|rum}   Output mode (default: full)
@@ -41,7 +41,7 @@ Examples:
     python3 tools/process-crash-report/main.py
 
     # Process specific crash report
-    python3 tools/process-crash-report/main.py .crashes/crash_1770922852158_10798
+    python3 tools/process-crash-report/main.py .datadog/.crashes/crash_1770922852158_10798
 
     # Show only symbolicated stack (no metadata)
     python3 tools/process-crash-report/main.py --output stack
@@ -83,7 +83,7 @@ def main() -> int:
         'crash_report',
         nargs='?',
         type=Path,
-        help='Path to crash report (default: most recent in .crashes/)'
+        help='Path to crash report (default: most recent in .datadog/.crashes/)'
     )
 
     parser.add_argument(
@@ -112,12 +112,12 @@ def main() -> int:
             print(f"Error: Crash report not found: {crash_report_path}", file=sys.stderr)
             return 1
     else:
-        # Find latest crash report in .crashes/
-        crashes_dir = Path('.crashes')
+        # Find latest crash report in .datadog/.crashes/
+        crashes_dir = Path('.datadog/.crashes')
         crash_report_path = find_latest_crash_report(crashes_dir)
 
         if crash_report_path is None:
-            print("Error: No crash reports found in .crashes/", file=sys.stderr)
+            print("Error: No crash reports found in .datadog/.crashes/", file=sys.stderr)
             print("", file=sys.stderr)
             print("Generate a crash report by running a program that uses the SDK", file=sys.stderr)
             print("and triggers a crash (e.g., dd_native_repl with a crash command).", file=sys.stderr)

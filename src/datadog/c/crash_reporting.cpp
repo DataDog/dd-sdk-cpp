@@ -93,7 +93,10 @@ dd_crash_reporting_t* dd_crash_reporting_init(
   // return a valid pointer the first time it's called, ensuring that only a single
   // instance of the CrashReporting feature is empowered to handle and upload crashes
   datadog::impl::ICrashHandler* handler = datadog::impl::CrashHandler::InitializeOnce(
-      core->diagnostic_logger, storage->GetPath().Get(), config->handler_exe_path
+      core->diagnostic_logger,
+      core->impl->GetFilesystem(),
+      storage->GetPath(),
+      config->handler_exe_path
   );
 
   // If handler initialization failed, or if crash reporting is being enabled for an SDK
@@ -103,8 +106,9 @@ dd_crash_reporting_t* dd_crash_reporting_init(
   }
 
   // Initialize our CrashReporting feature implementation
-  auto crash_reporting_impl =
-      std::make_shared<datadog::impl::CrashReporting>(*handler, storage->GetPath());
+  auto crash_reporting_impl = std::make_shared<datadog::impl::CrashReporting>(
+      *handler, core->impl->GetFilesystem(), storage->GetPath()
+  );
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->impl->RegisterFeature(crash_reporting_impl)) {

@@ -73,7 +73,8 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
   // instance of the CrashReporting feature is empowered to handle and upload crashes
   impl::ICrashHandler* handler = impl::CrashHandler::InitializeOnce(
       impl::DiagnosticLogger{core->_diagnostic_handler, core->_diagnostic_threshold},
-      storage->GetPath().Get(),
+      core->_impl->GetFilesystem(),
+      storage->GetPath(),
       config.handler_exe_path
   );
 
@@ -84,8 +85,9 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
   }
 
   // Initialize our CrashReporting feature implementation
-  auto crash_reporting_impl =
-      std::make_shared<impl::CrashReporting>(*handler, storage->GetPath());
+  auto crash_reporting_impl = std::make_shared<impl::CrashReporting>(
+      *handler, core->_impl->GetFilesystem(), storage->GetPath()
+  );
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(crash_reporting_impl)) {

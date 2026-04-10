@@ -11,6 +11,7 @@
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 
+#include "mock/filesystem.hpp"
 #include "support/catch.hpp"
 #include "support/context.hpp"
 #include "support/crash_handler.hpp"
@@ -27,12 +28,15 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
   // Given a mock CoreContext value that will be copied into ContextChangedMessage
   CoreContext context{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO};
 
+  // And some required ICrashHandler dependencies that are not yet exercised in tests
+  MockFilesystem fs;
   StoragePath path;
   REQUIRE(path.Set("unused-path"));
 
   // And a mock ICrashHandler injected into a valid CrashReporting feature
   MockCrashHandler handler;
-  auto crash_reporting = std::make_shared<datadog::impl::CrashReporting>(handler, path);
+  auto crash_reporting =
+      std::make_shared<datadog::impl::CrashReporting>(handler, fs, path);
   REQUIRE(crash_reporting);
 
   // And a message handler callback returned by the feature implementation
