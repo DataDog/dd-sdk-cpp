@@ -91,7 +91,7 @@ add_executable(dd_native_tests
 # crash_context_write and crash_report_write are only compiled into dd_native when using
 # the in-process crash handler; only include their tests if they're present in the build
 get_target_property(_dd_native_sources dd_native SOURCES)
-set(_crash_src_dir "${DD_SDK_ROOT_DIR}/src/datadog/impl/crash_reporting/data")
+set(_crash_src_dir "datadog/impl/crash_reporting/data")
 if("${_crash_src_dir}/crash_context_write.cpp" IN_LIST _dd_native_sources)
     target_sources(dd_native_tests PRIVATE
         impl/crash_reporting/data/crash_context_write_test.cpp
