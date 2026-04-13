@@ -64,16 +64,16 @@ TEST_CASE("WriteCrashReport", "[unit][crash_reporting]") {
     {
       const uint64_t start_address = 0x100000;
       const uint64_t end_address = 0x200000;
-      const char* path = "/foo";
+      const char* module_path = "/foo";
       const char* build_id = "abc";
-      WriteCrashReportModule(handle, start_address, end_address, path, build_id);
+      WriteCrashReportModule(handle, start_address, end_address, module_path, build_id);
     }
     {
       const uint64_t start_address = 0x300000;
       const uint64_t end_address = 0x400000;
-      const char* path = "/bar";
+      const char* module_path = "/bar";
       const char* build_id = "";
-      WriteCrashReportModule(handle, start_address, end_address, path, build_id);
+      WriteCrashReportModule(handle, start_address, end_address, module_path, build_id);
     }
     WriteCrashReportStackFrame(handle, 0x100100);
     WriteCrashReportStackFrame(handle, 0x100200);
