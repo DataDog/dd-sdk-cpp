@@ -759,6 +759,10 @@ FilesystemResult MockFilesystem::ReplaceFile(
     if (auto st = HasSimulatedFailure(found_dst_file->second, FailureFlags::Rename)) {
       return *st;
     }
+    // If the destination file is pending delete, refuse to overwrite it
+    if (found_dst_file->second.delete_on_close) {
+      return FilesystemResult::PermissionDenied;
+    }
     // Erase the existing dst entry before extracting src, so that found_src_file
     // remains valid throughout
     _files.erase(found_dst_file);
