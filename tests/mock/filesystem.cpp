@@ -253,6 +253,16 @@ IFilesystem::OpenFileResult MockFilesystem::OpenForWrite(
     return {*status, INVALID_FILE_HANDLE};
   }
 
+  // If this is an existing file that's pending deletion after being closed, refuse to
+  // open the file. (This simulates Win32 with FILE_SHARE_DELETE: attempting to open a
+  // file that's pending deletion will fail with ERROR_ACCESS_DENIED, regardless of
+  // whether it's being opened for write or read. On POSIX, this operation would
+  // _succeed_ and create a new, independent file entry at the given path; but we want
+  // our mock to simulate the more-restrictive Windows behavior.)
+  if (file.delete_on_close) {
+    return {FilesystemResult::PermissionDenied, INVALID_FILE_HANDLE};
+  }
+
   // Report LockContention if we want to hold an advisory lock but someone already holds
   // such a lock
   if (hold_advisory_lock && file.advisory_lock_holder != INVALID_FILE_HANDLE) {
@@ -311,6 +321,13 @@ IFilesystem::OpenFileResult MockFilesystem::OpenForRead(
   // If tests have manually set a non-OK status for this file, fail with that result
   if (auto status = HasSimulatedFailure(file, FailureFlags::Open)) {
     return {*status, INVALID_FILE_HANDLE};
+  }
+
+  // If the file is pending deletion because Delete() was called while we still held
+  // open handles to the file, refuse to open the file. (This simulates Win32 with
+  // FILE_SHARE_DELETE. On POSIX, this would also fail, but with a bad-pathname error.)
+  if (file.delete_on_close) {
+    return {FilesystemResult::PermissionDenied, INVALID_FILE_HANDLE};
   }
 
   // Report LockContention if we want to hold an advisory lock but someone already holds
@@ -454,6 +471,12 @@ FilesystemResult MockFilesystem::Close(PlatformFileHandle handle) {
   // File state updated to remove reference to handle; now forget about the handle
   _handles.erase(found_handle);
 
+  // If our file was previously flagged for deletion, and the last handle is now closed,
+  // delete the file entry as a side effect
+  if (file.delete_on_close && file.open_handles.empty()) {
+    _files.erase(found_file);
+  }
+
   // Success: file closed
   return FilesystemResult::OK;
 }
@@ -474,18 +497,34 @@ FilesystemResult MockFilesystem::Delete(const PlatformPath& path) {
     return *status;
   }
 
-  // If the file has any open handles, fail on deletion, simulating default Windows/NTFS
-  // behavior
-  if (!file.open_handles.empty()) {
-    // Win32 would report ERROR_SHARING_VIOLATION in this case, which we don't
-    // explicitly differentiate
-    return FilesystemResult::UnknownError;
+  // If the file has no open handles, drop the entry from our lookup and return success
+  if (file.open_handles.empty()) {
+    _files.erase(found);
+    return FilesystemResult::OK;
   }
 
-  // No handles exist: drop the file entry from our lookup
-  _files.erase(found);
+  // File has open handles. On a real filesystem, this is handled slightly differently:
+  //
+  // - On POSIX: unlink() removes the pathname; actual file object will be destroyed
+  //    upon close(); subsequent calls to unlink(), open(), etc. will fail with ENOENT
+  //    because the path no longer exists.
+  // - On Win32: DeleteFile() puts the file into a delete-pending state; file will be
+  //    deleted on CloseHandle(); subsequent calls to DeleteFile(), CreateFile() etc.
+  //    will fail with ERROR_ACCESS_DENIED (not ERROR_FILE_NOT_FOUND) because the file
+  //    _does_ still exist at the given path but is in a pending-delete state.
+  //
+  // For our mock implementation, we simulate the Win32 behavior, as it's more
+  // restrictive, and the SDK should never knowingly double-delete a file under normal
+  // conditions.
 
-  // Success: file no longer exists
+  // If the file has previously been flagged for deletion, return an error
+  if (file.delete_on_close) {
+    return FilesystemResult::PermissionDenied;
+  }
+
+  // Otherwise, flag the file so it'll be purged once the last handle is closed, and
+  // return OK
+  file.delete_on_close = true;
   return FilesystemResult::OK;
 }
 
@@ -579,19 +618,27 @@ FilesystemResult MockFilesystem::Rename(
 
   // If src_path refers to a file, proceed with file move
   if (is_file) {
-    // If the file has any open handles, fail, simulating default Windows/NTFS behavior
-    if (!found_src_file->second.open_handles.empty()) {
-      return FilesystemResult::UnknownError;
+    // Refuse to move the file if it's pending deletion, simulating Win32 with
+    // FILE_SHARE_DELETE
+    if (found_src_file->second.delete_on_close) {
+      return FilesystemResult::PermissionDenied;
     }
 
     // Unlink the std::pair<std::string, MockFileEntry> item from the STL map, mutate
     // its key to index it under the desired destination path, and reinsert it
     auto node = _files.extract(found_src_file);
     node.key() = normalized_dst;
+    // If the file has open handles, they'll need to have their "path" string fixed up
+    // so they can still resolve the correct file entry
+    for (const PlatformFileHandle handle : node.mapped().open_handles) {
+      auto found_handle = _handles.find(handle);
+      if (found_handle != _handles.end()) {
+        found_handle->second.path = normalized_dst;
+      }
+    }
     _files.insert(std::move(node));
 
-    // There are no files handles to fix up, and no child files/directories, so we're
-    // done here: file successfully renamed
+    // Success: file was renamed
     return FilesystemResult::OK;
   }
 
@@ -675,6 +722,14 @@ FilesystemResult MockFilesystem::ReplaceFile(
   // If tests have set a non-OK status for the src file, fail with that result
   if (auto st = HasSimulatedFailure(found_src_file->second, FailureFlags::Rename)) {
     return *st;
+  }
+
+  // If Delete() was called on the file to be moved while we still held open file
+  // handles, and those handles are still open, refuse to move the file. (This is
+  // consistent with Win32 behavior when using FILE_SHARE_DELETE. On POSIX, the
+  // operation would also fail, but with a bad-pathname error.)
+  if (found_src_file->second.delete_on_close) {
+    return FilesystemResult::PermissionDenied;
   }
 
   // Report AlreadyExistsAsDirectory if dst is an existing directory: real backends

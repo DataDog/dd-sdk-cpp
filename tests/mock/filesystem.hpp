@@ -65,10 +65,12 @@ class MockFilesystem : public impl::IFilesystem {
     std::vector<impl::PlatformFileHandle> open_handles;
     // File handle that holds lock, or INVALID_FILE_HANDLE if not locked
     impl::PlatformFileHandle advisory_lock_holder{impl::INVALID_FILE_HANDLE};
+    // Delete() was called while this file was open; remove it when last handle closed
+    bool delete_on_close{false};
     // If not OK, all operations directly targeting this file will fail with this result
-    impl::FilesystemResult status;
+    impl::FilesystemResult status{impl::FilesystemResult::OK};
     // If not All, only specified operations will fail with non-OK status
-    FailureFlags status_flags;
+    FailureFlags status_flags{FailureFlags::All};
   };
   std::map<std::string, MockFileEntry> _files;
 

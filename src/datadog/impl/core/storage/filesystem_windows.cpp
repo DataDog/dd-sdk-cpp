@@ -200,11 +200,12 @@ class WindowsFilesystem final : public IFilesystem {
 
     // Open file with share mode, allowing other processes to read from and write to the
     // file while we have it open. We rely on cooperative advisory locks, not Windows
-    // share modes, for file locking.
+    // share modes, for file locking. Include FILE_SHARE_DELETE so that we can delete a
+    // file while we hold an open handle to it (a la POSIX open()/unlink()).
     HANDLE handle = CreateFileW(
         path.Get(),
         desired_access,
-        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         nullptr,
         creation_disposition,
         FILE_ATTRIBUTE_NORMAL,
@@ -258,11 +259,13 @@ class WindowsFilesystem final : public IFilesystem {
       const PlatformPath& path, bool hold_advisory_lock
   ) override {
     // Open file for reading, and allow concurrent reads and writes by other processes:
-    // we rely on cooperative advisory locks, not Windows share modes, for file locking
+    // we rely on cooperative advisory locks, not Windows share modes, for file locking.
+    // FILE_SHARE_DELETE ensures we can delete a file while we have it open, rather than
+    // releasing the lock prior to deletion (which would create a race condition)
     HANDLE handle = CreateFileW(
         path.Get(),
         GENERIC_READ,
-        FILE_SHARE_READ | FILE_SHARE_WRITE,
+        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
         nullptr,
         OPEN_EXISTING,  // File must already exist
         FILE_ATTRIBUTE_NORMAL,
