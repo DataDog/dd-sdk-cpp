@@ -32,6 +32,9 @@ static bool read_string(File& file, std::string& out, size_t max_len) {
   return length == 0 || read_bytes(file, out.data(), length);
 }
 
+// Suppress warnings re: cyclomatic complexity; branches are all straightforward
+// early-outs on parse failure
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::optional<CrashReportFile> ReadCrashReport(File& file) {
   // Parse header magic
   uint64_t magic{};
