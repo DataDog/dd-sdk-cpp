@@ -24,6 +24,7 @@ class MockSystemInfo : public platform::ISystemInfo {
             "desktop", "MockDevice", "MockModel", "MockBrand", "x86_64", "en-US", "UTC"
         } {}
 
+  int64_t GetPid() const override { return 12345; }
   const platform::OsInfo& GetOsInfo() const override { return os_info; }
   const platform::DeviceInfo& GetDeviceInfo() const override { return device_info; }
 };

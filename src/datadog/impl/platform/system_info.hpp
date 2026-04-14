@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
@@ -81,6 +82,14 @@ class ISystemInfo {
   ISystemInfo& operator=(const ISystemInfo&) = delete;
   ISystemInfo(ISystemInfo&&) = delete;
   ISystemInfo& operator=(ISystemInfo&&) = delete;
+
+  /**
+   * Returns the PID of the current process as a signed 64-bit integer.
+   *
+   * The caller should validate the result as needed to verify that it's a valid (i.e.
+   * positive, nonzero) process ID.
+   */
+  virtual int64_t GetPid() const = 0;
 
   /**
    * Returns operating system information collected at initialization.

@@ -7,6 +7,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 #include <sys/sysctl.h>
 #include <sys/utsname.h>
+#include <unistd.h>
 
 #include <string>
 
@@ -270,6 +271,7 @@ class MacOSSystemInfo final : public ISystemInfo {
     _device_info.time_zone = GetSystemTimezone(logger);
   }
 
+  int64_t GetPid() const override { return static_cast<int64_t>(getpid()); }
   const OsInfo& GetOsInfo() const override { return _os_info; }
   const DeviceInfo& GetDeviceInfo() const override { return _device_info; }
 };

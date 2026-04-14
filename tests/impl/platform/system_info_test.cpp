@@ -8,6 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <cctype>
+#include <limits>
 #include <regex>
 
 #include "datadog/impl/diagnostics.hpp"
@@ -26,6 +27,19 @@ TEST_CASE("SystemInfo", "[unit][platform-system-info]") {
 
     // Then it returns a valid instance
     REQUIRE(system_info != nullptr);
+  }
+
+  SECTION("M return valid PID W GetPid called") {
+    // Given an initialized system info instance
+    auto system_info = platform::SystemInfo::Init(logger);
+    REQUIRE(system_info != nullptr);
+
+    // When we retrieve the PID
+    const int64_t pid = system_info->GetPid();
+
+    // Then it is positive and within the valid int64_t range
+    REQUIRE(pid > 0);
+    REQUIRE(pid < std::numeric_limits<int64_t>::max());
   }
 
   SECTION("M return valid OS info W GetOsInfo called") {
