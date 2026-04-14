@@ -88,7 +88,6 @@ struct CoreTestHarness {
     fs.Mkdirs("app");
 
     // Create the core, giving the core ownership of injected subsystems
-    CoreConfig config = MOCK_CORE_CONFIG;
     if (flush_http_requests) {
       config.Internal_FlushHttpRequestsOnStop();
     }
