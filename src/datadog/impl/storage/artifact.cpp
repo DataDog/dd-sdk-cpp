@@ -55,6 +55,4 @@ bool ArtifactStorage::Initialize(
   return true;
 }
 
-std::string_view ArtifactStorage::GetPath() const { return _root.Get(); }
-
 }  // namespace datadog::impl

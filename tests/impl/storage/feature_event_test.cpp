@@ -15,6 +15,46 @@
 
 using namespace datadog::impl;
 
+TEST_CASE("FeatureEventStorage paths", "[unit][storage]") {
+  // Given a platform-appropriate root application storage path, and the expected prefix
+  // for our feature's event storage
+#ifdef _WIN32
+  std::string root = "C:\\Users\\jqpublic\\AppData\\Local\\someapp";
+  std::string want_prefix = root + "\\.datadog\\main\\555\\foo\\";
+#else
+  std::string root = "/home/jqpublic/.local/share/someapp";
+  std::string want_prefix = root + "/.datadog/main/555/foo/";
+#endif
+
+  // And a successfully-initialized a FeatureEventStorage instance within that root dir
+  MockFilesystemNew fs;
+  fs.Mkdirs(root);
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+  SdkStorage storage(fs, logger, 555);
+  REQUIRE(storage.Initialize(root, "main"));
+  auto events = storage.InitializeFeatureEventStorage("foo");
+  REQUIRE(events != nullptr);
+
+  SECTION("M return valid intermediate event-batch path W GetPendingPath called") {
+    // When we call GetPendingPath()
+    auto path = events->GetPendingPath();
+
+    // Then we get a valid path, relative to our root storage directory, to the
+    // directory that's used for events which can't yet be uploaded
+    REQUIRE(path.Get() == want_prefix + "intermediate-v1");
+  }
+
+  SECTION("M return valid upload-eligible event-batch path W GetGrantedPath called") {
+    // When we call GetGrantedPath()
+    auto path = events->GetGrantedPath();
+
+    // Then we get a valid path, relative to our root storage directory, to the
+    // directory that's used for events which we have consent to upload
+    REQUIRE(path.Get() == want_prefix + "v1");
+  }
+}
+
 TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
   // Given a filesystem with application files stored in app/
   MockFilesystemNew fs;
@@ -31,9 +71,8 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
 
   // And a properly-initialized FeatureEventStorage instance that will manage batch
   // files stored within app/.datadog/main/555/foo/
-  auto events_opt = storage.InitializeFeatureEventStorage("foo");
-  REQUIRE(events_opt.has_value());
-  FeatureEventStorage& events = *events_opt;
+  auto events = storage.InitializeFeatureEventStorage("foo");
+  REQUIRE(events != nullptr);
 
   SECTION("DeletePendingBatches") {
     SECTION("M delete all batch files W pending directory contains batch files") {
@@ -42,7 +81,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.Touch("app/.datadog/main/555/foo/intermediate-v1/1700000000100", "batch-1");
 
       // When we delete pending batches
-      const bool ok = events.DeletePendingBatches();
+      const bool ok = events->DeletePendingBatches();
 
       // Then the operation succeeds
       REQUIRE(ok);
@@ -63,7 +102,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.Touch("app/.datadog/main/555/foo/intermediate-v1/Thumbs.db", "not-sdk-data");
 
       // When we delete pending batches
-      const bool ok = events.DeletePendingBatches();
+      const bool ok = events->DeletePendingBatches();
 
       // Then the operation succeeds
       REQUIRE(ok);
@@ -83,7 +122,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       // Given no files in the pending directory
 
       // When we delete pending batches
-      const bool ok = events.DeletePendingBatches();
+      const bool ok = events->DeletePendingBatches();
 
       // Then the operation succeeds
       REQUIRE(ok);
@@ -105,7 +144,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       );
 
       // When we attempt to delete pending batches
-      const bool ok = events.DeletePendingBatches();
+      const bool ok = events->DeletePendingBatches();
 
       // Then the operation fails
       REQUIRE(!ok);
@@ -137,7 +176,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       );
 
       // When we attempt to delete pending batches
-      const bool ok = events.DeletePendingBatches();
+      const bool ok = events->DeletePendingBatches();
 
       // Then the operation fails
       REQUIRE(!ok);
@@ -166,7 +205,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.Touch("app/.datadog/main/555/foo/intermediate-v1/1700000000100", "batch-1");
 
       // When we migrate pending batches to the granted directory
-      const bool ok = events.MigratePendingBatchesToGranted();
+      const bool ok = events->MigratePendingBatchesToGranted();
 
       // Then the operation succeeds
       REQUIRE(ok);
@@ -190,7 +229,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.Touch("app/.datadog/main/555/foo/intermediate-v1/Thumbs.db", "not-sdk-data");
 
       // When we migrate pending batches
-      const bool ok = events.MigratePendingBatchesToGranted();
+      const bool ok = events->MigratePendingBatchesToGranted();
 
       // Then the operation succeeds
       REQUIRE(ok);
@@ -211,7 +250,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       // Given an initialized FeatureEventStorage with no files in the pending directory
 
       // When we migrate pending batches
-      const bool ok = events.MigratePendingBatchesToGranted();
+      const bool ok = events->MigratePendingBatchesToGranted();
 
       // Then the operation succeeds (vacuously)
       REQUIRE(ok);
@@ -238,7 +277,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       fs.Touch("app/.datadog/main/555/foo/intermediate-v1/1700000000100", "batch-1");
 
       // When we migrate pending batches
-      const bool ok = events.MigratePendingBatchesToGranted();
+      const bool ok = events->MigratePendingBatchesToGranted();
 
       // Then the operation succeeds
       REQUIRE(ok);
@@ -285,7 +324,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       );
 
       // When we migrate pending batches
-      const bool ok = events.MigratePendingBatchesToGranted();
+      const bool ok = events->MigratePendingBatchesToGranted();
 
       // Then the operation still succeeds overall: a failed conflict resolution is
       // treated as a non-fatal warning and migration continues
@@ -324,7 +363,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       );
 
       // When we attempt to migrate pending batches
-      const bool ok = events.MigratePendingBatchesToGranted();
+      const bool ok = events->MigratePendingBatchesToGranted();
 
       // Then the operation fails
       REQUIRE(!ok);
@@ -357,7 +396,7 @@ TEST_CASE("FeatureEventStorage event migration", "[unit][storage]") {
       );
 
       // When we attempt to migrate pending batches
-      const bool ok = events.MigratePendingBatchesToGranted();
+      const bool ok = events->MigratePendingBatchesToGranted();
 
       // Then the operation fails
       REQUIRE(!ok);

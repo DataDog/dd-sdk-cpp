@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -139,9 +140,9 @@ class SdkStorage {
    * advisory locks on the crash dump files that it writes and reads.
    *
    * Returns a valid ArtifactStorage value if directory initialization is successful;
-   * returns std::nullopt otherwise.
+   * returns nullptr otherwise.
    */
-  std::optional<ArtifactStorage> InitializeArtifactStorage(
+  std::unique_ptr<ArtifactStorage> InitializeArtifactStorage(
       std::string_view directory_name
   );
 
@@ -166,9 +167,9 @@ class SdkStorage {
    *    process still owns them.
    *
    * Returns a valid FeatureEventStorage value if directory initialization is
-   * successful; returns std::nullopt otherwise.
+   * successful; returns nullptr otherwise.
    */
-  std::optional<FeatureEventStorage> InitializeFeatureEventStorage(
+  std::unique_ptr<FeatureEventStorage> InitializeFeatureEventStorage(
       std::string_view feature_name
   );
 

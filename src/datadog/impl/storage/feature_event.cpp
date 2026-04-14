@@ -276,12 +276,4 @@ bool FeatureEventStorage::MigratePendingBatchesToGranted() {
   return true;
 }
 
-std::string_view FeatureEventStorage::GetPendingPath() const {
-  return _pending_root.Get();
-}
-
-std::string_view FeatureEventStorage::GetGrantedPath() const {
-  return _granted_root.Get();
-}
-
 }  // namespace datadog::impl
