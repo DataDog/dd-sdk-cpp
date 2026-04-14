@@ -21,7 +21,7 @@
  * that path, properly quoted and escaped, using the appropriate path delimiter for the
  * current platform.
  */
-std::string GetJsonLiteralForPath(std::string_view path) {
+inline std::string GetJsonLiteralForPath(std::string_view path) {
   std::string path_str(path);
 #ifdef _WIN32
   std::replace(path_str.begin(), path_str.end(), '/', '\\');
@@ -35,7 +35,7 @@ std::string GetJsonLiteralForPath(std::string_view path) {
  * Helper function used in tests that expect diagnostic messages to be logged indicating
  * failed IFilesystem calls on specific paths.
  */
-void RequireFilesystemError(
+inline void RequireFilesystemError(
     const std::string& s,
     std::string_view enum_str,
     std::string_view path,

@@ -40,6 +40,24 @@ class FeatureEventStorage {
   bool Initialize(std::string_view process_root, std::string_view feature_name);
 
   /**
+   * Attempts to delete all batch files within _pending_root. Returns true if all files
+   * were deleted successfully.
+   */
+  bool DeletePendingBatches();
+
+  /**
+   * Attempts to move all batch files from _pending_root to _granted_root. In the event
+   * of a filename conflict, the copy of the file in _pending_root is deleted, leaving
+   * the file in _granted_root untouched.
+   *
+   * Failure to delete the pending-directory file in case of conflict does not halt the
+   * process; the file will be left in place and migration will continue.
+   *
+   * Returns true if all files with non-conflicting names were moved successfully.
+   */
+  bool MigratePendingBatchesToGranted();
+
+  /**
    * Returns the path to the directory where batches of event data should be stored for
    * this feature, within this SDK instance, while tracking consent is pending.
    *
