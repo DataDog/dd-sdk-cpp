@@ -20,7 +20,8 @@
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature_read.hpp"
 #include "datadog/impl/core/upload_scheduler.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/storage/util.hpp"
 
 namespace datadog::impl {
 
@@ -98,26 +99,28 @@ static _process_and_upload_batch_result _interpret_http_result(
 }
 
 static _process_and_upload_batch_result _process_and_upload_batch(
-    const DiagnosticLogger& diagnostic_logger,
+    DiagnosticLogger& diagnostic_logger,
     const HttpContext& http_context,
     Feature& feature_impl,
-    platform::IDirectory& directory,
+    FilesystemWrapper& fsw,
+    const StoragePath& file_path,
     platform::IHttpClient& http_client,
-    std::string_view filename,
     std::vector<char>& mut_read_buffer
 ) {
   // This file is ready to process: attempt to open it for read
-  auto open_result = directory.OpenForRead(filename);
-  if (!open_result) {
+  const bool hold_advisory_lock = false;
+  auto open_result = fsw.OpenForRead(file_path.CStr(), hold_advisory_lock);
+  if (open_result.value != FilesystemResult::OK) {
     // If we failed to open the file for any reason, leave it in place and continue to
     // the next file
     return _process_and_upload_batch_result::retryable_failure;
   }
-  platform::IFileReader& file = *open_result->get();
 
   // Initialize a BatchReader, which the feature implementation will use to iteratively
   // process each TLV block stored in the file
-  BatchReader batch_reader(file, mut_read_buffer);
+  BatchReader batch_reader(
+      diagnostic_logger, std::move(open_result.file), mut_read_buffer
+  );
   auto report = feature_impl.UploadThread_PrepareReport(http_context, batch_reader);
   if (!report) {
     // If the feature elected not to generate a report from this batch, or was unable to
@@ -166,11 +169,12 @@ static _process_and_upload_batch_result _process_and_upload_batch(
 }
 
 static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
-    const DiagnosticLogger& diagnostic_logger,
+    DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
     RegisteredFeature& feature,
+    IFilesystem& fs,
     platform::IHttpClient& http_client,
     std::vector<std::string>& mut_filenames,
     std::vector<char>& mut_read_buffer
@@ -182,18 +186,22 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     return ASSERTION_FAILURE_BACKOFF;
   }
 
-  // The storage thread maintains a separate subdirectory for events that we have the
-  // user's consent to upload: a wrapper for that directory should have been initialized
-  // when the feature was registered
-  if (!feature.event_read_directory) {
-    DATADOG_ASSERT(false, "registered feature has no read directory in upload thread");
+  // The feature should also have a FeatureEventStorage object that provides access to
+  // the directory where the Core stores batches of event data for this feature which we
+  // have consent to upload
+  if (!feature.storage) {
+    DATADOG_ASSERT(false, "registered feature has no storage in upload thread");
     return ASSERTION_FAILURE_BACKOFF;
   }
-  platform::IDirectory& directory = *feature.event_read_directory;
 
-  // Retrieve a list of all filenames in the relevant directory
+  // Prepare a FilesystemWrapper that will handle path encoding transparently
+  FilesystemWrapper fsw(fs);
+
+  // Retrieve a list of all filenames in the consent-granted event directory
   mut_filenames.clear();
-  if (!directory.ListFiles(mut_filenames)) {
+  const StoragePath& granted_dir_path = feature.storage->GetGrantedPath();
+  const auto list_res = fsw.ListFiles(granted_dir_path.CStr(), mut_filenames);
+  if (list_res != FilesystemResult::OK) {
     return feature.upload_state->current_delay;
   }
 
@@ -247,9 +255,20 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
       break;
     }
 
+    // Build the full path to the batch file we're examining
+    StoragePath file_path;
+    file_path.MustSet(granted_dir_path);
+    if (!file_path.Append(filename)) {
+      // Failure due to excessive path length is unexpected: the SDK writes these batch
+      // files in the first place, so it would need to have constructed a valid path to
+      // this file if it's a valid batch file.
+      continue;
+    }
+
     // If this file is too old to process, delete it and continue
     if (file_age >= config.max_file_age_for_read) {
-      if (directory.RemoveFile(filename)) {
+      const auto delete_res = fsw.Delete(file_path.CStr());
+      if (delete_res == FilesystemResult::OK) {
         diagnostic_logger.Debug(
             "Deleted outdated batch file",
             {{"feature", feature.name}, {"filename", filename}}
@@ -259,7 +278,9 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
         // delete a batch, we won't continually reupload it
         diagnostic_logger.Warning(
             "Failed to delete outdated batch file",
-            {{"feature", feature.name}, {"filename", filename}}
+            {{"feature", feature.name},
+             {"filename", filename},
+             {"error", FilesystemResultStr(delete_res)}}
         );
       }
       continue;
@@ -272,9 +293,9 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
         diagnostic_logger,
         http_context,
         *feature.impl,
-        directory,
+        fsw,
+        file_path,
         http_client,
-        filename,
         mut_read_buffer
     );
     num_uploads_attempted++;
@@ -310,7 +331,8 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // If we need to delete the batch file, either because we processed it successfully
     // or because it's somehow malformed, delete it
     if (should_delete_batch) {
-      if (directory.RemoveFile(filename)) {
+      const auto delete_res = fsw.Delete(file_path.CStr());
+      if (delete_res == FilesystemResult::OK) {
         diagnostic_logger.Debug(
             "Deleted batch file", {{"feature", feature.name}, {"filename", filename}}
         );
@@ -319,7 +341,9 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
         // delete a batch, we won't continually reupload it
         diagnostic_logger.Warning(
             "Failed to delete batch file",
-            {{"feature", feature.name}, {"filename", filename}}
+            {{"feature", feature.name},
+             {"filename", filename},
+             {"error", FilesystemResultStr(delete_res)}}
         );
       }
     }
@@ -429,12 +453,13 @@ Duration UploadThreadState::ResetDelayToMin() {
 }
 
 Duration Internal_HandleUploadProc(
-    const DiagnosticLogger& diagnostic_logger,
+    DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
     FeatureId feature_id,
     std::vector<RegisteredFeature>& features,
+    IFilesystem& fs,
     platform::IHttpClient& http_client,
     std::vector<std::string>& mut_filenames,
     std::vector<char>& mut_read_buffer
@@ -465,6 +490,7 @@ Duration Internal_HandleUploadProc(
       http_context,
       clock,
       *feature,
+      fs,
       http_client,
       mut_filenames,
       mut_read_buffer
@@ -472,12 +498,13 @@ Duration Internal_HandleUploadProc(
 }
 
 void UploadThreadMain(
-    const DiagnosticLogger& diagnostic_logger,
+    DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
     UploadScheduler& scheduler,
     std::vector<RegisteredFeature>& features,
+    IFilesystem& fs,
     platform::IHttpClient& http_client
 ) {
   diagnostic_logger.Debug("Upload thread starting");
@@ -513,6 +540,7 @@ void UploadThreadMain(
         clock,
         *feature_id,
         features,
+        fs,
         http_client,
         filenames,
         read_buffer

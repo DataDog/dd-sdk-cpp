@@ -10,40 +10,44 @@
 
 namespace datadog::impl {
 
-BatchReader::BatchReader(platform::IFileReader& file, std::vector<char>& buffer)
-    : _file(file), _block_data_buffer(buffer) {}
+BatchReader::BatchReader(
+    DiagnosticLogger& in_logger, File&& in_file, std::vector<char>& in_buffer
+)
+    : _logger(in_logger), _file(std::move(in_file)), _block_data_buffer(in_buffer) {}
 
-nonstd::expected<std::optional<TLVBlock>, BatchReadError> BatchReader::ReadNext() {
-  // Read and parse the TLV header at the current file position, then read the
-  // adjacent block data into the buffer, returning a result that contains a
-  // lightweight view of that buffer
-  const TLVBlockReadResult result = ReadTLVBlock(_file, _block_data_buffer);
-  switch (result.type) {
+BatchReader::Result BatchReader::ReadNext() {
+  // Read and parse the TLV header at the current file position
+  const TLVBlockHeaderReadResult res = ReadTLVBlockHeader(_logger, _file);
+  switch (res.status) {
     // Successful read; continue
-    case TLVBlockReadResultType::Success:
+    case TLVBlockHeaderReadResult::Status::Success:
       break;
 
-    // Read OK but there are no more blocks; return nullopt
-    case TLVBlockReadResultType::EndOfFile:
-      return std::nullopt;
+    // Read OK but there are no more blocks
+    case TLVBlockHeaderReadResult::Status::EndOfFile:
+      return Result{Result::Status::EndOfFile, {}};
 
-    // On any failure, early-out with an appropriate error
-    case TLVBlockReadResultType::IOError:
-      return nonstd::make_unexpected(BatchReadError::IOError);
-    case TLVBlockReadResultType::ReadFailed:
-      return nonstd::make_unexpected(BatchReadError::FailedRead);
-    case TLVBlockReadResultType::Malformed:
-      return nonstd::make_unexpected(BatchReadError::InvalidBlockFormat);
+    // Read failed; return error
+    case TLVBlockHeaderReadResult::Status::Error:
+      return Result{Result::Status::Error, {}};
+  }
+
+  // Header read OK; read the next N bytes to get the data for this block, as advertised
+  // in the header
+  const bool ok =
+      ReadTLVBlockData(_logger, _file, res.header.block_size, _block_data_buffer);
+  if (!ok) {
+    return Result{Result::Status::Error, {}};
   }
 
   // Successful read; block is valid: construct a lightweight view of our member
-  // vector, and return a TLVBlock object
+  // vector, and return a result with a TLVBlock object
   Block block_data{_block_data_buffer.data(), _block_data_buffer.size()};
   DATADOG_ASSERT(
-      block_data.size() == result.header.block_size,
+      block_data.size() == res.header.block_size,
       "After OK ReadTLVBlock, buffer size does not match block size in header"
   );
-  return TLVBlock{result.header.type, block_data};
+  return Result{Result::Status::Success, TLVBlock{res.header.type, block_data}};
 }
 
 }  // namespace datadog::impl

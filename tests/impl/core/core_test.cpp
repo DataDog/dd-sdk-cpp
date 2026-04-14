@@ -13,7 +13,7 @@
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
 #include "support/core.hpp"
@@ -22,8 +22,11 @@ using namespace datadog;
 using namespace datadog::impl;
 
 static impl::Core _make_core() {
+  auto fs = std::make_unique<MockFilesystemNew>();
+  fs->Mkdirs("app");
   return impl::Core(
       CoreConfig("test-client-token", "initial-service", "initial-env")
+          .SetEventStorageLocation("app")
           .SetInitialTrackingConsent(TrackingConsent::Granted)
           .SetApplicationVersion("1.0.0")
           .SetBatchSize(BatchSize::Small)
@@ -31,7 +34,7 @@ static impl::Core _make_core() {
           .SetBatchProcessingLevel(BatchProcessingLevel::Low),
       CoreSubsystems(
           std::make_unique<MockClock>(),
-          std::make_unique<MockStorageDirectory>(),
+          std::move(fs),
           std::make_unique<MockHttpSubsystem>(),
           std::make_unique<MockSystemInfo>()
       )

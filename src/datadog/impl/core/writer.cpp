@@ -89,24 +89,29 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes) {
     while (state.Done()) {
       // If we fail to read from the batch file, abort the request
       auto first = reader.ReadNext();
-      if (!first.has_value()) {
+      if (first.status == BatchReader::Result::Status::Error) {
         return platform::HTTP_WRITE_RESULT_ABORT;
       }
 
       // If we reach the end of the file without finding a single event block, abort the
       // request
-      std::optional<TLVBlock> block = *first;
-      if (!block) {
+      if (first.status == BatchReader::Result::Status::EndOfFile) {
         return platform::HTTP_WRITE_RESULT_ABORT;
       }
 
+      // We've read a valid TLV block
+      DATADOG_ASSERT(
+          first.status == BatchReader::Result::Status::Success,
+          "unexpected BatchReader result"
+      );
+
       // If we found a metadata block, ignore it
-      if (block->type != TLVBlockType::Event) {
+      if (first.block.type != TLVBlockType::Event) {
         continue;
       }
 
       // We've found our first event: transition to writing it
-      state.Enter(Mode::Event, block->data);
+      state.Enter(Mode::Event, first.block.data);
     }
 
     // If we've filled the buffer, write no more
@@ -130,25 +135,30 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes) {
       while (state.Done()) {
         // Read the next TLV block from the file, aborting on any read failure
         auto next = reader.ReadNext();
-        if (!next.has_value()) {
+        if (next.status == BatchReader::Result::Status::Error) {
           return platform::HTTP_WRITE_RESULT_ABORT;
         }
 
-        // Read OK: if we have no block, we're at EOF and we can wrap up
-        std::optional<TLVBlock> block = *next;
-        if (!block) {
+        // Read OK: if we've cleanly reached the end of the file, we can wrap up
+        if (next.status == BatchReader::Result::Status::EndOfFile) {
           state.Enter(Mode::Suffix, suffix);
           break;
         }
 
+        // We've read a valid TLV block
+        DATADOG_ASSERT(
+            next.status == BatchReader::Result::Status::Success,
+            "unexpected BatchReader result"
+        );
+
         // Skip metadata blocks
-        if (block->type != TLVBlockType::Event) {
+        if (next.block.type != TLVBlockType::Event) {
           continue;
         }
 
         // We have an event block: keep track of it so we can transition to writing it
         // after the delimiter, but first write the delimiter
-        next_event = block->data;
+        next_event = next.block.data;
         state.Enter(Mode::Delimiter, delimiter);
         break;
       }

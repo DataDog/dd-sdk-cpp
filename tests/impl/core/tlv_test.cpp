@@ -8,12 +8,13 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/tlv.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog::impl;
 
-TEST_CASE("TLVBlockHeader", "[unit]") {
+TEST_CASE("TLVBlockHeader", "[unit][tlv]") {
   SECTION("M be serialized properly W Encode is called") {
     // Given a six-byte buffer
     char buf[6];
@@ -50,7 +51,7 @@ TEST_CASE("TLVBlockHeader", "[unit]") {
   }
 }
 
-TEST_CASE("EncodeTLVBlock", "[unit]") {
+TEST_CASE("EncodeTLVBlock", "[unit][tlv]") {
   SECTION("M encode Event block properly W valid buffer and data provided") {
     // Given a buffer large enough for header + data
     char buf[20];
@@ -168,252 +169,210 @@ TEST_CASE("EncodeTLVBlock", "[unit]") {
   }
 }
 
-TEST_CASE("ReadTLVBlock", "[unit]") {
-  SECTION("M read all blocks successfully W given valid TLV file") {
-    // Given a file 'foo' containing a metadata block and an event block
-    MockStorageDirectory storage;
-    MockTLVFile()
-        .AppendMetadata("metadata-0")
-        .AppendEvent("event-0")
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+TEST_CASE("TLV Read", "[unit][tlv]") {
+  // Given a file 'good' containing a metadata block and an event block
+  MockFilesystemNew fs;
+  MockTLVFile().AppendMetadata("metadata-0").AppendEvent("event-0").WriteTo(fs, "good");
+  auto good_res = fs.Wrapper().OpenForRead("good", false);
+  REQUIRE(good_res.value == FilesystemResult::OK);
+  File& good = good_res.file;
 
-    // And a reusable read buffer
-    std::vector<char> buffer;
+  // And another file 'bad' containing 6 bytes of garbage data
+  fs.Touch("bad", "666666");
+  auto bad_res = fs.Wrapper().OpenForRead("bad", false);
+  REQUIRE(bad_res.value == FilesystemResult::OK);
+  File& bad = bad_res.file;
 
-    // When we read from the file once
-    auto result = ReadTLVBlock(*infile->get(), buffer);
+  // And a diagnostic logger that will buffer all messages emitted
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
 
-    // Then we should get a valid result with our metadata block
-    REQUIRE(result.type == TLVBlockReadResultType::Success);
-    REQUIRE(result.header.type == TLVBlockType::Metadata);
-    REQUIRE(result.header.block_size == 10);
+  // And a helper function that we can use to seek past one block at a time
+  auto skip_block = [&logger](File& file) {
+    const auto res = ReadTLVBlockHeader(logger, file);
+    REQUIRE(res.status == TLVBlockHeaderReadResult::Status::Success);
+    std::vector<char> ignored;
+    const bool ok = ReadTLVBlockData(logger, file, res.header.block_size, ignored);
+    REQUIRE(ok);
+  };
 
-    // And our buffer should contain the block data
-    REQUIRE(buffer.size() == result.header.block_size);
-    REQUIRE(std::string_view(buffer.data(), buffer.size()) == "metadata-0");
+  SECTION("ReadTLVBlockHeader") {
+    SECTION("M parse header W handle is positioned at valid TLV metadata header") {
+      // When we attempt to read a TLV header from the start of our good file
+      const TLVBlockHeaderReadResult res = ReadTLVBlockHeader(logger, good);
 
-    // Next: When we read from the file a second time
-    result = ReadTLVBlock(*infile->get(), buffer);
+      // Then we successfully parse the header for the initial metadata block
+      REQUIRE(res.status == TLVBlockHeaderReadResult::Status::Success);
+      REQUIRE(res.header.type == TLVBlockType::Metadata);
+      REQUIRE(res.header.block_size == std::string_view{"metadata-0"}.size());
 
-    // Then we should get the next and final block
-    REQUIRE(result.type == TLVBlockReadResultType::Success);
-    REQUIRE(result.header.type == TLVBlockType::Event);
-    REQUIRE(result.header.block_size == 7);
+      // And no diagnostic warnings or errors are emitted
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 0);
+    }
 
-    // And our buffer should be reused for its data
-    REQUIRE(buffer.size() == result.header.block_size);
-    REQUIRE(std::string_view(buffer.data(), buffer.size()) == "event-0");
+    SECTION("M parse header W handle is positioned at valid TLV event header") {
+      // Given a file handle that's positioned at the second block in our good file
+      skip_block(good);
 
-    // And our buffer's capacity should be unchanged
-    REQUIRE(buffer.capacity() >= 10);
+      // When we attempt to read a TLV header from that position
+      const TLVBlockHeaderReadResult res = ReadTLVBlockHeader(logger, good);
 
-    // Next: When we attempt to read once more
-    result = ReadTLVBlock(*infile->get(), buffer);
+      // Then we successfully parse the header for the event block
+      REQUIRE(res.status == TLVBlockHeaderReadResult::Status::Success);
+      REQUIRE(res.header.type == TLVBlockType::Event);
+      REQUIRE(res.header.block_size == std::string_view{"event-0"}.size());
 
-    // Then we should get EndOfFile
-    REQUIRE(result.type == TLVBlockReadResultType::EndOfFile);
+      // And no diagnostic warnings or errors are emitted
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 0);
+    }
+
+    SECTION("M cleanly return EOF W handle is positioned at end of file") {
+      // Given a file handle that's positioned at the end of our good file
+      skip_block(good);
+      skip_block(good);
+
+      // When we attempt to read a TLV header from that position
+      const TLVBlockHeaderReadResult res = ReadTLVBlockHeader(logger, good);
+
+      // Then we get a result indicating there are no more blocks in the file
+      REQUIRE(res.status == TLVBlockHeaderReadResult::Status::EndOfFile);
+
+      // And no diagnostic warnings or errors are emitted
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 0);
+    }
+
+    SECTION("M fail and log a warning W file does not contain a valid TLV header") {
+      // When we attempt to read a TLV header from our bad file
+      const TLVBlockHeaderReadResult res = ReadTLVBlockHeader(logger, bad);
+
+      // Then we get a result indicating that we failed to parse a TLV header
+      REQUIRE(res.status == TLVBlockHeaderReadResult::Status::Error);
+
+      // And a warning is emitted
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 1);
+      REQUIRE(
+          diagnostics.warning[0] ==
+          "Failed to parse TLV block header from file: invalid format"
+      );
+    }
+
+    SECTION("M fail and log a warning W unable to read a complete header") {
+      // Given a handle into our bad file that's positioned one byte in, meaning there
+      // are only 5 trailing bytes, not enough for a complete TLV header
+      char c;
+      const auto read_res = bad.Read(&c, 1);
+      REQUIRE(read_res.value == FilesystemResult::OK);
+      REQUIRE(read_res.bytes_read == 1);
+
+      // When we attempt to read a TLV header
+      const TLVBlockHeaderReadResult res = ReadTLVBlockHeader(logger, bad);
+
+      // Then we get a result indicating that we failed to parse a TLV header
+      REQUIRE(res.status == TLVBlockHeaderReadResult::Status::Error);
+
+      // And a warning is emitted that indicates a partial read
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 1);
+      REQUIRE(
+          diagnostics.warning[0] ==
+          "Failed to read TLV block header from file {\"error\":\"OK\","
+          "\"num_bytes_read\":5}"
+      );
+    }
+
+    SECTION("M fail and log a warning W file read operation fails") {
+      // Given a filesystem that will refuse to allow our good file to be read
+      fs.SimulateFailure(
+          "good", FilesystemResult::UnknownError, MockFilesystemNew::FailureFlags::IO
+      );
+
+      // When we attempt to read a TLV header from our good file
+      const TLVBlockHeaderReadResult res = ReadTLVBlockHeader(logger, good);
+
+      // Then we get a result indicating that we failed to parse a TLV header
+      REQUIRE(res.status == TLVBlockHeaderReadResult::Status::Error);
+
+      // And a warning is emitted that shows the filesystem error
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 1);
+      REQUIRE(
+          diagnostics.warning[0] ==
+          "Failed to read TLV block header from file {\"error\":\"UnknownError\","
+          "\"num_bytes_read\":0}"
+      );
+    }
   }
 
-  SECTION("M return IOError W file read operation encounters I/O error") {
-    // Given a file that suddenly becomes unreadable after being opened
-    MockStorageDirectory storage;
-    MockTLVFile().AppendEvent("test").WriteTo(storage, "corruptible");
-    auto infile = storage.OpenForRead("corruptible");
-    REQUIRE(infile.has_value());
-    storage.Corrupt("corruptible");
+  SECTION("ReadTLVBlockData") {
+    SECTION("M successfully read block W positioned after TLV header") {
+      // Given a file handle positioned at the first metadata block in our good file
+      const auto res = ReadTLVBlockHeader(logger, good);
+      REQUIRE(res.status == TLVBlockHeaderReadResult::Status::Success);
 
-    // When we try to read from the corrupted file
-    std::vector<char> buffer;
-    auto result = ReadTLVBlock(*infile->get(), buffer);
+      // When we attempt to read the block data positioned after the header
+      std::vector<char> got;
+      const bool ok = ReadTLVBlockData(logger, good, res.header.block_size, got);
 
-    // Then we should get an IOError result
-    REQUIRE(result.type == TLVBlockReadResultType::IOError);
-  }
+      // Then the read is successful
+      REQUIRE(ok);
 
-  SECTION("M return ReadFailed W file read operation fails") {
-    // Given a file we suddenly can't read from after it's open
-    MockStorageDirectory storage;
-    MockTLVFile().AppendEvent("test").WriteTo(storage, "failing");
-    auto infile = storage.OpenForRead("failing");
-    REQUIRE(infile.has_value());
-    storage.SetFail("failing", true);
+      // And our vector is populated with the binary value from the block
+      std::string_view got_str(got.data(), got.size());
+      REQUIRE(got_str == "metadata-0");
 
-    // When we try to read from the failing file
-    std::vector<char> buffer;
-    auto result = ReadTLVBlock(*infile->get(), buffer);
+      // And no diagnostic warnings or errors are emitted
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 0);
+    }
 
-    // Then we should get a ReadFailed result
-    REQUIRE(result.type == TLVBlockReadResultType::ReadFailed);
-  }
+    SECTION("M fail and log a warning W file ends before advertised block size") {
+      // When we attempt to read a supposed 100-byte value from a file that only has 6
+      // bytes left to read
+      std::vector<char> got;
+      const bool ok = ReadTLVBlockData(logger, bad, 100, got);
 
-  SECTION("M return Malformed W file contains invalid TLV header") {
-    // Given a file with invalid block type in header
-    MockStorageDirectory storage;
-    MockTLVFile malformed_file;
-    // Manually create invalid header: type 0x9999 (unknown), size 4
-    malformed_file.AppendBytes(std::string_view{"\x99\x99\x00\x00\x00\x04test", 10});
-    malformed_file.WriteTo(storage, "malformed");
-    auto infile = storage.OpenForRead("malformed");
-    REQUIRE(infile.has_value());
+      // Then the read is unsuccessful
+      REQUIRE(!ok);
 
-    // When we try to read the malformed header
-    std::vector<char> buffer;
-    auto result = ReadTLVBlock(*infile->get(), buffer);
+      // And a warning is emitted that shows we found insufficient data
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 1);
+      REQUIRE(
+          diagnostics.warning[0] ==
+          "Failed to read TLV block data from file {\"error\":\"OK\","
+          "\"num_bytes_read\":6}"
+      );
+    }
 
-    // Then we should get a Malformed result
-    REQUIRE(result.type == TLVBlockReadResultType::Malformed);
-  }
+    SECTION("M fail and log a warning W file read operation fails") {
+      // Given a file handle positioned at the first metadata block in our good file
+      const auto res = ReadTLVBlockHeader(logger, good);
+      REQUIRE(res.status == TLVBlockHeaderReadResult::Status::Success);
 
-  SECTION("M return Malformed W file contains zero-size block") {
-    // Given a file with zero block size in header
-    MockStorageDirectory storage;
-    MockTLVFile zero_size_file;
-    // Create header with Event type but zero size
-    zero_size_file.AppendBytes(std::string_view{"\x00\x00\x00\x00\x00\x00", 6});
-    zero_size_file.WriteTo(storage, "zero_size");
-    auto infile = storage.OpenForRead("zero_size");
-    REQUIRE(infile.has_value());
+      // And a filesystem that will now refuse to allow our good file to be read
+      fs.SimulateFailure(
+          "good", FilesystemResult::UnknownError, MockFilesystemNew::FailureFlags::IO
+      );
 
-    // When we try to read the zero-size block header
-    std::vector<char> buffer;
-    auto result = ReadTLVBlock(*infile->get(), buffer);
+      // When we attempt to read the contents of that TLV metadata block
+      std::vector<char> got;
+      const bool ok = ReadTLVBlockData(logger, good, res.header.block_size, got);
 
-    // Then we should get a Malformed result (zero-size blocks are disallowed)
-    REQUIRE(result.type == TLVBlockReadResultType::Malformed);
-  }
+      // Then the read is unsuccessful
+      REQUIRE(!ok);
 
-  SECTION("M return Malformed W file has incomplete header") {
-    // Given a file with only partial header (less than 6 bytes)
-    MockStorageDirectory storage;
-    storage.WithExistingFile("partial_header", std::string_view{"\x00\x01\x00", 3});
-    auto infile = storage.OpenForRead("partial_header");
-    REQUIRE(infile.has_value());
-
-    // When we try to read the incomplete header
-    std::vector<char> buffer;
-    auto result = ReadTLVBlock(*infile->get(), buffer);
-
-    // Then we should get a Malformed result (not a valid TLV header)
-    REQUIRE(result.type == TLVBlockReadResultType::Malformed);
-  }
-
-  SECTION("M return Malformed W file has incomplete block data") {
-    // Given a file with valid header but insufficient block data
-    MockStorageDirectory storage;
-    MockTLVFile incomplete_file;
-    // Header says size is 10 bytes, but we only provide 5
-    incomplete_file.AppendBytes(std::string_view{"\x00\x01\x00\x00\x00\x0a", 6});
-    incomplete_file.AppendBytes("12345");
-    incomplete_file.WriteTo(storage, "incomplete");
-    auto infile = storage.OpenForRead("incomplete");
-    REQUIRE(infile.has_value());
-
-    // When we try to read the block with insufficient data
-    std::vector<char> buffer;
-    auto result = ReadTLVBlock(*infile->get(), buffer);
-
-    // Then we should get a Malformed result
-    REQUIRE(result.type == TLVBlockReadResultType::Malformed);
-  }
-
-  SECTION("M return EndOfFile W file is empty") {
-    // Given an empty file
-    MockStorageDirectory storage;
-    storage.WithExistingFile("empty", "");
-    auto infile = storage.OpenForRead("empty");
-    REQUIRE(infile.has_value());
-
-    // When we try to read from the empty file
-    std::vector<char> buffer;
-    auto result = ReadTLVBlock(*infile->get(), buffer);
-
-    // Then we should get EndOfFile
-    REQUIRE(result.type == TLVBlockReadResultType::EndOfFile);
-  }
-
-  SECTION("M handle large block size properly W buffer needs reallocation") {
-    // Given a file with a large block
-    MockStorageDirectory storage;
-    std::string large_data(5000, 'L');  // 5KB of data
-    MockTLVFile().AppendMetadata(large_data).WriteTo(storage, "large");
-    auto infile = storage.OpenForRead("large");
-    REQUIRE(infile.has_value());
-
-    // And a buffer that starts small
-    std::vector<char> buffer;
-    buffer.reserve(100);  // Start with small capacity
-
-    // When we read the large block
-    auto result = ReadTLVBlock(*infile->get(), buffer);
-
-    // Then we should get success
-    REQUIRE(result.type == TLVBlockReadResultType::Success);
-    REQUIRE(result.header.type == TLVBlockType::Metadata);
-    REQUIRE(result.header.block_size == 5000);
-
-    // And the buffer should have been reallocated to fit the data
-    REQUIRE(buffer.size() == 5000);
-    REQUIRE(buffer.capacity() >= 5000);
-
-    // And the data should be correct
-    REQUIRE(std::string_view(buffer.data(), buffer.size()) == large_data);
-
-    // And a subsequent read should return EOF
-    result = ReadTLVBlock(*infile->get(), buffer);
-    REQUIRE(result.type == TLVBlockReadResultType::EndOfFile);
-  }
-
-  SECTION("M reuse buffer efficiently W multiple reads of different sizes") {
-    // Given a file with blocks of different sizes
-    MockStorageDirectory storage;
-    MockTLVFile()
-        .AppendEvent("small")                   // 5 bytes
-        .AppendMetadata("much_larger_content")  // 19 bytes
-        .AppendEvent("med")                     // 3 bytes
-        .WriteTo(storage, "multi_size");
-    auto infile = storage.OpenForRead("multi_size");
-    REQUIRE(infile.has_value());
-
-    std::vector<char> buffer;
-
-    // When we read the first (small) block
-    auto result = ReadTLVBlock(*infile->get(), buffer);
-
-    // Then we should get the small block
-    REQUIRE(result.type == TLVBlockReadResultType::Success);
-    REQUIRE(result.header.type == TLVBlockType::Event);
-    REQUIRE(result.header.block_size == 5);
-    REQUIRE(buffer.size() == 5);
-    REQUIRE(std::string_view(buffer.data(), buffer.size()) == "small");
-    size_t capacity_after_first = buffer.capacity();
-
-    // When we read the second (large) block
-    result = ReadTLVBlock(*infile->get(), buffer);
-
-    // Then we should get the large block with increased capacity
-    REQUIRE(result.type == TLVBlockReadResultType::Success);
-    REQUIRE(result.header.type == TLVBlockType::Metadata);
-    REQUIRE(result.header.block_size == 19);
-    REQUIRE(buffer.size() == 19);
-    REQUIRE(std::string_view(buffer.data(), buffer.size()) == "much_larger_content");
-    REQUIRE(buffer.capacity() >= capacity_after_first);  // Should have grown
-
-    // When we read the third (small again) block
-    result = ReadTLVBlock(*infile->get(), buffer);
-
-    // Then we should reuse the existing buffer capacity
-    REQUIRE(result.type == TLVBlockReadResultType::Success);
-    REQUIRE(result.header.type == TLVBlockType::Event);
-    REQUIRE(result.header.block_size == 3);
-    REQUIRE(buffer.size() == 3);
-    REQUIRE(std::string_view(buffer.data(), buffer.size()) == "med");
-    // Capacity should be unchanged since buffer was large enough
-    REQUIRE(buffer.capacity() >= 19);
-
-    // And a subsequent read should return EOF
-    result = ReadTLVBlock(*infile->get(), buffer);
-    REQUIRE(result.type == TLVBlockReadResultType::EndOfFile);
+      // And a warning is emitted that shows the filesystem error
+      REQUIRE(diagnostics.error.size() == 0);
+      REQUIRE(diagnostics.warning.size() == 1);
+      REQUIRE(
+          diagnostics.warning[0] ==
+          "Failed to read TLV block data from file {\"error\":\"UnknownError\","
+          "\"num_bytes_read\":0}"
+      );
+    }
   }
 }

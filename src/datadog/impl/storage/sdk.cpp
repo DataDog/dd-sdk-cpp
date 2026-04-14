@@ -21,6 +21,18 @@ SdkStorage::SdkStorage(IFilesystem& in_fs, DiagnosticLogger& in_logger, int64_t 
 bool SdkStorage::Initialize(
     std::string_view application_storage_path, std::string_view sdk_instance_name
 ) {
+  // If no application storage path has been configured, we will implicitly use the
+  // current working directory: log a warning to signal to the application developer
+  // that they should be explicit about where they want us to store files (this warning
+  // can be suppressed, using cwd explicity, by calling SetEventStorageLocation("."))
+  if (application_storage_path.empty()) {
+    _logger.Warning(
+        "Events will be stored within .datadog/ in the current working directory: "
+        "application should call SetEventStorageLocation to specify a suitable "
+        "application-specific directory where .datadog/ can be created"
+    );
+  }
+
   // Require that SDK instance name is a valid directory name _without_ a dot prefix, as
   // the dot prefix is used to differentiate artifact storage directories
   // (CoreConfig does not currently expose instance name as a configurable option: when

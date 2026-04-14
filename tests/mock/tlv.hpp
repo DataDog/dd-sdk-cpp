@@ -11,7 +11,7 @@
 
 #include "datadog/impl/core/tlv.hpp"
 
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 
 using namespace datadog;
 
@@ -52,9 +52,9 @@ struct MockTLVFile {
     return *this;
   }
 
-  void WriteTo(MockStorageDirectory& storage, std::string_view relpath) {
+  void WriteTo(MockFilesystemNew& fs, std::string_view relpath) {
     std::string_view contents{buffer.data(), buffer.size()};
-    storage.WithExistingFile(relpath, contents);
+    fs.Touch(relpath, contents);
   }
 
   std::string ToString() const { return std::string(buffer.begin(), buffer.end()); }

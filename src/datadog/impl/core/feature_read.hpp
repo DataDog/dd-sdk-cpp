@@ -6,15 +6,13 @@
 
 #pragma once
 
-#include <cinttypes>
-#include <optional>
-
-#include "nonstd/expected.hpp"
+#include <cstdint>
 
 #include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/tlv.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
+#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
 
 namespace datadog::impl {
 
@@ -29,33 +27,13 @@ struct TLVBlock {
 };
 
 /**
- * Reason that we failed to read the next TLVBlock from a batch file.
- */
-enum class BatchReadError : uint8_t {
-  /**
-   * File reads were OK, but the data is malformed: e.g. TLV block type was
-   * unrecognized, TLV header showed a block size of 0, etc.
-   */
-  InvalidBlockFormat,
-  /**
-   * An attempt to read from the file was unsuccessful, e.g. because the file no longer
-   * exists, our handle is invalid, etc.
-   */
-  FailedRead,
-  /**
-   * An attempt to read from the file failed due to a catastrophic filesystem error
-   * (i.e. the bad bit was set).
-   */
-  IOError
-};
-
-/**
  * Interface passed to Feature::UploadThread_PrepareReport, allowing it iteratively read
  * blocks of TLV-formatted data from the relevant batch file.
  */
 class BatchReader {
  private:
-  platform::IFileReader& _file;
+  DiagnosticLogger& _logger;
+  File _file;
   std::vector<char>& _block_data_buffer;
 
  public:
@@ -63,14 +41,27 @@ class BatchReader {
    * Initializes a new BatchReader to read TLV data from a file that's open for read,
    * using the provided buffer to store each block as it's read.
    */
-  BatchReader(platform::IFileReader& file, std::vector<char>& buffer);
+  explicit BatchReader(
+      DiagnosticLogger& in_logger, File&& in_file, std::vector<char>& in_buffer
+  );
 
   /**
-   * Attempts to read the next block of TLV data from the open file, returning
-   * std::nullopt if it's reached the end of the file and no more blocks are available.
-   * Returns an error value if the file can not be read or the data is malformed.
+   * Result of an attempt to read a single TLV block from the file.
    */
-  nonstd::expected<std::optional<TLVBlock>, BatchReadError> ReadNext();
+  struct Result {
+    enum class Status : uint8_t {
+      Success,    // A complete TLV block was successfully read from the file
+      EndOfFile,  // We're done with the file; no more blocks are present
+      Error       // Failed to read or parse a block; details were logged
+    } status{Status::Success};
+
+    TLVBlock block;  // Valid only on Success
+  };
+
+  /**
+   * Attempts to read the next block of TLV data from the open file.
+   */
+  Result ReadNext();
 };
 
 }  // namespace datadog::impl

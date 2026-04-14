@@ -10,38 +10,45 @@
 #include <string_view>
 #include <vector>
 
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/tlv.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog::impl;
 
 TEST_CASE("BatchReader", "[unit]") {
-  SECTION("M read event blocks W file is valid") {
+  // Given a mock filesystem on which we can open arbitrary files
+  MockFilesystemNew fs;
+  auto fs_open = [&fs](const char* path) {
+    auto res = fs.Wrapper().OpenForRead(path, false);
+    REQUIRE(res.value == FilesystemResult::OK);
+    return std::move(res.file);
+  };
+
+  // And a diagnostic logger that will capture all messages emitted
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+
+  SECTION("M return Success and read event blocks W file is valid") {
     // Given a mock file with two valid TLV event blocks
-    MockStorageDirectory storage;
     MockTLVFile()
         .AppendEvent(Block{"Hello"})
         .AppendEvent(Block{"hi"})
-        .WriteTo(storage, "hello.dat");
-
-    auto infile = storage.OpenForRead("hello.dat");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "hello.dat");
 
     // And a reusable read buffer
     std::vector<char> buffer;
 
     // And a BatchReader initialized to read from that file into that buffer
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("hello.dat"), buffer);
 
     // When we read the first block
     auto block_0_res = reader.ReadNext();
 
     // Then we should get the data for that block
-    REQUIRE(block_0_res.has_value());
-    std::optional<TLVBlock> block_0 = *block_0_res;
-    REQUIRE(block_0.has_value());
-    REQUIRE(block_0->type == TLVBlockType::Event);
-    REQUIRE(block_0->data == "Hello");
+    REQUIRE(block_0_res.status == BatchReader::Result::Status::Success);
+    REQUIRE(block_0_res.block.type == TLVBlockType::Event);
+    REQUIRE(block_0_res.block.data == "Hello");
 
     // And our buffer should be used as the underlying storage for that block data
     REQUIRE(buffer.capacity() >= 5);
@@ -51,10 +58,9 @@ TEST_CASE("BatchReader", "[unit]") {
     auto block_1_res = reader.ReadNext();
 
     // Then we should get the data for that block
-    REQUIRE(block_1_res.has_value());
-    std::optional<TLVBlock> block_1 = *block_1_res;
-    REQUIRE(block_1->type == TLVBlockType::Event);
-    REQUIRE(block_1->data == "hi");
+    REQUIRE(block_1_res.status == BatchReader::Result::Status::Success);
+    REQUIRE(block_1_res.block.type == TLVBlockType::Event);
+    REQUIRE(block_1_res.block.data == "hi");
 
     // And the data should be written to the same reusable buffer
     REQUIRE(buffer.capacity() >= 2);
@@ -63,27 +69,28 @@ TEST_CASE("BatchReader", "[unit]") {
     // And: When we attempt to read the next block
     auto block_2_res = reader.ReadNext();
 
-    // Then we get nullopt instead of a block (with no error), since we're at EOF
-    REQUIRE(block_2_res.has_value());
-    std::optional<TLVBlock> block_2 = *block_2_res;
-    REQUIRE(!block_2.has_value());
+    // Then we get EOF since we've reached the end of the file
+    REQUIRE(block_2_res.status == BatchReader::Result::Status::EndOfFile);
+
+    // And no diagnostic messages were logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
   }
 
-  SECTION("M read all blocks W file contains metadata + event blocks") {
+  SECTION(
+      "M return Success and read all blocks W file contains metadata + event blocks"
+  ) {
     // Given a mock file with two valid TLV event blocks
-    MockStorageDirectory storage;
     MockTLVFile()
         .AppendMetadata(Block{"metadata-0"})
         .AppendEvent(Block{"event-0"})
         .AppendMetadata(Block{"metadata-1"})
         .AppendEvent(Block{"event-1"})
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
 
     // And a BatchReader
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("foo"), buffer);
 
     // When we read until EOF and concatenate everything into a string
     std::string s;
@@ -92,181 +99,151 @@ TEST_CASE("BatchReader", "[unit]") {
       auto block_res = reader.ReadNext();
 
       // Then we get the expected results from each read
-      REQUIRE(block_res.has_value());
-      auto block = *block_res;
-      REQUIRE(block.has_value());
+      REQUIRE(block_res.status == BatchReader::Result::Status::Success);
       REQUIRE(
-          block->type == (i % 2 == 0 ? TLVBlockType::Metadata : TLVBlockType::Event)
+          block_res.block.type ==
+          (i % 2 == 0 ? TLVBlockType::Metadata : TLVBlockType::Event)
       );
-      s += block->data;
+      s += block_res.block.data;
     }
 
-    // And reading once more would give us nullopt to indicate EOF
+    // And reading once more would give us EOF
     auto res = reader.ReadNext();
-    REQUIRE(res.has_value());
-    REQUIRE(*res == std::nullopt);
+    REQUIRE(res.status == BatchReader::Result::Status::EndOfFile);
 
     // And we have the expected data once we're done reading
     REQUIRE(s == "metadata-0event-0metadata-1event-1");
+
+    // And no diagnostic messages were logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
   }
 
-  SECTION("M return IOError W file read fails due to low-level filesystem error") {
+  SECTION("M return Error W file read fails due to filesystem error") {
     // Given a mock file with two valid TLV event blocks
-    MockStorageDirectory storage;
     MockTLVFile()
         .AppendEvent(Block{"event-0"})
         .AppendEvent(Block{"event-1"})
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
 
     // And a BatchReader
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("foo"), buffer);
 
     // When we read the first block under normal conditions
     auto block_0_res = reader.ReadNext();
 
     // Then we get the data for that block
-    REQUIRE(block_0_res.has_value());
-    auto block_0 = *block_0_res;
-    REQUIRE(block_0->type == TLVBlockType::Event);
-    REQUIRE(block_0->data == "event-0");
+    REQUIRE(block_0_res.status == BatchReader::Result::Status::Success);
+    REQUIRE(block_0_res.block.type == TLVBlockType::Event);
+    REQUIRE(block_0_res.block.data == "event-0");
 
     // Next: Given external conditions that prevent file reads
-    storage.Corrupt("foo");
+    fs.SimulateFailure(
+        "foo", FilesystemResult::UnknownError, MockFilesystemNew::FailureFlags::IO
+    );
 
     // When we attempt to read the next block
     auto block_1_res = reader.ReadNext();
 
     // Then we get an error indicating the file couldn't be read
-    REQUIRE(!block_1_res.has_value());
-    REQUIRE(block_1_res.error() == BatchReadError::IOError);
+    REQUIRE(block_1_res.status == BatchReader::Result::Status::Error);
+
+    // And a diagnostic warning was logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
   }
 
-  SECTION("M return FailedRead W file read fails due to invalid file state") {
-    // Given a mock file with two valid TLV event blocks
-    MockStorageDirectory storage;
-    MockTLVFile()
-        .AppendEvent(Block{"event-0"})
-        .AppendEvent(Block{"event-1"})
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
-    std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
-
-    // And normal conditions that have allowed us to read the first block
-    auto block_0_res = reader.ReadNext();
-    REQUIRE(block_0_res.has_value());
-    auto block_0 = *block_0_res;
-    REQUIRE(block_0->type == TLVBlockType::Event);
-    REQUIRE(block_0->data == "event-0");
-
-    // When we attempt a read operation that will fail due to issues with our handle
-    storage.SetFail("foo", true);
-    auto block_1_res = reader.ReadNext();
-
-    // Then we get an error indicating the read operation failed
-    REQUIRE(!block_1_res.has_value());
-    REQUIRE(block_1_res.error() == BatchReadError::FailedRead);
-  }
-
-  SECTION("M return InvalidBlockFormat W file contains a TLV header w/o data") {
+  SECTION("M return Error W file contains a TLV header w/o data") {
     // Given a mock file with a header that indicates 32 bytes of data to follow,
     // but no actual data after the header
-    MockStorageDirectory storage;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{TLVBlockType::Event, 32})
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("foo"), buffer);
 
     // When we attempt to read the next block
     auto block_res = reader.ReadNext();
 
-    // Then we get an error indicating the file contents are not valid TLV
-    REQUIRE(!block_res.has_value());
-    REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
+    // Then the read is unsuccessful
+    REQUIRE(block_res.status == BatchReader::Result::Status::Error);
+
+    // And a diagnostic warning was logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
   }
 
-  SECTION("M return InvalidBlockFormat W file has TLV header indicating zero size") {
+  SECTION("M return Error W file has TLV header with invalid block type") {
     // Given a mock file containing an otherwise well-formed TLV block that encodes
     // the block type with a value that does not correspond to a known TLVBlockType
-    MockStorageDirectory storage;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{static_cast<TLVBlockType>(0x0002), 7})
         .AppendBytes("event-0")
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("foo"), buffer);
 
     // When we attempt to read from that file
     auto block_res = reader.ReadNext();
 
-    // Then we get an error indicating the file contents are not valid TLV
-    REQUIRE(!block_res.has_value());
-    REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
+    // Then the read is unsuccessful
+    REQUIRE(block_res.status == BatchReader::Result::Status::Error);
+
+    // And a diagnostic warning was logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
   }
 
-  SECTION("M return InvalidBlockFormat W file has TLV header indicating zero size") {
+  SECTION("M return Error W file has TLV header indicating zero size") {
     // Given a mock file containing an otherwise well-formed TLV block that shows a
     // length of zero for its value
-    MockStorageDirectory storage;
     MockTLVFile()
         .AppendHeader(impl::TLVBlockHeader{TLVBlockType::Event, 0})
         .AppendBytes("event-0")
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("foo"), buffer);
 
     // When we attempt to read from that file
     auto block_res = reader.ReadNext();
 
-    // Then we get an error indicating the file contents are not valid TLV
-    REQUIRE(!block_res.has_value());
-    REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
+    // Then the read is unsuccessful
+    REQUIRE(block_res.status == BatchReader::Result::Status::Error);
+
+    // And a diagnostic warning was logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
   }
 
-  SECTION("M return InvalidBlockFormat W file contains non-TLV data") {
+  SECTION("M return Error W file contains non-TLV data") {
     // Given a mock file that does not contain valid TLV data
-    MockStorageDirectory storage;
-    storage.WithExistingFile("foo", "this is not TLV-encoded binary data");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+    fs.Touch("foo", "this is not TLV-encoded binary data");
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("foo"), buffer);
 
     // When we attempt to read from that ifle
     auto block_res = reader.ReadNext();
 
-    // Then we get an error indicating the file contents are not valid TLV
-    REQUIRE(!block_res.has_value());
-    REQUIRE(block_res.error() == BatchReadError::InvalidBlockFormat);
+    // Then the read is unsuccessful
+    REQUIRE(block_res.status == BatchReader::Result::Status::Error);
+
+    // And a diagnostic warning was logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
   }
 
-  SECTION("M return nullopt W file is empty") {
+  SECTION("M return EndOfFile W file is empty") {
     // Given a mock file that is entirely empty
-    MockStorageDirectory storage;
-    storage.WithExistingFile("foo", "");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+    fs.Touch("foo");
     std::vector<char> buffer;
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("foo"), buffer);
 
     // When we attempt to read from that ifle
     auto block_res = reader.ReadNext();
 
-    // Then we get a successful read result with a nullopt value, indicating that we've
-    // reached EOF
-    REQUIRE(block_res.has_value());
-    REQUIRE(*block_res == std::nullopt);
+    // Then we get a result indicating we've reached EOF
+    REQUIRE(block_res.status == BatchReader::Result::Status::EndOfFile);
   }
 
   SECTION("M reuse buffer W multiple reads") {
@@ -281,35 +258,35 @@ TEST_CASE("BatchReader", "[unit]") {
     buffer.reserve(256);
 
     // And a mock file that contains valid TLV event blocks for each string
-    MockStorageDirectory storage;
     MockTLVFile(4096)
         .AppendEvent(value_a_1024)
         .AppendEvent(value_b_768)
         .AppendEvent(value_c_16380)
         .AppendEvent(value_d_16384)
-        .WriteTo(storage, "foo");
-    auto infile = storage.OpenForRead("foo");
-    REQUIRE(infile.has_value());
+        .WriteTo(fs, "foo");
 
     // And a reader initialized to use our buffer
-    BatchReader reader(*infile.value(), buffer);
+    BatchReader reader(logger, fs_open("foo"), buffer);
     REQUIRE(buffer.capacity() == 256);
 
     // When we read the block with 'a' x 1024
     auto block_res = reader.ReadNext();
-    REQUIRE(block_res.has_value());
-    auto block = *block_res;
-    REQUIRE(block->type == TLVBlockType::Event);
-    REQUIRE(block->data.size() == 1024);
-    REQUIRE(std::count(block->data.begin(), block->data.end(), 'a') == 1024);
+    REQUIRE(block_res.status == BatchReader::Result::Status::Success);
+    REQUIRE(block_res.block.type == TLVBlockType::Event);
+    REQUIRE(block_res.block.data.size() == 1024);
+    REQUIRE(
+        std::count(block_res.block.data.begin(), block_res.block.data.end(), 'a') ==
+        1024
+    );
 
     // And we read the block with 'b' x 768
     block_res = reader.ReadNext();
-    REQUIRE(block.has_value());
-    block = *block_res;
-    REQUIRE(block->type == TLVBlockType::Event);
-    REQUIRE(block->data.size() == 768);
-    REQUIRE(std::count(block->data.begin(), block->data.end(), 'b') == 768);
+    REQUIRE(block_res.status == BatchReader::Result::Status::Success);
+    REQUIRE(block_res.block.type == TLVBlockType::Event);
+    REQUIRE(block_res.block.data.size() == 768);
+    REQUIRE(
+        std::count(block_res.block.data.begin(), block_res.block.data.end(), 'b') == 768
+    );
 
     // Then the underlying buffer should have been reallocated to fit at least 1024
     // bytes, and block B should have overwritten the first 768 bytes of block A
@@ -324,11 +301,13 @@ TEST_CASE("BatchReader", "[unit]") {
 
     // Next: When we read the block with 'c' x 16380
     block_res = reader.ReadNext();
-    REQUIRE(block.has_value());
-    block = *block_res;
-    REQUIRE(block->type == TLVBlockType::Event);
-    REQUIRE(block->data.size() == 16380);
-    REQUIRE(std::count(block->data.begin(), block->data.end(), 'c') == 16380);
+    REQUIRE(block_res.status == BatchReader::Result::Status::Success);
+    REQUIRE(block_res.block.type == TLVBlockType::Event);
+    REQUIRE(block_res.block.data.size() == 16380);
+    REQUIRE(
+        std::count(block_res.block.data.begin(), block_res.block.data.end(), 'c') ==
+        16380
+    );
 
     // Then the buffer's allocation strategy should be smart enough to jump to the
     // next power of two, which is only a few bytes away (this also an
@@ -338,11 +317,13 @@ TEST_CASE("BatchReader", "[unit]") {
 
     // Next: When we read the block with 'd' x 16384
     block_res = reader.ReadNext();
-    REQUIRE(block.has_value());
-    block = *block_res;
-    REQUIRE(block->type == TLVBlockType::Event);
-    REQUIRE(block->data.size() == 16384);
-    REQUIRE(std::count(block->data.begin(), block->data.end(), 'd') == 16384);
+    REQUIRE(block_res.status == BatchReader::Result::Status::Success);
+    REQUIRE(block_res.block.type == TLVBlockType::Event);
+    REQUIRE(block_res.block.data.size() == 16384);
+    REQUIRE(
+        std::count(block_res.block.data.begin(), block_res.block.data.end(), 'd') ==
+        16384
+    );
 
     // Then the buffer should not have been reallocated due to the tiny difference
     // in size (another implementation detail)
@@ -350,7 +331,10 @@ TEST_CASE("BatchReader", "[unit]") {
 
     // And one final read should hit EOF
     block_res = reader.ReadNext();
-    REQUIRE(block_res.has_value());
-    REQUIRE(*block_res == std::nullopt);
+    REQUIRE(block_res.status == BatchReader::Result::Status::EndOfFile);
+
+    // And no diagnostic messages were logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
   }
 }

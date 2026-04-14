@@ -6,12 +6,12 @@
 
 #pragma once
 
-#include <array>
 #include <cinttypes>
 #include <optional>
 
 #include "datadog/impl/core/block.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
+#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
 
 namespace datadog::impl {
 
@@ -48,50 +48,45 @@ struct TLVBlockHeader {
  */
 size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data);
 
-enum class TLVBlockReadResultType : uint8_t {
-  /** A valid TLV-formatted block was read successfully. */
-  Success,
-  /** We have reached EOF without partial reads; there are no more blocks to read. */
-  EndOfFile,
-  /** A low-level I/O error occurred. */
-  IOError,
-  /** The filesystem read operation failed. */
-  ReadFailed,
-  /** The data read from the file was not a valid TLV block. */
-  Malformed
-};
+/**
+ * Result of an attempt to read a TLV block header from a file.
+ */
+struct TLVBlockHeaderReadResult {
+  enum class Status : uint8_t {
+    Success,    // Read OK: header is populated
+    EndOfFile,  // Read OK, but there are no more blocks in the file: we're at EOF
+    Error       // Read failed or data malformed; error was logged
+  } status{Status::Success};
 
-struct TLVBlockReadResult {
-  /**
-   * Result of the read operation.
-   */
-  TLVBlockReadResultType type{TLVBlockReadResultType::Malformed};
-  /**
-   * Block header read from file, usable only if result type is success.
-   */
-  TLVBlockHeader header{TLVBlockType::Event, 0};
-
-  explicit TLVBlockReadResult(TLVBlockReadResultType in_type) : type(in_type) {}
-
-  explicit TLVBlockReadResult(const TLVBlockHeader& in_header)
-      : type(TLVBlockReadResultType::Success), header(in_header) {}
+  TLVBlockHeader header{TLVBlockType::Event, 0};  // Valid only on Success
 };
 
 /**
- * Reads the next block of TLV-formatted data from the open file.
+ * Attempts to read the header for the next block of TLV-formatted data from an open
+ * file.
  *
- * @param file The open input file to read from.
- * @param out_block_data A mutable reference to the vector where the block data (just
- *  the 'V' portion of the TLV block, not including the 'TL' header) will be written. If
- *  successful, out_block_data is guaranteed to be the exact size indicated by the
- *  length encoded in the block header.
+ * If result.status is Success, result.header is populated with a valid TLV header
+ * describing the block of data that's now at the file handle's current read offset.
  *
- * @returns a struct indicating the result of the operation: if result.type is Success,
- *  other values may be read. If result.type is EndOfFile, no further reads should be
- *  attempted. Any other result type indicates a read failure.
+ * If result.status is EndOfFile, the file handle is now positioned at the end of the
+ * file, having cleanly read all available blocks.
+ *
+ * If result.status is Error, the file read failed, not enough data was available to
+ * read a complete header, or the header itself was malformed. In the event of an error,
+ * details will be logged as a diagnostic warning.
  */
-TLVBlockReadResult ReadTLVBlock(
-    platform::IFileReader& file, std::vector<char>& out_block_data
+TLVBlockHeaderReadResult ReadTLVBlockHeader(DiagnosticLogger& logger, File& file);
+
+/**
+ * Attempts to read the contents of a TLV block (i.e. the 'V' portion following the 'TL'
+ * header) from an open file, given the size encoded in the preceding block header.
+ *
+ * If successful, populates the given reusable buffer with the full contents of the
+ * block and returns true. On read failure or incomplete read, logs a diagnostic warning
+ * and returns false.
+ */
+bool ReadTLVBlockData(
+    DiagnosticLogger& logger, File& file, size_t size, std::vector<char>& out_value
 );
 
 }  // namespace datadog::impl

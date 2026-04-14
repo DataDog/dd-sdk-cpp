@@ -93,12 +93,13 @@ struct UploadThreadState {
  * thread. Exposed here to facilitate unit testing.
  */
 Duration Internal_HandleUploadProc(
-    const DiagnosticLogger& diagnostic_logger,
+    DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
     FeatureId feature_id,
     std::vector<struct RegisteredFeature>& features,
+    class IFilesystem& fs,
     platform::IHttpClient& http_client,
     std::vector<std::string>& mut_filenames,
     std::vector<char>& mut_read_buffer
@@ -123,12 +124,13 @@ Duration Internal_HandleUploadProc(
  *  initiate requests for each report.
  */
 void UploadThreadMain(
-    const DiagnosticLogger& diagnostic_logger,
+    DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const HttpContext& http_context,
     const platform::IClock& clock,
     class UploadScheduler& scheduler,
     std::vector<struct RegisteredFeature>& features,
+    class IFilesystem& fs,
     platform::IHttpClient& http_client
 );
 

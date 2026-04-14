@@ -11,11 +11,13 @@
 #include <vector>
 
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem.hpp"
+#include "mock/filesystem_new.hpp"
 #include "mock/tlv.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -38,83 +40,77 @@ TEST_CASE("StorageThreadMain", "[unit]") {
   // queue processing, and then our thread entrypoint can read from the queue until
   // it's drained.
 
-  // Common test setup code: populate a RegisteredFeature vector suitable for use by
-  // the storage thread
-  auto init_features = [](TrackingConsent alpha_consent,
-                          TrackingConsent bravo_consent,
-                          MockStorageDirectory& mock_storage,
-                          MockClock& clock,
-                          std::vector<RegisteredFeature>& out_features) -> void {
-    // Mock storage for Feature Alpha
-    auto alpha = mock_storage.PrepareSubdirectory("alpha");
-    REQUIRE(alpha.has_value());
-    auto alpha_pending = (*alpha)->PrepareSubdirectory("no-upload");
-    REQUIRE(alpha_pending.has_value());
-    auto alpha_granted = (*alpha)->PrepareSubdirectory("yes-upload");
-    REQUIRE(alpha_granted.has_value());
+  // Given a predictable, controllable system clock
+  MockClock clock;
 
-    // Mock storage for Feature Bravo
-    auto bravo = mock_storage.PrepareSubdirectory("bravo");
-    REQUIRE(bravo.has_value());
-    auto bravo_pending = (*bravo)->PrepareSubdirectory("no-upload");
-    REQUIRE(bravo_pending.has_value());
-    auto bravo_granted = (*bravo)->PrepareSubdirectory("yes-upload");
-    REQUIRE(bravo_granted.has_value());
+  // And a diagnostic logger that will capture all messages emitted
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+
+  // And a mock filesystem that will store SDK data at app/.datadog/
+  MockFilesystemNew fs;
+  fs.Mkdirs("app");
+
+  // And a root storage directory for our SDK instance
+  SdkStorage storage(fs, logger, 12345);
+  REQUIRE(storage.Initialize("app", "main"));
+
+  // And feature-specific storage directories for both our 'alpha' and 'bravo' features
+  auto alpha_events = storage.InitializeFeatureEventStorage("alpha");
+  REQUIRE(alpha_events != nullptr);
+  auto bravo_events = storage.InitializeFeatureEventStorage("bravo");
+  REQUIRE(bravo_events != nullptr);
+
+  const std::string alpha_prefix = "app/.datadog/main/12345/alpha/";
+  const std::string bravo_prefix = "app/.datadog/main/12345/bravo/";
+
+  // And a function that will initialize a RegisteredFeature vector containing both
+  // alpha and bravo, with the desired initial consent values
+  auto init_features = [&](TrackingConsent alpha_consent,
+                           TrackingConsent bravo_consent) {
+    // Prepare a vector to hold the state for both features
+    std::vector<RegisteredFeature> features;
+    features.reserve(2);
 
     // Use default writer config
     auto writer_config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
 
-    // "Register" Alpha
-    out_features.emplace_back(
+    // Create a BatchWriter for alpha and construct RegisteredFeature state
+    auto alpha_writer = std::make_unique<BatchWriter>(
+        logger, alpha_consent, fs, *alpha_events, clock, writer_config
+    );
+    features.emplace_back(
         CreateFeatureId("ALFA"),
         "alpha",
+        std::move(alpha_events),
         std::make_shared<FeatureAlpha>(),
-        std::move(*alpha),
-        std::make_unique<BatchWriter>(
-            DiagnosticLogger{},
-            alpha_consent,
-            std::move(*alpha_pending),
-            std::move(*alpha_granted),
-            clock,
-            writer_config
-        ),
-        nullptr,  // event_read_directory is exclusive to upload thread
-        nullptr   // upload_state is exclusive to upload thread
+        std::move(alpha_writer),
+        nullptr  // upload_state is exclusive to upload thread
     );
 
-    // "Register" Bravo
-    out_features.emplace_back(
+    // Create a BatchWriter for bravo and construct RegisteredFeature state
+    auto bravo_writer = std::make_unique<BatchWriter>(
+        logger, bravo_consent, fs, *bravo_events, clock, writer_config
+    );
+    features.emplace_back(
         CreateFeatureId("BRVO"),
         "bravo",
+        std::move(bravo_events),
         std::make_shared<FeatureBravo>(),
-        std::move(*bravo),
-        std::make_unique<BatchWriter>(
-            DiagnosticLogger{},
-            bravo_consent,
-            std::move(*bravo_pending),
-            std::move(*bravo_granted),
-            clock,
-            writer_config
-        ),
-        nullptr,  // event_read_directory is exclusive to upload thread
-        nullptr   // upload_state is exclusive to upload thread
+        std::move(bravo_writer),
+        nullptr  // upload_state is exclusive to upload thread
     );
+
+    // Return the RegisteredFeature vector
+    return features;
   };
 
   SECTION("M dispatch calls to appropriate features W queue contains messages") {
     // Given two registered features Alpha and Bravo, with initial tracking consent:
     // - Alpha (feature ID "ALFA"): NotGranted
     // - Bravo (feature ID "BRVO"): Granted
-    MockStorageDirectory mock_storage;
-    MockClock clock;
-    std::vector<RegisteredFeature> features;
-    init_features(
-        TrackingConsent::NotGranted,
-        TrackingConsent::Granted,
-        mock_storage,
-        clock,
-        features
-    );
+    auto features =
+        init_features(TrackingConsent::NotGranted, TrackingConsent::Granted);
     REQUIRE(features.size() == 2);
 
     // And a queue to which the following messages have been produced:
@@ -144,31 +140,31 @@ TEST_CASE("StorageThreadMain", "[unit]") {
     queue.Stop();
     StorageThreadMain(DiagnosticLogger{}, queue, features);
 
-    // Then 'alpha/no-upload' should contain 'alpha-1'
-    auto alpha_pending_files = mock_storage.FindFiles("alpha/no-upload");
+    // Then 'alpha/intermediate-v1' should contain 'alpha-1'
+    auto alpha_pending_files = fs.Ls(alpha_prefix + "intermediate-v1");
     REQUIRE(alpha_pending_files.size() == 1);
     REQUIRE(
-        mock_storage.Cat(alpha_pending_files.front()) ==
+        fs.Cat(alpha_prefix + "intermediate-v1/" + alpha_pending_files.front()) ==
         MockTLVFile().AppendEvent("alpha-1").ToString()
     );
 
-    // And 'alpha/yes-upload' should be empty
-    auto alpha_granted_files = mock_storage.FindFiles("alpha/yes-upload");
+    // And 'alpha/v1' should be empty
+    auto alpha_granted_files = fs.Ls(alpha_prefix + "v1");
     REQUIRE(alpha_granted_files.size() == 0);
 
-    // And 'bravo/no-upload' should contain 'bravo-1'
-    auto bravo_pending_files = mock_storage.FindFiles("bravo/no-upload");
+    // And 'bravo/intermediate-v1' should contain 'bravo-1'
+    auto bravo_pending_files = fs.Ls(bravo_prefix + "intermediate-v1");
     REQUIRE(bravo_pending_files.size() == 1);
     REQUIRE(
-        mock_storage.Cat(bravo_pending_files.front()) ==
+        fs.Cat(bravo_prefix + "intermediate-v1/" + bravo_pending_files.front()) ==
         MockTLVFile().AppendEvent("bravo-1").ToString()
     );
 
-    // And 'bravo/yes-upload' should contain 'bravo-0'
-    auto bravo_granted_files = mock_storage.FindFiles("bravo/yes-upload");
+    // And 'bravo/v1' should contain 'bravo-0'
+    auto bravo_granted_files = fs.Ls(bravo_prefix + "v1");
     REQUIRE(bravo_granted_files.size() == 1);
     REQUIRE(
-        mock_storage.Cat(bravo_granted_files.front()) ==
+        fs.Cat(bravo_prefix + "v1/" + bravo_granted_files.front()) ==
         MockTLVFile().AppendEvent("bravo-0").ToString()
     );
   }

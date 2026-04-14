@@ -6,18 +6,25 @@
 
 #include <algorithm>
 #include <functional>
+#include <string>
 #include <thread>
 #include <vector>
 
 #include "datadog/core.h"
 #include "datadog/logging.h"
 
+#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/platform/system_info.hpp"
+
 #include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
 #include "support/tempdir.hpp"
 
-using namespace datadog;
+static std::string GetPidString() {
+  impl::DiagnosticLogger logger{};
+  return std::to_string(platform::SystemInfo::Init(logger)->GetPid());
+}
 
 TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-api]") {
   SECTION("M apply source override W internal_options.source set") {
@@ -241,7 +248,8 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
 
          // And it should have created a $tmpdir/.datadog subdirectory and written our
          // single log event to a batch file in the appropriate feature/consent subdir
-         const std::string path = ".datadog/logs/intermediate-v1";
+         const std::string path =
+             ".datadog/main/" + GetPidString() + "/logs/intermediate-v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -273,7 +281,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
 
          // And it should have created a $tmpdir/.datadog subdirectory and written our
          // single log event to a batch file in the appropriate feature/consent subdir
-         const std::string path = ".datadog/logs/v1";
+         const std::string path = ".datadog/main/" + GetPidString() + "/logs/v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -309,7 +317,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
 
          // And it should have created logs/v1 within the existing $tmpdir/.datadog
          // directory and written our single log event to a batch file there
-         const std::string path = ".datadog/logs/v1";
+         const std::string path = ".datadog/main/" + GetPidString() + "/logs/v1";
          REQUIRE(tmpdir.DirectoryExists(path));
          auto filenames = tmpdir.ReadDirectoryContents(path);
          REQUIRE(filenames.size() == 1);
@@ -338,14 +346,13 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          // directory
          REQUIRE(!started);
 
-         // And it should produce a diagnostic error describing the problem
+         // And it should produce diagnostic errors describing the problem
          REQUIRE(diagnostics.warning.empty());
-         REQUIRE(diagnostics.error.size() == 1);
+         REQUIRE(diagnostics.error.size() == 2);
+         REQUIRE(diagnostics.error[0].find("AlreadyExists") != std::string::npos);
          REQUIRE(
-             diagnostics.error[0].find(
-                 "SDK initialization failed: event storage subsystem could not be "
-                 "initialized: root storage path is occupied by a file"
-             ) == 0
+             diagnostics.error[1] ==
+             "Core initialization failed: could not initialize SDK storage"
          );
 
          // And our storage directory should remain unchanged
@@ -368,14 +375,13 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          // directory
          REQUIRE(!started);
 
-         // And it should produce a diagnostic error describing the problem
+         // And it should produce diagnostic errors describing the problem
          REQUIRE(diagnostics.warning.empty());
-         REQUIRE(diagnostics.error.size() == 1);
+         REQUIRE(diagnostics.error.size() == 2);
+         REQUIRE(diagnostics.error[0].find("DoesNotExist") != std::string::npos);
          REQUIRE(
-             diagnostics.error[0].find(
-                 "SDK initialization failed: event storage subsystem could not be "
-                 "initialized: failed to create root storage directory"
-             ) == 0
+             diagnostics.error[1] ==
+             "Core initialization failed: could not initialize SDK storage"
          );
 
          // And our temp directory should remain unchanged

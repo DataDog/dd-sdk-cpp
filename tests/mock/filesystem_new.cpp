@@ -737,6 +737,45 @@ void MockFilesystemNew::UnlockFile(std::string_view path) {
   }
 }
 
+std::vector<std::string> MockFilesystemNew::Ls(std::string_view path) {
+  std::vector<std::string> names;
+  std::lock_guard lock(_mutex);
+
+  // Iterate over our full list of known files, filtering down to only the set of files
+  // that are direct children of the target directory
+  const std::string prefix = path.empty() ? "" : (std::string(path) + "/");
+  const size_t prefix_len = prefix.size();
+  for (const auto& [file_path, _] : _files) {
+    const size_t n = file_path.size();
+    // Skip files that don't begin with the parent-directory prefix
+    if (n <= prefix_len || file_path.find(prefix) != 0) {
+      continue;
+    }
+    // Skip files that are nested deeper than the parent directory
+    if (file_path.find('/', prefix_len + 1) != std::string::npos) {
+      continue;
+    }
+    names.push_back(file_path.substr(prefix_len));
+  }
+
+  // Apply the same logic to list subdirectories that are direct children
+  for (const auto& [dir_path, _] : _dirs) {
+    const size_t n = dir_path.size();
+    // Skip files that don't begin with the parent-directory prefix
+    if (n <= prefix_len || dir_path.find(prefix) != 0) {
+      continue;
+    }
+    // Skip files that are nested deeper than the parent directory
+    if (dir_path.find('/', prefix_len + 1) != std::string::npos) {
+      continue;
+    }
+    names.push_back(dir_path.substr(prefix_len));
+  }
+
+  // Return the collected set of names
+  return names;
+}
+
 bool MockFilesystemNew::IsDirectory(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);
