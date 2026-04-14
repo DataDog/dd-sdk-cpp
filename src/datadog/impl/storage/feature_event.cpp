@@ -7,6 +7,7 @@
 #include "datadog/impl/storage/feature_event.hpp"
 
 #include "datadog/impl/assert.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/storage/util.hpp"
 
 // NOLINTBEGIN(cppcoreguidelines-macro-usage)
@@ -43,8 +44,8 @@ bool FeatureEventStorage::Initialize(
       "Failed to initialize feature event storage directory from configured "
       "application storage path: unable to create directory";
 
-  // Temporary buffer used for path encoding on platforms that require it
-  PlatformPath path;
+  // Initialize a wrapper that will handle path encoding seamlessly
+  FilesystemWrapper fsw(_fs);
 
   // process_root gives us the root directory for all events stored by this SDK
   // instance, i.e. <application-storage>/.datadog/<instance>/<pid>/ - we first need to
@@ -52,7 +53,7 @@ bool FeatureEventStorage::Initialize(
   if (!JoinPaths(_root, process_root, feature_name, _logger, join_message)) {
     return false;
   }
-  if (!EnsureDirectoryExists(_root, path, _fs, _logger, mkdir_message)) {
+  if (!EnsureDirectoryExists(_root, fsw, _logger, mkdir_message)) {
     return false;
   }
 
@@ -63,7 +64,7 @@ bool FeatureEventStorage::Initialize(
       )) {
     return false;
   }
-  if (!EnsureDirectoryExists(_pending_root, path, _fs, _logger, mkdir_message)) {
+  if (!EnsureDirectoryExists(_pending_root, fsw, _logger, mkdir_message)) {
     return false;
   }
 
@@ -73,7 +74,7 @@ bool FeatureEventStorage::Initialize(
       )) {
     return false;
   }
-  if (!EnsureDirectoryExists(_granted_root, path, _fs, _logger, mkdir_message)) {
+  if (!EnsureDirectoryExists(_granted_root, fsw, _logger, mkdir_message)) {
     return false;
   }
 

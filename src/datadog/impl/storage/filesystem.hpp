@@ -46,6 +46,7 @@ enum class FilesystemResult : uint8_t {
   OutOfSpace,
   PathTooLong,
   InvalidName,
+  PathEncodingFailed,
   LockContention,
   UnknownError
 };

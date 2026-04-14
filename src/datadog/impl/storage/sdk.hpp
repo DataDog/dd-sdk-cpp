@@ -14,6 +14,7 @@
 #include "datadog/impl/storage/artifact.hpp"
 #include "datadog/impl/storage/feature_event.hpp"
 #include "datadog/impl/storage/filesystem.hpp"
+#include "datadog/impl/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/storage/path.hpp"
 
 namespace datadog::impl {
@@ -94,17 +95,6 @@ class SdkStorage {
    * for file operations.
    */
   explicit SdkStorage(IFilesystem& in_fs, DiagnosticLogger& in_logger, uint32_t in_pid);
-
-  /**
-   * Ensures that the current-PID lockfile is closed when this object leaves scope.
-   */
-  ~SdkStorage();
-
-  // Noncopyable, nonmovable: SdkStorage is owned by (and exclusively used by) Core
-  SdkStorage(const SdkStorage&) = delete;
-  SdkStorage& operator=(const SdkStorage&) = delete;
-  SdkStorage(SdkStorage&&) noexcept = delete;
-  SdkStorage& operator=(SdkStorage&&) noexcept = delete;
 
   /**
    * Given the path to application-specific storage directory and the name of the SDK
@@ -194,14 +184,14 @@ class SdkStorage {
    * Returns true if the directory at _process_root now exists, regardless of whether
    * that's due to a directory rename or because such a directory already existed.
    */
-  bool TryInitializeProcessRootFromAbandonedProcessDirectory(PlatformPath& path);
+  bool TryInitializeProcessRootFromAbandonedProcessDirectory(FilesystemWrapper& fsw);
 
   /**
    * Scans _instance_root for existing <pid>/ directories containing event data, and
    * iterates through all such directories that have been abandoned, attempting to
    * migrate all abandoned batch files into _process_root.
    */
-  void MigrateAbandonedEventsToProcessRoot(PlatformPath& path);
+  void MigrateAbandonedEventsToProcessRoot(FilesystemWrapper& fsw);
 
   /**
    * Given the name of a process-level directory relative to _instance_root, populates
@@ -220,11 +210,11 @@ class SdkStorage {
    * acquiring an advisory lock for that file in the process. Handles filesystem errors
    * with appropriate diagnostic logging.
    *
-   * Returns a valid file handle if this process now holds a lock on that file; returns
-   * INVALID_FILE_HANDLE otherwise.
+   * Returns a valid File wrapper if this process now holds a lock on that file; returns
+   * std::nullopt otherwise.
    */
-  PlatformFileHandle AcquireAbandonedProcessDirectory(
-      PlatformPath& path, const StoragePath& pid_lockfile_path
+  std::optional<File> AcquireAbandonedProcessDirectory(
+      FilesystemWrapper& fsw, const StoragePath& pid_lockfile_path
   );
 
   /**
@@ -234,7 +224,7 @@ class SdkStorage {
    * deletes <instance>/<old-pid>/.
    */
   bool HandleProcessDirectoryMigration(
-      PlatformPath& path, const StoragePath& pid_subdir_path
+      FilesystemWrapper& fsw, const StoragePath& pid_subdir_path
   );
 
   /**
@@ -244,7 +234,7 @@ class SdkStorage {
    * subdirectories), then deletes <instance>/<old-pid>/<feature>/.
    */
   bool HandleFeatureDirectoryMigration(
-      PlatformPath& path,
+      FilesystemWrapper& fsw,
       const StoragePath& pid_subdir_path,
       std::string_view feature_name
   );
@@ -257,7 +247,7 @@ class SdkStorage {
    * then deletes src.
    */
   bool HandleConsentDirectoryMigration(
-      PlatformPath& path,
+      FilesystemWrapper& fsw,
       const StoragePath& src_dir_path,
       const StoragePath& dst_dir_path
   );
@@ -267,7 +257,7 @@ class SdkStorage {
    * _fs.ListFiles(), then iterates over all files found and deletes them.
    */
   bool DeleteLooseFilesInDirectory(
-      PlatformPath& path,
+      FilesystemWrapper& fsw,
       const StoragePath& dir_path,
       std::vector<std::string>& out_filenames
   );
@@ -284,7 +274,7 @@ class SdkStorage {
   StoragePath _instance_root;  // <_datadog_root>/<sdk-instance-name>
   StoragePath _process_root;   // <_instance_root>/<pid>/
 
-  PlatformFileHandle _lockfile_handle{INVALID_FILE_HANDLE};  // <pid>.lock
+  std::optional<File> _lockfile;  // <pid>.lock; closed via RAII on destruction
 };
 
 }  // namespace datadog::impl
