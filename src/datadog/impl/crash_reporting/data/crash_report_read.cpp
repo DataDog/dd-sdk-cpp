@@ -35,40 +35,48 @@ static bool read_string(File& file, std::string& out, size_t max_len) {
 // Suppress warnings re: cyclomatic complexity; branches are all straightforward
 // early-outs on parse failure
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-std::optional<CrashReportFile> ReadCrashReport(File& file) {
-  // Parse header magic
+ReadCrashReportResult ReadCrashReport(File& file) {
+  // Parse header magic, without using our helper function(s) so we can distinguish an
+  // empty file (0 bytes on first read) from a truncated or malformed one
   uint64_t magic{};
-  if (!read_uint64(file, magic) || magic != CrashReportHeaderMagic) {
-    return std::nullopt;
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  auto magic_res = file.Read(reinterpret_cast<char*>(&magic), sizeof(magic));
+  if (magic_res.bytes_read == 0) {
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Empty};
+  }
+  if (magic_res.value != FilesystemResult::OK ||
+      magic_res.bytes_read != sizeof(magic) || magic != CrashReportHeaderMagic) {
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
   }
 
   // Parse version magic: the only supported version is 1
   uint64_t version{};
   if (!read_uint64(file, version) || version != CrashReportFileVersion) {
-    return std::nullopt;
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
   }
 
-  // Default-construct a result value; use std::optional to ensure NRVO eligibility
-  std::optional<CrashReportFile> result{std::in_place};
+  // Default-construct a struct that we'll populate as we read from the file and return
+  // only upon successful completion
+  CrashReportFile data;
 
   // Populate crash metadata with values read from the file
-  if (!read_uint64(file, result->fault_code)) {
-    return std::nullopt;
+  if (!read_uint64(file, data.fault_code)) {
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
   }
-  if (!read_uint64(file, result->fault_address)) {
-    return std::nullopt;
+  if (!read_uint64(file, data.fault_address)) {
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
   }
-  if (!read_uint64(file, result->fault_flags)) {
-    return std::nullopt;
+  if (!read_uint64(file, data.fault_flags)) {
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
   }
-  if (!read_uint64(file, result->pid)) {
-    return std::nullopt;
+  if (!read_uint64(file, data.pid)) {
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
   }
-  if (!read_uint64(file, result->tid)) {
-    return std::nullopt;
+  if (!read_uint64(file, data.tid)) {
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
   }
-  if (!read_uint64(file, result->timestamp)) {
-    return std::nullopt;
+  if (!read_uint64(file, data.timestamp)) {
+    return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
   }
 
   // Dispatch on magic to parse variable-length module and stack frame entries, until we
@@ -80,7 +88,7 @@ std::optional<CrashReportFile> ReadCrashReport(File& file) {
     // seeing the footer magic
     uint64_t token{};
     if (!read_uint64(file, token)) {
-      return std::nullopt;
+      return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
     }
 
     // Footer magic indicates clean end of file; break and return our value
@@ -94,46 +102,46 @@ std::optional<CrashReportFile> ReadCrashReport(File& file) {
       // Set a sane upper bound on the number of module entries that a valid crash
       // report file can contain, to prevent runaway parsing or unbounded allocation
       if (++num_modules_parsed > 4096) {
-        return std::nullopt;
+        return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
       }
 
       // Module magic introduces details of a loaded module: add a new entry into our
       // result struct's modules vector, then populate that value with module details
       // read from the file
-      auto& mod = result->modules.emplace_back();
+      auto& mod = data.modules.emplace_back();
       if (!read_uint64(file, mod.start_address)) {
-        return std::nullopt;
+        return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
       }
       if (!read_uint64(file, mod.end_address)) {
-        return std::nullopt;
+        return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
       }
       if (!read_string(file, mod.path, 4096)) {
-        return std::nullopt;
+        return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
       }
       if (!read_string(file, mod.build_id, 256)) {
-        return std::nullopt;
+        return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
       }
     } else if (token == CrashReportStackFrameMagic) {
       // Set an upper bound on stack frames
       if (++num_stack_frames_parsed > 512) {
-        return std::nullopt;
+        return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
       }
 
       // Stack frame magic introduces a raw stack frame address; read it and push it
       // onto our result's struct's stack address vector
       uint64_t address{};
       if (!read_uint64(file, address)) {
-        return std::nullopt;
+        return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
       }
-      result->stack_addresses.push_back(address);
+      data.stack_addresses.push_back(address);
     } else {
       // Unrecognized magic: file is malformed or incomplete
-      return std::nullopt;
+      return ReadCrashReportResult{ReadCrashReportResult::Status::Malformed};
     }
   }
 
   // Return our result value with all accumulated data
-  return result;
+  return ReadCrashReportResult{ReadCrashReportResult::Status::OK, std::move(data)};
 }
 
 }  // namespace datadog::impl

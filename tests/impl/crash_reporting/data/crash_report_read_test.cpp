@@ -24,7 +24,9 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
       std::size(MOCK_CRASH_REPORT_V1)
   };
 
-  SECTION("M return value with expected field values W file is a valid crash report") {
+  SECTION(
+      "M return OK with data with expected field values W file is a valid crash report"
+  ) {
     // Given a file that contains our golden crash report data
     fs.Touch("crash", data);
 
@@ -36,37 +38,56 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     // When we parse that file as a crash report
     auto result = ReadCrashReport(open_res.file);
 
-    // Then we get a valid result value
-    REQUIRE(result.has_value());
+    // Then we get a result value indicating that the file was parsed successfully
+    REQUIRE(result.status == ReadCrashReportResult::Status::OK);
+    REQUIRE(result.data.has_value());
 
     // And the header fields contain the values encoded in the mock binary data
-    REQUIRE(result->fault_code == 11);  // SIGSEGV
-    REQUIRE(result->fault_address == 0);
-    REQUIRE(result->fault_flags == 0);
-    REQUIRE(result->pid == 100);
-    REQUIRE(result->tid == 101);
-    REQUIRE(result->timestamp == 1700000000000ULL);
+    REQUIRE(result.data->fault_code == 11);  // SIGSEGV
+    REQUIRE(result.data->fault_address == 0);
+    REQUIRE(result.data->fault_flags == 0);
+    REQUIRE(result.data->pid == 100);
+    REQUIRE(result.data->tid == 101);
+    REQUIRE(result.data->timestamp == 1700000000000ULL);
 
     // And there are two modules with the expected fields
-    REQUIRE(result->modules.size() == 2);
-    REQUIRE(result->modules[0].start_address == 0x100000);
-    REQUIRE(result->modules[0].end_address == 0x200000);
-    REQUIRE(result->modules[0].path == "/foo");
-    REQUIRE(result->modules[0].build_id == "abc");
-    REQUIRE(result->modules[1].start_address == 0x300000);
-    REQUIRE(result->modules[1].end_address == 0x400000);
-    REQUIRE(result->modules[1].path == "/bar");
-    REQUIRE(result->modules[1].build_id == "");
+    REQUIRE(result.data->modules.size() == 2);
+    REQUIRE(result.data->modules[0].start_address == 0x100000);
+    REQUIRE(result.data->modules[0].end_address == 0x200000);
+    REQUIRE(result.data->modules[0].path == "/foo");
+    REQUIRE(result.data->modules[0].build_id == "abc");
+    REQUIRE(result.data->modules[1].start_address == 0x300000);
+    REQUIRE(result.data->modules[1].end_address == 0x400000);
+    REQUIRE(result.data->modules[1].path == "/bar");
+    REQUIRE(result.data->modules[1].build_id == "");
 
     // And there are four stack frame addresses
-    REQUIRE(result->stack_addresses.size() == 4);
-    REQUIRE(result->stack_addresses[0] == 0x100100);
-    REQUIRE(result->stack_addresses[1] == 0x100200);
-    REQUIRE(result->stack_addresses[2] == 0x100300);
-    REQUIRE(result->stack_addresses[3] == 0x100400);
+    REQUIRE(result.data->stack_addresses.size() == 4);
+    REQUIRE(result.data->stack_addresses[0] == 0x100100);
+    REQUIRE(result.data->stack_addresses[1] == 0x100200);
+    REQUIRE(result.data->stack_addresses[2] == 0x100300);
+    REQUIRE(result.data->stack_addresses[3] == 0x100400);
   }
 
-  SECTION("M return no value W file has invalid header magic") {
+  SECTION("M return Empty with no data W file contains 0 bytes") {
+    // Given a file that contains no data
+    fs.Touch("crash", "");
+
+    // And an open file handle to that file
+    const bool hold_advisory_lock = false;
+    auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
+    REQUIRE(open_res.value == FilesystemResult::OK);
+
+    // When we parse that file as a crash report
+    auto result = ReadCrashReport(open_res.file);
+
+    // Then we get a result indicating that the file was entirely empty, indicating that
+    // we've successfully handled leftover a file which did not represent a crash
+    REQUIRE(result.status == ReadCrashReportResult::Status::Empty);
+    REQUIRE(!result.data.has_value());
+  }
+
+  SECTION("M return Malformed with no data W file has invalid header magic") {
     // Given a file that contains garbage data
     fs.Touch("crash", "hello-world-this-file-is-not-a-valid-crash-report");
 
@@ -78,11 +99,12 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     // When we parse that file as a crash report
     auto result = ReadCrashReport(open_res.file);
 
-    // Then we get no value
-    REQUIRE(!result.has_value());
+    // Then we get a result value indicating that the file was not a valid crash report
+    REQUIRE(result.status == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(!result.data.has_value());
   }
 
-  SECTION("M return no value W file has invalid footer magic") {
+  SECTION("M return Malformed with no data W file has invalid footer magic") {
     // Given a file that contains valid crash report data, with the exception of a
     // missing footer
     const std::string_view data_less_8_bytes{data.data(), data.size() - 8};
@@ -96,11 +118,14 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     // When we parse that file as a crash report
     auto result = ReadCrashReport(open_res.file);
 
-    // Then we get no value
-    REQUIRE(!result.has_value());
+    // Then we get a result value indicating that the file was not a valid crash report
+    REQUIRE(result.status == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(!result.data.has_value());
   }
 
-  SECTION("M return no value W file contains module path with len > 4096") {
+  SECTION(
+      "M return Malformed with no data W file contains module path with len > 4096"
+  ) {
     // Given a file that contains valid crash report data, but with one of the module
     // entries containing an excessively long path
     const auto path_pos = data.find("/foo");
@@ -128,10 +153,13 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
 
     // Then we get no value: the function aborts rather than potentially making a huge
     // heap allocation that might be the result of a malformed or misinterpreted file
-    REQUIRE(!result.has_value());
+    REQUIRE(result.status == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(!result.data.has_value());
   }
 
-  SECTION("M return no value W file contains module build_id with len > 512") {
+  SECTION(
+      "M return Malformed with no data W file contains module build_id with len > 512"
+  ) {
     // Given a file that contains valid crash report data, but with one of the module
     // entries containing an excessively long path
     const auto build_id_pos = data.find("abc");
@@ -159,6 +187,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
 
     // Then we get no value: the function aborts rather than potentially making a huge
     // heap allocation that might be the result of a malformed or misinterpreted file
-    REQUIRE(!result.has_value());
+    REQUIRE(result.status == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(!result.data.has_value());
   }
 }
