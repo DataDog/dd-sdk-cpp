@@ -146,7 +146,8 @@ class RumEventCapture {
   std::vector<nlohmann::json> FilterByType(std::string_view type) const {
     std::vector<nlohmann::json> result;
     for (const auto& event : all_events) {
-      if (event.contains("type") && event["type"] == type) {
+      if (event.contains("type") &&
+          event["type"].get_ref<const std::string&>() == type) {
         result.push_back(event);
       }
     }
