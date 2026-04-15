@@ -15,19 +15,16 @@
 #include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
+#include "support/filesystem.hpp"
 #include "support/tempdir.hpp"
 
 using namespace datadog;
-
-static std::string GetPidString() {
-  impl::DiagnosticLogger logger{};
-  return std::to_string(platform::SystemInfo::Init(logger)->GetPid());
-}
 
 TEST_CASE("Core null safety", "[unit][core][cpp-api]") {
   SECTION("M safely do nothing W this wraps nullptr") {
     // Given a CoreConfig that lacks required parameters
     CoreConfig config("", "", "");
+    config.SetDiagnosticHandler(nullptr);
 
     // When we create a Core from that config
     auto core = Core::Create(config);
@@ -40,7 +37,7 @@ TEST_CASE("Core null safety", "[unit][core][cpp-api]") {
   }
 }
 
-TEST_CASE("Core validation", "[unit][core][cpp-api]") {
+TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
   // Capture diagnostic messages that would be printed to stderr by default
   DiagnosticMessageBuffer diagnostics;
 
@@ -54,7 +51,9 @@ TEST_CASE("Core validation", "[unit][core][cpp-api]") {
     diagnostics.ConfigureCpp(config);
 
     // When we attempt to create a core from that config
-    auto core = Core::Create(config);
+    {
+      auto core = Core::Create(config);
+    }
 
     // Then a single warning is emitted to let us know that the default behavior of
     // writing events to $PWD/.datadog is inadvisable
@@ -66,6 +65,10 @@ TEST_CASE("Core validation", "[unit][core][cpp-api]") {
         "application should call SetEventStorageLocation to specify a suitable "
         "application-specific directory where .datadog/ can be created"
     );
+
+    // And we find that a .datadog/main/<pid>/ directory was populated anyway, which we
+    // clean up to keep the working directory clean
+    PruneDotDatadogDir();
   }
 
   SECTION(
@@ -79,10 +82,15 @@ TEST_CASE("Core validation", "[unit][core][cpp-api]") {
     diagnostics.ConfigureCpp(config);
 
     // When we attempt to create a core from that config
-    auto core = Core::Create(config);
+    {
+      auto core = Core::Create(config);
+    }
 
     // Then no diagnostic warnings/errors are emitted
     REQUIRE(diagnostics.TotalSize() == 0);
+
+    // And we find (and remove) a .datadog/main/<pid>/ directory
+    PruneDotDatadogDir();
   }
 
   SECTION("M reject config W client_token is missing") {

@@ -15,6 +15,7 @@
 #include "datadog/impl/features/logging/logging.hpp"
 
 #include "support/core.hpp"
+#include "support/diagnostics.hpp"
 #include "support/json_validation.hpp"
 #include "support/threading.hpp"
 
@@ -38,7 +39,8 @@ TEST_CASE("Logging null safety", "[unit][logging][cpp-api]") {
   SECTION("M safely do nothing W this wraps nullptr") {
     // Given both a valid Core interface that has no valid implementation pointer, as
     // well as a straight-up null pointer to a Core interface
-    const datadog::CoreConfig invalid_config("", "", "");
+    CoreConfig invalid_config("", "", "");
+    invalid_config.SetDiagnosticHandler(nullptr);
     std::shared_ptr<Core> noop_core = Core::Create(invalid_config);
     std::shared_ptr<Core> null_core;
     std::vector<std::shared_ptr<Core>> cores = {noop_core, null_core};

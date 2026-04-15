@@ -9,9 +9,13 @@
 #include "datadog/core.hpp"
 #include "datadog/rum.hpp"
 
+#include "support/filesystem.hpp"
+
 using namespace datadog;
 
-TEST_CASE("Core diagnostic messages", "[unit][diagnostics][cpp-api]") {
+TEST_CASE(
+    "Core diagnostic messages", "[unit][diagnostics][cpp-api][writes-to-cwd-datadog]"
+) {
   // These tests verify that when you register a diagnostic handler callback via the C++
   // API, the SDK invokes that callback properly in a variety of different situations,
   // in response to errors occurring in the API layer as well as in the implementation
@@ -67,15 +71,21 @@ TEST_CASE("Core diagnostic messages", "[unit][diagnostics][cpp-api]") {
     });
 
     // When we successfully create the core
-    auto core = Core::Create(config);
-    REQUIRE(core);
-    REQUIRE(callback_count == 0);
+    {
+      auto core = Core::Create(config);
+      REQUIRE(core);
+      REQUIRE(callback_count == 0);
 
-    // And then we attempt to register RUM with our invalid config
-    auto rum = Rum::Register(core, rum_config);
+      // And then we attempt to register RUM with our invalid config
+      auto rum = Rum::Register(core, rum_config);
+    }
 
     // Then we get the expected diagnostic message
     REQUIRE(callback_count == 1);
+
+    // And .datadog/<pid>.lock etc. are created as a side effect of core initialization,
+    // so we clean them up
+    PruneDotDatadogDir();
   }
 
   SECTION("M invoke handler callback W API usage warning occurs after feature init") {
@@ -97,21 +107,26 @@ TEST_CASE("Core diagnostic messages", "[unit][diagnostics][cpp-api]") {
     });
 
     // When we successfully create the core, initialize RUM, and start the SDK
-    auto core = Core::Create(config);
-    REQUIRE(core);
-    REQUIRE(callback_count == 0);
-    auto rum = Rum::Register(core, rum_config);
-    REQUIRE(rum);
-    REQUIRE(callback_count == 0);
-    REQUIRE(core->Start());
-    REQUIRE(callback_count == 0);
+    {
+      auto core = Core::Create(config);
+      REQUIRE(core);
+      REQUIRE(callback_count == 0);
+      auto rum = Rum::Register(core, rum_config);
+      REQUIRE(rum);
+      REQUIRE(callback_count == 0);
+      REQUIRE(core->Start());
+      REQUIRE(callback_count == 0);
 
-    // And then we attempt to start a view without specifying a valid key
-    rum->StartView("");
+      // And then we attempt to start a view without specifying a valid key
+      rum->StartView("");
 
-    // Then the SDK passes a warning to our diagnostic handler function
-    REQUIRE(callback_count == 1);
-    core->Stop();
+      // Then the SDK passes a warning to our diagnostic handler function
+      REQUIRE(callback_count == 1);
+      core->Stop();
+    }
+
+    // And .datadog/ exists and can be cleaned up
+    PruneDotDatadogDir();
   }
 
   SECTION(
@@ -131,20 +146,25 @@ TEST_CASE("Core diagnostic messages", "[unit][diagnostics][cpp-api]") {
     config.SetDiagnosticThreshold(DiagnosticLevel::Error);
 
     // When we initialize RUM and make the same bad call to StartView
-    auto core = Core::Create(config);
-    REQUIRE(core);
-    REQUIRE(callback_count == 0);
-    auto rum = Rum::Register(core, rum_config);
-    REQUIRE(rum);
-    REQUIRE(callback_count == 0);
-    REQUIRE(core->Start());
-    REQUIRE(callback_count == 0);
-    rum->StartView("");
+    {
+      auto core = Core::Create(config);
+      REQUIRE(core);
+      REQUIRE(callback_count == 0);
+      auto rum = Rum::Register(core, rum_config);
+      REQUIRE(rum);
+      REQUIRE(callback_count == 0);
+      REQUIRE(core->Start());
+      REQUIRE(callback_count == 0);
+      rum->StartView("");
 
-    // Then we get no callbacks from the SDK, because a warning does not meet our
-    // configured threshold
-    REQUIRE(callback_count == 0);
-    core->Stop();
+      // Then we get no callbacks from the SDK, because a warning does not meet our
+      // configured threshold
+      REQUIRE(callback_count == 0);
+      core->Stop();
+    }
+
+    // And .datadog/ exists and can be cleaned up
+    PruneDotDatadogDir();
   }
 
   SECTION("M invoke handler callback W error occurs in implementation layer") {
@@ -166,13 +186,18 @@ TEST_CASE("Core diagnostic messages", "[unit][diagnostics][cpp-api]") {
     });
 
     // When we attempt to start the SDK without registering any features
-    auto core = Core::Create(config);
-    REQUIRE(core);
-    REQUIRE(callback_count == 0);
-    const bool started = core->Start();
+    {
+      auto core = Core::Create(config);
+      REQUIRE(core);
+      REQUIRE(callback_count == 0);
+      const bool started = core->Start();
 
-    // Then we get a single diagnostic error describing why the core failed to start
-    REQUIRE(!started);
-    REQUIRE(callback_count == 1);
+      // Then we get a single diagnostic error describing why the core failed to start
+      REQUIRE(!started);
+      REQUIRE(callback_count == 1);
+    }
+
+    // And .datadog/ exists and can be cleaned up
+    PruneDotDatadogDir();
   }
 }

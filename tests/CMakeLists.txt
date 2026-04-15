@@ -132,4 +132,16 @@ target_link_libraries(dd_native_tests
 # Register tests with CTest
 include(CTest)
 include(Catch)
-catch_discover_tests(dd_native_tests)
+
+# The vast majority of tests can be run in parallel and require no special configuration
+catch_discover_tests(dd_native_tests
+    TEST_SPEC "~[writes-to-cwd-datadog]"
+)
+
+# A small subset of tests need to write to $(pwd)/.datadog/, then assert on its contents
+# before deleting it - for these tests, use a RESOURCE_LOCK to ensure that they're each
+# run serially
+catch_discover_tests(dd_native_tests
+    TEST_SPEC "[writes-to-cwd-datadog]"
+    PROPERTIES RESOURCE_LOCK "cwd-datadog"
+)

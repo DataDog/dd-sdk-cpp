@@ -6,6 +6,7 @@
 
 #include "datadog/impl/core/upload_thread.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cinttypes>

@@ -9,7 +9,12 @@
 #include "datadog/core.h"
 #include "datadog/rum.h"
 
-TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
+#include "support/filesystem.hpp"
+
+TEST_CASE(
+    "dd_core_config diagnostic messages",
+    "[unit][diagnostics][c-api][writes-to-cwd-datadog]"
+) {
   // These tests verify that when you register a diagnostic handler callback via the C
   // API, the SDK invokes that callback properly in a variety of different situations,
   // in response to errors occurring in the API layer as well as in the implementation
@@ -94,6 +99,10 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
 
     // Cleanup
     dd_core_destroy(core);
+
+    // And .datadog/<pid>.lock etc. are created as a side effect of core initialization,
+    // so we clean them up
+    PruneDotDatadogDir();
   }
 
   SECTION("M invoke handler callback W API usage warning occurs after feature init") {
@@ -142,6 +151,9 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
     dd_core_stop(core);
     dd_rum_destroy(rum);
     dd_core_destroy(core);
+
+    // And .datadog/ exists and can be cleaned up
+    PruneDotDatadogDir();
   }
 
   SECTION(
@@ -187,6 +199,9 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
     dd_core_stop(core);
     dd_rum_destroy(rum);
     dd_core_destroy(core);
+
+    // And .datadog/ exists and can be cleaned up
+    PruneDotDatadogDir();
   }
 
   SECTION("M invoke handler callback W error occurs in implementation layer") {
@@ -226,5 +241,8 @@ TEST_CASE("dd_core_config diagnostic messages", "[unit][diagnostics][c-api]") {
 
     // Cleanup
     dd_core_destroy(core);
+
+    // And .datadog/ exists and can be cleaned up
+    PruneDotDatadogDir();
   }
 }

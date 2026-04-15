@@ -6,8 +6,17 @@
 
 #pragma once
 
+#ifdef _WIN32
+#define NOMINMAX
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
+
 #include <algorithm>
 #include <cinttypes>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -56,3 +65,84 @@ inline void RequireFilesystemError(
   // Line should include the expected message substring
   REQUIRE(s.find(message_substr) != std::string::npos);
 }
+
+/**
+ * Returns the current test process's PID, formatted as a string. Useful for tests that
+ * exercise actual filesystem storage functionality and write data labeled with the
+ * current PID.
+ */
+inline std::string GetPidString() {
+#ifdef _WIN32
+  const DWORD pid = GetCurrentProcessId();
+#else
+  const pid_t pid = getpid();
+#endif
+  return std::to_string(pid);
+}
+
+/**
+ * Checks for leftover files and directories written by the SDK relative to the current
+ * working directory. Expects to find:
+ *
+ * - .datadog/main/<pid>.lock
+ * - .datadog/main/<pid>/ (containing no files, but may contain empty subdirs)
+ *
+ * Fails if:
+ *
+ * - .datadog/ does not exist
+ * - .datadog/ contains anything other than main/
+ * - main/ does not contain <pid>.lock or <pid>/
+ * - <pid>/ contains any regular files, recursively
+ *
+ * If all assertions hold, deletes .datadog/ and all its contents.
+ *
+ * This function helps to keep the working directory clean in cases where tests exercise
+ * Core SDK APIs directly, without a mock filesystem. Note that this function should
+ * only run after all SDK state has been torn down, since an active SDK instance may
+ * still be holding open file handles etc.
+ */
+inline void PruneDotDatadogDir() {
+  // Get the path to the current working directory
+  const auto application_root = std::filesystem::current_path();
+
+  // A test that calls this function expects to have created a .datadog/ storage dir
+  const auto datadog_root = application_root / ".datadog";
+  REQUIRE(std::filesystem::is_directory(datadog_root));
+
+  // There should only be one item ('main') in the root .datadog/ directory
+  size_t num_entries_in_datadog_root{0};
+  for (const auto& entry : std::filesystem::directory_iterator(datadog_root)) {
+    REQUIRE(entry.path().filename() == "main");
+    num_entries_in_datadog_root++;
+  }
+  REQUIRE(num_entries_in_datadog_root == 1);
+
+  // There should only be two items (<pid>/ and <pid>.lock) in the main/ directory
+  const auto instance_root_iter =
+      std::filesystem::directory_iterator(datadog_root / "main");
+  const size_t num_entries_in_instance_root = std::distance(
+      std::filesystem::begin(instance_root_iter),
+      std::filesystem::end(instance_root_iter)
+  );
+  REQUIRE(num_entries_in_instance_root == 2);
+
+  // The SDK code under test should have created <pid>/ and <pid>.lock, within an
+  // instance-level directory with a default name of 'main'
+  const std::string pid_str = GetPidString();
+  const auto pid_dir_path = datadog_root / "main" / pid_str;
+  const auto pid_lockfile_path = datadog_root / "main" / (pid_str + ".lock");
+  REQUIRE(std::filesystem::is_directory(pid_dir_path));
+  REQUIRE(std::filesystem::is_regular_file(pid_lockfile_path));
+
+  // There should be no event files left behind within <pid>/; only empty directories
+  for (const auto& entry :
+       std::filesystem::recursive_directory_iterator(pid_dir_path)) {
+    if (entry.is_regular_file()) {
+      FAIL("Event file left behind: " << entry.path());
+    }
+  }
+
+  // Directory state is as it should be: we've verified that .datadog/ only contains the
+  // expected results of a single test, so we can prune it to clean up after ourselves
+  std::filesystem::remove_all(datadog_root);
+};

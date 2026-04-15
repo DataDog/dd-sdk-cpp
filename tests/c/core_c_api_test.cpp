@@ -19,12 +19,8 @@
 #include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
+#include "support/filesystem.hpp"
 #include "support/tempdir.hpp"
-
-static std::string GetPidString() {
-  impl::DiagnosticLogger logger{};
-  return std::to_string(platform::SystemInfo::Init(logger)->GetPid());
-}
 
 TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-api]") {
   SECTION("M apply source override W internal_options.source set") {
@@ -54,7 +50,7 @@ TEST_CASE("dd_core null safety", "[unit][core][c-api]") {
   }
 }
 
-TEST_CASE("dd_core_config validation", "[unit][core][c-api]") {
+TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datadog]") {
   // Capture diagnostic messages that would be printed to stderr by default
   DiagnosticMessageBuffer diagnostics;
 
@@ -85,6 +81,10 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api]") {
         "application should call SetEventStorageLocation to specify a suitable "
         "application-specific directory where .datadog/ can be created"
     );
+
+    // And we find that a .datadog/main/<pid>/ directory was populated anyway, which we
+    // clean up to keep the working directory clean
+    PruneDotDatadogDir();
   }
 
   SECTION(
@@ -107,6 +107,9 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api]") {
 
     // And no diagnostic warnings/errors are emitted
     REQUIRE(diagnostics.TotalSize() == 0);
+
+    // And we find (and remove) a .datadog/main/<pid>/ directory
+    PruneDotDatadogDir();
   }
 
   SECTION("M accept config W version is 1") {
@@ -127,6 +130,9 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api]") {
     REQUIRE(core != nullptr);
     dd_core_destroy(core);
     REQUIRE(diagnostics.TotalSize() == 0);
+
+    // And we find (and remove) a .datadog/main/<pid>/ directory
+    PruneDotDatadogDir();
   }
 
   SECTION("M reject config W version not set") {
