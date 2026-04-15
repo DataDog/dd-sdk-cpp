@@ -10,7 +10,7 @@ From the root of this repository:
 
   python -m venv tools/repl-profile/.venv
   source tools/repl-profile/.venv/bin/activate
-  pip install -r requirements.txt
+  pip install -e '.[repl-profile]'
   python -m streamlit run tools/repl-profile/app.py
 """
 import re

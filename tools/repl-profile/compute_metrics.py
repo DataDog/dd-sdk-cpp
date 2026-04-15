@@ -9,7 +9,7 @@ Usage: python3 tools/repl-profile/compute_metrics.py
 Requires no external dependencies unless using --upload.
 
 If using --upload, Datadog API credentials must be set in both DD_API_KEY and DD_APP_KEY
-env vars, and datadog-api-client (included in requirements.txt) must be installed.
+env vars, and datadog-api-client must be installed.
 """
 import re
 import sys

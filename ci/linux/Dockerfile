@@ -12,9 +12,10 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 # - zlib1g-dev:                            Required by crashpad (along with libcurl)
 # - tzdata:                                Required for crashpad TimeZone tests
 # - uuid-dev:                              uuid/uuid.h, for datadog::UUID on Linux
-# - git && python3.10-venv:                For tools/validate-event-types
+# - git:                                   Used by various scripts
 # - ninja-build:                           Build system for use as CMake generator
 RUN apt-get update && apt-get install -y --no-install-recommends \
+  software-properties-common \
   ca-certificates \
   gpg \
   gpg-agent \
@@ -25,8 +26,19 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   tzdata \
   uuid-dev \
   git \
-  python3.10-venv \
   ninja-build
+
+# Install Python 3.12 (not available in stock Ubuntu repos as of 22.04), for scripts
+# declared in pyproject.toml
+RUN add-apt-repository ppa:deadsnakes/ppa \
+  && apt update \
+  && apt install --no-install-recommends -y python3.12 python3.12-venv \
+  && python3.12 -m ensurepip
+
+# We still need the stock Python 3.10 to remain installed as the system-wide default
+# (for add-apt-repository etc.), so use an env var to override Python interpreter
+# resolution in our CMake build
+ENV DD_SYSTEM_PYTHON=/usr/bin/python3.12
 
 # Use Ninja by default for CMake builds on Linux: it's ~6x faster than Make
 ENV CMAKE_GENERATOR=Ninja
@@ -41,8 +53,7 @@ RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https:
 
 # Build `ci/dd-sdk-cpp/gcc11` with: --target gcc11
 FROM base AS gcc11
-RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common \
-  && add-apt-repository ppa:ubuntu-toolchain-r/test \
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends gcc-11 g++-11
 ENV CC=gcc-11
@@ -50,8 +61,7 @@ ENV CXX=g++-11
 
 # Build `ci/dd-sdk-cpp/gcc13` with: --target gcc13
 FROM base AS gcc13
-RUN apt-get update && apt-get install -y --no-install-recommends software-properties-common \
-  && add-apt-repository ppa:ubuntu-toolchain-r/test \
+RUN add-apt-repository ppa:ubuntu-toolchain-r/test \
   && apt-get update \
   && apt-get install -y --no-install-recommends gcc-13 g++-13
 ENV CC=gcc-13

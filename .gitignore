@@ -11,3 +11,4 @@ Testing/
 .crashes/
 __pycache__/
 *.pyc
+*.egg-info/
