@@ -19,14 +19,43 @@
 namespace datadog::impl {
 
 /**
- * Crash Reporting feature implementation. Initializes and manages the crash handler,
- * which monitors the application for crashes and uploads crash reports to the Datadog
- * backend.
+ * Crash Reporting feature implementation.
+ *
+ * The `CrashReporting` instance works in conjunction with an `ICrashHandler`, which is
+ * responsible for the low-level details of detecting and responding to crashes. The
+ * feature implementation has two key responsibilities:
+ *
+ * 1. Conveying changes in SDK state to the handler, so that details like current RUM
+ *    context, user information, tracking consent state, etc., can be incorporated into
+ *    the crash reports that the handler produces.
+ *
+ * 2. Scanning <application-storage>/.datadog/.crashes/ on startup to find binary crash
+ *    reports left behind by previous application processes, then claiming any such
+ *    files, parsing them, generating RUM Errors, and uploading those errors.
+ *
+ * This scanning-and-upload behavior is decoupled from the handler implementation: not
+ * all handlers write binary crash dumps to .crashes/, but the SDK will look for files
+ * in .crashes/ regardless.
+ *
+ * == FEATURE AND HANDLER LIFETIME ==
+ *
+ * Only one instance of `CrashReporting` will be created in any given process, and that
+ * single instance is solely responsible for uploading crash reports and interoperating
+ * with the handler. The handler itself is a process-global singleton.
+ *
+ * When an application registers the crash reporting feature for the first time, the API
+ * will create and initialize a single, process-global `ICrashHandler` instance, then
+ * create an instance of `CrashReporting` initialized with a reference to that handler.
+ *
+ * If the application attempts to enable crash reporting on any SDK instance (`Core`)
+ * beyond the first, the API will return a no-op handle rather than creating another
+ * handler or another `impl::CrashReporting` instance.
  */
 class CrashReporting final : public Feature {
  public:
-  explicit CrashReporting(std::string_view handler_exe_path);
+  explicit CrashReporting(ICrashHandler& handler);
 
+  // Feature interface
   FeatureId GetId() const override { return CreateFeatureId("CRSH"); }
 
   std::string_view GetName() const override { return "crash_reporting"; }
@@ -38,24 +67,9 @@ class CrashReporting final : public Feature {
   std::optional<std::function<void(const FeatureMessage&)>>
   MakeMessageHandler() override;
 
- protected:
-  /**
-   * Responds to SDK start by initializing the crash handler. If initialization
-   * fails, logs an error but does not prevent SDK startup.
-   */
-  void Start() override;
-
-  /**
-   * Responds to SDK stop by performing any necessary cleanup.
-   */
-  void Stop() override;
-
  private:
-  // Path to the external handler executable, if any (see CrashHandler::Init)
-  const std::string _handler_exe_path;
-
-  // Platform-specific, DD_CRASH_MODE-specific crash handler implementation
-  std::unique_ptr<ICrashHandler> _crash_handler;
+  // Reference to the process-global crash handler implementation
+  ICrashHandler& _handler;
 
   // Last RUM context forwarded to the crash handler; used to suppress redundant
   // SetRumContext calls when the context hasn't actually changed

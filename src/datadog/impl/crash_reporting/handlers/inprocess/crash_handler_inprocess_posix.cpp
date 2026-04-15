@@ -723,7 +723,12 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
  */
 class InProcessCrashHandler final : public ICrashHandler {
  public:
-  explicit InProcessCrashHandler(DiagnosticLogger& logger) : _logger(logger) {}
+  InProcessCrashHandler() = default;
+  ~InProcessCrashHandler() override { Shutdown(); }
+  InProcessCrashHandler(const InProcessCrashHandler&) = delete;
+  InProcessCrashHandler& operator=(const InProcessCrashHandler&) = delete;
+  InProcessCrashHandler(InProcessCrashHandler&&) = delete;
+  InProcessCrashHandler& operator=(InProcessCrashHandler&&) = delete;
 
   /**
    * Initializes in-process crash handling by pre-opening a timestamped, PID-tagged
@@ -731,14 +736,16 @@ class InProcessCrashHandler final : public ICrashHandler {
    * for all fatal signals. If all steps succeed, returns true; if any step fails,
    * restores original state and returns false.
    */
-  bool Initialize() override {
+  bool Initialize(DiagnosticLogger logger, std::string_view helper_exe_path) override {
+    (void)helper_exe_path;
+
     // Set up the crash handler in stages, cleaning up on failure at each step
     DATADOG_ASSERT(!_initialized, "InProcessCrashHandler::Initialize called twice");
 
     // Create directory to contain crashes, aborting on failure
     // TODO(WIP): Store crashes relative to SDK storage root
     if (mkdir(".crashes", 0755) < 0 && errno != EEXIST) {
-      _logger.Error("Failed to create .crashes directory");
+      logger.Error("Failed to create .crashes directory");
       return false;
     }
 
@@ -767,7 +774,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     // Preemptively open the crash report file and keep it open indefinitely
     s_crash_fd = open(s_crash_filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
     if (s_crash_fd < 0) {
-      _logger.Error("Failed to open crash file for writing");
+      logger.Error("Failed to open crash file for writing");
       return false;
     }
 
@@ -778,7 +785,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     if (!s_sigalt_stack) {
       close(s_crash_fd);
       s_crash_fd = -1;
-      _logger.Error("Failed to allocate signal stack");
+      logger.Error("Failed to allocate signal stack");
       return false;
     }
 
@@ -797,7 +804,7 @@ class InProcessCrashHandler final : public ICrashHandler {
       s_sigalt_stack = nullptr;
       close(s_crash_fd);
       s_crash_fd = -1;
-      _logger.Error("Failed to install signal stack");
+      logger.Error("Failed to install signal stack");
       return false;
     }
 
@@ -847,11 +854,11 @@ class InProcessCrashHandler final : public ICrashHandler {
       s_sigalt_stack = nullptr;
       close(s_crash_fd);
       s_crash_fd = -1;
-      _logger.Error("Failed to install signal handlers");
+      logger.Error("Failed to install signal handlers");
       return false;
     }
 
-    _logger.Debug("In-process crash handler initialized successfully");
+    logger.Debug("In-process crash handler initialized successfully");
     _initialized = true;
 
     // Initialize build ID cache for crash-time lookup (Windows/Linux only)
@@ -864,7 +871,7 @@ class InProcessCrashHandler final : public ICrashHandler {
    * Uninitializes the handler in the event of a clean shutdown in a process where no
    * crashes occurred.
    */
-  void Shutdown() override {
+  void Shutdown() {  // NOLINT(readability-make-member-function-const)
     // If we weren't successfully initialized, there should be no cleanup needed
     if (!_initialized) {
       return;
@@ -922,20 +929,12 @@ class InProcessCrashHandler final : public ICrashHandler {
   }
 
  private:
-  DiagnosticLogger& _logger;
   bool _initialized{false};
 };
 
-std::unique_ptr<ICrashHandler> CrashHandler::Init(
-    DiagnosticLogger& logger, std::string_view handler_exe_path
-) {
-  // The in-process crash handler does not spawn an external executable; we can ignore
-  // any configured handler path
-  (void)handler_exe_path;
-
-  // Construct a new InProcessCrashHandler: the SDK will call Initialize() if and when
-  // it decides to enable crash reporting
-  return std::make_unique<InProcessCrashHandler>(logger);
+std::unique_ptr<ICrashHandler> CrashHandler::Create() {
+  // Construct a new POSIX in-process crash handler
+  return std::make_unique<InProcessCrashHandler>();
 }
 
 // NOLINTEND(readability-use-std-min-max)

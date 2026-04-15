@@ -69,6 +69,7 @@ add_executable(dd_native_tests
     impl/core/upload_scheduler_test.cpp
     impl/core/upload_thread_test.cpp
     impl/core/writer_test.cpp
+    impl/crash_reporting/crash_reporting_test.cpp
     impl/logging/logger_test.cpp
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp

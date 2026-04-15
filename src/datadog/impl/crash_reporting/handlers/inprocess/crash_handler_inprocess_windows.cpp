@@ -228,7 +228,12 @@ static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
  */
 class InProcessCrashHandler final : public ICrashHandler {
  public:
-  explicit InProcessCrashHandler(DiagnosticLogger& logger) : _logger(logger) {}
+  InProcessCrashHandler() = default;
+  ~InProcessCrashHandler() override { Shutdown(); }
+  InProcessCrashHandler(const InProcessCrashHandler&) = delete;
+  InProcessCrashHandler& operator=(const InProcessCrashHandler&) = delete;
+  InProcessCrashHandler(InProcessCrashHandler&&) = delete;
+  InProcessCrashHandler& operator=(InProcessCrashHandler&&) = delete;
 
   /**
    * Initializes in-process crash handling by pre-opening a timestamped, PID-tagged
@@ -236,7 +241,9 @@ class InProcessCrashHandler final : public ICrashHandler {
    * succeed, returns true; if any step fails, restores original state and returns
    * false.
    */
-  bool Initialize() override {
+  bool Initialize(DiagnosticLogger logger, std::string_view helper_exe_path) override {
+    (void)helper_exe_path;
+
     // Set up the crash handler in stages, cleaning up on failure at each step
     DATADOG_ASSERT(!_initialized, "InProcessCrashHandler::Initialize called twice");
 
@@ -247,7 +254,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     if (!CreateDirectoryA(".crashes", nullptr)) {
       const DWORD err = GetLastError();
       if (err != ERROR_ALREADY_EXISTS) {
-        _logger.Error("Failed to create .crashes directory");
+        logger.Error("Failed to create .crashes directory");
         return false;
       }
     }
@@ -291,7 +298,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     );
 
     if (s_crash_file == INVALID_HANDLE_VALUE) {
-      _logger.Error("Failed to create crash file");
+      logger.Error("Failed to create crash file");
       return false;
     }
 
@@ -307,7 +314,7 @@ class InProcessCrashHandler final : public ICrashHandler {
     // overridden.
     s_old_filter = SetUnhandledExceptionFilter(crash_exception_filter);
 
-    _logger.Debug("In-process crash handler initialized successfully");
+    logger.Debug("In-process crash handler initialized successfully");
     _initialized = true;
 
     // Initialize build ID cache for crash-time lookup
@@ -320,7 +327,7 @@ class InProcessCrashHandler final : public ICrashHandler {
    * Uninitializes the handler in the event of a clean shutdown in a process where no
    * crashes occurred.
    */
-  void Shutdown() override {
+  void Shutdown() {  // NOLINT(readability-make-member-function-const)
     // If we weren't successfully initialized, there should be no cleanup needed
     if (!_initialized) {
       return;
@@ -365,20 +372,12 @@ class InProcessCrashHandler final : public ICrashHandler {
   }
 
  private:
-  DiagnosticLogger& _logger;
   bool _initialized{false};
 };
 
-std::unique_ptr<ICrashHandler> CrashHandler::Init(
-    DiagnosticLogger& logger, std::string_view handler_exe_path
-) {
-  // The in-process crash handler does not spawn an external executable; we can ignore
-  // any configured handler path
-  (void)handler_exe_path;
-
-  // Construct a new InProcessCrashHandler: the SDK will call Initialize() if and when
-  // it decides to enable crash reporting
-  return std::make_unique<InProcessCrashHandler>(logger);
+std::unique_ptr<ICrashHandler> CrashHandler::Create() {
+  // Construct a new Windows in-process crash handler
+  return std::make_unique<InProcessCrashHandler>();
 }
 
 }  // namespace datadog::impl

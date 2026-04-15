@@ -23,41 +23,29 @@ namespace datadog::impl {
  */
 class NoopCrashHandler final : public ICrashHandler {
  public:
-  explicit NoopCrashHandler(DiagnosticLogger& logger) : _logger(logger) {}
+  NoopCrashHandler() = default;
 
   /**
    * Initializes the no-op crash handler implementation, doing nothing and
    * unconditionally returning true.
    */
-  bool Initialize() override {
+  bool Initialize(DiagnosticLogger logger, std::string_view helper_exe_path) override {
+    (void)helper_exe_path;
+
     // Include some local log output to signal that CrashReporting API calls will do
     // nothing: this is not strictly a warning, but it should be noted for clarity
-    _logger.Status(
+    logger.Status(
         "Crash Reporting will have no effect: SDK is compiled with DD_CRASH_MODE=noop"
     );
     return true;
   }
 
-  /**
-   * Does nothing.
-   */
-  void Shutdown() override {}
-
   void SetRumContext(const RumFeatureContext&) override {}
-
- private:
-  DiagnosticLogger _logger;
 };
 
-std::unique_ptr<ICrashHandler> CrashHandler::Init(
-    DiagnosticLogger& logger, std::string_view handler_exe_path
-) {
-  // datadog::CrashReportingConfig is universal by design; some of the common options
-  // used to initialize ICrashHandler are irrelevant to this implementation
-  (void)handler_exe_path;
-
+std::unique_ptr<ICrashHandler> CrashHandler::Create() {
   // Return an ICrashHandler implementation that will do nothing
-  return std::make_unique<NoopCrashHandler>(logger);
+  return std::make_unique<NoopCrashHandler>();
 }
 
 }  // namespace datadog::impl

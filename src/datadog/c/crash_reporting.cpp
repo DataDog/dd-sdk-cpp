@@ -15,6 +15,9 @@
 #include "datadog/c/core_glue.hpp"
 #include "datadog/c/crash_reporting_glue.hpp"
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
+#include "datadog/impl/crash_reporting/crash_handler_init.hpp"
 #include "datadog/impl/crash_reporting/crash_reporting.hpp"
 
 static const uint32_t CRASH_REPORTING_CONFIG_VERSION = 1;
@@ -78,12 +81,25 @@ dd_crash_reporting_t* dd_crash_reporting_init(
     config = &DEFAULT_CRASH_REPORTING_CONFIG;
   }
 
-  // Extract handler executable path from config
-  std::string_view handler_exe_path = config->handler_exe_path;
+  // TODO(RUM-14020): Prepare .datadog/.crashes/ via ArtifactStorage and convey the full
+  // path to both ICrashHandler and CrashReporting
+
+  // Initialize an ICrashHandler implementation and get a pointer to the global handler
+  // instance, which persists throughout the lifetime of the process: this will only
+  // return a valid pointer the first time it's called, ensuring that only a single
+  // instance of the CrashReporting feature is empowered to handle and upload crashes
+  datadog::impl::ICrashHandler* handler = datadog::impl::CrashHandler::InitializeOnce(
+      core->diagnostic_logger, config->handler_exe_path
+  );
+
+  // If handler initialization failed, or if crash reporting is being enabled for an SDK
+  // instance after the first, return a no-op CrashReporting interface
+  if (!handler) {
+    return nullptr;
+  }
 
   // Initialize our CrashReporting feature implementation
-  auto crash_reporting_impl =
-      std::make_shared<datadog::impl::CrashReporting>(handler_exe_path);
+  auto crash_reporting_impl = std::make_shared<datadog::impl::CrashReporting>(*handler);
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->impl->RegisterFeature(crash_reporting_impl)) {
