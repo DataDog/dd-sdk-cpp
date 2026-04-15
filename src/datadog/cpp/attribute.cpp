@@ -9,8 +9,8 @@
 #include <cstring>
 #include <iostream>
 
-#include "datadog/impl/assert.hpp"
-#include "datadog/impl/attribute/cow.hpp"
+#include "datadog/impl/core/attribute/cow.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog {
 

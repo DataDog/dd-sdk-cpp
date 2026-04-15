@@ -18,7 +18,7 @@
 #include <uuid/uuid.h>
 #endif
 
-#include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog {
 

@@ -15,7 +15,7 @@
 #include <numeric>
 #include <thread>
 
-#include "datadog/impl/assert.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 
 #if WITH_DATADOG_ALLOCATION_TRACKING
 

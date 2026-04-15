@@ -10,8 +10,8 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/features/logging/logger.hpp"
-#include "datadog/impl/features/logging/logging.hpp"
+#include "datadog/impl/logging/logger.hpp"
+#include "datadog/impl/logging/logging.hpp"
 
 namespace datadog {
 

@@ -21,16 +21,16 @@
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/message_bus.hpp"
+#include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/queue.hpp"
+#include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/core/storage/sdk.hpp"
 #include "datadog/impl/core/storage_queue.hpp"
 #include "datadog/impl/core/storage_write.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/upload_scheduler.hpp"
 #include "datadog/impl/core/upload_thread.hpp"
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/platform/system_info.hpp"
-#include "datadog/impl/storage/filesystem.hpp"
-#include "datadog/impl/storage/sdk.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 // Forward declarations
 namespace datadog::platform {

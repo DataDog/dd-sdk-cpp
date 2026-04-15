@@ -12,7 +12,7 @@
 #include <string>
 #include <vector>
 
-#include "datadog/impl/platform/clock.hpp"
+#include "datadog/impl/core/platform/clock.hpp"
 
 using namespace datadog;
 

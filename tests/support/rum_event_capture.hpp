@@ -16,8 +16,8 @@
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/core/platform/system_info.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 #include "support/context.hpp"
 #include "support/diagnostics.hpp"

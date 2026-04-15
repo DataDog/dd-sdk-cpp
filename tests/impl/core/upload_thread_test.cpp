@@ -16,7 +16,7 @@
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/core.hpp"
-#include "datadog/impl/storage/sdk.hpp"
+#include "datadog/impl/core/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"

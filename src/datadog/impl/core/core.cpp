@@ -10,15 +10,15 @@
 #include <iostream>
 #include <sstream>
 
-#include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/context_thread.hpp"
 #include "datadog/impl/core/messaging_thread.hpp"
+#include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/core/platform/http.hpp"
+#include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
-#include "datadog/impl/platform/clock.hpp"
-#include "datadog/impl/platform/http.hpp"
-#include "datadog/impl/platform/system_info.hpp"
 
 namespace datadog::impl {
 

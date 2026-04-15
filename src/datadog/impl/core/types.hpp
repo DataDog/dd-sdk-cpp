@@ -11,7 +11,7 @@
 #include "datadog/core.h"
 #include "datadog/core.hpp"
 
-#include "datadog/impl/platform/clock.hpp"
+#include "datadog/impl/core/platform/clock.hpp"
 
 namespace datadog {
 

@@ -11,8 +11,8 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/message_bus.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
 
 namespace datadog::impl {

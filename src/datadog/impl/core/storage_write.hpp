@@ -14,13 +14,13 @@
 
 #include "datadog/core.hpp"
 
-#include "datadog/impl/assert.hpp"
 #include "datadog/impl/core/block.hpp"
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/platform/clock.hpp"
-#include "datadog/impl/storage/feature_event.hpp"
-#include "datadog/impl/storage/filesystem.hpp"
-#include "datadog/impl/storage/path.hpp"
+#include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/core/storage/feature_event.hpp"
+#include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/core/storage/path.hpp"
+#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog::impl {
 

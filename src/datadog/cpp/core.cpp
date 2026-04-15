@@ -10,7 +10,7 @@
 #include <limits>
 
 #include "datadog/impl/core/core.hpp"
-#include "datadog/impl/diagnostics.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog {
 

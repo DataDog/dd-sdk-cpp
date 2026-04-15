@@ -6,8 +6,8 @@
 
 #include <iostream>
 
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/platform/system_info.hpp"
+#include "datadog/impl/core/platform/system_info.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 /**
  * This program is a simple utility that prints the values resolved by the SystemInfo

@@ -8,7 +8,7 @@
 #include <string>
 #include <vector>
 
-#include "datadog/impl/platform/http.hpp"
+#include "datadog/impl/core/platform/http.hpp"
 
 #include "mock/http_client.hpp"
 

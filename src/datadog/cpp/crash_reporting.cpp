@@ -10,7 +10,7 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/features/crash_reporting/crash_reporting.hpp"
+#include "datadog/impl/crash_reporting/crash_reporting.hpp"
 
 namespace datadog {
 

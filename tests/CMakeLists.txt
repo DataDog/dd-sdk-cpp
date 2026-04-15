@@ -20,11 +20,36 @@ add_executable(dd_native_tests
     cpp/timestamp_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     cpp/version_cpp_api_test.cpp
-    impl/attribute/cow_test.cpp
-    impl/attribute/memory_test.cpp
-    impl/attribute/merge_test.cpp
-    impl/attribute/refcount_test.cpp
+    impl/core/attribute/cow_test.cpp
+    impl/core/attribute/memory_test.cpp
+    impl/core/attribute/merge_test.cpp
+    impl/core/attribute/refcount_test.cpp
+    impl/core/events/enum_test.cpp
+    impl/core/events/omissible_test.cpp
+    impl/core/events/struct_test.cpp
+    impl/core/events/timestamp_test.cpp
     impl/core/feature_types/rum_test.cpp
+    impl/core/json/primitives/bool_test.cpp
+    impl/core/json/primitives/float_test.cpp
+    impl/core/json/primitives/integer_test.cpp
+    impl/core/json/primitives/null_test.cpp
+    impl/core/json/primitives/string_test.cpp
+    impl/core/json/primitives/timestamp_test.cpp
+    impl/core/json/primitives/uuid_test.cpp
+    impl/core/json/attribute_test.cpp
+    impl/core/json/optional_test.cpp
+    impl/core/platform/clock_test.cpp
+    impl/core/platform/http_test.cpp
+    impl/core/platform/system_info_test.cpp
+    impl/core/storage/artifact_test.cpp
+    impl/core/storage/feature_event_test.cpp
+    impl/core/storage/filesystem_test.cpp
+    impl/core/storage/path_test.cpp
+    impl/core/storage/sdk_test.cpp
+    impl/core/util/diagnostics_test.cpp
+    impl/core/util/error_message_test.cpp
+    impl/core/util/json_test.cpp
+    impl/core/util/validation_test.cpp
     impl/core/block_test.cpp
     impl/core/context_test.cpp
     impl/core/context_thread_test.cpp
@@ -44,43 +69,18 @@ add_executable(dd_native_tests
     impl/core/upload_scheduler_test.cpp
     impl/core/upload_thread_test.cpp
     impl/core/writer_test.cpp
-    impl/events/enum_test.cpp
-    impl/events/omissible_test.cpp
-    impl/events/struct_test.cpp
-    impl/events/timestamp_test.cpp
-    impl/features/logging/logger_test.cpp
-    impl/features/rum/containers/resource_map_test.cpp
-    impl/features/rum/containers/view_array_test.cpp
-    impl/features/rum/scopes/action_test.cpp
-    impl/features/rum/scopes/application_test.cpp
-    impl/features/rum/scopes/resource_test.cpp
-    impl/features/rum/scopes/session_test.cpp
-    impl/features/rum/scopes/view_test.cpp
-    impl/features/rum/command_test.cpp
-    impl/features/rum/context_test.cpp
-    impl/features/rum/rum_test.cpp
-    impl/features/rum/scope_test.cpp
-    impl/json/primitives/bool_test.cpp
-    impl/json/primitives/float_test.cpp
-    impl/json/primitives/integer_test.cpp
-    impl/json/primitives/null_test.cpp
-    impl/json/primitives/string_test.cpp
-    impl/json/primitives/timestamp_test.cpp
-    impl/json/primitives/uuid_test.cpp
-    impl/json/attribute_test.cpp
-    impl/json/optional_test.cpp
-    impl/platform/clock_test.cpp
-    impl/platform/http_test.cpp
-    impl/platform/system_info_test.cpp
-    impl/storage/artifact_test.cpp
-    impl/storage/feature_event_test.cpp
-    impl/storage/filesystem_test.cpp
-    impl/storage/path_test.cpp
-    impl/storage/sdk_test.cpp
-    impl/diagnostics_test.cpp
-    impl/error_message_test.cpp
-    impl/json_test.cpp
-    impl/validation_test.cpp
+    impl/logging/logger_test.cpp
+    impl/rum/containers/resource_map_test.cpp
+    impl/rum/containers/view_array_test.cpp
+    impl/rum/scopes/action_test.cpp
+    impl/rum/scopes/application_test.cpp
+    impl/rum/scopes/resource_test.cpp
+    impl/rum/scopes/session_test.cpp
+    impl/rum/scopes/view_test.cpp
+    impl/rum/command_test.cpp
+    impl/rum/context_test.cpp
+    impl/rum/rum_test.cpp
+    impl/rum/scope_test.cpp
     mock/filesystem.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp
@@ -90,7 +90,7 @@ add_executable(dd_native_tests
 # Add Windows-specific tests
 if(WIN32)
     target_sources(dd_native_tests PRIVATE
-        impl/platform/windows_timezone_mapping_test.cpp
+        impl/core/platform/windows_timezone_mapping_test.cpp
     )
 endif()
 

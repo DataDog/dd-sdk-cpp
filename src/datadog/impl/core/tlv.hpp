@@ -10,8 +10,8 @@
 #include <optional>
 
 #include "datadog/impl/core/block.hpp"
-#include "datadog/impl/diagnostics.hpp"
-#include "datadog/impl/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog::impl {
 
