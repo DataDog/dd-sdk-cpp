@@ -11,6 +11,7 @@
 
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/queue.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 
@@ -29,11 +30,20 @@ namespace datadog::impl {
 using EventWriter = std::function<bool(Block event, Block event_metadata)>;
 
 /**
- * Function executed on the context thread with access to a CoreContext snapshot and an
- * EventWriter for generating events.
+ * Callback that publishes a message to the message bus from the context thread.
  */
-using ContextThreadFunc =
-    std::function<void(const CoreContext& context, const EventWriter& writer)>;
+using MessagePublisher = std::function<bool(FeatureMessage)>;
+
+/**
+ * Function executed on the context thread with access to a CoreContext snapshot and
+ * both an EventWriter and a MessagePublisher, for generating events and producing
+ * feature-to-feature messages, respectively.
+ */
+using ContextThreadFunc = std::function<void(
+    const CoreContext& context,
+    const EventWriter& writer,
+    const MessagePublisher& publisher
+)>;
 
 /**
  * Interface provided to each feature in order to give that feature access to core SDK
@@ -52,6 +62,7 @@ class FeatureScope {
 
   CoreContextProvider* _context_provider;
   EventWriter _event_generated_func;
+  MessagePublisher _message_produced_func;
   ExecutionMode _mode;
   Queue<std::function<void()>>* _context_queue;
 
@@ -62,6 +73,7 @@ class FeatureScope {
   explicit FeatureScope(
       CoreContextProvider& context_provider,
       const EventWriter& event_writer,
+      const MessagePublisher& message_publisher,
       const DiagnosticLogger& in_diagnostic_logger,
       ExecutionMode mode,
       Queue<std::function<void()>>* context_queue
@@ -84,6 +96,7 @@ class FeatureScope {
    *
    * @param context_provider Provides thread-safe access to CoreContext
    * @param event_writer Callback invoked when features generate events
+   * @param message_publisher Callback invoked when features produce messages
    * @param diagnostic_logger Logger for diagnostic messages
    * @param context_queue Queue containing thunks to be executed serially by the context
    *  thread; must outlive the FeatureScope
@@ -91,6 +104,7 @@ class FeatureScope {
   static FeatureScope Create(
       CoreContextProvider& context_provider,
       const EventWriter& event_writer,
+      const MessagePublisher& message_publisher,
       const DiagnosticLogger& diagnostic_logger,
       Queue<std::function<void()>>& context_queue
   );
@@ -102,11 +116,13 @@ class FeatureScope {
    *
    * @param context_provider Provides thread-safe access to CoreContext
    * @param event_writer Callback invoked when features generate events
+   * @param message_publisher Callback invoked when features produce messages
    * @param diagnostic_logger Logger for diagnostic messages
    */
   static FeatureScope CreateForTesting(
       CoreContextProvider& context_provider,
       const EventWriter& event_writer,
+      const MessagePublisher& message_publisher,
       const DiagnosticLogger& diagnostic_logger
   );
 
