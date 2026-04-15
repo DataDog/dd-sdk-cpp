@@ -59,8 +59,7 @@ void CrashReporting::Start() {
   if (!has_called_initialize) {
     has_called_initialize = true;
 
-    _crash_handler =
-        platform::CrashHandler::Init(_scope->diagnostic_logger, _handler_exe_path);
+    _crash_handler = CrashHandler::Init(_scope->diagnostic_logger, _handler_exe_path);
     if (!_crash_handler) {
       _scope->diagnostic_logger.Error("Failed to create crash handler");
       return;

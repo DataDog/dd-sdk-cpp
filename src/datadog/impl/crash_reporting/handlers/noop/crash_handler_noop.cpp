@@ -4,10 +4,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/platform/crash_handler.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 /**
  * Crash handler implementation used when the SDK is explicitly configured at
@@ -23,7 +23,7 @@ namespace datadog::platform {
  */
 class NoopCrashHandler final : public ICrashHandler {
  public:
-  explicit NoopCrashHandler(impl::DiagnosticLogger& logger) : _logger(logger) {}
+  explicit NoopCrashHandler(DiagnosticLogger& logger) : _logger(logger) {}
 
   /**
    * Initializes the no-op crash handler implementation, doing nothing and
@@ -43,14 +43,14 @@ class NoopCrashHandler final : public ICrashHandler {
    */
   void Shutdown() override {}
 
-  void SetRumContext(const impl::RumFeatureContext&) override {}
+  void SetRumContext(const RumFeatureContext&) override {}
 
  private:
-  impl::DiagnosticLogger _logger;
+  DiagnosticLogger _logger;
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Init(
-    impl::DiagnosticLogger& logger, std::string_view handler_exe_path
+    DiagnosticLogger& logger, std::string_view handler_exe_path
 ) {
   // datadog::CrashReportingConfig is universal by design; some of the common options
   // used to initialize ICrashHandler are irrelevant to this implementation
@@ -60,4 +60,4 @@ std::unique_ptr<ICrashHandler> CrashHandler::Init(
   return std::make_unique<NoopCrashHandler>(logger);
 }
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

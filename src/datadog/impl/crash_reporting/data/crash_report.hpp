@@ -83,7 +83,7 @@
  * 0x00db: <CrashReportFooterMagic>
  */
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 static const uint64_t CrashReportHeaderMagic = 0xdd01;
 static const uint64_t CrashReportFileVersion = 1;
@@ -124,4 +124,4 @@ struct CrashReportModuleHeader {
   uint64_t end_addr;    // First byte of virtual memory after the end of this module
 };
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

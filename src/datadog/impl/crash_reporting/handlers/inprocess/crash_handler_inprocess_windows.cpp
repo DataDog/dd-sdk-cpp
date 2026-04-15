@@ -21,14 +21,14 @@
 #include <ctime>
 
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/platform/crash_context_write.hpp"
-#include "datadog/impl/core/platform/crash_handler.hpp"
-#include "datadog/impl/core/platform/crash_handler_buildid_cache.hpp"
-#include "datadog/impl/core/platform/crash_report_write.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
+#include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
+#include "datadog/impl/crash_reporting/data/crash_report_write.hpp"
+#include "datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.hpp"
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 // We only officially support 64-bit architectures; this code may need to be revisited
 // if we add legacy 32-bit support
@@ -228,7 +228,7 @@ static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
  */
 class InProcessCrashHandler final : public ICrashHandler {
  public:
-  explicit InProcessCrashHandler(impl::DiagnosticLogger& logger) : _logger(logger) {}
+  explicit InProcessCrashHandler(DiagnosticLogger& logger) : _logger(logger) {}
 
   /**
    * Initializes in-process crash handling by pre-opening a timestamped, PID-tagged
@@ -360,17 +360,17 @@ class InProcessCrashHandler final : public ICrashHandler {
     DeleteCrashContext(s_crash_context_filename);
   }
 
-  void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
+  void SetRumContext(const RumFeatureContext& rum_ctx) override {
     WriteCrashContext(s_crash_context_filename, rum_ctx);
   }
 
  private:
-  impl::DiagnosticLogger& _logger;
+  DiagnosticLogger& _logger;
   bool _initialized{false};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Init(
-    impl::DiagnosticLogger& logger, std::string_view handler_exe_path
+    DiagnosticLogger& logger, std::string_view handler_exe_path
 ) {
   // The in-process crash handler does not spawn an external executable; we can ignore
   // any configured handler path
@@ -381,4 +381,4 @@ std::unique_ptr<ICrashHandler> CrashHandler::Init(
   return std::make_unique<InProcessCrashHandler>(logger);
 }
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

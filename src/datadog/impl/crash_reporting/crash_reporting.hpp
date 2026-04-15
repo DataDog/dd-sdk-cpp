@@ -14,14 +14,14 @@
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/platform/crash_handler.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
 
 namespace datadog::impl {
 
 /**
- * Crash Reporting feature implementation. Initializes and manages the Crashpad crash
- * handler process, which monitors the application for crashes and uploads crash reports
- * to the Datadog backend.
+ * Crash Reporting feature implementation. Initializes and manages the crash handler,
+ * which monitors the application for crashes and uploads crash reports to the Datadog
+ * backend.
  */
 class CrashReporting final : public Feature {
  public:
@@ -40,23 +40,22 @@ class CrashReporting final : public Feature {
 
  protected:
   /**
-   * Responds to SDK start by initializing the Crashpad crash handler process.
-   * If initialization fails, logs an error but does not prevent SDK startup.
+   * Responds to SDK start by initializing the crash handler. If initialization
+   * fails, logs an error but does not prevent SDK startup.
    */
   void Start() override;
 
   /**
-   * Responds to SDK stop by performing any necessary cleanup. Note that the
-   * crash handler process continues running after SDK shutdown.
+   * Responds to SDK stop by performing any necessary cleanup.
    */
   void Stop() override;
 
  private:
-  // Configuration: path to the crashpad_handler executable
+  // Path to the external handler executable, if any (see CrashHandler::Init)
   const std::string _handler_exe_path;
 
-  // Platform-specific crash handler implementation
-  std::unique_ptr<platform::ICrashHandler> _crash_handler;
+  // Platform-specific, DD_CRASH_MODE-specific crash handler implementation
+  std::unique_ptr<ICrashHandler> _crash_handler;
 
   // Last RUM context forwarded to the crash handler; used to suppress redundant
   // SetRumContext calls when the context hasn't actually changed

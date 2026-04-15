@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/platform/crash_report_write.hpp"
+#include "datadog/impl/crash_reporting/data/crash_report_write.hpp"
 
 #ifndef _WIN32
 #include <unistd.h>
@@ -13,7 +13,7 @@
 #include <array>
 #include <cstddef>
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 // NOLINTBEGIN(cppcoreguidelines-pro-type-reinterpret-cast)
 
@@ -118,4 +118,4 @@ void WriteCrashReportFooter(CrashReportFileHandle fd) {
 
 // NOLINTEND(cppcoreguidelines-pro-type-reinterpret-cast)
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

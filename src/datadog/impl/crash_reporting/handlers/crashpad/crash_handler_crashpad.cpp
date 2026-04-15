@@ -15,8 +15,8 @@
 #include "client/settings.h"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/platform/crash_handler.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/crash_reporting/crash_handler.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -92,7 +92,7 @@ static std::filesystem::path get_crashpad_database_path() {
   return ".crashpad";
 }
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 /**
  * Crash handler implementation that uses the Crashpad client library, in conjunction
@@ -115,7 +115,7 @@ namespace datadog::platform {
 class CrashpadCrashHandler final : public ICrashHandler {
  public:
   explicit CrashpadCrashHandler(
-      impl::DiagnosticLogger& logger, std::string_view handler_exe_path
+      DiagnosticLogger& logger, std::string_view handler_exe_path
   )
       : _logger(logger), _handler_exe_path(handler_exe_path) {}
 
@@ -230,7 +230,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // and continue running after SDK shutdown. We don't forcibly terminate it here.
   }
 
-  void SetRumContext(const impl::RumFeatureContext& rum_ctx) override {
+  void SetRumContext(const RumFeatureContext& rum_ctx) override {
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     char buf[37] = {0};
 
@@ -277,7 +277,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
   };
 
  private:
-  impl::DiagnosticLogger _logger;
+  DiagnosticLogger _logger;
   std::string _handler_exe_path;
 
   // Values cached on last call to SetRumContext
@@ -288,9 +288,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Init(
-    impl::DiagnosticLogger& logger, std::string_view handler_exe_path
+    DiagnosticLogger& logger, std::string_view handler_exe_path
 ) {
   return std::make_unique<CrashpadCrashHandler>(logger, handler_exe_path);
 }
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

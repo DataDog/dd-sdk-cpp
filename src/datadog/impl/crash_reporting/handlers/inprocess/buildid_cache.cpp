@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "crash_handler_buildid_cache.hpp"
+#include "datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.hpp"
 
 #ifdef _WIN32
 // clang-format off
@@ -25,7 +25,7 @@
 #include <cstring>
 #endif
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 // This file contains functions that extract build IDs from binary files (PE on Windows,
 // ELF on Linux). The Linux implementation must be usable from async-signal-safe
@@ -810,4 +810,4 @@ const char* FindCachedBuildId(uintptr_t base_address) {
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 // NOLINTEND(bugprone-unchecked-string-to-number-conversion)
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

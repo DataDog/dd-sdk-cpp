@@ -14,7 +14,7 @@ class DiagnosticLogger;
 struct RumFeatureContext;
 }  // namespace datadog::impl
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 /**
  * Abstract interface for detecting and handling crashes in the process where the SDK
@@ -26,7 +26,7 @@ namespace datadog::platform {
  * object wraps an instance of `datadog::impl::CrashReporting`, the **feature
  * implementation**.
  *
- * The feature implementation uses an instance of `platform::ICrashHandler` to
+ * The feature implementation uses an instance of `impl::ICrashHandler` to facilitate
  * facilitate key operations like initializing and uninitializing crash-handler state,
  * updating metadata to be included in crash reports, etc.; thereby allowing the Crash
  * Reporting API to be used identically with a variety of underlying crash-handler
@@ -48,9 +48,6 @@ namespace datadog::platform {
  * 2. Which ICrashHandler implementation was enabled when the SDK was compiled.
  *
  *    - This is controlled via the DD_CRASH_MODE CMake var; e.g. DD_CRASH_MODE=inprocess
- *    - TODO(RUM-11669): If features are modularized, we should revisit whether this
- *      compile-time selection of ICrashHandler belongs in datadog::platform or whether
- *      it should be specific to the Crash Reporting feature module
  */
 class ICrashHandler {
  protected:
@@ -93,7 +90,7 @@ class ICrashHandler {
    * normal SDK shutdown. Only called when the RUM context has actually changed since
    * the last call.
    */
-  virtual void SetRumContext(const impl::RumFeatureContext& rum_ctx) = 0;
+  virtual void SetRumContext(const RumFeatureContext& rum_ctx) = 0;
 };
 
 namespace CrashHandler {
@@ -116,8 +113,8 @@ namespace CrashHandler {
  *  handler implementations, this value is irrelevant and may be ignored.
  */
 std::unique_ptr<ICrashHandler> Init(
-    impl::DiagnosticLogger& logger, std::string_view handler_exe_path
+    DiagnosticLogger& logger, std::string_view handler_exe_path
 );
 }  // namespace CrashHandler
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl
