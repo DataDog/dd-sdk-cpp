@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <cstring>
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "support/catch.hpp"
 #include "support/diagnostics.hpp"
 #include "support/filesystem.hpp"
@@ -18,7 +18,7 @@ using namespace datadog::impl;
 
 TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
   // Given a mock filesystem with an existing application-specific storage directory
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs("app");
   REQUIRE(!fs.IsDirectory("app/.datadog"));
 
@@ -358,7 +358,7 @@ TEST_CASE("SdkStorage directory creation", "[unit][storage]") {
 
 TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
   // Given a mock filesystem with an existing application-specific storage directory
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs("app");
   REQUIRE(!fs.IsDirectory("app/.datadog"));
 
@@ -464,7 +464,7 @@ TEST_CASE("SdkStorage process lockfile", "[unit][storage]") {
 
 TEST_CASE("SdkStorage event migration", "[unit][storage]") {
   // Given a mock filesystem and diagnostic logger
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs("app");
   DiagnosticMessageBuffer diagnostics;
   DiagnosticLogger logger = diagnostics.CreateTestLogger();
@@ -824,7 +824,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main",
             FilesystemResult::UnknownError,
-            MockFilesystemNew::FailureFlags::Ls
+            MockFilesystem::FailureFlags::Ls
         );
 
         // When we attempt to initialize SDK storage
@@ -867,7 +867,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main/444",
             FilesystemResult::UnknownError,
-            MockFilesystemNew::FailureFlags::Ls
+            MockFilesystem::FailureFlags::Ls
         );
 
         // When we attempt to initialize SDK storage
@@ -903,7 +903,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main/444/foo",
             FilesystemResult::UnknownError,
-            MockFilesystemNew::FailureFlags::Ls
+            MockFilesystem::FailureFlags::Ls
         );
 
         // When we attempt to initialize SDK storage
@@ -949,7 +949,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main/444/bar/v1",
             FilesystemResult::UnknownError,
-            MockFilesystemNew::FailureFlags::Ls
+            MockFilesystem::FailureFlags::Ls
         );
 
         // When we attempt to initialize SDK storage
@@ -988,7 +988,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main/333",
             FilesystemResult::PermissionDenied,
-            MockFilesystemNew::FailureFlags::All
+            MockFilesystem::FailureFlags::All
         );
 
         // When we attempt to initialize SDK storage
@@ -1031,7 +1031,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main/444/bar/v1/1700000000600",
             FilesystemResult::OutOfSpace,
-            MockFilesystemNew::FailureFlags::Rename
+            MockFilesystem::FailureFlags::Rename
         );
 
         // When we attempt to initialize SDK storage
@@ -1073,7 +1073,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main/333.lock",
             FilesystemResult::ReadOnlyFilesystem,
-            MockFilesystemNew::FailureFlags::Delete
+            MockFilesystem::FailureFlags::Delete
         );
 
         // When we initialize SDK storage successfully
@@ -1108,7 +1108,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main/444.lock",
             FilesystemResult::ReadOnlyFilesystem,
-            MockFilesystemNew::FailureFlags::Delete
+            MockFilesystem::FailureFlags::Delete
         );
 
         // When we initialize SDK storage successfully
@@ -1146,7 +1146,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             "app/.datadog/main/444/bar/v1/1700000000600",
             FilesystemResult::UnknownError,
-            MockFilesystemNew::FailureFlags::Delete
+            MockFilesystem::FailureFlags::Delete
         );
 
         // When we initialize SDK storage, causing a file-by-file migration of main/444
@@ -1182,9 +1182,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
 
         // And a filesystem that will not allow that file to be deleted
         fs.SimulateFailure(
-            path,
-            FilesystemResult::UnknownError,
-            MockFilesystemNew::FailureFlags::Delete
+            path, FilesystemResult::UnknownError, MockFilesystem::FailureFlags::Delete
         );
 
         // When we initialize SDK storage successfully
@@ -1212,9 +1210,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
             "app/.datadog/main/444"
         );
         fs.SimulateFailure(
-            path,
-            FilesystemResult::UnknownError,
-            MockFilesystemNew::FailureFlags::Delete
+            path, FilesystemResult::UnknownError, MockFilesystem::FailureFlags::Delete
         );
 
         // When we initialize SDK storage successfully
@@ -1252,7 +1248,7 @@ TEST_CASE("SdkStorage event migration", "[unit][storage]") {
         fs.SimulateFailure(
             path,
             FilesystemResult::ReadOnlyFilesystem,
-            MockFilesystemNew::FailureFlags::Open
+            MockFilesystem::FailureFlags::Open
         );
 
         // When we initialize SDK storage

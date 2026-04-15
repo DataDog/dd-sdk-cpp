@@ -15,7 +15,7 @@
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 #include "support/diagnostics.hpp"
 
@@ -48,7 +48,7 @@ TEST_CASE("StorageThreadMain", "[unit]") {
   DiagnosticLogger logger = diagnostics.CreateTestLogger();
 
   // And a mock filesystem that will store SDK data at app/.datadog/
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs("app");
 
   // And a root storage directory for our SDK instance

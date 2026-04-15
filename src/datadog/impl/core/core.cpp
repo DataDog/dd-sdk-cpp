@@ -17,7 +17,6 @@
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/version.hpp"
 #include "datadog/impl/platform/clock.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
 #include "datadog/impl/platform/http.hpp"
 #include "datadog/impl/platform/system_info.hpp"
 

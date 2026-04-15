@@ -19,7 +19,7 @@
 
 #include "mock/clock.hpp"
 #include "mock/feature.hpp"
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/tlv.hpp"
 #include "support/catch.hpp"
@@ -76,7 +76,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
   DiagnosticLogger logger = diagnostics.CreateTestLogger();
 
   // And a mock filesystem that will store SDK data at app/.datadog/
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   fs.Mkdirs("app");
 
   // And a root storage directory for our SDK instance

@@ -16,7 +16,7 @@
 #include "datadog/impl/core/core.hpp"
 
 #include "mock/clock.hpp"
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
 #include "support/diagnostics.hpp"
@@ -52,7 +52,7 @@ struct CoreTestHarness {
 
   impl::Core& core;
   MockClock& clock;
-  MockFilesystemNew& fs;
+  MockFilesystem& fs;
   MockHttpClient& client;
 
   std::vector<dd_diagnostic_message_t> c_diagnostics;
@@ -61,7 +61,7 @@ struct CoreTestHarness {
   explicit CoreTestHarness(
       std::unique_ptr<impl::Core>&& in_core,
       MockClock& in_clock,
-      MockFilesystemNew& in_fs,
+      MockFilesystem& in_fs,
       MockHttpClient& in_client
   )
       : _core(std::move(in_core)),
@@ -73,14 +73,14 @@ struct CoreTestHarness {
   static CoreTestHarness Init(CoreConfig config, bool flush_http_requests = true) {
     // Create mock implementations of required core subsystems
     auto _clock = std::make_unique<MockClock>();
-    auto _fs = std::make_unique<MockFilesystemNew>();
+    auto _fs = std::make_unique<MockFilesystem>();
     auto _http = std::make_unique<MockHttpSubsystem>();
     auto _system_info = std::make_unique<MockSystemInfo>();
 
     // Capture references to the underlying objects before we transfer ownership out of
     // these unique_ptrs
     MockClock& clock = *_clock;
-    MockFilesystemNew& fs = *_fs;
+    MockFilesystem& fs = *_fs;
     MockHttpSubsystem& http = *_http;
 
     // MOCK_CORE_CONFIG configures the SDK to store data in a directory called 'app';

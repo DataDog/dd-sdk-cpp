@@ -10,7 +10,7 @@
 #include <string_view>
 #include <vector>
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 #include "support/diagnostics.hpp"
 
@@ -18,7 +18,7 @@ using namespace datadog::impl;
 
 TEST_CASE("BatchReader", "[unit]") {
   // Given a mock filesystem on which we can open arbitrary files
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   auto fs_open = [&fs](const char* path) {
     auto res = fs.Wrapper().OpenForRead(path, false);
     REQUIRE(res.value == FilesystemResult::OK);
@@ -140,7 +140,7 @@ TEST_CASE("BatchReader", "[unit]") {
 
     // Next: Given external conditions that prevent file reads
     fs.SimulateFailure(
-        "foo", FilesystemResult::UnknownError, MockFilesystemNew::FailureFlags::IO
+        "foo", FilesystemResult::UnknownError, MockFilesystem::FailureFlags::IO
     );
 
     // When we attempt to read the next block

@@ -22,7 +22,6 @@
 #include "datadog/impl/core/storage_write.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/platform/filesystem.hpp"
 
 namespace datadog::impl {
 

@@ -8,7 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "mock/filesystem_new.hpp"
+#include "mock/filesystem.hpp"
 #include "mock/tlv.hpp"
 #include "support/diagnostics.hpp"
 
@@ -171,7 +171,7 @@ TEST_CASE("EncodeTLVBlock", "[unit][tlv]") {
 
 TEST_CASE("TLV Read", "[unit][tlv]") {
   // Given a file 'good' containing a metadata block and an event block
-  MockFilesystemNew fs;
+  MockFilesystem fs;
   MockTLVFile().AppendMetadata("metadata-0").AppendEvent("event-0").WriteTo(fs, "good");
   auto good_res = fs.Wrapper().OpenForRead("good", false);
   REQUIRE(good_res.value == FilesystemResult::OK);
@@ -287,7 +287,7 @@ TEST_CASE("TLV Read", "[unit][tlv]") {
     SECTION("M fail and log a warning W file read operation fails") {
       // Given a filesystem that will refuse to allow our good file to be read
       fs.SimulateFailure(
-          "good", FilesystemResult::UnknownError, MockFilesystemNew::FailureFlags::IO
+          "good", FilesystemResult::UnknownError, MockFilesystem::FailureFlags::IO
       );
 
       // When we attempt to read a TLV header from our good file
@@ -355,7 +355,7 @@ TEST_CASE("TLV Read", "[unit][tlv]") {
 
       // And a filesystem that will now refuse to allow our good file to be read
       fs.SimulateFailure(
-          "good", FilesystemResult::UnknownError, MockFilesystemNew::FailureFlags::IO
+          "good", FilesystemResult::UnknownError, MockFilesystem::FailureFlags::IO
       );
 
       // When we attempt to read the contents of that TLV metadata block
