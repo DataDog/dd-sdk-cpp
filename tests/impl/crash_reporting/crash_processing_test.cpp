@@ -6,13 +6,28 @@
 
 #include "datadog/impl/crash_reporting/crash_processing.hpp"
 
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "datadog/impl/crash_reporting/data/crash_context_read.hpp"
 #include "datadog/impl/crash_reporting/data/crash_report_read.hpp"
 
+#include "mock/filesystem.hpp"
 #include "support/catch.hpp"
+#include "support/crash_data.hpp"
+#include "support/diagnostics.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
+
+static const std::string_view CRASH_FILE_DATA{
+    reinterpret_cast<const char*>(MOCK_CRASH_REPORT_V1), std::size(MOCK_CRASH_REPORT_V1)
+};
+static const std::string_view CONTEXT_FILE_DATA{
+    reinterpret_cast<const char*>(MOCK_CRASH_CONTEXT_V1),
+    std::size(MOCK_CRASH_CONTEXT_V1)
+};
 
 TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
   // Given a basic crash report (as parsed from an in-process crash dump file) which
@@ -210,5 +225,611 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
     REQUIRE(crash.rum_session_id == UUID::Zero);
     REQUIRE(crash.rum_view_id == UUID::Zero);
     REQUIRE(crash.rum_action_id == UUID::Zero);
+  }
+}
+
+TEST_CASE("IsCrashReportFilename", "[unit][crash_reporting]") {
+  // Expected format: returns true, we should read these files
+  REQUIRE(IsCrashReportFilename("crash_1700000000000_12345"));
+
+  // Formats that technically pass the test: return true, even though these filenames
+  // would be odd to see in practice
+  REQUIRE(IsCrashReportFilename("crash_0_12345"));
+  REQUIRE(IsCrashReportFilename("crash_1_0"));
+  REQUIRE(IsCrashReportFilename("crash_0000001700000_012345"));
+  REQUIRE(IsCrashReportFilename(
+      "crash_11111222223333344444555556666677777888889999900000_12345"
+  ));
+
+  // Invalid formats: return false; we shouldn't bother reading these files
+  REQUIRE(!IsCrashReportFilename("crash_-1700000000000_12345"));
+  REQUIRE(!IsCrashReportFilename("crash_1700000000000_-12345"));
+  REQUIRE(!IsCrashReportFilename("crosh_1700000000000_12345"));
+  REQUIRE(!IsCrashReportFilename("12345_1700000000000_12345"));
+  REQUIRE(!IsCrashReportFilename("crash_17000000_00000_12345"));
+  REQUIRE(!IsCrashReportFilename("crash_1700000000000_bar"));
+  REQUIRE(!IsCrashReportFilename("crash_foo_12345"));
+  REQUIRE(!IsCrashReportFilename("crash_foo_bar"));
+  REQUIRE(!IsCrashReportFilename("notcrash_1700000000000_12345"));
+  REQUIRE(!IsCrashReportFilename("nope"));
+}
+
+TEST_CASE("ProcessCrashReports", "[unit][crash_reporting]") {
+  // Given a diagnostic logger that will buffer all messages emitted
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+
+  // And a mock filesystem where we expect crash reports to be stored at
+  // app/.datadog/.crashes/
+  MockFilesystem fs;
+  StoragePath storage_dir_path;
+  REQUIRE(storage_dir_path.Set("app/.datadog/.crashes"));
+
+  // And a mock callback that will buffer all crash reports produced
+  std::vector<CrashReport> crashes;
+  auto callback = [&crashes](const CrashReport& crash) { crashes.push_back(crash); };
+
+  // === Null cases (no crashes to report) ===
+
+  SECTION("M succeed with no consequence W directory does not exist") {
+    // Given a nonexistent .crashes/ directory
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then nothing happens: our directory still doesn't exist
+    REQUIRE(!fs.IsDirectory("app/.datadog/.crashes"));
+
+    // And no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And a simple status message is logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(
+        diagnostics.status[0].find(
+            "Crash report processing complete: storage directory does not exist"
+        ) == 0
+    );
+  }
+
+  SECTION("M succeed with no consequence W directory is empty") {
+    // Given an empty .crashes/ directory
+    fs.Mkdirs("app/.datadog/.crashes");
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then nothing happens: our directory still exists and is still empty
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(fs.Ls("app/.datadog/.crashes").size() == 0);
+
+    // And no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And a simple status message is logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(
+        diagnostics.status[0].find(
+            "Crash report processing complete: no crash reports found"
+        ) == 0
+    );
+  }
+
+  SECTION("M succeed with no consequence W directory contains no crash files") {
+    // Given a .crashes/ directory that contains a few subdirectories and files, but no
+    // files matching our crash-report-file naming convention
+    fs.Mkdirs("app/.datadog/.crashes/pending");
+    fs.Mkdirs("app/.datadog/.crashes/foo");
+    fs.Touch("app/.datadog/.crashes/.DS_Store");
+    fs.Touch("app/.datadog/.crashes/crash_is_fun", "hello");
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then nothing happens: our directory still exists and has the same contents
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes/foo"));
+    REQUIRE(fs.Cat("app/.datadog/.crashes/crash_is_fun") == "hello");
+
+    // And no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And a simple status message is logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(
+        diagnostics.status[0].find(
+            "Crash report processing complete: no crash reports found"
+        ) == 0
+    );
+  }
+
+  // === Valid crash report cases ===
+
+  SECTION(
+      "M report crash and delete file W directory contains valid crash file without an "
+      "accompanying context file"
+  ) {
+    // Given a crash storage directory that contains a crash dump
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then one crash report is generated, and it reflects our mock crash data
+    REQUIRE(crashes.size() == 1);
+    const CrashReport& crash = crashes.front();
+    REQUIRE(crash.fault_code == 11);
+    REQUIRE(crash.fault_address == 0);
+    REQUIRE(crash.fault_flags == 0);
+    REQUIRE(crash.pid == 100);
+    REQUIRE(crash.tid == 101);
+    REQUIRE(crash.timestamp == 1700000000000);
+    REQUIRE(crash.modules.size() == 1);
+    REQUIRE(crash.stack.size() == 4);
+
+    // And the report has nil/zero values for all context-file data
+    REQUIRE(crash.rum_application_id == UUID::Zero);
+    REQUIRE(crash.rum_session_id == UUID::Zero);
+    REQUIRE(crash.rum_view_id == UUID::Zero);
+    REQUIRE(crash.rum_action_id == UUID::Zero);
+
+    // And our crash file has been deleted
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(!fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+
+    // And we get a status message indicating that the crash was processed
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(diagnostics.status[0].find("Processed a valid crash report") == 0);
+  }
+
+  SECTION(
+      "M report crash and delete files W directory contains valid crash file and "
+      "context file"
+  ) {
+    // Given a crash storage directory that contains both a crash dump and a context
+    // file for a valid crash
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then one crash report is generated, and it reflects our mock crash data
+    REQUIRE(crashes.size() == 1);
+    const CrashReport& crash = crashes.front();
+    REQUIRE(crash.fault_code == 11);
+    REQUIRE(crash.fault_address == 0);
+    REQUIRE(crash.fault_flags == 0);
+    REQUIRE(crash.pid == 100);
+    REQUIRE(crash.tid == 101);
+    REQUIRE(crash.timestamp == 1700000000000);
+    REQUIRE(crash.modules.size() == 1);
+    REQUIRE(crash.stack.size() == 4);
+
+    // And the report includes the data from our context file
+    REQUIRE(
+        crash.rum_application_id == *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef")
+    );
+    REQUIRE(
+        crash.rum_session_id == *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef")
+    );
+    REQUIRE(crash.rum_view_id == *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef"));
+    REQUIRE(
+        crash.rum_action_id == *UUID::Parse("4c10171e-4334-4334-4334-b0000eeeefff")
+    );
+
+    // And our crash files have been deleted
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(!fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+    REQUIRE(!fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345.ctx"));
+
+    // And we get a status message indicating that the crash was processed
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(diagnostics.status[0].find("Processed a valid crash report") == 0);
+  }
+
+  SECTION(
+      "M report multiple crashes and delete files W directory contains valid crash "
+      "file and context file for two distinct crashes"
+  ) {
+    // Given a crash storage directory that contains both a crash dump and a context
+    // file for two valid crashes
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000001000_23456", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000001000_23456.ctx", CONTEXT_FILE_DATA);
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then two crash reports are generated
+    REQUIRE(crashes.size() == 2);
+
+    // And our crash files have all been deleted
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(fs.Ls("app/.datadog/.crashes").size() == 0);
+
+    // And we get two status messages indicating that both crashes were processed
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 2);
+    REQUIRE(diagnostics.status[0].find("Processed a valid crash report") == 0);
+    REQUIRE(diagnostics.status[1].find("Processed a valid crash report") == 0);
+
+    // And ordering is deterministic: the more recent crash was handled first
+    REQUIRE(
+        diagnostics.status[0].find("crash_1700000001000_23456") != std::string::npos
+    );
+    REQUIRE(
+        diagnostics.status[1].find("crash_1700000000000_12345") != std::string::npos
+    );
+  }
+
+  SECTION(
+      "M continue processing subsequent crashes W a single crash can not be processed"
+  ) {
+    // Given a crash storage directory that contains a valid crash, along with another
+    // seemingly-valid crash that actually contains malformed data
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000001000_23456", "bad-crash");
+    fs.Touch("app/.datadog/.crashes/crash_1700000001000_23456.ctx", "bad-context");
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then a single crash report is generated
+    REQUIRE(crashes.size() == 1);
+
+    // And all crash files have all been deleted
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(fs.Ls("app/.datadog/.crashes").size() == 0);
+
+    // And we get diagnostic messages indicating that the first (i.e. most-recent) crash
+    // could not be processed, but the second crash was processed OK
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(diagnostics.warning[0].find("Unable to process crash report") == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(diagnostics.status[0].find("Processed a valid crash report") == 0);
+  }
+
+  SECTION("M ignore crashes W a single crash can not be processed") {
+    // Given a crash storage directory that contains both a crash dump and a context
+    // file for two valid crashes
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000001000_23456", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000001000_23456.ctx", CONTEXT_FILE_DATA);
+
+    // And an external process that currently holds a lock on the first (most-recent)
+    // crash dump file
+    fs.LockFile("app/.datadog/.crashes/crash_1700000001000_23456");
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then a single crash report is generated
+    REQUIRE(crashes.size() == 1);
+
+    // And all files for crash_1700000000000_12345 have been deleted, but the files for
+    // crash_1700000001000_23456 remain entirely untouched
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(fs.Ls("app/.datadog/.crashes").size() == 2);
+    REQUIRE(
+        fs.Cat("app/.datadog/.crashes/crash_1700000001000_23456") == CRASH_FILE_DATA
+    );
+    REQUIRE(
+        fs.Cat("app/.datadog/.crashes/crash_1700000001000_23456.ctx") ==
+        CONTEXT_FILE_DATA
+    );
+
+    // And we get diagnostic messages indicating that the second crash was processed OK,
+    // without any errors or warnings
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(diagnostics.status[0].find("Processed a valid crash report") == 0);
+
+    // And we get a debug message to indicate that the first crash was skipped because
+    // we couldn't acquire a lock on the file
+    REQUIRE(diagnostics.debug.size() >= 1);
+    REQUIRE(diagnostics.debug[0].find("Crash report file is locked; ignoring it") == 0);
+  }
+
+  SECTION("M ignore crashes W primary file is empty") {
+    // Given a crash storage directory that contains two crashes, with the first to be
+    // processed having valid context but a crash dump file with 0 bytes of data
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000001000_23456", "");
+    fs.Touch("app/.datadog/.crashes/crash_1700000001000_23456.ctx", CONTEXT_FILE_DATA);
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then a single crash report is generated
+    REQUIRE(crashes.size() == 1);
+
+    // And all files for both crashes have been deleted
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(fs.Ls("app/.datadog/.crashes").size() == 0);
+
+    // And we get diagnostic messages indicating that the second crash was processed OK,
+    // without any errors or warnings
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(diagnostics.status[0].find("Processed a valid crash report") == 0);
+
+    // And we get a debug message to indicate that the first crash was skipped because
+    // it was empty
+    REQUIRE(diagnostics.debug.size() >= 1);
+    REQUIRE(
+        diagnostics.debug[0].find("Crash report file is empty; no crash to report") == 0
+    );
+  }
+
+  // === Malformed-file error cases ===
+
+  SECTION("M report no crashes and delete files W crash file is malformed") {
+    // Given a crash storage directory that contains a valid context file but a crash
+    // dump file that has invalid data
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", "bad-crash");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And our crash files have been deleted
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(!fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+    REQUIRE(!fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345.ctx"));
+
+    // And we get warnings indicating that the crash could not be processed
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning[0].find(
+            "Unable to process crash report: crash file is truncated or malformed"
+        ) == 0
+    );
+  }
+
+  SECTION("M report no crashes and delete files W context file is malformed") {
+    // Given a crash storage directory that contains a valid crash file but a context
+    // file that has invalid data
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", "bad-context");
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And our crash files have been deleted
+    REQUIRE(fs.IsDirectory("app/.datadog/.crashes"));
+    REQUIRE(!fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+    REQUIRE(!fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345.ctx"));
+
+    // And we get warnings indicating that the crash could not be processed
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning[0].find(
+            "Unable to process crash report: context file is truncated or malformed"
+        ) == 0
+    );
+  }
+
+  // === IFilesystem error cases ===
+
+  SECTION("M fail with warning W directory listing fails") {
+    // Given a valid .crashes/ directory that we will be unable to retrieve a directory
+    // listing for
+    fs.Mkdirs("app/.datadog/.crashes/");
+    fs.SimulateFailure("app/.datadog/.crashes", FilesystemResult::UnknownError);
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And we get a warning indicating the expected failure
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning[0].find(
+            "Unable to process crash reports: failed to list files in storage directory"
+        ) == 0
+    );
+  }
+
+  SECTION("M fail with warning and leave files intact W crash file can't be opened") {
+    // Given a valid .crashes/ directory with a crash report file that we won't be able
+    // to open
+    fs.Mkdirs("app/.datadog/.crashes/");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.SimulateFailure(
+        "app/.datadog/.crashes/crash_1700000000000_12345",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::Open
+    );
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And both files are left in place
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345.ctx"));
+
+    // And we get a warning indicating the expected failure
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning[0].find(
+            "Unable to process crash report: failed to open crash report file"
+        ) == 0
+    );
+  }
+
+  SECTION("M fail with warning and leave files intact W crash file can't be read") {
+    // Given a valid .crashes/ directory with a crash report file that we can open but
+    // will fail to read from
+    fs.Mkdirs("app/.datadog/.crashes/");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.SimulateFailure(
+        "app/.datadog/.crashes/crash_1700000000000_12345",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::IO
+    );
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And both files are left in place
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345.ctx"));
+
+    // And we get a warning indicating the expected failure
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning[0].find(
+            "Unable to process crash report: failed to read from crash file"
+        ) == 0
+    );
+  }
+
+  SECTION("M fail with warning and leave files intact W context file can't be opened") {
+    // Given a valid .crashes/ directory with a crash context file that we won't be able
+    // to open
+    fs.Mkdirs("app/.datadog/.crashes/");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.SimulateFailure(
+        "app/.datadog/.crashes/crash_1700000000000_12345.ctx",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::Open
+    );
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And both files are left in place
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345.ctx"));
+
+    // And we get a warning indicating the expected failure
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning[0].find(
+            "Unable to process crash report: failed to open crash context file"
+        ) == 0
+    );
+  }
+
+  SECTION("M fail with warning and leave files intact W context file can't be read") {
+    // Given a valid .crashes/ directory with a context file that we can open but will
+    // fail to read from
+    fs.Mkdirs("app/.datadog/.crashes/");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.SimulateFailure(
+        "app/.datadog/.crashes/crash_1700000000000_12345.ctx",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::IO
+    );
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And both files are left in place
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345.ctx"));
+
+    // And we get a warning indicating the expected failure
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning[0].find(
+            "Unable to process crash report: failed to read from context file"
+        ) == 0
+    );
+  }
+
+  // === IFilesystem error handling on best-effort file deletion ===
+
+  SECTION("M log warnings and proceed W deletion of crash files fails") {
+    // Given valid crash files that the filesystem will refuse to let us delete
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.SimulateFailure(
+        "app/.datadog/.crashes/crash_1700000000000_12345",
+        FilesystemResult::PermissionDenied,
+        MockFilesystem::FailureFlags::Delete
+    );
+    fs.SimulateFailure(
+        "app/.datadog/.crashes/crash_1700000000000_12345.ctx",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::Delete
+    );
+
+    // When we successfully process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+    REQUIRE(crashes.size() == 1);
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE(diagnostics.status[0].find("Processed a valid crash report") == 0);
+
+    // Then our undeletable files are still present, indicating that we may end up
+    // reporting duplicate errors for this crash in the future
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345"));
+    REQUIRE(fs.IsFile("app/.datadog/.crashes/crash_1700000000000_12345.ctx"));
+
+    // And we get warnings about failed deletion of both files (failure to delete one
+    // doesn't stop us from trying to delete the other)
+    REQUIRE(diagnostics.warning.size() == 2);
+    REQUIRE(diagnostics.warning[0].find("Failed to delete crash report file") == 0);
+    REQUIRE(diagnostics.warning[1].find("Failed to delete crash context file") == 0);
   }
 }
