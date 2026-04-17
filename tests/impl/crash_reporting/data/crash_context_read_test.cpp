@@ -31,7 +31,7 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     // Given a file that contains our golden crash context data
     fs.Touch("crash.ctx", data);
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash.ctx", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
@@ -66,7 +66,7 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     // Given a file that contains garbage data
     fs.Touch("crash.ctx", "hello-world-this-file-is-not-a-valid-crash-report");
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash.ctx", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
@@ -139,7 +139,7 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
         MockFilesystem::FailureFlags::IO
     );
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash.ctx", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);

@@ -30,7 +30,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     // Given a file that contains our golden crash report data
     fs.Touch("crash", data);
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
@@ -75,7 +75,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     // Given a file that contains no data
     fs.Touch("crash", "");
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
@@ -95,7 +95,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     // Given a file that contains garbage data
     fs.Touch("crash", "hello-world-this-file-is-not-a-valid-crash-report");
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
@@ -181,7 +181,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
         std::string(head) + len_bytes + long_path + std::string(tail);
     fs.Touch("crash", new_data);
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
@@ -217,7 +217,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
         std::string(head) + len_bytes + long_build_id + std::string(tail);
     fs.Touch("crash", new_data);
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
@@ -241,7 +241,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
         "crash", FilesystemResult::PermissionDenied, MockFilesystem::FailureFlags::IO
     );
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
