@@ -109,12 +109,12 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
   }
 
   SECTION("M return Malformed with no data W file has invalid footer magic") {
-    // Given a file that contains valid crash report data, with the exception of a
-    // missing footer
+    // Given a file that contains valid crash report data, with the exception of having
+    // garbage data in place of the final value
     const std::string_view data_less_8_bytes{data.data(), data.size() - 8};
-    fs.Touch("crash", data_less_8_bytes);
+    fs.Touch("crash", std::string(data_less_8_bytes) + "badfooter");
 
-    // And an open file handle to that file
+    // And an open handle to that file
     const bool hold_advisory_lock = false;
     auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
     REQUIRE(open_res.value == FilesystemResult::OK);
@@ -123,6 +123,38 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     auto result = ReadCrashReport(open_res.file);
 
     // Then we get a result value indicating that the file was not a valid crash report
+    REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(!result.data.has_value());
+    REQUIRE(result.fs_result == FilesystemResult::OK);
+    REQUIRE(result.empty == false);
+  }
+
+  SECTION("M return Malformed W file is truncated") {
+    // Given a variety of files that abruptly end at various points midway through the
+    // data for a valid crash report file
+    auto file_size = GENERATE(
+        as<size_t>(),
+        1,
+        5,
+        64,
+        192,
+        199,
+        sizeof(MOCK_CRASH_REPORT_V1) - 8,
+        sizeof(MOCK_CRASH_REPORT_V1) - 1
+    );
+    REQUIRE(file_size <= data.size());
+    const std::string_view truncated_data{data.data(), file_size};
+    fs.Touch("crash", truncated_data);
+
+    // And an open handle to that file
+    const bool hold_advisory_lock = false;
+    auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
+    REQUIRE(open_res.value == FilesystemResult::OK);
+
+    // When we parse the file as a crash report
+    auto result = ReadCrashReport(open_res.file);
+
+    // Then we get no value
     REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::Malformed);
     REQUIRE(!result.data.has_value());
     REQUIRE(result.fs_result == FilesystemResult::OK);
