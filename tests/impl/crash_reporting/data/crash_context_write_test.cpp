@@ -44,12 +44,83 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     };
 
     // When we serialize our context to the mock file
-    WriteCrashContext(fs, path, tmp_path, rum_ctx);
+    const bool ok = WriteCrashContext(fs, path, tmp_path, rum_ctx);
 
-    // Then the file contains exactly the bytes we expect it to
+    // Then serialization succeeds
+    REQUIRE(ok);
+
+    // And the file contains exactly the bytes we expect it to
     REQUIRE(fs.Cat("crash.ctx") == data);
 
     // And no temporary files are left behind
     REQUIRE(!fs.IsFile("crash.ctx.tmp"));
+  }
+
+  SECTION("M fail W .ctx.tmp file can not be opened") {
+    // Given a filesystem that won't permit us to open crash.ctx.tmp for write
+    fs.Touch("crash.ctx", "foo");
+    fs.Touch("crash.ctx.tmp", "bar");
+    fs.SimulateFailure(
+        "crash.ctx.tmp",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::Open
+    );
+
+    // When we attempt to serialize any context using that path
+    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+
+    // Then serialization fails
+    REQUIRE(!ok);
+
+    // And our original files are untouched
+    REQUIRE(fs.Cat("crash.ctx") == "foo");
+    REQUIRE(fs.Cat("crash.ctx.tmp") == "bar");
+  }
+
+  SECTION("M fail W .ctx.tmp file can not be written to") {
+    // Given a filesystem that will let us overwrite crash.ctx.tmp but will cause write
+    // operations to fail
+    fs.Touch("crash.ctx", "foo");
+    fs.Touch("crash.ctx.tmp", "bar");
+    fs.SimulateFailure(
+        "crash.ctx.tmp",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::IO
+    );
+
+    // When we attempt to serialize any context using that path
+    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+
+    // Then serialization fails
+    REQUIRE(!ok);
+
+    // And our now-truncated .tmp file is deleted
+    REQUIRE(!fs.IsFile("crash.ctx.tmp"));
+
+    // And our original crash context file remains
+    REQUIRE(fs.Cat("crash.ctx") == "foo");
+  }
+
+  SECTION("M fail W .ctx file can not be overwritten") {
+    // Given a filesystem where we can freely write .ctx.tmp, but where the original
+    // .ctx file will refuse to be overwritten
+    fs.Touch("crash.ctx", "foo");
+    fs.SimulateFailure(
+        "crash.ctx",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::Rename
+    );
+
+    // When we attempt to serialize any context using that path
+    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+
+    // Then serialization fails
+    REQUIRE(!ok);
+
+    // And our now-abandoned .tmp file is deleted
+    REQUIRE(!fs.IsFile("crash.ctx.tmp"));
+
+    // And our original crash context file remains
+    REQUIRE(fs.Cat("crash.ctx") == "foo");
   }
 }

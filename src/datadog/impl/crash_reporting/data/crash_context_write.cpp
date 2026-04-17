@@ -77,7 +77,13 @@ bool WriteCrashContext(
   // Wrote to .tmp file successfully: perform an atomic rename to clobber any existing
   // .ctx file, making the latest context values encoded in our .tmp file current
   auto replace_res = fs.ReplaceFile(tmp_path, path);
-  return replace_res == FilesystemResult::OK;
+  if (replace_res != FilesystemResult::OK) {
+    // Delete .ctx.tmp file if we failed to rename it to .ctx, leaving original .ctx
+    const auto delete_res = fs.Delete(tmp_path);
+    (void)delete_res;
+    return false;
+  }
+  return true;
 }
 
 }  // namespace datadog::impl
