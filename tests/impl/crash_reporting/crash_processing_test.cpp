@@ -554,6 +554,38 @@ TEST_CASE("ProcessCrashReports", "[unit][crash_reporting]") {
     REQUIRE(diagnostics.debug[0].find("Crash report file is locked; ignoring it") == 0);
   }
 
+  SECTION("M ignore crash W crash file has already been deleted by another instance") {
+    // Given a valid .crashes/ directory with a crash report file that will appear to
+    // have been deleted before we can open it (simulating a race with another SDK
+    // instance that processed the same crash first)
+    fs.Mkdirs("app/.datadog/.crashes/");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345.ctx", CONTEXT_FILE_DATA);
+    fs.SimulateFailure(
+        "app/.datadog/.crashes/crash_1700000000000_12345",
+        FilesystemResult::DoesNotExist,
+        MockFilesystem::FailureFlags::Open
+    );
+
+    // When we process crash reports
+    ProcessCrashReports(logger, fs, storage_dir_path, callback);
+
+    // Then no crash reports are generated
+    REQUIRE(crashes.size() == 0);
+
+    // And we get no warnings or errors; this is a normal race outcome
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+
+    // And we get a debug message indicating the file was already gone
+    REQUIRE(diagnostics.debug.size() >= 1);
+    REQUIRE(
+        diagnostics.debug[0].find(
+            "Crash report file no longer exists; may already have been processed"
+        ) == 0
+    );
+  }
+
   SECTION("M ignore crashes W primary file is empty") {
     // Given a crash storage directory that contains two crashes, with the first to be
     // processed having valid context but a crash dump file with 0 bytes of data

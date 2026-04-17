@@ -131,8 +131,19 @@ static CrashReadResult read_crash_files(
     return {};
   }
 
-  // If we've failed to open the file for any other reason, log a warning and abort
-  // processing this crash
+  // DoesNotExist is a normal race outcome: another process may have processed and
+  // deleted this file after we listed the directory but before we opened it. Treat
+  // it the same as lock contention by silently ignoring it.
+  if (crash_file_open_res.value == FilesystemResult::DoesNotExist) {
+    logger.Debug(
+        "Crash report file no longer exists; may already have been processed",
+        {{"path", crash_file_path.Get()}}
+    );
+    return {};
+  }
+
+  // Any other open failure is unexpected; log a warning and abort processing this
+  // crash
   if (crash_file_open_res.value != FilesystemResult::OK) {
     logger.Warning(
         "Unable to process crash report: failed to open crash report file",
