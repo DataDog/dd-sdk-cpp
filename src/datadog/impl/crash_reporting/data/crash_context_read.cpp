@@ -8,61 +8,56 @@
 
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context.hpp"
+#include "datadog/impl/crash_reporting/data/crash_read_util.hpp"
 
 namespace datadog::impl {
 
-static bool read_bytes(File& file, char* dst, size_t n) {
-  auto res = file.Read(dst, n);
-  return res.value == FilesystemResult::OK && res.bytes_read == n;
-}
-
-static bool read_uint64(File& file, uint64_t& out) {
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-  return read_bytes(file, reinterpret_cast<char*>(&out), sizeof(out));
-}
-
-static bool read_uuid(File& file, UUID& out_uuid) {
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-  return read_bytes(file, reinterpret_cast<char*>(out_uuid.bytes.data()), 16);
-}
-
-std::optional<CrashContextFile> ReadCrashContext(File& file) {
+ReadCrashContextResult ReadCrashContext(File& file) {
   // Parse header magic
   uint64_t magic{};
-  if (!read_uint64(file, magic) || magic != CrashContextHeaderMagic) {
-    return std::nullopt;
+  if (auto res = ReadUInt64(file, magic); !res.OK()) {
+    return {std::nullopt, res.value};
+  }
+  if (magic != CrashContextHeaderMagic) {
+    return {std::nullopt, FilesystemResult::OK};
   }
 
   // Parse version magic: the only supported version is 1
   uint64_t version{};
-  if (!read_uint64(file, version) || version != CrashContextFileVersion) {
-    return std::nullopt;
+  if (auto res = ReadUInt64(file, version); !res.OK()) {
+    return {std::nullopt, res.value};
+  }
+  if (version != CrashContextFileVersion) {
+    return {std::nullopt, FilesystemResult::OK};
   }
 
-  // Default-construct a result value; use std::optional to ensure NRVO eligibility
-  std::optional<CrashContextFile> result{std::in_place};
+  // Default-construct a result value
+  CrashContextFile ccf{};
 
   // Populate result struct's UUID fields with values read from the file
-  if (!read_uuid(file, result->rum_application_id)) {
-    return std::nullopt;
+  if (auto res = ReadUUID(file, ccf.rum_application_id); !res.OK()) {
+    return {std::nullopt, res.value};
   }
-  if (!read_uuid(file, result->rum_session_id)) {
-    return std::nullopt;
+  if (auto res = ReadUUID(file, ccf.rum_session_id); !res.OK()) {
+    return {std::nullopt, res.value};
   }
-  if (!read_uuid(file, result->rum_view_id)) {
-    return std::nullopt;
+  if (auto res = ReadUUID(file, ccf.rum_view_id); !res.OK()) {
+    return {std::nullopt, res.value};
   }
-  if (!read_uuid(file, result->rum_action_id)) {
-    return std::nullopt;
+  if (auto res = ReadUUID(file, ccf.rum_action_id); !res.OK()) {
+    return {std::nullopt, res.value};
   }
 
   // Parse footer magic: if not present, the file is not complete and should be ignored
   uint64_t footer{};
-  if (!read_uint64(file, footer) || footer != CrashContextFooterMagic) {
-    return std::nullopt;
+  if (auto res = ReadUInt64(file, footer); !res.OK()) {
+    return {std::nullopt, res.value};
+  }
+  if (footer != CrashContextFooterMagic) {
+    return {std::nullopt, FilesystemResult::OK};
   }
 
-  return result;
+  return {ccf, FilesystemResult::OK};
 }
 
 }  // namespace datadog::impl

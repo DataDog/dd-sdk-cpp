@@ -40,21 +40,25 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     auto result = ReadCrashContext(open_res.file);
 
     // Then we get a valid result value
-    REQUIRE(result.has_value());
+    REQUIRE(result.GetStatus() == ReadCrashContextResult::Status::OK);
+    REQUIRE(result.data.has_value());
+    REQUIRE(result.fs_result == FilesystemResult::OK);
 
     // And all fields contain the values encoded in the mock binary data
     REQUIRE(
-        result->rum_application_id ==
+        result.data->rum_application_id ==
         *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef")
     );
     REQUIRE(
-        result->rum_session_id == *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef")
+        result.data->rum_session_id ==
+        *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef")
     );
     REQUIRE(
-        result->rum_view_id == *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef")
+        result.data->rum_view_id == *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef")
     );
     REQUIRE(
-        result->rum_action_id == *UUID::Parse("4c10171e-4334-4334-4334-b0000eeeefff")
+        result.data->rum_action_id ==
+        *UUID::Parse("4c10171e-4334-4334-4334-b0000eeeefff")
     );
   }
 
@@ -69,9 +73,11 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
 
     // When we parse that file as crash context
     auto result = ReadCrashContext(open_res.file);
+    REQUIRE(result.fs_result == FilesystemResult::OK);
 
     // Then we get no value
-    REQUIRE(!result.has_value());
+    REQUIRE(result.GetStatus() == ReadCrashContextResult::Status::Malformed);
+    REQUIRE(!result.data.has_value());
   }
 
   SECTION("M return no value W file has invalid footer magic") {
@@ -89,6 +95,8 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     auto result = ReadCrashContext(open_res.file);
 
     // Then we get no value
-    REQUIRE(!result.has_value());
+    REQUIRE(!result.data.has_value());
+    REQUIRE(result.GetStatus() == ReadCrashContextResult::Status::Malformed);
+    REQUIRE(result.fs_result == FilesystemResult::OK);
   }
 }

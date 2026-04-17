@@ -10,6 +10,7 @@
 #include <string>
 #include <vector>
 
+#include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/crash_reporting/data/crash_report.hpp"
 
 namespace datadog::impl {
@@ -37,22 +38,35 @@ struct CrashReportFile {
 };
 
 /**
- * Result of a call to ReadCrashReport. data will be valid iff status is OK.
- *
- * If status is OK, we successfully read a complete, well-formed binary crash dump from
- * the file, and data contains all the information read from the file.
- *
- * If status is Empty, the file contained 0 bytes of data and should be silently
- * discarded, as it was likely opened by a process that never crashed. In this case,
- * data is std::nullopt.
- *
- * If status is Malformed, the file was truncated or improperly formatted and could not
- * be parsed. In this case, data is std::nullopt.
+ * Result of a call to ReadCrashReport. Use GetStatus() to differentiate between error
+ * cases: on OK, we have a crash to process; on Empty, we can safely ignore the file;
+ * on ReadError, we can signal `fs_error` and leave the file alone; and on Malformed, we
+ * can delete the file.
  */
 struct ReadCrashReportResult {
-  enum class Status : uint8_t { OK, Empty, Malformed };
-  Status status;
   std::optional<CrashReportFile> data{std::nullopt};
+  FilesystemResult fs_result{FilesystemResult::OK};
+  bool empty{false};
+
+  enum class Status : uint8_t {
+    OK,         // Valid file read with no errors; data has a value
+    Empty,      // File was read OK but contained 0 bytes; does not represent a crash
+    ReadError,  // A filesystem error occurred while reading; fs_result != OK
+    Malformed   // File does not contain a valid, complete crash report
+  };
+
+  Status GetStatus() const {
+    if (fs_result != FilesystemResult::OK) {
+      return Status::ReadError;
+    }
+    if (empty) {
+      return Status::Empty;
+    }
+    if (!data.has_value()) {
+      return Status::Malformed;
+    }
+    return Status::OK;
+  }
 };
 
 /**

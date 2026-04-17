@@ -39,8 +39,10 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     auto result = ReadCrashReport(open_res.file);
 
     // Then we get a result value indicating that the file was parsed successfully
-    REQUIRE(result.status == ReadCrashReportResult::Status::OK);
+    REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::OK);
     REQUIRE(result.data.has_value());
+    REQUIRE(result.fs_result == FilesystemResult::OK);
+    REQUIRE(result.empty == false);
 
     // And the header fields contain the values encoded in the mock binary data
     REQUIRE(result.data->fault_code == 11);  // SIGSEGV
@@ -83,8 +85,10 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
 
     // Then we get a result indicating that the file was entirely empty, indicating that
     // we've successfully handled leftover a file which did not represent a crash
-    REQUIRE(result.status == ReadCrashReportResult::Status::Empty);
+    REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::Empty);
     REQUIRE(!result.data.has_value());
+    REQUIRE(result.fs_result == FilesystemResult::OK);
+    REQUIRE(result.empty == true);
   }
 
   SECTION("M return Malformed with no data W file has invalid header magic") {
@@ -100,7 +104,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     auto result = ReadCrashReport(open_res.file);
 
     // Then we get a result value indicating that the file was not a valid crash report
-    REQUIRE(result.status == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::Malformed);
     REQUIRE(!result.data.has_value());
   }
 
@@ -119,8 +123,10 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     auto result = ReadCrashReport(open_res.file);
 
     // Then we get a result value indicating that the file was not a valid crash report
-    REQUIRE(result.status == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::Malformed);
     REQUIRE(!result.data.has_value());
+    REQUIRE(result.fs_result == FilesystemResult::OK);
+    REQUIRE(result.empty == false);
   }
 
   SECTION(
@@ -153,8 +159,10 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
 
     // Then we get no value: the function aborts rather than potentially making a huge
     // heap allocation that might be the result of a malformed or misinterpreted file
-    REQUIRE(result.status == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::Malformed);
     REQUIRE(!result.data.has_value());
+    REQUIRE(result.fs_result == FilesystemResult::OK);
+    REQUIRE(result.empty == false);
   }
 
   SECTION(
@@ -187,7 +195,9 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
 
     // Then we get no value: the function aborts rather than potentially making a huge
     // heap allocation that might be the result of a malformed or misinterpreted file
-    REQUIRE(result.status == ReadCrashReportResult::Status::Malformed);
+    REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::Malformed);
     REQUIRE(!result.data.has_value());
+    REQUIRE(result.fs_result == FilesystemResult::OK);
+    REQUIRE(result.empty == false);
   }
 }
