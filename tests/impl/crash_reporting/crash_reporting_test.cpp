@@ -14,6 +14,7 @@
 #include "mock/filesystem.hpp"
 #include "support/catch.hpp"
 #include "support/context.hpp"
+#include "support/crash_data.hpp"
 #include "support/crash_handler.hpp"
 #include "support/feature.hpp"
 
@@ -28,7 +29,7 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
   // Given a mock CoreContext value that will be copied into ContextChangedMessage
   CoreContext context{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO};
 
-  // And some required ICrashHandler dependencies that are not yet exercised in tests
+  // And some required ICrashHandler dependencies that are not exercised in this test
   MockFilesystem fs;
   StoragePath path;
   REQUIRE(path.Set("unused-path"));
@@ -117,5 +118,57 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
     // message to be dropped, preventing use-after-free
     REQUIRE(handler.num_set_rum_context_calls == 0);
     REQUIRE(!handler.last_rum_ctx.has_value());
+  }
+}
+
+TEST_CASE("CrashReporting message publishing", "[unit][crash_reporting]") {
+  // Given crash file binary data that test sections can write to the mock filesystem
+  static const std::string_view CRASH_FILE_DATA{
+      reinterpret_cast<const char*>(MOCK_CRASH_REPORT_V1),
+      std::size(MOCK_CRASH_REPORT_V1)
+  };
+
+  // And a mock filesystem and storage path that test sections can populate with crash
+  // files as needed
+  MockFilesystem fs;
+  StoragePath path;
+  REQUIRE(path.Set("app/.datadog/.crashes"));
+
+  // And a CrashReporting feature backed by the mock filesystem
+  MockCrashHandler handler;
+  auto crash_reporting = std::make_shared<CrashReporting>(handler, fs, path);
+
+  // And a FeatureTest harness that will capture any messages the feature publishes
+  CoreContext context{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO};
+  FeatureTest feature_test(context);
+
+  SECTION("M publish CrashReportProcessedMessage W valid crash file exists on start") {
+    // Given a crash storage directory containing a valid crash dump
+    fs.Mkdirs("app/.datadog/.crashes");
+    fs.Touch("app/.datadog/.crashes/crash_1700000000000_12345", CRASH_FILE_DATA);
+
+    // When the feature starts (FeatureTest processes all context-thread work serially)
+    feature_test.Start(crash_reporting);
+
+    // Then exactly one CrashReportProcessedMessage is published to the message bus
+    REQUIRE(feature_test.feature_messages.size() == 1);
+    const auto* msg =
+        std::get_if<CrashReportProcessedMessage>(&feature_test.feature_messages[0]);
+    REQUIRE(msg != nullptr);
+
+    // And the message contains the crash data parsed from the file
+    REQUIRE(msg->crash.fault_code == 11);
+    REQUIRE(msg->crash.timestamp == 1700000000000);
+  }
+
+  SECTION("M publish no messages W no crash files exist on start") {
+    // Given an empty crash storage directory
+    fs.Mkdirs("app/.datadog/.crashes");
+
+    // When the feature starts
+    feature_test.Start(crash_reporting);
+
+    // Then no messages are published
+    REQUIRE(feature_test.feature_messages.empty());
   }
 }
