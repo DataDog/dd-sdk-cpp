@@ -213,6 +213,8 @@ target_sources(dd_native PRIVATE
 # === crash_reporting ===
 
 target_sources(dd_native PRIVATE
+    datadog/impl/crash_reporting/data/crash_context_read.cpp
+    datadog/impl/crash_reporting/data/crash_report_read.cpp
     datadog/impl/crash_reporting/crash_handler_init.cpp
     datadog/impl/crash_reporting/crash_reporting.cpp
 )
