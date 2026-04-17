@@ -39,6 +39,16 @@ class File {
 
   // Wrappers for IFilesystem methods
   IFilesystem::WriteResult Write(const char* src, size_t n);
+
+  /**
+   * Reads exactly `n` bytes into `dst`, retrying across multiple underlying
+   * IFilesystem::Read calls until all bytes are consumed or EOF is reached.
+   *
+   * On success, returns {OK, n}. If EOF is reached before `n` bytes are available,
+   * returns {OK, k} where k < n is the number of bytes read before EOF. On a
+   * filesystem error, returns {error, k} where k is the number of bytes read before
+   * the error.
+   */
   IFilesystem::ReadResult Read(char* dst, size_t n);
   FilesystemResult Close();
 };

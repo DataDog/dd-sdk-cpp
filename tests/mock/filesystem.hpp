@@ -48,6 +48,10 @@ class MockFilesystem : public impl::IFilesystem {
   mutable std::mutex _mutex;
   uintptr_t _next_handle{1};
 
+  // When non-zero, Read() returns at most this many bytes per call even if more data is
+  // available, to allow tests to exercise retry loops in higher-level code
+  size_t _max_read_size{0};
+
   // Maintain a mapping of normalized paths to details of known directories
   struct MockDirEntry {
     // If not OK, all operations directly targeting this directory will fail
@@ -138,6 +142,14 @@ class MockFilesystem : public impl::IFilesystem {
 
   // Helper allowing tests to succinctly obtain a convenient wrapper interface
   impl::FilesystemWrapper Wrapper() { return impl::FilesystemWrapper(*this); }
+
+  // Limits the number of bytes returned by a single IFilesystem::Read call, even when
+  // more data is available. Used to exercise retry loops in higher-level read code.
+  // Pass 0 to remove the limit (default).
+  void SetMaxReadSize(size_t max) {
+    std::lock_guard lock(_mutex);
+    _max_read_size = max;
+  }
 
   // Helper functions for initializing mock filesystem state during tests
   void Mkdirs(std::string_view path);
