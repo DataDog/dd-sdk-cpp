@@ -647,6 +647,71 @@ FilesystemResult MockFilesystem::Rename(
   return FilesystemResult::OK;
 }
 
+FilesystemResult MockFilesystem::ReplaceFile(
+    const PlatformPath& src, const PlatformPath& dst
+) {
+  const std::string normalized_src = NormalizePath(src);
+  const std::string normalized_dst = NormalizePath(dst);
+  std::lock_guard lock(_mutex);
+
+  // Same-path replace is a no-op on both POSIX (rename) and Windows
+  // (MoveFileExW + MOVEFILE_REPLACE_EXISTING). Handle it early to avoid
+  // producing two iterators that alias the same map node, which would
+  // invalidate found_dst_file when we extract found_src_file below.
+  if (normalized_src == normalized_dst) {
+    return _files.find(normalized_src) != _files.end() ? FilesystemResult::OK
+                                                       : FilesystemResult::DoesNotExist;
+  }
+
+  // Report DoesNotExist if source path does not refer to a valid file
+  auto found_src_file = _files.find(normalized_src);
+  if (found_src_file == _files.end()) {
+    return FilesystemResult::DoesNotExist;
+  }
+
+  // If tests have set a non-OK status for the src file, fail with that result
+  if (auto st = HasSimulatedFailure(found_src_file->second, FailureFlags::Rename)) {
+    return *st;
+  }
+
+  // Report AlreadyExistsAsDirectory if dst is an existing directory: real backends
+  // (POSIX rename, Win32 MoveFileExW) cannot replace a directory with a file
+  if (_dirs.find(normalized_dst) != _dirs.end()) {
+    return FilesystemResult::AlreadyExistsAsDirectory;
+  }
+
+  // Report DoesNotExist if the parent directory of dst does not exist
+  const std::string dst_parent_dir_path = GetParentPath(normalized_dst);
+  auto dst_parent_dir = _dirs.find(dst_parent_dir_path);
+  if (dst_parent_dir == _dirs.end()) {
+    return FilesystemResult::DoesNotExist;
+  }
+
+  // If tests have set a non-OK status for either the dst file or dst's parent
+  // directory, fail with that result
+  if (auto st = HasSimulatedFailure(dst_parent_dir->second, FailureFlags::Open)) {
+    return *st;
+  }
+  auto found_dst_file = _files.find(normalized_dst);
+  if (found_dst_file != _files.end()) {
+    if (auto st = HasSimulatedFailure(found_dst_file->second, FailureFlags::Rename)) {
+      return *st;
+    }
+    // Erase the existing dst entry before extracting src, so that found_src_file
+    // remains valid throughout
+    _files.erase(found_dst_file);
+  }
+
+  // Extract the src file's node from the map, change its key to the dst path,
+  // and reinsert it
+  auto node = _files.extract(found_src_file);
+  node.key() = normalized_dst;
+  _files.insert(std::move(node));
+
+  // Success: file replace complete
+  return FilesystemResult::OK;
+}
+
 void MockFilesystem::Mkdirs(std::string_view path) {
   std::string path_str(path);
   std::lock_guard lock(_mutex);

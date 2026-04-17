@@ -127,4 +127,16 @@ FilesystemResult FilesystemWrapper::Rename(const char* src, const char* dst) {
   return _fs.Rename(src_path, dst_path);
 }
 
+FilesystemResult FilesystemWrapper::ReplaceFile(const char* src, const char* dst) {
+  PlatformPath& src_path = _path;
+  PlatformPath dst_path;
+  if (!src_path.Encode(src)) {
+    return FilesystemResult::PathEncodingFailed;
+  }
+  if (!dst_path.Encode(dst)) {
+    return FilesystemResult::PathEncodingFailed;
+  }
+  return _fs.ReplaceFile(src_path, dst_path);
+}
+
 }  // namespace datadog::impl

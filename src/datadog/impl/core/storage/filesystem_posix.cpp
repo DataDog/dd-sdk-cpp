@@ -340,6 +340,17 @@ class PosixFilesystem final : public IFilesystem {
     }
     return map_errno(errno);
   }
+
+  FilesystemResult ReplaceFile(
+      const PlatformPath& src, const PlatformPath& dst
+  ) override {
+    // Atomically rename src to dst. POSIX rename() clobbers dst by default.
+    const int result = rename(src.Get(), dst.Get());
+    if (result == 0) {
+      return FilesystemResult::OK;
+    }
+    return map_errno(errno);
+  }
 };
 
 std::unique_ptr<IFilesystem> CreateFilesystem() {

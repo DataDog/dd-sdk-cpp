@@ -37,7 +37,7 @@ class MockFilesystem : public impl::IFilesystem {
     Open = (1 << 3),    // OpenForRead and OpenForWrite will fail on file; in target dir
     IO = (1 << 4),      // Read and Write will fail on handles opened for this file
     Close = (1 << 5),   // Close will fail on handles opened for this file
-    Rename = (1 << 6),  // Rename will fail for target file or dir
+    Rename = (1 << 6),  // Rename and Replace will fail for target file or dir
     Delete = (1 << 7),  // Delete and DeleteDirectory will fail for target file or dir
     All = 0xff
   };
@@ -128,6 +128,9 @@ class MockFilesystem : public impl::IFilesystem {
   impl::FilesystemResult Delete(const impl::PlatformPath& path) override;
   impl::FilesystemResult DeleteDirectory(const impl::PlatformPath& path) override;
   impl::FilesystemResult Rename(
+      const impl::PlatformPath& src, const impl::PlatformPath& dst
+  ) override;
+  impl::FilesystemResult ReplaceFile(
       const impl::PlatformPath& src, const impl::PlatformPath& dst
   ) override;
 

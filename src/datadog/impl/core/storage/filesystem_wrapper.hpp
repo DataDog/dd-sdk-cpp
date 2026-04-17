@@ -89,6 +89,7 @@ class FilesystemWrapper {
   FilesystemResult Delete(const char* path);
   FilesystemResult DeleteDirectory(const char* path);
   FilesystemResult Rename(const char* src, const char* dst);
+  FilesystemResult ReplaceFile(const char* src, const char* dst);
 };
 
 }  // namespace datadog::impl
