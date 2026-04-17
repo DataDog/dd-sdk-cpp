@@ -39,6 +39,9 @@ static_assert(
 #endif
 
 #include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/core/storage/path.hpp"
+#include "datadog/impl/core/storage/util.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
@@ -69,11 +72,19 @@ namespace datadog::impl {
 //   safe to allocate, call ordinary system functions, etc.
 // - Subsequently used during crash, where we're constrained to signal-safe routines
 
-// Pre-opened file descriptor for crash report file to be written
+// Pre-opened file descriptor for crash report file to be written, along with paths to
+// the crash report file and its accompanying .ctx file
 static volatile sig_atomic_t s_crash_fd = -1;
-static char s_crash_filename[256];          // Path to crash report file
-static char s_crash_context_filename[260];  // Path to companion crash context file
-                                            // (.ctx suffix)
+static StoragePath s_crash_file_path_buf;              // <crash>
+static StoragePath s_crash_context_file_path_buf;      // <crash>.ctx
+static StoragePath s_crash_context_tmp_file_path_buf;  // <crash>.ctx.tmp
+
+// StoragePath values actually hold the path strings; we just need these wrappers (which
+// just hold a pointer to the StoragePath buffer) for compatibility with our
+// cross-platform filesystem API
+static PlatformPath s_crash_file_path;
+static PlatformPath s_crash_context_file_path;
+static PlatformPath s_crash_context_tmp_file_path;
 
 // Atomically set to 1 once our signal handler has been called, and never reset. This
 // one-shot reentrancy guard prevents recursive crashes (e.g., if the handler itself
@@ -744,50 +755,96 @@ class InProcessCrashHandler final : public ICrashHandler {
    */
   bool Initialize(
       DiagnosticLogger logger,
-      std::string_view crash_storage_dir_path,
+      IFilesystem& fs,
+      const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path
   ) override {
-    (void)crash_storage_dir_path;
+    // The in-process handler doesn't use a helper executable
     (void)helper_exe_path;
 
     // Set up the crash handler in stages, cleaning up on failure at each step
     DATADOG_ASSERT(!_initialized, "InProcessCrashHandler::Initialize called twice");
 
-    // Create directory to contain crashes, aborting on failure
-    // TODO(WIP): Store crashes relative to SDK storage root
-    if (mkdir(".crashes", 0755) < 0 && errno != EEXIST) {
-      logger.Error("Failed to create .crashes directory");
-      return false;
-    }
-
-    // Format a filename for this process's crash report file, with timestamp and PID:
-    // note that the mere presence of this file does not indicate that a crash occurred,
-    // and the timestamp is SDK start time (to ensure uniqueness), not crash time.
-    // Format: crash_<system-timestamp-in-ms>_<pid>
+    // Get the current system timestamp, in milliseconds, for use in filenames
     struct timespec ts;
     clock_gettime(CLOCK_REALTIME, &ts);
     uint64_t timestamp_ms = (static_cast<uint64_t>(ts.tv_sec) * 1000) +
                             (static_cast<uint64_t>(ts.tv_nsec) / 1000000);
+
+    // Prepare the filename for crash reports written by this process:
+    // crash_<system-timestamp-in-ms>_<pid>
+    char crash_filename[64];
     snprintf(
-        s_crash_filename,
-        sizeof(s_crash_filename),
-        ".crashes/crash_%" PRIu64 "_%d",
+        crash_filename,
+        sizeof(crash_filename),
+        "crash_%" PRIu64 "_%d",
         timestamp_ms,
         getpid()
     );
-    snprintf(
-        s_crash_context_filename,
-        sizeof(s_crash_context_filename),
-        "%s.ctx",
-        s_crash_filename
+
+    // Build the full path to a file with that name in the .datadog/.crashes/ directory
+    s_crash_file_path_buf.MustSet(crash_storage_dir_path);
+    if (!s_crash_file_path_buf.Append(crash_filename)) {
+      logger.Error("Failed to initialize in-process crash handler: path too long");
+      return false;
+    }
+
+    // Build the path to an accompanying crash_<system-timestamp-in-ms>_<pid>.ctx file
+    s_crash_context_file_path_buf.MustSet(s_crash_file_path_buf);
+    if (!s_crash_context_file_path_buf.AppendExt(".ctx")) {
+      logger.Error("Failed to initialize in-process crash handler: path too long");
+      return false;
+    }
+
+    // Append .tmp so we can use a write-then-rename pattern for context file updates
+    s_crash_context_tmp_file_path_buf.MustSet(s_crash_context_file_path_buf);
+    if (!s_crash_context_tmp_file_path_buf.AppendExt(".tmp")) {
+      logger.Error("Failed to initialize in-process crash handler: path too long");
+      return false;
+    }
+
+    // "Encode" paths, giving us PlatformPath values that we can pass to IFilesystem
+    if (!s_crash_file_path.Encode(s_crash_file_path_buf.CStr()) ||
+        !s_crash_context_file_path.Encode(s_crash_context_file_path_buf.CStr()) ||
+        !s_crash_context_tmp_file_path.Encode(
+            s_crash_context_tmp_file_path_buf.CStr()
+        )) {
+      // Path encoding is a transparent no-op on POSIX, so this can not fail
+      DATADOG_ASSERT(false, "Unexpected path encoding failure in POSIX crash handler");
+      logger.Error(
+          "Failed to initialize in-process crash handler: path encoding failed"
+      );
+      return false;
+    }
+
+    // On POSIX, PlatformPath just holds a pointer to the underlying StoragePath value
+    // that was last passed to Encode(): hence we store both sets of values
+    // indefinitely
+    static_assert(
+        sizeof(PlatformPath) == sizeof(void*), "Unexpected PlatformPath size"
     );
 
     // Preemptively open the crash report file and keep it open indefinitely
-    s_crash_fd = open(s_crash_filename, O_CREAT | O_WRONLY | O_APPEND, 0644);
-    if (s_crash_fd < 0) {
-      logger.Error("Failed to open crash file for writing");
+    const bool append = false;
+    const bool hold_advisory_lock = true;
+    auto open_res = fs.OpenForWrite(s_crash_file_path, append, hold_advisory_lock);
+    if (open_res.value != FilesystemResult::OK) {
+      logger.Error(
+          "Failed to initialize in-process crash handler: could not create crash file",
+          {{"path", s_crash_file_path_buf.Get()},
+           {"error", FilesystemResultStr(open_res.value)}}
+      );
       return false;
     }
+    s_crash_fd = open_res.handle;
+
+    // On POSIX, PlatformFileHandle is an alias for int, which is functionally
+    // equivalent to sig_atomic_t, so we can use native POSIX functions to write to this
+    // file descriptor in the async-signal-safe crash path
+    static_assert(
+        std::is_same_v<std::remove_volatile_t<decltype(s_crash_fd)>, int>,
+        "Unexpected file handle type"
+    );
 
     // Allocate an alternate signal stack of at least 128 KiB
     const size_t stack_size =
@@ -926,17 +983,22 @@ class InProcessCrashHandler final : public ICrashHandler {
     // If we're certain the file is empty, attempt to delete it, ignoring failure
     // since empty files will be handled cleanly by subsequent SDK instances
     if (num_bytes_written == 0) {
-      int result = unlink(s_crash_filename);
-      (void)result;
+      int result = unlink(s_crash_file_path.Get());
+      if (result == 0) {
+        // Also delete any accompanying context files, ignoring result since file
+        // cleanup is best-effort
+        result = unlink(s_crash_context_file_path.Get());
+        (void)result;
+        result = unlink(s_crash_context_tmp_file_path.Get());
+        (void)result;
+      }
     }
-
-    // Delete the crash context file: it's only meaningful if a crash occurred,
-    // and on clean shutdown we don't want it to surface as stale context
-    DeleteCrashContext(s_crash_context_filename);
   }
 
-  void SetRumContext(const RumFeatureContext& rum_ctx) override {
-    WriteCrashContext(s_crash_context_filename, rum_ctx);
+  void SetRumContext(IFilesystem& fs, const RumFeatureContext& rum_ctx) override {
+    WriteCrashContext(
+        fs, s_crash_context_file_path, s_crash_context_tmp_file_path, rum_ctx
+    );
   }
 
  private:

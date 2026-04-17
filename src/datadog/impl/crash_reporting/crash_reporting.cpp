@@ -9,14 +9,15 @@
 #include <memory>
 
 #include "datadog/impl/core/feature_message.hpp"
+#include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/writer.hpp"
 
 namespace datadog::impl {
 
 CrashReporting::CrashReporting(
-    ICrashHandler& handler, const StoragePath& crash_storage_dir_path
+    ICrashHandler& handler, IFilesystem& fs, const StoragePath& crash_storage_dir_path
 )
-    : _handler(handler) {
+    : _handler(handler), _fs(fs) {
   _crash_storage_dir_path.MustSet(crash_storage_dir_path);
 }
 
@@ -54,7 +55,7 @@ CrashReporting::MakeMessageHandler() {
       return;
     }
     self->_last_rum_ctx = rum_ctx;
-    self->_handler.SetRumContext(rum_ctx);
+    self->_handler.SetRumContext(self->_fs, rum_ctx);
   };
 }
 

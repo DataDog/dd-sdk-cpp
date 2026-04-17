@@ -13,7 +13,8 @@ namespace datadog::impl {
 
 ICrashHandler* CrashHandler::InitializeOnce(
     DiagnosticLogger logger,
-    std::string_view crash_storage_dir_path,
+    IFilesystem& fs,
+    const StoragePath& crash_storage_dir_path,
     std::string_view helper_exe_path
 ) {
   // Establish an ICrashHandler singleton: once initialized, this value will live for
@@ -40,7 +41,7 @@ ICrashHandler* CrashHandler::InitializeOnce(
 
     // Initialize the handler: this is the point where we actually register signal
     // handlers, launch helper processes, etc.
-    if (!new_handler->Initialize(logger, crash_storage_dir_path, helper_exe_path)) {
+    if (!new_handler->Initialize(logger, fs, crash_storage_dir_path, helper_exe_path)) {
       return;
     }
 

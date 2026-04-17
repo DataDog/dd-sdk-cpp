@@ -19,6 +19,8 @@
 
 namespace datadog::impl {
 
+class IFilesystem;
+
 /**
  * Crash Reporting feature implementation.
  *
@@ -55,7 +57,7 @@ namespace datadog::impl {
 class CrashReporting final : public Feature {
  public:
   explicit CrashReporting(
-      ICrashHandler& handler, const StoragePath& crash_storage_dir_path
+      ICrashHandler& handler, IFilesystem& fs, const StoragePath& crash_storage_dir_path
   );
 
   // Feature interface
@@ -74,6 +76,11 @@ class CrashReporting final : public Feature {
   // Reference to the process-global crash handler implementation
   ICrashHandler& _handler;
 
+  // Filesystem interface used to scan for crash reports, and provided to the handler
+  // when context is is propagated via ICrashHandler::SetRumContext() et al.
+  IFilesystem& _fs;
+
+  // Path to the directory where crash reports may be stored
   StoragePath _crash_storage_dir_path;
 
   // Last RUM context forwarded to the crash handler; used to suppress redundant

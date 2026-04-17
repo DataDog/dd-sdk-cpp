@@ -399,6 +399,7 @@ class Core {
   // Accessors for core-owned data and interfaces that need to be passed to feature
   // implementation when they're constructed
   const platform::IClock& GetClock() const;
+  IFilesystem& GetFilesystem() const;
   std::string_view GetServiceName() const;
   std::string_view GetApplicationVersion() const;
 };

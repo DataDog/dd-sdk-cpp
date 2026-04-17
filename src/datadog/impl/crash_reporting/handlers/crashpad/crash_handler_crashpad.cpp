@@ -15,6 +15,7 @@
 #include "client/settings.h"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
 
@@ -108,9 +109,12 @@ class CrashpadCrashHandler final : public ICrashHandler {
 
   bool Initialize(
       DiagnosticLogger logger,
-      std::string_view crash_storage_dir_path,
+      IFilesystem& fs,
+      const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path
   ) override {
+    (void)fs;
+
     // TODO(RUM-14025): Re-enable uploads when work on Crashpad support resumes
     const bool enable_crashpad_uploads = false;
 
@@ -119,7 +123,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
     if (crashpad_handler_path.empty()) {
       crashpad_handler_path = get_crashpad_handler_path();
     }
-    std::filesystem::path crashpad_database_path = crash_storage_dir_path;
+    std::filesystem::path crashpad_database_path = crash_storage_dir_path.Get();
     // TODO(RUM-14025): To report crashes to the Datadog backend, we'd need to configure
     //  the crashpad handler to upload crash reports to an HTTP endpoint that could
     //  accept Breakpad-format minidumps, along with all relevant context in the form of
@@ -216,7 +220,11 @@ class CrashpadCrashHandler final : public ICrashHandler {
     return true;
   }
 
-  void SetRumContext(const RumFeatureContext& rum_ctx) override {
+  void SetRumContext(IFilesystem& fs, const RumFeatureContext& rum_ctx) override {
+    // We don't need to persist context to disk: we just set crashpad annotation values,
+    // which the crashpad_handler executable will capture from process memory on crash
+    (void)fs;
+
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     char buf[37] = {0};
 

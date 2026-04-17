@@ -31,9 +31,11 @@ class NoopCrashHandler final : public ICrashHandler {
    */
   bool Initialize(
       DiagnosticLogger logger,
-      std::string_view crash_storage_dir_path,
+      IFilesystem& fs,
+      const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path
   ) override {
+    (void)fs;
     (void)crash_storage_dir_path;
     (void)helper_exe_path;
 
@@ -45,7 +47,7 @@ class NoopCrashHandler final : public ICrashHandler {
     return true;
   }
 
-  void SetRumContext(const RumFeatureContext&) override {}
+  void SetRumContext(IFilesystem&, const RumFeatureContext&) override {}
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {
