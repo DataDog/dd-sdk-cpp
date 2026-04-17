@@ -316,6 +316,15 @@ class Core {
   bool Init();
 
   /**
+   * Prepares a storage directory within <application-storage>/.datadog/ with the given
+   * name. Name must be dot-prefixed. Returns null if the directory could not be
+   * created.
+   */
+  std::unique_ptr<ArtifactStorage> InitializeArtifactStorage(
+      std::string_view directory_name
+  );
+
+  /**
    * Registers a feature implementation with the core.
    *
    * Must be called after Init() but before Start(): features may not be registered

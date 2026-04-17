@@ -81,15 +81,19 @@ dd_crash_reporting_t* dd_crash_reporting_init(
     config = &DEFAULT_CRASH_REPORTING_CONFIG;
   }
 
-  // TODO(RUM-14020): Prepare .datadog/.crashes/ via ArtifactStorage and convey the full
-  // path to both ICrashHandler and CrashReporting
+  // Prepare a directory at <application-storage>/.datadog/.crashes/ to contain
+  // crash-related artifacts
+  auto storage = core->impl->InitializeArtifactStorage(".crashes");
+  if (!storage) {
+    return nullptr;
+  }
 
   // Initialize an ICrashHandler implementation and get a pointer to the global handler
   // instance, which persists throughout the lifetime of the process: this will only
   // return a valid pointer the first time it's called, ensuring that only a single
   // instance of the CrashReporting feature is empowered to handle and upload crashes
   datadog::impl::ICrashHandler* handler = datadog::impl::CrashHandler::InitializeOnce(
-      core->diagnostic_logger, config->handler_exe_path
+      core->diagnostic_logger, storage->GetPath().Get(), config->handler_exe_path
   );
 
   // If handler initialization failed, or if crash reporting is being enabled for an SDK
@@ -99,7 +103,8 @@ dd_crash_reporting_t* dd_crash_reporting_init(
   }
 
   // Initialize our CrashReporting feature implementation
-  auto crash_reporting_impl = std::make_shared<datadog::impl::CrashReporting>(*handler);
+  auto crash_reporting_impl =
+      std::make_shared<datadog::impl::CrashReporting>(*handler, storage->GetPath());
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->impl->RegisterFeature(crash_reporting_impl)) {

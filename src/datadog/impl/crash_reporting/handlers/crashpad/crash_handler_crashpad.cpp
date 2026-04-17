@@ -82,16 +82,6 @@ static std::filesystem::path get_crashpad_handler_path() {
 #endif
 }
 
-/**
- * Returns the path to the directory to use as both the crashpad database and metrics
- * directory.
- */
-static std::filesystem::path get_crashpad_database_path() {
-  // TODO(RUM-14020): Store Crashpad artifacts within SDK storage directory
-  // For now, store Crashpad data in $(pwd)/.crashpad
-  return ".crashpad";
-}
-
 namespace datadog::impl {
 
 /**
@@ -116,7 +106,11 @@ class CrashpadCrashHandler final : public ICrashHandler {
  public:
   CrashpadCrashHandler() = default;
 
-  bool Initialize(DiagnosticLogger logger, std::string_view helper_exe_path) override {
+  bool Initialize(
+      DiagnosticLogger logger,
+      std::string_view crash_storage_dir_path,
+      std::string_view helper_exe_path
+  ) override {
     // TODO(RUM-14025): Re-enable uploads when work on Crashpad support resumes
     const bool enable_crashpad_uploads = false;
 
@@ -125,7 +119,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
     if (crashpad_handler_path.empty()) {
       crashpad_handler_path = get_crashpad_handler_path();
     }
-    std::filesystem::path crashpad_database_path = get_crashpad_database_path();
+    std::filesystem::path crashpad_database_path = crash_storage_dir_path;
     // TODO(RUM-14025): To report crashes to the Datadog backend, we'd need to configure
     //  the crashpad handler to upload crash reports to an HTTP endpoint that could
     //  accept Breakpad-format minidumps, along with all relevant context in the form of

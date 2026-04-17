@@ -163,6 +163,20 @@ bool Core::Init() {
   return true;
 }
 
+std::unique_ptr<ArtifactStorage> Core::InitializeArtifactStorage(
+    std::string_view directory_name
+) {
+  if (!_storage) {
+    // This method is only used by the API implementation (it's not exposed publicly),
+    // and we only support initializing artifact storage during feature registration
+    DATADOG_ASSERT(
+        false, "InitializeArtifactStorage called when no SdkStorage is present"
+    );
+    return nullptr;
+  }
+  return _storage->InitializeArtifactStorage(directory_name);
+}
+
 bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   // Interrogate the feature to get its identifying details: FourCC ID for quick
   // comparison internally; short, lowercase feature name for logs, event storage

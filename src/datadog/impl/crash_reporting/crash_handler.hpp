@@ -43,7 +43,9 @@ class ICrashHandler {
    * This function will be called no more than once per process.
    */
   virtual bool Initialize(
-      DiagnosticLogger logger, std::string_view helper_exe_path
+      DiagnosticLogger logger,
+      std::string_view crash_storage_dir_path,
+      std::string_view helper_exe_path
   ) = 0;
 
   /**

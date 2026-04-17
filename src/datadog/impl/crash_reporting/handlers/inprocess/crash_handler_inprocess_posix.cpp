@@ -742,7 +742,12 @@ class InProcessCrashHandler final : public ICrashHandler {
    * for all fatal signals. If all steps succeed, returns true; if any step fails,
    * restores original state and returns false.
    */
-  bool Initialize(DiagnosticLogger logger, std::string_view helper_exe_path) override {
+  bool Initialize(
+      DiagnosticLogger logger,
+      std::string_view crash_storage_dir_path,
+      std::string_view helper_exe_path
+  ) override {
+    (void)crash_storage_dir_path;
     (void)helper_exe_path;
 
     // Set up the crash handler in stages, cleaning up on failure at each step
