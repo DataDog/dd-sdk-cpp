@@ -217,17 +217,20 @@ IFilesystem::OpenFileResult MockFilesystem::OpenForWrite(
   std::string normalized_path = NormalizePath(path);
   std::lock_guard lock(_mutex);
 
-  // Report DoesNotExist if parent dir does not exist
+  // Check parent dir if path is not at the root
   const std::string parent_dir_path = GetParentPath(normalized_path);
-  auto found_parent_dir = _dirs.find(parent_dir_path);
-  if (found_parent_dir == _dirs.end()) {
-    return {FilesystemResult::DoesNotExist, INVALID_FILE_HANDLE};
-  }
-  const MockDirEntry& parent_dir = found_parent_dir->second;
+  if (!parent_dir_path.empty()) {
+    // Report DoesNotExist if parent dir does not exist
+    auto found_parent_dir = _dirs.find(parent_dir_path);
+    if (found_parent_dir == _dirs.end()) {
+      return {FilesystemResult::DoesNotExist, INVALID_FILE_HANDLE};
+    }
+    const MockDirEntry& parent_dir = found_parent_dir->second;
 
-  // Report mock failure if parent dir has non-OK status set
-  if (auto status = HasSimulatedFailure(parent_dir, FailureFlags::Open)) {
-    return {*status, INVALID_FILE_HANDLE};
+    // Report mock failure if parent dir has non-OK status set
+    if (auto status = HasSimulatedFailure(parent_dir, FailureFlags::Open)) {
+      return {*status, INVALID_FILE_HANDLE};
+    }
   }
 
   // Report AlreadyExistsAsDirectory (error) if target path is occupied by a directory
@@ -680,18 +683,22 @@ FilesystemResult MockFilesystem::ReplaceFile(
     return FilesystemResult::AlreadyExistsAsDirectory;
   }
 
-  // Report DoesNotExist if the parent directory of dst does not exist
+  // Check parent directory of dst path, unless it's at the root
   const std::string dst_parent_dir_path = GetParentPath(normalized_dst);
-  auto dst_parent_dir = _dirs.find(dst_parent_dir_path);
-  if (dst_parent_dir == _dirs.end()) {
-    return FilesystemResult::DoesNotExist;
+  if (!dst_parent_dir_path.empty()) {
+    // Report DoesNotExist if the parent directory of dst does not exist
+    auto dst_parent_dir = _dirs.find(dst_parent_dir_path);
+    if (dst_parent_dir == _dirs.end()) {
+      return FilesystemResult::DoesNotExist;
+    }
+
+    // If tests have set a non-OK status for either the dst file or dst's parent
+    // directory, fail with that result
+    if (auto st = HasSimulatedFailure(dst_parent_dir->second, FailureFlags::Open)) {
+      return *st;
+    }
   }
 
-  // If tests have set a non-OK status for either the dst file or dst's parent
-  // directory, fail with that result
-  if (auto st = HasSimulatedFailure(dst_parent_dir->second, FailureFlags::Open)) {
-    return *st;
-  }
   auto found_dst_file = _files.find(normalized_dst);
   if (found_dst_file != _files.end()) {
     if (auto st = HasSimulatedFailure(found_dst_file->second, FailureFlags::Rename)) {
