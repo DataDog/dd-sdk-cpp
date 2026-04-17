@@ -200,4 +200,27 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     REQUIRE(result.fs_result == FilesystemResult::OK);
     REQUIRE(result.empty == false);
   }
+
+  SECTION("M return ReadError W file can not be read due to filesystem error") {
+    // Given a file that contains our valid crash report data, but that the filesystem
+    // will prevent us from reading
+    fs.Touch("crash", data);
+    fs.SimulateFailure(
+        "crash", FilesystemResult::PermissionDenied, MockFilesystem::FailureFlags::IO
+    );
+
+    // And an open file handle to that file
+    const bool hold_advisory_lock = false;
+    auto open_res = fs.Wrapper().OpenForRead("crash", hold_advisory_lock);
+    REQUIRE(open_res.value == FilesystemResult::OK);
+
+    // When we parse that file as a crash report
+    auto result = ReadCrashReport(open_res.file);
+
+    // Then we get a result that indicates the filesystem error and contains no data
+    REQUIRE(result.GetStatus() == ReadCrashReportResult::Status::ReadError);
+    REQUIRE(!result.data.has_value());
+    REQUIRE(result.fs_result == FilesystemResult::PermissionDenied);
+    REQUIRE(result.empty == false);
+  }
 }
