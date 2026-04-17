@@ -267,7 +267,9 @@ TEST_CASE("ProcessCrashReports", "[unit][crash_reporting]") {
 
   // And a mock callback that will buffer all crash reports produced
   std::vector<CrashReport> crashes;
-  auto callback = [&crashes](const CrashReport& crash) { crashes.push_back(crash); };
+  auto callback = [&crashes](CrashReport crash) {
+    crashes.push_back(std::move(crash));
+  };
 
   // === Null cases (no crashes to report) ===
 

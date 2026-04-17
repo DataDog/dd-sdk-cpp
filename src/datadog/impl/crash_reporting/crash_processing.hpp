@@ -25,7 +25,7 @@ struct CrashContextFile;
 /**
  * Function used to signal that a valid crash report has been detected and processed.
  */
-using CrashReportCallback = std::function<void(const CrashReport&)>;
+using CrashReportCallback = std::function<void(CrashReport)>;
 
 /**
  * Helper function used to build a `CrashReport` struct based on the information read

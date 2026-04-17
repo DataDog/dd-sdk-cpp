@@ -516,13 +516,13 @@ void ProcessCrashReports(
 
     // Using the raw data read from those files, build a single CrashReport struct that
     // describes our crash, with resolved module offsets etc.
-    const CrashReport report = BuildCrashReport(*res.crf, res.ccf);
+    CrashReport report = BuildCrashReport(*res.crf, res.ccf);
 
     // Broadcast this crash report so it can be handled in other parts of the SDK (e.g.
     // the `CrashReporting` feature can push a CrashReportProcessedMessage to the
     // MessageBus, allowing `Rum` to respond by generating a RUM Error that describes
     // this crash)
-    on_process_callback(report);
+    on_process_callback(std::move(report));
     logger.Status("Processed a valid crash report", {{"path", crash_file_path.Get()}});
 
     // We're done with this crash; delete all files before we release our lock. Note
