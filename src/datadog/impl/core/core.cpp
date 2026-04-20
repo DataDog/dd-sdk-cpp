@@ -20,6 +20,11 @@
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
 
+#ifdef DD_ENABLE_PROFILER
+#include "datadog/impl/profiling/profiling.hpp"
+#include "datadog/impl/rum/rum.hpp"
+#endif
+
 namespace datadog::impl {
 
 nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
@@ -400,6 +405,13 @@ bool Core::Start() {
     );
   }
 
+#ifdef DD_ENABLE_PROFILER
+  // Wire RUM context changes to the profiling feature, if both are registered.
+  // This is done after all features are started so both are fully initialized.
+  // TODO: Use ContextChangedMessage in Profiling impl; remove explicit coupling
+  WireRumToProfiling();
+#endif
+
   // Start the messaging thread only after all features have completed OnCoreStarted().
   // This ensures that any ContextChangedMessages dispatched during startup (e.g. from
   // a feature calling UpdateContext in its Start()) are not delivered to a feature's
@@ -586,5 +598,39 @@ std::string_view Core::GetApplicationVersion() const {
   );
   return _context_provider->GetHttpContext().application_version;
 }
+
+#ifdef DD_ENABLE_PROFILER
+void Core::WireRumToProfiling() {
+  constexpr FeatureId kRumId = CreateFeatureId("RUMM");
+  constexpr FeatureId kProfilingId = CreateFeatureId("PROF");
+
+  std::shared_ptr<Rum> rum_impl;
+  std::shared_ptr<Profiling> profiling_impl;
+  for (const auto& feature : _features) {
+    if (feature.id == kRumId) {
+      rum_impl = std::dynamic_pointer_cast<Rum>(feature.impl);
+    } else if (feature.id == kProfilingId) {
+      profiling_impl = std::dynamic_pointer_cast<Profiling>(feature.impl);
+    }
+  }
+
+  if (!rum_impl || !profiling_impl) {
+    return;  // Both features must be registered to wire them together
+  }
+
+  // Wire RUM context changes → profiling: capture a weak_ptr so the callback
+  // doesn't extend the profiling feature's lifetime
+  std::weak_ptr<Profiling> weak_profiling = profiling_impl;
+  rum_impl->SetContextChangeCallback(
+      [weak_profiling](const datadog::RumContextSnapshot& context) {
+        if (auto prof = weak_profiling.lock()) {
+          prof->OnRumContextChanged(context);
+        }
+      }
+  );
+
+  _diagnostic_logger.Debug("Wired RUM context changes to profiling feature");
+}
+#endif
 
 }  // namespace datadog::impl

@@ -367,6 +367,15 @@ class Core {
  private:
   bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
 
+#ifdef DD_ENABLE_PROFILER
+  /**
+   * If both RUM and Profiling features are registered, automatically connects
+   * RUM context changes to the profiling feature so that profile data is
+   * correlated with RUM sessions and views. No-op if either feature is absent.
+   */
+  void WireRumToProfiling();
+#endif
+
  private:
   // Initialized in ctor
   CoreState _state{CoreState::Uninitialized};

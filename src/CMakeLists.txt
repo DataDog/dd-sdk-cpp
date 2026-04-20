@@ -272,3 +272,15 @@ if(DD_BUILD_INSTALL)
         RUNTIME DESTINATION bin
     )
 endif()
+
+# If profiling support is enabled, fetch dd-win-prof and link it into the SDK.
+# This must come after dd_native is fully configured so that the profiler module
+# can read and modify its compile/link settings.
+if(DD_ENABLE_PROFILER)
+    target_compile_definitions(dd_native PRIVATE DD_ENABLE_PROFILER=1)
+    target_sources(dd_native PRIVATE
+        datadog/cpp/profiling.cpp
+        datadog/impl/profiling/profiling.cpp
+    )
+    include(${DD_SDK_ROOT_DIR}/cmake/profiler.cmake)
+endif()

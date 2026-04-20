@@ -149,6 +149,12 @@ target_link_libraries(dd_native_tests
     Catch2::Catch2WithMain
 )
 
+# If profiler support is enabled, copy the required runtime DLLs alongside the
+# test binary so they can be found at runtime during test discovery and execution
+if(DD_ENABLE_PROFILER AND COMMAND dd_win_prof_copy_runtime_deps)
+    dd_win_prof_copy_runtime_deps(dd_native_tests)
+endif()
+
 # Register tests with CTest
 include(CTest)
 include(Catch)

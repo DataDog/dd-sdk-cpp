@@ -7,7 +7,7 @@
 #include "datadog/impl/rum/rum.hpp"
 
 #include <iostream>
-#include <mutex>
+#include <optional>
 #include <shared_mutex>
 #include <string_view>
 
@@ -19,6 +19,10 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
       _deps(config, clock),
       _application(_deps),
       _application_snapshot() {}
+
+void Rum::SetContextChangeCallback(RumContextChangeCallback callback) {
+  _context_change_callback = std::move(callback);
+}
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
     const HttpContext& context, BatchReader& reader
@@ -218,7 +222,15 @@ void Rum::DispatchAsync(const RumCommand& command) {
       // _application_snapshot has been updated with the result of processing our
       // command; write the relevant UUIDs to the global RumFeatureContext, so that
       // other features can enrich their events with RUM data
-      ctx.rum = rum->_application_snapshot.ToFeatureContext();
+      const RumFeatureContext new_context =
+          rum->_application_snapshot.ToFeatureContext();
+      ctx.rum = new_context;
+
+      // Notify the callback (if set). Change detection is handled by the recipient.
+      // TODO: The Profiling feature should instead listen for ContextChangedMessage
+      if (rum->_context_change_callback) {
+        rum->_context_change_callback(new_context.ToPublicContext());
+      }
     }
   });
 }

@@ -7,6 +7,8 @@
 #pragma once
 
 #include <cinttypes>
+#include <cstring>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -23,6 +25,75 @@ namespace impl {
 class Rum;
 struct RumScopeDependencies;
 }  // namespace impl
+
+/**
+ * Snapshot of essential RUM context state, capturing the current application,
+ * session, view, and action identifiers.
+ *
+ * This structure is provided to context change callbacks to allow external
+ * libraries to correlate their data with RUM state.
+ */
+struct RumContextSnapshot {
+  /**
+   * The RUM application ID. UUID::Zero if RUM is not initialized.
+   */
+  UUID application_id;
+
+  /**
+   * The current RUM session ID. UUID::Zero if no session is active.
+   */
+  UUID session_id;
+
+  /**
+   * The current RUM view ID. UUID::Zero if no view is active.
+   */
+  UUID view_id;
+
+  /**
+   * Name of the current RUM view. Points to an empty string if no view is
+   * active (i.e., when `view_id` is UUID::Zero). When a view is active,
+   * contains the explicit name provided to StartView(), or the key if no name
+   * was provided.
+   *
+   * This pointer is valid only for the duration of the synchronous callback.
+   * If the string value is needed beyond the callback's lifetime, it must be
+   * copied.
+   */
+  const char* view_name;
+
+  /**
+   * The current RUM action ID. UUID::Zero if no action is active.
+   */
+  UUID action_id;
+
+  bool operator==(const RumContextSnapshot& other) const {
+    if (application_id != other.application_id || session_id != other.session_id ||
+        view_id != other.view_id || action_id != other.action_id) {
+      return false;
+    }
+    if (view_name == other.view_name) {
+      return true;
+    }
+    if (!view_name || !other.view_name) {
+      return false;
+    }
+    return std::strcmp(view_name, other.view_name) == 0;
+  }
+
+  bool operator!=(const RumContextSnapshot& other) const { return !(*this == other); }
+};
+
+/**
+ * Callback function invoked when RUM context changes.
+ *
+ * The callback receives a snapshot of the new RUM context whenever any of the
+ * context UUIDs (application_id, session_id, view_id, action_id) changes value,
+ * including transitions to/from UUID::Zero.
+ *
+ * The callback is invoked synchronously on the thread that triggered the
+ * context change. Callback implementations should be fast and non-blocking.
+ */
+using RumContextChangeCallback = std::function<void(const RumContextSnapshot&)>;
 
 /**
  * Configures the details of the RUM feature upon initialization.

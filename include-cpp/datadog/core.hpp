@@ -92,6 +92,7 @@ enum class Site : uint8_t {
   ap1,
   ap2,
   us1_fed,
+  staging,
 };
 
 /**
@@ -398,6 +399,7 @@ class Core {
 
   friend class Logging;
   friend class Rum;
+  friend class Profiling;
   friend class CrashReporting;
   friend struct ::CoreTestHarness;
 };
