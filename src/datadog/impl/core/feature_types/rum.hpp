@@ -9,6 +9,7 @@
 #include <cinttypes>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
@@ -424,7 +425,7 @@ struct RumDeviceProperties {
   OmitIfEmpty<std::string> brand;
   OmitIfEmpty<std::string> architecture;
   OmitIfEmpty<std::string> locale;
-  // NYI: locales
+  OmitIfEmpty<std::vector<std::string>> locales;
   OmitIfEmpty<std::string> time_zone;
   OmitIfNoValue<float> battery_level;
   OmitIfNoValue<bool> power_saving_mode;
@@ -441,7 +442,7 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(brand),
     DATADOG_JSON_FIELD(architecture),
     DATADOG_JSON_FIELD(locale),
-    // NYI: locales
+    DATADOG_JSON_FIELD(locales),
     DATADOG_JSON_FIELD(time_zone),
     DATADOG_JSON_FIELD(battery_level),
     DATADOG_JSON_FIELD(power_saving_mode),

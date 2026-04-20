@@ -13,6 +13,7 @@
 
 #include "datadog/uuid.hpp"
 
+#include "datadog/impl/core/events/omissible.hpp"
 #include "datadog/impl/core/events/struct.hpp"
 
 namespace datadog::impl {
@@ -27,6 +28,11 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(foo),
     DATADOG_JSON_FIELD(bar)
 )
+
+struct JsonVectorEvent {
+  OmitIfEmpty<std::vector<std::string>> tags;
+};
+DATADOG_JSON_STRUCT(JsonVectorEvent, DATADOG_JSON_FIELD(tags))
 };  // namespace datadog::impl
 
 struct JsonBuffer {
@@ -53,5 +59,39 @@ TEST_CASE("EncodeJson", "[unit][json]") {
         buf.ToString() ==
         R"({"id":"56c031d0-24e3-4fb3-bba5-8ac53b4041d1","foo":42,"bar":"hi"})"
     );
+  }
+}
+
+TEST_CASE("WriteJson vector<string>", "[unit][json]") {
+  JsonBuffer buf;
+
+  SECTION("M serialize multiple elements as a JSON array") {
+    std::vector<std::string> v{"a", "b", "c"};
+    EncodeJson(buf.bytes, v);
+    REQUIRE(buf.ToString() == R"(["a","b","c"])");
+  }
+
+  SECTION("M serialize a single element as a JSON array") {
+    std::vector<std::string> v{"a"};
+    EncodeJson(buf.bytes, v);
+    REQUIRE(buf.ToString() == R"(["a"])");
+  }
+
+  SECTION("M serialize an empty vector as an empty JSON array") {
+    std::vector<std::string> v{};
+    EncodeJson(buf.bytes, v);
+    REQUIRE(buf.ToString() == "[]");
+  }
+
+  SECTION("M omit OmitIfEmpty vector field when empty") {
+    JsonVectorEvent ev{};
+    EncodeJson(buf.bytes, ev);
+    REQUIRE(buf.ToString() == "{}");
+  }
+
+  SECTION("M include OmitIfEmpty vector field when non-empty") {
+    JsonVectorEvent ev{std::vector<std::string>{"x", "y"}};
+    EncodeJson(buf.bytes, ev);
+    REQUIRE(buf.ToString() == R"({"tags":["x","y"]})");
   }
 }

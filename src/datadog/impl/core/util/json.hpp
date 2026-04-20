@@ -27,6 +27,7 @@
 #include "datadog/impl/core/json/attribute.hpp"
 #include "datadog/impl/core/json/diagnostic_attribute.hpp"
 #include "datadog/impl/core/json/optional.hpp"
+#include "datadog/impl/core/json/vector.hpp"
 // clang-format on
 
 namespace datadog::impl {
