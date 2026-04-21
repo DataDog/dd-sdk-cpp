@@ -268,36 +268,36 @@ struct RumAddErrorPayload {
 };
 
 /**
- * On StartFeatureOperation, the application has called the StartFeatureOperation API
+ * On StartOperation, the application has called the StartOperation API
  * function, recording the start of a user-facing operation (e.g. login, checkout).
  */
-struct RumStartFeatureOperationPayload {
-  static constexpr const char* COMMAND_NAME = "StartFeatureOperation";
+struct RumStartOperationPayload {
+  static constexpr const char* COMMAND_NAME = "StartOperation";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
 
   std::string_view name;
   std::optional<std::string_view> operation_key;
 
-  explicit RumStartFeatureOperationPayload(
+  explicit RumStartOperationPayload(
       std::string_view in_name, std::optional<std::string_view> in_operation_key
   )
       : name(in_name), operation_key(in_operation_key) {}
 };
 
 /**
- * On StopFeatureOperation, the application has called the SucceedFeatureOperation or
- * FailFeatureOperation API function, recording the conclusion of a user-facing
+ * On StopOperation, the application has called the SucceedOperation or
+ * FailOperation API function, recording the conclusion of a user-facing
  * operation.
  */
-struct RumStopFeatureOperationPayload {
-  static constexpr const char* COMMAND_NAME = "StopFeatureOperation";
+struct RumStopOperationPayload {
+  static constexpr const char* COMMAND_NAME = "StopOperation";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
 
   std::string_view name;
   std::optional<std::string_view> operation_key;
   std::optional<RumOperationFailureReason> failure_reason;
 
-  explicit RumStopFeatureOperationPayload(
+  explicit RumStopOperationPayload(
       std::string_view in_name,
       std::optional<std::string_view> in_operation_key,
       std::optional<RumOperationFailureReason> in_failure_reason
@@ -322,8 +322,8 @@ struct RumCommand {
       RumStartActionPayload,
       RumStopActionPayload,
       RumAddErrorPayload,
-      RumStartFeatureOperationPayload,
-      RumStopFeatureOperationPayload>;
+      RumStartOperationPayload,
+      RumStopOperationPayload>;
 
   RumCommandParams base;
   Payload payload;
@@ -412,19 +412,19 @@ struct RumCommand {
     return RumCommand(std::move(base), RumAddErrorPayload(source, error));
   }
 
-  /** Creates a new 'StartFeatureOperation' command. */
-  static RumCommand StartFeatureOperation(
+  /** Creates a new 'StartOperation' command. */
+  static RumCommand StartOperation(
       RumCommandParams&& base,
       std::string_view name,
       std::optional<std::string_view> operation_key
   ) {
     return RumCommand(
-        std::move(base), RumStartFeatureOperationPayload(name, operation_key)
+        std::move(base), RumStartOperationPayload(name, operation_key)
     );
   }
 
-  /** Creates a new 'StopFeatureOperation' command. */
-  static RumCommand StopFeatureOperation(
+  /** Creates a new 'StopOperation' command. */
+  static RumCommand StopOperation(
       RumCommandParams&& base,
       std::string_view name,
       std::optional<std::string_view> operation_key,
@@ -432,7 +432,7 @@ struct RumCommand {
   ) {
     return RumCommand(
         std::move(base),
-        RumStopFeatureOperationPayload(name, operation_key, failure_reason)
+        RumStopOperationPayload(name, operation_key, failure_reason)
     );
   }
 

@@ -134,20 +134,20 @@ class Rum final : public Feature {
   );
 
   /**
-   * Handles a StartFeatureOperation API call, recording the start of a user-facing
+   * Handles a StartOperation API call, recording the start of a user-facing
    * operation.
    */
-  void StartFeatureOperation(
+  void StartOperation(
       std::string_view name,
       std::optional<std::string_view> operation_key,
       const Attribute& attributes = Attribute()
   );
 
   /**
-   * Handles a StopFeatureOperation API call (succeed or fail), recording the conclusion
+   * Handles a StopOperation API call (succeed or fail), recording the conclusion
    * of a user-facing operation.
    */
-  void StopFeatureOperation(
+  void StopOperation(
       std::string_view name,
       std::optional<std::string_view> operation_key,
       std::optional<RumOperationFailureReason> failure_reason,

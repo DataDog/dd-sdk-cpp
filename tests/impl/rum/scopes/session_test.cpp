@@ -470,13 +470,13 @@ class SessionEventFixture {
 };
 
 TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]") {
-  SECTION("M emit start vital event W StartFeatureOperation is processed") {
+  SECTION("M emit start vital event W StartOperation is processed") {
     // Given an active session with a view
     StartView();
 
-    // When we process a StartFeatureOperation command
+    // When we process a StartOperation command
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
@@ -500,19 +500,19 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
   }
 
   SECTION(
-      "M emit end vital event with no failure W SucceedFeatureOperation is processed"
+      "M emit end vital event with no failure W SucceedOperation is processed"
   ) {
     // Given an active session with a view and an active operation
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
 
     // When we stop the operation successfully
     scope.Process(
-        RumCommand::StopFeatureOperation(
+        RumCommand::StopOperation(
             GetBaseParams(), "checkout", std::nullopt, std::nullopt
         ),
         GetTestContext(),
@@ -539,19 +539,19 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
   }
 
   SECTION(
-      "M emit end vital event with failure_reason W FailFeatureOperation is processed"
+      "M emit end vital event with failure_reason W FailOperation is processed"
   ) {
     // Given an active session with a view and an active operation
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "upload", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "upload", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
 
     // When we fail the operation with an error reason
     scope.Process(
-        RumCommand::StopFeatureOperation(
+        RumCommand::StopOperation(
             GetBaseParams(), "upload", std::nullopt, RumOperationFailureReason::Error
         ),
         GetTestContext(),
@@ -578,7 +578,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
   SECTION("M include operation_key W operation_key is provided") {
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(
+        RumCommand::StartOperation(
             GetBaseParams(), "checkout", std::string_view{"cart-42"}
         ),
         GetTestContext(),
@@ -593,13 +593,13 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
   SECTION("M emit vital with abandoned failure_reason W abandoned") {
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "login", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "login", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
 
     scope.Process(
-        RumCommand::StopFeatureOperation(
+        RumCommand::StopOperation(
             GetBaseParams(), "login", std::nullopt, RumOperationFailureReason::Abandoned
         ),
         GetTestContext(),
@@ -624,14 +624,14 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
   SECTION("M warn on duplicate start W same operation started twice") {
     StartView();
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
 
     // Start the same operation again
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
@@ -649,7 +649,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
   SECTION("M warn on stop without start W operation stopped without matching start") {
     StartView();
     scope.Process(
-        RumCommand::StopFeatureOperation(
+        RumCommand::StopOperation(
             GetBaseParams(), "unknown-op", std::nullopt, std::nullopt
         ),
         GetTestContext(),
@@ -669,9 +669,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
   SECTION("M emit vital event with zero view ID W no active view exists") {
     // Given an active session with NO views
-    // When we process a StartFeatureOperation command
+    // When we process a StartOperation command
     scope.Process(
-        RumCommand::StartFeatureOperation(
+        RumCommand::StartOperation(
             GetBaseParams(), "background-op", std::nullopt
         ),
         GetTestContext(),
@@ -690,14 +690,14 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Start two operations with same name but different operation_keys
     scope.Process(
-        RumCommand::StartFeatureOperation(
+        RumCommand::StartOperation(
             GetBaseParams(), "upload", std::string_view{"file-1"}
         ),
         GetTestContext(),
         GetTestWriter()
     );
     scope.Process(
-        RumCommand::StartFeatureOperation(
+        RumCommand::StartOperation(
             GetBaseParams(), "upload", std::string_view{"file-2"}
         ),
         GetTestContext(),
@@ -712,7 +712,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Stop one
     scope.Process(
-        RumCommand::StopFeatureOperation(
+        RumCommand::StopOperation(
             GetBaseParams(), "upload", std::string_view{"file-1"}, std::nullopt
         ),
         GetTestContext(),
@@ -730,7 +730,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Start an operation
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
@@ -755,7 +755,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     auto params = RumCommandParams(clock.Now(), {}, cmd_attrs);
 
     scope.Process(
-        RumCommand::StartFeatureOperation(std::move(params), "checkout", std::nullopt),
+        RumCommand::StartOperation(std::move(params), "checkout", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
@@ -775,7 +775,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // Given no active view - start event has zero view ID
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );
@@ -788,7 +788,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // And the operation is stopped
     scope.Process(
-        RumCommand::StopFeatureOperation(
+        RumCommand::StopOperation(
             GetBaseParams(), "checkout", std::nullopt, std::nullopt
         ),
         GetTestContext(),
@@ -818,7 +818,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
 
     // When a non-UserInteraction command (operation) is processed
     scope.Process(
-        RumCommand::StartFeatureOperation(GetBaseParams(), "checkout", std::nullopt),
+        RumCommand::StartOperation(GetBaseParams(), "checkout", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );

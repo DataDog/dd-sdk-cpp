@@ -63,9 +63,9 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
           "foo", "Bad times", "RuntimeError", "", false, 0, attributes
       );
 
-      rum->StartFeatureOperation("checkout");
-      rum->SucceedFeatureOperation("checkout");
-      rum->FailFeatureOperation("upload", RumOperationFailureReason::Error);
+      rum->StartOperation("checkout");
+      rum->SucceedOperation("checkout");
+      rum->FailOperation("upload", RumOperationFailureReason::Error);
     }
   }
 }
@@ -132,9 +132,9 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->StartAction(RumActionType::Scroll, "scroll1");
     rum->StopAction(RumActionType::Scroll, "scroll1");
     rum->AddError(RumErrorSource::Console, "Internal error", "66");
-    rum->StartFeatureOperation("checkout");
-    rum->SucceedFeatureOperation("checkout");
-    rum->FailFeatureOperation("upload", RumOperationFailureReason::Error);
+    rum->StartOperation("checkout");
+    rum->SucceedOperation("checkout");
+    rum->FailOperation("upload", RumOperationFailureReason::Error);
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -374,93 +374,93 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
         "non-empty error message"},
        {}},
 
-      // === StartFeatureOperation() / SucceedFeatureOperation() /
-      // FailFeatureOperation()
+      // === StartOperation() / SucceedOperation() /
+      // FailOperation()
       // ===
 
-      {"M print error W StartFeatureOperation is called with empty name",
+      {"M print error W StartOperation is called with empty name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->StartFeatureOperation("");
+           rum->StartOperation("");
          });
        },
        {},
-       {"Rum::StartFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::StartOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print error W StartFeatureOperation is called with whitespace-only name",
+      {"M print error W StartOperation is called with whitespace-only name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->StartFeatureOperation("   ");
+           rum->StartOperation("   ");
          });
        },
        {},
-       {"Rum::StartFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::StartOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print error W StartFeatureOperation is called with whitespace-only key",
+      {"M print error W StartOperation is called with whitespace-only key",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->StartFeatureOperation("checkout", "   ");
+           rum->StartOperation("checkout", "   ");
          });
        },
        {},
-       {"Rum::StartFeatureOperation call ignored: operation_key, if provided, must be "
+       {"Rum::StartOperation call ignored: operation_key, if provided, must be "
         "a non-empty string"}},
 
-      {"M print error W SucceedFeatureOperation is called with empty name",
+      {"M print error W SucceedOperation is called with empty name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->SucceedFeatureOperation("");
+           rum->SucceedOperation("");
          });
        },
        {},
-       {"Rum::SucceedFeatureOperation call ignored: application must supply a "
+       {"Rum::SucceedOperation call ignored: application must supply a "
         "non-empty operation name"}},
 
-      {"M print error W SucceedFeatureOperation is called with whitespace-only name",
+      {"M print error W SucceedOperation is called with whitespace-only name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->SucceedFeatureOperation("  \t  ");
+           rum->SucceedOperation("  \t  ");
          });
        },
        {},
-       {"Rum::SucceedFeatureOperation call ignored: application must supply a "
+       {"Rum::SucceedOperation call ignored: application must supply a "
         "non-empty operation name"}},
 
-      {"M print error W FailFeatureOperation is called with empty name",
+      {"M print error W FailOperation is called with empty name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->FailFeatureOperation("", RumOperationFailureReason::Error);
+           rum->FailOperation("", RumOperationFailureReason::Error);
          });
        },
        {},
-       {"Rum::FailFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::FailOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print error W FailFeatureOperation is called with whitespace-only name",
+      {"M print error W FailOperation is called with whitespace-only name",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->FailFeatureOperation("\n", RumOperationFailureReason::Abandoned);
+           rum->FailOperation("\n", RumOperationFailureReason::Abandoned);
          });
        },
        {},
-       {"Rum::FailFeatureOperation call ignored: application must supply a non-empty "
+       {"Rum::FailOperation call ignored: application must supply a non-empty "
         "operation name"}},
 
-      {"M print no error W StartFeatureOperation is called with empty key",
+      {"M print no error W StartOperation is called with empty key",
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
            // Empty key means "no key" — valid
-           rum->StartFeatureOperation("checkout", "");
+           rum->StartOperation("checkout", "");
          });
        },
        {},
@@ -2958,15 +2958,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          );
        }},
 
-      // === Feature Operations ===
+      // === Operations ===
 
       {"M emit start and end vital events W operation succeeds",
        [](RumConfig&) {},
        [](std::shared_ptr<Rum>& rum, MockClock& clock) {
          rum->StartView("my-view", "My View");
-         rum->StartFeatureOperation("checkout");
+         rum->StartOperation("checkout");
          clock.Tick(std::chrono::milliseconds(500));
-         rum->SucceedFeatureOperation("checkout");
+         rum->SucceedOperation("checkout");
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3047,8 +3047,8 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
        [](RumConfig&) {},
        [](std::shared_ptr<Rum>& rum, MockClock&) {
          rum->StartView("my-view", "My View");
-         rum->StartFeatureOperation("upload");
-         rum->FailFeatureOperation("upload", RumOperationFailureReason::Error);
+         rum->StartOperation("upload");
+         rum->FailOperation("upload", RumOperationFailureReason::Error);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3094,8 +3094,8 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
        [](RumConfig&) {},
        [](std::shared_ptr<Rum>& rum, MockClock&) {
          rum->StartView("my-view", "My View");
-         rum->StartFeatureOperation("checkout", "cart-42");
-         rum->SucceedFeatureOperation("checkout", "cart-42");
+         rum->StartOperation("checkout", "cart-42");
+         rum->SucceedOperation("checkout", "cart-42");
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3173,7 +3173,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
        }},
 
       // Attribute merging tests for operations
-      {"M include command attributes in start vital W StartFeatureOperation with "
+      {"M include command attributes in start vital W StartOperation with "
        "attributes",
        [](RumConfig&) {},
        [](std::shared_ptr<Rum>& rum, MockClock&) {
@@ -3181,7 +3181,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          Attribute attrs = Attribute::Object(2);
          attrs.SetObjectProperty("checkout.cart_id", Attribute::String("cart-123"));
          attrs.SetObjectProperty("checkout.item_count", Attribute::Int(3));
-         rum->StartFeatureOperation("checkout", "", attrs);
+         rum->StartOperation("checkout", "", attrs);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3195,15 +3195,15 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          );
        }},
 
-      {"M include command attributes in end vital W SucceedFeatureOperation with "
+      {"M include command attributes in end vital W SucceedOperation with "
        "attributes",
        [](RumConfig&) {},
        [](std::shared_ptr<Rum>& rum, MockClock&) {
          rum->StartView("my-view", "My View");
-         rum->StartFeatureOperation("upload");
+         rum->StartOperation("upload");
          Attribute attrs = Attribute::Object(1);
          attrs.SetObjectProperty("upload.bytes", Attribute::Int(1024000));
-         rum->SucceedFeatureOperation("upload", "", attrs);
+         rum->SucceedOperation("upload", "", attrs);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3212,16 +3212,16 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          REQUIRE(vitals[1]["context"] == nlohmann::json{{"upload.bytes", 1024000}});
        }},
 
-      {"M include command attributes in end vital W FailFeatureOperation with "
+      {"M include command attributes in end vital W FailOperation with "
        "attributes",
        [](RumConfig&) {},
        [](std::shared_ptr<Rum>& rum, MockClock&) {
          rum->StartView("my-view", "My View");
-         rum->StartFeatureOperation("login");
+         rum->StartOperation("login");
          Attribute attrs = Attribute::Object(2);
          attrs.SetObjectProperty("error.code", Attribute::String("INVALID_CREDS"));
          attrs.SetObjectProperty("attempt.count", Attribute::Int(3));
-         rum->FailFeatureOperation(
+         rum->FailOperation(
              "login", RumOperationFailureReason::Error, "", attrs
          );
        },
@@ -3255,7 +3255,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          op_attrs.SetObjectProperty("alpha", Attribute::Int(1));
          op_attrs.SetObjectProperty("bravo", Attribute::Int(2));
          op_attrs.SetObjectProperty("dog", Attribute::String("good"));  // shadows view
-         rum->StartFeatureOperation("checkout", "", op_attrs);
+         rum->StartOperation("checkout", "", op_attrs);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3287,7 +3287,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          op_attrs.SetObjectProperty(
              "env", Attribute::String("staging")
          );  // shadows global
-         rum->StartFeatureOperation("background-sync", "", op_attrs);
+         rum->StartOperation("background-sync", "", op_attrs);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3303,26 +3303,26 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          );
        }},
 
-      {"M not merge StartFeatureOperation and SucceedFeatureOperation attributes "
+      {"M not merge StartOperation and SucceedOperation attributes "
        "together",
        [](RumConfig&) {},
        [](std::shared_ptr<Rum>& rum, MockClock&) {
          rum->StartView("my-view", "My View");
 
-         // StartFeatureOperation with {"start.timestamp":"2024-01-01"}
+         // StartOperation with {"start.timestamp":"2024-01-01"}
          Attribute start_attrs = Attribute::Object(1);
          start_attrs.SetObjectProperty(
              "start.timestamp", Attribute::String("2024-01-01")
          );
-         rum->StartFeatureOperation("upload", "", start_attrs);
+         rum->StartOperation("upload", "", start_attrs);
 
-         // SucceedFeatureOperation with {"end.timestamp":"2024-01-02", "bytes":5000}
+         // SucceedOperation with {"end.timestamp":"2024-01-02", "bytes":5000}
          Attribute succeed_attrs = Attribute::Object(2);
          succeed_attrs.SetObjectProperty(
              "end.timestamp", Attribute::String("2024-01-02")
          );
          succeed_attrs.SetObjectProperty("bytes", Attribute::Int(5000));
-         rum->SucceedFeatureOperation("upload", "", succeed_attrs);
+         rum->SucceedOperation("upload", "", succeed_attrs);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3346,8 +3346,8 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
        [](RumConfig&) {},
        [](std::shared_ptr<Rum>& rum, MockClock&) {
          rum->StartView("my-view", "My View");
-         rum->StartFeatureOperation("checkout");    // no attributes
-         rum->SucceedFeatureOperation("checkout");  // no attributes
+         rum->StartOperation("checkout");    // no attributes
+         rum->SucceedOperation("checkout");  // no attributes
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);

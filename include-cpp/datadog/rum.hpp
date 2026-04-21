@@ -417,7 +417,7 @@ class Rum {
    * same operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
-  DATADOG_API void StartFeatureOperation(
+  DATADOG_API void StartOperation(
       std::string_view name,
       std::string_view operation_key = {},
       const Attribute& attributes = Attribute()
@@ -436,7 +436,7 @@ class Rum {
    * same operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
-  DATADOG_API void SucceedFeatureOperation(
+  DATADOG_API void SucceedOperation(
       std::string_view name,
       std::string_view operation_key = {},
       const Attribute& attributes = Attribute()
@@ -456,7 +456,7 @@ class Rum {
    * same operation. Must be non-empty if provided.
    * @param attributes - An optional set of custom attributes for this event.
    */
-  DATADOG_API void FailFeatureOperation(
+  DATADOG_API void FailOperation(
       std::string_view name,
       RumOperationFailureReason failure_reason,
       std::string_view operation_key = {},

@@ -62,9 +62,9 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
         nullptr, "foo", "Bad times", "RuntimeError", nullptr, false, 0, &obj
     );
 
-    dd_rum_start_feature_operation(nullptr, "checkout", nullptr, nullptr);
-    dd_rum_succeed_feature_operation(nullptr, "checkout", nullptr, nullptr);
-    dd_rum_fail_feature_operation(
+    dd_rum_start_operation(nullptr, "checkout", nullptr, nullptr);
+    dd_rum_succeed_operation(nullptr, "checkout", nullptr, nullptr);
+    dd_rum_fail_operation(
         nullptr, "upload", DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
     );
   }
@@ -653,114 +653,114 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
         "supply a non-empty error message"},
        {}},
 
-      // === dd_rum_start/succeed/fail_feature_operation() ===
+      // === dd_rum_start/succeed/fail_operation() ===
 
-      {"M print error W dd_rum_start_feature_operation is called with NULL name",
+      {"M print error W dd_rum_start_operation is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_start_feature_operation(rum, nullptr, nullptr, nullptr);
+           dd_rum_start_operation(rum, nullptr, nullptr, nullptr);
          });
        },
        {},
-       {"dd_rum_start_feature_operation call ignored: application must supply a "
+       {"dd_rum_start_operation call ignored: application must supply a "
         "non-empty operation name"}},
 
-      {"M print error W dd_rum_start_feature_operation is called with empty name",
+      {"M print error W dd_rum_start_operation is called with empty name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_start_feature_operation(rum, "", nullptr, nullptr);
+           dd_rum_start_operation(rum, "", nullptr, nullptr);
          });
        },
        {},
-       {"dd_rum_start_feature_operation call ignored: application must supply a "
+       {"dd_rum_start_operation call ignored: application must supply a "
         "non-empty operation name"}},
 
-      {"M print error W dd_rum_start_feature_operation is called with whitespace-only "
+      {"M print error W dd_rum_start_operation is called with whitespace-only "
        "name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_start_feature_operation(rum, "   ", nullptr, nullptr);
+           dd_rum_start_operation(rum, "   ", nullptr, nullptr);
          });
        },
        {},
-       {"dd_rum_start_feature_operation call ignored: application must supply a "
+       {"dd_rum_start_operation call ignored: application must supply a "
         "non-empty operation name"}},
 
-      {"M print error W dd_rum_start_feature_operation is called with whitespace-only "
+      {"M print error W dd_rum_start_operation is called with whitespace-only "
        "key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_start_feature_operation(rum, "checkout", "   ", nullptr);
+           dd_rum_start_operation(rum, "checkout", "   ", nullptr);
          });
        },
        {},
-       {"dd_rum_start_feature_operation call ignored: operation_key, if provided, must "
+       {"dd_rum_start_operation call ignored: operation_key, if provided, must "
         "be a non-empty string"}},
 
-      {"M print no error W dd_rum_start_feature_operation is called with empty key",
+      {"M print no error W dd_rum_start_operation is called with empty key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
            // Empty key means "no key" — valid
-           dd_rum_start_feature_operation(rum, "checkout", "", nullptr);
+           dd_rum_start_operation(rum, "checkout", "", nullptr);
          });
        },
        {},
        {}},
 
-      {"M print error W dd_rum_succeed_feature_operation is called with NULL name",
+      {"M print error W dd_rum_succeed_operation is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_succeed_feature_operation(rum, nullptr, nullptr, nullptr);
+           dd_rum_succeed_operation(rum, nullptr, nullptr, nullptr);
          });
        },
        {},
-       {"dd_rum_succeed_feature_operation call ignored: application must supply a "
+       {"dd_rum_succeed_operation call ignored: application must supply a "
         "non-empty operation name"}},
 
-      {"M print error W dd_rum_succeed_feature_operation is called with "
+      {"M print error W dd_rum_succeed_operation is called with "
        "whitespace-only "
        "name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_succeed_feature_operation(rum, "\t", nullptr, nullptr);
+           dd_rum_succeed_operation(rum, "\t", nullptr, nullptr);
          });
        },
        {},
-       {"dd_rum_succeed_feature_operation call ignored: application must supply a "
+       {"dd_rum_succeed_operation call ignored: application must supply a "
         "non-empty operation name"}},
 
-      {"M print error W dd_rum_fail_feature_operation is called with NULL name",
+      {"M print error W dd_rum_fail_operation is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_fail_feature_operation(
+           dd_rum_fail_operation(
                rum, nullptr, DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
            );
          });
        },
        {},
-       {"dd_rum_fail_feature_operation call ignored: application must supply a "
+       {"dd_rum_fail_operation call ignored: application must supply a "
         "non-empty operation name"}},
 
-      {"M print error W dd_rum_fail_feature_operation is called with whitespace-only "
+      {"M print error W dd_rum_fail_operation is called with whitespace-only "
        "name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
            dd_rum_start_view(rum, "my-view", "My View");
-           dd_rum_fail_feature_operation(
+           dd_rum_fail_operation(
                rum, " \n ", DD_RUM_FAILURE_REASON_ABANDONED, nullptr, nullptr
            );
          });
        },
        {},
-       {"dd_rum_fail_feature_operation call ignored: application must supply a "
+       {"dd_rum_fail_operation call ignored: application must supply a "
         "non-empty operation name"}},
   };
   for (const auto& tt : tests) {
@@ -3570,15 +3570,15 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          );
        }},
 
-      // === Feature Operations ===
+      // === Operations ===
 
       {"M emit start and end vital events W operation succeeds",
        [](dd_rum_config_t*) {},
        [](dd_rum_t* rum, MockClock& clock) {
          dd_rum_start_view(rum, "my-view", "My View");
-         dd_rum_start_feature_operation(rum, "checkout", nullptr, nullptr);
+         dd_rum_start_operation(rum, "checkout", nullptr, nullptr);
          clock.Tick(std::chrono::milliseconds(500));
-         dd_rum_succeed_feature_operation(rum, "checkout", nullptr, nullptr);
+         dd_rum_succeed_operation(rum, "checkout", nullptr, nullptr);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3659,8 +3659,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_config_t*) {},
        [](dd_rum_t* rum, MockClock&) {
          dd_rum_start_view(rum, "my-view", "My View");
-         dd_rum_start_feature_operation(rum, "upload", nullptr, nullptr);
-         dd_rum_fail_feature_operation(
+         dd_rum_start_operation(rum, "upload", nullptr, nullptr);
+         dd_rum_fail_operation(
              rum, "upload", DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
          );
        },
@@ -3708,8 +3708,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_config_t*) {},
        [](dd_rum_t* rum, MockClock&) {
          dd_rum_start_view(rum, "my-view", "My View");
-         dd_rum_start_feature_operation(rum, "checkout", "cart-42", nullptr);
-         dd_rum_succeed_feature_operation(rum, "checkout", "cart-42", nullptr);
+         dd_rum_start_operation(rum, "checkout", "cart-42", nullptr);
+         dd_rum_succeed_operation(rum, "checkout", "cart-42", nullptr);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
@@ -3787,7 +3787,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        }},
 
       // Attribute merging tests for operations
-      {"M include command attributes in start vital W StartFeatureOperation with "
+      {"M include command attributes in start vital W StartOperation with "
        "attributes",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
@@ -3797,7 +3797,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t item_count = dd_attribute_int(3);
          dd_attribute_object_property_set(&attrs, "checkout.cart_id", &cart_id);
          dd_attribute_object_property_set(&attrs, "checkout.item_count", &item_count);
-         dd_rum_start_feature_operation(rum, "checkout", "", &attrs);
+         dd_rum_start_operation(rum, "checkout", "", &attrs);
          dd_attribute_free(&cart_id);
          dd_attribute_free(&item_count);
          dd_attribute_free(&attrs);
@@ -3814,16 +3814,16 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          );
        }},
 
-      {"M include command attributes in end vital W SucceedFeatureOperation with "
+      {"M include command attributes in end vital W SucceedOperation with "
        "attributes",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
          dd_rum_start_view(rum, "my-view", "My View");
-         dd_rum_start_feature_operation(rum, "upload", nullptr, nullptr);
+         dd_rum_start_operation(rum, "upload", nullptr, nullptr);
          dd_attribute_t attrs = dd_attribute_object(1);
          dd_attribute_t bytes = dd_attribute_int(1024000);
          dd_attribute_object_property_set(&attrs, "upload.bytes", &bytes);
-         dd_rum_succeed_feature_operation(rum, "upload", "", &attrs);
+         dd_rum_succeed_operation(rum, "upload", "", &attrs);
          dd_attribute_free(&bytes);
          dd_attribute_free(&attrs);
        },
@@ -3834,18 +3834,18 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          REQUIRE(vitals[1]["context"] == nlohmann::json{{"upload.bytes", 1024000}});
        }},
 
-      {"M include command attributes in end vital W FailFeatureOperation with "
+      {"M include command attributes in end vital W FailOperation with "
        "attributes",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
          dd_rum_start_view(rum, "my-view", "My View");
-         dd_rum_start_feature_operation(rum, "login", nullptr, nullptr);
+         dd_rum_start_operation(rum, "login", nullptr, nullptr);
          dd_attribute_t attrs = dd_attribute_object(2);
          dd_attribute_t error_code = dd_attribute_string("INVALID_CREDS");
          dd_attribute_t attempt_count = dd_attribute_int(3);
          dd_attribute_object_property_set(&attrs, "error.code", &error_code);
          dd_attribute_object_property_set(&attrs, "attempt.count", &attempt_count);
-         dd_rum_fail_feature_operation(
+         dd_rum_fail_operation(
              rum, "login", DD_RUM_FAILURE_REASON_ERROR, "", &attrs
          );
          dd_attribute_free(&error_code);
@@ -3896,7 +3896,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&op_attrs, "alpha", &alpha);
          dd_attribute_object_property_set(&op_attrs, "bravo", &bravo);
          dd_attribute_object_property_set(&op_attrs, "dog", &dog_op);
-         dd_rum_start_feature_operation(rum, "checkout", "", &op_attrs);
+         dd_rum_start_operation(rum, "checkout", "", &op_attrs);
          dd_attribute_free(&alpha);
          dd_attribute_free(&bravo);
          dd_attribute_free(&dog_op);
@@ -3936,7 +3936,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t env_op = dd_attribute_string("staging");  // shadows global
          dd_attribute_object_property_set(&op_attrs, "task.name", &task_name);
          dd_attribute_object_property_set(&op_attrs, "env", &env_op);
-         dd_rum_start_feature_operation(rum, "background-sync", "", &op_attrs);
+         dd_rum_start_operation(rum, "background-sync", "", &op_attrs);
          dd_attribute_free(&task_name);
          dd_attribute_free(&env_op);
          dd_attribute_free(&op_attrs);
@@ -3955,27 +3955,27 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          );
        }},
 
-      {"M not merge StartFeatureOperation and SucceedFeatureOperation attributes "
+      {"M not merge StartOperation and SucceedOperation attributes "
        "together",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
          dd_rum_start_view(rum, "my-view", "My View");
 
-         // StartFeatureOperation with {"start.timestamp":"2024-01-01"}
+         // StartOperation with {"start.timestamp":"2024-01-01"}
          dd_attribute_t start_attrs = dd_attribute_object(1);
          dd_attribute_t start_ts = dd_attribute_string("2024-01-01");
          dd_attribute_object_property_set(&start_attrs, "start.timestamp", &start_ts);
-         dd_rum_start_feature_operation(rum, "upload", "", &start_attrs);
+         dd_rum_start_operation(rum, "upload", "", &start_attrs);
          dd_attribute_free(&start_ts);
          dd_attribute_free(&start_attrs);
 
-         // SucceedFeatureOperation with {"end.timestamp":"2024-01-02", "bytes":5000}
+         // SucceedOperation with {"end.timestamp":"2024-01-02", "bytes":5000}
          dd_attribute_t succeed_attrs = dd_attribute_object(2);
          dd_attribute_t end_ts = dd_attribute_string("2024-01-02");
          dd_attribute_t bytes = dd_attribute_int(5000);
          dd_attribute_object_property_set(&succeed_attrs, "end.timestamp", &end_ts);
          dd_attribute_object_property_set(&succeed_attrs, "bytes", &bytes);
-         dd_rum_succeed_feature_operation(rum, "upload", "", &succeed_attrs);
+         dd_rum_succeed_operation(rum, "upload", "", &succeed_attrs);
          dd_attribute_free(&end_ts);
          dd_attribute_free(&bytes);
          dd_attribute_free(&succeed_attrs);
@@ -4002,10 +4002,10 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
          dd_rum_start_view(rum, "my-view", "My View");
-         dd_rum_start_feature_operation(
+         dd_rum_start_operation(
              rum, "checkout", nullptr, nullptr
          );  // no attributes
-         dd_rum_succeed_feature_operation(
+         dd_rum_succeed_operation(
              rum, "checkout", nullptr, nullptr
          );  // no attributes
        },
