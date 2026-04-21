@@ -1623,7 +1623,10 @@ enum class RumErrorSourceType : uint8_t {
   Roku,
   NDK,
   iOS_IL2CPP,
-  NDK_IL2CPP
+  NDK_IL2CPP,
+  Windows,
+  MacOS,
+  Linux
 };
 DATADOG_STRING_ENUM(
     StringRumErrorSourceType,
@@ -1636,7 +1639,10 @@ DATADOG_STRING_ENUM(
     DATADOG_ENUM_VALUE(RumErrorSourceType::Roku, "roku"),
     DATADOG_ENUM_VALUE(RumErrorSourceType::NDK, "ndk"),
     DATADOG_ENUM_VALUE(RumErrorSourceType::iOS_IL2CPP, "ios+il2cpp"),
-    DATADOG_ENUM_VALUE(RumErrorSourceType::NDK_IL2CPP, "ndk+il2cpp")
+    DATADOG_ENUM_VALUE(RumErrorSourceType::NDK_IL2CPP, "ndk+il2cpp"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::Windows, "windows"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::MacOS, "macos"),
+    DATADOG_ENUM_VALUE(RumErrorSourceType::Linux, "linux")
 )
 
 struct RumErrorEvent {
@@ -1710,6 +1716,18 @@ struct RumErrorEvent {
 
       Csp() {};
     };
+    struct BinaryImage {
+      // From error-schema.json
+      std::string uuid;
+      std::string name;
+      bool is_system;
+      OmitIfEmpty<std::string> load_address;
+      OmitIfEmpty<std::string> max_address;
+      OmitIfEmpty<std::string> arch;
+
+      BinaryImage(std::string_view in_uuid, std::string_view in_name, bool in_is_system)
+          : uuid(in_uuid), name(in_name), is_system(in_is_system) {}
+    };
     // From error-schema.json
     OmitIfZero<UUID> id;
     std::string message;
@@ -1725,7 +1743,7 @@ struct RumErrorEvent {
     OmitIfNoValue<StringRumErrorSourceType> source_type;
     OmitIfNoValue<Resource> resource;
     // NYI(array): threads
-    // NYI(array): binary_images
+    OmitIfEmpty<std::vector<BinaryImage>> binary_images;
     OmitIfNoValue<bool> was_truncated;
     OmitIfNoValue<Meta> meta;
     OmitIfNoValue<Csp> csp;
@@ -1891,6 +1909,16 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(disposition)
 )
 DATADOG_JSON_STRUCT(
+    RumErrorEvent::Error::BinaryImage,
+    // From error-schema.json
+    DATADOG_JSON_FIELD(uuid),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(is_system),
+    DATADOG_JSON_FIELD(load_address),
+    DATADOG_JSON_FIELD(max_address),
+    DATADOG_JSON_FIELD(arch)
+)
+DATADOG_JSON_STRUCT(
     RumErrorEvent::Error,
     // From error-schema.json
     DATADOG_JSON_FIELD(id),
@@ -1907,7 +1935,7 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(source_type),
     DATADOG_JSON_FIELD(resource),
     // NYI: threads
-    // NYI: binary_images
+    DATADOG_JSON_FIELD(binary_images),
     DATADOG_JSON_FIELD(was_truncated),
     DATADOG_JSON_FIELD(meta),
     DATADOG_JSON_FIELD(csp),

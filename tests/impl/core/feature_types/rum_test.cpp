@@ -1148,6 +1148,20 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
     provider.name = "Example Provider";
     provider.type = RumResourceProviderType::FirstParty;
 
+    // RumErrorEvent::Error::BinaryImage
+    auto& binary_image_0 = ev.error.binary_images.value.emplace_back(
+        "96A1CC557762401585BFD257CADF756A42", "GDI32.DLL", true
+    );
+    binary_image_0.load_address = "0x00000000FF00C000";
+    binary_image_0.max_address = "0x00000000FF0DDFFF";
+    binary_image_0.arch = "x86";
+    auto& binary_image_1 = ev.error.binary_images.value.emplace_back(
+        "BBB017F79B6A4BC89D4F7A89F00BB9559", "MYPROG.EXE", false
+    );
+    binary_image_1.load_address = "0x000000001000C000";
+    binary_image_1.max_address = "0x000000001000CFFF";
+    binary_image_1.arch = "x86";
+
     // RumErrorEvent::Error::Meta
     auto& meta = ev.error.meta.value.emplace();
     meta.code_type = "x86";
@@ -1292,6 +1306,24 @@ Last 8 instructions at CS:EIP:
             "type": "first party"
           }
         },
+        "binary_images": [
+          {
+            "uuid": "96A1CC557762401585BFD257CADF756A42",
+            "name": "GDI32.DLL",
+            "is_system": true,
+            "load_address": "0x00000000FF00C000",
+            "max_address": "0x00000000FF0DDFFF",
+            "arch": "x86"
+          },
+          {
+            "uuid": "BBB017F79B6A4BC89D4F7A89F00BB9559",
+            "name": "MYPROG.EXE",
+            "is_system": false,
+            "load_address": "0x000000001000C000",
+            "max_address": "0x000000001000CFFF",
+            "arch": "x86"
+          }
+        ],
         "was_truncated": true,
         "meta": {
           "code_type": "x86",
