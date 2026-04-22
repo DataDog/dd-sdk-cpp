@@ -8,6 +8,14 @@
 # these targets are defined instead. Building them fails with an actionable
 # message, so users and CI systems never see a cryptic
 # "No rule to make target 'format'".
+#
+# These targets are only defined when this SDK is the top-level CMake project.
+# When the SDK is consumed via FetchContent or add_subdirectory, we do not want
+# generic names like 'format' or 'check-format' leaking into the parent
+# project's target list.
+if(NOT DD_IS_TOP_LEVEL)
+    return()
+endif()
 
 if(DD_ENABLE_CLANG_FORMAT AND CLANG_FORMAT_BINARY)
     # Collect all SDK source files that should be formatted

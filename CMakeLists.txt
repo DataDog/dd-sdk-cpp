@@ -123,7 +123,10 @@ endif()
 # a full test build (which triggers clang-tidy via the CXX_CLANG_TIDY target
 # property), and the test suite. Agents and contributors should prefer this
 # single target over invoking each check individually.
-if(TARGET check-format AND DD_BUILD_TESTING)
+#
+# Gated on DD_IS_TOP_LEVEL so the generic 'check-all' name does not leak into
+# parent projects that consume this SDK via FetchContent or add_subdirectory.
+if(DD_IS_TOP_LEVEL AND TARGET check-format AND DD_BUILD_TESTING)
     add_custom_target(check-all
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure
         COMMENT "Running local CI checks: clang-format, build (with clang-tidy), and tests"
