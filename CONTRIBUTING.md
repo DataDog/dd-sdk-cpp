@@ -28,7 +28,7 @@ We use [**clang-format**](https://clang.llvm.org/docs/ClangFormat.html) for auto
 
 Regardless of the compiler toolchain used to build the SDK, all **clang-format** and **clang-tidy** checks are done using [**version 20.1.8**](https://github.com/llvm/llvm-project/releases/tag/llvmorg-20.1.8) of these tools.
 
-If you enable either tool in your CMake configuration (via `DD_ENABLE_CLANG_TIDY` and `DD_ENABLE_CLANG_FORMAT`), then the required versions of these tools must be present in your PATH. If you enable `DD_DEVELOPMENT_ALLOW_AUTO_INSTALL`, CMake will automatically download these tools to `llvm-bin/` if necessary.
+If you enable either tool in your CMake configuration (via `DD_ENABLE_CLANG_TIDY` and `DD_ENABLE_CLANG_FORMAT`), the required versions must be resolvable: either present in your `PATH`, or already installed under `llvm-bin/` (e.g. from a prior auto-install). If you set `-DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON`, CMake will download them to `llvm-bin/` automatically.
 
 Alternatively, you can install the appropriate LLVM/Clang release and ensure that its `bin/` directory is in your PATH.
 
@@ -39,6 +39,8 @@ If you want to make changes to SDK's source, you can configure your CMake build 
 ```
 cmake -DDD_DEVELOPMENT=ON -S . -B build
 ```
+
+`DD_DEVELOPMENT=ON` is a convenience flag that enables the options you typically want while working on the SDK itself: it builds the examples, tests, and developer tools; enables asserts; and turns on clang-format, clang-tidy, coverage instrumentation, and sanitizers (ASan + UBSan by default). You can override any of these individually with the options listed below.
 
 Other important options include:
 
@@ -73,6 +75,49 @@ Unit tests are written using [Catch2](https://github.com/catchorg/Catch2). If yo
 ```
 ctest --test-dir build
 ```
+
+### Formatting and linting your code
+
+Before opening a PR, format and lint your changes. CI runs the equivalent of these commands and will fail on any diff.
+
+First-time setup — configures the build and, if clang-format / clang-tidy 20.1.8 are not already installed, downloads them into `llvm-bin/`. `DD_DEVELOPMENT=ON` already implies `DD_ENABLE_CLANG_FORMAT=ON` and `DD_ENABLE_CLANG_TIDY=ON`; they are passed explicitly below so this command also fixes an existing `build/` that was previously configured with them disabled:
+
+```
+cmake -DDD_DEVELOPMENT=ON \
+      -DDD_ENABLE_CLANG_FORMAT=ON \
+      -DDD_ENABLE_CLANG_TIDY=ON \
+      -DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON \
+      -S . -B build
+```
+
+Note: the auto-install downloads the full LLVM release tarball (~1 GB on Linux, ~1.4 GB on macOS), so the first configure can take several minutes.
+
+Format all SDK sources in-place:
+
+```
+cmake --build build --target format
+```
+
+Verify formatting without modifying files (what CI runs):
+
+```
+cmake --build build --target check-format
+```
+
+Verify formatting, build the tests (which runs clang-tidy at compile time via `CXX_CLANG_TIDY`), and run CTest — a single command that mirrors CI:
+
+```
+cmake --build build --target check-all
+```
+
+On Windows, the formatting targets do not require a `--config` flag (they are configuration-agnostic custom targets).
+
+#### Troubleshooting
+
+- **`No rule to make target 'format'`** — you are on an older checkout or the build was configured with `DD_ENABLE_CLANG_FORMAT=OFF`. Reconfigure using the command above.
+- **`The 'format' target is not available in this build`** — clang-format support is disabled or could not be resolved. Follow the hint in the error message, or reconfigure as above.
+- **Hash mismatch during LLVM download** — delete `llvm-bin/` and reconfigure; the auto-installer retries once automatically but will give up after a second failure.
+- **Want to skip these tools entirely?** — configure with `-DDD_ENABLE_CLANG_FORMAT=OFF -DDD_ENABLE_CLANG_TIDY=OFF`. Your PR will then need to pass these checks in CI; if you are an external contributor, it is safer to run them locally first.
 
 ## Repository overview
 

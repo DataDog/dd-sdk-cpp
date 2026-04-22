@@ -109,7 +109,7 @@ For more detailed usage examples, see [the C example program](./examples/c/main.
 
 ## Contributing
 
-For more information about working on the SDK itself, see [`CONTRIBUTING.md`](./CONTRIBUTING.md).
+For more information about working on the SDK itself, see [`CONTRIBUTING.md`](./CONTRIBUTING.md). Before submitting a PR, run `cmake --build build --target check-all` to match the formatting and static-analysis checks that CI runs.
 
 ## License
 

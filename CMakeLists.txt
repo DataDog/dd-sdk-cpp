@@ -20,7 +20,7 @@ endif()
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
 option(DD_DEVELOPMENT "Enable development mode (examples, tests, analysis, asserts)" OFF)
-option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools (e.g. clang-format) may be automatically downloaded and installed to toos/bin/" OFF)
+option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools (e.g. clang-format) may be automatically downloaded and installed to llvm-bin/" OFF)
 
 # Top-level options for the build
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
@@ -117,6 +117,21 @@ endif()
 if(DD_BUILD_TESTING)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+# 'check-all' is a convenience target that mirrors what CI runs: formatting,
+# a full test build (which triggers clang-tidy via the CXX_CLANG_TIDY target
+# property), and the test suite. Agents and contributors should prefer this
+# single target over invoking each check individually.
+if(TARGET check-format AND DD_BUILD_TESTING)
+    add_custom_target(check-all
+        COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure
+        COMMENT "Running local CI checks: clang-format, build (with clang-tidy), and tests"
+        VERBATIM
+    )
+    # Building dd_native_tests forces a full compile of the SDK and tests,
+    # which is where clang-tidy runs via CXX_CLANG_TIDY / C_CLANG_TIDY.
+    add_dependencies(check-all check-format dd_native_tests)
 endif()
 
 # If configured to build developer tools, include the CMake targets defined in tools/
