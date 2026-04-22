@@ -3845,9 +3845,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t attempt_count = dd_attribute_int(3);
          dd_attribute_object_property_set(&attrs, "error.code", &error_code);
          dd_attribute_object_property_set(&attrs, "attempt.count", &attempt_count);
-         dd_rum_fail_operation(
-             rum, "login", DD_RUM_FAILURE_REASON_ERROR, "", &attrs
-         );
+         dd_rum_fail_operation(rum, "login", DD_RUM_FAILURE_REASON_ERROR, "", &attrs);
          dd_attribute_free(&error_code);
          dd_attribute_free(&attempt_count);
          dd_attribute_free(&attrs);
@@ -4002,12 +4000,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
          dd_rum_start_view(rum, "my-view", "My View");
-         dd_rum_start_operation(
-             rum, "checkout", nullptr, nullptr
-         );  // no attributes
-         dd_rum_succeed_operation(
-             rum, "checkout", nullptr, nullptr
-         );  // no attributes
+         dd_rum_start_operation(rum, "checkout", nullptr, nullptr);    // no attributes
+         dd_rum_succeed_operation(rum, "checkout", nullptr, nullptr);  // no attributes
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);

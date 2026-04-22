@@ -499,9 +499,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     REQUIRE(ev["vital"].count("failure_reason") == 0);
   }
 
-  SECTION(
-      "M emit end vital event with no failure W SucceedOperation is processed"
-  ) {
+  SECTION("M emit end vital event with no failure W SucceedOperation is processed") {
     // Given an active session with a view and an active operation
     StartView();
     scope.Process(
@@ -538,9 +536,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     REQUIRE(end_ev["vital"].count("failure_reason") == 0);
   }
 
-  SECTION(
-      "M emit end vital event with failure_reason W FailOperation is processed"
-  ) {
+  SECTION("M emit end vital event with failure_reason W FailOperation is processed") {
     // Given an active session with a view and an active operation
     StartView();
     scope.Process(
@@ -671,9 +667,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     // Given an active session with NO views
     // When we process a StartOperation command
     scope.Process(
-        RumCommand::StartOperation(
-            GetBaseParams(), "background-op", std::nullopt
-        ),
+        RumCommand::StartOperation(GetBaseParams(), "background-op", std::nullopt),
         GetTestContext(),
         GetTestWriter()
     );

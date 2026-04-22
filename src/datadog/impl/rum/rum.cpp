@@ -148,9 +148,7 @@ void Rum::StartOperation(
     const Attribute& attributes
 ) {
   DispatchAsync(
-      RumCommand::StartOperation(
-          GetBaseCommandParams(attributes), name, operation_key
-      )
+      RumCommand::StartOperation(GetBaseCommandParams(attributes), name, operation_key)
   );
 }
 

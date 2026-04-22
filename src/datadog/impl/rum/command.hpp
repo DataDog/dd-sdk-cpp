@@ -418,9 +418,7 @@ struct RumCommand {
       std::string_view name,
       std::optional<std::string_view> operation_key
   ) {
-    return RumCommand(
-        std::move(base), RumStartOperationPayload(name, operation_key)
-    );
+    return RumCommand(std::move(base), RumStartOperationPayload(name, operation_key));
   }
 
   /** Creates a new 'StopOperation' command. */
@@ -431,8 +429,7 @@ struct RumCommand {
       std::optional<RumOperationFailureReason> failure_reason
   ) {
     return RumCommand(
-        std::move(base),
-        RumStopOperationPayload(name, operation_key, failure_reason)
+        std::move(base), RumStopOperationPayload(name, operation_key, failure_reason)
     );
   }
 

@@ -3221,9 +3221,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          Attribute attrs = Attribute::Object(2);
          attrs.SetObjectProperty("error.code", Attribute::String("INVALID_CREDS"));
          attrs.SetObjectProperty("attempt.count", Attribute::Int(3));
-         rum->FailOperation(
-             "login", RumOperationFailureReason::Error, "", attrs
-         );
+         rum->FailOperation("login", RumOperationFailureReason::Error, "", attrs);
        },
        [](const nlohmann::json& events) {
          auto vitals = filter_events("vital", events);
