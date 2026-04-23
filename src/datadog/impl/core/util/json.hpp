@@ -26,6 +26,7 @@
 #include "datadog/impl/core/json/primitives/uuid.hpp"
 #include "datadog/impl/core/json/attribute.hpp"
 #include "datadog/impl/core/json/diagnostic_attribute.hpp"
+#include "datadog/impl/core/json/vector.hpp"
 #include "datadog/impl/core/json/optional.hpp"
 // clang-format on
 

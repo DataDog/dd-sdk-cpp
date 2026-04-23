@@ -78,6 +78,16 @@ bool HasJsonValue(const Omissible<std::optional<T>>& value) {
 }
 
 /**
+ * Specialization for Omissible<std::vector<T>>, which treats an empty vector as the
+ * case where the property should be omitted. This avoids requiring T to define
+ * operator== just to satisfy the generic `value != T{}` check.
+ */
+template <typename T>
+bool HasJsonValue(const Omissible<std::vector<T>>& value) {
+  return !value.value.empty();
+}
+
+/**
  * Specialization for Omissible<Attribute>, which treats `Attribute::Null()` as the
  * case where the property should be omitted. A default-constructed `Attribute` _is_
  * equivalent to `Attribute::Null()`, but `Attribute` does not define comparison
