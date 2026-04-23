@@ -83,7 +83,7 @@ struct MessageBusTestFeature final : public Feature {
   }
 };
 
-TEST_CASE("MessageBus — integration", "[unit][core]") {
+TEST_CASE("MessageBus - integration", "[unit][core]") {
   DiagnosticMessageBuffer diagnostics;
   DiagnosticLogger logger = diagnostics.CreateTestLogger();
 
