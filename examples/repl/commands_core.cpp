@@ -88,7 +88,9 @@ CommandResult HandleAddUserExtraInfo(State& state, const CommandInput& args) {
 
   datadog::Attribute extra = datadog::Attribute::Object(named.n);
   for (size_t i = 0; i < named.n; i++) {
-    extra.SetObjectProperty(named.values[i].name, datadog::Attribute::String(named.values[i].value));
+    extra.SetObjectProperty(
+        named.values[i].name, datadog::Attribute::String(named.values[i].value)
+    );
   }
 
   state.core->AddUserExtraInfo(extra);

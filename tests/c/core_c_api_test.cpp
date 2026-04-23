@@ -142,7 +142,10 @@ TEST_CASE("dd_core user info", "[unit][core][c-api]") {
     dd_core_destroy(core);
   }
 
-  SECTION("M omit name and email from usr W dd_core_set_user_info called with null name/email") {
+  SECTION(
+      "M omit name and email from usr W dd_core_set_user_info called with null "
+      "name/email"
+  ) {
     auto test = CoreTestHarness::Init();
     dd_core_t* core = CoreTestHarness::WrapForC(test);
     dd_logging_t* logging = dd_logging_init(core);

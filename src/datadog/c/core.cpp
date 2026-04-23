@@ -110,7 +110,7 @@ void dd_core_config_set_event_storage_location(
   }
   const size_t capacity = std::size(config->event_storage_location);
   const std::size_t max_len = capacity - 1;
-  const void* p_null = std::memchr(value, '\0', max_len + 1);
+  const void* p_null{std::memchr(value, '\0', max_len + 1)};  // NOLINT(cppcoreguidelines-init-variables)
   if (!p_null) {
     auto diagnostic_logger = datadog::impl::DiagnosticLogger::FromC(
         config->diagnostic_handler,
@@ -310,9 +310,7 @@ void dd_core_set_user_info(
   core->impl->SetUserInfo(id, to_opt(name), to_opt(email), cpp_extra);
 }
 
-void dd_core_add_user_extra_info(
-    dd_core_t* core, const dd_attribute_t* extra_info
-) {
+void dd_core_add_user_extra_info(dd_core_t* core, const dd_attribute_t* extra_info) {
   if (!core || !core->impl) {
     return;
   }

@@ -407,7 +407,9 @@ TEST_CASE("Core user info", "[unit][core][cpp-api]") {
     REQUIRE(events[0]["usr"]["email"] == "jane@example.com");
   }
 
-  SECTION("M include usr extra attributes in log events W SetUserInfo called with extra") {
+  SECTION(
+      "M include usr extra attributes in log events W SetUserInfo called with extra"
+  ) {
     auto test = CoreTestHarness::Init();
     auto core = CoreTestHarness::WrapForCpp(test);
     auto logging = Logging::Register(core);
