@@ -136,7 +136,8 @@ TEST_CASE("CrashReporting message publishing", "[unit][crash_reporting]") {
 
   // And a CrashReporting feature backed by the mock filesystem
   MockCrashHandler handler;
-  auto crash_reporting = std::make_shared<CrashReporting>(handler, fs, path);
+  auto crash_reporting =
+      std::make_shared<datadog::impl::CrashReporting>(handler, fs, path);
 
   // And a FeatureTest harness that will capture any messages the feature publishes
   CoreContext context{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO};
