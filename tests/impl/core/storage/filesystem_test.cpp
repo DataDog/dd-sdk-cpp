@@ -741,6 +741,40 @@ TEST_CASE("IFilesystem file operations", "[unit][storage][filesystem]") {
     REQUIRE(result == FilesystemResult::DoesNotExist);
   }
 
+  SECTION("M allow delete-then-close W deleted file has open handle") {
+    // Given an existing file
+    temp.WriteFile("somefile.txt", "hello");
+    StoragePath file_path;
+    REQUIRE((file_path.Set(temp.path) && file_path.Append("somefile.txt")));
+
+    // When we successfully open the file for read, with or without an advisory lock
+    auto hold_advisory_lock = GENERATE(false, true);
+    auto open_res = fs->OpenForRead(MakePlatformPath(file_path), hold_advisory_lock);
+    REQUIRE(open_res.value == FilesystemResult::OK);
+
+    // And then we attempt to delete the file
+    const FilesystemResult delete_res = fs->Delete(MakePlatformPath(file_path));
+
+    // Then the delete operation succeeds
+    REQUIRE(delete_res == FilesystemResult::OK);
+
+    // And the existing file handle is still operable
+    char buf[5];
+    auto read_res = fs->Read(open_res.handle, buf, sizeof(buf));
+    REQUIRE(read_res.value == FilesystemResult::OK);
+    REQUIRE(read_res.bytes_read == 5);
+    REQUIRE(std::string_view{buf, sizeof(buf)} == "hello");
+
+    // Next: When we close our original file handle
+    const FilesystemResult close_res = fs->Close(open_res.handle);
+
+    // Then the close operation succeeds
+    REQUIRE(close_res == FilesystemResult::OK);
+
+    // And the file is no longer present on disk
+    REQUIRE(!temp.FileExists("somefile.txt"));
+  }
+
   SECTION("M move file atomically W renaming file") {
     // Given a source file
     temp.WriteFile("source.txt", "content to move");
