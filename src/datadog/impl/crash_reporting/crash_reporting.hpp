@@ -8,7 +8,6 @@
 
 #include <memory>
 #include <optional>
-#include <string>
 #include <string_view>
 
 #include "datadog/impl/core/feature.hpp"
@@ -71,6 +70,9 @@ class CrashReporting final : public Feature {
 
   std::optional<std::function<void(const FeatureMessage&)>>
   MakeMessageHandler() override;
+
+ protected:
+  void Start() override;
 
  private:
   // Reference to the process-global crash handler implementation

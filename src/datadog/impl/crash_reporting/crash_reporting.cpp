@@ -10,7 +10,9 @@
 
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/writer.hpp"
+#include "datadog/impl/crash_reporting/crash_processing.hpp"
 
 namespace datadog::impl {
 
@@ -57,6 +59,42 @@ CrashReporting::MakeMessageHandler() {
     self->_last_rum_ctx = rum_ctx;
     self->_handler.SetRumContext(self->_fs, rum_ctx);
   };
+}
+
+void CrashReporting::Start() {
+  // We should always have a valid FeatureScope on SDK start
+  if (!_scope) {
+    DATADOG_ASSERT(_scope, "CrashReporting has invalid _scope on Start()");
+    return;
+  }
+  FeatureScope& scope = *_scope;
+
+  // Enqueue ProcessCrashReports() to be run on the context thread, causing all
+  // available crash reports in <application-root>/.datadog/.crashes/ to be processed
+  // asynchronously
+  const auto weak_self = weak_from_this();
+  scope.ExecuteOnContextThread(
+      [weak_self](
+          const CoreContext&, const EventWriter&, const MessagePublisher& publisher
+      ) {
+        // If SDK was stopped or destroyed before our context-thread function ran, abort
+        auto self = std::static_pointer_cast<CrashReporting>(weak_self.lock());
+        if (!self || !self->_scope) {
+          return;
+        }
+
+        // Process all crash reports, publishing a `CrashReportProcessedMessage` for
+        // each crash we can successfully parse
+        ProcessCrashReports(
+            self->_scope->diagnostic_logger,
+            self->_fs,
+            self->_crash_storage_dir_path,
+            [&publisher](CrashReport crash) {
+              return publisher(CrashReportProcessedMessage{std::move(crash)});
+            }
+        );
+      }
+  );
 }
 
 }  // namespace datadog::impl

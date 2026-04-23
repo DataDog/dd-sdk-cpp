@@ -9,6 +9,7 @@
 #include <variant>
 
 #include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 
 namespace datadog::impl {
 
@@ -28,10 +29,18 @@ struct ContextChangedMessage {
 };
 
 /**
+ * Emitted by the `CrashReporting` feature when it processes a crash dump indicating
+ * that a previous application process detected a crash.
+ */
+struct CrashReportProcessedMessage {
+  CrashReport crash;
+};
+
+/**
  * Discriminated union of all message types that can be dispatched through the
  * `MessageBus`. Add new variants here as additional cross-feature communication needs
  * arise.
  */
-using FeatureMessage = std::variant<ContextChangedMessage>;
+using FeatureMessage = std::variant<ContextChangedMessage, CrashReportProcessedMessage>;
 
 }  // namespace datadog::impl
