@@ -12,6 +12,7 @@
 #include <shared_mutex>
 #include <string>
 
+#include "datadog/attribute.hpp"
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
@@ -149,6 +150,18 @@ struct CoreContext {
    * Additional context provided by the RUM feature, if in use.
    */
   std::optional<RumFeatureContext> rum;
+
+  /**
+   * User info set via Core::SetUserInfo(), if any. Consumed by RUM and logging features
+   * to populate the `usr` field on outgoing events.
+   */
+  struct UserInfo {
+    std::string id;
+    std::optional<std::string> name;
+    std::optional<std::string> email;
+    Attribute extra;
+  };
+  std::optional<UserInfo> user_info;
 
   /**
    * Resets all mutable feature-specific context fields to their default (absent) state.

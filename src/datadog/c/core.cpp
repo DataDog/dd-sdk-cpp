@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "datadog/c/core_glue.hpp"
+#include "datadog/impl/core/attribute/types.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/platform/http.hpp"
 #include "datadog/impl/core/types.hpp"
@@ -280,6 +281,47 @@ bool dd_core_start(dd_core_t* core) {
 void dd_core_stop(dd_core_t* core) {
   if (core && core->impl) {
     core->impl->Stop();
+  }
+}
+
+void dd_core_set_user_info(
+    dd_core_t* core,
+    const char* id,
+    const char* name,
+    const char* email,
+    const dd_attribute_t* extra_info
+) {
+  if (!core || !core->impl) {
+    return;
+  }
+  std::string_view cpp_id = id ? id : "";
+  auto to_opt = [](const char* s) -> std::optional<std::string_view> {
+    return (s && s[0]) ? std::optional<std::string_view>(s) : std::nullopt;
+  };
+  datadog::Attribute cpp_extra;
+  if (extra_info && extra_info->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_extra = datadog::impl::AttributeConversion::CopyFromC(*extra_info);
+  }
+  core->impl->SetUserInfo(cpp_id, to_opt(name), to_opt(email), cpp_extra);
+}
+
+void dd_core_add_user_extra_info(
+    dd_core_t* core, const dd_attribute_t* extra_info
+) {
+  if (!core || !core->impl) {
+    return;
+  }
+  if (!extra_info || extra_info->type != DD_VALUE_TYPE_OBJECT) {
+    return;
+  }
+  datadog::Attribute cpp_extra =
+      datadog::impl::AttributeConversion::CopyFromC(*extra_info);
+  core->impl->AddUserExtraInfo(cpp_extra);
+}
+
+void dd_core_clear_user_info(dd_core_t* core) {
+  if (core && core->impl) {
+    core->impl->ClearUserInfo();
   }
 }
 }

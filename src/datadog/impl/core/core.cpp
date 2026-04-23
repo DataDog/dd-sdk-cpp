@@ -10,6 +10,7 @@
 #include <iostream>
 #include <sstream>
 
+#include "datadog/impl/core/attribute/merge.hpp"
 #include "datadog/impl/core/context_thread.hpp"
 #include "datadog/impl/core/messaging_thread.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
@@ -110,6 +111,41 @@ void Core::SetTrackingConsent(TrackingConsent value) {
       }
     }
   }
+}
+
+void Core::SetUserInfo(
+    std::string_view id,
+    std::optional<std::string_view> name,
+    std::optional<std::string_view> email,
+    const Attribute& extra
+) {
+  _context_provider->Update([&](CoreContext& ctx) {
+    auto& ui = ctx.user_info.emplace();
+    ui.id = id;
+    ui.name = name ? std::optional<std::string>(*name) : std::nullopt;
+    ui.email = email ? std::optional<std::string>(*email) : std::nullopt;
+    if (extra.GetType() == ValueType::Object) {
+      ui.extra = extra;
+    }
+  });
+}
+
+void Core::AddUserExtraInfo(const Attribute& extra) {
+  if (extra.GetType() != ValueType::Object || extra.GetObjectPropertyCount() == 0) {
+    return;
+  }
+  _context_provider->Update([&](CoreContext& ctx) {
+    if (!ctx.user_info) {
+      ctx.user_info.emplace();
+    }
+    Attribute merged = Attribute::Object(0);
+    AttributeMerge::AssembleObject(merged, {ctx.user_info->extra, extra});
+    ctx.user_info->extra = std::move(merged);
+  });
+}
+
+void Core::ClearUserInfo() {
+  _context_provider->Update([](CoreContext& ctx) { ctx.user_info.reset(); });
 }
 
 bool Core::Init() {

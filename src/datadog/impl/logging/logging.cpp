@@ -211,6 +211,16 @@ void Logging::ProcessLogEvent(
     ev.rum_action_id = context.rum->action_id;
   }
 
+  // Enrich with user info if available
+  if (context.user_info) {
+    const auto& ui = *context.user_info;
+    LogUserInfo& lu = ev.usr.value.emplace();
+    lu.id = ui.id;
+    lu.name = ui.name;
+    lu.email = ui.email;
+    lu.extra = ui.extra;
+  }
+
   // Enrich with OS properties
   if (context.os) {
     ev.os.value.emplace(

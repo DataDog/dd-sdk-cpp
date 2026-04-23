@@ -17,6 +17,24 @@
 
 namespace datadog::impl {
 
+/**
+ * User info fields included in the `usr` object of a log event. Extra attributes are
+ * merged inline alongside the standard string fields.
+ */
+struct LogUserInfo {
+  OmitIfEmpty<std::string> id;
+  OmitIfNoValue<std::string> name;
+  OmitIfNoValue<std::string> email;
+  Attribute extra;
+};
+DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
+    LogUserInfo,
+    extra,
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(email)
+)
+
 DATADOG_STRING_ENUM(
     StringLogLevel,
     LogLevel,
@@ -48,6 +66,8 @@ struct LogEvent {
   OmitIfNoValue<RumOSProperties> os;
   OmitIfNoValue<RumDeviceProperties> device;
 
+  OmitIfNoValue<LogUserInfo> usr;
+
   // Custom user attributes to be merged into the JSON payload at top-level, condensed
   // from the union of global attributes, logger attributes, and message attributes
   Attribute user_attributes;
@@ -75,6 +95,7 @@ struct LogEvent {
     rum_action_id = UUID::Zero;
     os = std::nullopt;
     device = std::nullopt;
+    usr = std::nullopt;
   }
 };
 
@@ -97,11 +118,11 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
 
     DATADOG_JSON_FIELD(os),
     DATADOG_JSON_FIELD(device),
+    DATADOG_JSON_FIELD(usr),
 
     // Field names reserved for future use (any custom attributes with conflicting names
     // will be ignored)
     DATADOG_JSON_RESERVED_FIELD(_dd),
-    DATADOG_JSON_RESERVED_FIELD(usr),
     DATADOG_JSON_RESERVED_FIELD(account),
     DATADOG_JSON_RESERVED_FIELD(network),
     DATADOG_JSON_RESERVED_FIELD(error),

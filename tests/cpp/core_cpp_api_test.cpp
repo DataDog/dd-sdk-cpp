@@ -4,10 +4,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <nlohmann/json.hpp>
 #include <string>
 
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
+#include "datadog/rum.hpp"
 
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
@@ -16,6 +18,7 @@
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
 #include "support/filesystem.hpp"
+#include "support/json_validation.hpp"
 #include "support/tempdir.hpp"
 
 using namespace datadog;
@@ -378,6 +381,181 @@ TEST_CASE(
     config.SetEventStorageLocation(".");
     auto core = Core::Create(config);
     REQUIRE(core != nullptr);
+  }
+}
+
+TEST_CASE("Core user info", "[unit][core][cpp-api]") {
+  SECTION("M include usr in log events W SetUserInfo is called") {
+    // Given a started core with logging
+    auto test = CoreTestHarness::Init();
+    test.clock.FreezeAtMilliseconds(1700000000000);
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we set user info and emit a log message
+    core->SetUserInfo("user-123", "Jane Doe", "jane@example.com");
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then the log event contains the usr object
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(events[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(events[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr extra attributes in log events W SetUserInfo called with extra") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we set user info with extra attributes
+    Attribute extra = Attribute::Object(1);
+    extra.SetObjectProperty("role", Attribute::String("admin"));
+    core->SetUserInfo("user-123", "Jane Doe", "jane@example.com", extra);
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then the log event contains usr with standard and extra fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(events[0]["usr"]["role"] == "admin");
+  }
+
+  SECTION("M include usr in RUM events W SetUserInfo is called") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto rum = Rum::Register(core, RumConfig("a991ca10-4004-4004-4004-beefbeefbeef"));
+    core->Start();
+
+    // When we set user info and start a view
+    core->SetUserInfo("user-456", "John Smith", "john@example.com");
+    rum->StartView("my-view", "My View");
+    core->Stop();
+
+    // Then RUM view events contain the usr object
+    REQUIRE(!test.client.requests.empty());
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(!events.empty());
+    auto view_events = nlohmann::json::array();
+    for (const auto& ev : events) {
+      if (ev.contains("type") && ev["type"] == "view") {
+        view_events.push_back(ev);
+      }
+    }
+    REQUIRE(!view_events.empty());
+    REQUIRE(view_events[0]["usr"]["id"] == "user-456");
+    REQUIRE(view_events[0]["usr"]["name"] == "John Smith");
+    REQUIRE(view_events[0]["usr"]["email"] == "john@example.com");
+  }
+
+  SECTION("M merge extra attributes W AddUserExtraInfo is called") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we set user info and then add extra info separately
+    core->SetUserInfo("user-123", "Jane", "jane@example.com");
+    Attribute extra = Attribute::Object(2);
+    extra.SetObjectProperty("role", Attribute::String("admin"));
+    extra.SetObjectProperty("team", Attribute::String("eng"));
+    core->AddUserExtraInfo(extra);
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then the log event contains all extra fields merged with original user info
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(events[0]["usr"]["role"] == "admin");
+    REQUIRE(events[0]["usr"]["team"] == "eng");
+  }
+
+  SECTION("M AddUserExtraInfo creates user_info if absent") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we add extra user info without calling SetUserInfo first
+    Attribute extra = Attribute::Object(1);
+    extra.SetObjectProperty("plan", Attribute::String("enterprise"));
+    core->AddUserExtraInfo(extra);
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then the log event contains the extra fields in usr
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events[0]["usr"]["plan"] == "enterprise");
+  }
+
+  SECTION("M omit name and email from usr W SetUserInfo called with id only") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we set user info with only the id
+    core->SetUserInfo("user-123");
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then usr contains id but no name or email fields
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(!events[0]["usr"].contains("name"));
+    REQUIRE(!events[0]["usr"].contains("email"));
+  }
+
+  SECTION("M omit email from usr W SetUserInfo called with id and name only") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we set user info with id and name but no email
+    core->SetUserInfo("user-123", "Jane Doe");
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then usr contains id and name but no email field
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(events[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(!events[0]["usr"].contains("email"));
+  }
+
+  SECTION("M omit usr W ClearUserInfo is called after SetUserInfo") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we set user info then clear it
+    core->SetUserInfo("user-123", "Jane", "jane@example.com");
+    core->ClearUserInfo();
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then the log event contains no usr object
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(!events[0].contains("usr"));
+  }
+
+  SECTION("M safely do nothing W this wraps nullptr") {
+    CoreConfig invalid_config("", "", "");
+    invalid_config.SetDiagnosticHandler(nullptr);
+    std::shared_ptr<Core> core = Core::Create(invalid_config);
+
+    // All user info calls should be no-ops on a null core
+    core->SetUserInfo("id", "name", "email");
+    core->AddUserExtraInfo(Attribute::Object(0));
+    core->ClearUserInfo();
   }
 }
 

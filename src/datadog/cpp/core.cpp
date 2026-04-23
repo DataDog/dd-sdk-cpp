@@ -194,6 +194,34 @@ void Core::SetTrackingConsent(TrackingConsent value) {
   }
 }
 
+void Core::SetUserInfo(
+    std::string_view id,
+    std::string_view name,
+    std::string_view email,
+    const Attribute& extra_info
+) {
+  if (_impl) {
+    _impl->SetUserInfo(
+        id,
+        name.empty() ? std::nullopt : std::optional<std::string_view>(name),
+        email.empty() ? std::nullopt : std::optional<std::string_view>(email),
+        extra_info
+    );
+  }
+}
+
+void Core::AddUserExtraInfo(const Attribute& extra_info) {
+  if (_impl) {
+    _impl->AddUserExtraInfo(extra_info);
+  }
+}
+
+void Core::ClearUserInfo() {
+  if (_impl) {
+    _impl->ClearUserInfo();
+  }
+}
+
 bool Core::Start() {
   if (_impl) {
     return _impl->Start();

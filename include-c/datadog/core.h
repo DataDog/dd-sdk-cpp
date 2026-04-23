@@ -12,6 +12,7 @@
 #include <stdint.h>
 
 #include "datadog/api.h"
+#include "datadog/attribute.h"
 
 // These values establish the size of string buffers in the C API; they do not imply
 // that the Datadog platform imposes any such limits
@@ -312,6 +313,38 @@ DATADOG_API void dd_core_destroy(dd_core_t* core);
 DATADOG_API void dd_core_set_tracking_consent(
     dd_core_t* core, dd_tracking_consent_t value
 );
+
+/**
+ * Sets user info in the global SDK context. The values will appear in the `usr` object
+ * on RUM and log events.
+ *
+ * Any field may be NULL or empty to leave it unset. To supply additional user
+ * properties beyond the standard fields, pass an object-type `dd_attribute_t` as
+ * `extra_info`; those properties will be merged into the `usr` JSON object. Pass NULL
+ * to omit extra properties.
+ */
+DATADOG_API void dd_core_set_user_info(
+    dd_core_t* core,
+    const char* id,
+    const char* name,
+    const char* email,
+    const dd_attribute_t* extra_info
+);
+
+/**
+ * Merges additional key-value pairs into the extra user attributes stored in the
+ * global SDK context. If user info has not been set yet, creates a new user info entry
+ * with only these extra attributes. The `extra_info` attribute must be an object type;
+ * any other type is ignored.
+ */
+DATADOG_API void dd_core_add_user_extra_info(
+    dd_core_t* core, const dd_attribute_t* extra_info
+);
+
+/**
+ * Clears all user info from the global SDK context.
+ */
+DATADOG_API void dd_core_clear_user_info(dd_core_t* core);
 
 DATADOG_API bool dd_core_start(dd_core_t* core);
 DATADOG_API void dd_core_stop(dd_core_t* core);
