@@ -280,7 +280,7 @@ unit-test-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
