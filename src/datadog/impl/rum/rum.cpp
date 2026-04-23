@@ -142,26 +142,24 @@ void Rum::AddError(
   DispatchAsync(RumCommand::AddError(GetBaseCommandParams(attributes), source, error));
 }
 
-void Rum::StartFeatureOperation(
+void Rum::StartOperation(
     std::string_view name,
     std::optional<std::string_view> operation_key,
     const Attribute& attributes
 ) {
   DispatchAsync(
-      RumCommand::StartFeatureOperation(
-          GetBaseCommandParams(attributes), name, operation_key
-      )
+      RumCommand::StartOperation(GetBaseCommandParams(attributes), name, operation_key)
   );
 }
 
-void Rum::StopFeatureOperation(
+void Rum::StopOperation(
     std::string_view name,
     std::optional<std::string_view> operation_key,
     std::optional<RumOperationFailureReason> failure_reason,
     const Attribute& attributes
 ) {
   DispatchAsync(
-      RumCommand::StopFeatureOperation(
+      RumCommand::StopOperation(
           GetBaseCommandParams(attributes), name, operation_key, failure_reason
       )
   );
