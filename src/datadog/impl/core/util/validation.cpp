@@ -24,8 +24,8 @@ bool IsBlankCString(const char* s) { return s == nullptr || IsBlankString(s); }
 bool HasOnlyAllowedOperationNameCharacters(std::string_view s) {
   for (unsigned char c : s) {
     bool allowed = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
-                   (c >= '0' && c <= '9') || c == '-' || c == '_' ||
-                   c == '.' || c == '@' || c == '$';
+                   (c >= '0' && c <= '9') || c == '-' || c == '_' || c == '.' ||
+                   c == '@' || c == '$';
     if (!allowed) {
       return false;
     }
