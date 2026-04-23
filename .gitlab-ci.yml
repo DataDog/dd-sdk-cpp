@@ -269,14 +269,6 @@ unit-test-windows:
   variables:
     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
     TOOLCHAIN_TARGET: vs2022
-  parallel:
-    matrix:
-      # Visual Studio 2022 (17.14, vc143): md-static-release, w/ bundled libcurl
-      - BUILD_CONFIGURATION: Release
-        BUILD_SHARED_LIBS: "OFF"
-        USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "inprocess"
-        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
