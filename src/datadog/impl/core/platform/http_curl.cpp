@@ -61,7 +61,8 @@ static curl_slist* build_slist(std::string_view headers) {
   DATADOG_ASSERT(
       headers.size() >= 2 && headers[headers.size() - 2] == '\r' &&
           headers.back() == '\n',
-      "HTTP headers must be CRLF-delimited with a trailing CRLF");
+      "HTTP headers must be CRLF-delimited with a trailing CRLF"
+  );
 
   // Create a copy of the string so we can mutate it in-place to produce
   // null-terminated header strings to pass into curl
