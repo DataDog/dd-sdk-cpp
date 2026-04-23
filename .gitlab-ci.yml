@@ -112,7 +112,7 @@ validate-event-types:
     - cmake -DDD_ENABLE_EVENT_VALIDATION=ON -S . -B build
     - cmake --build build --target validate-event-types
 
-unit-test:
+unit-test-linux:
   stage: validate
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
@@ -217,6 +217,21 @@ build-macos:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
+unit-test-macos:
+  stage: build
+  dependencies: []
+  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=Debug
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure
+
 build-windows:
   stage: build
   dependencies: []
@@ -245,6 +260,35 @@ build-windows:
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
       cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
+
+unit-test-windows:
+  stage: build
+  dependencies: []
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022
+  parallel:
+    matrix:
+      # Visual Studio 2022 (17.14, vc143): md-static-release, w/ bundled libcurl
+      - BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        USE_SYSTEM_LIBCURL: "OFF"
+        DD_CRASH_MODE: "inprocess"
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path build) { remove-item -recurse -force build }
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - >
+      docker run --rm
+      -m 8192M
+      -e NUM_PARALLEL_BUILD_JOBS
+      -v "$(Get-Location):C:\mnt"
+      -w C:\mnt
+      ${env:TOOLCHAIN_IMAGE}
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
