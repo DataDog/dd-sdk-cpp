@@ -21,16 +21,11 @@ using namespace datadog::impl;
 TEST_CASE("RequestBuilder", "[unit][core]") {
   // Given an initial CoreContext value that contains the immutable configuration
   // details affecting HTTP requests (none of which can change after SDK start)
-  ImmutableContext imm(
-      CoreConfig("my-client-token", "my-service", "my-env")
-          .Internal_UseCustomEndpoint("https://example.com/intake")
-          .Internal_SetSource("some-sdk")
-          .Internal_SetSdkVersion("4.5.6"),
-      MOCK_OS_INFO,
-      MOCK_DEVICE_INFO,
-      "http-client",
-      "1.1.2"
-  );
+  CoreConfig config("my-client-token", "my-service", "my-env");
+  config.Internal_UseCustomEndpoint("https://example.com/intake");
+  config.Internal_SetSource("some-sdk");
+  config.Internal_SetSdkVersion("4.5.6");
+  ImmutableContext imm(config, MOCK_OS_INFO, MOCK_DEVICE_INFO, "http-client", "1.1.2");
   CoreContext ctx(imm);
 
   // And a RequestBuilder initialized from that context
