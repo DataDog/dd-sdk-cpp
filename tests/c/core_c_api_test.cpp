@@ -462,7 +462,7 @@ TEST_CASE(
     REQUIRE(test.client.requests.size() == 1);
     const auto& req = test.client.requests.front();
     REQUIRE(req.url.find("ddsource=unity") != std::string::npos);
-    REQUIRE(req.headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
+    REQUIRE(req.headers.find("DD-EVP-ORIGIN: unity\r\n") != std::string::npos);
 
     dd_logger_destroy(logger);
     dd_logging_destroy(logging);
@@ -489,7 +489,7 @@ TEST_CASE(
     // Then the HTTP request reflects the overridden SDK version
     REQUIRE(test.client.requests.size() == 1);
     const auto& req = test.client.requests.front();
-    REQUIRE(req.headers.find("DD-EVP-ORIGIN-VERSION: 99.0.0\n") != std::string::npos);
+    REQUIRE(req.headers.find("DD-EVP-ORIGIN-VERSION: 99.0.0\r\n") != std::string::npos);
 
     dd_logger_destroy(logger);
     dd_logging_destroy(logging);

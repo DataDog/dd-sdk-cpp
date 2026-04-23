@@ -61,7 +61,7 @@ struct MessageBusTestFeature final : public Feature {
   FeatureId GetId() const override { return CreateFeatureId("MBUS"); }
   std::string_view GetName() const override { return "message_bus_test"; }
   std::optional<Report> UploadThread_PrepareReport(
-      const HttpContext&, class BatchReader&
+      BatchReader&, RequestBuilder&
   ) override {
     return std::nullopt;
   }

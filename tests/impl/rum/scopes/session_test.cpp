@@ -21,7 +21,7 @@
 #include "datadog/impl/rum/scopes/view.hpp"
 
 #include "mock/clock.hpp"
-#include "mock/system_info.hpp"
+#include "support/context.hpp"
 #include "support/rum_event_capture.hpp"
 
 using namespace datadog;
@@ -33,7 +33,6 @@ class SessionFixture {
   static constexpr const char* SESSION_ID = "5e551017-4114-4114-4114-beeeefbeeeef";
 
   MockClock clock;
-  MockSystemInfo system_info;
 
   RumConfig config;
   RumScopeDependencies deps;
@@ -60,11 +59,7 @@ class SessionFixture {
             )},
             std::nullopt
         ),
-        context(
-            CoreConfig{"test-token", "test-service", "test-env"},
-            system_info.os_info,
-            system_info.device_info
-        ),
+        context(MOCK_CONTEXT),
         writer([](Block, Block) { return true; }) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
@@ -921,12 +916,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         Timestamp{},
         std::nullopt
     );
-    MockSystemInfo local_system_info;
-    CoreContext local_context(
-        CoreConfig{"test-token", "test-service", "test-env"},
-        local_system_info.os_info,
-        local_system_info.device_info
-    );
+    CoreContext local_context = MOCK_CONTEXT;
     EventWriter local_writer = [](Block, Block) { return true; };
 
     // When the session ends for any reason

@@ -22,7 +22,6 @@ using namespace datadog;
 using namespace datadog::impl;
 
 static const UUID APPLICATION_ID = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
-static const CoreConfig CORE_CONFIG("mock-client-token", "mock-service", "mock-env");
 static const RumConfig RUM_CONFIG(APPLICATION_ID);
 
 TEST_CASE("Rum context population", "[unit][rum]") {
@@ -35,7 +34,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
 
     // And a CoreContext that initially has no RumFeatureContext
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     CoreContext context = test.GetContextSync();
     REQUIRE(!context.rum);
 
@@ -57,7 +56,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M clear RumFeatureContext W SDK restarts") {
     // Given a RUM feature that has been started, producing a session
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
@@ -81,7 +80,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M change session_id W session expires and is replaced") {
     // Given a running RUM feature
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
@@ -112,7 +111,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M reset session_id W session is explicitly stopped") {
     // Given a running RUM feature with a valid session
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
@@ -139,7 +138,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M populate view_id W a view is active") {
     // Given a running RUM feature with a valid session
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
@@ -173,7 +172,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M not populate view_id W a view is no longer active") {
     // Given a running RUM feature with a valid session and view
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
@@ -195,7 +194,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M populate action_id W an action is active") {
     // Given a running RUM feature with a valid session
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
@@ -216,7 +215,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M not populate action_id W action is no longer active") {
     // Given a running RUM feature with a valid session and view
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
@@ -238,7 +237,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M not populate action_id W view is no longer active") {
     // Given a running RUM feature with a valid session and view
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);
@@ -260,7 +259,7 @@ TEST_CASE("Rum context population", "[unit][rum]") {
   SECTION("M not populate action_id W session is no longer active") {
     // Given a running RUM feature with a valid session and view
     MockClock clock;
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     clock.FreezeAtMilliseconds(1700000000000);
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     test.Start(rum);

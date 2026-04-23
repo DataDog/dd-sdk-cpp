@@ -17,6 +17,7 @@
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature_types/logging.hpp"
+#include "datadog/impl/core/request_builder.hpp"
 #include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/core/version.hpp"
 #include "datadog/impl/core/writer.hpp"
@@ -49,30 +50,19 @@ Logging::Logging(
       _sdk_version(SDK_VERSION),
       _default_service_name(service_name),
       _application_version(application_version),
-      _global_attributes(8) {
-  _request_url.reserve(256);
-  _request_headers.reserve(512);
-}
+      _global_attributes(8) {}
 
 std::optional<Report> Logging::UploadThread_PrepareReport(
-    const HttpContext& context, BatchReader& reader
+    BatchReader& reader, RequestBuilder& builder
 ) {
-  // Request URL
-  static const std::string_view request_path = "/api/v2/logs";
-  static const bool with_ddsource = true;
+  // Log events are sent to logs intake, as a JSON-serialized array of LogEvent objects
+  builder.Reset("/api/v2/logs", "application/json");
+  builder.AddQueryParam_ddsource();
 
-  // Request headers
-  static const std::string_view content_type = "application/json";
-
-  // Build URL and headers once, on the first upload (HTTP context is immutable)
-  if (_request_url.empty()) {
-    context.BuildRequestURL(request_path, with_ddsource, _request_url);
-    context.BuildRequestHeaders(content_type, "", _request_headers);
-  }
-
-  // Each event in the batch is a JSON object: initialize a writer that will concatenate
-  // each of those objects into a JSON array
-  return Report{_request_url, _request_headers, TLVBatchWriter{reader}};
+  // Prepare a TLVBatchWriter which will stream the contents of the batch file, treating
+  // each event block as a JSON object and concatenating those values into a JSON array
+  // on the fly as the request body is built
+  return Report{builder.GetUrl(), builder.GetHeaders(), TLVBatchWriter{reader}};
 }
 
 void Logging::AddAttribute(std::string_view name, const Attribute& value) {

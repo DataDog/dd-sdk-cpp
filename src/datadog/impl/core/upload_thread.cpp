@@ -100,8 +100,8 @@ static _process_and_upload_batch_result _interpret_http_result(
 
 static _process_and_upload_batch_result _process_and_upload_batch(
     DiagnosticLogger& diagnostic_logger,
-    const HttpContext& http_context,
     Feature& feature_impl,
+    RequestBuilder& request_builder,
     FilesystemWrapper& fsw,
     const StoragePath& file_path,
     platform::IHttpClient& http_client,
@@ -121,7 +121,7 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   BatchReader batch_reader(
       diagnostic_logger, std::move(open_result.file), mut_read_buffer
   );
-  auto report = feature_impl.UploadThread_PrepareReport(http_context, batch_reader);
+  auto report = feature_impl.UploadThread_PrepareReport(batch_reader, request_builder);
   if (!report) {
     // If the feature elected not to generate a report from this batch, or was unable to
     // process it, delete the file and continue processing
@@ -138,9 +138,8 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   diagnostic_logger.Debug(
       "Initiating HTTP request", {{"method", "POST"}, {"url", report->url}}
   );
-  const platform::HttpResult res = http_client.Post(
-      report->url.c_str(), report->headers.c_str(), report->body_writer
-  );
+  const platform::HttpResult res =
+      http_client.Post(report->url, report->headers, report->body_writer);
   switch (res.type) {
     case platform::HttpResultType::SentNoRequest:
       diagnostic_logger.Debug("Failed to send HTTP request", {{"url", report->url}});
@@ -171,7 +170,6 @@ static _process_and_upload_batch_result _process_and_upload_batch(
 static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
     DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
-    const HttpContext& http_context,
     const platform::IClock& clock,
     RegisteredFeature& feature,
     IFilesystem& fs,
@@ -291,8 +289,8 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // intake
     last_batch_result = _process_and_upload_batch(
         diagnostic_logger,
-        http_context,
         *feature.impl,
+        feature.upload_state->request_builder,
         fsw,
         file_path,
         http_client,
@@ -418,8 +416,10 @@ UploadThreadConfig UploadThreadConfig::FromCoreConfig(
   );
 }
 
-UploadThreadState::UploadThreadState(UploadFrequency upload_frequency)
-    : current_delay{}, min_delay{}, max_delay{} {
+UploadThreadState::UploadThreadState(
+    const CoreContext& ctx, UploadFrequency upload_frequency
+)
+    : request_builder(ctx), current_delay{}, min_delay{}, max_delay{} {
   // Initialize best-case interval between requests, when network conditions are good
   // and uploads are succeeding
   switch (upload_frequency) {
@@ -455,7 +455,6 @@ Duration UploadThreadState::ResetDelayToMin() {
 Duration Internal_HandleUploadProc(
     DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
-    const HttpContext& http_context,
     const platform::IClock& clock,
     FeatureId feature_id,
     std::vector<RegisteredFeature>& features,
@@ -487,7 +486,6 @@ Duration Internal_HandleUploadProc(
   return _run_upload_cycle(
       diagnostic_logger,
       config,
-      http_context,
       clock,
       *feature,
       fs,
@@ -500,7 +498,6 @@ Duration Internal_HandleUploadProc(
 void UploadThreadMain(
     DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
-    const HttpContext& http_context,
     const platform::IClock& clock,
     UploadScheduler& scheduler,
     std::vector<RegisteredFeature>& features,
@@ -536,7 +533,6 @@ void UploadThreadMain(
     const Duration delay_until_next_cycle = Internal_HandleUploadProc(
         diagnostic_logger,
         config,
-        http_context,
         clock,
         *feature_id,
         features,

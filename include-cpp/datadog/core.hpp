@@ -21,8 +21,8 @@ namespace datadog {
 
 namespace impl {
 class Core;
+struct ImmutableContext;
 struct CoreSubsystems;
-struct HttpContext;
 }  // namespace impl
 
 // === Diagnostic logging ===
@@ -169,8 +169,8 @@ enum class BatchProcessingLevel : uint8_t {
 struct CoreConfig {
   friend class Core;
   friend class impl::Core;
+  friend struct impl::ImmutableContext;
   friend struct impl::CoreSubsystems;
-  friend struct impl::HttpContext;
 
  private:
   DiagnosticHandler diagnostic_handler{StderrDiagnosticHandler};

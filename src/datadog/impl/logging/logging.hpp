@@ -39,7 +39,7 @@ class Logging final : public Feature {
   std::string_view GetName() const override { return "logs"; }
 
   std::optional<Report> UploadThread_PrepareReport(
-      const HttpContext& context, BatchReader& reader
+      BatchReader& reader, RequestBuilder& builder
   ) override;
 
  public:
@@ -101,10 +101,6 @@ class Logging final : public Feature {
 
   // Reusable buffer for encoding events; accessed only on the context thread
   mutable std::vector<uint8_t> _encode_buffer;
-
-  // HTTP request details used on upload; owned by the upload thread
-  std::string _request_url;
-  std::string _request_headers;
 };
 
 }  // namespace datadog::impl

@@ -371,6 +371,7 @@ class Core {
   // Initialized in ctor
   CoreState _state{CoreState::Uninitialized};
   CoreConfig _config;
+  ImmutableContext _immutable_context;
   DiagnosticLogger _diagnostic_logger;
   std::unique_ptr<CoreContextProvider> _context_provider;
   CoreSubsystems _subsystems;

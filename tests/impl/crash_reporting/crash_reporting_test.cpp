@@ -23,11 +23,10 @@ using namespace datadog::impl;
 static const UUID APPLICATION_ID = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
 static const UUID SESSION_ID = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
 static const UUID VIEW_ID = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
-static const CoreConfig CORE_CONFIG("mock-client-token", "mock-service", "mock-env");
 
 TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
   // Given a mock CoreContext value that will be copied into ContextChangedMessage
-  CoreContext context{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO};
+  CoreContext context = MOCK_CONTEXT;
 
   // And some required ICrashHandler dependencies that are not exercised in this test
   MockFilesystem fs;
@@ -68,7 +67,7 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
         "meaningful changes to RUM context"
     ) {
       // When another message arrives with identical RumFeatureContext values
-      context.http.reset();  // Change CoreContext, but not its rum member
+      context.service = "contrived";  // Change CoreContext, but not its rum member
       message_handler_func(ContextChangedMessage{context});
 
       // Then no ICrashHandler::SetRumContext call was made
@@ -140,8 +139,7 @@ TEST_CASE("CrashReporting message publishing", "[unit][crash_reporting]") {
       std::make_shared<datadog::impl::CrashReporting>(handler, fs, path);
 
   // And a FeatureTest harness that will capture any messages the feature publishes
-  CoreContext context{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO};
-  FeatureTest feature_test(context);
+  FeatureTest feature_test(MOCK_CONTEXT);
 
   SECTION("M publish CrashReportProcessedMessage W valid crash file exists on start") {
     // Given a crash storage directory containing a valid crash dump

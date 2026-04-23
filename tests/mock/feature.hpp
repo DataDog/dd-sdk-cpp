@@ -55,7 +55,6 @@ class MockFeature : public impl::Feature {
   // Test can set these values manually after ctor
   std::string path{"/api/v1/test"};
   std::string content_type{"text/plain"};
-  std::string feature_headers{""};
 
   // Calls to start/stop will be recorded
   int num_start_calls{0};
@@ -96,14 +95,18 @@ class MockFeature : public impl::Feature {
    * Default implementation to record reports generated under test.
    */
   virtual std::optional<impl::Report> UploadThread_PrepareReport(
-      const impl::HttpContext& context, impl::BatchReader& reader
+      impl::BatchReader& reader, impl::RequestBuilder& builder
   ) override {
     // Use a report struct to contain all the relevant data about this call
     MockReport report;
 
     // Build URL and headers based on configuration
-    context.BuildRequestURL(path, true, report.url);
-    context.BuildRequestHeaders(content_type, feature_headers, report.headers);
+    builder.Reset(path, content_type);
+    builder.AddQueryParam_ddsource();
+
+    // Copy URL and headers into MockReport
+    report.url.assign(builder.GetUrl());
+    report.headers.assign(builder.GetHeaders());
 
     // Read all TLV blocks into a vector, serially
     bool read_ok = true;
@@ -141,7 +144,9 @@ class MockFeature : public impl::Feature {
     const MockReport& stored = reports.emplace_back(std::move(report));
 
     // Return the resulting report
-    return impl::Report{stored.url, stored.headers, impl::StringWriter{stored.body}};
+    return impl::Report{
+        stored.url.c_str(), stored.headers.c_str(), impl::StringWriter{stored.body}
+    };
   }
 
   // Override to implement custom block processing

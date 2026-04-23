@@ -37,7 +37,7 @@ class Rum final : public Feature {
   std::string_view GetName() const override { return "rum"; }
 
   std::optional<Report> UploadThread_PrepareReport(
-      const HttpContext& context, BatchReader& reader
+      BatchReader& reader, RequestBuilder& builder
   ) override;
 
  protected:

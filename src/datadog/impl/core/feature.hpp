@@ -10,7 +10,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <string>
+#include <string_view>
 
 #include "nonstd/expected.hpp"
 
@@ -25,6 +25,9 @@
 
 namespace datadog::impl {
 
+class BatchReader;
+class RequestBuilder;
+
 /**
  * Lightweight description of an HTTP request that should be made in order to upload a
  * batch of event data for a specific feature.
@@ -35,12 +38,12 @@ struct Report {
    * request. All requests are assumed to be POSTs. Underlying string data must persist
    * throughout the lifetime of the HTTP request.
    */
-  const std::string& url;
+  const char* url;
   /**
    * The set of headers to use with this request, in wire format (e.g. 'Foo: bar'),
-   * newline-delimited, with a trailing newline.
+   * CRLF-delimited, with a trailing CRLF.
    */
-  const std::string& headers;
+  const char* headers;
   /**
    * A function that will populate the body of the HTTP request on demand, allowing
    * large event payloads to be streamed directly to the HTTP layer without intermediate
@@ -133,7 +136,7 @@ class Feature : public std::enable_shared_from_this<Feature> {
    * feature is ready to be processed and uploaded.
    */
   virtual std::optional<Report> UploadThread_PrepareReport(
-      const HttpContext& context, class BatchReader& reader
+      BatchReader& reader, RequestBuilder& builder
   ) = 0;
 
   /**

@@ -16,8 +16,8 @@
 #include "datadog/impl/rum/scopes/view.hpp"
 
 #include "mock/clock.hpp"
-#include "mock/system_info.hpp"
 #include "support/catch.hpp"
+#include "support/context.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -45,12 +45,6 @@ TEST_CASE("RumResourceMap", "[unit][rum]") {
   // And a set of prerequisite values required to initialize new RumResourceScopes
   RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
   MockClock clock;
-  MockSystemInfo system_info;
-  CoreContext context(
-      CoreConfig{"test-token", "test-service", "test-env"},
-      system_info.os_info,
-      system_info.device_info
-  );
   EventWriter writer = [](Block, Block) { return true; };
 
   clock.FreezeAtMilliseconds(1700000000000);
@@ -131,8 +125,9 @@ TEST_CASE("RumResourceMap", "[unit][rum]") {
 
     SECTION("M forward command to target resource W key matches") {
       // When we forward a StopResource command for 'bar' using the key 'bar'
-      auto result =
-          map.Forward("bar", RumCommand::StopResource(base(), "bar"), context, writer);
+      auto result = map.Forward(
+          "bar", RumCommand::StopResource(base(), "bar"), MOCK_CONTEXT, writer
+      );
 
       // Then our command is handled and results in a resource event being sent
       REQUIRE(result == RumResourceScope::Result::SentResourceEvent);
@@ -148,7 +143,7 @@ TEST_CASE("RumResourceMap", "[unit][rum]") {
     SECTION("M do nothing W command does not match any resource key") {
       // When we forward a StopResource command for 'nobody' using the key 'nobody'
       auto result = map.Forward(
-          "nobody", RumCommand::StopResource(base(), "nobody"), context, writer
+          "nobody", RumCommand::StopResource(base(), "nobody"), MOCK_CONTEXT, writer
       );
 
       // Then our command is ignored, resulting in no event
