@@ -6,14 +6,26 @@
 
 #pragma once
 
+#include <functional>
 #include <optional>
+#include <string>
 
+#include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/feature_types/crash_reporting.hpp"
 
 namespace datadog::impl {
 
+class DiagnosticLogger;
+class IFilesystem;
+class FilesystemWrapper;
+class StoragePath;
 struct CrashReportFile;
 struct CrashContextFile;
+
+/**
+ * Function used to signal that a valid crash report has been detected and processed.
+ */
+using CrashReportCallback = std::function<void(CrashReport)>;
 
 /**
  * Helper function used to build a `CrashReport` struct based on the information read
@@ -26,6 +38,34 @@ struct CrashContextFile;
  */
 CrashReport BuildCrashReport(
     const CrashReportFile& crf, const std::optional<CrashContextFile>& ccf
+);
+
+/**
+ * Helper function used to detect whether a file is likely to be a valid binary crash
+ * report.
+ */
+bool IsCrashReportFilename(const std::string& filename);
+
+/**
+ * Scans for crash report files left behind by previous application processes, producing
+ * CrashReport values for each set of files that represents a valid crash.
+ *
+ * This routine is typically invoked by the CrashReporting feature on SDK start, but
+ * it's offloaded to the context thread so as not to block the main thread.
+ *
+ * @param logger Logger used to emit diagnostic warnings in case of failure, status
+ *  messages on success.
+ * @param fs IFilesystem interface used to list, read, and delete files on disk.
+ * @param storage_dir_path Path to the directory where crash-related artifacts for
+ * this application are conventionally stored.
+ * @param on_process_callback Callback used to generate CrashReport structs built
+ * from valid crash report files.
+ */
+void ProcessCrashReports(
+    DiagnosticLogger& logger,
+    IFilesystem& fs,
+    StoragePath& storage_dir_path,
+    const CrashReportCallback& on_process_callback
 );
 
 }  // namespace datadog::impl
