@@ -416,12 +416,16 @@ IFilesystem::ReadResult MockFilesystem::Read(
     return {*status, 0};
   }
 
-  // Figure out how much data we can read from the file via this handle
+  // Figure out how much data we can read from the file via this handle, capping at
+  // _max_read_size if a limit has been set (to simulate short reads for testing)
   const size_t num_bytes_available =
       (file.data.size() > handle_info.read_offset
            ? file.data.size() - handle_info.read_offset
            : 0);
-  const size_t num_bytes_to_read = std::min(n, num_bytes_available);
+  size_t num_bytes_to_read = std::min(n, num_bytes_available);
+  if (_max_read_size > 0) {
+    num_bytes_to_read = std::min(num_bytes_to_read, _max_read_size);
+  }
 
   // Copy that number of bytes from the file contents to the output buffer, and move the
   // read offset forward accordingly

@@ -44,6 +44,7 @@ add_executable(dd_native_tests
     impl/core/storage/artifact_test.cpp
     impl/core/storage/feature_event_test.cpp
     impl/core/storage/filesystem_test.cpp
+    impl/core/storage/filesystem_wrapper_test.cpp
     impl/core/storage/path_test.cpp
     impl/core/storage/sdk_test.cpp
     impl/core/util/diagnostics_test.cpp

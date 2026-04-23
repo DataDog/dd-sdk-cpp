@@ -27,7 +27,24 @@ IFilesystem::WriteResult File::Write(const char* src, size_t n) {
 }
 
 IFilesystem::ReadResult File::Read(char* dst, size_t n) {
-  return _fs.Read(_handle, dst, n);
+  // Loop until we've read all n bytes or hit EOF, accumulating bytes across multiple
+  // IFilesystem::Read calls. IFilesystem::Read wraps a single syscall and may return
+  // fewer bytes than requested even when data is available (a short read), so we must
+  // retry to distinguish a genuine EOF from an incomplete-but-continuing read.
+  size_t total = 0;
+  while (total < n) {
+    auto res = _fs.Read(_handle, dst + total, n - total);
+    if (res.value != FilesystemResult::OK) {
+      // I/O error; return however many bytes we accumulated before the failure
+      return {res.value, total};
+    }
+    if (res.bytes_read == 0) {
+      // EOF reached before filling the buffer
+      return {FilesystemResult::OK, total};
+    }
+    total += res.bytes_read;
+  }
+  return {FilesystemResult::OK, total};
 }
 
 FilesystemResult File::Close() {
