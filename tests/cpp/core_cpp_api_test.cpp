@@ -494,6 +494,26 @@ TEST_CASE("Core user info", "[unit][core][cpp-api]") {
     REQUIRE(events[0]["usr"]["plan"] == "enterprise");
   }
 
+  SECTION("M log error and ignore W SetUserInfo called with empty id") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we set user info with an empty id
+    core->SetUserInfo("");
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then an error is emitted
+    REQUIRE(test.cpp_diagnostics.size() == 1);
+    REQUIRE(test.cpp_diagnostics[0].level == DiagnosticLevel::Error);
+
+    // And the log event contains no usr field
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(!events[0].contains("usr"));
+  }
+
   SECTION("M omit name and email from usr W SetUserInfo called with id only") {
     auto test = CoreTestHarness::Init();
     auto core = CoreTestHarness::WrapForCpp(test);

@@ -294,7 +294,12 @@ void dd_core_set_user_info(
   if (!core || !core->impl) {
     return;
   }
-  std::string_view cpp_id = id ? id : "";
+  if (!id || !id[0]) {
+    core->diagnostic_logger.Error(
+        "dd_core_set_user_info call ignored: application must supply a non-empty id"
+    );
+    return;
+  }
   auto to_opt = [](const char* s) -> std::optional<std::string_view> {
     return (s && s[0]) ? std::optional<std::string_view>(s) : std::nullopt;
   };
@@ -302,7 +307,7 @@ void dd_core_set_user_info(
   if (extra_info && extra_info->type == DD_VALUE_TYPE_OBJECT) {
     cpp_extra = datadog::impl::AttributeConversion::CopyFromC(*extra_info);
   }
-  core->impl->SetUserInfo(cpp_id, to_opt(name), to_opt(email), cpp_extra);
+  core->impl->SetUserInfo(id, to_opt(name), to_opt(email), cpp_extra);
 }
 
 void dd_core_add_user_extra_info(

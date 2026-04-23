@@ -27,6 +27,9 @@ CommandResult HandleSetConfig(State& state, const CommandInput& args);
 CommandResult HandleCreateCore(State& state, const CommandInput& args);
 CommandResult HandleResetCore(State& state, const CommandInput& args);
 CommandResult HandleSetTrackingConsent(State& state, const CommandInput& args);
+CommandResult HandleSetUserInfo(State& state, const CommandInput& args);
+CommandResult HandleAddUserExtraInfo(State& state, const CommandInput& args);
+CommandResult HandleClearUserInfo(State& state, const CommandInput& args);
 CommandResult HandleStartCore(State& state, const CommandInput& args);
 CommandResult HandleStopCore(State& state, const CommandInput& args);
 
