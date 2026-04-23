@@ -96,8 +96,22 @@ set(SHOULD_DOWNLOAD_LLVM FALSE)
 if(NEEDS_LLVM_DOWNLOAD)
     message(STATUS "Build is configured with:\n -DDD_ENABLE_CLANG_FORMAT=${DD_ENABLE_CLANG_FORMAT} (requires clang-format ${LLVM_TOOLS_VERSION})\n -DDD_ENABLE_CLANG_TIDY=${DD_ENABLE_CLANG_TIDY} (requires clang-tidy ${LLVM_TOOLS_VERSION})\n Not all tools are installed at the required versions.")
     if(NOT DD_DEVELOPMENT_ALLOW_AUTO_INSTALL)
-        # If we don't have explicit permission to download anything, print a warning
-        message(WARNING "To automatically install required tools, re-run with -DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON.\nTo disable these tools, use: -DDD_ENABLE_CLANG_FORMAT=OFF -DDD_ENABLE_CLANG_TIDY=OFF\nTo use system-installed versions, install LLVM ${LLVM_TOOLS_VERSION} and ensure its bin/ directory is in your PATH.")
+        # Without explicit permission to auto-install, we have no way to proceed.
+        # Fail fast with an actionable message rather than letting the build break
+        # further down with a less helpful error.
+        message(FATAL_ERROR
+            "Required development tools are not installed at version ${LLVM_TOOLS_VERSION}.\n"
+            "\n"
+            "Choose one of the following:\n"
+            "  1. Let CMake download them automatically (recommended):\n"
+            "       -DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON\n"
+            "  2. Install LLVM ${LLVM_TOOLS_VERSION} manually and ensure its bin/\n"
+            "     directory is in your PATH.\n"
+            "  3. Disable these tools for this build:\n"
+            "       -DDD_ENABLE_CLANG_FORMAT=OFF -DDD_ENABLE_CLANG_TIDY=OFF\n"
+            "\n"
+            "See CONTRIBUTING.md (section: Formatting and linting) for details."
+        )
     else()
         # Auto-install is enabled; we can proceed to download and install tools locally
         message(STATUS "Required tools will be automatically downloaded and installed to ${LOCAL_LLVM_BIN_DIR}.")
@@ -137,20 +151,41 @@ if(SHOULD_DOWNLOAD_LLVM)
     file(MAKE_DIRECTORY "${LOCAL_LLVM_BIN_DIR}")
     set(LOCAL_LLVM_ARCHIVE "${LOCAL_LLVM_BIN_DIR}/${LLVM_ARCHIVE_NAME}.tar.xz")
 
-    # Fetch the LLVM release archive from GitHub
-    message(STATUS "Downloading to ${LOCAL_LLVM_ARCHIVE}...")
-    file(DOWNLOAD
-        "${LLVM_ARCHIVE_URL}"
-        "${LOCAL_LLVM_ARCHIVE}"
-        TLS_VERIFY ON
-        EXPECTED_HASH "SHA256=${LLVM_ARCHIVE_SHA256}"
-        STATUS DOWNLOAD_STATUS
-    )
-    list(GET DOWNLOAD_STATUS 0 DOWNLOAD_RESULT)
-    if(NOT DOWNLOAD_RESULT EQUAL 0)
+    # Fetch the LLVM release archive from GitHub. A stale, partial, or corrupt
+    # file on disk will fail the EXPECTED_HASH check and, by default, CMake
+    # leaves the bad file in place — so subsequent configures fail the same
+    # way forever. Retry once after deleting the cached file before giving up.
+    set(_DD_LLVM_DOWNLOAD_ATTEMPTS 2)
+    foreach(_DD_LLVM_ATTEMPT RANGE 1 ${_DD_LLVM_DOWNLOAD_ATTEMPTS})
+        message(STATUS "Downloading LLVM ${LLVM_TOOLS_VERSION} to ${LOCAL_LLVM_ARCHIVE} (attempt ${_DD_LLVM_ATTEMPT}/${_DD_LLVM_DOWNLOAD_ATTEMPTS})...")
+        file(DOWNLOAD
+            "${LLVM_ARCHIVE_URL}"
+            "${LOCAL_LLVM_ARCHIVE}"
+            TLS_VERIFY ON
+            EXPECTED_HASH "SHA256=${LLVM_ARCHIVE_SHA256}"
+            STATUS DOWNLOAD_STATUS
+            SHOW_PROGRESS
+        )
+        list(GET DOWNLOAD_STATUS 0 DOWNLOAD_RESULT)
+        if(DOWNLOAD_RESULT EQUAL 0)
+            break()
+        endif()
+
         list(GET DOWNLOAD_STATUS 1 DOWNLOAD_ERROR)
-        message(FATAL_ERROR "Failed to download LLVM archive: ${DOWNLOAD_ERROR}")
-    endif()
+        if(_DD_LLVM_ATTEMPT LESS ${_DD_LLVM_DOWNLOAD_ATTEMPTS})
+            message(STATUS "Download failed (${DOWNLOAD_ERROR}); removing cached archive and retrying...")
+            file(REMOVE "${LOCAL_LLVM_ARCHIVE}")
+        else()
+            file(REMOVE "${LOCAL_LLVM_ARCHIVE}")
+            message(FATAL_ERROR
+                "Failed to download LLVM archive after ${_DD_LLVM_DOWNLOAD_ATTEMPTS} attempts: ${DOWNLOAD_ERROR}\n"
+                "If this persists, download it manually and place it at ${LOCAL_LLVM_ARCHIVE} "
+                "(expected SHA256: ${LLVM_ARCHIVE_SHA256}), then re-run cmake."
+            )
+        endif()
+    endforeach()
+    unset(_DD_LLVM_ATTEMPT)
+    unset(_DD_LLVM_DOWNLOAD_ATTEMPTS)
 
     # Resolve the paths (within the archive) to the binaries we need to extract
     if(DD_ENABLE_CLANG_FORMAT AND NOT CLANG_FORMAT_BINARY)
