@@ -110,7 +110,9 @@ void dd_core_config_set_event_storage_location(
   }
   const size_t capacity = std::size(config->event_storage_location);
   const std::size_t max_len = capacity - 1;
-  const void* p_null{std::memchr(value, '\0', max_len + 1)};  // NOLINT(cppcoreguidelines-init-variables)
+  const void* p_null{
+      std::memchr(value, '\0', max_len + 1)
+  };  // NOLINT(cppcoreguidelines-init-variables)
   if (!p_null) {
     auto diagnostic_logger = datadog::impl::DiagnosticLogger::FromC(
         config->diagnostic_handler,

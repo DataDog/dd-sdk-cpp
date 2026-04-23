@@ -3385,3 +3385,103 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
     }
   }
 }
+
+TEST_CASE("Rum user info", "[unit][rum][cpp-api]") {
+  // Common setup: started core with RUM and user info set
+  auto setup = [](auto func) {
+    auto test = CoreTestHarness::Init();
+    test.clock.FreezeAtMilliseconds(1700000000000);
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto rum = Rum::Register(core, RumConfig("a991ca10-4004-4004-4004-beefbeefbeef"));
+    REQUIRE(core->Start());
+    core->SetUserInfo("user-123", "Jane Doe", "jane@example.com");
+    func(rum, test.clock);
+    core->Stop();
+    return MergeJsonArrays(test.client.requests);
+  };
+
+  SECTION("M include usr on view events W SetUserInfo is called") {
+    auto events = setup([](std::shared_ptr<Rum>& rum, MockClock&) {
+      rum->StartView("my-view", "My View");
+    });
+
+    auto views = filter_events("view", events);
+    REQUIRE(!views.empty());
+    REQUIRE(views[0]["usr"]["id"] == "user-123");
+    REQUIRE(views[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(views[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr on action events W SetUserInfo is called") {
+    auto events = setup([](std::shared_ptr<Rum>& rum, MockClock& clock) {
+      rum->StartView("my-view", "My View");
+      clock.TickMilliseconds(5);
+      rum->AddAction(RumActionType::Custom, "my-action");
+    });
+
+    auto actions = filter_events("action", events);
+    REQUIRE(!actions.empty());
+    REQUIRE(actions[0]["usr"]["id"] == "user-123");
+    REQUIRE(actions[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(actions[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr on error events W SetUserInfo is called") {
+    auto events = setup([](std::shared_ptr<Rum>& rum, MockClock&) {
+      rum->StartView("my-view", "My View");
+      rum->AddError(RumErrorSource::Source, "oops");
+    });
+
+    auto errors = filter_events("error", events);
+    REQUIRE(!errors.empty());
+    REQUIRE(errors[0]["usr"]["id"] == "user-123");
+    REQUIRE(errors[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(errors[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr on resource events W SetUserInfo is called") {
+    auto events = setup([](std::shared_ptr<Rum>& rum, MockClock& clock) {
+      rum->StartView("my-view", "My View");
+      rum->StartResource("res", RumResourceMethod::Get, "https://example.com/api");
+      clock.TickMilliseconds(100);
+      rum->StopResource("res", 200, 512, RumResourceType::Native);
+    });
+
+    auto resources = filter_events("resource", events);
+    REQUIRE(!resources.empty());
+    REQUIRE(resources[0]["usr"]["id"] == "user-123");
+    REQUIRE(resources[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(resources[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr on vital events W SetUserInfo is called") {
+    auto events = setup([](std::shared_ptr<Rum>& rum, MockClock& clock) {
+      rum->StartView("my-view", "My View");
+      rum->StartOperation("my-op");
+      clock.TickMilliseconds(50);
+      rum->SucceedOperation("my-op");
+    });
+
+    auto vitals = filter_events("vital", events);
+    REQUIRE(!vitals.empty());
+    REQUIRE(vitals[0]["usr"]["id"] == "user-123");
+    REQUIRE(vitals[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(vitals[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M omit usr from all event types W no user info set") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto rum = Rum::Register(core, RumConfig("a991ca10-4004-4004-4004-beefbeefbeef"));
+    REQUIRE(core->Start());
+    rum->StartView("my-view", "My View");
+    rum->AddAction(RumActionType::Custom, "my-action");
+    rum->AddError(RumErrorSource::Source, "oops");
+    core->Stop();
+
+    auto events = MergeJsonArrays(test.client.requests);
+    for (const auto& ev : events) {
+      REQUIRE(!ev.contains("usr"));
+    }
+  }
+}

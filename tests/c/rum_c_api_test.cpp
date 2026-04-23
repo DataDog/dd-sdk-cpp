@@ -4049,3 +4049,121 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
     }
   }
 }
+
+TEST_CASE("dd_rum user info", "[unit][rum][c-api]") {
+  // Common setup: started core with RUM and user info set
+  static const char* APP_ID = "a991ca10-4004-4004-4004-beefbeefbeef";
+
+  auto setup = [](auto func) {
+    auto test = CoreTestHarness::Init();
+    test.clock.FreezeAtMilliseconds(1700000000000);
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config_t config;
+    dd_rum_config_init(&config, APP_ID);
+    dd_rum_t* rum = dd_rum_init(core, &config);
+    dd_core_start(core);
+    dd_core_set_user_info(core, "user-123", "Jane Doe", "jane@example.com", nullptr);
+    func(rum, test.clock);
+    dd_core_stop(core);
+    auto events = MergeJsonArrays(test.client.requests);
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
+    return events;
+  };
+
+  SECTION("M include usr on view events W dd_core_set_user_info is called") {
+    auto events = setup([](dd_rum_t* rum, MockClock&) {
+      dd_rum_start_view(rum, "my-view", "My View");
+    });
+
+    auto views = filter_events("view", events);
+    REQUIRE(!views.empty());
+    REQUIRE(views[0]["usr"]["id"] == "user-123");
+    REQUIRE(views[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(views[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr on action events W dd_core_set_user_info is called") {
+    auto events = setup([](dd_rum_t* rum, MockClock& clock) {
+      dd_rum_start_view(rum, "my-view", "My View");
+      clock.TickMilliseconds(5);
+      dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "my-action", nullptr);
+    });
+
+    auto actions = filter_events("action", events);
+    REQUIRE(!actions.empty());
+    REQUIRE(actions[0]["usr"]["id"] == "user-123");
+    REQUIRE(actions[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(actions[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr on error events W dd_core_set_user_info is called") {
+    auto events = setup([](dd_rum_t* rum, MockClock&) {
+      dd_rum_start_view(rum, "my-view", "My View");
+      dd_rum_add_error(
+          rum, DD_RUM_ERROR_SOURCE_SOURCE, "oops", nullptr, nullptr, nullptr
+      );
+    });
+
+    auto errors = filter_events("error", events);
+    REQUIRE(!errors.empty());
+    REQUIRE(errors[0]["usr"]["id"] == "user-123");
+    REQUIRE(errors[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(errors[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr on resource events W dd_core_set_user_info is called") {
+    auto events = setup([](dd_rum_t* rum, MockClock& clock) {
+      dd_rum_start_view(rum, "my-view", "My View");
+      dd_rum_start_resource(
+          rum, "res", DD_RUM_RESOURCE_METHOD_GET, "https://example.com/api", nullptr
+      );
+      clock.TickMilliseconds(100);
+      dd_rum_stop_resource(rum, "res", 200, 512, DD_RUM_RESOURCE_TYPE_NATIVE, nullptr);
+    });
+
+    auto resources = filter_events("resource", events);
+    REQUIRE(!resources.empty());
+    REQUIRE(resources[0]["usr"]["id"] == "user-123");
+    REQUIRE(resources[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(resources[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M include usr on vital events W dd_core_set_user_info is called") {
+    auto events = setup([](dd_rum_t* rum, MockClock& clock) {
+      dd_rum_start_view(rum, "my-view", "My View");
+      dd_rum_start_operation(rum, "my-op", nullptr, nullptr);
+      clock.TickMilliseconds(50);
+      dd_rum_succeed_operation(rum, "my-op", nullptr, nullptr);
+    });
+
+    auto vitals = filter_events("vital", events);
+    REQUIRE(!vitals.empty());
+    REQUIRE(vitals[0]["usr"]["id"] == "user-123");
+    REQUIRE(vitals[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(vitals[0]["usr"]["email"] == "jane@example.com");
+  }
+
+  SECTION("M omit usr from all event types W no user info set") {
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config_t config;
+    dd_rum_config_init(&config, APP_ID);
+    dd_rum_t* rum = dd_rum_init(core, &config);
+    dd_core_start(core);
+    dd_rum_start_view(rum, "my-view", "My View");
+    dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "my-action", nullptr);
+    dd_rum_add_error(
+        rum, DD_RUM_ERROR_SOURCE_SOURCE, "oops", nullptr, nullptr, nullptr
+    );
+    dd_core_stop(core);
+
+    auto events = MergeJsonArrays(test.client.requests);
+    for (const auto& ev : events) {
+      REQUIRE(!ev.contains("usr"));
+    }
+
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
+  }
+}
