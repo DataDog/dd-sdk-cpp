@@ -511,13 +511,24 @@ void dd_rum_start_operation(
     return;
   }
 
-  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
+  // Backend rejects blank/empty names with its own non-empty precondition;
+  // drop client-side to match. Also catches the NULL pointer case.
   if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_start_operation call ignored: application must supply a "
         "non-empty operation name"
     );
     return;
+  }
+
+  // Warn if the name fails the backend's `[\w.@$-]*` pattern, but always
+  // emit: the backend is the source of truth on character-set policy.
+  if (!datadog::impl::HasOnlyAllowedOperationNameCharacters(name)) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_start_operation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."
+    );
   }
 
   // If operation_key is provided (non-NULL, non-empty), it must be non-blank
@@ -556,13 +567,19 @@ void dd_rum_succeed_operation(
     return;
   }
 
-  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
   if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_succeed_operation call ignored: application must supply a "
         "non-empty operation name"
     );
     return;
+  }
+  if (!datadog::impl::HasOnlyAllowedOperationNameCharacters(name)) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_succeed_operation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."
+    );
   }
 
   // If operation_key is provided (non-NULL, non-empty), it must be non-blank
@@ -602,13 +619,19 @@ void dd_rum_fail_operation(
     return;
   }
 
-  // Require a non-blank (non-NULL, non-empty, non-whitespace-only) operation name
   if (datadog::impl::IsBlankCString(name)) {
     rum->diagnostic_logger.Error(
         "dd_rum_fail_operation call ignored: application must supply a "
         "non-empty operation name"
     );
     return;
+  }
+  if (!datadog::impl::HasOnlyAllowedOperationNameCharacters(name)) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_fail_operation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."
+    );
   }
 
   // If operation_key is provided (non-NULL, non-empty), it must be non-blank

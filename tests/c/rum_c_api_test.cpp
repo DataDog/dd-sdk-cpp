@@ -762,6 +762,70 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        {},
        {"dd_rum_fail_operation call ignored: application must supply a "
         "non-empty operation name"}},
+
+      // Character-set validation (schema facet-path rule):
+      // vital.name is documented in _vital-common-schema.json as letters,
+      // digits, and - _ . @ $ only. Names outside that set produce a
+      // WARNING but the event is still emitted — the backend owns the
+      // authoritative policy.
+      {"M warn but still emit W dd_rum_start_operation name contains a space",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_operation(rum, "user login", nullptr, nullptr);
+         });
+       },
+       {"dd_rum_start_operation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."},
+       {}},
+
+      {"M warn but still emit W dd_rum_succeed_operation name contains a slash",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_succeed_operation(rum, "api/v1", nullptr, nullptr);
+         });
+       },
+       {"dd_rum_succeed_operation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."},
+       {}},
+
+      {"M warn but still emit W dd_rum_fail_operation name contains non-ASCII bytes",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_fail_operation(
+               rum, "ログイン", DD_RUM_FAILURE_REASON_OTHER, nullptr, nullptr
+           );
+         });
+       },
+       {"dd_rum_fail_operation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."},
+       {}},
+
+      {"M print no error W dd_rum_start_operation uses every allowed character class",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_operation(rum, "Login-v2@1.0.0_step$1", nullptr, nullptr);
+         });
+       },
+       {},
+       {}},
+
+      {"M print no error W dd_rum_start_operation operation_key contains a space",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View");
+           // operation_key has no character-set restriction in the schema
+           dd_rum_start_operation(rum, "login", "session 42 / user foo", nullptr);
+         });
+       },
+       {},
+       {}},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
