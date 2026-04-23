@@ -67,13 +67,13 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
 Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
     : _config(config),
       _immutable_context(
-          config,
+          _config,
           subsystems.system_info->GetOsInfo(),
           subsystems.system_info->GetDeviceInfo(),
           subsystems.http->GetName(),
           subsystems.http->GetVersion()
       ),
-      _diagnostic_logger(config.diagnostic_handler, config.diagnostic_threshold),
+      _diagnostic_logger(_config.diagnostic_handler, _config.diagnostic_threshold),
       _context_provider(
           std::make_unique<CoreContextProvider>(CoreContext(_immutable_context))
       ),
