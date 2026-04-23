@@ -386,6 +386,15 @@ bool Core::Start() {
   );
   _state = CoreState::Started;
 
+  // Initialize a callback that will allow each feature to produce FeatureMessage values
+  // to the MessageBus in order to notify other features of relevant state changes
+  MessagePublisher message_publisher = [this](FeatureMessage message) -> bool {
+    if (_message_bus) {
+      return _message_bus->Send(std::move(message));
+    }
+    return false;
+  };
+
   // Notify each registered feature that the core has started, providing it with a
   // FeatureScope interface that it can use to interoperate with the core
   for (const auto& feature : _features) {
@@ -395,7 +404,11 @@ bool Core::Start() {
     };
     feature.impl->OnCoreStarted(
         FeatureScope::Create(
-            *_context_provider, event_writer, _diagnostic_logger, *_context_queue
+            *_context_provider,
+            event_writer,
+            message_publisher,
+            _diagnostic_logger,
+            *_context_queue
         )
     );
   }

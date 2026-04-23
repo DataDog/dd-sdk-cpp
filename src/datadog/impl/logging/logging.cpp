@@ -165,7 +165,11 @@ void Logging::DispatchAsync(const LogCommandParams& params) {
 
   scope.ExecuteOnContextThread(
       // NOLINTNEXTLINE(bugprone-exception-escape)
-      [weak_logging, params](const CoreContext& context, const EventWriter& writer) {
+      [weak_logging, params](
+          const CoreContext& context,
+          const EventWriter& writer,
+          const MessagePublisher& publisher
+      ) {
         // Check if Logging object still alive
         auto logging = weak_logging.lock();
         if (!logging) {
@@ -175,6 +179,11 @@ void Logging::DispatchAsync(const LogCommandParams& params) {
 
         // Safe to proceed - process the log event
         logging->ProcessLogEvent(params, context, writer);
+
+        // TODO(RUM-12205): If params.level meets a configured threshold, produce a
+        // message indicating that an error has been logged, such that the RUM
+        // implementation can record a RUM Error in response to this log call
+        (void)publisher;
       }
   );
 }

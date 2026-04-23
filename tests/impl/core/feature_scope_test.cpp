@@ -36,11 +36,14 @@ static const size_t MAX_EVENTS = 512;
  * CoreContext, mutate CoreContext, and generate events.
  *
  * Provides an EventWriter that buffers the event into a thread-safe array with a
- * fixed capacity.
+ * fixed capacity, as well as a MessagePublisher callback that records the number of
+ * times it's called.
  */
 struct FeatureState {
   std::array<uint64_t, MAX_EVENTS> events;
   std::atomic<size_t> num_events{0};
+
+  std::atomic<size_t> num_messages_produced{0};
 
   /**
    * Parses `event` as a string-formatted uint64_t, then atomically stores it in the
@@ -75,6 +78,10 @@ struct FeatureState {
         context_provider,
         [this](Block event, Block event_metadata) {
           return this->HandleEvent(event, event_metadata);
+        },
+        [this](FeatureMessage) {
+          this->num_messages_produced++;
+          return true;
         },
         DiagnosticLogger{},
         context_queue
@@ -150,13 +157,15 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     // context thread
     int num_executions = 0;
     auto main_thread_id = std::this_thread::get_id();
-    scope.ExecuteOnContextThread([&](const CoreContext&, EventWriter) {
-      num_executions++;
+    scope.ExecuteOnContextThread(
+        [&](const CoreContext&, const EventWriter&, const MessagePublisher&) {
+          num_executions++;
 
-      // Then our function is executed on a background thread
-      auto context_thread_id = std::this_thread::get_id();
-      REQUIRE(context_thread_id != main_thread_id);
-    });
+          // Then our function is executed on a background thread
+          auto context_thread_id = std::this_thread::get_id();
+          REQUIRE(context_thread_id != main_thread_id);
+        }
+    );
     stop_context_thread();
 
     // And our function did indeed execute
@@ -180,12 +189,14 @@ TEST_CASE("FeatureScope", "[unit][core]") {
 
     // And then we enqueue a read-only function that will run thereafter
     int num_executions = 0;
-    scope.ExecuteOnContextThread([&](const CoreContext& ctx, EventWriter) {
-      // Then the CoreContext snapshot passed to our second function reflects the
-      // modifications made by the first
-      REQUIRE(ReadContextValue(ctx) == 0xbeef);
-      num_executions++;
-    });
+    scope.ExecuteOnContextThread(
+        [&](const CoreContext& ctx, const EventWriter&, const MessagePublisher&) {
+          // Then the CoreContext snapshot passed to our second function reflects the
+          // modifications made by the first
+          REQUIRE(ReadContextValue(ctx) == 0xbeef);
+          num_executions++;
+        }
+    );
 
     // And both functions actually ran
     stop_context_thread();
@@ -213,7 +224,9 @@ TEST_CASE("FeatureScope", "[unit][core]") {
       generation++;
       WriteContextValue(ctx, generation);
     };
-    auto consume = [](const CoreContext& ctx, EventWriter event_writer) {
+    auto consume = [](const CoreContext& ctx,
+                      const EventWriter& event_writer,
+                      const MessagePublisher&) {
       const uint64_t value = ReadContextValue(ctx);
       char buf[20];
       auto res = std::to_chars(buf, buf + sizeof(buf), value);
@@ -234,6 +247,22 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     REQUIRE(context_consumer.events[0] == 1);
     REQUIRE(context_consumer.events[1] == 1);
     REQUIRE(context_consumer.events[2] == 3);
+  }
+
+  SECTION("M publish messages produced from context-thread function") {
+    // Given a single feature
+    FeatureState feature;
+    FeatureScope scope = feature.CreateScope(context_provider, context_queue);
+
+    // When that feature produces a message from the context thread
+    scope.ExecuteOnContextThread(
+        [](const CoreContext&, const EventWriter&, const MessagePublisher& publisher) {
+          publisher(ContextChangedMessage{MOCK_CONTEXT});
+        }
+    );
+    stop_context_thread();
+
+    REQUIRE(feature.num_messages_produced == 1);
   }
 
   SECTION("M handle concurrently-enqueued operations") {
@@ -268,7 +297,8 @@ TEST_CASE("FeatureScope", "[unit][core]") {
         // On each iteration, enqueue a function that will run on the context thread and
         // produce an event with the latest value read from CoreContext
         scope.ExecuteOnContextThread([](const CoreContext& ctx,
-                                        EventWriter event_writer) {
+                                        const EventWriter& event_writer,
+                                        const MessagePublisher&) {
           // Produce an event whose payload is just a string version of our value
           GenerateUInt64Event(event_writer, ReadContextValue(ctx));
         });
@@ -311,13 +341,15 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     // And a promise that will block the context thread until we explicitly resolve it
     std::promise<void> gate;
     std::future<void> gate_signal = gate.get_future();
-    scope.ExecuteOnContextThread([&](const CoreContext&, EventWriter) {
-      gate_signal.wait();
-    });
+    scope.ExecuteOnContextThread([&](const CoreContext&,
+                                     const EventWriter&,
+                                     const MessagePublisher&) { gate_signal.wait(); });
 
     // When we enqueue a bunch of functions to run on the context thread
     for (size_t i = 0; i < MAX_EVENTS; i++) {
-      scope.ExecuteOnContextThread([i](const CoreContext&, EventWriter event_writer) {
+      scope.ExecuteOnContextThread([i](const CoreContext&,
+                                       const EventWriter& event_writer,
+                                       const MessagePublisher&) {
         GenerateUInt64Event(event_writer, i);
       });
     }

@@ -191,7 +191,9 @@ void Rum::DispatchAsync(const RumCommand& command) {
   // dispatched: when this function is executed, the context thread will process the
   // command, updating internal RUM state and potentially producing events
   scope.ExecuteOnContextThread(
-      [weak_rum, cmd = command](const CoreContext& context, const EventWriter& writer) {
+      [weak_rum, cmd = command](
+          const CoreContext& context, const EventWriter& writer, const MessagePublisher&
+      ) {
         // Single-level check: Is Rum object still alive?
         auto rum = weak_rum.lock();
         if (!rum) {

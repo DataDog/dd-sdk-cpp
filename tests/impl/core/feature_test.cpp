@@ -26,9 +26,11 @@ class CoolFeature : public MockFeature {
   CoolFeature() : MockFeature(CreateFeatureId("COOL"), "coolfeature") {}
 
   void BlockContextThread(std::future<void>& gate_signal) {
-    _scope->ExecuteOnContextThread([&](const CoreContext&, EventWriter) {
-      gate_signal.wait();
-    });
+    _scope->ExecuteOnContextThread(
+        [&](const CoreContext&, const EventWriter&, const MessagePublisher&) {
+          gate_signal.wait();
+        }
+    );
   }
 };
 
@@ -38,7 +40,9 @@ class ChattyFeature : public MockFeature {
 
   virtual void Start() override {
     _scope->ExecuteOnContextThread(
-        [](const CoreContext&, const impl::EventWriter& writer) { writer("hello", {}); }
+        [](const CoreContext&, const EventWriter& writer, const MessagePublisher&) {
+          writer("hello", {});
+        }
     );
   }
 };

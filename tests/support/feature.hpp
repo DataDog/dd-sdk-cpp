@@ -25,11 +25,11 @@ struct CapturedEvent {
       : data(event), metadata(event_metadata) {}
 };
 
-struct CapturedMessage {
+struct CapturedDiagnosticMessage {
   DiagnosticLevel level;
   std::string text;
 
-  explicit CapturedMessage(const DiagnosticMessage& message)
+  explicit CapturedDiagnosticMessage(const DiagnosticMessage& message)
       : level(message.level), text(message.text) {}
 };
 
@@ -42,7 +42,8 @@ class FeatureTest {
 
  public:
   std::vector<CapturedEvent> events;
-  std::vector<CapturedMessage> messages;
+  std::vector<FeatureMessage> feature_messages;
+  std::vector<CapturedDiagnosticMessage> diagnostic_messages;
 
   explicit FeatureTest(const CoreContext& context) : _context_provider(context) {}
 
@@ -55,13 +56,18 @@ class FeatureTest {
       events.emplace_back(event, event_metadata);
       return true;
     };
+    auto message_publisher = [this](FeatureMessage message) {
+      feature_messages.emplace_back(std::move(message));
+      return true;
+    };
     auto diagnostic_handler = [this](const DiagnosticMessage& message) {
-      messages.emplace_back(message);
+      diagnostic_messages.emplace_back(message);
     };
     feature->OnCoreStarted(
         FeatureScope::CreateForTesting(
             _context_provider,
             event_writer,
+            message_publisher,
             DiagnosticLogger(diagnostic_handler, DiagnosticLevel::Debug)
         )
     );

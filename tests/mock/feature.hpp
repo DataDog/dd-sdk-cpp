@@ -86,7 +86,8 @@ class MockFeature : public impl::Feature {
     std::string metadata(event_metadata.data(), event_metadata.size());
     _scope->ExecuteOnContextThread([event_data, metadata](
                                        const impl::CoreContext&,
-                                       const impl::EventWriter& writer
+                                       const impl::EventWriter& writer,
+                                       const impl::MessagePublisher&
                                    ) { writer(event_data, metadata); });
     return true;
   }

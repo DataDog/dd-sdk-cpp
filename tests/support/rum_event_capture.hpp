@@ -95,6 +95,7 @@ class RumEventCapture {
             FeatureScope::CreateForTesting(
                 context_provider,
                 _event_func,
+                [](FeatureMessage) { return true; },
                 DiagnosticLogger(
                     [&](const DiagnosticMessage& message) {
                       switch (message.level) {
