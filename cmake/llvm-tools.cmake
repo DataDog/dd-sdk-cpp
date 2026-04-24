@@ -1,19 +1,27 @@
 # Canonical version of clang-format and clang-tidy used to format and lint SDK source
 set(LLVM_TOOLS_VERSION "20.1.8")
 
+# Major version used as the resource directory name within LLVM installations
+# (e.g. lib/clang/20/include/ for 20.1.8)
+string(REGEX MATCH "^[0-9]+" LLVM_TOOLS_MAJOR_VERSION "${LLVM_TOOLS_VERSION}")
+
 # Use llvm-bin/ to store auto-downloaded clang-format and/or clang-tidy if they're not
 # already installed on the system
-set(LOCAL_LLVM_BIN_DIR "${DD_SDK_ROOT_DIR}/llvm-bin")
+set(LOCAL_LLVM_BIN_DIR "${DD_SDK_ROOT_DIR}/llvm-tools")
 
-# Compute paths to locally-installed tools, if they're present
+# Compute paths to locally-installed tools, if they're present.
+# Binaries live in llvm-bin/bin/ to mirror a real LLVM installation layout, so
+# that clang-tidy can automatically locate its resource directory at
+# llvm-bin/lib/clang/<major-version>/include/ via the standard ../lib/clang/<ver>/
+# relative lookup.
 set(LOCAL_CLANG_FORMAT_BINARY_NAME "clang-format-${LLVM_TOOLS_VERSION}")
 set(LOCAL_CLANG_TIDY_BINARY_NAME "clang-tidy-${LLVM_TOOLS_VERSION}")
 if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(LOCAL_CLANG_FORMAT_BINARY_NAME "${LOCAL_CLANG_FORMAT_BINARY_NAME}.exe")
     set(LOCAL_CLANG_TIDY_BINARY_NAME "${LOCAL_CLANG_TIDY_BINARY_NAME}.exe")
 endif()
-set(LOCAL_CLANG_FORMAT_BINARY "${LOCAL_LLVM_BIN_DIR}/${LOCAL_CLANG_FORMAT_BINARY_NAME}")
-set(LOCAL_CLANG_TIDY_BINARY "${LOCAL_LLVM_BIN_DIR}/${LOCAL_CLANG_TIDY_BINARY_NAME}")
+set(LOCAL_CLANG_FORMAT_BINARY "${LOCAL_LLVM_BIN_DIR}/bin/${LOCAL_CLANG_FORMAT_BINARY_NAME}")
+set(LOCAL_CLANG_TIDY_BINARY "${LOCAL_LLVM_BIN_DIR}/bin/${LOCAL_CLANG_TIDY_BINARY_NAME}")
 
 # If we want clang-format, attempt to find an already-installed version at our desired
 # version, and set CLANG_FORMAT_BINARY if found
@@ -147,8 +155,8 @@ if(SHOULD_DOWNLOAD_LLVM)
         message(FATAL_ERROR "Unsupported platform for automatic LLVM tool download: ${CMAKE_SYSTEM_NAME}")
     endif()
 
-    # Ensure that llvm-bin/ exists
-    file(MAKE_DIRECTORY "${LOCAL_LLVM_BIN_DIR}")
+    # Ensure that llvm-bin/ and llvm-bin/bin/ exist
+    file(MAKE_DIRECTORY "${LOCAL_LLVM_BIN_DIR}/bin")
     set(LOCAL_LLVM_ARCHIVE "${LOCAL_LLVM_BIN_DIR}/${LLVM_ARCHIVE_NAME}.tar.xz")
 
     # Fetch the LLVM release archive from GitHub. A stale, partial, or corrupt
@@ -220,9 +228,9 @@ if(SHOULD_DOWNLOAD_LLVM)
             message(FATAL_ERROR "Failed to extract clang-format from archive")
         endif()
 
-        # Copy to llvm-bin/clang-format-{version} and chmod +x
-        file(COPY "${LOCAL_LLVM_BIN_DIR}/${CLANG_FORMAT_ARCHIVE_PATH}" DESTINATION "${LOCAL_LLVM_BIN_DIR}")
-        file(RENAME "${LOCAL_LLVM_BIN_DIR}/${CLANG_FORMAT_ARCHIVE_FILENAME}" "${LOCAL_CLANG_FORMAT_BINARY}")
+        # Copy to llvm-bin/bin/clang-format-{version} and chmod +x
+        file(COPY "${LOCAL_LLVM_BIN_DIR}/${CLANG_FORMAT_ARCHIVE_PATH}" DESTINATION "${LOCAL_LLVM_BIN_DIR}/bin")
+        file(RENAME "${LOCAL_LLVM_BIN_DIR}/bin/${CLANG_FORMAT_ARCHIVE_FILENAME}" "${LOCAL_CLANG_FORMAT_BINARY}")
         if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
             execute_process(COMMAND chmod +x "${LOCAL_CLANG_FORMAT_BINARY}")
         endif()
@@ -245,12 +253,32 @@ if(SHOULD_DOWNLOAD_LLVM)
             message(FATAL_ERROR "Failed to extract clang-tidy from archive")
         endif()
 
-        # Copy to llvm-bin/clang-tidy-{version} and chmod +x
-        file(COPY "${LOCAL_LLVM_BIN_DIR}/${CLANG_TIDY_ARCHIVE_PATH}" DESTINATION "${LOCAL_LLVM_BIN_DIR}")
-        file(RENAME "${LOCAL_LLVM_BIN_DIR}/${CLANG_TIDY_ARCHIVE_FILENAME}" "${LOCAL_CLANG_TIDY_BINARY}")
+        # Copy to llvm-bin/bin/clang-tidy-{version} and chmod +x
+        file(COPY "${LOCAL_LLVM_BIN_DIR}/${CLANG_TIDY_ARCHIVE_PATH}" DESTINATION "${LOCAL_LLVM_BIN_DIR}/bin")
+        file(RENAME "${LOCAL_LLVM_BIN_DIR}/bin/${CLANG_TIDY_ARCHIVE_FILENAME}" "${LOCAL_CLANG_TIDY_BINARY}")
         if(NOT CMAKE_SYSTEM_NAME STREQUAL "Windows")
             execute_process(COMMAND chmod +x "${LOCAL_CLANG_TIDY_BINARY}")
         endif()
+
+        # Extract the clang-tidy resource directory (compiler built-in headers such as
+        # stdarg.h, stddef.h, etc.) from the archive alongside the binary. Clang-based
+        # tools locate these headers by walking up from their own binary directory to
+        # ../lib/clang/<major-version>/include/, so we mirror the standard LLVM
+        # installation layout: llvm-bin/bin/clang-tidy-* and llvm-bin/lib/clang/20/.
+        set(_DD_CLANG_TIDY_RESOURCE_ARCHIVE_DIR
+            "${LLVM_ARCHIVE_NAME}/lib/clang/${LLVM_TOOLS_MAJOR_VERSION}/include")
+        message(STATUS "Extracting clang-tidy resource directory (${_DD_CLANG_TIDY_RESOURCE_ARCHIVE_DIR})...")
+        file(ARCHIVE_EXTRACT
+            INPUT "${LOCAL_LLVM_ARCHIVE}"
+            DESTINATION "${LOCAL_LLVM_BIN_DIR}"
+            PATTERNS "${_DD_CLANG_TIDY_RESOURCE_ARCHIVE_DIR}/*"
+        )
+        if(NOT EXISTS "${LOCAL_LLVM_BIN_DIR}/${_DD_CLANG_TIDY_RESOURCE_ARCHIVE_DIR}")
+            message(FATAL_ERROR "Failed to extract clang-tidy resource directory from archive")
+        endif()
+        file(COPY "${LOCAL_LLVM_BIN_DIR}/${_DD_CLANG_TIDY_RESOURCE_ARCHIVE_DIR}"
+             DESTINATION "${LOCAL_LLVM_BIN_DIR}/lib/clang/${LLVM_TOOLS_MAJOR_VERSION}")
+        unset(_DD_CLANG_TIDY_RESOURCE_ARCHIVE_DIR)
 
         # Set CLANG_TIDY_BINARY
         set(CLANG_TIDY_BINARY "${LOCAL_CLANG_TIDY_BINARY}")

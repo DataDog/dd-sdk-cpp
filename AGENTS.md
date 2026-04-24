@@ -49,11 +49,11 @@ command also fixes an existing `build/` cache that was previously configured
 with them disabled.
 
 `DD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON` lets CMake download clang-format and
-clang-tidy 20.1.8 into `llvm-bin/` automatically if they are not already on
+clang-tidy 20.1.8 into `llvm-tools/` automatically if they are not already on
 `PATH`. The download is ~1 GB on Linux and ~1.4 GB on macOS — expect the first
 configure to take several minutes.
 
-If the configure fails with an LLVM archive hash mismatch, delete `llvm-bin/`
+If the configure fails with an LLVM archive hash mismatch, delete `llvm-tools/`
 and rerun the configure. The auto-installer retries once internally, but a
 persistently-corrupt download means the cached file must be removed.
 
@@ -62,7 +62,7 @@ persistently-corrupt download means the cached file must be removed.
 - Do **not** run `clang-format` directly on individual files. Always use the
   CMake `format` / `check-format` targets so the set of formatted files
   matches CI (`examples include-c include-cpp src tests`).
-- Do **not** commit changes inside `build/` or `llvm-bin/`; they are local
+- Do **not** commit changes inside `build/` or `llvm-tools/`; they are local
   build artifacts and are ignored by `.gitignore`.
 - Do **not** bypass pre-commit hooks with `--no-verify`. If a hook fails,
   fix the underlying problem.
