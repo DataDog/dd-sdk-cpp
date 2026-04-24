@@ -318,7 +318,8 @@ DATADOG_API void dd_core_set_tracking_consent(
  * Sets user info in the global SDK context. The values will appear in the `usr` object
  * on RUM and log events.
  *
- * Any field may be NULL or empty to leave it unset. To supply additional user
+ * `id` must be a non-NULL, non-empty string; the call is ignored otherwise. `name` and
+ * `email` may be NULL or empty to leave them unset. To supply additional user
  * properties beyond the standard fields, pass an object-type `dd_attribute_t` as
  * `extra_info`; those properties will be merged into the `usr` JSON object. Pass NULL
  * to omit extra properties.

@@ -113,17 +113,29 @@ void Core::SetTrackingConsent(TrackingConsent value) {
   }
 }
 
+void Core::UpdateContext(const std::function<void(CoreContext&)>& callback) {
+  if (_context_queue) {
+    auto* cp = _context_provider.get();
+    _context_queue->Push([cp, callback]() { cp->Update(callback); });
+  } else {
+    _context_provider->Update(callback);
+  }
+}
+
 void Core::SetUserInfo(
     std::string_view id,
     std::optional<std::string_view> name,
     std::optional<std::string_view> email,
     const Attribute& extra
 ) {
-  _context_provider->Update([&](CoreContext& ctx) {
+  UpdateContext([id = std::string(id),
+                 name = name ? std::optional<std::string>(*name) : std::nullopt,
+                 email = email ? std::optional<std::string>(*email) : std::nullopt,
+                 extra](CoreContext& ctx) {
     auto& ui = ctx.user_info.emplace();
     ui.id = id;
-    ui.name = name ? std::optional<std::string>(*name) : std::nullopt;
-    ui.email = email ? std::optional<std::string>(*email) : std::nullopt;
+    ui.name = name;
+    ui.email = email;
     if (extra.GetType() == ValueType::Object) {
       ui.extra = extra;
     }
@@ -134,7 +146,7 @@ void Core::AddUserExtraInfo(const Attribute& extra) {
   if (extra.GetType() != ValueType::Object || extra.GetObjectPropertyCount() == 0) {
     return;
   }
-  _context_provider->Update([&](CoreContext& ctx) {
+  UpdateContext([extra](CoreContext& ctx) {
     if (!ctx.user_info) {
       ctx.user_info.emplace();
     }
@@ -145,7 +157,7 @@ void Core::AddUserExtraInfo(const Attribute& extra) {
 }
 
 void Core::ClearUserInfo() {
-  _context_provider->Update([](CoreContext& ctx) { ctx.user_info.reset(); });
+  UpdateContext([](CoreContext& ctx) { ctx.user_info.reset(); });
 }
 
 bool Core::Init() {

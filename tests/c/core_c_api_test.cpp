@@ -62,6 +62,31 @@ TEST_CASE("dd_core user info", "[unit][core][c-api]") {
     dd_core_destroy(core);
   }
 
+  SECTION("M log error and ignore W dd_core_set_user_info called before start") {
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+
+    // When we set user info before starting
+    dd_core_set_user_info(core, "user-pre", "Pre Start", "pre@example.com", nullptr);
+    dd_core_start(core);
+
+    // Then an error is emitted
+    REQUIRE(test.c_diagnostics.size() == 1);
+    REQUIRE(test.c_diagnostics[0].level == DD_DIAGNOSTIC_LEVEL_ERROR);
+
+    // And subsequent log events contain no usr field
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(!events[0].contains("usr"));
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+
   SECTION("M log error and ignore W dd_core_set_user_info called with null id") {
     auto test = CoreTestHarness::Init();
     dd_core_t* core = CoreTestHarness::WrapForC(test);

@@ -183,10 +183,7 @@ CoreContext::CoreContext(
 )
     : http(std::make_shared<HttpContext>(config)), os(&os_info), device(&device_info) {}
 
-void CoreContext::Reset() {
-  rum.reset();
-  user_info.reset();
-}
+void CoreContext::Reset() { rum.reset(); }
 
 CoreContextProvider::CoreContextProvider(const CoreContext& context)
     : _context(context) {}

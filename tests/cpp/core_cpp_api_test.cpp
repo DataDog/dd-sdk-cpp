@@ -569,6 +569,28 @@ TEST_CASE("Core user info", "[unit][core][cpp-api]") {
     REQUIRE(!events[0].contains("usr"));
   }
 
+  SECTION("M log error and ignore W SetUserInfo called before Start") {
+    // Given a core that has not been started
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+
+    // When we set user info before starting
+    core->SetUserInfo("user-pre", "Pre Start", "pre@example.com");
+    core->Start();
+
+    // Then an error is logged
+    REQUIRE(test.cpp_diagnostics.size() == 1);
+    REQUIRE(test.cpp_diagnostics[0].level == DiagnosticLevel::Error);
+
+    // And subsequent log events contain no usr object
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("usr"));
+  }
+
   SECTION("M safely do nothing W this wraps nullptr") {
     CoreConfig invalid_config("", "", "");
     invalid_config.SetDiagnosticHandler(nullptr);

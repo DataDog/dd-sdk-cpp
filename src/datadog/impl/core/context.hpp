@@ -156,7 +156,7 @@ struct CoreContext {
    * to populate the `usr` field on outgoing events.
    */
   struct UserInfo {
-    std::string id;
+    std::optional<std::string> id;
     std::optional<std::string> name;
     std::optional<std::string> email;
     Attribute extra;

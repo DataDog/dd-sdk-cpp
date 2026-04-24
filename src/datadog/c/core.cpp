@@ -296,6 +296,13 @@ void dd_core_set_user_info(
   if (!core || !core->impl) {
     return;
   }
+  if (!core->impl->IsStarted()) {
+    core->diagnostic_logger.Error(
+        "dd_core_set_user_info call ignored: core must be started before setting user "
+        "info"
+    );
+    return;
+  }
   if (!id || !id[0]) {
     core->diagnostic_logger.Error(
         "dd_core_set_user_info call ignored: application must supply a non-empty id"
@@ -316,6 +323,13 @@ void dd_core_add_user_extra_info(dd_core_t* core, const dd_attribute_t* extra_in
   if (!core || !core->impl) {
     return;
   }
+  if (!core->impl->IsStarted()) {
+    core->diagnostic_logger.Error(
+        "dd_core_add_user_extra_info call ignored: core must be started before setting "
+        "user info"
+    );
+    return;
+  }
   if (!extra_info || extra_info->type != DD_VALUE_TYPE_OBJECT) {
     return;
   }
@@ -325,9 +339,17 @@ void dd_core_add_user_extra_info(dd_core_t* core, const dd_attribute_t* extra_in
 }
 
 void dd_core_clear_user_info(dd_core_t* core) {
-  if (core && core->impl) {
-    core->impl->ClearUserInfo();
+  if (!core || !core->impl) {
+    return;
   }
+  if (!core->impl->IsStarted()) {
+    core->diagnostic_logger.Error(
+        "dd_core_clear_user_info call ignored: core must be started before setting "
+        "user info"
+    );
+    return;
+  }
+  core->impl->ClearUserInfo();
 }
 }
 

@@ -385,11 +385,11 @@ class Core {
 
   /**
    * Sets user info in the global SDK context. Fields will appear in the `usr` object
-   * on RUM and log events. Pass an empty string for any field you wish to leave unset.
+   * on RUM and log events. Pass an empty string for name or email to leave them unset.
    *
-   * @param id User identifier.
-   * @param name User display name.
-   * @param email User email address.
+   * @param id User identifier. Must be non-empty; the call is ignored if empty.
+   * @param name User display name. Pass an empty string to leave unset.
+   * @param email User email address. Pass an empty string to leave unset.
    * @param extra_info Optional object attribute containing additional user properties.
    *  Properties in this object are merged into the `usr` JSON object alongside the
    *  standard fields. Must be an object-type Attribute; any other type is ignored.

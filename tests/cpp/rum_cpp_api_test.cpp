@@ -3469,6 +3469,28 @@ TEST_CASE("Rum user info", "[unit][rum][cpp-api]") {
     REQUIRE(vitals[0]["usr"]["email"] == "jane@example.com");
   }
 
+  SECTION("M omit usr.id W AddUserExtraInfo called without SetUserInfo") {
+    // Given a started core with RUM, where only extra user attributes are set
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto rum = Rum::Register(core, RumConfig("a991ca10-4004-4004-4004-beefbeefbeef"));
+    REQUIRE(core->Start());
+    Attribute extra = Attribute::Object(1);
+    extra.SetObjectProperty("plan", Attribute::String("enterprise"));
+    core->AddUserExtraInfo(extra);
+
+    // When we emit a view event
+    rum->StartView("my-view", "My View");
+    core->Stop();
+
+    // Then the view contains the extra attribute but no empty id
+    auto events = MergeJsonArrays(test.client.requests);
+    auto views = filter_events("view", events);
+    REQUIRE(!views.empty());
+    REQUIRE(views[0]["usr"]["plan"] == "enterprise");
+    REQUIRE(!views[0]["usr"].contains("id"));
+  }
+
   SECTION("M omit usr from all event types W no user info set") {
     auto test = CoreTestHarness::Init();
     auto core = CoreTestHarness::WrapForCpp(test);

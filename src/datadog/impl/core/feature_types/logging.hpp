@@ -22,7 +22,7 @@ namespace datadog::impl {
  * merged inline alongside the standard string fields.
  */
 struct LogUserInfo {
-  OmitIfEmpty<std::string> id;
+  OmitIfNoValue<std::string> id;
   OmitIfNoValue<std::string> name;
   OmitIfNoValue<std::string> email;
   Attribute extra;

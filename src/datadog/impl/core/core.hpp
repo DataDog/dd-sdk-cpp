@@ -387,8 +387,12 @@ class Core {
    */
   void Stop();
 
+ public:
+  bool IsStarted() const { return _state == CoreState::Started; }
+
  private:
   bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
+  void UpdateContext(const std::function<void(CoreContext&)>& callback);
 
  private:
   // Initialized in ctor
