@@ -344,16 +344,16 @@ TEST_CASE("Core Messaging", "[unit]") {
     auto feature = std::make_shared<MessageHandlerFeature>();
     REQUIRE(core.RegisterFeature(feature));
 
-    // First run: start triggers one context update, stop drains both the context
-    // thread and the messaging thread before returning
-    REQUIRE(core.Start());
-    core.Stop();
-    REQUIRE(feature->messages_received.load() == 1);
-
-    // Second run: the handler must still be registered after the restart; the
-    // same context update should deliver a second message
+    // First run: Core::Start() buffers an initial ContextChangedMessage before
+    // OnCoreStarted(); MessageHandlerFeature::Start() enqueues a second via
+    // UpdateContext(). Both are delivered before Stop() returns.
     REQUIRE(core.Start());
     core.Stop();
     REQUIRE(feature->messages_received.load() == 2);
+
+    // Second run: both messages repeat; the handler remains registered across restarts
+    REQUIRE(core.Start());
+    core.Stop();
+    REQUIRE(feature->messages_received.load() == 4);
   }
 }
