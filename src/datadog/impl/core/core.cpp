@@ -76,7 +76,9 @@ Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
       ),
       _diagnostic_logger(_config.diagnostic_handler, _config.diagnostic_threshold),
       _context_provider(
-          std::make_unique<CoreContextProvider>(CoreContext(_immutable_context))
+          std::make_unique<CoreContextProvider>(
+              CoreContext(_immutable_context, _config.tracking_consent)
+          )
       ),
       _subsystems(std::move(subsystems)) {
   DATADOG_ASSERT(_subsystems.fs, "Core created with no filesystem interface");
@@ -100,8 +102,7 @@ void Core::SetTrackingConsent(TrackingConsent value) {
       // If the core is running, send a message using the storage queue
       DATADOG_ASSERT(
           _storage_queue,
-          "_storage_queue is invalid with CoreState::Started on "
-          "SetTrackingConsent"
+          "_storage_queue is invalid with CoreState::Started on SetTrackingConsent"
       );
       _storage_queue->Push(StorageMessage::TrackingConsentChanged(value));
     } else {
@@ -113,6 +114,11 @@ void Core::SetTrackingConsent(TrackingConsent value) {
         }
       }
     }
+
+    // Update our CoreContext value to reflect the latest tracking consent value, so
+    // that feature implementations which need to know our tracking-consent state (like
+    // CrashReporting) will be notified via ContextChangedMessage
+    UpdateContext([value](CoreContext& ctx) { ctx.tracking_consent = value; });
   }
 }
 

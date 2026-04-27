@@ -56,7 +56,9 @@ ImmutableContext::ImmutableContext(
           os->version
       )) {}
 
-CoreContext::CoreContext(const ImmutableContext& im)
+CoreContext::CoreContext(
+    const ImmutableContext& im, TrackingConsent initial_tracking_consent
+)
     : os(im.os),
       device(im.device),
       client_token(im.client_token),
@@ -66,7 +68,8 @@ CoreContext::CoreContext(const ImmutableContext& im)
       source(im.source),
       sdk_version(im.sdk_version),
       intake_origin(im.intake_origin),
-      user_agent(im.user_agent) {}
+      user_agent(im.user_agent),
+      tracking_consent(initial_tracking_consent) {}
 
 void CoreContext::Reset() { rum.reset(); }
 

@@ -27,4 +27,6 @@ static const datadog::CoreConfig MOCK_CONTEXT_CONFIG{
 static const datadog::impl::ImmutableContext MOCK_IMMUTABLE_CONTEXT{
     MOCK_CONTEXT_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO, "mock", "0.0.0"
 };
-static const datadog::impl::CoreContext MOCK_CONTEXT{MOCK_IMMUTABLE_CONTEXT};
+static const datadog::impl::CoreContext MOCK_CONTEXT{
+    MOCK_IMMUTABLE_CONTEXT, datadog::TrackingConsent::Pending
+};

@@ -70,7 +70,9 @@ struct CoreContext {
    * Initializes a new CoreContext from the provided SDK config, OS info, and device
    * info.
    */
-  explicit CoreContext(const ImmutableContext& im);
+  explicit CoreContext(
+      const ImmutableContext& im, TrackingConsent initial_tracking_consent
+  );
 
   // === Lightweight views of ImmutableContext members owned by the Core ===
 
@@ -137,6 +139,14 @@ struct CoreContext {
    * e.g. `my.service/1.0.0 libcurl/8.11.0 (ThinkPad-T14-Gen-2; Ubuntu/22.04);`
    */
   std::string_view user_agent;
+
+  // === Essential SDK state that may change during SDK operation ===
+
+  /**
+   * Current tracking consent state for this SDK instance. Initialized from `CoreConfig`
+   * and updated whenever the application invokes `Core::SetTrackingConsent()`.
+   */
+  TrackingConsent tracking_consent;
 
   // === Feature-specific context values that may change during SDK operation ===
 

@@ -26,7 +26,7 @@ TEST_CASE("RequestBuilder", "[unit][core]") {
   config.Internal_SetSource("some-sdk");
   config.Internal_SetSdkVersion("4.5.6");
   ImmutableContext imm(config, MOCK_OS_INFO, MOCK_DEVICE_INFO, "http-client", "1.1.2");
-  CoreContext ctx(imm);
+  CoreContext ctx(imm, TrackingConsent::Pending);
 
   // And a RequestBuilder initialized from that context
   RequestBuilder builder(ctx);
