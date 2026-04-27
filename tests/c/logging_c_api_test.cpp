@@ -1254,6 +1254,138 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
   }
 }
 
+TEST_CASE("dd_logger user info", "[unit][logging][c-api]") {
+  SECTION("M include usr in log events W dd_core_set_user_info is called") {
+    // Given a started core with logging
+    auto test = CoreTestHarness::Init();
+    test.clock.FreezeAtMilliseconds(1700000000000);
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+    dd_core_start(core);
+
+    // When we set user info and emit a log message
+    dd_core_set_user_info(core, "user-123", "Jane Doe", "jane@example.com", nullptr);
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+
+    // Then the log event contains the usr object
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(events[0]["usr"]["name"] == "Jane Doe");
+    REQUIRE(events[0]["usr"]["email"] == "jane@example.com");
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M include usr extra attributes W dd_core_set_user_info called with extra") {
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+    dd_core_start(core);
+
+    // When we set user info with extra attributes
+    dd_attribute_t extra = dd_attribute_object(1);
+    dd_attribute_t role_val = dd_attribute_string("admin");
+    dd_attribute_object_property_set(&extra, "role", &role_val);
+    dd_attribute_free(&role_val);
+    dd_core_set_user_info(core, "user-123", "Jane Doe", "jane@example.com", &extra);
+    dd_attribute_free(&extra);
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+
+    // Then the log event contains usr with standard and extra fields
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(events[0]["usr"]["role"] == "admin");
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M merge extra attributes W dd_core_add_user_extra_info is called") {
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+    dd_core_start(core);
+
+    // When we set user info and then add extra info
+    dd_core_set_user_info(core, "user-123", "Jane", "jane@example.com", nullptr);
+    dd_attribute_t extra = dd_attribute_object(1);
+    dd_attribute_t team_val = dd_attribute_string("eng");
+    dd_attribute_object_property_set(&extra, "team", &team_val);
+    dd_attribute_free(&team_val);
+    dd_core_add_user_extra_info(core, &extra);
+    dd_attribute_free(&extra);
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+
+    // Then the log event contains all fields
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(events[0]["usr"]["team"] == "eng");
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+
+  SECTION(
+      "M omit name and email from usr W dd_core_set_user_info called with null "
+      "name/email"
+  ) {
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+    dd_core_start(core);
+
+    // When we set user info with id only (null name and email)
+    dd_core_set_user_info(core, "user-123", nullptr, nullptr, nullptr);
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+
+    // Then usr contains id but no name or email fields
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events[0]["usr"]["id"] == "user-123");
+    REQUIRE(!events[0]["usr"].contains("name"));
+    REQUIRE(!events[0]["usr"].contains("email"));
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M omit usr W dd_core_clear_user_info is called") {
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+    dd_core_start(core);
+
+    // When we set user info then clear it
+    dd_core_set_user_info(core, "user-123", "Jane", "jane@example.com", nullptr);
+    dd_core_clear_user_info(core);
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+
+    // Then the log event contains no usr object
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(!events[0].contains("usr"));
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+}
+
 TEST_CASE("dd_logger thread-safety", "[unit][logging][c-api][thread-safety]") {
   // Given a running SDK with logging enabled
   auto test = CoreTestHarness::Init();

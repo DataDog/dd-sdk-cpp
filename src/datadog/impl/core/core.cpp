@@ -113,15 +113,6 @@ void Core::SetTrackingConsent(TrackingConsent value) {
   }
 }
 
-void Core::UpdateContext(const std::function<void(CoreContext&)>& callback) {
-  if (_context_queue) {
-    auto* cp = _context_provider.get();
-    _context_queue->Push([cp, callback]() { cp->Update(callback); });
-  } else {
-    _context_provider->Update(callback);
-  }
-}
-
 void Core::SetUserInfo(
     std::string_view id,
     std::optional<std::string_view> name,
@@ -618,6 +609,15 @@ bool Core::EnqueueStorageWrite(
   return _storage_queue->Push(
       StorageMessage::EventGenerated(feature_id, event, event_metadata)
   );
+}
+
+void Core::UpdateContext(const std::function<void(CoreContext&)>& callback) {
+  if (_context_queue) {
+    auto* cp = _context_provider.get();
+    _context_queue->Push([cp, callback]() { cp->Update(callback); });
+  } else {
+    _context_provider->Update(callback);
+  }
 }
 
 const platform::IClock& Core::GetClock() const {

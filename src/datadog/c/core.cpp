@@ -273,19 +273,6 @@ void dd_core_set_tracking_consent(dd_core_t* core, dd_tracking_consent_t value) 
   }
 }
 
-bool dd_core_start(dd_core_t* core) {
-  if (core && core->impl) {
-    return core->impl->Start();
-  }
-  return false;
-}
-
-void dd_core_stop(dd_core_t* core) {
-  if (core && core->impl) {
-    core->impl->Stop();
-  }
-}
-
 void dd_core_set_user_info(
     dd_core_t* core,
     const char* id,
@@ -294,13 +281,6 @@ void dd_core_set_user_info(
     const dd_attribute_t* extra_info
 ) {
   if (!core || !core->impl) {
-    return;
-  }
-  if (!core->impl->IsStarted()) {
-    core->diagnostic_logger.Error(
-        "dd_core_set_user_info call ignored: core must be started before setting user "
-        "info"
-    );
     return;
   }
   if (!id || !id[0]) {
@@ -323,13 +303,6 @@ void dd_core_add_user_extra_info(dd_core_t* core, const dd_attribute_t* extra_in
   if (!core || !core->impl) {
     return;
   }
-  if (!core->impl->IsStarted()) {
-    core->diagnostic_logger.Error(
-        "dd_core_add_user_extra_info call ignored: core must be started before setting "
-        "user info"
-    );
-    return;
-  }
   if (!extra_info || extra_info->type != DD_VALUE_TYPE_OBJECT) {
     return;
   }
@@ -339,17 +312,22 @@ void dd_core_add_user_extra_info(dd_core_t* core, const dd_attribute_t* extra_in
 }
 
 void dd_core_clear_user_info(dd_core_t* core) {
-  if (!core || !core->impl) {
-    return;
+  if (core && core->impl) {
+    core->impl->ClearUserInfo();
   }
-  if (!core->impl->IsStarted()) {
-    core->diagnostic_logger.Error(
-        "dd_core_clear_user_info call ignored: core must be started before setting "
-        "user info"
-    );
-    return;
+}
+
+bool dd_core_start(dd_core_t* core) {
+  if (core && core->impl) {
+    return core->impl->Start();
   }
-  core->impl->ClearUserInfo();
+  return false;
+}
+
+void dd_core_stop(dd_core_t* core) {
+  if (core && core->impl) {
+    core->impl->Stop();
+  }
 }
 }
 

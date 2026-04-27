@@ -203,12 +203,6 @@ void Core::SetUserInfo(
   if (!_impl) {
     return;
   }
-  if (!_impl->IsStarted()) {
-    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Core::SetUserInfo call ignored: core must be started before setting user info"
-    );
-    return;
-  }
   if (id.empty()) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Core::SetUserInfo call ignored: application must supply a non-empty id"
@@ -224,31 +218,15 @@ void Core::SetUserInfo(
 }
 
 void Core::AddUserExtraInfo(const Attribute& extra_info) {
-  if (!_impl) {
-    return;
+  if (_impl) {
+    _impl->AddUserExtraInfo(extra_info);
   }
-  if (!_impl->IsStarted()) {
-    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Core::AddUserExtraInfo call ignored: core must be started before setting user "
-        "info"
-    );
-    return;
-  }
-  _impl->AddUserExtraInfo(extra_info);
 }
 
 void Core::ClearUserInfo() {
-  if (!_impl) {
-    return;
+  if (_impl) {
+    _impl->ClearUserInfo();
   }
-  if (!_impl->IsStarted()) {
-    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Core::ClearUserInfo call ignored: core must be started before setting user "
-        "info"
-    );
-    return;
-  }
-  _impl->ClearUserInfo();
 }
 
 bool Core::Start() {
