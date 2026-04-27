@@ -7,7 +7,6 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <atomic>
-#include <catch2/catch_test_macros.hpp>
 #include <utility>
 
 #include "datadog/impl/core/feature_message.hpp"
@@ -17,6 +16,7 @@
 #include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
+#include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
 
