@@ -1,6 +1,6 @@
 build/
 install/
-llvm-bin/
+llvm-tools/
 Testing/
 *.profraw
 .cache/

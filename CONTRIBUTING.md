@@ -28,7 +28,7 @@ We use [**clang-format**](https://clang.llvm.org/docs/ClangFormat.html) for auto
 
 Regardless of the compiler toolchain used to build the SDK, all **clang-format** and **clang-tidy** checks are done using [**version 20.1.8**](https://github.com/llvm/llvm-project/releases/tag/llvmorg-20.1.8) of these tools.
 
-If you enable either tool in your CMake configuration (via `DD_ENABLE_CLANG_TIDY` and `DD_ENABLE_CLANG_FORMAT`), the required versions must be resolvable: either present in your `PATH`, or already installed under `llvm-bin/` (e.g. from a prior auto-install). If you set `-DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON`, CMake will download them to `llvm-bin/` automatically.
+If you enable either tool in your CMake configuration (via `DD_ENABLE_CLANG_TIDY` and `DD_ENABLE_CLANG_FORMAT`), the required versions must be resolvable: either present in your `PATH`, or already installed under `llvm-tools/` (e.g. from a prior auto-install). If you set `-DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON`, CMake will download them to `llvm-tools/` automatically.
 
 Alternatively, you can install the appropriate LLVM/Clang release and ensure that its `bin/` directory is in your PATH.
 
@@ -80,7 +80,7 @@ ctest --test-dir build
 
 Before opening a PR, format and lint your changes. CI runs the equivalent of these commands and will fail on any diff.
 
-First-time setup — configures the build and, if clang-format / clang-tidy 20.1.8 are not already installed, downloads them into `llvm-bin/`. `DD_DEVELOPMENT=ON` already implies `DD_ENABLE_CLANG_FORMAT=ON` and `DD_ENABLE_CLANG_TIDY=ON`; they are passed explicitly below so this command also fixes an existing `build/` that was previously configured with them disabled:
+First-time setup — configures the build and, if clang-format / clang-tidy 20.1.8 are not already installed, downloads them into `llvm-tools/`. `DD_DEVELOPMENT=ON` already implies `DD_ENABLE_CLANG_FORMAT=ON` and `DD_ENABLE_CLANG_TIDY=ON`; they are passed explicitly below so this command also fixes an existing `build/` that was previously configured with them disabled:
 
 ```
 cmake -DDD_DEVELOPMENT=ON \
@@ -116,7 +116,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 
 - **`No rule to make target 'format'`** — you are on an older checkout or the build was configured with `DD_ENABLE_CLANG_FORMAT=OFF`. Reconfigure using the command above.
 - **`The 'format' target is not available in this build`** — clang-format support is disabled or could not be resolved. Follow the hint in the error message, or reconfigure as above.
-- **Hash mismatch during LLVM download** — delete `llvm-bin/` and reconfigure; the auto-installer retries once automatically but will give up after a second failure.
+- **Hash mismatch during LLVM download** — delete `llvm-tools/` and reconfigure; the auto-installer retries once automatically but will give up after a second failure.
 - **Want to skip these tools entirely?** — configure with `-DDD_ENABLE_CLANG_FORMAT=OFF -DDD_ENABLE_CLANG_TIDY=OFF`. Your PR will then need to pass these checks in CI; if you are an external contributor, it is safer to run them locally first.
 
 ## Repository overview
