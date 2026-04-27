@@ -99,6 +99,13 @@ bool BatchWriter::SetTrackingConsent(TrackingConsent value) {
     return true;
   }
 
+  // If we're transitioning out of the consent-pending state, any files in the pending
+  // directory are about to be deleted or moved: ensure that we clear any active-file
+  // details to ensure we stop writing to those files
+  if (_consent == TrackingConsent::Pending) {
+    _active_pending_file.Clear();
+  }
+
   // Store the new value
   _consent = value;
 
