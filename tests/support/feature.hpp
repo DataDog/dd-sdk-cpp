@@ -52,10 +52,11 @@ class FeatureTest {
     // observe the same clean-slate guarantee that production code provides
     _context_provider.Update([](CoreContext& ctx) { ctx.Reset(); });
 
-    auto event_writer = [this](Block event, Block event_metadata) {
-      events.emplace_back(event, event_metadata);
-      return true;
-    };
+    auto event_writer =
+        [this](Block event, Block event_metadata, bool /*bypass_tracking_consent*/) {
+          events.emplace_back(event, event_metadata);
+          return true;
+        };
     auto message_publisher = [this](FeatureMessage message) {
       feature_messages.emplace_back(std::move(message));
       return true;

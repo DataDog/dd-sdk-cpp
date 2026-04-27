@@ -45,7 +45,7 @@ TEST_CASE("RumResourceMap", "[unit][rum]") {
   // And a set of prerequisite values required to initialize new RumResourceScopes
   RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
   MockClock clock;
-  EventWriter writer = [](Block, Block) { return true; };
+  EventWriter writer = [](Block, Block, bool) { return true; };
 
   clock.FreezeAtMilliseconds(1700000000000);
   RumScopeDependencies deps(config, clock);

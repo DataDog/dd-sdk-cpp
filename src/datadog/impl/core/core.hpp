@@ -388,7 +388,12 @@ class Core {
   void Stop();
 
  private:
-  bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
+  bool EnqueueStorageWrite(
+      FeatureId feature_id,
+      Block event,
+      Block event_metadata,
+      bool bypass_tracking_consent
+  );
   void UpdateContext(const std::function<void(CoreContext&)>& callback);
 
  private:

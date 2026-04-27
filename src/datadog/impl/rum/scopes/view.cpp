@@ -566,7 +566,8 @@ void RumViewScope::SendViewEvent(
   // Serialize the event to JSON in a shared buffer, then write it using the provided
   // writer callback
   std::string_view json = deps.EncodeEvent(ev);
-  writer(Block{json.data(), json.size()}, Block{});
+  const bool bypass_tracking_consent = false;
+  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
 }
 
 void RumViewScope::SendErrorEvent(
@@ -627,7 +628,8 @@ void RumViewScope::SendErrorEvent(
   RumEventEnrichment::PopulateCommonProperties(context, ev);
 
   std::string_view json = deps.EncodeEvent(ev);
-  writer(Block{json.data(), json.size()}, Block{});
+  const bool bypass_tracking_consent = false;
+  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
   _num_errors_reported++;
 }
 

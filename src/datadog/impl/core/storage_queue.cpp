@@ -11,11 +11,15 @@
 namespace datadog::impl {
 
 StorageMessage_EventGenerated::StorageMessage_EventGenerated(
-    FeatureId in_feature_id, Block in_event, Block in_event_metadata
+    FeatureId in_feature_id,
+    Block in_event,
+    Block in_event_metadata,
+    bool in_bypass_tracking_consent
 )
     : feature_id(in_feature_id),
       event(in_event.begin(), in_event.end()),
-      event_metadata(in_event_metadata.begin(), in_event_metadata.end()) {}
+      event_metadata(in_event_metadata.begin(), in_event_metadata.end()),
+      bypass_tracking_consent(in_bypass_tracking_consent) {}
 
 StorageMessage::~StorageMessage() {
   // When a union value goes out of the scope, the compiler can't know which
@@ -86,11 +90,15 @@ StorageMessage StorageMessage::TrackingConsentChanged(TrackingConsent value) {
 }
 
 StorageMessage StorageMessage::EventGenerated(
-    FeatureId feature_id, Block event, Block event_metadata
+    FeatureId feature_id,
+    Block event,
+    Block event_metadata,
+    bool bypass_tracking_consent
 ) {
   StorageMessage m{StorageMessageType::EventGenerated};
-  new (&m.payload.event_generated)
-      StorageMessage_EventGenerated{feature_id, event, event_metadata};
+  new (&m.payload.event_generated) StorageMessage_EventGenerated{
+      feature_id, event, event_metadata, bypass_tracking_consent
+  };
   return m;
 }
 

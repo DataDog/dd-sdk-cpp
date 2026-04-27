@@ -41,7 +41,8 @@ class ChattyFeature : public MockFeature {
   virtual void Start() override {
     _scope->ExecuteOnContextThread(
         [](const CoreContext&, const EventWriter& writer, const MessagePublisher&) {
-          writer("hello", {});
+          const bool bypass_tracking_consent = false;
+          writer("hello", {}, bypass_tracking_consent);
         }
     );
   }

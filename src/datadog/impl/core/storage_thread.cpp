@@ -71,7 +71,8 @@ static void _handle_event_generated(
       Block(
           reinterpret_cast<const char*>(m.event_metadata.data()),  // NOLINT
           m.event_metadata.size()
-      )
+      ),
+      m.bypass_tracking_consent
   );
 
   // If the write operation failed, note the error, drop the event, and continue

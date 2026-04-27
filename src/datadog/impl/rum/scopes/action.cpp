@@ -212,7 +212,8 @@ void RumActionScope::SendActionEvent(
   RumEventEnrichment::PopulateCommonProperties(context_param, ev);
 
   std::string_view json = deps.EncodeEvent(ev);
-  writer(Block{json.data(), json.size()}, Block{});
+  const bool bypass_tracking_consent = false;
+  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
   _has_sent_action_event = true;
 }
 

@@ -38,7 +38,7 @@ TEST_CASE("StorageMessage", "[unit]") {
 
     // When creating an EventGenerated message
     auto message =
-        StorageMessage::EventGenerated(feature_id, event_data, metadata_data);
+        StorageMessage::EventGenerated(feature_id, event_data, metadata_data, false);
 
     // Then the message has the correct type and payload
     REQUIRE(message.type == StorageMessageType::EventGenerated);
@@ -61,7 +61,7 @@ TEST_CASE("StorageMessage", "[unit]") {
 
     // When creating an EventGenerated message with empty metadata
     auto message =
-        StorageMessage::EventGenerated(feature_id, event_data, empty_metadata);
+        StorageMessage::EventGenerated(feature_id, event_data, empty_metadata, false);
 
     // Then the message is created successfully with empty metadata
     REQUIRE(message.type == StorageMessageType::EventGenerated);
@@ -87,7 +87,7 @@ TEST_CASE("StorageMessage", "[unit]") {
     Block event_data{"data to be moved"};
     Block metadata_data{"metadata to move"};
     auto original =
-        StorageMessage::EventGenerated(feature_id, event_data, metadata_data);
+        StorageMessage::EventGenerated(feature_id, event_data, metadata_data, false);
 
     // When move constructing from it
     auto moved = std::move(original);
@@ -128,7 +128,7 @@ TEST_CASE("StorageMessage", "[unit]") {
     Block event_data{"swapped event"};
     Block metadata_data{"swapped meta"};
     auto event_msg =
-        StorageMessage::EventGenerated(feature_id, event_data, metadata_data);
+        StorageMessage::EventGenerated(feature_id, event_data, metadata_data, false);
 
     // When move assigning from different union types
     consent_msg = std::move(event_msg);
@@ -154,8 +154,9 @@ TEST_CASE("StorageMessage", "[unit]") {
       Block large_metadata{"large metadata block for destruction testing"};
 
       // When creating and then destroying the message
-      auto message =
-          StorageMessage::EventGenerated(feature_id, large_event_data, large_metadata);
+      auto message = StorageMessage::EventGenerated(
+          feature_id, large_event_data, large_metadata, false
+      );
 
       // Then destruction should happen without issues when message goes out of
       // scope

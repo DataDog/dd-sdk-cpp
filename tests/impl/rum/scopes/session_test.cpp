@@ -60,7 +60,7 @@ class SessionFixture {
             std::nullopt
         ),
         context(MOCK_CONTEXT),
-        writer([](Block, Block) { return true; }) {
+        writer([](Block, Block, bool) { return true; }) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -917,7 +917,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         std::nullopt
     );
     CoreContext local_context = MOCK_CONTEXT;
-    EventWriter local_writer = [](Block, Block) { return true; };
+    EventWriter local_writer = [](Block, Block, bool) { return true; };
 
     // When the session ends for any reason
     scope.Process(

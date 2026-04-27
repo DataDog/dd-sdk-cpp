@@ -59,9 +59,9 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we write event data, Then our writes are successful
-    REQUIRE(writer.HandleWrite("event-0", {}));
-    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1", false));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // And our event storage directory contains a single batch file with all of our
     // event data serialized to it, TLV-encoded
@@ -93,7 +93,7 @@ TEST_CASE("BatchWriter", "[unit]") {
       std::string event = "e-" + std::to_string(i);
       want.AppendMetadata(event_metadata);
       want.AppendEvent(event);
-      writer.HandleWrite(event, event_metadata);
+      writer.HandleWrite(event, event_metadata, false);
       clock.TickMilliseconds(16);
     }
 
@@ -111,15 +111,15 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we write an event
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
 
     // And then write another event one second later
     clock.TickMilliseconds(1000);
-    REQUIRE(writer.HandleWrite("event-1", {}));
+    REQUIRE(writer.HandleWrite("event-1", {}, false));
 
     // And then wait three seconds before writing another event
     clock.TickMilliseconds(3000);
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // Then our event storage directory contains two batches
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -150,11 +150,11 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we events at T+0:00, then T+0:09, then T+0:10
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
     clock.TickMilliseconds(9000);
-    REQUIRE(writer.HandleWrite("event-1", {}));
+    REQUIRE(writer.HandleWrite("event-1", {}, false));
     clock.TickMilliseconds(1000);
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // Then our event storage directory contains two batches
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -183,11 +183,11 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we events at T+0:00, then T+0:33, then T+0:35
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
     clock.TickMilliseconds(33000);
-    REQUIRE(writer.HandleWrite("event-1", {}));
+    REQUIRE(writer.HandleWrite("event-1", {}, false));
     clock.TickMilliseconds(2000);
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // Then our event storage directory contains two batches
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -217,13 +217,13 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // When we write four payloads that are exactly 20 bytes each (incl. 6-byte
     // header), with an interval of 10ms between writes
-    REQUIRE(writer.HandleWrite("twenty-bytes-0", {}));
+    REQUIRE(writer.HandleWrite("twenty-bytes-0", {}, false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("twenty-bytes-1", {}));
+    REQUIRE(writer.HandleWrite("twenty-bytes-1", {}, false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("twenty-bytes-2", {}));
+    REQUIRE(writer.HandleWrite("twenty-bytes-2", {}, false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("twenty-bytes-3", {}));
+    REQUIRE(writer.HandleWrite("twenty-bytes-3", {}, false));
 
     // Then our event storage directory contains two batches
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -255,9 +255,9 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we write two 40-byte payloads, separated by 10ms
-    REQUIRE(writer.HandleWrite("twenty-bytes-0", "twenty-bytes-a"));
+    REQUIRE(writer.HandleWrite("twenty-bytes-0", "twenty-bytes-a", false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("twenty-bytes-1", "twenty-bytes-b"));
+    REQUIRE(writer.HandleWrite("twenty-bytes-1", "twenty-bytes-b", false));
 
     // Then our event storage directory contains two batches
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -292,8 +292,8 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we write two 20-byte payloads
-    REQUIRE(writer.HandleWrite("twenty-bytes-0", {}));
-    REQUIRE(writer.HandleWrite("twenty-bytes-1", {}));
+    REQUIRE(writer.HandleWrite("twenty-bytes-0", {}, false));
+    REQUIRE(writer.HandleWrite("twenty-bytes-1", {}, false));
 
     // Then they end up in the same file
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -314,9 +314,9 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we write two 20-byte payloads
-    REQUIRE(writer.HandleWrite("twenty-bytes-0", {}));
+    REQUIRE(writer.HandleWrite("twenty-bytes-0", {}, false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("twenty-bytes-1", {}));
+    REQUIRE(writer.HandleWrite("twenty-bytes-1", {}, false));
 
     // Then they end up in separate files
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -342,7 +342,7 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // When we attempt to write a 20-byte payload, which is larger than any file
     // could contain
-    const bool write_ok = writer.HandleWrite("twenty-bytes-0", {});
+    const bool write_ok = writer.HandleWrite("twenty-bytes-0", {}, false);
 
     // Then the event is not accepted
     REQUIRE(write_ok == false);
@@ -359,11 +359,11 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we write three events, 10ms apart
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("event-1", {}));
+    REQUIRE(writer.HandleWrite("event-1", {}, false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // Then they're split into two files
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -388,11 +388,11 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we write three events, 10ms apart
-    REQUIRE(writer.HandleWrite("event-0", "metadata-0"));
+    REQUIRE(writer.HandleWrite("event-0", "metadata-0", false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1", false));
     clock.TickMilliseconds(10);
-    REQUIRE(writer.HandleWrite("event-2", "metadata-2"));
+    REQUIRE(writer.HandleWrite("event-2", "metadata-2", false));
 
     // Then they're split into two files just the same
     std::vector<std::string> names = fs.Ls(pending_dir_path);
@@ -421,7 +421,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we attempt to write a payload of any size, at any time
-    const bool write_ok = writer.HandleWrite("event-0", {});
+    const bool write_ok = writer.HandleWrite("event-0", {}, false);
 
     // Then the event is not accepted
     REQUIRE(write_ok == false);
@@ -438,7 +438,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     BatchWriter writer = init_writer(config);
 
     // When we attempt to write a payload of any size, at any time
-    const bool write_ok = writer.HandleWrite("event-0", {});
+    const bool write_ok = writer.HandleWrite("event-0", {}, false);
 
     // Then the event is not accepted
     REQUIRE(write_ok == false);
@@ -461,7 +461,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     fs.Touch(pending_prefix + "1700000000004", "nope");
 
     // When we write an event, Then it succeeds
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
 
     // And the newly-written event is stored in a file whose name reflects the next
     // available timestamp value
@@ -489,7 +489,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     }
 
     // When we attempt to write an event
-    bool write_ok = writer.HandleWrite("event-0", {});
+    bool write_ok = writer.HandleWrite("event-0", {}, false);
 
     // Then the event is rejected
     REQUIRE(write_ok == false);
@@ -504,7 +504,7 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // But: When some time passes and we attempt another write
     clock.TickMilliseconds(100);
-    write_ok = writer.HandleWrite("event-1", {});
+    write_ok = writer.HandleWrite("event-1", {}, false);
 
     // Then the event is accepted
     REQUIRE(write_ok == true);
@@ -522,11 +522,11 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And a succession of event writes that should result in two batch files being
     // written
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
     clock.TickMilliseconds(100);
-    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1", false));
     clock.Tick(std::chrono::seconds(60));
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // Then we have two batch files in our directory, as expected
     auto names = fs.Ls(pending_dir_path);
@@ -552,7 +552,7 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And if we subsequently write an event, it is dropped rather than being flushed to
     // storage, since tracking consent is explicitly revoked
-    REQUIRE(writer.HandleWrite("event-3", {}));
+    REQUIRE(writer.HandleWrite("event-3", {}, false));
     REQUIRE(fs.Ls(pending_dir_path).size() == 0);
     REQUIRE(fs.Ls(granted_dir_path).size() == 0);
   }
@@ -566,11 +566,11 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And a succession of event writes that should result in two batch files being
     // written
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
     clock.TickMilliseconds(100);
-    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1", false));
     clock.Tick(std::chrono::seconds(60));
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // Then we have two batch files in our directory, as expected
     auto names = fs.Ls(pending_dir_path);
@@ -600,7 +600,7 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And if we subsequently write an event, it's flushed to storage directly to the
     // 'granted' directory
-    REQUIRE(writer.HandleWrite("event-3", {}));
+    REQUIRE(writer.HandleWrite("event-3", {}, false));
     REQUIRE(fs.Ls(pending_dir_path).size() == 0);
     names = fs.Ls(granted_dir_path);
     std::sort(names.begin(), names.end());
@@ -626,11 +626,11 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And a succession of event writes that should result in two batch files being
     // written
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
     clock.TickMilliseconds(100);
-    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1", false));
     clock.Tick(std::chrono::seconds(60));
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // Then we have two batch files in our directory, as expected
     auto names = fs.Ls(pending_dir_path);
@@ -671,7 +671,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     // Given a BatchWriter and an event in 'intermediate-v1/'
     auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
     BatchWriter writer = init_writer(config);
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
     clock.TickMilliseconds(100);
 
     // And a 'v1/' directory that can not be written to
@@ -708,11 +708,11 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And a succession of event writes that should result in two batch files being
     // written
-    REQUIRE(writer.HandleWrite("event-0", {}));
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
     clock.TickMilliseconds(100);
-    REQUIRE(writer.HandleWrite("event-1", "metadata-1"));
+    REQUIRE(writer.HandleWrite("event-1", "metadata-1", false));
     clock.Tick(std::chrono::seconds(60));
-    REQUIRE(writer.HandleWrite("event-2", {}));
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
 
     // Then we have two batch files in our directory, as expected
     auto names = fs.Ls(granted_dir_path);
@@ -742,10 +742,90 @@ TEST_CASE("BatchWriter", "[unit]") {
 
     // And if we subsequently write an event, it's flushed to the 'pending' directory
     clock.TickMilliseconds(5);
-    REQUIRE(writer.HandleWrite("event-3", {}));
+    REQUIRE(writer.HandleWrite("event-3", {}, false));
     REQUIRE(fs.Ls(granted_dir_path).size() == 2);
     names = fs.Ls(pending_dir_path);
     REQUIRE(names.size() == 1);
     REQUIRE(names[0] == "1700000060105");
+  }
+
+  SECTION(
+      "M write to granted dir W bypass_tracking_consent is true and consent is Pending"
+  ) {
+    // Given a batch writer with consent Pending
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(config, TrackingConsent::Pending);
+
+    // When we write with bypass_tracking_consent = true
+    const bool bypass_tracking_consent = true;
+    REQUIRE(writer.HandleWrite("event-0", {}, bypass_tracking_consent));
+
+    // Then the event is written to the granted directory, not pending
+    REQUIRE(fs.Ls(pending_dir_path).size() == 0);
+    auto names = fs.Ls(granted_dir_path);
+    REQUIRE(names.size() == 1);
+  }
+
+  SECTION(
+      "M write to granted dir W bypass_tracking_consent is true and consent is "
+      "NotGranted"
+  ) {
+    // Given a batch writer with consent NotGranted (which would normally drop the
+    // event)
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(config, TrackingConsent::NotGranted);
+
+    // When we write with bypass_tracking_consent = true
+    const bool bypass_tracking_consent = true;
+    REQUIRE(writer.HandleWrite("event-0", {}, bypass_tracking_consent));
+
+    // Then the event is written to the granted directory despite revoked consent
+    REQUIRE(fs.Ls(pending_dir_path).size() == 0);
+    auto names = fs.Ls(granted_dir_path);
+    REQUIRE(names.size() == 1);
+  }
+
+  SECTION("M write bypass event to granted dir W active file is warm in pending dir") {
+    // Given a batch writer with consent Pending and a prior normal write that has
+    // warmed up _active_file to a file in the pending directory
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(config, TrackingConsent::Pending);
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
+
+    // And a small clock advance that keeps _active_file within its reuse window
+    // (BatchSize::Small max_file_age is ~2850ms)
+    clock.TickMilliseconds(10);
+
+    // When we write a second event with bypass_tracking_consent = true
+    const bool bypass_tracking_consent = true;
+    REQUIRE(writer.HandleWrite("event-1", {}, bypass_tracking_consent));
+
+    // Then event-0 is in the pending directory
+    REQUIRE(fs.Ls(pending_dir_path).size() == 1);
+    REQUIRE(
+        fs.Cat(pending_dir_path + "/1700000000000") ==
+        MockTLVFile().AppendEvent("event-0").ToString()
+    );
+
+    // And event-1 is in the granted directory, not appended to the pending file
+    REQUIRE(fs.Ls(granted_dir_path).size() == 1);
+    REQUIRE(
+        fs.Cat(granted_dir_path + "/1700000000010") ==
+        MockTLVFile().AppendEvent("event-1").ToString()
+    );
+
+    // Next: When we write a _third_ event that _doesn't_ bypass tracking consent, after
+    // another very brief delay
+    clock.TickMilliseconds(10);
+    REQUIRE(writer.HandleWrite("event-2", {}, false));
+
+    // Then our original pending-consent batch file now contains "event-0,event-2": we
+    // don't forget about our existing (and still-valid-for-reuse) batch file just
+    // because we wrote an event to the consent-granted directory
+    REQUIRE(fs.Ls(pending_dir_path).size() == 1);
+    REQUIRE(
+        fs.Cat(pending_dir_path + "/1700000000000") ==
+        MockTLVFile().AppendEvent("event-0").AppendEvent("event-2").ToString()
+    );
   }
 }

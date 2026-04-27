@@ -102,11 +102,6 @@ bool BatchWriter::SetTrackingConsent(TrackingConsent value) {
   // Store the new value
   _consent = value;
 
-  // Clear all state that pertains to the directory where we've been writing files, as
-  // we may be switching to a new directory
-  _last_known_filenames.clear();
-  _active_file.Clear();
-
   // If tracking consent has been revoked, delete all pending data
   if (value == TrackingConsent::NotGranted) {
     // Allow data that was collected while consent was granted to be drained and
@@ -126,18 +121,19 @@ bool BatchWriter::SetTrackingConsent(TrackingConsent value) {
   return true;
 }
 
-bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
+bool BatchWriter::HandleWrite(
+    Block event, Block event_metadata, bool bypass_tracking_consent
+) {
   DATADOG_ASSERT(!event.empty(), "HandleWrite received empty event");
 
-  // Branch on tracking consent to determine the appropriate place for the new event
+  if (bypass_tracking_consent) {
+    return FlushEvent(event, event_metadata, TrackingConsent::Granted);
+  }
+
   switch (_consent) {
-    // If consent is granted or pending, write the event to the latest batch file in the
-    // appropriate directory
     case TrackingConsent::Granted:
     case TrackingConsent::Pending:
-      return FlushEvent(event, event_metadata);
-
-    // If consent has been explicitly revoked, store no data
+      return FlushEvent(event, event_metadata, _consent);
     case TrackingConsent::NotGranted:
       return true;  // Event successfully handled as a no-op
   }
@@ -145,16 +141,9 @@ bool BatchWriter::HandleWrite(Block event, Block event_metadata) {
   return false;
 }
 
-bool BatchWriter::FlushEvent(Block event, Block event_metadata) {
-  // Resolve the appropriate directory path for our current consent value
-  if (_consent == TrackingConsent::NotGranted) {
-    DATADOG_ASSERT(false, "attempted FlushEvent with consent NotGranted");
-    return false;
-  }
-  const StoragePath& consent_dir_path = _consent == TrackingConsent::Granted
-                                            ? _storage.GetGrantedPath()
-                                            : _storage.GetPendingPath();
-
+bool BatchWriter::FlushEvent(
+    Block event, Block event_metadata, TrackingConsent consent
+) {
   // If we don't permit at least 1 write per file, reject all writes
   if (_config.max_writes_per_file <= 0) {
     return false;
@@ -179,9 +168,8 @@ bool BatchWriter::FlushEvent(Block event, Block event_metadata) {
 
   // Determine which file we should write to, and abort if we were unable to resolve an
   // appropriate writable file
-  StoragePath* file_path =
-      PrepareFileForNextWrite(consent_dir_path, event, event_metadata);
-  if (!file_path) {
+  FileDetails* active_file = PrepareFileForNextWrite(consent, event, event_metadata);
+  if (!active_file) {
     // If this error occurs, it's likely due to an underlying I/O error, or else we're
     // flooding the storage thread with 100+ batches worth of event data in a very small
     // time span, such that there are no available timestamps left to use as filenames
@@ -195,12 +183,13 @@ bool BatchWriter::FlushEvent(Block event, Block event_metadata) {
   const bool append = true;
   const bool hold_advisory_lock = false;
   auto open_res = FilesystemWrapper(_fs).OpenForWrite(
-      file_path->CStr(), append, hold_advisory_lock
+      active_file->path.CStr(), append, hold_advisory_lock
   );
   if (open_res.value != FilesystemResult::OK) {
     _diagnostic_logger.Error(
         "Event dropped; could not open batch file for write",
-        {{"path", file_path->Get()}, {"error", FilesystemResultStr(open_res.value)}}
+        {{"path", active_file->path.Get()},
+         {"error", FilesystemResultStr(open_res.value)}}
     );
     return false;
   }
@@ -247,7 +236,8 @@ bool BatchWriter::FlushEvent(Block event, Block event_metadata) {
     // future events
     _diagnostic_logger.Error(
         "Event dropped; write to batch file failed",
-        {{"path", file_path->Get()}, {"error", FilesystemResultStr(write_res.value)}}
+        {{"path", active_file->path.Get()},
+         {"error", FilesystemResultStr(write_res.value)}}
     );
     return false;
   }
@@ -258,23 +248,38 @@ bool BatchWriter::FlushEvent(Block event, Block event_metadata) {
   if (close_res != FilesystemResult::OK) {
     _diagnostic_logger.Warning(
         "Failed to close batch file after event write",
-        {{"path", file_path->Get()}, {"error", FilesystemResultStr(close_res)}}
+        {{"path", active_file->path.Get()}, {"error", FilesystemResultStr(close_res)}}
     );
   }
 
   // Write successful; update our current-file state
-  _active_file.num_writes++;
-  _active_file.num_bytes_written += write_res.bytes_written;
+  active_file->num_writes++;
+  active_file->num_bytes_written += write_res.bytes_written;
   return true;
 }
 
-StoragePath* BatchWriter::PrepareFileForNextWrite(
-    const StoragePath& consent_dir_path, Block event, Block event_metadata
+BatchWriter::FileDetails* BatchWriter::PrepareFileForNextWrite(
+    TrackingConsent consent, Block event, Block event_metadata
 ) {
+  // We should never be this deep in the actually-writing-something-to-a-file code path
+  // when consent is NotGranted
+  DATADOG_ASSERT(
+      consent == TrackingConsent::Pending || consent == TrackingConsent::Granted,
+      "Invalid TrackingConsent value for PrepareFileForNextWrite"
+  );
+
+  // Select the appropriate FileDetails member and directory path based on the consent
+  // value associated with the event we want to write
+  FileDetails& active_file =
+      consent == TrackingConsent::Granted ? _active_granted_file : _active_pending_file;
+  const StoragePath& consent_dir_path = consent == TrackingConsent::Granted
+                                            ? _storage.GetGrantedPath()
+                                            : _storage.GetPendingPath();
+
   // Check our last-used file's age, size, etc. to see if we can reuse it
   const Timestamp current_time = _clock.Now();
-  if (CanReuseFileForNextWrite(current_time, event, event_metadata)) {
-    return &_active_file.path;
+  if (CanReuseFileForNextWrite(active_file, current_time, event, event_metadata)) {
+    return &active_file;
   }
 
   // If not, prepare to write a new file: start by figuring out what to name it
@@ -282,7 +287,7 @@ StoragePath* BatchWriter::PrepareFileForNextWrite(
   if (!next) {
     // Failed to resolve new filename (i.e. listing directory contents failed, or all
     // potential filenames are in use); can't proceed with file creation
-    _active_file.Clear();
+    active_file.Clear();
     return nullptr;
   }
   const uint64_t next_filename_ms = next->first;
@@ -290,23 +295,26 @@ StoragePath* BatchWriter::PrepareFileForNextWrite(
 
   // Reset our state to reflect that we have a new file, then return a non-owning
   // pointer to the buffer that holds the path to that file
-  if (!_active_file.Reset(consent_dir_path, next_filename, next_filename_ms)) {
+  if (!active_file.Reset(consent_dir_path, next_filename, next_filename_ms)) {
     return nullptr;
   }
-  return &_active_file.path;
+  return &active_file;
 }
 
 bool BatchWriter::CanReuseFileForNextWrite(
-    Timestamp current_time, Block event, Block event_metadata
+    const FileDetails& active_file,
+    Timestamp current_time,
+    Block event,
+    Block event_metadata
 ) const {
   // If we have no current file, we need a new one
-  if (_active_file.path.Get().empty()) {
+  if (active_file.path.Get().empty()) {
     return false;
   }
 
   // If the current file is older than our maximum age for a writable file, leave it
   // alone and start a new file
-  const Timestamp presumed_creation_time = _ms_to_timestamp(_active_file.filename_ms);
+  const Timestamp presumed_creation_time = _ms_to_timestamp(active_file.filename_ms);
   const Duration presumed_age = current_time - presumed_creation_time;
   if (presumed_age > _config.max_file_age) {
     return false;
@@ -314,7 +322,7 @@ bool BatchWriter::CanReuseFileForNextWrite(
 
   // If we've reached our hard limit on the number of events recorded in a single file,
   // it's time to start a new batch
-  if (_active_file.num_writes >= _config.max_writes_per_file) {
+  if (active_file.num_writes >= _config.max_writes_per_file) {
     return false;
   }
 
@@ -329,7 +337,7 @@ bool BatchWriter::CanReuseFileForNextWrite(
   // If the file would exceed our hard limit on file size after write, it's time to call
   // it quits on that file and start a new one
   const size_t expected_size_after_write =
-      _active_file.num_bytes_written + num_bytes_to_write;
+      active_file.num_bytes_written + num_bytes_to_write;
   if (expected_size_after_write > _config.max_file_size) {
     return false;
   }
