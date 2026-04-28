@@ -698,7 +698,7 @@ struct RumViewEvent {
           : session_sample_rate(in_session_sample_rate) {}
     };
     // From _common-schema.json
-    const uint8_t format_version{2};
+    uint8_t format_version{2};
     OmitIfNoValue<Session> session;
     OmitIfNoValue<Configuration> configuration;
     OmitIfEmpty<std::string> browser_sdk_version;
@@ -735,7 +735,7 @@ struct RumViewEvent {
   OmitIfZero<Attribute> context;
   // NYI: stream
   // From view-schema.json
-  const std::string_view type{"view"};
+  std::string_view type{"view"};
   // NYI: feature_flags
   // NYI: privacy
 
@@ -1071,7 +1071,7 @@ struct RumActionEvent {
           : session_sample_rate(in_session_sample_rate) {}
     };
     // From _common-schema.json
-    const uint8_t format_version{2};
+    uint8_t format_version{2};
     OmitIfNoValue<Session> session;
     OmitIfNoValue<Configuration> configuration;
     OmitIfEmpty<std::string> browser_sdk_version;
@@ -1107,7 +1107,7 @@ struct RumActionEvent {
   // NYI: stream
 
   // From action-schema.json
-  const std::string_view type{"action"};
+  std::string_view type{"action"};
   Action action;
 
   explicit RumActionEvent(
@@ -1381,7 +1381,7 @@ struct RumResourceEvent {
           : session_sample_rate(in_session_sample_rate) {}
     };
     // From _common-schema.json
-    const uint8_t format_version{2};
+    uint8_t format_version{2};
     OmitIfNoValue<Session> session;
     OmitIfNoValue<Configuration> configuration;
     OmitIfEmpty<std::string> browser_sdk_version;
@@ -1422,7 +1422,7 @@ struct RumResourceEvent {
   OmitIfNoValue<Action> action;
 
   // From resource-schema.json
-  const std::string_view type{"resource"};
+  std::string_view type{"resource"};
   Resource resource;
 
   explicit RumResourceEvent(
@@ -1779,7 +1779,7 @@ struct RumErrorEvent {
           : session_sample_rate(in_session_sample_rate) {}
     };
     // From _common-schema.json
-    const uint8_t format_version{2};
+    uint8_t format_version{2};
     OmitIfNoValue<Session> session;
     OmitIfNoValue<Configuration> configuration;
     OmitIfEmpty<std::string> browser_sdk_version;
@@ -1813,7 +1813,7 @@ struct RumErrorEvent {
   OmitIfNoValue<Action> action;
 
   // From error-schema.json
-  const std::string_view type{"error"};
+  std::string_view type{"error"};
   Error error;
   OmitIfNoValue<Freeze> freeze;
   // NYI: feature_flags
@@ -2080,7 +2080,7 @@ struct RumVitalEvent {
           : session_sample_rate(in_session_sample_rate) {}
     };
     // From _common-schema.json
-    const uint8_t format_version{2};
+    uint8_t format_version{2};
     OmitIfNoValue<Session> session;
     OmitIfNoValue<Configuration> configuration;
     OmitIfEmpty<std::string> browser_sdk_version;
@@ -2111,7 +2111,7 @@ struct RumVitalEvent {
   // NYI: stream
 
   // From _vital-common-schema.json
-  const std::string_view type{"vital"};
+  std::string_view type{"vital"};
   Vital vital;
 
   explicit RumVitalEvent(
