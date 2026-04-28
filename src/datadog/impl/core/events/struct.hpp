@@ -257,19 +257,9 @@ template <
 size_t WriteJsonWithExtraAttributes(
     const Attribute& extra, char* dst, size_t n, const Fields&&... fields
 ) {
-  // Use the normal struct serialization implementation to produce a JSON object with
-  // the base fields of our struct, e.g. `{"id":"foo","name":"bar"}`. (Even in the null
-  // case, this value will still be a valid JSON object, e.g. `{}`.)
-  const size_t base_size = WriteJson(dst, n, std::forward<const Fields>(fields)...);
-  DATADOG_ASSERT(
-      base_size >= 2 && dst[0] == '{' && dst[base_size - 1] == '}',
-      "WriteJson for struct produced non-object value"
-  );
-
-  // If we have no extra attributes whatsoever, early-out and return the base object
-  // as-is: no need to bother with filtering or concatenation
+  // If we have no extra attributes whatsoever, early-out: write the base object only.
   if (extra.GetObjectPropertyCount() == 0) {
-    return base_size;
+    return WriteJson(dst, n, std::forward<const Fields>(fields)...);
   }
 
   // It's possible that the set of `extra` attributes includes one or more top-level
@@ -279,6 +269,21 @@ size_t WriteJsonWithExtraAttributes(
   auto is_safe_name = [&](std::string_view name) constexpr {
     return !((name == std::forward<const Fields>(fields).first) || ...);
   };
+
+  // If none of the base fields have a value to emit, write the extra object directly
+  // instead of writing an empty `{}` and then trying to merge into it.
+  const bool has_base_fields = ((HasJsonValue(fields.second)) || ...);
+  if (!has_base_fields) {
+    return WriteFilteredJsonObject(dst, n, extra, is_safe_name);
+  }
+
+  // Use the normal struct serialization implementation to produce a JSON object with
+  // the base fields of our struct, e.g. `{"id":"foo","name":"bar"}`.
+  const size_t base_size = WriteJson(dst, n, std::forward<const Fields>(fields)...);
+  DATADOG_ASSERT(
+      base_size >= 2 && dst[0] == '{' && dst[base_size - 1] == '}',
+      "WriteJson for struct produced non-object value"
+  );
 
   // Advance to the last character of the base object to begin writing extra properties
   char* extra_start = dst + base_size - 1;
@@ -306,10 +311,10 @@ size_t WriteJsonWithExtraAttributes(
     return base_size;
   }
 
-  // Otherwise, it's guaranteed that both our base value and our extra value were
-  // encoded as JSON object values with at least 1 property, so replacing the extra
-  // value's opening '{' (which was originally the base value's closing '}') with a
-  // comma will correctly concatenate the two values into a single object
+  // It's guaranteed that both our base value and our extra value were encoded as JSON
+  // object values with at least 1 property, so replacing the extra value's opening '{'
+  // (which was originally the base value's closing '}') with a comma will correctly
+  // concatenate the two values into a single object
   *extra_start = ',';
 
   // Return the total size of both values, accounting for the fact that we overlapped

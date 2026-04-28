@@ -17,6 +17,7 @@ def main(t: TestInput):
     source .repl-env
     set-config tracking-consent granted
     set-config service dd-sdk-cpp-repl
+    set-config event-storage-location .
     set-config flush-on-stop
 
     # Start an SDK instance configured with logging as its only feature, with a single
@@ -25,6 +26,9 @@ def main(t: TestInput):
     register-logging
     create-logger
     start-core
+
+    # Set user info so it appears in log events
+    set-user-info user-123 name:"Jane Doe" email:jane@example.com
 
     # Emit a single log message
     log "Hello from the logging smoke test"
@@ -41,3 +45,8 @@ def main(t: TestInput):
     events = t.events('/api/v2/logs')
     assert len(events) == 1
     assert events[0]['message'] == 'Hello from the logging smoke test'
+
+    # And the log event should include the user info we set
+    assert events[0]['usr']['id'] == 'user-123'
+    assert events[0]['usr']['name'] == 'Jane Doe'
+    assert events[0]['usr']['email'] == 'jane@example.com'

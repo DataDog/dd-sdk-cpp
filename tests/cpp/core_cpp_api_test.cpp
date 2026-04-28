@@ -4,10 +4,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <nlohmann/json.hpp>
 #include <string>
 
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
+#include "datadog/rum.hpp"
 
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
@@ -16,6 +18,7 @@
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
 #include "support/filesystem.hpp"
+#include "support/json_validation.hpp"
 #include "support/tempdir.hpp"
 
 using namespace datadog;
@@ -378,6 +381,39 @@ TEST_CASE(
     config.SetEventStorageLocation(".");
     auto core = Core::Create(config);
     REQUIRE(core != nullptr);
+  }
+}
+
+TEST_CASE("Core user info", "[unit][core][cpp-api]") {
+  SECTION("M log error and ignore W SetUserInfo called with empty id") {
+    auto test = CoreTestHarness::Init();
+    auto core = CoreTestHarness::WrapForCpp(test);
+    auto logging = Logging::Register(core);
+    core->Start();
+
+    // When we set user info with an empty id
+    core->SetUserInfo("");
+    logging->CreateLogger()->Info("hello");
+    core->Stop();
+
+    // Then an error is emitted
+    REQUIRE(test.cpp_diagnostics.size() == 1);
+    REQUIRE(test.cpp_diagnostics[0].level == DiagnosticLevel::Error);
+
+    // And the log event contains no usr field
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(!events[0].contains("usr"));
+  }
+
+  SECTION("M safely do nothing W this wraps nullptr") {
+    CoreConfig invalid_config("", "", "");
+    invalid_config.SetDiagnosticHandler(nullptr);
+    std::shared_ptr<Core> core = Core::Create(invalid_config);
+
+    // All user info calls should be no-ops on a null core
+    core->SetUserInfo("id", "name", "email");
+    core->AddUserExtraInfo(Attribute::Object(0));
+    core->ClearUserInfo();
   }
 }
 

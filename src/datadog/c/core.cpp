@@ -10,6 +10,7 @@
 #include <memory>
 
 #include "datadog/c/core_glue.hpp"
+#include "datadog/impl/core/attribute/types.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/platform/http.hpp"
 #include "datadog/impl/core/types.hpp"
@@ -109,7 +110,9 @@ void dd_core_config_set_event_storage_location(
   }
   const size_t capacity = std::size(config->event_storage_location);
   const std::size_t max_len = capacity - 1;
-  const void* p_null = std::memchr(value, '\0', max_len + 1);
+  const void* p_null{
+      std::memchr(value, '\0', max_len + 1)
+  };  // NOLINT(cppcoreguidelines-init-variables)
   if (!p_null) {
     auto diagnostic_logger = datadog::impl::DiagnosticLogger::FromC(
         config->diagnostic_handler,
@@ -267,6 +270,50 @@ void dd_core_destroy(dd_core_t* core) { delete core; }
 void dd_core_set_tracking_consent(dd_core_t* core, dd_tracking_consent_t value) {
   if (core && core->impl) {
     core->impl->SetTrackingConsent(datadog::TrackingConsent_FromC(value));
+  }
+}
+
+void dd_core_set_user_info(
+    dd_core_t* core,
+    const char* id,
+    const char* name,
+    const char* email,
+    const dd_attribute_t* extra_info
+) {
+  if (!core || !core->impl) {
+    return;
+  }
+  if (!id || !id[0]) {
+    core->diagnostic_logger.Error(
+        "dd_core_set_user_info call ignored: application must supply a non-empty id"
+    );
+    return;
+  }
+  auto to_opt = [](const char* s) -> std::optional<std::string_view> {
+    return (s && s[0]) ? std::optional<std::string_view>(s) : std::nullopt;
+  };
+  datadog::Attribute cpp_extra;
+  if (extra_info && extra_info->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_extra = datadog::impl::AttributeConversion::CopyFromC(*extra_info);
+  }
+  core->impl->SetUserInfo(id, to_opt(name), to_opt(email), cpp_extra);
+}
+
+void dd_core_add_user_extra_info(dd_core_t* core, const dd_attribute_t* extra_info) {
+  if (!core || !core->impl) {
+    return;
+  }
+  if (!extra_info || extra_info->type != DD_VALUE_TYPE_OBJECT) {
+    return;
+  }
+  datadog::Attribute cpp_extra =
+      datadog::impl::AttributeConversion::CopyFromC(*extra_info);
+  core->impl->AddUserExtraInfo(cpp_extra);
+}
+
+void dd_core_clear_user_info(dd_core_t* core) {
+  if (core && core->impl) {
+    core->impl->ClearUserInfo();
   }
 }
 

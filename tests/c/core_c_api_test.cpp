@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
 #include <vector>
@@ -20,7 +21,45 @@
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
 #include "support/filesystem.hpp"
+#include "support/json_validation.hpp"
 #include "support/tempdir.hpp"
+
+TEST_CASE("dd_core user info null safety", "[unit][core][c-api]") {
+  SECTION("M safely do nothing W core is null") {
+    dd_attribute_t extra = dd_attribute_object(1);
+    dd_core_set_user_info(nullptr, "id", "name", "email@example.com", &extra);
+    dd_core_add_user_extra_info(nullptr, &extra);
+    dd_core_clear_user_info(nullptr);
+    dd_attribute_free(&extra);
+  }
+}
+
+TEST_CASE("dd_core user info", "[unit][core][c-api]") {
+  SECTION("M log error and ignore W dd_core_set_user_info called with null id") {
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_logging_t* logging = dd_logging_init(core);
+    dd_logger_t* logger = dd_logger_create(logging, nullptr);
+    dd_core_start(core);
+
+    // When we set user info with a null id
+    dd_core_set_user_info(core, nullptr, "Jane", "jane@example.com", nullptr);
+    dd_logger_info(logger, "hello");
+    dd_core_stop(core);
+
+    // Then an error is emitted
+    REQUIRE(test.c_diagnostics.size() == 1);
+    REQUIRE(test.c_diagnostics[0].level == DD_DIAGNOSTIC_LEVEL_ERROR);
+
+    // And the log event contains no usr field
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(!events[0].contains("usr"));
+
+    dd_logger_destroy(logger);
+    dd_logging_destroy(logging);
+    dd_core_destroy(core);
+  }
+}
 
 TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-api]") {
   SECTION("M apply source override W internal_options.source set") {

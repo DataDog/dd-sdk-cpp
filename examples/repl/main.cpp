@@ -63,6 +63,15 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "set-tracking-consent") {
     return HandleSetTrackingConsent(state, input.Shift());
   }
+  if (input.Peek() == "set-user-info") {
+    return HandleSetUserInfo(state, input.Shift());
+  }
+  if (input.Peek() == "add-user-extra-info") {
+    return HandleAddUserExtraInfo(state, input.Shift());
+  }
+  if (input.Peek() == "clear-user-info") {
+    return HandleClearUserInfo(state, input.Shift());
+  }
   if (input.Peek() == "start-core") {
     return HandleStartCore(state, input.Shift());
   }

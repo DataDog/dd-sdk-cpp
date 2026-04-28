@@ -308,6 +308,29 @@ class Core {
   void SetTrackingConsent(TrackingConsent value);
 
   /**
+   * Sets user info in the global context. The `extra` attribute must be an object type;
+   * any other type is ignored. Propagated to RUM `usr` and log `usr` fields.
+   */
+  void SetUserInfo(
+      std::string_view id,
+      std::optional<std::string_view> name,
+      std::optional<std::string_view> email,
+      const Attribute& extra
+  );
+
+  /**
+   * Merges additional key-value pairs into the existing user info extra attributes.
+   * If no user info is set yet, creates a new user info entry with only extra set.
+   * The `extra` attribute must be an object type; any other type is ignored.
+   */
+  void AddUserExtraInfo(const Attribute& extra);
+
+  /**
+   * Clears all user info from the global context.
+   */
+  void ClearUserInfo();
+
+  /**
    * Initializes the core.
    *
    * Must be called before RegisterFeature() or Start() may be called. May not be called
@@ -366,6 +389,7 @@ class Core {
 
  private:
   bool EnqueueStorageWrite(FeatureId feature_id, Block event, Block event_metadata);
+  void UpdateContext(const std::function<void(CoreContext&)>& callback);
 
  private:
   // Initialized in ctor

@@ -32,6 +32,7 @@ struct RumEventEnrichment {
     // If SystemInfo details are available, populate 'os' and 'device' properties
     PopulateOsProperties(context, ev);
     PopulateDeviceProperties(context, ev);
+    PopulateUserProperties(context, ev);
   }
 
  private:
@@ -87,6 +88,19 @@ struct RumEventEnrichment {
     device.architecture = ctx.device->architecture;
     device.locale = ctx.device->locale;
     device.time_zone = ctx.device->time_zone;
+  }
+
+  template <typename T>
+  static void PopulateUserProperties(const CoreContext& ctx, T& ev) {
+    if (!ctx.user_info) {
+      return;
+    }
+    const auto& ui = *ctx.user_info;
+    RumUserProperties& u = ev.usr.value.emplace();
+    u.id = ui.id;
+    u.name = ui.name;
+    u.email = ui.email;
+    u.extra = ui.extra;
   }
 };
 

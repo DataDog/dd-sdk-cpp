@@ -54,6 +54,60 @@ CommandResult HandleSetTrackingConsent(State& state, const CommandInput& args) {
   return CommandResult::OK("Core::SetTrackingConsent()");
 }
 
+CommandResult HandleSetUserInfo(State& state, const CommandInput& args) {
+  if (!state.core) {
+    return CommandResult::Error("Core does not exist!");
+  }
+
+  // Positional args: id (required)
+  auto pos = args.Positional();
+  auto id = Unquote(pos[0]);
+  if (id.empty()) {
+    return CommandResult::Error("No user id given!");
+  }
+
+  // Named args: name, email (optional)
+  auto named = args.Named();
+  auto name = Unquote(named.Get("name"));
+  auto email = Unquote(named.Get("email"));
+
+  state.core->SetUserInfo(id, name, email);
+  return CommandResult::OK("Core::SetUserInfo()");
+}
+
+CommandResult HandleAddUserExtraInfo(State& state, const CommandInput& args) {
+  if (!state.core) {
+    return CommandResult::Error("Core does not exist!");
+  }
+
+  // Named args: arbitrary key-value pairs added as string attributes
+  auto named = args.Named();
+  if (named.n == 0) {
+    return CommandResult::Error("No key-value pairs given!");
+  }
+
+  datadog::Attribute extra = datadog::Attribute::Object(named.n);
+  for (size_t i = 0; i < named.n; i++) {
+    extra.SetObjectProperty(
+        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+        named.values[i].name,
+        datadog::Attribute::String(named.values[i].value)
+        // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
+    );
+  }
+
+  state.core->AddUserExtraInfo(extra);
+  return CommandResult::OK("Core::AddUserExtraInfo()");
+}
+
+CommandResult HandleClearUserInfo(State& state, const CommandInput&) {
+  if (!state.core) {
+    return CommandResult::Error("Core does not exist!");
+  }
+  state.core->ClearUserInfo();
+  return CommandResult::OK("Core::ClearUserInfo()");
+}
+
 CommandResult HandleStartCore(State& state, const CommandInput&) {
   if (!state.core) {
     return CommandResult::Error("Core does not exist!");
