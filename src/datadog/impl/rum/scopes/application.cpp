@@ -239,14 +239,13 @@ ScopeRef<const RumSessionScope> RumApplicationScope::GetMostRecentSession() cons
 
 std::optional<RumSessionState> RumApplicationScope::GetCurrentSessionState() const {
   // If we have an active session, use it; otherwise fall back to the state of the
-  // session that was most recently stopped, if any
+  // session that most recently ended, if any
   const RumSessionScope* session = nullptr;
   bool is_active = false;
   if (_active_session) {
     session = &_active_session.value();
     is_active = true;
-  } else if (_prev_session &&
-             _prev_session->GetEndReason() == RumSessionScope::EndReason::Stopped) {
+  } else if (_prev_session) {
     session = &_prev_session.value();
     is_active = false;
   }

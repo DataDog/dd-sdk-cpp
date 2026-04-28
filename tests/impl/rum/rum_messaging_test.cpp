@@ -145,6 +145,39 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
   }
 
   SECTION(
+      "M emit RumSessionStateChangedMessage with is_active=false W StopSession() "
+      "is called after inactivity timeout"
+  ) {
+    // Given a Rum feature with default config
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    FeatureTest test(MOCK_CONTEXT);
+
+    // When we start the SDK and record our initial session ID
+    test.Start(rum);
+    const auto* initial =
+        FindLastMessage<RumSessionStateChangedMessage>(test.feature_messages);
+    REQUIRE(initial != nullptr);
+    const UUID initial_session_id = initial->session_state.session_id;
+    REQUIRE(initial->session_state.is_active == true);
+
+    // And the inactivity timeout elapses without any user activity
+    clock.Tick(std::chrono::hours(1));
+
+    // And then we call StopSession, explicitly requesting that no further events be
+    // sent until the user resumes activity
+    rum->StopSession();
+
+    // Then RUM should publish a RumSessionStateChangedMessage indicating that the
+    // session is no longer active, regardless of whether the inactivity timeout was
+    // detected before or at the time of the StopSession call
+    const auto* latest =
+        FindLastMessage<RumSessionStateChangedMessage>(test.feature_messages);
+    REQUIRE(latest != nullptr);
+    REQUIRE(latest->session_state.session_id == initial_session_id);
+    REQUIRE(latest->session_state.is_active == false);
+  }
+
+  SECTION(
       "M emit RumSessionStateChangedMessage with has_tracked_any_view=true W "
       "StartView() is called during session lifetime"
   ) {
