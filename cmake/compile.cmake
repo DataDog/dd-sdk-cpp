@@ -1,7 +1,8 @@
 # Explicitly enable strict warnings on a per-target basis
 function(target_enable_strict_warnings target_name)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-        target_compile_options(${target_name} PRIVATE /W4 /WX /utf-8)
+        target_compile_options(${target_name} PRIVATE /W4 /WX /utf-8
+            /external:anglebrackets /external:W0)
     else()
         target_compile_options(${target_name} PRIVATE -Wall -Wextra -Wpedantic -Werror)
     endif()
