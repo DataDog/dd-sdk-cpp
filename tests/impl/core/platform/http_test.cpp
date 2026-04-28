@@ -65,7 +65,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
 
     // When the client sends that payload
     const std::string url = server.BuildURL("/api/v1/test?foo=hello&bar=42");
-    const std::string headers = "Content-Type: text/plain\n";
+    const std::string headers = "Content-Type: text/plain\r\n";
     auto result = client->Post(url.c_str(), headers.c_str(), body_writer);
 
     // Then it gets a valid response
@@ -156,7 +156,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
 
     // When the client sends a request using that value
     const std::string url = server.BuildURL("/test");
-    const std::string headers = "Content-Type: application/json\n";
+    const std::string headers = "Content-Type: application/json\r\n";
     server.SetResponseStatus(202);
     auto result = client->Post(url.c_str(), headers.c_str(), impl::StringWriter{s});
 

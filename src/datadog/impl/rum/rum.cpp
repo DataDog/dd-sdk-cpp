@@ -11,6 +11,7 @@
 #include <shared_mutex>
 #include <string_view>
 
+#include "datadog/impl/core/request_builder.hpp"
 #include "datadog/impl/core/writer.hpp"
 
 namespace datadog::impl {
@@ -21,7 +22,7 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
       _application_snapshot() {}
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
-    const HttpContext& context, BatchReader& reader
+    BatchReader& reader, RequestBuilder& builder
 ) {
   // This preliminary implementation just streams all RUM events directly, a la Logging
 
@@ -31,22 +32,15 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
   // TODO(RUM-12242): If necessary to prevent the creation of microsessions on the
   // backend, filter out events for synthetic views created on launch
 
-  // Request URL
-  static const std::string_view request_path = "/api/v2/rum";
-  static const bool with_ddsource = true;
+  // Data is sent to RUM intake, as a JSON-serialized array of various RUM event payload
+  // types (e.g. RumViewEvent, RumResourceEvent, etc.)
+  builder.Reset("/api/v2/rum", "application/json");
+  builder.AddQueryParam_ddsource();
 
-  // Request headers
-  static const std::string_view content_type = "application/json";
-
-  // Build URL and headers once, on the first upload (HTTP context is immutable)
-  if (_request_url.empty()) {
-    context.BuildRequestURL(request_path, with_ddsource, _request_url);
-    context.BuildRequestHeaders(content_type, "", _request_headers);
-  }
-
-  // Each event in the batch is a JSON object: initialize a writer that will concatenate
-  // each of those objects into a JSON array
-  return Report{_request_url, _request_headers, TLVBatchWriter{reader}};
+  // Prepare a TLVBatchWriter which will stream the contents of the batch file, treating
+  // each event block as a JSON object and concatenating those values into a JSON array
+  // on the fly as the request body is built
+  return Report{builder.GetUrl(), builder.GetHeaders(), TLVBatchWriter{reader}};
 }
 
 void Rum::Start() {

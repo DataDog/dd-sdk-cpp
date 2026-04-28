@@ -4,14 +4,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/site.hpp"
+#include "datadog/impl/core/upload_util.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 
 using namespace datadog;
 using namespace datadog::impl;
 
-TEST_CASE("GetIntakeOrigin", "[unit]") {
+TEST_CASE("GetIntakeOrigin", "[unit][core]") {
   SECTION("M return known datacenter origin W corresponding site is given") {
     REQUIRE(GetIntakeOrigin(Site::us1, "") == "https://browser-intake-datadoghq.com");
     REQUIRE(
@@ -47,6 +47,37 @@ TEST_CASE("GetIntakeOrigin", "[unit]") {
     REQUIRE(
         GetIntakeOrigin(Site::us1, "my-machine.local") ==
         "https://browser-intake-datadoghq.com"
+    );
+  }
+}
+
+TEST_CASE("GetUserAgent", "[unit][core]") {
+  SECTION("M concatenate all values into standard User-Agent format") {
+    REQUIRE(
+        GetUserAgent(
+            "my-service", "1.0.1", "my-reporter", "2.0.2", "my-device", "my-os", "3.0.3"
+        ) == "my-service/1.0.1 my-reporter/2.0.2 (my-device; my-os/3.0.3)"
+    );
+  }
+
+  SECTION("M omit version suffixes W no version numbers specified") {
+    REQUIRE(
+        GetUserAgent("my-service", "", "my-reporter", "", "my-device", "my-os", "") ==
+        "my-service my-reporter (my-device; my-os)"
+    );
+  }
+
+  SECTION("M replace all whitespace characters with hyphens") {
+    REQUIRE(
+        GetUserAgent(
+            "my service",
+            "1.0 1",
+            " my\treporter ",
+            "2.0 \n 2",
+            "my device",
+            "my os",
+            "3.0 3"
+        ) == "my-service/1.0-1 -my-reporter-/2.0-2 (my-device; my-os/3.0-3)"
     );
   }
 }

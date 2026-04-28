@@ -62,11 +62,7 @@ class RumEventCapture {
       : application_id(application_id),
         session_id(session_id),
         view_id(view_id),
-        context_provider(CoreContext(
-            CoreConfig{"fake-client-token", "fake-service", "fake-env"},
-            MOCK_OS_INFO,
-            MOCK_DEVICE_INFO
-        )),
+        context_provider(MOCK_CONTEXT),
         _event_func([this](Block event, Block event_metadata) {
           // RUM implementation doesn't produce events with metadata
           REQUIRE(event_metadata.empty());

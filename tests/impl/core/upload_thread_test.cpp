@@ -24,6 +24,7 @@
 #include "mock/http_client.hpp"
 #include "mock/tlv.hpp"
 #include "support/catch.hpp"
+#include "support/context.hpp"
 #include "support/diagnostics.hpp"
 
 using namespace datadog;
@@ -36,7 +37,7 @@ TEST_CASE("UploadThreadState", "[unit]") {
   );
 
   // When we create UploadThreadState with the configured frequency
-  UploadThreadState state(frequency);
+  UploadThreadState state(MOCK_CONTEXT, frequency);
 
   // Then the delay values should be set
   REQUIRE(state.min_delay > Duration{0});
@@ -96,24 +97,21 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
   // And a function that will initialize a set of common config objects based on our
   // desired SDK configuration parameters
-  auto init_config = [](BatchSize batch_size,
-                        UploadFrequency upload_frequency,
-                        BatchProcessingLevel batch_processing_level)
-      -> std::
-          tuple<CoreConfig, UploadThreadConfig, std::shared_ptr<const HttpContext>> {
-            CoreConfig config =
-                CoreConfig("mock-client-token", "mock-service", "mock-env")
-                    .SetInitialTrackingConsent(TrackingConsent::Granted)
-                    .SetApplicationVersion("mock-application-version")
-                    .SetBatchSize(batch_size)
-                    .SetUploadFrequency(upload_frequency)
-                    .SetBatchProcessingLevel(batch_processing_level);
-            return std::make_tuple(
-                config,
-                UploadThreadConfig::FromCoreConfig(batch_size, batch_processing_level),
-                std::make_shared<HttpContext>(config)
-            );
-          };
+  auto init_config = [](
+                         BatchSize batch_size,
+                         UploadFrequency upload_frequency,
+                         BatchProcessingLevel batch_processing_level
+                     ) -> std::tuple<CoreConfig, UploadThreadConfig> {
+    CoreConfig config = CoreConfig("mock-client-token", "mock-service", "mock-env")
+                            .SetInitialTrackingConsent(TrackingConsent::Granted)
+                            .SetApplicationVersion("mock-application-version")
+                            .SetBatchSize(batch_size)
+                            .SetUploadFrequency(upload_frequency)
+                            .SetBatchProcessingLevel(batch_processing_level);
+    return std::make_tuple(
+        config, UploadThreadConfig::FromCoreConfig(batch_size, batch_processing_level)
+    );
+  };
 
   // And a function that will initialize a vector containing a single RegisteredFeature
   // entry that contains appropriate UploadThreadState for our mock 'alpha' feature
@@ -126,7 +124,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         std::move(alpha_events),
         alpha,
         nullptr,  // batch_writer is exclusive to storage thread
-        std::make_unique<UploadThreadState>(upload_frequency)
+        std::make_unique<UploadThreadState>(MOCK_CONTEXT, upload_frequency)
     );
     return features;
   };
@@ -134,7 +132,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
   SECTION("M take no action W no batch files are present") {
     // Given a single registered feature with no event data present
     MockHttpClient client;
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -145,7 +143,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -172,7 +169,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // Given a single registered feature
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -189,7 +186,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -217,13 +213,13 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         request.url ==
         "https://browser-intake-datadoghq.com/api/v1/test?ddsource=rum-cpp"
     );
-    REQUIRE(
-        request.headers.find(
-            "Content-Type: text/plain\n"
-            "DD-API-KEY: mock-client-token\n"
-            "DD-EVP-ORIGIN: rum-cpp\n"
-            "DD-EVP-ORIGIN-VERSION: 0.2.0\n"
-        ) == 0
+    REQUIRE_THAT(
+        request.headers,
+        Catch::Matchers::ContainsSubstring("Content-Type: text/plain\r\n") &&
+            Catch::Matchers::ContainsSubstring("DD-API-KEY: mock-client-token\r\n") &&
+            Catch::Matchers::ContainsSubstring("DD-EVP-ORIGIN: rum-cpp\r\n") &&
+            Catch::Matchers::ContainsSubstring("DD-EVP-ORIGIN-VERSION: 0.") &&
+            Catch::Matchers::ContainsSubstring("DD-REQUEST-ID: ")
     );
     REQUIRE(request.body == "event-0,event-1");
     REQUIRE(request.aborted == false);
@@ -292,7 +288,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        const auto [core_config, config, context] = init_config(
+        const auto [core_config, config] = init_config(
             tt.batch_size, UploadFrequency::Average, BatchProcessingLevel::Medium
         );
         auto features = register_feature(UploadFrequency::Average);
@@ -306,7 +302,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
             logger,
             config,
-            *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
@@ -344,7 +339,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;
 
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -370,7 +365,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -421,7 +415,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
             alpha_granted_prefix + "1699999955000",
             MockTLVFile().AppendEvent("event").ToString()
         );
-        const auto [core_config, config, context] = init_config(
+        const auto [core_config, config] = init_config(
             BatchSize::Medium, tt.upload_frequency, BatchProcessingLevel::Medium
         );
         auto features = register_feature(tt.upload_frequency);
@@ -432,7 +426,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
             logger,
             config,
-            *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
@@ -483,7 +476,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
             alpha_granted_prefix + "1699999955000",
             MockTLVFile().AppendEvent("event").ToString()
         );
-        const auto [core_config, config, context] = init_config(
+        const auto [core_config, config] = init_config(
             BatchSize::Medium, tt.upload_frequency, BatchProcessingLevel::Medium
         );
         auto features = register_feature(tt.upload_frequency);
@@ -497,7 +490,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
             logger,
             config,
-            *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
@@ -556,7 +548,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
         clock.FreezeAtMilliseconds(1700000000000);
         MockHttpClient client;
-        const auto [core_config, config, context] = init_config(
+        const auto [core_config, config] = init_config(
             BatchSize::Medium, UploadFrequency::Average, tt.batch_processing_level
         );
         auto features = register_feature(UploadFrequency::Average);
@@ -570,7 +562,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         Duration delay_until_next_cycle = Internal_HandleUploadProc(
             logger,
             config,
-            *context,
             clock,
             CreateFeatureId("ALFA"),
             features,
@@ -610,7 +601,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         alpha_granted_prefix + "1699999955000",
         MockTLVFile().AppendEvent("event").ToString()
     );
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -624,7 +615,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -663,7 +653,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         alpha_granted_prefix + "1699999957000",
         MockTLVFile().AppendEvent("event-2").ToString()
     );
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -679,7 +669,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -719,7 +708,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         alpha_granted_prefix + "1699999957000",
         MockTLVFile().AppendEvent("event-2").ToString()
     );
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -730,7 +719,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -763,7 +751,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         alpha_granted_prefix + "1699999955000",
         MockTLVFile().AppendEvent("event-0").ToString()
     );
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -777,7 +765,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -809,7 +796,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         alpha_granted_prefix + "1699999955000",
         MockTLVFile().AppendEvent("event-0").ToString()
     );
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -823,7 +810,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,
@@ -860,7 +846,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         alpha_granted_prefix + "1699999956000",
         MockTLVFile().AppendEvent("event-1").ToString()
     );
-    const auto [core_config, config, context] = init_config(
+    const auto [core_config, config] = init_config(
         BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
     );
     auto features = register_feature(UploadFrequency::Average);
@@ -874,7 +860,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     Duration delay_until_next_cycle = Internal_HandleUploadProc(
         logger,
         config,
-        *context,
         clock,
         CreateFeatureId("ALFA"),
         features,

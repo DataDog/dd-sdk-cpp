@@ -11,12 +11,12 @@
 #include <optional>
 #include <shared_mutex>
 #include <string>
+#include <string_view>
 
 #include "datadog/attribute.hpp"
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/site.hpp"
 
 namespace datadog::platform {
 struct OsInfo;
@@ -28,88 +28,38 @@ namespace datadog::impl {
 class MessageBus;
 
 /**
- * SDK configuration details that influence how HTTP requests are built. Immutable for
- * the lifetime of the Core.
+ * Subset of CoreContext values that never change after SDK initialization.
+ *
+ * The Core holds a value of this type, and each CoreContext snapshot contains
+ * lightweight views (std::string_view, stable raw ptr, etc.) of these values.
  */
-struct HttpContext {
-  /**
-   * HTTP origin describing the intake endpoint where requests should be sent.
-   */
-  std::string intake_origin;
-  /**
-   * Client token used to authorize HTTP requests sent to intake.
-   */
-  std::string client_token;
-  /**
-   * The 'service' value from SDK configuration.
-   */
-  std::string service;
-  /**
-   * The 'env' value from SDK configuration.
-   */
-  std::string env;
-  /**
-   * The 'version' value from SDK configuration.
-   */
-  std::string application_version;
-  /**
-   * The 'source' value indicating the Datadog SDK product in use: 'rum-cpp' for native
-   * C++ applications; or another value if used by a multi-platform SDK (overridable via
-   * CoreConfig::Internal_SetSource).
-   */
-  std::string source;
+struct ImmutableContext {
+  const platform::OsInfo* os;          // Member of Core-owned ISystemInfo; always valid
+  const platform::DeviceInfo* device;  // Member of Core-owned ISystemInfo; always valid
+
+  std::string_view client_token;         // Required member of Core-owned CoreConfig
+  std::string_view service;              // Required member of Core-owned CoreConfig
+  std::string_view env;                  // Required member of Core-owned CoreConfig
+  std::string_view application_version;  // Optional member of Core-owned CoreConfig
+
+  std::string source;         // Internal cross-platform-SDK override, or "rum-cpp"
+  std::string sdk_version;    // Internal cross-platform-SDK override, or SDK_VERSION
+  std::string intake_origin;  // Derived from configured site or custom endpoint URL
+  std::string user_agent;     // Built from config + HTTP client + DeviceInfo + OsInfo
 
   /**
-   * The SDK version reported in the DD-EVP-ORIGIN-VERSION header. Defaults to the SDK
-   * version at build time; overridable via CoreConfig::Internal_SetSdkVersion.
-   */
-  std::string sdk_version;
-
-  /**
-   * Initializes a new context from the user-supplied config.
-   */
-  explicit HttpContext(const CoreConfig& config);
-
-  // HttpContext is noncopyable and nonmovable
-  HttpContext(const HttpContext&) = delete;
-  HttpContext& operator=(const HttpContext&) = delete;
-  HttpContext(HttpContext&&) = delete;
-  HttpContext& operator=(HttpContext&&) = delete;
-
-  /**
-   * Given the basic details of a request, populates out_url with the fully qualified
-   * URL used to make that request.
+   * Initializes the full set of ImmutableContext values given a set of values and
+   * dependencies used to initialize the Core.
    *
-   * @param path URL pathname component, optionally with query params appended after
-   *  '?'.
-   * @param with_ddsource If true, '(?|&)ddsource=<source>'  will be appended to the
-   *  resulting URL.
-   * @param out_url Mutable reference to the std::string that will contain the final URL
-   *  value. Reuses existing string memory; reallocating only when the string does not
-   *  yet have the required capacity.
+   * All input values must outlive `ImmutableContext`.
    */
-  void BuildRequestURL(
-      std::string_view path, bool with_ddsource, std::string& out_url
-  ) const;
-
-  /**
-   * Given the basic details of a request, populates out_headers with the full set of
-   * headers that can be supplied to an HTTP client to make the request.
-   *
-   * @param content_type Value to use for the 'Content-Type' header, e.g.
-   *  'application/json'.
-   * @param feature_headers Additional feature-specific header values to be appended
-   *  after the standard headers. If non-empty, must be in wire format with a trailing
-   *  newline, e.g. 'X-Some-Header: value\n'.
-   * @param out_headers Mutable reference to the std::string that will be reused to
-   *  contain the final string. Guaranteed to be non-empty, in wire format, with a
-   *  trailing newline.
-   */
-  void BuildRequestHeaders(
-      std::string_view content_type,
-      std::string_view feature_headers,
-      std::string& out_headers
-  ) const;
+  explicit ImmutableContext(
+      const CoreConfig& config,
+      const platform::OsInfo& os_info,
+      const platform::DeviceInfo& device_info,
+      std::string_view http_subsystem_name,
+      std::string_view http_subsystem_version
+  );
 };
 
 /**
@@ -120,31 +70,75 @@ struct CoreContext {
    * Initializes a new CoreContext from the provided SDK config, OS info, and device
    * info.
    */
-  explicit CoreContext(
-      const CoreConfig& config,
-      const platform::OsInfo& os_info,
-      const platform::DeviceInfo& device_info
-  );
+  explicit CoreContext(const ImmutableContext& im);
+
+  // === Lightweight views of ImmutableContext members owned by the Core ===
 
   /**
-   * Immutable configuration details that affect the building of HTTP requests in the
-   * upload thread. Maintained via std::shared_ptr to ensure that it's cheap to create a
-   * copy of CoreContext, since we create an immutable snapshot every time a
-   * feature-specific operation depends on CoreContext - @see CoreContextProvider.
-   */
-  std::shared_ptr<const HttpContext> http;
-
-  /**
-   * Operating system information collected at SDK startup.
-   * Borrowed from ISystemInfo subsystem, which is tied to the lifetime of the Core.
+   * Operating system information collected at SDK startup. Borrowed from ISystemInfo
+   * subsystem, which is tied to the lifetime of the Core. Guaranteed to be valid and
+   * non-null while the Core is in operation.
    */
   const platform::OsInfo* os;
 
   /**
-   * Device information collected at SDK startup.
-   * Borrowed from ISystemInfo subsystem, which is tied to the lifetime of the Core.
+   * Device information collected at SDK startup. Borrowed from ISystemInfo subsystem,
+   * which is tied to the lifetime of the Core. Guaranteed to be valid and non-null
+   * while the Core is in operation.
    */
   const platform::DeviceInfo* device;
+
+  /**
+   * Client token configured for this SDK instance, used to authorize HTTP requests.
+   * Never empty for a valid Core.
+   */
+  std::string_view client_token;
+
+  /**
+   * Service name associated with the instrumented application, for unified tagging.
+   * Never empty for a valid Core.
+   */
+  std::string_view service;
+
+  /**
+   * Environment in which the application is running, for unified tagging. Never empty
+   * for a valid Core.
+   */
+  std::string_view env;
+
+  /**
+   * Version associated with this build of the instrumented application, for unified
+   * tagging. May be empty.
+   */
+  std::string_view application_version;
+
+  /**
+   * Internal value identifying the Datadog SDK responsible for instrumenting this
+   * application: defaults to 'rum-cpp' for natively-instrumented apps, but may be
+   * overridden by cross-platform SDKs.
+   */
+  std::string_view source;
+
+  /**
+   * String indicating the version of the Datadog SDK in use: equivalent to SDK_VERSION
+   * if source is 'rum-cpp', but may be overridden along with source.
+   */
+  std::string_view sdk_version;
+
+  /**
+   * HTTP origin describing the Datadog intake endpoint where this SDK instance sends
+   * event batches at upload, derived from configured site or custom endpoint.
+   */
+  std::string_view intake_origin;
+
+  /**
+   * Value used for User-Agent header, encoding basic information about the application,
+   * the HTTP client implementation, and the system on which the application is running,
+   * e.g. `my.service/1.0.0 libcurl/8.11.0 (ThinkPad-T14-Gen-2; Ubuntu/22.04);`
+   */
+  std::string_view user_agent;
+
+  // === Feature-specific context values that may change during SDK operation ===
 
   /**
    * Additional context provided by the RUM feature, if in use.
@@ -197,11 +191,6 @@ class CoreContextProvider {
    * an interest in receiving notifications of context changes.
    */
   void Update(const std::function<void(CoreContext&)>& callback);
-
-  /**
-   * Synchronously returns an immutable reference to the HttpContext value.
-   */
-  const HttpContext& GetHttpContext() const;
 
   /**
    * Registers the `MessageBus` that `Update()` will dispatch `ContextChangedMessage`

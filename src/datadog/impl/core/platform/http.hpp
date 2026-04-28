@@ -127,6 +127,8 @@ class IHttpSubsystem {
   IHttpSubsystem(IHttpSubsystem&&) = delete;
   IHttpSubsystem& operator=(IHttpSubsystem&&) = delete;
 
+  virtual std::string_view GetName() const = 0;
+  virtual std::string_view GetVersion() const = 0;
   virtual std::unique_ptr<IHttpClient> CreateClient() = 0;
 };
 

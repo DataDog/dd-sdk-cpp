@@ -57,26 +57,32 @@ static curl_slist* build_slist(std::string_view headers) {
     return slist;
   }
 
-  // Headers must be given to us with a trailing newline
-  DATADOG_ASSERT(headers.back() == '\n', "HTTP headers missing trailing newline");
+  // Headers must be CRLF-delimited with a trailing CRLF
+  DATADOG_ASSERT(
+      headers.size() >= 2 && headers[headers.size() - 2] == '\r' &&
+          headers.back() == '\n',
+      "HTTP headers must be CRLF-delimited with a trailing CRLF"
+  );
 
-  // Create a copy of the string that contains our newline-delimited header values, so
-  // we can mutate it in-place to make null-terminated strings to pass into curl
+  // Create a copy of the string so we can mutate it in-place to produce
+  // null-terminated header strings to pass into curl
   std::string s(headers);
   char* buffer = s.data();
 
-  // Iterate over buffer line-by-line, writing a zero byte over each newline we find,
-  // and passing the resulting C string value into curl
+  // Iterate line-by-line: zero the '\r' to null-terminate the header value,
+  // skip past the '\n', and pass the resulting C string to curl
   char* line_start = buffer;
   char* current = buffer;
   const char* buffer_end = buffer + s.size();
   while (current < buffer_end) {
-    if (*current == '\n') {
+    if (*current == '\r' && current + 1 < buffer_end && *(current + 1) == '\n') {
       *current = '\0';
       slist = curl_slist_append(slist, line_start);
-      line_start = current + 1;
+      current += 2;
+      line_start = current;
+    } else {
+      current++;
     }
-    current++;
   }
 
   // Append an empty 'Expect' header to override libcurl's use of
@@ -243,6 +249,16 @@ class CurlHttpSubsystem final : public IHttpSubsystem {
   CurlHttpSubsystem& operator=(const CurlHttpSubsystem&) = delete;
   CurlHttpSubsystem(CurlHttpSubsystem&&) = delete;
   CurlHttpSubsystem& operator=(CurlHttpSubsystem&&) = delete;
+
+  std::string_view GetName() const override { return "libcurl"; }
+
+  std::string_view GetVersion() const override {
+    // curl_version_info() returns a pointer to a statically-allocated struct whose
+    // string members are statically allocated as well: info->version remains valid for
+    // the lifetime of the process
+    curl_version_info_data* info = curl_version_info(CURLVERSION_NOW);
+    return info ? info->version : "";
+  }
 
   std::unique_ptr<IHttpClient> CreateClient() override {
     // Initialize the curl handle that our client implementation will use to make

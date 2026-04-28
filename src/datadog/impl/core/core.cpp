@@ -67,13 +67,16 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
 
 Core::Core(const CoreConfig& config, CoreSubsystems&& subsystems)
     : _config(config),
-      _diagnostic_logger(config.diagnostic_handler, config.diagnostic_threshold),
+      _immutable_context(
+          _config,
+          subsystems.system_info->GetOsInfo(),
+          subsystems.system_info->GetDeviceInfo(),
+          subsystems.http->GetName(),
+          subsystems.http->GetVersion()
+      ),
+      _diagnostic_logger(_config.diagnostic_handler, _config.diagnostic_threshold),
       _context_provider(
-          std::make_unique<CoreContextProvider>(CoreContext(
-              config,
-              subsystems.system_info->GetOsInfo(),
-              subsystems.system_info->GetDeviceInfo()
-          ))
+          std::make_unique<CoreContextProvider>(CoreContext(_immutable_context))
       ),
       _subsystems(std::move(subsystems)) {
   DATADOG_ASSERT(_subsystems.fs, "Core created with no filesystem interface");
@@ -288,7 +291,10 @@ bool Core::RegisterFeature(const std::shared_ptr<Feature>& impl) {
   );
 
   // Initialize the feature-specific state used by the upload thread
-  auto upload_state = std::make_unique<UploadThreadState>(_config.upload_frequency);
+  DATADOG_ASSERT(_context_provider, "_context_provider is null on RegisterFeature()");
+  auto upload_state = std::make_unique<UploadThreadState>(
+      _context_provider->Get(), _config.upload_frequency
+  );
 
   _features.emplace_back(
       id,
@@ -390,12 +396,6 @@ bool Core::Start() {
   DATADOG_ASSERT(!_upload_scheduler, "_upload_scheduler already exists on Start()");
   _upload_scheduler = std::make_unique<UploadScheduler>(*_subsystems.clock);
 
-  // Acquire a reference to the HttpContext that's held within our CoreContext: the
-  // HttpContext is immutable, so it's safe for the upload thread to retain this
-  // reference
-  DATADOG_ASSERT(_context_provider, "_context_provider is null on Start()");
-  const HttpContext& http_context = _context_provider->GetHttpContext();
-
   // Start another thread that will schedule periodic upload cycles on a per-feature
   // basis: each time an upload cycle runs, the thread will check the relevant storage
   // directory for batches of events that are ready for read, processing them via the
@@ -407,7 +407,6 @@ bool Core::Start() {
       UploadThreadConfig::FromCoreConfig(
           _config.batch_size, _config.batch_processing_level
       ),
-      std::ref(http_context),
       std::ref(*_subsystems.clock),
       std::ref(*_upload_scheduler),
       std::ref(_features),
@@ -566,17 +565,12 @@ void Core::Stop() {
     std::vector<std::string> mut_filenames;
     std::vector<char> mut_read_buffer;
 
-    // Get the HTTP context for use in the upload thread routine
-    DATADOG_ASSERT(_context_provider, "_context_provider is null on Stop()");
-    const HttpContext& http_context = _context_provider->GetHttpContext();
-
     // Run our upload cycle procedure on the main thread, synchronously: now that
     // we've joined on both threads, all state is synchronized
     for (const auto& feature : _features) {
       Internal_HandleUploadProc(
           _diagnostic_logger,
           flush_config,
-          http_context,
           *_subsystems.clock,
           feature.id,
           _features,
@@ -638,14 +632,14 @@ std::string_view Core::GetServiceName() const {
   DATADOG_ASSERT(
       _state >= CoreState::Initialized, "GetServiceName called before Core init"
   );
-  return _context_provider->GetHttpContext().service;
+  return _config.service;
 }
 
 std::string_view Core::GetApplicationVersion() const {
   DATADOG_ASSERT(
       _state >= CoreState::Initialized, "GetApplicationVersion called before Core init"
   );
-  return _context_provider->GetHttpContext().application_version;
+  return _config.application_version;
 }
 
 }  // namespace datadog::impl

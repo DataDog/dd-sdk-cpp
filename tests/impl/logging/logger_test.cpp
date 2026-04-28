@@ -25,8 +25,6 @@
 using namespace datadog;
 using namespace datadog::impl;
 
-static const CoreConfig CORE_CONFIG("mock-client-token", "mock-service", "mock-env");
-
 TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
   static const UUID uuid_9916 = *UUID::Parse("99163baf-48fe-458f-b777-eab1e4038342");
   static const UUID uuid_d927 = *UUID::Parse("d927ca19-c812-45bb-918c-977809e63c95");
@@ -60,7 +58,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
 
     // When the SDK starts, then RUM publishes its context (simulating the async update
     // that RUM enqueues after OnCoreStarted)
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     test.Start(logging);
     test.UpdateContext([&](CoreContext& ctx) {
       ctx.rum = RumFeatureContext();
@@ -93,7 +91,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
 
     // When the SDK starts, then RUM publishes a context with an application ID and
     // session ID but no view or action ID
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     test.Start(logging);
     test.UpdateContext([&](CoreContext& ctx) {
       ctx.rum = RumFeatureContext();
@@ -127,7 +125,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     logger->AddAttribute("session_id", Attribute::String("user-session-id"));
 
     // When the SDK starts, then RUM publishes a context with only an application ID
-    FeatureTest test(CoreContext{CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO});
+    FeatureTest test(MOCK_CONTEXT);
     test.Start(logging);
     test.UpdateContext([&](CoreContext& ctx) {
       ctx.rum = RumFeatureContext();
@@ -160,8 +158,8 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     auto logger = logging->CreateLogger(LoggerConfig().SetEnrichWithRumContext(false));
 
     // And a context that includes RUM session details
-    CoreContext context(CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO);
-    context.rum = RumFeatureContext();
+    CoreContext context = MOCK_CONTEXT;
+    context.rum.emplace();
     context.rum->application_id = uuid_9916;
     context.rum->session_id = uuid_d927;
     context.rum->view_id = uuid_e27c;
@@ -190,7 +188,7 @@ TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
     auto logger = logging->CreateLogger(LoggerConfig());
 
     // And a context that has no RumFeatureContext
-    CoreContext context(CORE_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO);
+    CoreContext context = MOCK_CONTEXT;
 
     // When we emit a log event while the SDK is running
     FeatureTest test(context);

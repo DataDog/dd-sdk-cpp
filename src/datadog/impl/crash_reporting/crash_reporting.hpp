@@ -65,7 +65,7 @@ class CrashReporting final : public Feature {
   std::string_view GetName() const override { return "crash_reporting"; }
 
   std::optional<Report> UploadThread_PrepareReport(
-      const HttpContext& context, BatchReader& reader
+      BatchReader& reader, RequestBuilder& builder
   ) override;
 
   std::optional<std::function<void(const FeatureMessage&)>>

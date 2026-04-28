@@ -16,10 +16,13 @@
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/platform/http.hpp"
+#include "datadog/impl/core/request_builder.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog::impl {
+
+struct CoreContext;
 
 /**
  * Global configuration details for the upload thread, to tune its behavior re: file age
@@ -65,6 +68,8 @@ struct UploadThreadConfig {
  * will increase as a result.
  */
 struct UploadThreadState {
+  RequestBuilder request_builder;
+
   Duration current_delay;
   Duration min_delay;
   Duration max_delay;
@@ -72,7 +77,7 @@ struct UploadThreadState {
   /**
    * Initializes timing for a feature's upload cycles based on the configured frequency.
    */
-  explicit UploadThreadState(UploadFrequency upload_frequency);
+  explicit UploadThreadState(const CoreContext& ctx, UploadFrequency upload_frequency);
 
   /**
    * Increases the delay in response to a failed upload, clamping at the configured
@@ -95,7 +100,6 @@ struct UploadThreadState {
 Duration Internal_HandleUploadProc(
     DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
-    const HttpContext& http_context,
     const platform::IClock& clock,
     FeatureId feature_id,
     std::vector<struct RegisteredFeature>& features,
@@ -110,8 +114,6 @@ Duration Internal_HandleUploadProc(
  *
  * @param diagnostic_logger Interface for logging local status/warning messages.
  * @param config Global configuration values for the upload thread.
- * @param http_context The immutable configuration details used when building HTTP
- *  requests.
  * @param clock Interface to the system clock.
  * @param scheduler Non-owning reference to the object used to coordinate the timing of
  *  upload cycles for each registered feature. The main thread owns the scheduler and
@@ -126,7 +128,6 @@ Duration Internal_HandleUploadProc(
 void UploadThreadMain(
     DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
-    const HttpContext& http_context,
     const platform::IClock& clock,
     class UploadScheduler& scheduler,
     std::vector<struct RegisteredFeature>& features,

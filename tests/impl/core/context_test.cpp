@@ -17,287 +17,95 @@
 using namespace datadog::impl;
 using namespace datadog;
 
-TEST_CASE("HttpContext constructor", "[unit]") {
-  SECTION("M initialize from CoreConfig W valid config provided") {
-    // Given an ordinary config
-    CoreConfig config("test_token_123", "test_service", "test_env");
-    config.SetInitialTrackingConsent(TrackingConsent::Granted);
-    config.SetApplicationVersion("1.2.3");
+TEST_CASE("CoreContext", "[unit]") {
+  // Given valid OS info and device info
+  platform::OsInfo os_info{"TestOS", "1.2.3", "12345", "1"};
+  platform::DeviceInfo device_info{
+      "desktop",
+      "test-device",
+      "test-model",
+      "test-brand",
+      "x86_64",
+      "en-US",
+      "America/New_York"
+  };
 
-    // When HttpContext is constructed from that config
-    HttpContext context(config);
+  // When CoreContext is constructed with OS info and device info
+  CoreConfig config("token", "service", "env");
+  config.SetApplicationVersion("3.0.0");
+  ImmutableContext imm(config, os_info, device_info, "reporter", "1.2.3");
+  CoreContext ctx(imm);
 
-    // Then values are sensible
-    REQUIRE(context.client_token == "test_token_123");
-    REQUIRE(context.service == "test_service");
-    REQUIRE(context.env == "test_env");
-    REQUIRE(context.application_version == "1.2.3");
-    REQUIRE(context.source == "rum-cpp");
-    REQUIRE_FALSE(context.intake_origin.empty());
-  }
-}
+  // Then OS info is accessible and matches
+  REQUIRE(ctx.os != nullptr);
+  REQUIRE(ctx.os->name == "TestOS");
+  REQUIRE(ctx.os->version == "1.2.3");
+  REQUIRE(ctx.os->build == "12345");
+  REQUIRE(ctx.os->version_major == "1");
 
-TEST_CASE("HttpContext BuildRequestURL", "[unit]") {
-  // Given an ordinary config
-  CoreConfig config("token", "test_service", "test_env");
-  config.SetInitialTrackingConsent(TrackingConsent::Granted);
-  config.SetApplicationVersion("1.0.0");
-  HttpContext context(config);
-  std::string result_url;
+  // And device info is accessible and matches
+  REQUIRE(ctx.device != nullptr);
+  REQUIRE(ctx.device->type == "desktop");
+  REQUIRE(ctx.device->name == "test-device");
+  REQUIRE(ctx.device->model == "test-model");
+  REQUIRE(ctx.device->brand == "test-brand");
+  REQUIRE(ctx.device->architecture == "x86_64");
+  REQUIRE(ctx.device->locale == "en-US");
+  REQUIRE(ctx.device->time_zone == "America/New_York");
 
-  SECTION("M concatenate origin and path W path has no query parameters") {
-    context.BuildRequestURL("/api/v1/logs", false, result_url);
-    REQUIRE(result_url == "https://browser-intake-datadoghq.com/api/v1/logs");
-  }
+  // And basic SDK configuration detail are accessible and formatted as expected
+  REQUIRE(ctx.client_token == "token");
+  REQUIRE(ctx.service == "service");
+  REQUIRE(ctx.env == "env");
+  REQUIRE(ctx.application_version == "3.0.0");
+  REQUIRE(ctx.source == "rum-cpp");
+  REQUIRE(ctx.sdk_version == SDK_VERSION);
+  REQUIRE(ctx.intake_origin == "https://browser-intake-datadoghq.com");
+  REQUIRE(ctx.user_agent == "service/3.0.0 reporter/1.2.3 (test-device; TestOS/1.2.3)");
 
-  SECTION("M append ddsource parameter W with_ddsource is true and path has no query") {
-    context.BuildRequestURL("/api/v1/logs", true, result_url);
-    REQUIRE(
-        result_url ==
-        "https://browser-intake-datadoghq.com/api/v1/logs?ddsource=rum-cpp"
-    );
-  }
+  // And feature-specific context values are initially nil
+  REQUIRE(!ctx.rum.has_value());
 
-  SECTION(
-      "M append ddsource with ampersand W with_ddsource is true and path has query"
-  ) {
-    context.BuildRequestURL("/api/v1/logs?existing=param", true, result_url);
-    REQUIRE(
-        result_url ==
-        "https://browser-intake-datadoghq.com/api/v1/"
-        "logs?existing=param&ddsource=rum-cpp"
-    );
-  }
-
-  SECTION("M not append ddsource W with_ddsource is false") {
-    context.BuildRequestURL("/api/v1/logs?existing=param", false, result_url);
-    REQUIRE(
-        result_url == "https://browser-intake-datadoghq.com/api/v1/logs?existing=param"
-    );
-  }
-
-  SECTION("M reuse string memory W out_url is reused") {
-    // When first call uses a longer URL
-    context.BuildRequestURL("/api/v1/logs", true, result_url);
-    size_t first_capacity = result_url.capacity();
-
-    // And second call uses a shorter URL
-    context.BuildRequestURL("/short", false, result_url);
-
-    // Then no second allocation should occur
-    REQUIRE(result_url == "https://browser-intake-datadoghq.com/short");
-    REQUIRE(result_url.capacity() >= first_capacity);  // Memory reused
-  }
-}
-
-TEST_CASE("HttpContext BuildRequestHeaders", "[unit]") {
-  // Given an ordinary config
-  CoreConfig config("test_client_token_456", "test_service", "production");
-  config.SetInitialTrackingConsent(TrackingConsent::Granted);
-  config.SetApplicationVersion("2.1.0");
-  HttpContext context(config);
-  std::string result_headers;
-
-  SECTION("M include standard headers W no feature headers provided") {
-    // When
-    context.BuildRequestHeaders("application/json; charset=utf-8", "", result_headers);
-
-    // Then expected headers are present
-    REQUIRE(
-        result_headers.find("Content-Type: application/json; charset=utf-8\n") !=
-        std::string::npos
-    );
-    REQUIRE(
-        result_headers.find("DD-API-KEY: test_client_token_456\n") != std::string::npos
-    );
-    REQUIRE(result_headers.find("DD-EVP-ORIGIN: rum-cpp\n") != std::string::npos);
-
-    // And DD-REQUEST-ID is set to a random valid, nonzero UUID
-    const size_t request_id_pos = result_headers.find("DD-REQUEST-ID: ");
-    REQUIRE(request_id_pos != std::string::npos);
-    const size_t request_id_value_pos = request_id_pos + 15;  // len('DD-REQUEST-ID')
-    auto request_id = UUID::Parse(result_headers.substr(request_id_value_pos, 36));
-    REQUIRE(request_id.has_value());
-    REQUIRE(*request_id != UUID::Zero);
-
-    // TODO: Update when real User-Agent generation is implemented
-    REQUIRE(result_headers.find("User-Agent: nobody\n") != std::string::npos);
-
-    // And DD-EVP-ORIGIN-VERSION matches sdk_version on the context (defaults to
-    // SDK_VERSION stamped into library build)
-    std::string expected_version_header = "DD-EVP-ORIGIN-VERSION: ";
-    expected_version_header += context.sdk_version;
-    expected_version_header += "\n";
-    REQUIRE(result_headers.find(expected_version_header) != std::string::npos);
-
-    REQUIRE(result_headers.back() == '\n');  // Should end with newline
-  }
-
-  SECTION("M append feature headers W feature headers provided") {
-    // When feature implementation provides custom headers
-    std::string feature_headers =
-        "X-Custom-Header: custom_value\nX-Another-Header: another_value\n";
-    context.BuildRequestHeaders("application/json", feature_headers, result_headers);
-
-    // Then standard headers appear first
-    size_t api_key_pos = result_headers.find("DD-API-KEY: test_client_token_456\n");
-    REQUIRE(api_key_pos != std::string::npos);
-
-    // And those custom headers are appended unmodified
-    size_t custom_header_pos = result_headers.find("X-Custom-Header: custom_value\n");
-    REQUIRE(custom_header_pos != std::string::npos);
-    REQUIRE(custom_header_pos > api_key_pos);
-    size_t another_header_pos =
-        result_headers.find("X-Another-Header: another_value\n");
-    REQUIRE(another_header_pos != std::string::npos);
-    REQUIRE(another_header_pos > custom_header_pos);
-
-    REQUIRE(result_headers.back() == '\n');
-  }
-
-  SECTION("M reuse string memory W out_headers is reused") {
-    // When the first call uses a long set of headers
-    std::string long_feature_headers =
-        "X-Very-Long-Header-Name: very_long_header_value_that_takes_up_space\n";
-    context.BuildRequestHeaders(
-        "application/json", long_feature_headers, result_headers
-    );
-    size_t first_capacity = result_headers.capacity();
-
-    // And the second call uses a shorter set
-    context.BuildRequestHeaders("text/plain", "", result_headers);
-
-    // Then no second allocation should occur
-    REQUIRE(result_headers.capacity() >= first_capacity);  // Memory reused
-    REQUIRE(result_headers.back() == '\n');
-  }
-}
-
-TEST_CASE("HttpContext internal_options source/sdk_version overrides", "[unit]") {
-  SECTION("M use rum-cpp as default source W no source override set") {
-    CoreConfig config("token", "service", "env");
-    HttpContext context(config);
-    REQUIRE(context.source == "rum-cpp");
-  }
-
-  SECTION("M override source W Internal_SetSource called") {
-    CoreConfig config("token", "service", "env");
-    config.Internal_SetSource("unity");
-    HttpContext context(config);
-    REQUIRE(context.source == "unity");
-  }
-
-  SECTION("M override sdk_version W Internal_SetSdkVersion called") {
-    CoreConfig config("token", "service", "env");
-    config.Internal_SetSdkVersion("99.0.0");
-    HttpContext context(config);
-    REQUIRE(context.sdk_version == "99.0.0");
-  }
-
-  SECTION("M use SDK_VERSION as default sdk_version W no sdk_version override set") {
-    CoreConfig config("token", "service", "env");
-    HttpContext context(config);
-    REQUIRE(context.sdk_version == std::string(SDK_VERSION));
-  }
-
-  SECTION("M reflect overridden source in request URL W _dd.source set") {
-    CoreConfig config("token", "service", "env");
-    config.Internal_SetSource("unity");
-    HttpContext context(config);
-    std::string url;
-    context.BuildRequestURL("/api/v1/rum", true, url);
-    REQUIRE(url.find("ddsource=unity") != std::string::npos);
-  }
-
-  SECTION("M reflect overridden source in request headers W _dd.source set") {
-    CoreConfig config("token", "service", "env");
-    config.Internal_SetSource("unity");
-    HttpContext context(config);
-    std::string headers;
-    context.BuildRequestHeaders("application/json", "", headers);
-    REQUIRE(headers.find("DD-EVP-ORIGIN: unity\n") != std::string::npos);
-  }
-
-  SECTION("M reflect overridden sdk_version in request headers W _dd.sdk_version set") {
-    CoreConfig config("token", "service", "env");
-    config.Internal_SetSdkVersion("99.0.0");
-    HttpContext context(config);
-    std::string headers;
-    context.BuildRequestHeaders("application/json", "", headers);
-    REQUIRE(headers.find("DD-EVP-ORIGIN-VERSION: 99.0.0\n") != std::string::npos);
-  }
-}
-
-TEST_CASE("CoreContext with OS information", "[unit]") {
-  SECTION("M initialize with valid OsInfo W OsInfo provided") {
-    // Given valid OS info and device info
-    platform::OsInfo os_info{"TestOS", "1.2.3", "12345", "1"};
-    platform::DeviceInfo device_info{
-        "desktop",
-        "test-device",
-        "test-model",
-        "test-brand",
-        "x86_64",
-        "en-US",
-        "America/New_York"
-    };
-
-    // When CoreContext is constructed with OS info and device info
-    CoreConfig config("token", "service", "env");
-    CoreContext ctx(config, os_info, device_info);
-
-    // Then OS info is accessible and matches
-    REQUIRE(ctx.os != nullptr);
-    REQUIRE(ctx.os->name == "TestOS");
-    REQUIRE(ctx.os->version == "1.2.3");
-    REQUIRE(ctx.os->build == "12345");
-    REQUIRE(ctx.os->version_major == "1");
-
-    // And device info is accessible and matches
-    REQUIRE(ctx.device != nullptr);
-    REQUIRE(ctx.device->type == "desktop");
-    REQUIRE(ctx.device->name == "test-device");
-    REQUIRE(ctx.device->model == "test-model");
-    REQUIRE(ctx.device->brand == "test-brand");
-    REQUIRE(ctx.device->architecture == "x86_64");
-    REQUIRE(ctx.device->locale == "en-US");
-    REQUIRE(ctx.device->time_zone == "America/New_York");
-  }
-}
-
-TEST_CASE("CoreContextProvider with OS information", "[unit]") {
-  SECTION("M provide OS info via Get W CoreContext has OS info") {
-    // Given a CoreContext with OS info and device info
-    platform::OsInfo os_info{"ProviderTestOS", "2.0.0", "", "2"};
-    platform::DeviceInfo device_info{
-        "desktop",
-        "test-device",
-        "test-model",
-        "test-brand",
-        "x86_64",
-        "en-US",
-        "America/New_York"
-    };
-    CoreConfig config("token", "service", "env");
-    CoreContext ctx(config, os_info, device_info);
-
-    // When CoreContextProvider is created and Get() is called
+  SECTION("CoreContextProvider") {
+    // Given a CoreContextProvider that's initialized from our initial CoreContext value
     CoreContextProvider provider(ctx);
-    CoreContext retrieved_ctx = provider.Get();
 
-    // Then OS info is accessible via the retrieved context
-    REQUIRE(retrieved_ctx.os != nullptr);
-    REQUIRE(retrieved_ctx.os->name == "ProviderTestOS");
-    REQUIRE(retrieved_ctx.os->version == "2.0.0");
+    // When we call Get() to retrieve a snapshot of our CoreContext
+    const CoreContext snapshot_a = provider.Get();
 
-    // And device info is accessible via the retrieved context
-    REQUIRE(retrieved_ctx.device != nullptr);
-    REQUIRE(retrieved_ctx.device->type == "desktop");
-    REQUIRE(retrieved_ctx.device->name == "test-device");
-    REQUIRE(retrieved_ctx.device->model == "test-model");
-    REQUIRE(retrieved_ctx.device->brand == "test-brand");
-    REQUIRE(retrieved_ctx.device->architecture == "x86_64");
-    REQUIRE(retrieved_ctx.device->locale == "en-US");
-    REQUIRE(retrieved_ctx.device->time_zone == "America/New_York");
+    // And call Update() to mutate the RUM-feature-specific context, then get another
+    // snapshot
+    provider.Update([](CoreContext& mut_ctx) {
+      mut_ctx.rum.emplace();
+      mut_ctx.rum->application_id =
+          *UUID::Parse("982b1704-9764-4912-9f82-0f6063383ad9");
+    });
+    const CoreContext snapshot_b = provider.Get();
+
+    // Then our original snapshot still reflects the initial state, while the new
+    // snapshot reflects the changes we made
+    REQUIRE(!snapshot_a.rum.has_value());
+    REQUIRE(snapshot_b.rum.has_value());
+    REQUIRE(
+        snapshot_b.rum->application_id ==
+        *UUID::Parse("982b1704-9764-4912-9f82-0f6063383ad9")
+    );
+
+    // And all immutable values are preserved identically in both snapshots
+    REQUIRE(snapshot_a.os == snapshot_b.os);
+    REQUIRE(snapshot_a.device == snapshot_b.device);
+    REQUIRE(snapshot_a.client_token.data() == snapshot_b.client_token.data());
+    REQUIRE(snapshot_b.client_token == "token");
+    REQUIRE(snapshot_b.service == "service");
+    REQUIRE(snapshot_b.env == "env");
+    REQUIRE(snapshot_b.application_version == "3.0.0");
+    REQUIRE(snapshot_b.source == "rum-cpp");
+    REQUIRE(snapshot_b.sdk_version == SDK_VERSION);
+    REQUIRE(snapshot_b.intake_origin == "https://browser-intake-datadoghq.com");
+    REQUIRE(
+        snapshot_b.user_agent ==
+        "service/3.0.0 reporter/1.2.3 (test-device; TestOS/1.2.3)"
+    );
+    REQUIRE(snapshot_a.user_agent.data() == snapshot_b.user_agent.data());
   }
 }

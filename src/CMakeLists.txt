@@ -45,12 +45,14 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/impl/core/feature.cpp
     datadog/impl/core/message_bus.cpp
     datadog/impl/core/messaging_thread.cpp
+    datadog/impl/core/request_builder.cpp
     datadog/impl/core/storage_queue.cpp
     datadog/impl/core/storage_thread.cpp
     datadog/impl/core/storage_write.cpp
     datadog/impl/core/tlv.cpp
     datadog/impl/core/upload_scheduler.cpp
     datadog/impl/core/upload_thread.cpp
+    datadog/impl/core/upload_util.cpp
     datadog/impl/core/writer.cpp
 )
 

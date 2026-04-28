@@ -105,7 +105,11 @@ class MockHttpSubsystem : public platform::IHttpSubsystem {
   // reference to the actual HTTP client(s) used by the core
   std::vector<MockHttpClient*> clients;
 
-  virtual std::unique_ptr<platform::IHttpClient> CreateClient() override {
+  std::string_view GetName() const override { return "mock"; }
+
+  std::string_view GetVersion() const override { return "0.0.0"; }
+
+  std::unique_ptr<platform::IHttpClient> CreateClient() override {
     auto client = std::make_unique<MockHttpClient>();
     clients.push_back(client.get());
     return client;
