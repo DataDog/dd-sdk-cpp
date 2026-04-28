@@ -568,6 +568,11 @@ void RumViewScope::SendViewEvent(
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
   writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+
+  // Now that `ev` is no longer needed, transfer ownership to our parent
+  // RumSessionScope, so that it can retain the event until it needs to broadcast a
+  // RumViewEventGeneratedMessage
+  _parent.get().CaptureViewEvent(std::move(ev));
 }
 
 void RumViewScope::SendErrorEvent(

@@ -237,4 +237,37 @@ ScopeRef<const RumSessionScope> RumApplicationScope::GetMostRecentSession() cons
   return _prev_session;
 }
 
+std::optional<RumSessionState> RumApplicationScope::GetCurrentSessionState() const {
+  // If we have an active session, use it; otherwise fall back to the state of the
+  // session that was most recently stopped, if any
+  const RumSessionScope* session = nullptr;
+  bool is_active = false;
+  if (_active_session) {
+    session = &_active_session.value();
+    is_active = true;
+  } else if (_prev_session &&
+             _prev_session->GetEndReason() == RumSessionScope::EndReason::Stopped) {
+    session = &_prev_session.value();
+    is_active = false;
+  }
+
+  // No active or previously-stopped session: RUM has not started
+  if (!session) {
+    return std::nullopt;
+  }
+
+  // Interrogate the chosen RumSessionScope to populate our result value
+  return RumSessionState{
+      session->GetSessionID(),
+      session->IsSampled(),
+      is_active,
+      session->IsInitialSession(),
+      session->GetNumViewsOpened() > 0
+  };
+}
+
+std::optional<RumViewEvent> RumApplicationScope::ConsumeLastViewEvent() {
+  return _active_session ? _active_session->ConsumeLastViewEvent() : std::nullopt;
+}
+
 }  // namespace datadog::impl

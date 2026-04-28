@@ -163,6 +163,13 @@ class Rum final : public Feature {
 
   void UpdateApplicationSnapshot();
 
+  /**
+   * Examines the current state of `_application` and `_application_snapshot` and
+   * publishes any `FeatureMessage` values that reflect state changes since the last
+   * call. Must be called on the context thread after `UpdateApplicationSnapshot()`.
+   */
+  void BroadcastStateChanges(const MessagePublisher& publisher);
+
  private:
   // Global attributes applied to all RUM events
   ObjectAttribute _global_attributes;
@@ -176,6 +183,11 @@ class Rum final : public Feature {
 
   // Reusable struct for storing the latest snapshot of RUM application state
   RumContext _application_snapshot;
+
+  // Last-broadcast values used to detect changes in BroadcastStateChanges; only
+  // accessed on the context thread, so no additional locking is needed
+  std::optional<RumSessionState> _last_broadcast_session_state;
+  UUID _last_broadcast_view_id{UUID::Zero};
 
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;

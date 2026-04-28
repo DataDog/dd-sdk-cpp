@@ -134,6 +134,46 @@ struct RumFeatureContext {
   }
 };
 
+/**
+ * Carries the essential state of the most recent RUM session. Each time RUM session
+ * state meaningfully changes, `Rum` broadcasts a `RumSessionStateChangedMessage` to
+ * describe the latest state.
+ *
+ * This data is intended for use by `CrashReporting`, which needs to persist it
+ * alongside crash reports so that `Rum` can later make decisions about how to handle
+ * those crash reports.
+ *
+ * If a session exists but was excluded from sampling, indicating that no events will be
+ * uploaded for that session, `session_id` will be nonzero, but `is_sampled` will be
+ * false.
+ *
+ * If a session was explicitly ended by a call to the `StopSession()` API function,
+ * indicating that no further events will be sent until the application explicitly
+ * records an event that should result in the creation of a new session (such as
+ * `StartView()` or `AddAction()`), then `is_active` will be false.
+ *
+ * `is_initial_session` is true only for the first session in an SDK instance, and
+ * `has_tracked_any_view` indicates whether an explicitly-named (i.e. "foreground") view
+ * has ever been started in the context of this session. These values are used to
+ * determine whether RUM will implicitly create certain views (e.g. `ApplicationLaunch`)
+ * in order to track events that occur while no foreground view is active.
+ */
+struct RumSessionState {
+  UUID session_id;            // UUID::Zero if no session exists
+  bool is_sampled;            // false if session is excluded from sampling
+  bool is_active;             // false if session has been ended via StopSession
+  bool is_initial_session;    // true if this session is the very first
+  bool has_tracked_any_view;  // true if any non-synthetic view has been recorded
+
+  bool operator==(const RumSessionState& other) const {
+    return session_id == other.session_id && is_sampled == other.is_sampled &&
+           is_active == other.is_active &&
+           is_initial_session == other.is_initial_session &&
+           has_tracked_any_view == other.has_tracked_any_view;
+  }
+  bool operator!=(const RumSessionState& other) const { return !(*this == other); }
+};
+
 DATADOG_STRING_ENUM(
     StringRumActionType,
     RumActionType,

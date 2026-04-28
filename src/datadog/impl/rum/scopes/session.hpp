@@ -220,6 +220,7 @@ class RumSessionScope {
   std::unordered_set<std::string> _active_operations;
 
   size_t _num_views_opened{0};
+  std::optional<RumViewEvent> _last_generated_view_event;
   RumViewArray _view_scopes;
 
  public:
@@ -228,6 +229,7 @@ class RumSessionScope {
   UUID GetSessionID() const { return _session_id; }
   RumSessionPrecondition GetStartReason() const { return _precondition; }
   std::optional<EndReason> GetEndReason() const { return _end_reason; }
+  size_t GetNumViewsOpened() const { return _num_views_opened; }
 
   std::optional<ViewDetails> GetActiveViewOnClose() const {
     return _active_view_on_close;
@@ -237,6 +239,18 @@ class RumSessionScope {
   ScopeRef<const RumViewScope> GetActiveView() const {
     return _view_scopes.FindActive();
   }
+
+  /**
+   * Takes ownership of `ev`, storing it as the most recently generated view event in
+   * the context of this session.
+   */
+  void CaptureViewEvent(RumViewEvent ev);
+
+  /**
+   * Returns the most recently captured view event and clears the stored value. Returns
+   * std::nullopt if no view event has been generated since the last call.
+   */
+  std::optional<RumViewEvent> ConsumeLastViewEvent();
 };
 
 }  // namespace datadog::impl
