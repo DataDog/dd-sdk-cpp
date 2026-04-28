@@ -148,13 +148,6 @@ struct CoreContext {
    */
   TrackingConsent tracking_consent;
 
-  // === Feature-specific context values that may change during SDK operation ===
-
-  /**
-   * Additional context provided by the RUM feature, if in use.
-   */
-  std::optional<RumFeatureContext> rum;
-
   /**
    * User info set via Core::SetUserInfo(), if any. Consumed by RUM and logging features
    * to populate the `usr` field on outgoing events.
@@ -166,6 +159,13 @@ struct CoreContext {
     Attribute extra;
   };
   std::optional<UserInfo> user_info;
+
+  // === Feature-specific context values that may change during SDK operation ===
+
+  /**
+   * Additional context provided by the RUM feature, if in use.
+   */
+  std::optional<RumFeatureContext> rum;
 
   /**
    * Resets all mutable feature-specific context fields to their default (absent) state.
