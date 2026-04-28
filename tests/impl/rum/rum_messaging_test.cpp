@@ -321,7 +321,7 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
     // And that RumViewResetMessage is sent _after_ the corresponding
     // RumViewEventGeneratedMessage
-    std::holds_alternative<RumViewResetMessage>(test.feature_messages.back());
+    REQUIRE(std::holds_alternative<RumViewResetMessage>(test.feature_messages.back()));
   }
 
   SECTION(
