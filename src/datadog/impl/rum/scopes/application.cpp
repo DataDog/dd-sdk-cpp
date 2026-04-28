@@ -266,7 +266,13 @@ std::optional<RumSessionState> RumApplicationScope::GetCurrentSessionState() con
 }
 
 std::optional<RumViewEvent> RumApplicationScope::ConsumeLastViewEvent() {
-  return _active_session ? _active_session->ConsumeLastViewEvent() : std::nullopt;
+  if (_active_session) {
+    return _active_session->ConsumeLastViewEvent();
+  }
+  if (_prev_session) {
+    return _prev_session->ConsumeLastViewEvent();
+  }
+  return std::nullopt;
 }
 
 }  // namespace datadog::impl
