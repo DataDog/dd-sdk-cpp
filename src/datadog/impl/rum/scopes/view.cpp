@@ -66,6 +66,11 @@ RumScopeResult RumViewScope::Process(
     }
   }
 
+  // Check whether this view is currently active (prior to processing the command), so
+  // that when we call SendViewEvent(), we can discern whether that event should be
+  // propagated via RumViewEventGeneratedMessage
+  const bool was_active = _is_active;
+
   // Process the command, updating our internal state as needed
   ViewEventType event_type = HandleCommand(command, context, writer);
 
@@ -107,7 +112,7 @@ RumScopeResult RumViewScope::Process(
   // Generate a 'view' event if our state has meaningfully changed since the last event
   // we sent
   if (event_type != ViewEventType::None) {
-    SendViewEvent(command, context, writer);
+    SendViewEvent(command, context, writer, was_active);
   }
 
   // If the result of this command is that we're no longer the active view and we no
@@ -500,7 +505,10 @@ std::string_view RumViewScope::IdentifyTargetResourceKey(const RumCommand& comma
 }
 
 void RumViewScope::SendViewEvent(
-    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+    const RumCommand& command,
+    const CoreContext& context,
+    const EventWriter& writer,
+    bool was_active
 ) {
   // Resolve references needed to populate required event data
   const RumScopeDependencies& deps = _deps;
@@ -569,10 +577,15 @@ void RumViewScope::SendViewEvent(
   const bool bypass_tracking_consent = false;
   writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
 
-  // Now that `ev` is no longer needed, transfer ownership to our parent
-  // RumSessionScope, so that it can retain the event until it needs to broadcast a
-  // RumViewEventGeneratedMessage
-  _parent.get().CaptureViewEvent(std::move(ev));
+  // If this view was active prior to processing of this command, then we should
+  // transfer ownership to our parent RumSessionScope, so that it can retain the event
+  // until it needs to broadcast a RumViewEventGeneratedMessage. If was_active is false,
+  // this view scope was already inactive (e.g. because it was kept open to keep pending
+  // resource scopes alive) and therefore it should not overwrite the last-generated
+  // view event for an active view.
+  if (was_active) {
+    _parent.get().CaptureViewEvent(std::move(ev));
+  }
 }
 
 void RumViewScope::SendErrorEvent(
