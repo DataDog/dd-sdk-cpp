@@ -9,15 +9,42 @@
 #include <cinttypes>
 
 /**
- * Example layout:
+ * Binary layout of the crash context file (all integers little-endian):
  *
- * 0x0000: <CrashContextHeaderMagic>
- * 0x0008: version
- * 0x0010: rum_application_id
- * 0x0020: rum_session_id
- * 0x0030: rum_view_id
- * 0x0040: rum_action_id
- * 0x0050: <CrashContextFooterMagic>
+ * 0x0000: CrashContextHeaderMagic
+ * 0x0008: version = 1
+ *         service                  length-prefixed string
+ *         env                      length-prefixed string
+ *         application_version      length-prefixed string
+ *         source                   length-prefixed string
+ *         sdk_version              length-prefixed string
+ *         tracking_consent         uint64 (0=Granted, 1=NotGranted, 2=Pending)
+ *         os_name                  length-prefixed string
+ *         os_version               length-prefixed string
+ *         os_build                 length-prefixed string
+ *         os_version_major         length-prefixed string
+ *         device_type              length-prefixed string
+ *         device_name              length-prefixed string
+ *         device_model             length-prefixed string
+ *         device_brand             length-prefixed string
+ *         device_architecture      length-prefixed string
+ *         device_locale            length-prefixed string
+ *         device_time_zone         length-prefixed string
+ *         user_id                  length-prefixed string (empty if not set)
+ *         user_name                length-prefixed string (empty if not set)
+ *         user_email               length-prefixed string (empty if not set)
+ *         user_extra_json          length-prefixed string (empty if not set)
+ *         rum_session_id           16 raw bytes (UUID::Zero if no session)
+ *         rum_session_is_sampled   uint64
+ *         rum_session_is_active    uint64
+ *         rum_session_is_initial   uint64
+ *         rum_session_has_any_view uint64
+ *         last_view_event_json     length-prefixed string (empty if no view)
+ *         global_attributes_json   length-prefixed string (empty if none)
+ *         CrashContextFooterMagic
+ *
+ * A length-prefixed string is a uint64 byte count followed by that many UTF-8 bytes
+ * with no null terminator.
  */
 
 namespace datadog::impl {

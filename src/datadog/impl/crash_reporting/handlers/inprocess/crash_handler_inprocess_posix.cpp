@@ -995,10 +995,8 @@ class InProcessCrashHandler final : public ICrashHandler {
     }
   }
 
-  void SetRumContext(IFilesystem& fs, const RumFeatureContext& rum_ctx) override {
-    WriteCrashContext(
-        fs, s_crash_context_file_path, s_crash_context_tmp_file_path, rum_ctx
-    );
+  void SetCrashContext(IFilesystem& fs, const CrashContext& ctx) override {
+    WriteCrashContext(fs, s_crash_context_file_path, s_crash_context_tmp_file_path, ctx);
   }
 
  private:

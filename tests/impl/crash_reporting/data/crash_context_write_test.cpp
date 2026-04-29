@@ -6,10 +6,8 @@
 
 #include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
 
-#include "datadog/uuid.hpp"
-
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/storage/path.hpp"
+#include "datadog/impl/crash_reporting/data/crash_context_read.hpp"
 
 #include "mock/filesystem.hpp"
 #include "support/catch.hpp"
@@ -28,32 +26,63 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
   PlatformPath tmp_path;
   REQUIRE(tmp_path.Encode("crash.ctx.tmp"));
 
-  SECTION("M produce .ctx file with expected binary contents for latest format") {
-    // Given the binary contents of the crash context file we expect to produce at the
-    // current version
-    const uint8_t* data_ptr = MOCK_CRASH_CONTEXT_V1;
-    const size_t data_size = std::size(MOCK_CRASH_CONTEXT_V1);
-    std::string_view data{reinterpret_cast<const char*>(data_ptr), data_size};
+  SECTION("M produce .ctx file that round-trips correctly") {
+    // Given a fully-populated CrashContext
+    const CrashContext ctx = MakeMockCrashContext();
 
-    // And the canonical context values that were used to come up with that binary data
-    const RumFeatureContext rum_ctx{
-        *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef"),
-        *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef"),
-        *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef"),
-        *UUID::Parse("4c10171e-4334-4334-4334-b0000eeeefff")
-    };
-
-    // When we serialize our context to the mock file
-    const bool ok = WriteCrashContext(fs, path, tmp_path, rum_ctx);
+    // When we serialize it to the mock filesystem
+    const bool ok = WriteCrashContext(fs, path, tmp_path, ctx);
 
     // Then serialization succeeds
     REQUIRE(ok);
 
-    // And the file contains exactly the bytes we expect it to
-    REQUIRE(fs.Cat("crash.ctx") == data);
-
     // And no temporary files are left behind
     REQUIRE(!fs.IsFile("crash.ctx.tmp"));
+
+    // And the file can be read back via ReadCrashContext with all fields intact
+    const bool hold_advisory_lock = false;
+    auto open_res = fs.Wrapper().OpenForRead("crash.ctx", hold_advisory_lock);
+    REQUIRE(open_res.value == FilesystemResult::OK);
+
+    auto result = ReadCrashContext(open_res.file);
+    REQUIRE(result.GetStatus() == ReadCrashContextResult::Status::OK);
+    REQUIRE(result.data.has_value());
+
+    const CrashContext& got = *result.data;
+    REQUIRE(got.service == ctx.service);
+    REQUIRE(got.env == ctx.env);
+    REQUIRE(got.application_version == ctx.application_version);
+    REQUIRE(got.source == ctx.source);
+    REQUIRE(got.sdk_version == ctx.sdk_version);
+    REQUIRE(got.tracking_consent == ctx.tracking_consent);
+    REQUIRE(got.os_name == ctx.os_name);
+    REQUIRE(got.os_version == ctx.os_version);
+    REQUIRE(got.os_build == ctx.os_build);
+    REQUIRE(got.os_version_major == ctx.os_version_major);
+    REQUIRE(got.device_type == ctx.device_type);
+    REQUIRE(got.device_name == ctx.device_name);
+    REQUIRE(got.device_model == ctx.device_model);
+    REQUIRE(got.device_brand == ctx.device_brand);
+    REQUIRE(got.device_architecture == ctx.device_architecture);
+    REQUIRE(got.device_locale == ctx.device_locale);
+    REQUIRE(got.device_time_zone == ctx.device_time_zone);
+    REQUIRE(got.user_id == ctx.user_id);
+    REQUIRE(got.user_name == ctx.user_name);
+    REQUIRE(got.user_email == ctx.user_email);
+    REQUIRE(got.user_extra_json == ctx.user_extra_json);
+    REQUIRE(got.rum_session_state.session_id == ctx.rum_session_state.session_id);
+    REQUIRE(got.rum_session_state.is_sampled == ctx.rum_session_state.is_sampled);
+    REQUIRE(got.rum_session_state.is_active == ctx.rum_session_state.is_active);
+    REQUIRE(
+        got.rum_session_state.is_initial_session ==
+        ctx.rum_session_state.is_initial_session
+    );
+    REQUIRE(
+        got.rum_session_state.has_tracked_any_view ==
+        ctx.rum_session_state.has_tracked_any_view
+    );
+    REQUIRE(got.last_view_event_json == ctx.last_view_event_json);
+    REQUIRE(got.global_attributes_json == ctx.global_attributes_json);
   }
 
   SECTION("M fail W .ctx.tmp file can not be opened") {
@@ -67,7 +96,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);
@@ -89,7 +118,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);
@@ -112,7 +141,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);

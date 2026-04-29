@@ -9,13 +9,13 @@
 #include <memory>
 #include <string_view>
 
+#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog::impl {
 
 class IFilesystem;
 class StoragePath;
-struct RumFeatureContext;
 
 /**
  * Abstract interface for detecting and handling crashes in the process where the SDK
@@ -64,11 +64,10 @@ class ICrashHandler {
   ICrashHandler& operator=(ICrashHandler&&) = delete;
 
   /**
-   * Persists `rum_ctx` so that it is available if a crash occurs before the next
-   * normal SDK shutdown. Only called when the RUM context has actually changed since
-   * the last call.
+   * Persists `ctx` so that it is available if a crash occurs before the next normal SDK
+   * shutdown. Called whenever any field of the accumulated crash context changes.
    */
-  virtual void SetRumContext(IFilesystem& fs, const RumFeatureContext& rum_ctx) = 0;
+  virtual void SetCrashContext(IFilesystem& fs, const CrashContext& ctx) = 0;
 };
 
 namespace CrashHandler {

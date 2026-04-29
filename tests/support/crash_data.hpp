@@ -6,7 +6,12 @@
 
 #pragma once
 
-#include <cinttypes>
+#include <cstdint>
+
+#include "datadog/core.hpp"
+#include "datadog/uuid.hpp"
+
+#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 
 // clang-format off
 
@@ -46,21 +51,42 @@ static const uint8_t MOCK_CRASH_REPORT_V1[] = {
   0xff, 0xdd, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00   // CrashReportFooterMagic
 };
 
-/**
- * Binary data of a crash context file written when CrashContextFileVersion == 1.
- */
-static const uint8_t MOCK_CRASH_CONTEXT_V1[] = {
-  0x01, 0xdc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  // CrashContextHeaderMagic
-  0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,  //  version: 1
-  0xa9, 0x91, 0xca, 0x10, 0x40, 0x04, 0x40, 0x04,  //  rum_application_id
-  0x40, 0x04, 0xbe, 0xef, 0xbe, 0xef, 0xbe, 0xef,  //  : a991ca10-4004-4004-4004-beefbeefbeef
-  0x5e, 0x55, 0x10, 0x17, 0x41, 0x14, 0x41, 0x14,  //  rum_session_id
-  0x41, 0x14, 0xbe, 0xee, 0xef, 0xbe, 0xee, 0xef,  //  : 5e551017-4114-4114-4114-beeeefbeeeef
-  0x14, 0x1e, 0xe1, 0x44, 0x42, 0x24, 0x42, 0x24,  //  rum_view_id
-  0x42, 0x24, 0xbe, 0xee, 0xee, 0xee, 0xee, 0xef,  //  : 141ee144-4224-4224-4224-beeeeeeeeeef
-  0x4c, 0x10, 0x17, 0x1e, 0x43, 0x34, 0x43, 0x34,  //  rum_action_id
-  0x43, 0x34, 0xb0, 0x00, 0x0e, 0xee, 0xef, 0xff,  //  : 4c10171e-4334-4334-4334-b0000eeeefff
-  0xff, 0xdc, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00   // CrashContextFooterMagic
-};
-
 // clang-format on
+
+/**
+ * Returns a representative `CrashContext` value with all fields populated, suitable
+ * for use as test fixture data for crash context serialization and deserialization tests.
+ */
+static inline datadog::impl::CrashContext MakeMockCrashContext() {
+  datadog::impl::CrashContext ctx;
+  ctx.service = "mock-service";
+  ctx.env = "mock-env";
+  ctx.application_version = "1.2.3";
+  ctx.source = "rum-cpp";
+  ctx.sdk_version = "2.0.0";
+  ctx.tracking_consent = datadog::TrackingConsent::Pending;
+  ctx.os_name = "mock-os";
+  ctx.os_version = "2.3.4";
+  ctx.os_build = "mock-build-number";
+  ctx.os_version_major = "2";
+  ctx.device_type = "desktop";
+  ctx.device_name = "mock-device";
+  ctx.device_model = "mock-model";
+  ctx.device_brand = "mock-brand";
+  ctx.device_architecture = "x86_64";
+  ctx.device_locale = "en-US";
+  ctx.device_time_zone = "America/New_York";
+  ctx.user_id = "usr-123";
+  ctx.user_name = "Alice";
+  ctx.user_email = "alice@example.com";
+  ctx.user_extra_json = "{}";
+  ctx.rum_session_state.session_id =
+      *datadog::UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+  ctx.rum_session_state.is_sampled = true;
+  ctx.rum_session_state.is_active = true;
+  ctx.rum_session_state.is_initial_session = false;
+  ctx.rum_session_state.has_tracked_any_view = true;
+  ctx.last_view_event_json = R"({"type":"view"})";
+  ctx.global_attributes_json = R"({"plan":"gold"})";
+  return ctx;
+}

@@ -14,7 +14,6 @@
 #include "client/crashpad_client.h"
 #include "client/settings.h"
 
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
@@ -221,7 +220,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
     return true;
   }
 
-  void SetRumContext(IFilesystem& fs, const RumFeatureContext& rum_ctx) override {
+  void SetCrashContext(IFilesystem& fs, const CrashContext& ctx) override {
     // We don't need to persist context to disk: we just set crashpad annotation values,
     // which the crashpad_handler executable will capture from process memory on crash
     (void)fs;
@@ -229,18 +228,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     char buf[37] = {0};
 
-    if (rum_ctx.application_id != _rum_application_id) {
-      _rum_application_id = rum_ctx.application_id;
-      if (_rum_application_id == UUID::Zero) {
-        s_rum_application_id.Set("");
-      } else {
-        _rum_application_id.ToBytes(buf, std::size(buf));
-        s_rum_application_id.Set(buf);
-      }
-    }
-
-    if (rum_ctx.session_id != _rum_session_id) {
-      _rum_session_id = rum_ctx.session_id;
+    const UUID& session_id = ctx.rum_session_state.session_id;
+    if (session_id != _rum_session_id) {
+      _rum_session_id = session_id;
       if (_rum_session_id == UUID::Zero) {
         s_rum_session_id.Set("");
       } else {
@@ -249,34 +239,17 @@ class CrashpadCrashHandler final : public ICrashHandler {
       }
     }
 
-    if (rum_ctx.view_id != _rum_view_id) {
-      _rum_view_id = rum_ctx.view_id;
-      if (_rum_view_id == UUID::Zero) {
-        s_rum_view_id.Set("");
-      } else {
-        _rum_view_id.ToBytes(buf, std::size(buf));
-        s_rum_view_id.Set(buf);
-      }
-    }
-
-    if (rum_ctx.action_id != _rum_action_id) {
-      _rum_action_id = rum_ctx.action_id;
-      if (_rum_action_id == UUID::Zero) {
-        s_rum_action_id.Set("");
-      } else {
-        _rum_action_id.ToBytes(buf, std::size(buf));
-        s_rum_action_id.Set(buf);
-      }
-    }
+    // application, view, and action IDs are now carried in last_view_event_json;
+    // clear these annotations so stale values from a previous launch are not reported
+    s_rum_application_id.Set("");
+    s_rum_view_id.Set("");
+    s_rum_action_id.Set("");
     // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
   };
 
  private:
-  // Values cached on last call to SetRumContext
-  UUID _rum_application_id;
+  // Session ID cached on last call to SetCrashContext
   UUID _rum_session_id;
-  UUID _rum_view_id;
-  UUID _rum_action_id;
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {

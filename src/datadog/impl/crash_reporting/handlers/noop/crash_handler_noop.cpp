@@ -47,7 +47,7 @@ class NoopCrashHandler final : public ICrashHandler {
     return true;
   }
 
-  void SetRumContext(IFilesystem&, const RumFeatureContext&) override {}
+  void SetCrashContext(IFilesystem&, const CrashContext&) override {}
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {

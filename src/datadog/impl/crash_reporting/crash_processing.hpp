@@ -20,7 +20,6 @@ class IFilesystem;
 class FilesystemWrapper;
 class StoragePath;
 struct CrashReportFile;
-struct CrashContextFile;
 
 /**
  * Function used to signal that a valid crash report has been detected and processed.
@@ -37,7 +36,7 @@ using CrashReportCallback = std::function<void(CrashReport)>;
  * directly referenced in the call stack.
  */
 CrashReport BuildCrashReport(
-    const CrashReportFile& crf, const std::optional<CrashContextFile>& ccf
+    const CrashReportFile& crf, const std::optional<CrashContext>& ccf
 );
 
 /**

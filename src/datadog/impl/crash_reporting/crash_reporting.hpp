@@ -7,11 +7,10 @@
 #pragma once
 
 #include <memory>
-#include <optional>
 #include <string_view>
 
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
@@ -85,9 +84,8 @@ class CrashReporting final : public Feature {
   // Path to the directory where crash reports may be stored
   StoragePath _crash_storage_dir_path;
 
-  // Last RUM context forwarded to the crash handler; used to suppress redundant
-  // SetRumContext calls when the context hasn't actually changed
-  std::optional<RumFeatureContext> _last_rum_ctx;
+  // Accumulated crash context, updated incrementally as SDK state changes
+  CrashContext _crash_context;
 };
 
 }  // namespace datadog::impl

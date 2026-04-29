@@ -8,7 +8,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cinttypes>
 #include <string_view>
 #include <vector>
 
@@ -84,7 +83,7 @@ static bool delete_crash_files(
 struct CrashReadResult {
   std::optional<File> crash_file;
   std::optional<CrashReportFile> crf;
-  std::optional<CrashContextFile> ccf;
+  std::optional<CrashContext> ccf;
 };
 
 /**
@@ -97,11 +96,11 @@ struct CrashReadResult {
  * `crash_file_path`, as well as a valid `CrashReportFile` struct containing the data
  * parsed from that file.
  *
- * If no context file exists, no `CrashContextFile` value will be included.
+ * If no context file exists, no `CrashContext` value will be included.
  *
- * If a context file exists, it will be parsed to a `CrashContextFile` value and
- * included in the result. Failure to read or parse an existing context file that will
- * cause the entire operation to fail.
+ * If a context file exists, it will be parsed to a `CrashContext` value and included
+ * in the result. Failure to read or parse an existing context file will cause the
+ * entire operation to fail.
  *
  * On failure, all values in the result struct will be std::nullopt.
  */
@@ -262,7 +261,7 @@ static CrashReadResult read_crash_files(
 }
 
 CrashReport BuildCrashReport(
-    const CrashReportFile& crf, const std::optional<CrashContextFile>& ccf
+    const CrashReportFile& crf, const std::optional<CrashContext>& ccf
 ) {
   // Initialize a result struct and copy over the basic details of the crash
   CrashReport crash{};
@@ -272,15 +271,7 @@ CrashReport BuildCrashReport(
   crash.pid = crf.pid;
   crash.tid = crf.tid;
   crash.timestamp = crf.timestamp;
-
-  // If the crash has a valid context file, copy over the RUM UUIDs from that file
-  // (if we have no context file, they'll remain default-initialized to UUID::Zero)
-  if (ccf.has_value()) {
-    crash.rum_application_id = ccf->rum_application_id;
-    crash.rum_session_id = ccf->rum_session_id;
-    crash.rum_view_id = ccf->rum_view_id;
-    crash.rum_action_id = ccf->rum_action_id;
-  }
+  crash.context = ccf;
 
   // The CrashReportFile contains the data written during the signal-safe path of the
   // crash handler, where our primary job was to flush everything to disk as quickly and
@@ -515,7 +506,7 @@ void ProcessCrashReports(
       return;
     }
 
-    // Attempt to read a CrashReportFile and an optional CrashContextFile
+    // Attempt to read a CrashReportFile and an optional CrashContext
     auto res = read_crash_files(logger, fsw, crash_file_path, context_file_path);
     if (!res.crash_file.has_value() || !res.crf.has_value()) {
       // read_crash_files handles logging and deletion/cleanup where needed; move on to

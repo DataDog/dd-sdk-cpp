@@ -7,12 +7,69 @@
 #pragma once
 
 #include <cinttypes>
+#include <optional>
 #include <string>
 #include <vector>
 
-#include "datadog/uuid.hpp"
+#include "datadog/core.hpp"
+
+#include "datadog/impl/core/feature_types/rum.hpp"
 
 namespace datadog::impl {
+
+/**
+ * Rich context snapshot persisted to disk alongside each crash report, capturing
+ * the SDK state at the moment of the crash so it can be replayed when the crash is
+ * processed on the next app launch.
+ *
+ * All optional values are represented as empty strings (for string fields) or
+ * UUID::Zero / all-false booleans (for `rum_session_state`) rather than with
+ * `std::optional` wrappers, so the type can be serialized with a flat, fixed-field
+ * binary layout.
+ */
+struct CrashContext {
+  // Core identity
+  std::string service;
+  std::string env;
+  std::string application_version;
+  std::string source;
+  std::string sdk_version;
+  TrackingConsent tracking_consent{TrackingConsent::Pending};
+
+  // OS info (from platform::OsInfo)
+  std::string os_name;
+  std::string os_version;
+  std::string os_build;
+  std::string os_version_major;
+
+  // Device info (from platform::DeviceInfo)
+  std::string device_type;
+  std::string device_name;
+  std::string device_model;
+  std::string device_brand;
+  std::string device_architecture;
+  std::string device_locale;
+  std::string device_time_zone;
+
+  // User info — empty strings when no user has been set via Core::SetUserInfo()
+  std::string user_id;
+  std::string user_name;
+  std::string user_email;
+  std::string user_extra_json;  // Attribute serialized as JSON; empty if not set
+
+  // TODO(RUM-15997): Add account_id / account_name once Core::SetAccountInfo()
+  // is implemented.
+
+  // RUM session state — rum_session_state.session_id is UUID::Zero when no session
+  // has been created
+  RumSessionState rum_session_state{};
+
+  // Last active view event serialized as JSON; empty when no view is active
+  std::string last_view_event_json;
+
+  // Global RUM attributes serialized as a JSON object; empty when none are set
+  std::string global_attributes_json;
+};
 
 /**
  * Record of a single crash in this application that the SDK has handled.
@@ -30,10 +87,8 @@ struct CrashReport {
   uint64_t tid;            // Thread ID of crashing thread
   uint64_t timestamp;      // Unix timestamp read directly from system clock
 
-  UUID rum_application_id;  // UUID::Zero if crash had no RUM context
-  UUID rum_session_id;      // UUID::Zero if no RUM context or no session was active
-  UUID rum_view_id;         // UUID::Zero if no RUM context or no view was active
-  UUID rum_action_id;       // UUID::Zero if no RUM context or no action was active
+  // RUM and SDK state at the time of the crash; absent if no context file was found
+  std::optional<CrashContext> context;
 
   /**
    * Details of a loaded binary module that appears in the stack trace, ultimately used
