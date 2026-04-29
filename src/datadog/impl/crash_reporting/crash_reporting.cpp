@@ -7,7 +7,6 @@
 #include "datadog/impl/crash_reporting/crash_reporting.hpp"
 
 #include <memory>
-#include <vector>
 
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
@@ -17,6 +16,13 @@
 #include "datadog/impl/crash_reporting/crash_processing.hpp"
 
 namespace datadog::impl {
+
+template <typename T>
+static void encode_json_to_string(std::string& out, const T& value) {
+  const size_t n = GetJsonSize(value);
+  out.resize(n);
+  out.resize(WriteJson(out.data(), n, value));
+}
 
 CrashReporting::CrashReporting(
     ICrashHandler& handler, IFilesystem& fs, const StoragePath& crash_storage_dir_path
@@ -74,9 +80,7 @@ CrashReporting::MakeMessageHandler() {
         cc.user_id = ctx.user_info->id.value_or("");
         cc.user_name = ctx.user_info->name.value_or("");
         cc.user_email = ctx.user_info->email.value_or("");
-        std::vector<uint8_t> buf;
-        EncodeJson(buf, ctx.user_info->extra);
-        cc.user_extra_json = std::string(buf.begin(), buf.end());
+        encode_json_to_string(cc.user_extra_json, ctx.user_info->extra);
       } else {
         cc.user_id.clear();
         cc.user_name.clear();
@@ -86,15 +90,11 @@ CrashReporting::MakeMessageHandler() {
     } else if (const auto* m = std::get_if<RumSessionStateChangedMessage>(&msg)) {
       cc.rum_session_state = m->session_state;
     } else if (const auto* m = std::get_if<RumActiveViewUpdatedMessage>(&msg)) {
-      std::vector<uint8_t> buf;
-      EncodeJson(buf, m->view_event);
-      cc.last_view_event_json = std::string(buf.begin(), buf.end());
+      encode_json_to_string(cc.last_view_event_json, m->view_event);
     } else if (std::get_if<RumActiveViewLostMessage>(&msg)) {
       cc.last_view_event_json.clear();
     } else if (const auto* m = std::get_if<RumGlobalAttributesChangedMessage>(&msg)) {
-      std::vector<uint8_t> buf;
-      EncodeJson(buf, m->attributes);
-      cc.global_attributes_json = std::string(buf.begin(), buf.end());
+      encode_json_to_string(cc.global_attributes_json, m->attributes);
     } else {
       // CrashReportProcessedMessage does not affect crash context; no action needed
       return;
