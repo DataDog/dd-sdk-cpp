@@ -46,7 +46,8 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
     // When the feature handles a ContextChangedMessage
     message_handler_func(ContextChangedMessage{context});
 
-    // Then our handler has been notified with the context fields populated from MOCK_CONTEXT
+    // Then our handler has been notified with the context fields populated from
+    // MOCK_CONTEXT
     REQUIRE(handler.num_set_crash_context_calls == 1);
     REQUIRE(handler.last_crash_ctx.has_value());
     REQUIRE(handler.last_crash_ctx->service == "mock-service");
@@ -96,7 +97,17 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
     const datadog::UUID view_id =
         *datadog::UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
     RumViewEvent view_event{
-        date, app_id, session_id, RumSessionType::User, view_id, "my-view", 0, 0, 0, 0, 0
+        date,
+        app_id,
+        session_id,
+        RumSessionType::User,
+        view_id,
+        "my-view",
+        0,
+        0,
+        0,
+        0,
+        0
     };
 
     // When the feature handles a RumActiveViewUpdatedMessage
@@ -117,7 +128,9 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
     }
   }
 
-  SECTION("M clear view JSON W RumActiveViewLostMessage is received with no prior view") {
+  SECTION(
+      "M clear view JSON W RumActiveViewLostMessage is received with no prior view"
+  ) {
     // When a lost-view message is received without a prior view update
     message_handler_func(RumActiveViewLostMessage{});
 
@@ -127,7 +140,9 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
     REQUIRE(handler.last_crash_ctx->last_view_event_json.empty());
   }
 
-  SECTION("M serialize global attributes W RumGlobalAttributesChangedMessage is received") {
+  SECTION(
+      "M serialize global attributes W RumGlobalAttributesChangedMessage is received"
+  ) {
     // When the feature handles a RumGlobalAttributesChangedMessage with some attributes
     message_handler_func(RumGlobalAttributesChangedMessage{datadog::Attribute{}});
 

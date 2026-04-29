@@ -55,7 +55,8 @@ static const uint8_t MOCK_CRASH_REPORT_V1[] = {
 
 /**
  * Returns a representative `CrashContext` value with all fields populated, suitable
- * for use as test fixture data for crash context serialization and deserialization tests.
+ * for use as test fixture data for crash context serialization and deserialization
+ * tests.
  */
 static inline datadog::impl::CrashContext MakeMockCrashContext() {
   datadog::impl::CrashContext ctx;

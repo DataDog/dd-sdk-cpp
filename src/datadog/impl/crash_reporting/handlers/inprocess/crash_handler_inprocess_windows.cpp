@@ -417,7 +417,9 @@ class InProcessCrashHandler final : public ICrashHandler {
   }
 
   void SetCrashContext(IFilesystem& fs, const CrashContext& ctx) override {
-    WriteCrashContext(fs, s_crash_context_file_path, s_crash_context_tmp_file_path, ctx);
+    WriteCrashContext(
+        fs, s_crash_context_file_path, s_crash_context_tmp_file_path, ctx
+    );
   }
 
  private:

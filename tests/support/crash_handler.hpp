@@ -34,9 +34,7 @@ class MockCrashHandler : public impl::ICrashHandler {
     return true;
   }
 
-  void SetCrashContext(
-      impl::IFilesystem& fs, const impl::CrashContext& ctx
-  ) override {
+  void SetCrashContext(impl::IFilesystem& fs, const impl::CrashContext& ctx) override {
     (void)fs;
     num_set_crash_context_calls++;
     last_crash_ctx = ctx;
