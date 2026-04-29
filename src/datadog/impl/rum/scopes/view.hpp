@@ -233,10 +233,7 @@ class RumViewScope {
    * Generates and sends a RUM view event in response to the given command.
    */
   void SendViewEvent(
-      const RumCommand& command,
-      const CoreContext& context,
-      const EventWriter& writer,
-      bool was_active
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
   );
 
   /**

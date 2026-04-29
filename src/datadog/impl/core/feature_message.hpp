@@ -44,12 +44,21 @@ struct RumSessionStateChangedMessage {
 };
 
 /**
- * Emitted by `Rum` each time a view event is generated.
+ * Emitted by `Rum` each time the state of the active view changes. Carries the
+ * `RumViewEvent` that was generated, to ensure that downstream consumers have a
+ * complete, up-to-date description of the active view.
+ *
+ * `Rum` will only produce this message after generating an event where
+ * `view.is_active == true`. Updates to views that are no longer active (but are still
+ * kept alive to track pending resources) will not trigger this message. Likewise, when
+ * a view is stopped and sends a final event with `view.is_active == false`, no message
+ * will be produced. To track when RUM no longer has an active view, use
+ * `RumActiveViewLostMessage`.
  *
  * Used by `CrashReporting` to persist the latest RUM view event alongside crash
  * reports.
  */
-struct RumViewEventGeneratedMessage {
+struct RumActiveViewUpdatedMessage {
   RumViewEvent view_event;
 };
 
@@ -63,10 +72,10 @@ struct RumViewEventGeneratedMessage {
  * RUM no longer has an active view, even in cases where no RUM View event is generated.
  *
  * Used by `CrashReporting` to clear any data that was persisted in response to
- * `RumViewEventGeneratedMessage`, ensuring that the crash context reflects that RUM no
+ * `RumActiveViewUpdatedMessage`, ensuring that the crash context reflects that RUM no
  * longer has an active view.
  */
-struct RumViewResetMessage {};
+struct RumActiveViewLostMessage {};
 
 /**
  * Emitted by `Rum` whenever the set of global RUM attributes changes.
@@ -94,8 +103,8 @@ struct CrashReportProcessedMessage {
 using FeatureMessage = std::variant<
     ContextChangedMessage,
     RumSessionStateChangedMessage,
-    RumViewEventGeneratedMessage,
-    RumViewResetMessage,
+    RumActiveViewUpdatedMessage,
+    RumActiveViewLostMessage,
     RumGlobalAttributesChangedMessage,
     CrashReportProcessedMessage>;
 

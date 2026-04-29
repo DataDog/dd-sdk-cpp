@@ -273,9 +273,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(CountMessages<RumSessionStateChangedMessage>(test.feature_messages) == 2);
   }
 
-  // === RumViewEventGeneratedMessage ===
+  // === RumActiveViewUpdatedMessage / RumActiveViewLostMessage ===
 
-  SECTION("M emit RumViewEventGeneratedMessage W StartView() causes a view event") {
+  SECTION("M emit RumActiveViewUpdatedMessage W StartView() causes a view event") {
     // Given a Rum feature with default config
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     FeatureTest test(MOCK_CONTEXT);
@@ -284,18 +284,19 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     test.Start(rum);
     rum->StartView("foo");
 
-    // Then Rum produces a single RumViewEventGeneratedMessage that encodes the view
+    // Then Rum produces a single RumActiveViewUpdatedMessage that encodes the view
     // event produced to describe our new view
-    REQUIRE(CountMessages<RumViewEventGeneratedMessage>(test.feature_messages) == 1);
+    REQUIRE(CountMessages<RumActiveViewUpdatedMessage>(test.feature_messages) == 1);
     const auto* msg =
-        FindLastMessage<RumViewEventGeneratedMessage>(test.feature_messages);
+        FindLastMessage<RumActiveViewUpdatedMessage>(test.feature_messages);
     REQUIRE(msg != nullptr);
     REQUIRE(msg->view_event.view.url == "foo");
     REQUIRE(msg->view_event.view.is_active.value == true);
   }
 
   SECTION(
-      "M emit RumViewResetMessage W StopView() is called with no subsequent StartView()"
+      "M emit RumActiveViewLostMessage W StopView() is called with no subsequent "
+      "StartView()"
   ) {
     // Given a Rum feature with default config
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
@@ -307,25 +308,26 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     rum->StartView("foo");
     rum->StopView("foo");
 
-    // Then Rum produces two RumViewEventGeneratedMessages, since the StopView call
-    // results in a final view event with is_active = false
-    REQUIRE(CountMessages<RumViewEventGeneratedMessage>(test.feature_messages) == 2);
+    // Then Rum has produced a single RumActiveViewUpdatedMessage, in response to foo
+    // starting
+    REQUIRE(CountMessages<RumActiveViewUpdatedMessage>(test.feature_messages) == 1);
     const auto* last_view_msg =
-        FindLastMessage<RumViewEventGeneratedMessage>(test.feature_messages);
+        FindLastMessage<RumActiveViewUpdatedMessage>(test.feature_messages);
     REQUIRE(last_view_msg->view_event.view.url == "foo");
-    REQUIRE(last_view_msg->view_event.view.is_active.value == false);
+    REQUIRE(last_view_msg->view_event.view.is_active.value == true);
 
-    // And Rum also produces a RumViewResetMessage to indicate that there is no longer
-    // an active view
-    REQUIRE(CountMessages<RumViewResetMessage>(test.feature_messages) == 1);
+    // And Rum also produces a RumActiveViewLostMessage to indicate that there is no
+    // longer an active view
+    REQUIRE(CountMessages<RumActiveViewLostMessage>(test.feature_messages) == 1);
 
-    // And that RumViewResetMessage is sent _after_ the corresponding
-    // RumViewEventGeneratedMessage
-    REQUIRE(std::holds_alternative<RumViewResetMessage>(test.feature_messages.back()));
+    // And that RumActiveViewLostMessage is sent _after_ the RumActiveViewUpdatedMessage
+    REQUIRE(
+        std::holds_alternative<RumActiveViewLostMessage>(test.feature_messages.back())
+    );
   }
 
   SECTION(
-      "M not emit RumViewResetMessage W StartView() immediately follows StopView()"
+      "M not emit RumActiveViewLostMessage W StartView() immediately follows StopView()"
   ) {
     // Given a Rum feature with default config
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
@@ -340,21 +342,21 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     // Then Rum produces three view events - one to start 'foo', one to end 'foo', and
     // another to start 'bar' - but those last two events occur in the course of
     // processing a single command, and Rum only broadcasts a
-    // RumViewEventGeneratedMessage for the most recently-produced view event
-    REQUIRE(CountMessages<RumViewEventGeneratedMessage>(test.feature_messages) == 2);
+    // RumActiveViewUpdatedMessage for the most recently-produced view event
+    REQUIRE(CountMessages<RumActiveViewUpdatedMessage>(test.feature_messages) == 2);
     const auto* last_view_msg =
-        FindLastMessage<RumViewEventGeneratedMessage>(test.feature_messages);
+        FindLastMessage<RumActiveViewUpdatedMessage>(test.feature_messages);
     REQUIRE(last_view_msg->view_event.view.url == "bar");
     REQUIRE(last_view_msg->view_event.view.is_active.value == true);
 
-    // And Rum does not produce a RumViewResetMessage, since the session has immediately
-    // transitioned from one view to another, without remaining in a no-active-view
-    // state
-    REQUIRE(CountMessages<RumViewResetMessage>(test.feature_messages) == 0);
+    // And Rum does not produce a RumActiveViewLostMessage, since the session has
+    // immediately transitioned from one view to another, without remaining in a
+    // no-active-view state
+    REQUIRE(CountMessages<RumActiveViewLostMessage>(test.feature_messages) == 0);
   }
 
   SECTION(
-      "M not emit RumViewEventGeneratedMessage for an inactive view W a resource "
+      "M not emit RumActiveViewUpdatedMessage for an inactive view W a resource "
       "completes on it"
   ) {
     // Given a Rum feature with default config
@@ -373,28 +375,28 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     // At this point we expect two broadcasts: one for 'foo' (its initial event) and
     // one for 'bar' (the last event captured within the StartView("bar") command,
     // which wins over 'foo's final event in the same command)
-    REQUIRE(CountMessages<RumViewEventGeneratedMessage>(test.feature_messages) == 2);
+    REQUIRE(CountMessages<RumActiveViewUpdatedMessage>(test.feature_messages) == 2);
     REQUIRE(
-        FindLastMessage<RumViewEventGeneratedMessage>(test.feature_messages)
+        FindLastMessage<RumActiveViewUpdatedMessage>(test.feature_messages)
             ->view_event.view.url == "bar"
     );
 
     // When the resource that was started on the now-inactive 'foo' view completes
     rum->StopResource("r1", RumResponseDetails{200});
 
-    // Then no new RumViewEventGeneratedMessage should be broadcast: the stale 'foo'
+    // Then no new RumActiveViewUpdatedMessage should be broadcast: the stale 'foo'
     // view event generated by the resource completion must not overwrite the broadcast
     // context that was set for the active 'bar' view
-    REQUIRE(CountMessages<RumViewEventGeneratedMessage>(test.feature_messages) == 2);
+    REQUIRE(CountMessages<RumActiveViewUpdatedMessage>(test.feature_messages) == 2);
     REQUIRE(
-        FindLastMessage<RumViewEventGeneratedMessage>(test.feature_messages)
+        FindLastMessage<RumActiveViewUpdatedMessage>(test.feature_messages)
             ->view_event.view.url == "bar"
     );
   }
 
   SECTION(
-      "M emit RumViewResetMessage W session refresh occurs without generating a new "
-      "view event"
+      "M emit RumActiveViewLostMessage W session refresh occurs without generating a "
+      "new view event"
   ) {
     // Given a Rum feature with default config
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
@@ -416,15 +418,15 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     // Then Rum only ever produces a single view event: it does not have the chance to
     // update 'foo' with view.is_active = false since the change in view state occurs
     // after the session is already expired
-    REQUIRE(CountMessages<RumViewEventGeneratedMessage>(test.feature_messages) == 1);
+    REQUIRE(CountMessages<RumActiveViewUpdatedMessage>(test.feature_messages) == 1);
     const auto* last_view_msg =
-        FindLastMessage<RumViewEventGeneratedMessage>(test.feature_messages);
+        FindLastMessage<RumActiveViewUpdatedMessage>(test.feature_messages);
     REQUIRE(last_view_msg->view_event.view.url == "foo");
     REQUIRE(last_view_msg->view_event.view.is_active.value == true);
 
-    // But nevertheless, Rum _does_ produce a RumViewResetMessage to indicate that it
-    // no longer has an active view
-    REQUIRE(CountMessages<RumViewResetMessage>(test.feature_messages) == 1);
+    // But nevertheless, Rum _does_ produce a RumActiveViewLostMessage to indicate that
+    // it no longer has an active view
+    REQUIRE(CountMessages<RumActiveViewLostMessage>(test.feature_messages) == 1);
 
     // And our latest session state looks the way we expect it to for a refreshed
     // session with no views

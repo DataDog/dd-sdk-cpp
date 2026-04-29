@@ -442,16 +442,16 @@ void RumSessionScope::AttemptViewTransfer(
   _view_scopes.Propagate(cmd, context, writer);
 }
 
-void RumSessionScope::CaptureViewEvent(RumViewEvent ev) {
+void RumSessionScope::StoreLastActiveViewEvent(RumViewEvent ev) {
   // Move the provided value into our std::optional<RumViewEvent> member
-  _last_generated_view_event = std::move(ev);
+  _last_active_view_event = std::move(ev);
 }
 
-std::optional<RumViewEvent> RumSessionScope::ConsumeLastViewEvent() {
+std::optional<RumViewEvent> RumSessionScope::ConsumeLastActiveViewEvent() {
   // Move the value out of our std::optional<RumViewEvent> member, clearing that member
   // in the process
   std::optional<RumViewEvent> result =
-      std::exchange(_last_generated_view_event, std::nullopt);
+      std::exchange(_last_active_view_event, std::nullopt);
   return result;
 }
 

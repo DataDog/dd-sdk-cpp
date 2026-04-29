@@ -265,12 +265,12 @@ std::optional<RumSessionState> RumApplicationScope::GetCurrentSessionState() con
   };
 }
 
-std::optional<RumViewEvent> RumApplicationScope::ConsumeLastViewEvent() {
+std::optional<RumViewEvent> RumApplicationScope::ConsumeLastActiveViewEvent() {
   if (_active_session) {
-    return _active_session->ConsumeLastViewEvent();
+    return _active_session->ConsumeLastActiveViewEvent();
   }
   if (_prev_session) {
-    return _prev_session->ConsumeLastViewEvent();
+    return _prev_session->ConsumeLastActiveViewEvent();
   }
   return std::nullopt;
 }

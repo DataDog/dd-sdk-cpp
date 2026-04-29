@@ -301,17 +301,18 @@ void Rum::UpdateApplicationSnapshot() {
 
 void Rum::BroadcastStateChanges(const MessagePublisher& publisher) {
   // If any RUM View events were generated during processing of the most recent command,
-  // publish a RumViewEventGeneratedMessage containing the most-recently-produced event
-  if (auto ev = _application.ConsumeLastViewEvent()) {
-    publisher(RumViewEventGeneratedMessage{std::move(*ev)});
+  // publish a RumActiveViewUpdatedMessage containing the most-recently-produced event
+  if (auto ev = _application.ConsumeLastActiveViewEvent()) {
+    publisher(RumActiveViewUpdatedMessage{std::move(*ev)});
   }
 
   // If the active view ID is now UUID::Zero, and it was nonzero the last time we
   // processed a command, then we no longer have an active view: publish a
-  // RumViewResetMessage so downstream features can clear their last-view-event state
+  // RumActiveViewLostMessage so downstream features can clear their last-view-event
+  // state
   const UUID current_view_id = _application_snapshot.active_view_id;
   if (_last_broadcast_view_id != UUID::Zero && current_view_id == UUID::Zero) {
-    publisher(RumViewResetMessage{});
+    publisher(RumActiveViewLostMessage{});
   }
   _last_broadcast_view_id = current_view_id;
 
