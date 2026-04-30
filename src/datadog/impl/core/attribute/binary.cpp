@@ -11,6 +11,7 @@
 
 #include "datadog/impl/core/attribute/cow.hpp"
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/util/unreachable.hpp"
 
 namespace datadog::impl {
 
@@ -134,6 +135,10 @@ AttributeBinarySerialization::Result AttributeBinarySerialization::Write(
       return Result{FilesystemResult::OK, true};
     }
   }
+
+  // switch/case is exhaustive for all value types: an invalid enum in attr.type would
+  // indicate memory corruption or serious misuse
+  DATADOG_UNREACHABLE;
 }
 
 AttributeBinarySerialization::Result AttributeBinarySerialization::Parse(
@@ -350,6 +355,9 @@ AttributeBinarySerialization::Result AttributeBinarySerialization::ParseImpl(
       return Result{FilesystemResult::OK, true};
     }
   }
+  // switch/case is exhaustive for all value types: an invalid enum in type_id is
+  // impossible given that we validated the value read from the file
+  DATADOG_UNREACHABLE;
 }
 
 }  // namespace datadog::impl
