@@ -18,31 +18,39 @@
 namespace datadog::impl {
 
 /**
- * Rich context snapshot persisted to disk alongside each crash report, capturing
- * the SDK state at the moment of the crash so it can be replayed when the crash is
- * processed on the next app launch.
+ * Essential SDK state persisted to disk alongside each crash report.
  *
- * All optional values are represented as empty strings (for string fields) or
- * UUID::Zero / all-false booleans (for `rum_session_state`) rather than with
- * `std::optional` wrappers, so the type can be serialized with a flat, fixed-field
- * binary layout.
+ * `CrashReporting` holds a single `CrashContext` value. Whenever `CrashContext`
+ * receives a message indicating that SDK state has changed in a way that affects these
+ * values, it updates that value, then persists it via the ICrashHandler to ensure that
+ * any crash that's subsequently handled will be associated with the latest snapshot of
+ * SDK state.
+ *
+ * When on-disk crash reports are processed and relayed to other features to be
+ * processed on next launch, any accompanying `CrashContext` is deserialized and sent
+ * along with the crash. This allows `Rum`, for example, to handle crash reports in a
+ * way that's fully informed by the state of the SDK at the time of the crash.
  */
 struct CrashContext {
-  // Core identity
+  // Application configuration details
   std::string service;
   std::string env;
   std::string application_version;
+
+  // Internal SDK configuration details
   std::string source;
   std::string sdk_version;
+
+  // Current SDK instance state
   TrackingConsent tracking_consent{TrackingConsent::Pending};
 
-  // OS info (from platform::OsInfo)
+  // OS info populated in the process that crashed
   std::string os_name;
   std::string os_version;
   std::string os_build;
   std::string os_version_major;
 
-  // Device info (from platform::DeviceInfo)
+  // Device info populated in the process that crashed
   std::string device_type;
   std::string device_name;
   std::string device_model;
@@ -51,23 +59,25 @@ struct CrashContext {
   std::string device_locale;
   std::string device_time_zone;
 
-  // User info — empty strings when no user has been set via Core::SetUserInfo()
+  // User details conveyed to the SDK via SetUserInfo() et al. in the process that
+  // crashed; empty if no user info was set. user_extra_json is a JSON payload.
   std::string user_id;
   std::string user_name;
   std::string user_email;
-  std::string user_extra_json;  // Attribute serialized as JSON; empty if not set
+  std::string user_extra_json;
 
   // TODO(RUM-15997): Add account_id / account_name once Core::SetAccountInfo()
   // is implemented.
 
-  // RUM session state — rum_session_state.session_id is UUID::Zero when no session
-  // has been created
+  // State of the latest RUM session prior to the crash. If no RUM session was ever
+  // created, session_id will be UUID::Zero.
   RumSessionState rum_session_state{};
 
-  // Last active view event serialized as JSON; empty when no view is active
+  // The last RUM View event that was generated to describe the view that was active at
+  // the time of the crash; or empty if no RUM view was active
   std::string last_view_event_json;
 
-  // Global RUM attributes serialized as a JSON object; empty when none are set
+  // Global RUM attributes serialized as a JSON object, or empty
   std::string global_attributes_json;
 };
 
@@ -87,7 +97,6 @@ struct CrashReport {
   uint64_t tid;            // Thread ID of crashing thread
   uint64_t timestamp;      // Unix timestamp read directly from system clock
 
-  // RUM and SDK state at the time of the crash; absent if no context file was found
   std::optional<CrashContext> context;
 
   /**
