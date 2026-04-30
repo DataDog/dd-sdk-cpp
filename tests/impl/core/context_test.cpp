@@ -34,7 +34,7 @@ TEST_CASE("CoreContext", "[unit]") {
   CoreConfig config("token", "service", "env");
   config.SetApplicationVersion("3.0.0");
   ImmutableContext imm(config, os_info, device_info, "reporter", "1.2.3");
-  CoreContext ctx(imm);
+  CoreContext ctx(imm, TrackingConsent::Pending);
 
   // Then OS info is accessible and matches
   REQUIRE(ctx.os != nullptr);
@@ -62,6 +62,9 @@ TEST_CASE("CoreContext", "[unit]") {
   REQUIRE(ctx.sdk_version == SDK_VERSION);
   REQUIRE(ctx.intake_origin == "https://browser-intake-datadoghq.com");
   REQUIRE(ctx.user_agent == "service/3.0.0 reporter/1.2.3 (test-device; TestOS/1.2.3)");
+
+  // And essential SDK state defaults to its safe initial values
+  REQUIRE(ctx.tracking_consent == TrackingConsent::Pending);
 
   // And feature-specific context values are initially nil
   REQUIRE(!ctx.rum.has_value());

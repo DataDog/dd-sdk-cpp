@@ -7,7 +7,7 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <atomic>
-#include <catch2/catch_test_macros.hpp>
+#include <utility>
 
 #include "datadog/impl/core/feature_message.hpp"
 
@@ -16,13 +16,17 @@
 #include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
+#include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
 
-static impl::Core _make_core(DiagnosticMessageBuffer& diagnostics) {
+static impl::Core _make_core(
+    DiagnosticMessageBuffer& diagnostics,
+    TrackingConsent initial_tracking_consent = TrackingConsent::Granted
+) {
   auto fs = std::make_unique<MockFilesystem>();
   fs->Mkdirs("app");
   return impl::Core(
@@ -30,7 +34,7 @@ static impl::Core _make_core(DiagnosticMessageBuffer& diagnostics) {
           .SetEventStorageLocation("app")
           .SetDiagnosticHandler(diagnostics.CreateHandler())
           .SetDiagnosticThreshold(datadog::DiagnosticLevel::Debug)
-          .SetInitialTrackingConsent(TrackingConsent::Granted)
+          .SetInitialTrackingConsent(initial_tracking_consent)
           .SetApplicationVersion("1.0.0")
           .SetBatchSize(BatchSize::Small)
           .SetUploadFrequency(UploadFrequency::Frequent)
@@ -309,6 +313,8 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 class MessageHandlerFeature : public MockFeature {
  public:
   std::atomic<int> messages_received{0};
+  std::optional<CoreContext> initial_context;
+  std::optional<CoreContext> final_context;
 
   MessageHandlerFeature()
       : MockFeature(CreateFeatureId("MHFT"), "message_handler_test") {}
@@ -316,9 +322,19 @@ class MessageHandlerFeature : public MockFeature {
   std::optional<std::function<void(const FeatureMessage&)>>
   MakeMessageHandler() override {
     auto weak = weak_from_this();
-    return [weak](const FeatureMessage&) {
+    return [weak](const FeatureMessage& msg) {
       if (auto self = std::static_pointer_cast<MessageHandlerFeature>(weak.lock())) {
         self->messages_received.fetch_add(1);
+
+        // On ContextChangedMessage, cache the CoreContext snapshot in our feature state
+        const auto* context_changed = std::get_if<ContextChangedMessage>(&msg);
+        if (!context_changed) {
+          return;
+        }
+        if (!self->initial_context.has_value()) {
+          self->initial_context.emplace(context_changed->context);
+        }
+        self->final_context.emplace(context_changed->context);
       }
     };
   }
@@ -350,10 +366,83 @@ TEST_CASE("Core Messaging", "[unit]") {
     REQUIRE(core.Start());
     core.Stop();
     REQUIRE(feature->messages_received.load() == 2);
+    REQUIRE(feature->initial_context.has_value());
+    REQUIRE(feature->initial_context->tracking_consent == TrackingConsent::Granted);
 
     // Second run: both messages repeat; the handler remains registered across restarts
     REQUIRE(core.Start());
     core.Stop();
     REQUIRE(feature->messages_received.load() == 4);
+  }
+
+  SECTION("{tracking consent changes}") {
+    // Given a variety of scenarios in which the TrackingConsent value meaningfully
+    // changes from the initially-configured value
+    auto [initial_tracking_consent, new_tracking_consent] = GENERATE(
+        std::make_pair(TrackingConsent::Pending, TrackingConsent::Granted),
+        std::make_pair(TrackingConsent::Pending, TrackingConsent::NotGranted),
+        std::make_pair(TrackingConsent::Granted, TrackingConsent::NotGranted),
+        std::make_pair(TrackingConsent::Granted, TrackingConsent::Pending),
+        std::make_pair(TrackingConsent::NotGranted, TrackingConsent::Pending),
+        std::make_pair(TrackingConsent::NotGranted, TrackingConsent::Granted)
+    );
+
+    // And a Core with the initial tracking consent value, and a single Feature
+    impl::Core core = _make_core(diagnostics, initial_tracking_consent);
+    REQUIRE(core.Init());
+    auto feature = std::make_shared<MessageHandlerFeature>();
+    REQUIRE(core.RegisterFeature(feature));
+
+    SECTION("M broadcast initially-configured TrackingConsent value upon Start") {
+      // When the core is started and then stopped (which flushes the message bus)
+      REQUIRE(core.Start());
+      core.Stop();
+
+      // Then the feature has received a ContextChangedMessage that reflects the
+      // tracking consent value we were originally configured with
+      REQUIRE(feature->initial_context.has_value());
+      REQUIRE(feature->initial_context->tracking_consent == initial_tracking_consent);
+      REQUIRE(feature->final_context.has_value());
+      REQUIRE(feature->final_context->tracking_consent == initial_tracking_consent);
+    }
+
+    SECTION("M broadcast new TrackingConsent value W changed before Start") {
+      // When we call Core::SetTrackingConsent() prior to core start, changing to our
+      // new tracking consent value
+      core.SetTrackingConsent(new_tracking_consent);
+
+      // And the core is started and then stopped (which flushes the message bus)
+      REQUIRE(core.Start());
+      core.Stop();
+
+      // Then the feature has received a ContextChangedMessage that reflects the
+      // up-to-date tracking consent value
+      REQUIRE(feature->final_context.has_value());
+      REQUIRE(feature->final_context->tracking_consent == new_tracking_consent);
+
+      // And no prior message was sent with our initially-configured value, as the
+      // tracking consent change took place before the core was started
+      REQUIRE(feature->initial_context.has_value());
+      REQUIRE(feature->initial_context->tracking_consent == new_tracking_consent);
+    }
+
+    SECTION("M broadcast new TrackingConsent value W changed after Start") {
+      // When we call Core::SetTrackingConsent() after the core has started running
+      REQUIRE(core.Start());
+      core.SetTrackingConsent(new_tracking_consent);
+
+      // And then stop the core (which flushes the message bus)
+      core.Stop();
+
+      // Then the feature has received a ContextChangedMessage that reflects the
+      // up-to-date tracking consent value
+      REQUIRE(feature->final_context.has_value());
+      REQUIRE(feature->final_context->tracking_consent == new_tracking_consent);
+
+      // And that message arrived after the original ContextChangedMessage that
+      // signalled our originally-configured TrackingConsent value at SDK start
+      REQUIRE(feature->initial_context.has_value());
+      REQUIRE(feature->initial_context->tracking_consent == initial_tracking_consent);
+    }
   }
 }

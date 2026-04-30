@@ -70,7 +70,9 @@ struct CoreContext {
    * Initializes a new CoreContext from the provided SDK config, OS info, and device
    * info.
    */
-  explicit CoreContext(const ImmutableContext& im);
+  explicit CoreContext(
+      const ImmutableContext& im, TrackingConsent initial_tracking_consent
+  );
 
   // === Lightweight views of ImmutableContext members owned by the Core ===
 
@@ -138,12 +140,13 @@ struct CoreContext {
    */
   std::string_view user_agent;
 
-  // === Feature-specific context values that may change during SDK operation ===
+  // === Essential SDK state that may change during SDK operation ===
 
   /**
-   * Additional context provided by the RUM feature, if in use.
+   * Current tracking consent state for this SDK instance. Initialized from `CoreConfig`
+   * and updated whenever the application invokes `Core::SetTrackingConsent()`.
    */
-  std::optional<RumFeatureContext> rum;
+  TrackingConsent tracking_consent;
 
   /**
    * User info set via Core::SetUserInfo(), if any. Consumed by RUM and logging features
@@ -156,6 +159,13 @@ struct CoreContext {
     Attribute extra;
   };
   std::optional<UserInfo> user_info;
+
+  // === Feature-specific context values that may change during SDK operation ===
+
+  /**
+   * Additional context provided by the RUM feature, if in use.
+   */
+  std::optional<RumFeatureContext> rum;
 
   /**
    * Resets all mutable feature-specific context fields to their default (absent) state.
