@@ -23,6 +23,7 @@ add_library(dd_native ${DD_LIBRARY_TYPE}
     datadog/cpp/uuid.cpp
     datadog/cpp/version.cpp
     datadog/impl/core/
+    datadog/impl/core/attribute/binary.cpp
     datadog/impl/core/attribute/cow.cpp
     datadog/impl/core/attribute/merge.cpp
     datadog/impl/core/json/primitives/bool.cpp

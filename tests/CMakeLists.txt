@@ -20,6 +20,7 @@ add_executable(dd_native_tests
     cpp/timestamp_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     cpp/version_cpp_api_test.cpp
+    impl/core/attribute/binary_test.cpp
     impl/core/attribute/cow_test.cpp
     impl/core/attribute/memory_test.cpp
     impl/core/attribute/merge_test.cpp

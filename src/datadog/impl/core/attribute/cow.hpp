@@ -255,6 +255,7 @@ class CowValue {
 
  private:
   friend struct AttributeDebug;
+  friend struct AttributeBinarySerialization;
 };
 
 }  // namespace datadog::impl
