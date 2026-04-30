@@ -450,8 +450,10 @@ bool Core::Start() {
   // FeatureScope interface that it can use to interoperate with the core
   for (const auto& feature : _features) {
     const FeatureId id = feature.id;
-    EventWriter event_writer = [this, id](Block event, Block event_metadata) -> bool {
-      return EnqueueStorageWrite(id, event, event_metadata);
+    EventWriter event_writer =
+        [this,
+         id](Block event, Block event_metadata, bool bypass_tracking_consent) -> bool {
+      return EnqueueStorageWrite(id, event, event_metadata, bypass_tracking_consent);
     };
     feature.impl->OnCoreStarted(
         FeatureScope::Create(
@@ -602,7 +604,10 @@ void Core::Stop() {
 }
 
 bool Core::EnqueueStorageWrite(
-    FeatureId feature_id, Block event, Block event_metadata
+    FeatureId feature_id,
+    Block event,
+    Block event_metadata,
+    bool bypass_tracking_consent
 ) {
   if (_state != CoreState::Started) {
     _diagnostic_logger.Warning(
@@ -614,7 +619,9 @@ bool Core::EnqueueStorageWrite(
 
   DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid while core is running");
   return _storage_queue->Push(
-      StorageMessage::EventGenerated(feature_id, event, event_metadata)
+      StorageMessage::EventGenerated(
+          feature_id, event, event_metadata, bypass_tracking_consent
+      )
   );
 }
 

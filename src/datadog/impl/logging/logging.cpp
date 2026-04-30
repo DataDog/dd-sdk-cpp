@@ -250,13 +250,15 @@ void Logging::ProcessLogEvent(
   EncodeJson(_encode_buffer, ev);
 
   // Write the event
+  const bool bypass_tracking_consent = false;
   writer(
       Block(
           // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
           reinterpret_cast<const char*>(_encode_buffer.data()),
           _encode_buffer.size()
       ),
-      Block{}
+      Block{},
+      bypass_tracking_consent
   );
 }
 

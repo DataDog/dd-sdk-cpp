@@ -87,7 +87,10 @@ class MockFeature : public impl::Feature {
                                        const impl::CoreContext&,
                                        const impl::EventWriter& writer,
                                        const impl::MessagePublisher&
-                                   ) { writer(event_data, metadata); });
+                                   ) {
+      const bool bypass_tracking_consent = false;
+      writer(event_data, metadata, bypass_tracking_consent);
+    });
     return true;
   }
 

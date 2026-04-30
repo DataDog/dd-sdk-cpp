@@ -40,7 +40,7 @@ class ApplicationFixture {
         deps(config, clock),
         scope(deps),
         context(MOCK_CONTEXT),
-        writer([](Block, Block) { return true; }) {
+        writer([](Block, Block, bool) { return true; }) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -247,7 +247,7 @@ class ViewTransferFixture {
         deps(config, clock),
         scope(deps),
         context(MOCK_CONTEXT),
-        writer([](Block, Block) { return true; }) {
+        writer([](Block, Block, bool) { return true; }) {
     clock.FreezeAtMilliseconds(1700000000000);
 
     // Issue SDKInit to create an initial session

@@ -121,19 +121,19 @@ TEST_CASE("StorageThreadMain", "[unit]") {
     // - Handle write from "BRVO" (should be written to pending dir)
     StorageQueue queue;
     REQUIRE(queue.Push(
-        StorageMessage::EventGenerated(CreateFeatureId("ALFA"), "alpha-0", {})
+        StorageMessage::EventGenerated(CreateFeatureId("ALFA"), "alpha-0", {}, false)
     ));
     REQUIRE(queue.Push(
-        StorageMessage::EventGenerated(CreateFeatureId("BRVO"), "bravo-0", {})
+        StorageMessage::EventGenerated(CreateFeatureId("BRVO"), "bravo-0", {}, false)
     ));
     REQUIRE(
         queue.Push(StorageMessage::TrackingConsentChanged(TrackingConsent::Pending))
     );
     REQUIRE(queue.Push(
-        StorageMessage::EventGenerated(CreateFeatureId("ALFA"), "alpha-1", {})
+        StorageMessage::EventGenerated(CreateFeatureId("ALFA"), "alpha-1", {}, false)
     ));
     REQUIRE(queue.Push(
-        StorageMessage::EventGenerated(CreateFeatureId("BRVO"), "bravo-1", {})
+        StorageMessage::EventGenerated(CreateFeatureId("BRVO"), "bravo-1", {}, false)
     ));
 
     // When we run the upload thread and drain the queue

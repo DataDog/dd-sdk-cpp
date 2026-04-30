@@ -50,9 +50,10 @@ struct FeatureState {
    * next available slot within the events array. If `events` is at capacity, a test
    * assert will be triggered.
    */
-  bool HandleEvent(Block event, Block event_metadata) {
-    // Metadata is unused in these tests
+  bool HandleEvent(Block event, Block event_metadata, bool bypass_tracking_consent) {
+    // Metadata and consent bypass are not used in these tests
     REQUIRE(event_metadata.empty());
+    REQUIRE(!bypass_tracking_consent);
 
     // Parse the event payload as a non-null-terminated ASCII-encoded int
     uint64_t value;
@@ -76,8 +77,8 @@ struct FeatureState {
   ) {
     return FeatureScope::Create(
         context_provider,
-        [this](Block event, Block event_metadata) {
-          return this->HandleEvent(event, event_metadata);
+        [this](Block event, Block event_metadata, bool bypass_tracking_consent) {
+          return this->HandleEvent(event, event_metadata, bypass_tracking_consent);
         },
         [this](FeatureMessage) {
           this->num_messages_produced++;
@@ -111,7 +112,8 @@ static bool GenerateUInt64Event(const EventWriter& event_writer, uint64_t value)
   char buf[20];
   auto res = std::to_chars(buf, buf + sizeof(buf), value);
   REQUIRE(res.ec == std::errc{});
-  return event_writer(Block(buf, res.ptr - buf), {});
+  const bool bypass_tracking_consent = false;
+  return event_writer(Block(buf, res.ptr - buf), {}, bypass_tracking_consent);
 }
 
 /**
@@ -231,7 +233,8 @@ TEST_CASE("FeatureScope", "[unit][core]") {
       char buf[20];
       auto res = std::to_chars(buf, buf + sizeof(buf), value);
       REQUIRE(res.ec == std::errc{});
-      event_writer(Block(buf, res.ptr - buf), {});
+      const bool bypass_tracking_consent = false;
+      event_writer(Block(buf, res.ptr - buf), {}, bypass_tracking_consent);
     };
 
     mutate_scope.UpdateContext(mutate);             // Stores generation 1 in context

@@ -75,12 +75,20 @@ struct StorageMessage_EventGenerated {
    * non-empty.
    */
   std::vector<uint8_t> event_metadata;
+  /**
+   * When `true`, the event will be written directly to the granted-consent storage
+   * directory regardless of the current `TrackingConsent` value.
+   */
+  bool bypass_tracking_consent;
 
   /**
    * Constructs a new 'EventGenerated' message, copying the provided event data.
    */
   explicit StorageMessage_EventGenerated(
-      FeatureId in_feature_id, Block in_event, Block in_event_metadata
+      FeatureId in_feature_id,
+      Block in_event,
+      Block in_event_metadata,
+      bool in_bypass_tracking_consent
   );
 };
 
@@ -150,7 +158,10 @@ struct StorageMessage {
    * Creates a new EventGenerated message.
    */
   static StorageMessage EventGenerated(
-      FeatureId feature_id, Block event, Block event_metadata
+      FeatureId feature_id,
+      Block event,
+      Block event_metadata,
+      bool bypass_tracking_consent
   );
 };
 

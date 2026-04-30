@@ -63,30 +63,34 @@ class RumEventCapture {
         session_id(session_id),
         view_id(view_id),
         context_provider(MOCK_CONTEXT),
-        _event_func([this](Block event, Block event_metadata) {
-          // RUM implementation doesn't produce events with metadata
-          REQUIRE(event_metadata.empty());
+        _event_func(
+            [this](Block event, Block event_metadata, bool bypass_tracking_consent) {
+              // RUM implementation doesn't produce events with metadata, nor does it
+              // ever bypass tracking consent
+              REQUIRE(event_metadata.empty());
+              REQUIRE(!bypass_tracking_consent);
 
-          // Require valid JSON object
-          auto obj = nlohmann::json::parse(event);
-          REQUIRE(obj.is_object());
+              // Require valid JSON object
+              auto obj = nlohmann::json::parse(event);
+              REQUIRE(obj.is_object());
 
-          // Validate IDs based on event type
-          if (obj.contains("application") && obj["application"].contains("id")) {
-            REQUIRE(obj["application"]["id"] == this->application_id);
-          }
-          if (obj.contains("session") && obj["session"].contains("id")) {
-            REQUIRE(obj["session"]["id"] == this->session_id);
-          }
-          if (this->view_id != nullptr && obj.contains("view") &&
-              obj["view"].contains("id")) {
-            REQUIRE(obj["view"]["id"] == this->view_id);
-          }
+              // Validate IDs based on event type
+              if (obj.contains("application") && obj["application"].contains("id")) {
+                REQUIRE(obj["application"]["id"] == this->application_id);
+              }
+              if (obj.contains("session") && obj["session"].contains("id")) {
+                REQUIRE(obj["session"]["id"] == this->session_id);
+              }
+              if (this->view_id != nullptr && obj.contains("view") &&
+                  obj["view"].contains("id")) {
+                REQUIRE(obj["view"]["id"] == this->view_id);
+              }
 
-          // Capture all events
-          all_events.emplace_back(std::move(obj));
-          return true;
-        }),
+              // Capture all events
+              all_events.emplace_back(std::move(obj));
+              return true;
+            }
+        ),
         feature_scope(
             FeatureScope::CreateForTesting(
                 context_provider,

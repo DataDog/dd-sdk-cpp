@@ -25,9 +25,14 @@ namespace datadog::impl {
  * @param event_metadata Optional metadata to accompany the event; will be copied. When
  *  an event that has metadata is eventually written, the metadata will be prepended as
  *  a block of type TLVBlockType::Metadata.
+ * @param bypass_tracking_consent When `true`, the event is always written to the
+ *  granted-consent storage directory, regardless of the current `TrackingConsent`
+ *  value. Intended for use by crash reporting, which must apply the consent that was
+ *  active at crash time rather than the current live consent.
  * @returns whether the event was successfuly enqueued for storage.
  */
-using EventWriter = std::function<bool(Block event, Block event_metadata)>;
+using EventWriter = std::function<
+    bool(Block event, Block event_metadata, bool bypass_tracking_consent)>;
 
 /**
  * Callback that publishes a message to the message bus from the context thread.
