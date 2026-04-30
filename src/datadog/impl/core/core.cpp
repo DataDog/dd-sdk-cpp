@@ -380,6 +380,13 @@ bool Core::Start() {
   // no synchronization is required here
   _context_provider->SetMessageBus(_message_bus.get());
 
+  // Now that the bus is installed, perform a no-op context update in order to buffer a
+  // ContextChangeMessaged, ensuring that all features see an initial CoreContext
+  // snapshot prior to the arrival of an feature-specific context updates.  Note that
+  // there's no guarantee that features will see this message prior to Feature::Start(),
+  // as it's delivered by the messaging thread (see below) without any synchronization.
+  _context_provider->Update([](CoreContext&) {});
+
   // Initialize a thread-safe queue for feature-submitted functions that will execute on
   // the context thread
   DATADOG_ASSERT(!_context_queue, "_context_queue already exists on Start()");
