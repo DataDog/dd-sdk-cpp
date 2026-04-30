@@ -6,6 +6,7 @@
 
 #include "datadog/impl/core/attribute/binary.hpp"
 
+#include <cmath>
 #include <limits>
 #include <optional>
 
