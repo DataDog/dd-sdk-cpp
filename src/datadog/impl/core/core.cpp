@@ -124,40 +124,46 @@ void Core::SetTrackingConsent(TrackingConsent value) {
 
 void Core::SetUserInfo(
     std::string_view id,
-    std::optional<std::string_view> name,
-    std::optional<std::string_view> email,
+    std::string_view name,
+    std::string_view email,
     const Attribute& extra
 ) {
-  UpdateContext([id = std::string(id),
-                 name = name ? std::optional<std::string>(*name) : std::nullopt,
-                 email = email ? std::optional<std::string>(*email) : std::nullopt,
-                 extra](CoreContext& ctx) {
-    auto& ui = ctx.user_info.emplace();
-    ui.id = id;
-    ui.name = name;
-    ui.email = email;
-    if (extra.GetType() == ValueType::Object) {
-      ui.extra = extra;
-    }
+  // Construct a UserInfo value to hold copies of all the application-provided values,
+  // preemptively rejecting any non-object value supplied as extra attributes
+  UserInfo user_info{
+      std::string{id},
+      std::string{name},
+      std::string{email},
+      extra.GetType() == ValueType::Object ? extra : Attribute::Object(0)
+  };
+
+  // Enqueue a context-thread callback that will write our UserInfo value into the
+  // CoreContext, moving the value in the process
+  UpdateContext([user_info = std::move(user_info)](CoreContext& ctx) mutable {
+    ctx.user_info = std::move(user_info);
   });
 }
 
 void Core::AddUserExtraInfo(const Attribute& extra) {
-  if (extra.GetType() != ValueType::Object || extra.GetObjectPropertyCount() == 0) {
+  // If the provided value is not an object with 1 or more named properties, ignore the
+  // call: there are no values to merge
+  if (extra.GetObjectPropertyCount() == 0) {
     return;
   }
+
+  // Enqueue a context-thread callback that will merge the new set of attributes into
+  // CoreContext::user_info
   UpdateContext([extra](CoreContext& ctx) {
-    if (!ctx.user_info) {
-      ctx.user_info.emplace();
-    }
     Attribute merged = Attribute::Object(0);
-    AttributeMerge::AssembleObject(merged, {ctx.user_info->extra, extra});
-    ctx.user_info->extra = std::move(merged);
+    AttributeMerge::AssembleObject(merged, {ctx.user_info.extra, extra});
+    ctx.user_info.extra = std::move(merged);
   });
 }
 
 void Core::ClearUserInfo() {
-  UpdateContext([](CoreContext& ctx) { ctx.user_info.reset(); });
+  // Enqueue a context-thread callback that will reset CoreContext::user_info to its
+  // initial set of empty values
+  UpdateContext([](CoreContext& ctx) { ctx.user_info = UserInfo{}; });
 }
 
 bool Core::Init() {

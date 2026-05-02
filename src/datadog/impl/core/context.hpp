@@ -28,6 +28,43 @@ namespace datadog::impl {
 class MessageBus;
 
 /**
+ * Details of the user who's interacting with the application, provided via the UserInfo
+ * APIs.
+ *
+ * A call to SetUserInfo() overwrites all values held in UserInfo. Any value may be
+ * empty, indicating that the application supplied no value for that property.
+ * Subsequent calls to AddUserExtraInfo() merge additional attribute values into
+ * `extra`.
+ *
+ * Check IsEmpty() to determine whether any values are set. If UserInfo is entirely
+ * empty, no "usr" value should be written in events.
+ */
+struct UserInfo {
+  std::string id;     // ID passed to SetUserInfo, or empty
+  std::string name;   // Name passed to last SetUserInfo call, or empty
+  std::string email;  // Email passed to last SetUserInfo call, or empty
+  Attribute extra;    // Object containing arbitrary extra properties
+
+  bool IsEmpty() const {
+    return id.empty() && name.empty() && email.empty() &&
+           extra.GetObjectPropertyCount() == 0;
+  }
+};
+
+/**
+ * Details of the account being used to interact with the application.
+ */
+struct AccountInfo {
+  std::string id;
+  std::string name;
+  Attribute extra;
+
+  bool IsEmpty() const {
+    return id.empty() && name.empty() && extra.GetObjectPropertyCount() == 0;
+  }
+};
+
+/**
  * Subset of CoreContext values that never change after SDK initialization.
  *
  * The Core holds a value of this type, and each CoreContext snapshot contains
@@ -149,16 +186,15 @@ struct CoreContext {
   TrackingConsent tracking_consent;
 
   /**
-   * User info set via Core::SetUserInfo(), if any. Consumed by RUM and logging features
-   * to populate the `usr` field on outgoing events.
+   * User info set via Core::SetUserInfo(), if any. If non-empty, used to populate `usr`
+   * field on outgoing RUM and Log events.
    */
-  struct UserInfo {
-    std::optional<std::string> id;
-    std::optional<std::string> name;
-    std::optional<std::string> email;
-    Attribute extra;
-  };
-  std::optional<UserInfo> user_info;
+  UserInfo user_info;
+
+  /**
+   * Account info set via Core::SetAccountInfo(), if any.
+   */
+  AccountInfo account_info;
 
   // === Feature-specific context values that may change during SDK operation ===
 

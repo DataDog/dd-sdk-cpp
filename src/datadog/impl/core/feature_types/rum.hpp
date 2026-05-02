@@ -310,10 +310,10 @@ DATADOG_STRING_ENUM(
 
 struct RumUserProperties {
   // From _common-schema.json
-  OmitIfNoValue<std::string> id;
-  OmitIfNoValue<std::string> name;
-  OmitIfNoValue<std::string> email;
-  OmitIfNoValue<std::string> anonymous_id;
+  OmitIfEmpty<std::string> id;
+  OmitIfEmpty<std::string> name;
+  OmitIfEmpty<std::string> email;
+  OmitIfEmpty<std::string> anonymous_id;
   // Extra user attributes merged inline as additional JSON properties
   Attribute extra;
 

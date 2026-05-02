@@ -384,15 +384,22 @@ class Core {
   DATADOG_API void SetTrackingConsent(TrackingConsent value);
 
   /**
-   * Sets user info in the global SDK context. Fields will appear in the `usr` object
-   * on RUM and log events. Pass an empty string for name or email to leave them unset.
+   * Supplies the SDK with information about the end user, which will be included in
+   * events sent to Datadog.
    *
-   * @param id User identifier. Must be non-empty; the call is ignored if empty.
-   * @param name User display name. Pass an empty string to leave unset.
-   * @param email User email address. Pass an empty string to leave unset.
-   * @param extra_info Optional object attribute containing additional user properties.
-   *  Properties in this object are merged into the `usr` JSON object alongside the
-   *  standard fields. Must be an object-type Attribute; any other type is ignored.
+   * A call to SetUserInfo() entirely replaces any user info previously stored,
+   * including custom attributes added via AddUserExtraInfo().
+   *
+   * SetUserInfo() may be called before or after Start().
+   *
+   * @param id An arbitrary "user ID" string identifying the user; should be set to a
+   *  non-empty value.
+   * @param name An arbitrary "username" value; may be omitted.
+   * @param email An email address for this user; may be omitted.
+   * @param extra_info An object containing an arbitrary set of extra attributes
+   *  describing the user, in the form of a value created with `Attribute::Object()`
+   *  that contains one or more property values. Extra attributes with property names of
+   *  "id", "name", or "email" will be ignored.
    */
   DATADOG_API void SetUserInfo(
       std::string_view id,
@@ -402,17 +409,27 @@ class Core {
   );
 
   /**
-   * Merges additional key-value pairs into the extra attributes stored in user info.
-   * If user info has not been set yet, creates a new entry with only these extra
-   * attributes set.
+   * Supplies the SDK with additional attributes that will be included when the user is
+   * identified in events.
    *
-   * @param extra_info Object attribute whose properties will be merged. Must be an
-   *  object-type Attribute; any other type is ignored.
+   * The property values in `extra_info` will be merged into any existing extra
+   * attributes supplied in prior calls to SetUserInfo() or AddUserExtraInfo(). If a
+   * property in `extra_info` matches the name of a property that was already set in a
+   * previous call, that property will have its value updated.
+   *
+   * AddUserExtraInfo() may be called before or after Start().
+   *
+   * @param extra_info An attribute value with ValueType::Object, containing property
+   *  values describing the user. If not an object with one or more properties, has no
+   *  effect. Extra attributes with property names of "id", "name", or "email" will be
+   *  ignored.
    */
   DATADOG_API void AddUserExtraInfo(const Attribute& extra_info);
 
   /**
-   * Clears all user info from the global SDK context.
+   * Clears all user info previously supplied to the SDK.
+   *
+   * ClearUserInfo() may be called before or after Start().
    */
   DATADOG_API void ClearUserInfo();
 

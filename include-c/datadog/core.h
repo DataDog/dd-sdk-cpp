@@ -315,14 +315,22 @@ DATADOG_API void dd_core_set_tracking_consent(
 );
 
 /**
- * Sets user info in the global SDK context. The values will appear in the `usr` object
- * on RUM and log events.
+ * Supplies the SDK with information about the end user, which will be included in
+ * events sent to Datadog.
  *
- * `id` must be a non-NULL, non-empty string; the call is ignored otherwise. `name` and
- * `email` may be NULL or empty to leave them unset. To supply additional user
- * properties beyond the standard fields, pass an object-type `dd_attribute_t` as
- * `extra_info`; those properties will be merged into the `usr` JSON object. Pass NULL
- * to omit extra properties.
+ * A call to dd_core_set_user_info() entirely replaces any user info previously stored,
+ * including custom attributes added via dd_core_add_user_extra_info().
+ *
+ * dd_core_set_user_info() may be called before or after dd_core_start().
+ *
+ * @param id An arbitrary "user ID" string identifying the user; should be set to a
+ *  non-empty value.
+ * @param name An arbitrary "username" value; may be omitted.
+ * @param email An email address for this user; may be omitted.
+ * @param extra_info An object containing an arbitrary set of extra attributes
+ *  describing the user, in the form of a value created with `dd_attribute_object()`
+ *  that contains one or more property values. May be NULL to omit extra attributes.
+ *  Extra attributes with property names of "id", "name", or "email" will be ignored.
  */
 DATADOG_API void dd_core_set_user_info(
     dd_core_t* core,
@@ -333,17 +341,29 @@ DATADOG_API void dd_core_set_user_info(
 );
 
 /**
- * Merges additional key-value pairs into the extra user attributes stored in the
- * global SDK context. If user info has not been set yet, creates a new user info entry
- * with only these extra attributes. The `extra_info` attribute must be an object type;
- * any other type is ignored.
+ * Supplies the SDK with additional attributes that will be included when the user is
+ * identified in events.
+ *
+ * The property values in `extra_info` will be merged into any existing extra attributes
+ * supplied in prior calls to dd_core_set_user_info() or dd_core_add_user_extra_info().
+ * If a property in `extra_info` matches the name of a property that was already set in
+ * a previous call, that property will have its value updated.
+ *
+ * dd_core_add_user_extra_info() may be called before or after dd_core_start().
+ *
+ * @param extra_info An attribute value with DD_VALUE_TYPE_OBJECT, containing property
+ *  values describing the user. If NULL, or if not an object with one or more
+ *  properties, has no effect. Extra attributes with property names of "id", "name", or
+ *  "email" will be ignored.
  */
 DATADOG_API void dd_core_add_user_extra_info(
     dd_core_t* core, const dd_attribute_t* extra_info
 );
 
 /**
- * Clears all user info from the global SDK context.
+ * Clears all user info previously supplied to the SDK.
+ *
+ * dd_core_clear_user_info() may be called before or after dd_core_start().
  */
 DATADOG_API void dd_core_clear_user_info(dd_core_t* core);
 

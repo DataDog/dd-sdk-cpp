@@ -200,21 +200,9 @@ void Core::SetUserInfo(
     std::string_view email,
     const Attribute& extra_info
 ) {
-  if (!_impl) {
-    return;
+  if (_impl) {
+    _impl->SetUserInfo(id, name, email, extra_info);
   }
-  if (id.empty()) {
-    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
-        "Core::SetUserInfo call ignored: application must supply a non-empty id"
-    );
-    return;
-  }
-  _impl->SetUserInfo(
-      id,
-      name.empty() ? std::nullopt : std::optional<std::string_view>(name),
-      email.empty() ? std::nullopt : std::optional<std::string_view>(email),
-      extra_info
-  );
 }
 
 void Core::AddUserExtraInfo(const Attribute& extra_info) {

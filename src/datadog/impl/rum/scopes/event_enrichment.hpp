@@ -92,15 +92,14 @@ struct RumEventEnrichment {
 
   template <typename T>
   static void PopulateUserProperties(const CoreContext& ctx, T& ev) {
-    if (!ctx.user_info) {
+    if (ctx.user_info.IsEmpty()) {
       return;
     }
-    const auto& ui = *ctx.user_info;
     RumUserProperties& u = ev.usr.value.emplace();
-    u.id = ui.id;
-    u.name = ui.name;
-    u.email = ui.email;
-    u.extra = ui.extra;
+    u.id = ctx.user_info.id;
+    u.name = ctx.user_info.name;
+    u.email = ctx.user_info.email;
+    u.extra = ctx.user_info.extra;
   }
 };
 
