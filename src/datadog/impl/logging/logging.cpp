@@ -202,13 +202,12 @@ void Logging::ProcessLogEvent(
   }
 
   // Enrich with user info if available
-  if (context.user_info) {
-    const auto& ui = *context.user_info;
+  if (!context.user_info.IsEmpty()) {
     LogUserInfo& lu = ev.usr.value.emplace();
-    lu.id = ui.id;
-    lu.name = ui.name;
-    lu.email = ui.email;
-    lu.extra = ui.extra;
+    lu.id = context.user_info.id;
+    lu.name = context.user_info.name;
+    lu.email = context.user_info.email;
+    lu.extra = context.user_info.extra;
   }
 
   // Enrich with OS properties

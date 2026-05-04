@@ -22,9 +22,9 @@ namespace datadog::impl {
  * merged inline alongside the standard string fields.
  */
 struct LogUserInfo {
-  OmitIfNoValue<std::string> id;
-  OmitIfNoValue<std::string> name;
-  OmitIfNoValue<std::string> email;
+  OmitIfEmpty<std::string> id;
+  OmitIfEmpty<std::string> name;
+  OmitIfEmpty<std::string> email;
   Attribute extra;
 };
 DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(

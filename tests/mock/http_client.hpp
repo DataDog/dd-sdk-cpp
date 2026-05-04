@@ -21,6 +21,23 @@ struct MockHttpRequest {
   std::string headers;
   std::string body;
   bool aborted{false};
+
+  bool MatchesPath(std::string_view path) const {
+    // Strip trailing "?..." if present
+    std::string_view url_sans_query = url;
+    if (auto pos = url_sans_query.find('?'); pos != std::string_view::npos) {
+      url_sans_query = url_sans_query.substr(0, pos);
+    }
+
+    // Take the last path.size() characters from the URL and perform a string equality
+    // check
+    if (url_sans_query.size() < path.size()) {
+      return false;
+    }
+    std::string_view url_suffix =
+        url_sans_query.substr(url_sans_query.size() - path.size(), path.size());
+    return url_suffix == path;
+  }
 };
 
 /**

@@ -280,35 +280,28 @@ void dd_core_set_user_info(
     const char* email,
     const dd_attribute_t* extra_info
 ) {
-  if (!core || !core->impl) {
-    return;
-  }
-  if (!id || !id[0]) {
-    core->diagnostic_logger.Error(
-        "dd_core_set_user_info call ignored: application must supply a non-empty id"
+  if (core && core->impl) {
+    datadog::Attribute cpp_extra_info;
+    if (extra_info && extra_info->type == DD_VALUE_TYPE_OBJECT) {
+      cpp_extra_info = datadog::impl::AttributeConversion::CopyFromC(*extra_info);
+    }
+    core->impl->SetUserInfo(
+        id ? std::string_view{id} : std::string_view{},
+        name ? std::string_view{name} : std::string_view{},
+        email ? std::string_view{email} : std::string_view{},
+        cpp_extra_info
     );
-    return;
   }
-  auto to_opt = [](const char* s) -> std::optional<std::string_view> {
-    return (s && s[0]) ? std::optional<std::string_view>(s) : std::nullopt;
-  };
-  datadog::Attribute cpp_extra;
-  if (extra_info && extra_info->type == DD_VALUE_TYPE_OBJECT) {
-    cpp_extra = datadog::impl::AttributeConversion::CopyFromC(*extra_info);
-  }
-  core->impl->SetUserInfo(id, to_opt(name), to_opt(email), cpp_extra);
 }
 
 void dd_core_add_user_extra_info(dd_core_t* core, const dd_attribute_t* extra_info) {
-  if (!core || !core->impl) {
-    return;
+  if (core && core->impl) {
+    datadog::Attribute cpp_extra_info;
+    if (extra_info && extra_info->type == DD_VALUE_TYPE_OBJECT) {
+      cpp_extra_info = datadog::impl::AttributeConversion::CopyFromC(*extra_info);
+    }
+    core->impl->AddUserExtraInfo(cpp_extra_info);
   }
-  if (!extra_info || extra_info->type != DD_VALUE_TYPE_OBJECT) {
-    return;
-  }
-  datadog::Attribute cpp_extra =
-      datadog::impl::AttributeConversion::CopyFromC(*extra_info);
-  core->impl->AddUserExtraInfo(cpp_extra);
 }
 
 void dd_core_clear_user_info(dd_core_t* core) {

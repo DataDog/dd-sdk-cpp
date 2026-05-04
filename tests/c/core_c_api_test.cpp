@@ -32,31 +32,19 @@ TEST_CASE("dd_core user info null safety", "[unit][core][c-api]") {
     dd_core_clear_user_info(nullptr);
     dd_attribute_free(&extra);
   }
-}
 
-TEST_CASE("dd_core user info", "[unit][core][c-api]") {
-  SECTION("M log error and ignore W dd_core_set_user_info called with null id") {
+  SECTION("M safely do nothing W all input values are null") {
+    // Given a valid dd_core_t
     auto test = CoreTestHarness::Init();
     dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_logging_t* logging = dd_logging_init(core);
-    dd_logger_t* logger = dd_logger_create(logging, nullptr);
-    dd_core_start(core);
 
-    // When we set user info with a null id
-    dd_core_set_user_info(core, nullptr, "Jane", "jane@example.com", nullptr);
-    dd_logger_info(logger, "hello");
-    dd_core_stop(core);
+    // When we call dd_core_set_user_info and pass NULL for all arguments
+    dd_core_set_user_info(core, nullptr, nullptr, nullptr, nullptr);
 
-    // Then an error is emitted
-    REQUIRE(test.c_diagnostics.size() == 1);
-    REQUIRE(test.c_diagnostics[0].level == DD_DIAGNOSTIC_LEVEL_ERROR);
+    // Then nothing crashes, and the call is handled as a no-op, equivalent to if we'd
+    // called `dd_core_set_user_info(core, "", "", "", dd_attribute_null())`
 
-    // And the log event contains no usr field
-    auto events = MergeJsonArrays(test.client.requests);
-    REQUIRE(!events[0].contains("usr"));
-
-    dd_logger_destroy(logger);
-    dd_logging_destroy(logging);
+    // Cleanup
     dd_core_destroy(core);
   }
 }

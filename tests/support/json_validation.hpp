@@ -11,6 +11,7 @@
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
+#include <string_view>
 #include <vector>
 
 #include "mock/http_client.hpp"
@@ -20,12 +21,20 @@
  * assuming that each request body contains a valid JSON array, then returns a flattened
  * array of literal values collected from all arrays.
  */
-inline nlohmann::json MergeJsonArrays(std::vector<MockHttpRequest>& requests) {
+inline nlohmann::json MergeJsonArrays(
+    const std::vector<MockHttpRequest>& requests, std::string_view path = {}
+) {
   // Collect a flattened array of JSON values from all requests
   nlohmann::json result = nlohmann::json::array();
   for (const auto& request : requests) {
     // If request was aborted, skip parsing
     if (request.aborted) {
+      continue;
+    }
+
+    // If the caller only wants requests matching a specific path, skip this request if
+    // it doesn't match
+    if (!path.empty() && !request.MatchesPath(path)) {
       continue;
     }
 

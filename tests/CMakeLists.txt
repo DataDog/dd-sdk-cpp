@@ -10,6 +10,7 @@ add_executable(dd_native_tests
     c/logging_c_api_test.cpp
     c/rum_c_api_test.cpp
     c/timestamp_c_api_test.cpp
+    c/user_info_c_api_test.cpp
     c/uuid_c_api_test.cpp
     c/version_c_api_test.cpp
     cpp/attribute_cpp_api_test.cpp
@@ -18,6 +19,7 @@ add_executable(dd_native_tests
     cpp/logging_cpp_api_test.cpp
     cpp/rum_cpp_api_test.cpp
     cpp/timestamp_cpp_api_test.cpp
+    cpp/user_info_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     cpp/version_cpp_api_test.cpp
     impl/core/attribute/binary_test.cpp
