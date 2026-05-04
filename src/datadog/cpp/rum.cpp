@@ -327,13 +327,24 @@ void Rum::AddError(
 void Rum::StartOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
-  // Require a non-blank (non-empty, non-whitespace-only) operation name
+  // Backend rejects blank/empty names with its own non-empty precondition;
+  // drop client-side to match.
   if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::StartOperation call ignored: application must supply a non-empty "
         "operation name"
     );
     return;
+  }
+
+  // Warn if the name fails the backend's `[\w.@$-]*` pattern, but always
+  // emit: the backend is the source of truth on character-set policy.
+  if (!impl::HasOnlyAllowedOperationNameCharacters(name)) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::StartOperation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."
+    );
   }
 
   // If operation_key is provided, it must be non-blank
@@ -359,13 +370,19 @@ void Rum::StartOperation(
 void Rum::SucceedOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
-  // Require a non-blank (non-empty, non-whitespace-only) operation name
   if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::SucceedOperation call ignored: application must supply a "
         "non-empty operation name"
     );
     return;
+  }
+  if (!impl::HasOnlyAllowedOperationNameCharacters(name)) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::SucceedOperation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."
+    );
   }
 
   // If operation_key is provided, it must be non-blank
@@ -394,13 +411,19 @@ void Rum::FailOperation(
     std::string_view operation_key,
     const Attribute& attributes
 ) {
-  // Require a non-blank (non-empty, non-whitespace-only) operation name
   if (impl::IsBlankString(name)) {
     impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Error(
         "Rum::FailOperation call ignored: application must supply a non-empty "
         "operation name"
     );
     return;
+  }
+  if (!impl::HasOnlyAllowedOperationNameCharacters(name)) {
+    impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+        "Rum::FailOperation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."
+    );
   }
 
   // If operation_key is provided, it must be non-blank

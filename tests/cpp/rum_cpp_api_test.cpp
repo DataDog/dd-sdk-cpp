@@ -465,6 +465,80 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
        },
        {},
        {}},
+
+      // Character-set validation (schema facet-path rule):
+      // vital.name is documented in _vital-common-schema.json as letters,
+      // digits, and - _ . @ $ only. Names outside that set produce a
+      // WARNING but the event is still emitted — the backend owns the
+      // authoritative policy.
+      {"M warn but still emit W StartOperation name contains a space",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartOperation("user login");
+         });
+       },
+       {"Rum::StartOperation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."},
+       {}},
+
+      {"M warn but still emit W StartOperation name contains a slash",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartOperation("api/v1");
+         });
+       },
+       {"Rum::StartOperation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."},
+       {}},
+
+      {"M warn but still emit W SucceedOperation name contains a space",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->SucceedOperation("user login");
+         });
+       },
+       {"Rum::SucceedOperation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."},
+       {}},
+
+      {"M warn but still emit W FailOperation name contains non-ASCII",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->FailOperation("ログイン", RumOperationFailureReason::Other);
+         });
+       },
+       {"Rum::FailOperation: operation name does not match the "
+        "backend-accepted pattern [\\w.@$-]* (letters, digits, _ . @ $ -). The event "
+        "will still be sent and may be rejected by the backend."},
+       {}},
+
+      {"M print no error W StartOperation uses every allowed character class",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->StartOperation("Login-v2@1.0.0_step$1");
+         });
+       },
+       {},
+       {}},
+
+      {"M print no error W StartOperation operation_key contains a space",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           // operation_key has no character-set restriction in the schema
+           rum->StartOperation("login", "session 42 / user foo");
+         });
+       },
+       {},
+       {}},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {

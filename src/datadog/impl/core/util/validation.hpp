@@ -22,4 +22,14 @@ bool IsBlankString(std::string_view s);
  */
 bool IsBlankCString(const char* s);
 
+/**
+ * Validates that a RUM vital.name matches the schema facet-path character set
+ * in `_vital-common-schema.json`: letters, digits, and the characters
+ * `- _ . @ $`. Returns true when every character is allowed. The backend uses
+ * `vital.name` as a facet path, so enforcing this at the API boundary prevents
+ * offending events from reaching the intake. operation_key is NOT subject to
+ * this rule.
+ */
+bool HasOnlyAllowedOperationNameCharacters(std::string_view s);
+
 }  // namespace datadog::impl
