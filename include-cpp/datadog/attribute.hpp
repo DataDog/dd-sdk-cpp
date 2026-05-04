@@ -21,6 +21,7 @@ namespace impl {
 class CowValue;
 struct AttributeConversion;
 struct AttributeDebug;
+struct AttributeBinarySerialization;
 }  // namespace impl
 
 /**
@@ -228,6 +229,7 @@ class DATADOG_API Attribute {
   // interface.
   friend struct impl::AttributeConversion;
   friend struct impl::AttributeDebug;
+  friend struct impl::AttributeBinarySerialization;
 };
 
 }  // namespace datadog
