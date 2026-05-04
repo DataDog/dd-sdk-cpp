@@ -568,6 +568,18 @@ void RumViewScope::SendViewEvent(
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
   writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+
+  // If we've just generated an update to the active view, and that view remains active,
+  // we want to emit a `RumActiveViewUpdatedMessage` so that other features can have an
+  // up-to-date snapshot of our active view
+  if (_is_active) {
+    // Since the RumViewEvent is no longer needed here (we've already encoded it to JSON
+    // and enqueued that JSON payload for storage), transfer ownership of the event to
+    // our parent RumSessionScope: when command processing is complete, `Rum` will
+    // consume the event via ConsumeLastActiveViewEvent() and broadcast it over the
+    // message bus
+    _parent.get().StoreLastActiveViewEvent(std::move(ev));
+  }
 }
 
 void RumViewScope::SendErrorEvent(

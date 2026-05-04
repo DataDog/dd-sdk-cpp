@@ -85,6 +85,7 @@ add_executable(dd_native_tests
     impl/rum/scopes/view_test.cpp
     impl/rum/command_test.cpp
     impl/rum/context_test.cpp
+    impl/rum/rum_messaging_test.cpp
     impl/rum/rum_test.cpp
     impl/rum/scope_test.cpp
     mock/filesystem.cpp

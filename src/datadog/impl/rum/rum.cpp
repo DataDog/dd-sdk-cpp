@@ -6,7 +6,6 @@
 
 #include "datadog/impl/rum/rum.hpp"
 
-#include <iostream>
 #include <mutex>
 #include <shared_mutex>
 #include <string_view>
@@ -48,6 +47,22 @@ void Rum::Start() {
   // previous runs
   _application = RumApplicationScope(_deps);
 
+  // Take a snapshot of our global attributes, and enqueue a
+  // RumGlobalAttributesChangedMessage to ensure that downstream features have a
+  // consistent view of any attribute changes that occurred while the SDK wasn't running
+  Attribute snapshot;
+  {
+    std::shared_lock lock(_global_attributes_mutex);
+    snapshot = _global_attributes.attribute;
+  }
+  if (_scope) {
+    _scope->ExecuteOnContextThread(
+        [snapshot = std::move(snapshot)](
+            const CoreContext&, const EventWriter&, const MessagePublisher& pub
+        ) mutable { pub(RumGlobalAttributesChangedMessage{std::move(snapshot)}); }
+    );
+  }
+
   // Dispatch SDKInit to start first session
   DispatchAsync(RumCommand::SDKInit(GetBaseCommandParams()));
 };
@@ -60,13 +75,54 @@ void Rum::Stop() {
 }
 
 void Rum::AddAttribute(std::string_view name, const Attribute& value) {
-  std::unique_lock exclusive_write_lock(_global_attributes_mutex);
-  _global_attributes.attribute.SetObjectProperty(name, value);
+  // Acquire an exclusive lock on the set of global RUM attributes, then modify the
+  // attribute object and capture a snapshot of the resulting state
+  Attribute snapshot;
+  {
+    std::unique_lock lock(_global_attributes_mutex);
+    _global_attributes.attribute.SetObjectProperty(name, value);
+    snapshot = _global_attributes.attribute;
+  }
+
+  // If we have no valid FeatureScope, the SDK is not yet running
+  if (!_scope) {
+    return;
+  }
+  FeatureScope& scope = *_scope;
+
+  // Otherwise, enqueue a context-thread callback that will publish a message conveying
+  // the latest snapshot of our set of global RUM attributes, using `mutable` to ensure
+  // that the snapshot value can be moved into the message
+  scope.ExecuteOnContextThread(
+      [snapshot = std::move(snapshot)](
+          const CoreContext&, const EventWriter&, const MessagePublisher& pub
+      ) mutable { pub(RumGlobalAttributesChangedMessage{std::move(snapshot)}); }
+  );
 }
 
 void Rum::RemoveAttribute(std::string_view name) {
-  std::unique_lock exclusive_write_lock(_global_attributes_mutex);
-  _global_attributes.attribute.DeleteObjectProperty(name);
+  // Acquire an exclusive lock on the set of global RUM attributes, then modify the
+  // attribute object and capture a snapshot of the resulting state
+  Attribute snapshot;
+  {
+    std::unique_lock lock(_global_attributes_mutex);
+    _global_attributes.attribute.DeleteObjectProperty(name);
+    snapshot = _global_attributes.attribute;
+  }
+
+  // If we have no valid FeatureScope, the SDK is not yet running
+  if (!_scope) {
+    return;
+  }
+  FeatureScope& scope = *_scope;
+
+  // SDK is running: publish a message with our new snapshot of global RUM attributes,
+  // moving the value into the message
+  scope.ExecuteOnContextThread(
+      [snapshot = std::move(snapshot)](
+          const CoreContext&, const EventWriter&, const MessagePublisher& pub
+      ) mutable { pub(RumGlobalAttributesChangedMessage{std::move(snapshot)}); }
+  );
 }
 
 void Rum::StopSession() {
@@ -184,26 +240,19 @@ void Rum::DispatchAsync(const RumCommand& command) {
   // Enqueue a function to run on the context thread, capturing the command being
   // dispatched: when this function is executed, the context thread will process the
   // command, updating internal RUM state and potentially producing events
-  scope.ExecuteOnContextThread(
-      [weak_rum, cmd = command](
-          const CoreContext& context, const EventWriter& writer, const MessagePublisher&
-      ) {
-        // Single-level check: Is Rum object still alive?
-        auto rum = weak_rum.lock();
-        if (!rum) {
-          // Rum destroyed during shutdown, exit gracefully
-          return;
-        }
-
-        // Safe to proceed - processing uses only deps, context, writer, and
-        // _application (all valid as long as Rum is alive)
-        rum->_application.Process(cmd, context, writer);
-
-        // After every command, build a RumContext value (in _application_snapshot) that
-        // describes the state of our internal scope tree
-        rum->UpdateApplicationSnapshot();
-      }
-  );
+  scope.ExecuteOnContextThread([weak_rum, cmd = command](
+                                   const CoreContext& context,
+                                   const EventWriter& writer,
+                                   const MessagePublisher& publisher
+                               ) {
+    auto rum = weak_rum.lock();
+    if (!rum) {
+      return;
+    }
+    rum->_application.Process(cmd, context, writer);
+    rum->UpdateApplicationSnapshot();
+    rum->BroadcastStateChanges(publisher);
+  });
 
   // Enqueue a context-mutation function that will run immediately following the
   // processing of the command
@@ -248,6 +297,38 @@ void Rum::UpdateApplicationSnapshot() {
   // If we have an active session, view, and action, populate from action scope
   const RumActionScope& action = *action_opt;
   action.PopulateContext(_application_snapshot);
+}
+
+void Rum::BroadcastStateChanges(const MessagePublisher& publisher) {
+  // If any RUM View events were generated during processing of the most recent command,
+  // publish a RumActiveViewUpdatedMessage containing the most-recently-produced event
+  if (auto ev = _application.ConsumeLastActiveViewEvent()) {
+    publisher(RumActiveViewUpdatedMessage{std::move(*ev)});
+  }
+
+  // If the active view ID is now UUID::Zero, and it was nonzero the last time we
+  // processed a command, then we no longer have an active view: publish a
+  // RumActiveViewLostMessage so downstream features can clear their last-view-event
+  // state
+  const UUID current_view_id = _application_snapshot.active_view_id;
+  if (_last_broadcast_view_id != UUID::Zero && current_view_id == UUID::Zero) {
+    publisher(RumActiveViewLostMessage{});
+  }
+  _last_broadcast_view_id = current_view_id;
+
+  // Capture a RumSessionState snapshot describing the essential details of our
+  // currently-active view (or most-recently-active view, if stopped), and determine if
+  // session state has meaningfully changed since the last time we processed a command
+  auto state = _application.GetCurrentSessionState();
+  if (state.has_value() != _last_broadcast_session_state.has_value() ||
+      (state && *state != *_last_broadcast_session_state)) {
+    // If so, and if we have valid session state, publish a RumSessionStateChanged
+    // message
+    if (state) {
+      publisher(RumSessionStateChangedMessage{*state});
+    }
+    _last_broadcast_session_state = state;
+  }
 }
 
 }  // namespace datadog::impl
