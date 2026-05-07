@@ -188,6 +188,23 @@ build-linux:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
+integration-test-linux:
+  stage: build
+  dependencies: []
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      -DDD_CRASH_MODE=inprocess
+      -DDD_BUILD_EXAMPLES=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - python -m venv .venv
+    - .venv/bin/python -m pip install -e '.[integration-test]'
+    - .venv/bin/python tools/integration-test/main.py
+
 build-macos:
   stage: build
   dependencies: []
@@ -231,6 +248,22 @@ unit-test-macos:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - ctest --test-dir build --output-on-failure
+
+integration-test-macos:
+  stage: build
+  dependencies: []
+  tags: [macos:sonoma, specific:true]
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=RelWithDebInfo
+      -DDD_CRASH_MODE=inprocess
+      -DDD_BUILD_EXAMPLES=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - python -m venv .venv
+    - .venv/bin/python -m pip install -e '.[integration-test]'
+    - .venv/bin/python tools/integration-test/main.py
 
 build-windows:
   stage: build
@@ -282,6 +315,27 @@ unit-test-windows:
       ${env:TOOLCHAIN_IMAGE}
       cmd /S /C "cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
+
+integration-test-windows:
+  stage: build
+  dependencies: []
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path build) { remove-item -recurse -force build }
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - >
+      docker run --rm
+      -m 8192M
+      -e NUM_PARALLEL_BUILD_JOBS
+      -v "$(Get-Location):C:\mnt"
+      -w C:\mnt
+      ${env:TOOLCHAIN_IMAGE}
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDLL -DDD_CRASH_MODE=inprocess -DDD_BUILD_EXAMPLES=ON -S . -B build && cmake --build build --config RelWithDebInfo --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && .venv\Scripts\python.exe tools\integration-test\main.py"
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (integration-test) returned $LASTEXITCODE" }
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
 # support with precompiled binaries
