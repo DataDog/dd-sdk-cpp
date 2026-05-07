@@ -17,7 +17,6 @@ def main(t: TestInput):
     source .repl-env
     set-config tracking-consent granted
     set-config service dd-sdk-cpp-repl
-    set-config event-storage-location .
     set-config flush-on-stop
 
     # Start an SDK instance configured with logging as its only feature, with a single

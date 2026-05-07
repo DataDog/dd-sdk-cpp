@@ -47,11 +47,12 @@ def check_repl_env():
         sys.exit()
 
 
-def run_repl(custom_endpoint_url: str, sdk_id: int, script: str) -> ReplResult:
+def run_repl(storage_path: str, custom_endpoint_url: str, sdk_id: int, script: str) -> ReplResult:
     args = [
         __repl_binary__,
         '--abort-on-error',
         '--abort-on-warning',
+        f'--storage-path={storage_path}',
         f'--custom-endpoint-url={custom_endpoint_url}/sdk-{sdk_id}'
     ]
     p = subprocess.Popen(args, cwd=__repo_root__, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)

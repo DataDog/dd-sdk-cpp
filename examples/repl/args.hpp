@@ -20,6 +20,7 @@ struct Args {
   std::string_view env;
   std::string_view rum_application_id;
   std::string_view custom_endpoint_url;
+  std::string_view storage_path;
 
   static Args Parse(int argc, char* argv[]);
 };

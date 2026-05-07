@@ -348,6 +348,11 @@ int main(int argc, char* argv[]) {  // NOLINT
       return 1;
     }
   }
+  if (!args.storage_path.empty()) {
+    if (!SetConfig(state, "event-storage-location", args.storage_path)) {
+      return 1;
+    }
+  }
 
   // Support --autostart for interactive use: run a standard initialization routine that
   // gives us all features and a running SDK ready to receive API calls that generate
