@@ -112,7 +112,7 @@ validate-event-types:
     - cmake -DDD_ENABLE_EVENT_VALIDATION=ON -S . -B build
     - cmake --build build --target validate-event-types
 
-unit-test-linux:
+test-linux:
   stage: validate
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
@@ -120,6 +120,9 @@ unit-test-linux:
     matrix:
       - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
   script:
+    # Install Python deps so we can run integration tests
+    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    # Build the SDK with unit test suite and repl binaries included
     - >
       cmake
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
@@ -129,7 +132,10 @@ unit-test-linux:
       -DDD_BUILD_TESTING=ON
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    # Run the full Catch2 unit test suite
     - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
+    # Run integration tests defined in tools/integration-test/
+    - .venv/bin/python tools/integration-test/main.py
   artifacts:
     when: always
     expire_in: "30 days"
@@ -188,23 +194,6 @@ build-linux:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
-integration-test-linux:
-  stage: build
-  dependencies: []
-  tags: [arch:amd64]
-  image: ${GOLDEN_LINUX_IMAGE}
-  script:
-    - >
-      cmake
-      -DCMAKE_BUILD_TYPE=RelWithDebInfo
-      -DDD_CRASH_MODE=inprocess
-      -DDD_BUILD_EXAMPLES=ON
-      -S . -B build
-    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - python -m venv .venv
-    - .venv/bin/python -m pip install -e '.[integration-test]'
-    - .venv/bin/python tools/integration-test/main.py
-
 build-macos:
   stage: build
   dependencies: []
@@ -234,11 +223,12 @@ build-macos:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
 
-unit-test-macos:
+test-macos:
   stage: build
   dependencies: []
   tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma
   script:
+    - python -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
     - >
       cmake
       -DCMAKE_BUILD_TYPE=Debug
@@ -248,21 +238,6 @@ unit-test-macos:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - ctest --test-dir build --output-on-failure
-
-integration-test-macos:
-  stage: build
-  dependencies: []
-  tags: [macos:sonoma, specific:true]
-  script:
-    - >
-      cmake
-      -DCMAKE_BUILD_TYPE=RelWithDebInfo
-      -DDD_CRASH_MODE=inprocess
-      -DDD_BUILD_EXAMPLES=ON
-      -S . -B build
-    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - python -m venv .venv
-    - .venv/bin/python -m pip install -e '.[integration-test]'
     - .venv/bin/python tools/integration-test/main.py
 
 build-windows:
@@ -295,7 +270,7 @@ build-windows:
       cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
 
-unit-test-windows:
+test-windows:
   stage: build
   dependencies: []
   tags: [windows-v2:2022]
@@ -313,29 +288,8 @@ unit-test-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure"
-    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
-
-integration-test-windows:
-  stage: build
-  dependencies: []
-  tags: [windows-v2:2022]
-  variables:
-    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-    TOOLCHAIN_TARGET: vs2022
-  script:
-    - $ErrorActionPreference = "Stop"
-    - if (Test-Path build) { remove-item -recurse -force build }
-    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-    - >
-      docker run --rm
-      -m 8192M
-      -e NUM_PARALLEL_BUILD_JOBS
-      -v "$(Get-Location):C:\mnt"
-      -w C:\mnt
-      ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDLL -DDD_CRASH_MODE=inprocess -DDD_BUILD_EXAMPLES=ON -S . -B build && cmake --build build --config RelWithDebInfo --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && .venv\Scripts\python.exe tools\integration-test\main.py"
-    - If ($LASTEXITCODE -ne "0") { throw "docker run (integration-test) returned $LASTEXITCODE" }
+      cmd /S /C "python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py"
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (test) returned $LASTEXITCODE" }
 
 # Stage 'package' generates release artifacts for the toolchains/configurations that we
 # support with precompiled binaries
