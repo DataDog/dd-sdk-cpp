@@ -121,7 +121,7 @@ test-linux:
       - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
   script:
     # Install Python deps so we can run integration tests
-    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
     # Build the SDK with unit test suite and repl binaries included
     - >
       cmake
