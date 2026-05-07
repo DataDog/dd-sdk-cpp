@@ -20,7 +20,7 @@ from mitmproxy import http, options
 
 
 # We configure each SDK instance with a custom endpoint URL that will direct requests to
-# our mitmproxy server, which will forward them to Datadog intake. In order to handle
+# our mitmproxy server, which will intercept and buffer them. In order to handle
 # requests from multiple SDK instances concurrently, we may configure that URL to
 # identify the client, e.g. 'http://localhost:8080/sdk-2/api/v2/logs': if the first part
 # of the path matches this pattern, we will parse the ID and strip the prefix from the
@@ -87,17 +87,18 @@ class ProxyAddon:
             body=flow.request.content,
         ))
 
+        # We're spoofing the intake endpoint: just return 200
+        flow.response = http.Response.make(200, b'{}', {'Content-Type': 'application/json'})
+
 
 class ProxyServer:
     def __init__(
         self,
         port: int,
-        host: str = "0.0.0.0",
-        forward_to: str = "https://browser-intake-datadoghq.com/",
+        host: str = "0.0.0.0"
     ):
         self.port = port
         self.host = host
-        self.forward_to = forward_to
 
         self._loop: Optional[asyncio.AbstractEventLoop] = None
         self._master: Optional[DumpMaster] = None
@@ -109,12 +110,10 @@ class ProxyServer:
         Starts mitmproxy in a background thread with its own asyncio event loop.
         """
         def _run() -> None:
-            # Configure mitmproxy to listen on the configured port and forward all
-            # requests to the remote host
+            # Configure mitmproxy to listen on the configured port
             opts = options.Options(
                 listen_host=self.host,
-                listen_port=self.port,
-                mode=[f"reverse:{self.forward_to}"],
+                listen_port=self.port
             )
 
             # Initialize a mitmdump entry point to be run in-process, on a dedicated

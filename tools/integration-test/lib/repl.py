@@ -37,16 +37,6 @@ def check_repl_binary():
         sys.exit(1)
 
 
-def check_repl_env():
-    path = os.path.join(__repo_root__, '.repl-env')
-    if not os.path.isfile(path):
-        print('ERROR: No .repl-env file found at: %s' % path)
-        print('This file must exist and must be populated with:')
-        print(' set-config client-token <client-token-value>')
-        print(' set-config rum-application-id <application-id-value>')
-        sys.exit()
-
-
 def run_repl(storage_path: str, custom_endpoint_url: str, sdk_id: int, script: str) -> ReplResult:
     args = [
         __repl_binary__,

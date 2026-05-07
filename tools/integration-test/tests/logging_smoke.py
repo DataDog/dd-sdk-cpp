@@ -14,7 +14,7 @@ def main(t: TestInput):
     create a logger, and generate log events.
     ---
     # Configure the repl for integration tests
-    source .repl-env
+    set-config client-token fake-client-token
     set-config tracking-consent granted
     set-config service dd-sdk-cpp-repl
     set-config flush-on-stop
