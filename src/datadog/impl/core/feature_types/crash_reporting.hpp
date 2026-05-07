@@ -11,6 +11,7 @@
 #include <string>
 #include <vector>
 
+#include "datadog/attribute.hpp"
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
@@ -60,14 +61,16 @@ struct CrashContext {
   std::string device_time_zone;
 
   // User details conveyed to the SDK via SetUserInfo() et al. in the process that
-  // crashed; empty if no user info was set. user_extra_json is a JSON payload.
+  // crashed; empty if no user info was set
   std::string user_id;
   std::string user_name;
   std::string user_email;
-  std::string user_extra_json;
+  Attribute user_extra;
 
-  // TODO(RUM-15997): Add account_id / account_name once Core::SetAccountInfo()
-  // is implemented.
+  // Account details from SetAccountInfo()
+  std::string account_id;
+  std::string account_name;
+  Attribute account_extra;
 
   // State of the latest RUM session prior to the crash. If no RUM session was ever
   // created, session_id will be UUID::Zero.
@@ -77,8 +80,8 @@ struct CrashContext {
   // the time of the crash; or empty if no RUM view was active
   std::string last_view_event_json;
 
-  // Global RUM attributes serialized as a JSON object, or empty
-  std::string global_attributes_json;
+  // Global RUM attributes at time of crash
+  Attribute global_rum_attributes;
 };
 
 /**

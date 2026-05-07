@@ -997,12 +997,17 @@ class InProcessCrashHandler final : public ICrashHandler {
 
   void SetCrashContext(IFilesystem& fs, const CrashContext& ctx) override {
     WriteCrashContext(
-        fs, s_crash_context_file_path, s_crash_context_tmp_file_path, ctx
+        fs,
+        s_crash_context_file_path,
+        s_crash_context_tmp_file_path,
+        _context_encode_buf,
+        ctx
     );
   }
 
  private:
   bool _initialized{false};
+  std::vector<char> _context_encode_buf;
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {

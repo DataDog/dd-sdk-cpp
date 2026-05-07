@@ -9,16 +9,16 @@
 #include <cinttypes>
 
 /**
- * Binary layout of the crash context file (all integers little-endian):
+ * Binary layout of the crash context file (all integers encoded in native byte order):
  *
- * 0x0000: CrashContextHeaderMagic
- * 0x0008: version = 1
+ * 0x0000: CrashContextHeaderMagic  uint64
+ * 0x0008: version = 1              uint64
  *         service                  length-prefixed string
  *         env                      length-prefixed string
  *         application_version      length-prefixed string
  *         source                   length-prefixed string
  *         sdk_version              length-prefixed string
- *         tracking_consent         uint64 (0=Granted, 1=NotGranted, 2=Pending)
+ *         tracking_consent         uint8 (0=Granted, 1=NotGranted, 2=Pending)
  *         os_name                  length-prefixed string
  *         os_version               length-prefixed string
  *         os_build                 length-prefixed string
@@ -33,15 +33,18 @@
  *         user_id                  length-prefixed string (empty if not set)
  *         user_name                length-prefixed string (empty if not set)
  *         user_email               length-prefixed string (empty if not set)
- *         user_extra_json          length-prefixed string (empty if not set)
+ *         user_extra               (see AttributeBinarySerialization)
+ *         account_id               length-prefixed string (empty if not set)
+ *         account_name             length-prefixed string (empty if not set)
+ *         account_extra            (see AttributeBinarySerialization)
  *         rum_session_id           16 raw bytes (UUID::Zero if no session)
- *         rum_session_is_sampled   uint64
- *         rum_session_is_active    uint64
- *         rum_session_is_initial   uint64
- *         rum_session_has_any_view uint64
+ *         rum_session_is_sampled   uint8
+ *         rum_session_is_active    uint8
+ *         rum_session_is_initial   uint8
+ *         rum_session_has_any_view uint8
  *         last_view_event_json     length-prefixed string (empty if no view)
- *         global_attributes_json   length-prefixed string (empty if none)
- *         CrashContextFooterMagic
+ *         global_rum_attributes    (see AttributeBinarySerialization)
+ *         CrashContextFooterMagic  uint64
  *
  * A length-prefixed string is a uint64 byte count followed by that many UTF-8 bytes
  * with no null terminator.

@@ -76,17 +76,10 @@ CrashReporting::MakeMessageHandler() {
       cc.device_architecture = ctx.device->architecture;
       cc.device_locale = ctx.device->locale;
       cc.device_time_zone = ctx.device->time_zone;
-      if (ctx.user_info) {
-        cc.user_id = ctx.user_info->id.value_or("");
-        cc.user_name = ctx.user_info->name.value_or("");
-        cc.user_email = ctx.user_info->email.value_or("");
-        encode_json_to_string(cc.user_extra_json, ctx.user_info->extra);
-      } else {
-        cc.user_id.clear();
-        cc.user_name.clear();
-        cc.user_email.clear();
-        cc.user_extra_json.clear();
-      }
+      cc.user_id = ctx.user_info.id;
+      cc.user_name = ctx.user_info.name;
+      cc.user_email = ctx.user_info.email;
+      cc.user_extra = ctx.user_info.extra;
     } else if (const auto* m = std::get_if<RumSessionStateChangedMessage>(&msg)) {
       cc.rum_session_state = m->session_state;
     } else if (const auto* m = std::get_if<RumActiveViewUpdatedMessage>(&msg)) {
@@ -94,7 +87,7 @@ CrashReporting::MakeMessageHandler() {
     } else if (std::get_if<RumActiveViewLostMessage>(&msg)) {
       cc.last_view_event_json.clear();
     } else if (const auto* m = std::get_if<RumGlobalAttributesChangedMessage>(&msg)) {
-      encode_json_to_string(cc.global_attributes_json, m->attributes);
+      cc.global_rum_attributes = m->attributes;
     } else {
       // CrashReportProcessedMessage does not affect crash context; no action needed
       return;

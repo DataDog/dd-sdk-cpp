@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <vector>
+
 namespace datadog::impl {
 class IFilesystem;
 class PlatformPath;
@@ -19,6 +21,9 @@ namespace datadog::impl {
  * binary format. Uses a write-then-rename pattern, first flushing the complete file to
  * `tmp_path` before atomically replacing the original.
  *
+ * `encode_buf` is a reusable buffer, owned by the caller, that the function may use
+ * when encoding intermediate values prior to writing them to the file.
+ *
  * The file persists across crashes so the next SDK launch can recover the full SDK
  * state and attach it to any crash report found on disk.
  *
@@ -29,6 +34,7 @@ bool WriteCrashContext(
     IFilesystem& fs,
     const PlatformPath& path,
     const PlatformPath& tmp_path,
+    std::vector<char>& encode_buf,
     const CrashContext& ctx
 );
 

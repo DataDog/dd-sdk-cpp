@@ -32,6 +32,8 @@ struct CrashFileReadResult {
   bool OK() const { return value == FilesystemResult::OK && complete; }
 };
 
+using CrashFileWriteResult = CrashFileReadResult;
+
 /**
  * Reads the next `n` bytes from the file, populating the provided buffer `dst`, which
  * must have space for `n` bytes.
@@ -69,6 +71,21 @@ inline CrashFileReadResult ReadUInt64(File& file, uint64_t& out) {
   char* dst = reinterpret_cast<char*>(&out);
   static_assert(sizeof(out) == 8, "Unexpected uint64_t size");
   return ReadBytes(file, dst, 8);
+}
+
+inline CrashFileReadResult ReadUInt8(File& file, uint8_t& out) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  char* dst = reinterpret_cast<char*>(&out);
+  return ReadBytes(file, dst, 1);
+}
+
+inline CrashFileReadResult ReadBool(File& file, bool& out) {
+  char c;
+  auto res = ReadBytes(file, &c, 1);
+  if (res.OK()) {
+    out = c != 0;
+  }
+  return res;
 }
 
 /**

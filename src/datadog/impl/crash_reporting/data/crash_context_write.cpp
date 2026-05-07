@@ -6,43 +6,74 @@
 
 #include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
 
+#include <cstring>
+
+#include "datadog/impl/core/attribute/binary.hpp"
+#include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/core/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context.hpp"
 
 namespace datadog::impl {
-
-static bool write_bytes(
-    IFilesystem& fs, PlatformFileHandle handle, const void* data, size_t size
-) {
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
-  auto res = fs.Write(handle, reinterpret_cast<const char*>(data), size);
-  return res.value == FilesystemResult::OK && res.bytes_written == size;
-}
-
-static bool write_uint64(IFilesystem& fs, PlatformFileHandle handle, uint64_t value) {
-  return write_bytes(fs, handle, &value, sizeof(value));
-}
-
-static bool write_string(
-    IFilesystem& fs, PlatformFileHandle handle, std::string_view s
-) {
-  const uint64_t len = s.size();
-  if (!write_uint64(fs, handle, len)) {
-    return false;
-  }
-  if (len == 0) {
-    return true;
-  }
-  return write_bytes(fs, handle, s.data(), len);
-}
 
 bool WriteCrashContext(
     IFilesystem& fs,
     const PlatformPath& path,
     const PlatformPath& tmp_path,
+    std::vector<char>& encode_buf,
     const CrashContext& ctx
 ) {
+  // We don't want to eat the syscall overhead of writing each value individually: we'll
+  // encode contiguous chunks of binary data into the buffer before writing to the file
+  encode_buf.clear();
+
+  // We'll pre-encode in several chunks: estimate the worst-case size of one of those
+  // chunks and ensure that our buffer is large enough to fit it
+  const size_t first_chunk_size =
+      16 + (8 + ctx.service.size()) + (8 + ctx.env.size()) +
+      (8 + ctx.application_version.size()) + (8 + ctx.source.size()) +
+      (8 + ctx.sdk_version.size()) + 1 + (8 + ctx.os_name.size()) +
+      (8 + ctx.os_version.size()) + (8 + ctx.os_build.size()) +
+      (8 + ctx.os_version_major.size()) + (8 + ctx.device_type.size()) +
+      (8 + ctx.device_name.size()) + (8 + ctx.device_model.size()) +
+      (8 + ctx.device_brand.size()) + (8 + ctx.device_architecture.size()) +
+      (8 + ctx.device_locale.size()) + (8 + ctx.device_time_zone.size()) +
+      (8 + ctx.user_id.size()) + (8 + ctx.user_name.size()) +
+      (8 + ctx.user_email.size());
+  const size_t second_chunk_size =
+      (8 + ctx.account_id.size()) + (8 + ctx.account_name.size());
+  const size_t third_chunk_size = 16 + 1 + 1 + 1 + 1 + ctx.last_view_event_json.size();
+  size_t encode_buf_capacity = 2048;
+  encode_buf_capacity = std::max(encode_buf_capacity, first_chunk_size);
+  encode_buf_capacity = std::max(encode_buf_capacity, second_chunk_size);
+  encode_buf_capacity = std::max(encode_buf_capacity, third_chunk_size);
+  encode_buf.reserve(QuantizeBufferSize(encode_buf_capacity));
+
+  // Establish some utility functions to accumulate the binary data we'll write
+  auto encode_uint8 = [&](uint8_t value) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    const char* bytes = reinterpret_cast<const char*>(&value);
+    encode_buf.insert(encode_buf.end(), bytes, bytes + sizeof(value));
+  };
+
+  auto encode_uint64 = [&](uint64_t value) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    const char* bytes = reinterpret_cast<const char*>(&value);
+    encode_buf.insert(encode_buf.end(), bytes, bytes + sizeof(value));
+  };
+
+  auto encode_string = [&](std::string_view value) {
+    encode_uint64(value.size());
+    encode_buf.insert(encode_buf.end(), value.begin(), value.end());
+  };
+
+  auto encode_uuid = [&](const UUID& value) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    const char* bytes = reinterpret_cast<const char*>(value.bytes.data());
+    encode_buf.insert(encode_buf.end(), bytes, bytes + value.bytes.size());
+  };
+
   // Write to <crash>.ctx.tmp first, to ensure that readers on next launch never observe
   // a partially-written file. We can truncate any existing file and disregard locking.
   const bool append = false;
@@ -51,65 +82,108 @@ bool WriteCrashContext(
   if (open_res.value != FilesystemResult::OK) {
     return false;
   }
-  const PlatformFileHandle handle = open_res.handle;
+  File tmp_file(fs, open_res.handle);
 
-  const auto& s = ctx.rum_session_state;
-  // clang-format off
-  const bool ok =
-      write_uint64(fs, handle, CrashContextHeaderMagic) &&
-      write_uint64(fs, handle, CrashContextFileVersion) &&
-      // Core identity
-      write_string(fs, handle, ctx.service) &&
-      write_string(fs, handle, ctx.env) &&
-      write_string(fs, handle, ctx.application_version) &&
-      write_string(fs, handle, ctx.source) &&
-      write_string(fs, handle, ctx.sdk_version) &&
-      write_uint64(fs, handle, static_cast<uint64_t>(ctx.tracking_consent)) &&
-      // OS info
-      write_string(fs, handle, ctx.os_name) &&
-      write_string(fs, handle, ctx.os_version) &&
-      write_string(fs, handle, ctx.os_build) &&
-      write_string(fs, handle, ctx.os_version_major) &&
-      // Device info
-      write_string(fs, handle, ctx.device_type) &&
-      write_string(fs, handle, ctx.device_name) &&
-      write_string(fs, handle, ctx.device_model) &&
-      write_string(fs, handle, ctx.device_brand) &&
-      write_string(fs, handle, ctx.device_architecture) &&
-      write_string(fs, handle, ctx.device_locale) &&
-      write_string(fs, handle, ctx.device_time_zone) &&
-      // User info
-      write_string(fs, handle, ctx.user_id) &&
-      write_string(fs, handle, ctx.user_name) &&
-      write_string(fs, handle, ctx.user_email) &&
-      write_string(fs, handle, ctx.user_extra_json) &&
-      // RUM session state
-      write_bytes(fs, handle, s.session_id.bytes.data(), 16) &&
-      write_uint64(fs, handle, s.is_sampled ? 1U : 0U) &&
-      write_uint64(fs, handle, s.is_active ? 1U : 0U) &&
-      write_uint64(fs, handle, s.is_initial_session ? 1U : 0U) &&
-      write_uint64(fs, handle, s.has_tracked_any_view ? 1U : 0U) &&
-      // JSON blobs
-      write_string(fs, handle, ctx.last_view_event_json) &&
-      write_string(fs, handle, ctx.global_attributes_json) &&
-      write_uint64(fs, handle, CrashContextFooterMagic);
-  // clang-format on
+  // Use a helper function to flush all data from encode_buf into the file, deleting it
+  // on failure
+  auto write_encoded_data = [&]() -> FilesystemResult {
+    auto res = tmp_file.Write(encode_buf.data(), encode_buf.size());
+    if (res.value != FilesystemResult::OK) {
+      fs.Delete(tmp_path);
+    }
+    return res.value;
+  };
 
-  // Nothing more to write: close the .tmp file, ignoring failure
-  const auto close_res = fs.Close(handle);
-  (void)close_res;
+  // BEGIN CONTEXT FILE CONTENTS with magic and binary format version
+  encode_uint64(CrashContextHeaderMagic);
+  encode_uint64(CrashContextFileVersion);
 
-  // If we didn't write a complete file, delete the .tmp file, effectively dropping the
-  // context update and leaving any existing context intact, even though it may be out
-  // of date
-  if (!ok) {
-    const auto delete_res = fs.Delete(tmp_path);
-    (void)delete_res;
+  // Application configuration details
+  encode_string(ctx.service);
+  encode_string(ctx.env);
+  encode_string(ctx.application_version);
+
+  // Internal SDK configuration details
+  encode_string(ctx.source);
+  encode_string(ctx.sdk_version);
+
+  // Current SDK instance state
+  encode_uint8(static_cast<uint8_t>(ctx.tracking_consent));
+
+  // OS info
+  encode_string(ctx.os_name);
+  encode_string(ctx.os_version);
+  encode_string(ctx.os_build);
+  encode_string(ctx.os_version_major);
+
+  // Device info
+  encode_string(ctx.device_type);
+  encode_string(ctx.device_name);
+  encode_string(ctx.device_model);
+  encode_string(ctx.device_brand);
+  encode_string(ctx.device_architecture);
+  encode_string(ctx.device_locale);
+  encode_string(ctx.device_time_zone);
+
+  // User info
+  encode_string(ctx.user_id);
+  encode_string(ctx.user_name);
+  encode_string(ctx.user_email);
+  // (end of first chunk: flush all data buffered so far, then write user attributes)
+  if (write_encoded_data() != FilesystemResult::OK) {
+    return false;
+  }
+  if (auto res = AttributeBinarySerialization::Write(ctx.user_extra, tmp_file);
+      !res.ok) {
     return false;
   }
 
-  // Wrote to .tmp file successfully: perform an atomic rename to clobber any existing
-  // .ctx file, making the latest context values encoded in our .tmp file current
+  // Account info
+  encode_buf.clear();  // begin second chunk
+  encode_string(ctx.account_id);
+  encode_string(ctx.account_name);
+  // (end of second chunk: flush all data, then write extra account attributes)
+  if (write_encoded_data() != FilesystemResult::OK) {
+    return false;
+  }
+  if (auto res = AttributeBinarySerialization::Write(ctx.account_extra, tmp_file);
+      !res.ok) {
+    return false;
+  }
+
+  // RumSessionState
+  encode_buf.clear();  // begin third chunk
+  encode_uuid(ctx.rum_session_state.session_id);
+  encode_uint8(ctx.rum_session_state.is_sampled ? 1 : 0);
+  encode_uint8(ctx.rum_session_state.is_active ? 1 : 0);
+  encode_uint8(ctx.rum_session_state.is_initial_session ? 1 : 0);
+  encode_uint8(ctx.rum_session_state.has_tracked_any_view ? 1 : 0);
+
+  // Last RUM view event
+  encode_string(ctx.last_view_event_json);
+
+  // (end of third chunk; flush all data buffered so far)
+  if (write_encoded_data() != FilesystemResult::OK) {
+    return false;
+  }
+
+  // Global RUM attributes
+  if (auto res =
+          AttributeBinarySerialization::Write(ctx.global_rum_attributes, tmp_file);
+      !res.ok) {
+    return false;
+  }
+
+  // END CONTEXT FILE CONTENTS with magic to indicate complete file
+  encode_buf.clear();  // begin fourth chunk
+  encode_uint64(CrashContextFooterMagic);
+  if (write_encoded_data() != FilesystemResult::OK) {
+    return false;
+  }
+
+  // We've successfully written all data to the .ctx.tmp file: perform an atomic rename
+  // to clobber any existing .ctx file, making the latest context values encoded in our
+  // .tmp file current
   auto replace_res = fs.ReplaceFile(tmp_path, path);
   if (replace_res != FilesystemResult::OK) {
     // Delete .ctx.tmp file if we failed to rename it to .ctx, leaving original .ctx
