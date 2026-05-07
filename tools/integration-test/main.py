@@ -14,28 +14,35 @@ Running this script will:
 2. Collect the set of test scripts defined in tools/integration-test/tests/
 3. Start a proxy that will intercept requests, allowing them to be buffered in-memory as
    they're forwarded to Datadog intake
-4. For each test script collected in step 2:
-    a. Invoke the repl binary, configured to with a custom endpoint URL that will send
-       all SDK uploads to our proxy, with a 'sdk-%d' path prefix identifying the client
-    b. Feed the test's commands into that repl process
-    c. Pause as needed to validate the test's assertions, effectively retrieving the set
-       of requests that passed through the proxy and validating that they contain the
-       expected event data
+4. For each test collected in step 2:
+    a. Create a temporary storage directory shared by all repl processes in that test
+    b. Invoke the test's main function with a TestContext that provides access to the
+       storage directory and the ability to spawn repl processes
+    c. Validate the test's assertions as the test's async main function drives one or
+       more repl processes and inspects their output
 5. Print a summary and return 0 if all tests passed; 1 if any test failed
 """
 import sys
+import asyncio
 import argparse
+import tempfile
 import threading
 import traceback
 import multiprocessing
 from typing import List, Optional
 
 from lib.proxy import ProxyServer
-from lib.test import collect_tests, TestInput
-from lib.repl import check_repl_binary, run_repl, ReplResult
+from lib.repl import check_repl_binary
+from lib.test import collect_tests, StorageDirectory, TestContext
 
 
-def _print_repl_output(stdout: str, stderr: str):
+def _gather_repl_output(ctx: TestContext):
+    stdout = '\n'.join(p.stdout for p in ctx._repls if p.stdout)
+    stderr = '\n'.join(p.stderr for p in ctx._repls if p.stderr)
+    return stdout, stderr
+
+
+def _print_repl_output(stdout: str, stderr: str = ''):
     if stderr:
         print('--- BEGIN STDERR ---')
         for line in stderr.splitlines():
@@ -64,7 +71,7 @@ if __name__ == "__main__":
     if not tests:
         print('ERROR: No tests found')
         sys.exit(1)
-    
+
     # If configured to only run a single test, find that test and ignore all the rest
     if args.only:
         matching_test = next((x for x in tests if x.name == args.only), None)
@@ -87,15 +94,21 @@ if __name__ == "__main__":
     if args.jobs > 1:
         num_test_threads = min(len(tests), args.jobs)
 
-    # Construct a pre-sized list to contain the results of the repl invocation for each
-    # of the tests that we'll run, and prepare functions to run each test's repl
-    # commands and store the repl output and exitcode
-    repl_results: List[Optional[ReplResult]] = [None] * len(tests)
+    # Each test result is a tuple of (passed: bool, stdout: str, stderr: str, exc: str|None)
+    test_results: List[Optional[tuple]] = [None] * len(tests)
 
     def run_test(test_index: int):
         test = tests[test_index]
-        sdk_id = test_index
-        repl_results[test_index] = run_repl(repl_binary_path, '.', proxy_url, sdk_id, test.script)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            storage = StorageDirectory(path=tmpdir)
+            ctx = TestContext(storage, repl_binary_path, proxy, proxy_url)
+            try:
+                asyncio.run(test.func(ctx))
+                stdout, stderr = _gather_repl_output(ctx)
+                test_results[test_index] = (True, stdout, stderr, None)
+            except Exception:
+                stdout, stderr = _gather_repl_output(ctx)
+                test_results[test_index] = (False, stdout, stderr, traceback.format_exc())
 
     def run_test_thread(thread_index: int, stride: int):
         test_index = thread_index
@@ -103,10 +116,10 @@ if __name__ == "__main__":
             run_test(test_index)
             test_index += stride
 
-    # Run a repl process for each configured test
+    # Run each test's async main function, either serially or across multiple threads
     print('Running %d test(s) on %d thread(s)...' % (len(tests), num_test_threads))
     if num_test_threads == 1:
-        for i, test in enumerate(tests):
+        for i in range(len(tests)):
             run_test(i)
     else:
         threads: List[threading.Thread] = []
@@ -117,49 +130,32 @@ if __name__ == "__main__":
         for thread in threads:
             thread.join()
 
-    # Stop the proxy and retrieve our buffered list of all requests that were
-    # intercepted by the proxy while our tests were running
+    # Stop the proxy
     print("Stopping proxy...")
-    all_requests = proxy.stop()
+    proxy.stop()
     print("Proxy stopped.")
 
-    # Iterate through all the tests we ran, printing relevant output and outright
-    # failing any tests that did not successfully complete their repl commands
+    # Print results
     print('')
     num_tests_passed = 0
     for i, test in enumerate(tests):
-        # Check the results of this test's repl invocation to see if it completed
-        # without errors or warnings
-        res = repl_results[i]
-        if not res:
-            raise RuntimeError(f'No repl results recorded for test {i}')
+        result = test_results[i]
+        if not result:
+            raise RuntimeError(f'No result recorded for test {i}')
 
-        # Filter our captured requests to get only the requests sent from this test
-        requests = [x for x in all_requests if x.sdk_id == i]
+        passed, stdout, stderr, exc = result
 
-        # If repl printed anything to stderr or returned with a nonzero exit code,
-        # consider the test failed
-        if not res.ok:
-            print(f'=== ❌ {test.name} [repl exitcode: {res.exitcode}] ===')
-            _print_repl_output(res.stdout, res.stderr)
+        if not passed:
+            print(f'=== ❌ {test.name} ===')
+            _print_repl_output(stdout, stderr)
+            if exc:
+                print(exc)
             print('')
             continue
 
-        # If repl invocation succeeded, allow the test's assertion function to inspect
-        # the requests and validate that the SDK produced the expected events: if the
-        # function raises any exception, fail the test
-        try:
-            test.assert_func(TestInput(requests))
-        except Exception:
-            print(f'=== ❌ {test.name} [test assertions failed] ===')
-            _print_repl_output(res.stdout, res.stderr)
-            print(traceback.format_exc())
-            continue
-
-        # repl exited OK and assertions passed; this test is OK
         print(f'=== ✅ {test.name} [OK] ===')
         if args.verbose:
-            _print_repl_output(res.stdout, res.stderr)
+            _print_repl_output(stdout, stderr)
             print('')
         num_tests_passed += 1
 
