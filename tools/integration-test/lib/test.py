@@ -11,6 +11,7 @@ import subprocess
 import inspect
 import importlib
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable, List, Dict
 
 from lib.proxy import ProxyServer
@@ -20,6 +21,18 @@ from lib.repl import ReplProcess, __repo_root__, _next_sdk_id
 @dataclass
 class StorageDirectory:
     path: str
+
+    def get(self, *parts: str) -> Path:
+        return Path(self.path, *parts)
+    
+    def get_artifact_dir(self, name: str) -> Path:
+        return self.get('.datadog', name)
+    
+    def get_pending_events_dir(self, pid: int, feature_name: str) -> Path:
+        return self.get('.datadog', 'main', str(pid), feature_name, 'intermediate-v1')
+    
+    def get_granted_events_dir(self, pid: int, feature_name: str) -> Path:
+        return self.get('.datadog', 'main', str(pid), feature_name, 'v1')
 
 
 class TestContext:
