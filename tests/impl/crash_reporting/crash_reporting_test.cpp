@@ -146,11 +146,13 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
     // When the feature handles a RumGlobalAttributesChangedMessage with some attributes
     message_handler_func(RumGlobalAttributesChangedMessage{datadog::Attribute{}});
 
-    // Then the handler is notified and global_attributes_json is populated
+    // Then the handler is notified and global_rum_attributes holds the sent value
     REQUIRE(handler.num_set_crash_context_calls == 1);
     REQUIRE(handler.last_crash_ctx.has_value());
-    // An empty Attribute encodes as "{}", which is non-empty JSON
-    REQUIRE(!handler.last_crash_ctx->global_attributes_json.empty());
+    REQUIRE(
+        handler.last_crash_ctx->global_rum_attributes.GetType() ==
+        datadog::ValueType::Null
+    );
   }
 
   SECTION("M do nothing W CrashReportProcessedMessage is received") {

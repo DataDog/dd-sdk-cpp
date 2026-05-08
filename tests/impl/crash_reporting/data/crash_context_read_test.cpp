@@ -28,8 +28,9 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
   PlatformPath write_tmp_path;
   REQUIRE(write_path.Encode("crash.ctx"));
   REQUIRE(write_tmp_path.Encode("crash.ctx.tmp"));
+  std::vector<char> encode_buf;
   const CrashContext mock_ctx = MakeMockCrashContext();
-  REQUIRE(WriteCrashContext(fs, write_path, write_tmp_path, mock_ctx));
+  REQUIRE(WriteCrashContext(fs, write_path, write_tmp_path, encode_buf, mock_ctx));
   const std::string binary_string{fs.Cat("crash.ctx")};
   const std::string_view data{binary_string};
 
@@ -72,7 +73,12 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(got.user_id == mock_ctx.user_id);
     REQUIRE(got.user_name == mock_ctx.user_name);
     REQUIRE(got.user_email == mock_ctx.user_email);
-    REQUIRE(got.user_extra_json == mock_ctx.user_extra_json);
+    REQUIRE(got.user_extra.GetType() == datadog::ValueType::Object);
+    REQUIRE(got.user_extra.GetObjectPropertyCount() == 0);
+    REQUIRE(got.account_id == mock_ctx.account_id);
+    REQUIRE(got.account_name == mock_ctx.account_name);
+    REQUIRE(got.account_extra.GetType() == datadog::ValueType::Object);
+    REQUIRE(got.account_extra.GetObjectPropertyCount() == 0);
     REQUIRE(got.rum_session_state.session_id == mock_ctx.rum_session_state.session_id);
     REQUIRE(got.rum_session_state.is_sampled == mock_ctx.rum_session_state.is_sampled);
     REQUIRE(got.rum_session_state.is_active == mock_ctx.rum_session_state.is_active);
@@ -85,7 +91,10 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
         mock_ctx.rum_session_state.has_tracked_any_view
     );
     REQUIRE(got.last_view_event_json == mock_ctx.last_view_event_json);
-    REQUIRE(got.global_attributes_json == mock_ctx.global_attributes_json);
+    REQUIRE(got.global_rum_attributes.GetType() == datadog::ValueType::Object);
+    REQUIRE(
+        got.global_rum_attributes.GetObjectProperty("plan").GetStringValue() == "gold"
+    );
   }
 
   SECTION("M return no value W file has invalid header magic") {

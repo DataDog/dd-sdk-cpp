@@ -80,7 +80,10 @@ static inline datadog::impl::CrashContext MakeMockCrashContext() {
   ctx.user_id = "usr-123";
   ctx.user_name = "Alice";
   ctx.user_email = "alice@example.com";
-  ctx.user_extra_json = "{}";
+  ctx.user_extra = datadog::Attribute::Object();
+  ctx.account_id = "acct-456";
+  ctx.account_name = "Acme Corp";
+  ctx.account_extra = datadog::Attribute::Object();
   ctx.rum_session_state.session_id =
       *datadog::UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
   ctx.rum_session_state.is_sampled = true;
@@ -88,6 +91,8 @@ static inline datadog::impl::CrashContext MakeMockCrashContext() {
   ctx.rum_session_state.is_initial_session = false;
   ctx.rum_session_state.has_tracked_any_view = true;
   ctx.last_view_event_json = R"({"type":"view"})";
-  ctx.global_attributes_json = R"({"plan":"gold"})";
+  datadog::Attribute global_rum_attributes = datadog::Attribute::Object();
+  global_rum_attributes.SetObjectProperty("plan", datadog::Attribute::String("gold"));
+  ctx.global_rum_attributes = global_rum_attributes;
   return ctx;
 }

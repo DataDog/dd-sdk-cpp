@@ -20,6 +20,9 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
   // Given a mock filesystem
   MockFilesystem fs;
 
+  // And a reusable encode buffer (caller-owned, as required by WriteCrashContext)
+  std::vector<char> encode_buf;
+
   // And file paths where we'll write <crash>.ctx and <crash>.ctx.tmp
   PlatformPath path;
   REQUIRE(path.Encode("crash.ctx"));
@@ -31,7 +34,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     const CrashContext ctx = MakeMockCrashContext();
 
     // When we serialize it to the mock filesystem
-    const bool ok = WriteCrashContext(fs, path, tmp_path, ctx);
+    const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, ctx);
 
     // Then serialization succeeds
     REQUIRE(ok);
@@ -69,7 +72,12 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     REQUIRE(got.user_id == ctx.user_id);
     REQUIRE(got.user_name == ctx.user_name);
     REQUIRE(got.user_email == ctx.user_email);
-    REQUIRE(got.user_extra_json == ctx.user_extra_json);
+    REQUIRE(got.user_extra.GetType() == datadog::ValueType::Object);
+    REQUIRE(got.user_extra.GetObjectPropertyCount() == 0);
+    REQUIRE(got.account_id == ctx.account_id);
+    REQUIRE(got.account_name == ctx.account_name);
+    REQUIRE(got.account_extra.GetType() == datadog::ValueType::Object);
+    REQUIRE(got.account_extra.GetObjectPropertyCount() == 0);
     REQUIRE(got.rum_session_state.session_id == ctx.rum_session_state.session_id);
     REQUIRE(got.rum_session_state.is_sampled == ctx.rum_session_state.is_sampled);
     REQUIRE(got.rum_session_state.is_active == ctx.rum_session_state.is_active);
@@ -82,7 +90,10 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
         ctx.rum_session_state.has_tracked_any_view
     );
     REQUIRE(got.last_view_event_json == ctx.last_view_event_json);
-    REQUIRE(got.global_attributes_json == ctx.global_attributes_json);
+    REQUIRE(got.global_rum_attributes.GetType() == datadog::ValueType::Object);
+    REQUIRE(
+        got.global_rum_attributes.GetObjectProperty("plan").GetStringValue() == "gold"
+    );
   }
 
   SECTION("M fail W .ctx.tmp file can not be opened") {
@@ -96,7 +107,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, CrashContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);
@@ -118,7 +129,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, CrashContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);
@@ -141,7 +152,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, CrashContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);

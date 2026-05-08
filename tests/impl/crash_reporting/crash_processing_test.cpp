@@ -32,9 +32,10 @@ static const std::string CONTEXT_FILE_BINARY = []() -> std::string {
   MockFilesystem tmp_fs;
   PlatformPath p;
   PlatformPath tmp;
+  std::vector<char> encode_buf;
   (void)p.Encode("ctx");
   (void)tmp.Encode("ctx.tmp");
-  (void)WriteCrashContext(tmp_fs, p, tmp, MakeMockCrashContext());
+  (void)WriteCrashContext(tmp_fs, p, tmp, encode_buf, MakeMockCrashContext());
   return std::string(tmp_fs.Cat("ctx"));
 }();
 static const std::string_view CONTEXT_FILE_DATA{CONTEXT_FILE_BINARY};
