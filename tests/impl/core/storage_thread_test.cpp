@@ -7,6 +7,8 @@
 #include "datadog/impl/core/storage_thread.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <chrono>
+#include <future>
 #include <memory>
 #include <vector>
 
@@ -167,5 +169,51 @@ TEST_CASE("StorageThreadMain", "[unit]") {
         fs.Cat(bravo_prefix + "v1/" + bravo_granted_files.front()) ==
         MockTLVFile().AppendEvent("bravo-0").ToString()
     );
+  }
+
+  SECTION(
+      "M fulfill FlushWork sentinel after draining prior writes W FlushWork is queued"
+  ) {
+    // Given both features configured with Granted consent so writes land on disk
+    auto features = init_features(TrackingConsent::Granted, TrackingConsent::Granted);
+    REQUIRE(features.size() == 2);
+
+    // And a queue containing an EventGenerated message followed by a FlushWork sentinel
+    // carrying a shared promise; capture the future before pushing
+    auto done = std::make_shared<std::promise<void>>();
+    std::future<void> future = done->get_future();
+    StorageQueue queue;
+    REQUIRE(queue.Push(
+        StorageMessage::EventGenerated(CreateFeatureId("ALFA"), "alpha-0", {}, false)
+    ));
+    REQUIRE(queue.Push(StorageMessage::FlushWork(done)));
+
+    // When the storage thread drains the queue
+    queue.Stop();
+    StorageThreadMain(DiagnosticLogger{}, queue, features);
+
+    // Then the prior write has reached 'alpha/v1' on disk, and the FlushWork sentinel
+    // has fulfilled the promise (FIFO ordering: the sentinel can only have been
+    // processed after all preceding writes)
+    auto alpha_granted_files = fs.Ls(alpha_prefix + "v1");
+    REQUIRE(alpha_granted_files.size() == 1);
+    REQUIRE(
+        fs.Cat(alpha_prefix + "v1/" + alpha_granted_files.front()) ==
+        MockTLVFile().AppendEvent("alpha-0").ToString()
+    );
+    REQUIRE(future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+  }
+
+  SECTION("M tolerate FlushWork message with null promise W done is unset") {
+    // Given a FlushWork message whose `done` shared_ptr is null
+    auto features = init_features(TrackingConsent::Granted, TrackingConsent::Granted);
+    StorageQueue queue;
+    REQUIRE(queue.Push(StorageMessage::FlushWork(nullptr)));
+
+    // When the storage thread drains the queue
+    queue.Stop();
+
+    // Then it processes the message without crashing
+    StorageThreadMain(DiagnosticLogger{}, queue, features);
   }
 }

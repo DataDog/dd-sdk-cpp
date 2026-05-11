@@ -115,6 +115,14 @@ void StorageThreadMain(
             diagnostic_logger, features, item->payload.event_generated
         );
         break;
+
+      case StorageMessageType::FlushWork:
+        // All prior writes have been drained from the queue by virtue of FIFO
+        // ordering; unblock the waiter
+        if (item->payload.flush.done) {
+          item->payload.flush.done->set_value();
+        }
+        break;
     }
   }
 

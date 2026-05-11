@@ -386,6 +386,25 @@ class Core {
    */
   void Stop();
 
+  /**
+   * Blocks until all work previously-enqueued on the context thread has been processed,
+   * all messages those handlers broadcast on the internal message bus have been
+   * dispatched, and all writes those handlers triggered (whether enqueued on the
+   * storage thread or written synchronously via a message handler) have completed.
+   * Does not stop the SDK, and does not flush HTTP requests.
+   *
+   * Calling this function from the context, messaging, or storage threads would
+   * deadlock. This function is not used in production code; it is directly exposed for
+   * use by an internal-only API function. (The ability to flush pending work is
+   * provided solely for internal use in integration tests.)
+   *
+   * This function only flushes work that was already enqueued when it was called. If a
+   * message-bus handler reacts to a message by pushing new work onto the context thread
+   * or message bus, that new work is NOT covered, and the caller must call this
+   * function again to flush it. (No message handler currently does this.)
+   */
+  void FlushWork();
+
  private:
   bool EnqueueStorageWrite(
       FeatureId feature_id,

@@ -7,7 +7,9 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <algorithm>
+#include <future>
 #include <iostream>
+#include <memory>
 #include <sstream>
 
 #include "datadog/impl/core/attribute/merge.hpp"
@@ -607,6 +609,52 @@ void Core::Stop() {
 
   // Revert to the initialized state; subsequent calls to Start() will restart us
   _state = CoreState::Initialized;
+}
+
+void Core::FlushWork() {
+  // Nothing to flush unless the Core is actually running: features cannot enqueue work
+  // on the context, messaging, or storage threads when the Core is not started, so any
+  // prior work is either already complete (from a previous run) or impossible (from
+  // this run).
+  if (_state != CoreState::Started) {
+    return;
+  }
+  DATADOG_ASSERT(_context_queue, "_context_queue is invalid while core is running");
+  DATADOG_ASSERT(_message_bus, "_message_bus is invalid while core is running");
+  DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid while core is running");
+
+  // Drain the three queues in order: context thread → message bus → storage thread.
+  // The order matters: each FlushWork sentinel must be enqueued after the prior thread
+  // has finished producing work for the next queue.
+  //
+  // - The context-thread FlushWork sentinel waits for prior context-thread work to
+  //   finish; any storage writes (via `EventWriter`) and any messages broadcast (via
+  //   the `MessagePublisher`) by that work are enqueued in their respective queues by
+  //   the time it fulfills.
+  // - The message-bus FlushWork sentinel waits for prior messages to be handled; any
+  //   storage writes that message handlers triggered are enqueued in the storage queue
+  //   by the time it fulfills.
+  // - The storage-thread FlushWork sentinel waits for all preceding writes to be
+  //   flushed to disk.
+  //
+  // Precondition: message handlers do not enqueue further work on the context thread
+  // or the message bus. If a future handler needs to do so, this routine will need
+  // to drain those cascading queues as well.
+
+  auto ctx_done = std::make_shared<std::promise<void>>();
+  std::future<void> ctx_future = ctx_done->get_future();
+  _context_queue->Push([ctx_done]() { ctx_done->set_value(); });
+  ctx_future.wait();
+
+  auto msg_done = std::make_shared<std::promise<void>>();
+  std::future<void> msg_future = msg_done->get_future();
+  _message_bus->Send(FeatureMessage{FlushWorkMessage{msg_done}});
+  msg_future.wait();
+
+  auto stor_done = std::make_shared<std::promise<void>>();
+  std::future<void> stor_future = stor_done->get_future();
+  _storage_queue->Push(StorageMessage::FlushWork(stor_done));
+  stor_future.wait();
 }
 
 bool Core::EnqueueStorageWrite(

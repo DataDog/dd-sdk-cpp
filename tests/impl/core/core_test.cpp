@@ -7,6 +7,7 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <utility>
 
 #include "datadog/impl/core/feature_message.hpp"
@@ -16,6 +17,7 @@
 #include "mock/filesystem.hpp"
 #include "mock/http_client.hpp"
 #include "mock/system_info.hpp"
+#include "mock/tlv.hpp"
 #include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
@@ -444,5 +446,94 @@ TEST_CASE("Core Messaging", "[unit]") {
       REQUIRE(feature->initial_context.has_value());
       REQUIRE(feature->initial_context->tracking_consent == initial_tracking_consent);
     }
+  }
+}
+
+TEST_CASE("Core::FlushWork", "[unit]") {
+  SECTION("M flush a pending write to disk W called on a running core") {
+    // Given a running core with a registered feature, frozen at a known timestamp so
+    // that batch filenames are predictable
+    CoreTestHarness test = CoreTestHarness::Init(/*flush_http_requests=*/false);
+    test.clock.FreezeAtMilliseconds(1708675309000);
+    auto feature = std::make_shared<TestFeature>();
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+
+    // And no events have reached the granted-consent storage directory yet
+    REQUIRE(test.fs.Ls("app/.datadog/main/12345/testfeature/v1").empty());
+
+    // When we generate an event and then call FlushWork()
+    REQUIRE(feature->GenerateEvent("event-0"));
+    test.core.FlushWork();
+
+    // Then the event has been written to disk before FlushWork() returned, without
+    // needing to stop the core
+    auto names = test.fs.Ls("app/.datadog/main/12345/testfeature/v1");
+    REQUIRE(names.size() == 1);
+    REQUIRE(
+        test.fs.Cat("app/.datadog/main/12345/testfeature/v1/" + names.front()) ==
+        MockTLVFile().AppendEvent("event-0").ToString()
+    );
+
+    // Clean up
+    test.core.Stop();
+  }
+
+  SECTION("M return immediately W core is not started") {
+    // Given a core that has been initialized but never started
+    DiagnosticMessageBuffer diagnostics;
+    impl::Core core = _make_core(diagnostics);
+    REQUIRE(core.Init());
+
+    // When FlushWork() is called, it returns without hanging (no context or storage
+    // threads exist to enqueue work to)
+    const auto start = std::chrono::steady_clock::now();
+    core.FlushWork();
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    REQUIRE(elapsed < std::chrono::seconds(1));
+  }
+
+  SECTION("M return immediately W core has been stopped") {
+    // Given a core that was started and then stopped
+    CoreTestHarness test = CoreTestHarness::Init(/*flush_http_requests=*/false);
+    auto feature = std::make_shared<TestFeature>();
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+    test.core.Stop();
+
+    // When FlushWork() is called after Stop(), it returns without hanging
+    const auto start = std::chrono::steady_clock::now();
+    test.core.FlushWork();
+    const auto elapsed = std::chrono::steady_clock::now() - start;
+    REQUIRE(elapsed < std::chrono::seconds(1));
+  }
+
+  SECTION("M drain the message bus W messages were broadcast before FlushWork") {
+    // Given a running core with a feature that subscribes to ContextChangedMessage
+    CoreTestHarness test = CoreTestHarness::Init(/*flush_http_requests=*/false);
+    auto feature = std::make_shared<MessageHandlerFeature>();
+    REQUIRE(test.core.RegisterFeature(feature));
+
+    // When the core starts, two ContextChangedMessages are broadcast: one from
+    // Core::Start()'s no-op UpdateContext, and another from
+    // MessageHandlerFeature::Start() which enqueues its own UpdateContext on the
+    // context thread. Neither has been delivered to the handler yet at this point.
+    REQUIRE(test.core.Start());
+
+    // When FlushWork() is called, both messages are delivered to the handler
+    // before it returns (no Stop() required to drain the bus)
+    test.core.FlushWork();
+    REQUIRE(feature->messages_received.load() == 2);
+
+    // And: when an additional context change is triggered from the main thread,
+    // followed by another FlushWork(), the third message is also delivered
+    test.core.SetTrackingConsent(TrackingConsent::Pending);
+    test.core.FlushWork();
+    REQUIRE(feature->messages_received.load() == 3);
+    REQUIRE(feature->final_context.has_value());
+    REQUIRE(feature->final_context->tracking_consent == TrackingConsent::Pending);
+
+    // Clean up
+    test.core.Stop();
   }
 }

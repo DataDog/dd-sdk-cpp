@@ -9,6 +9,8 @@
 #include <iostream>
 #include <thread>
 
+#include "datadog.hpp"
+
 #include "repl/buffer.hpp"
 #include "repl/commands.hpp"
 #include "repl/state.hpp"
@@ -45,6 +47,14 @@ CommandResult HandleSource(State& state, const CommandInput& args) {
   // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
 
   return CommandResult::OK("std::ifstream::open()");
+}
+
+CommandResult HandleFlushWork(State& state, const CommandInput&) {
+  if (!state.core) {
+    return CommandResult::Error("Core does not exist!");
+  }
+  state.core->Internal_FlushWork();
+  return CommandResult::OK("Core::Internal_FlushWork()");
 }
 
 CommandResult HandleSleep(State&, const CommandInput& args) {

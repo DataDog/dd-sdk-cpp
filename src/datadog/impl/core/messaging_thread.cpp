@@ -12,6 +12,15 @@ void MessagingThreadMain(const DiagnosticLogger& diagnostic_logger, MessageBus& 
   diagnostic_logger.Debug("Messaging thread starting");
 
   while (auto msg = bus._queue.Pop()) {
+    // FlushWork messages are not delivered to feature handlers; fulfill the carried
+    // promise and continue.
+    if (auto* barrier = std::get_if<FlushWorkMessage>(&*msg)) {
+      if (barrier->done) {
+        barrier->done->set_value();
+      }
+      continue;
+    }
+
     for (auto& handler : bus._handlers) {
       handler(*msg);
     }

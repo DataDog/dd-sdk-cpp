@@ -436,6 +436,12 @@ class Core {
   DATADOG_API bool Start();
   DATADOG_API void Stop();
 
+  /**
+   * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+   * without notice. Do not use in production code.
+   */
+  DATADOG_API void Internal_FlushWork();
+
  private:
   // Forbid copying/moving: we use std::shared_ptr<Core> at the API boundary
   Core(const Core&) = delete;

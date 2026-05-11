@@ -7,6 +7,8 @@
 #pragma once
 
 #include <cinttypes>
+#include <future>
+#include <memory>
 #include <utility>
 #include <vector>
 
@@ -41,6 +43,7 @@ namespace datadog::impl {
 enum class StorageMessageType : uint8_t {
   TrackingConsentChanged,
   EventGenerated,
+  FlushWork,
 };
 
 /**
@@ -93,6 +96,15 @@ struct StorageMessage_EventGenerated {
 };
 
 /**
+ * Sentinel used by `Core::FlushWork()` to wait for all prior writes to be flushed to
+ * disk. The storage thread fulfills `done` once it pops this message, unblocking the
+ * caller's future.
+ */
+struct StorageMessage_FlushWork {
+  std::shared_ptr<std::promise<void>> done;
+};
+
+/**
  * A message sent to the storage thread.
  */
 struct StorageMessage {
@@ -111,6 +123,7 @@ struct StorageMessage {
   union Payload {
     StorageMessage_TrackingConsentChanged tracking_consent_changed;
     StorageMessage_EventGenerated event_generated;
+    StorageMessage_FlushWork flush;
 
     /**
      * Messages are initialized using static functions that use placement new to
@@ -163,6 +176,12 @@ struct StorageMessage {
       Block event_metadata,
       bool bypass_tracking_consent
   );
+
+  /**
+   * Creates a new FlushWork message that will unblock the caller's future once the
+   * storage thread pops it.
+   */
+  static StorageMessage FlushWork(std::shared_ptr<std::promise<void>> done);
 };
 
 /**
