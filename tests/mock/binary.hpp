@@ -42,15 +42,19 @@ struct MockBinaryFile {
   // Parses a 36-char canonical UUID string and appends the 16 raw bytes.
   MockBinaryFile& UUID(std::string_view s) {
     auto nibble = [](char c) -> uint8_t {
-      if (c >= '0' && c <= '9') { return static_cast<uint8_t>(c - '0'); }
-      if (c >= 'a' && c <= 'f') { return static_cast<uint8_t>(c - 'a' + 10); }
+      if (c >= '0' && c <= '9') {
+        return static_cast<uint8_t>(c - '0');
+      }
+      if (c >= 'a' && c <= 'f') {
+        return static_cast<uint8_t>(c - 'a' + 10);
+      }
       return static_cast<uint8_t>(c - 'A' + 10);
     };
     auto byte_at = [&](size_t hi, size_t lo) -> uint8_t {
       return static_cast<uint8_t>((nibble(s[hi]) << 4) | nibble(s[lo]));
     };
     // UUID format: 8-4-4-4-12, hyphens at positions 8, 13, 18, 23
-    const size_t pos[] = {0,2,4,6, 9,11, 14,16, 19,21, 24,26,28,30,32,34};
+    const size_t pos[] = {0, 2, 4, 6, 9, 11, 14, 16, 19, 21, 24, 26, 28, 30, 32, 34};
     for (size_t p : pos) {
       bytes.push_back(byte_at(p, p + 1));
     }
