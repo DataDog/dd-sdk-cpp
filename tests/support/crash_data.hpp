@@ -85,7 +85,7 @@ static MockBinaryFile MOCK_CRASH_CONTEXT_V1 =
         // account_extra: (empty object)
         .UInt8(static_cast<uint8_t>(datadog::ValueType::Object))
         .UInt64(0)
-        .UUID("a991ca10-4004-4004-4004-beefbeefbeef")  // rum_session_id
+        .UUID("5e551017-4114-4114-4114-beeeefbeeeef")  // rum_session_id
         .UInt8(1)                                      // rum_session_is_sampled
         .UInt8(1)                                      // rum_session_is_active
         .UInt8(0)                                      // rum_session_is_initial
@@ -98,47 +98,3 @@ static MockBinaryFile MOCK_CRASH_CONTEXT_V1 =
         .UInt8(static_cast<uint8_t>(datadog::ValueType::String))
         .String("gold")
         .UInt64(datadog::impl::CrashContextFooterMagic);
-
-/**
- * Returns a representative `CrashContext` value with all fields populated, suitable
- * for use as test fixture data for crash context serialization and deserialization
- * tests.
- */
-static inline datadog::impl::CrashContext MakeMockCrashContext() {
-  datadog::impl::CrashContext ctx;
-  ctx.service = "mock-service";
-  ctx.env = "mock-env";
-  ctx.application_version = "1.2.3";
-  ctx.source = "rum-cpp";
-  ctx.sdk_version = "2.0.0";
-  ctx.tracking_consent = datadog::TrackingConsent::Pending;
-  ctx.os_name = "mock-os";
-  ctx.os_version = "2.3.4";
-  ctx.os_build = "mock-build-number";
-  ctx.os_version_major = "2";
-  ctx.device_type = "desktop";
-  ctx.device_name = "mock-device";
-  ctx.device_model = "mock-model";
-  ctx.device_brand = "mock-brand";
-  ctx.device_architecture = "x86_64";
-  ctx.device_locale = "en-US";
-  ctx.device_time_zone = "America/New_York";
-  ctx.user_id = "usr-123";
-  ctx.user_name = "Alice";
-  ctx.user_email = "alice@example.com";
-  ctx.user_extra = datadog::Attribute::Object();
-  ctx.account_id = "acct-456";
-  ctx.account_name = "Acme Corp";
-  ctx.account_extra = datadog::Attribute::Object();
-  ctx.rum_session_state.session_id =
-      *datadog::UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
-  ctx.rum_session_state.is_sampled = true;
-  ctx.rum_session_state.is_active = true;
-  ctx.rum_session_state.is_initial_session = false;
-  ctx.rum_session_state.has_tracked_any_view = true;
-  ctx.last_view_event_json = R"({"type":"view"})";
-  datadog::Attribute global_rum_attributes = datadog::Attribute::Object();
-  global_rum_attributes.SetObjectProperty("plan", datadog::Attribute::String("gold"));
-  ctx.global_rum_attributes = global_rum_attributes;
-  return ctx;
-}

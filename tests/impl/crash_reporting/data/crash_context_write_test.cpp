@@ -6,6 +6,8 @@
 
 #include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
 
+#include "datadog/uuid.hpp"
+
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context_read.hpp"
 
@@ -29,9 +31,46 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
   PlatformPath tmp_path;
   REQUIRE(tmp_path.Encode("crash.ctx.tmp"));
 
-  SECTION("M produce .ctx file that round-trips correctly") {
-    // Given a fully-populated CrashContext
-    const CrashContext ctx = MakeMockCrashContext();
+  SECTION("M produce .ctx file with expected binary contents for latest format") {
+    // Given the binary contents of the crash context file we expect to produce at the
+    // current version
+    std::string_view data = MOCK_CRASH_CONTEXT_V1.Get();
+
+    // And the canonical context values that were used to come up with that binary data
+    CrashContext ctx{};
+    ctx.service = "mock-service";
+    ctx.env = "mock-env";
+    ctx.application_version = "1.2.3";
+    ctx.source = "rum-cpp";
+    ctx.sdk_version = "2.0.0";
+    ctx.tracking_consent = TrackingConsent::Pending;
+    ctx.os_name = "mock-os";
+    ctx.os_version = "2.3.4";
+    ctx.os_build = "mock-build-number";
+    ctx.os_version_major = "2";
+    ctx.device_type = "desktop";
+    ctx.device_name = "mock-device";
+    ctx.device_model = "mock-model";
+    ctx.device_brand = "mock-brand";
+    ctx.device_architecture = "x86_64";
+    ctx.device_locale = "en-US";
+    ctx.device_time_zone = "America/New_York";
+    ctx.user_id = "usr-123";
+    ctx.user_name = "Alice";
+    ctx.user_email = "alice@example.com";
+    ctx.user_extra = Attribute::Object();
+    ctx.account_id = "acct-456";
+    ctx.account_name = "Acme Corp";
+    ctx.account_extra = Attribute::Object();
+    ctx.rum_session_state.session_id =
+        *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+    ctx.rum_session_state.is_sampled = true;
+    ctx.rum_session_state.is_active = true;
+    ctx.rum_session_state.is_initial_session = false;
+    ctx.rum_session_state.has_tracked_any_view = true;
+    ctx.last_view_event_json = R"({"type":"view"})";
+    ctx.global_rum_attributes = Attribute::Object(1);
+    ctx.global_rum_attributes.SetObjectProperty("plan", Attribute::String("gold"));
 
     // When we serialize it to the mock filesystem
     const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, ctx);
@@ -39,61 +78,11 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     // Then serialization succeeds
     REQUIRE(ok);
 
+    // And the file contains exactly the bytes we expect it to
+    REQUIRE(fs.Cat("crash.ctx") == data);
+
     // And no temporary files are left behind
     REQUIRE(!fs.IsFile("crash.ctx.tmp"));
-
-    // And the file can be read back via ReadCrashContext with all fields intact
-    const bool hold_advisory_lock = false;
-    auto open_res = fs.Wrapper().OpenForRead("crash.ctx", hold_advisory_lock);
-    REQUIRE(open_res.value == FilesystemResult::OK);
-
-    auto result = ReadCrashContext(open_res.file);
-    REQUIRE(result.GetStatus() == ReadCrashContextResult::Status::OK);
-    REQUIRE(result.data.has_value());
-
-    const CrashContext& got = *result.data;
-    REQUIRE(got.service == ctx.service);
-    REQUIRE(got.env == ctx.env);
-    REQUIRE(got.application_version == ctx.application_version);
-    REQUIRE(got.source == ctx.source);
-    REQUIRE(got.sdk_version == ctx.sdk_version);
-    REQUIRE(got.tracking_consent == ctx.tracking_consent);
-    REQUIRE(got.os_name == ctx.os_name);
-    REQUIRE(got.os_version == ctx.os_version);
-    REQUIRE(got.os_build == ctx.os_build);
-    REQUIRE(got.os_version_major == ctx.os_version_major);
-    REQUIRE(got.device_type == ctx.device_type);
-    REQUIRE(got.device_name == ctx.device_name);
-    REQUIRE(got.device_model == ctx.device_model);
-    REQUIRE(got.device_brand == ctx.device_brand);
-    REQUIRE(got.device_architecture == ctx.device_architecture);
-    REQUIRE(got.device_locale == ctx.device_locale);
-    REQUIRE(got.device_time_zone == ctx.device_time_zone);
-    REQUIRE(got.user_id == ctx.user_id);
-    REQUIRE(got.user_name == ctx.user_name);
-    REQUIRE(got.user_email == ctx.user_email);
-    REQUIRE(got.user_extra.GetType() == datadog::ValueType::Object);
-    REQUIRE(got.user_extra.GetObjectPropertyCount() == 0);
-    REQUIRE(got.account_id == ctx.account_id);
-    REQUIRE(got.account_name == ctx.account_name);
-    REQUIRE(got.account_extra.GetType() == datadog::ValueType::Object);
-    REQUIRE(got.account_extra.GetObjectPropertyCount() == 0);
-    REQUIRE(got.rum_session_state.session_id == ctx.rum_session_state.session_id);
-    REQUIRE(got.rum_session_state.is_sampled == ctx.rum_session_state.is_sampled);
-    REQUIRE(got.rum_session_state.is_active == ctx.rum_session_state.is_active);
-    REQUIRE(
-        got.rum_session_state.is_initial_session ==
-        ctx.rum_session_state.is_initial_session
-    );
-    REQUIRE(
-        got.rum_session_state.has_tracked_any_view ==
-        ctx.rum_session_state.has_tracked_any_view
-    );
-    REQUIRE(got.last_view_event_json == ctx.last_view_event_json);
-    REQUIRE(got.global_rum_attributes.GetType() == datadog::ValueType::Object);
-    REQUIRE(
-        got.global_rum_attributes.GetObjectProperty("plan").GetStringValue() == "gold"
-    );
   }
 
   SECTION("M fail W .ctx.tmp file can not be opened") {
