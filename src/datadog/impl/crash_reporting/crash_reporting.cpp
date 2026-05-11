@@ -54,6 +54,12 @@ CrashReporting::MakeMessageHandler() {
 
     CrashContext& cc = self->_crash_context;
 
+    // MSVC flags each `else if (const auto* m = ...)` branch as shadowing an outer `m`,
+    // even though the scopes are mutually exclusive
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4456)
+#endif
     if (const auto* m = std::get_if<ContextChangedMessage>(&msg)) {
       // Copy SDK identity and platform info from the CoreContext snapshot into the
       // accumulated CrashContext. The os/device pointers are guaranteed non-null while
@@ -93,6 +99,9 @@ CrashReporting::MakeMessageHandler() {
       return;
     }
 
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
     self->_handler.SetCrashContext(self->_fs, cc);
   };
 }
