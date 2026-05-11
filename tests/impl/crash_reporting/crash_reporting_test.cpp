@@ -179,10 +179,7 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
 
 TEST_CASE("CrashReporting message publishing", "[unit][crash_reporting]") {
   // Given crash file binary data that test sections can write to the mock filesystem
-  static const std::string_view CRASH_FILE_DATA{
-      reinterpret_cast<const char*>(MOCK_CRASH_REPORT_V1),
-      std::size(MOCK_CRASH_REPORT_V1)
-  };
+  static const std::string_view CRASH_FILE_DATA = MOCK_CRASH_REPORT_V1.Get();
 
   // And a mock filesystem and storage path that test sections can populate with crash
   // files as needed

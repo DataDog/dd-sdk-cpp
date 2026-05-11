@@ -32,8 +32,6 @@ struct CrashFileReadResult {
   bool OK() const { return value == FilesystemResult::OK && complete; }
 };
 
-using CrashFileWriteResult = CrashFileReadResult;
-
 /**
  * Reads the next `n` bytes from the file, populating the provided buffer `dst`, which
  * must have space for `n` bytes.
