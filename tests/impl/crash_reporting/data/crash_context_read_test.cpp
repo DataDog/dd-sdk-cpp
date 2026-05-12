@@ -128,15 +128,9 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
   SECTION("M return Malformed W file is truncated") {
     // Given a variety of files that abruptly end at various points midway through the
     // data for a valid crash context file
-    auto file_size = GENERATE(
-        as<size_t>(),
-        1,
-        5,
-        64,
-        // Omit the last 8 bytes (footer) or last 1 byte to ensure we detect truncation
-        // at different depths
-        sizeof(uint64_t) * 2  // valid header magic + version only
-    );
+    const size_t data_size = data.size();
+    auto file_size =
+        GENERATE_COPY(as<size_t>(), 1, 5, 64, 192, 199, data_size - 8, data_size - 1);
     REQUIRE(file_size < data.size());
     const std::string_view truncated_data{data.data(), file_size};
     fs.Touch("crash.ctx", truncated_data);
