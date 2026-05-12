@@ -33,10 +33,8 @@
 // them safe to read during a crash. The Crashpad handler will automatically resolve
 // these values and include them as annotations when the crash dump is uploaded.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-static crashpad::StringAnnotation<37> s_rum_application_id("rum.application_id");
+// TODO(RUM-16000): Declare annotations for all required data
 static crashpad::StringAnnotation<37> s_rum_session_id("rum.session_id");
-static crashpad::StringAnnotation<37> s_rum_view_id("rum.view_id");
-static crashpad::StringAnnotation<37> s_rum_action_id("rum.action_id");
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
@@ -158,10 +156,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
     }
 
     // Clear annotation values, if any were set previously
-    s_rum_application_id.Set("");
+    // TODO(RUM-16000): Clear all annotation values
     s_rum_session_id.Set("");
-    s_rum_view_id.Set("");
-    s_rum_action_id.Set("");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
@@ -180,9 +176,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
 
     // Example upload behavior: if Crashpad produces a minidump with GUID
     // 617ab41b-84d0-472f-b261-bae41acb901a, and it's configured with an upload URL of
-    // https://example.com/dumps/upload, along with the two test annotations with values
-    // 'foo' and 'bar' as noted above, then the handler will initiate an HTTP POST
-    // request equivalent to:
+    // https://example.com/dumps/upload, along with a single annotation for the RUM
+    // session ID (see s_rum_session_id above), then the handler will initiate an HTTP
+    // POST request equivalent to:
     //
     // clang-format off
     // ================================================================================
@@ -202,13 +198,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
     //
     // 617ab41b-84d0-472f-b261-bae41acb901a
     // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
-    // Content-Disposition: form-data; name="test_annotation1"
+    // Content-Disposition: form-data; name="rum.session_id"
     //
-    // foo
-    // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
-    // Content-Disposition: form-data; name="test_annotation2"
-    //
-    // bar
+    // f3800ecb-75a3-4e41-84f9-d6128ab19706
     // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
     // Content-Disposition: form-data; name="upload_file_minidump"; filename="6af03cf2-c984-4257-a2a3-304033a95b0b.dmp"
     // Content-Type: application/octet-stream
@@ -228,6 +220,11 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
     char buf[37] = {0};
 
+    // Format session_id as a string and store it in a crashpad annotation (using empty
+    // string if not set), so that Crashpad uploads carry some session context
+    // TODO(RUM-16000): This is a placeholder so we have an annotation to test with; we
+    // still need to decide what values the Crashpad handler will need to convey to the
+    // backend once we have a suitable endpoint for minidump ingest
     const UUID& session_id = ctx.rum_session_state.session_id;
     if (session_id != _rum_session_id) {
       _rum_session_id = session_id;
@@ -239,11 +236,6 @@ class CrashpadCrashHandler final : public ICrashHandler {
       }
     }
 
-    // application, view, and action IDs are now carried in last_view_event_json;
-    // clear these annotations so stale values from a previous launch are not reported
-    s_rum_application_id.Set("");
-    s_rum_view_id.Set("");
-    s_rum_action_id.Set("");
     // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
   };
 
