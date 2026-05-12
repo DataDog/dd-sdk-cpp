@@ -43,7 +43,8 @@ bool WriteCrashContext(
       (8 + ctx.user_email.size());
   const size_t second_chunk_size =
       (8 + ctx.account_id.size()) + (8 + ctx.account_name.size());
-  const size_t third_chunk_size = 16 + 1 + 1 + 1 + 1 + ctx.last_view_event_json.size();
+  const size_t third_chunk_size =
+      16 + 1 + 1 + 1 + 1 + (8 + ctx.last_view_event_json.size());
   size_t encode_buf_capacity = 2048;
   encode_buf_capacity = std::max(encode_buf_capacity, first_chunk_size);
   encode_buf_capacity = std::max(encode_buf_capacity, second_chunk_size);
