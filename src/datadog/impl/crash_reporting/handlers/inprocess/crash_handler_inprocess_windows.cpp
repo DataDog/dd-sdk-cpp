@@ -22,7 +22,6 @@
 #include <type_traits>
 #include <vector>
 
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/storage/util.hpp"
