@@ -32,7 +32,7 @@ from typing import List, Optional
 
 from lib.proxy import ProxyServer
 from lib.test import collect_tests, TestInput
-from lib.repl import check_repl_binary, check_repl_env, run_repl, ReplResult
+from lib.repl import check_repl_binary, run_repl, ReplResult
 
 
 def _print_repl_output(stdout: str, stderr: str):
@@ -55,11 +55,9 @@ if __name__ == "__main__":
     parser.add_argument('--jobs', '-j', type=int, default=max(1, multiprocessing.cpu_count() - 2), help='maximum number of tests to run in parallel')
     args = parser.parse_args()
 
-    # repl must already be built (in build/) and configured with a .repl-env file (in
-    # the root of the repo): the CI job should take care of this before running this
-    # script
+    # repl must already be built (in build/): the CI job should take care of this before
+    # running this script
     check_repl_binary()
-    check_repl_env()
 
     # Load all integration tests defined in tools/integration-test/tests/
     tests = collect_tests()
