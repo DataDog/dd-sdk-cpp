@@ -11,6 +11,10 @@
 namespace datadog::impl {
 
 bool RumViewEventParser::Parse(std::string_view view_event_json) {
+  // Ensure that no leftover results remain if a parser is reused for multiple events
+  spans = Spans{};
+  values = Values{};
+
   // Use a JsonScanner to traverse the top-level object and its subobjects, identifying
   // property values at specific paths and storing the ranges of each JSON literal value
   // in the input string in `spans`
