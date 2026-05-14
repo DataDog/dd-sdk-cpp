@@ -3,6 +3,8 @@
 #
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2025-Present Datadog, Inc.
+import os
+
 from lib.test import TestContext
 
 
@@ -44,6 +46,10 @@ async def main(t: TestContext):
 
     # The the process exits successfully
     assert p.exitcode == 0, f'repl exited with code {p.exitcode}\n{p.stderr}'
+
+    # And no batches of log events remain on disk
+    assert len(os.listdir(t.storage.get_pending_events_dir(p.pid, 'logs'))) == 0
+    assert len(os.listdir(t.storage.get_granted_events_dir(p.pid, 'logs'))) == 0
 
     # And we've received a single HTTP request for our log event
     assert len(p.requests) == 1
