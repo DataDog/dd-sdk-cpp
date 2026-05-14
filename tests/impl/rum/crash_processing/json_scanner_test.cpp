@@ -151,7 +151,7 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
       JsonScanner scanner{R"("hel\"lo")"};
       auto span = scanner.SkipStringLiteral();
       REQUIRE(scanner.OK());
-      REQUIRE(span_substr(scanner, span) == R"("hel\"lo")");
+      REQUIRE(span_substr(scanner, span) == "\"hel\\\"lo\"");
       REQUIRE(scanner.Peek() == '\0');
     }
 
@@ -160,7 +160,7 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
       JsonScanner scanner{R"("\\")"};
       auto span = scanner.SkipStringLiteral();
       REQUIRE(scanner.OK());
-      REQUIRE(span_substr(scanner, span) == R"("\\")");
+      REQUIRE(span_substr(scanner, span) == "\"\\\\\"");
       REQUIRE(scanner.Peek() == '\0');
     }
   }
@@ -347,8 +347,8 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
     }
 
     // Then we identify the byte ranges for all expected literal values
-    REQUIRE(span_substr(scanner, got_bar) == R"("world")");
-    REQUIRE(span_substr(scanner, got_baz) == R"([{"ok":true}])");
+    REQUIRE(span_substr(scanner, got_bar) == "\"world\"");
+    REQUIRE(span_substr(scanner, got_baz) == "[{\"ok\":true}]");
     REQUIRE(!got_quux.OK());
     REQUIRE(span_substr(scanner, got_nested_x) == "100");
     REQUIRE(span_substr(scanner, got_nested_y) == "3.33333333333333333333333");
