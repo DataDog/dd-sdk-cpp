@@ -72,7 +72,7 @@ struct RumViewEventParser {
     Span view_id;                 // view.id
     Span view_url;                // view.url
     Span view_name;               // view.name (optional)
-    Span view_is_active;          // view.is_active (optional)
+    Span view_is_active;          // view.is_active
     Span view_error_count;        // view.error.count
     size_t view_error_end_pos{};  // (index of comma after view.error object value,
                                   //  where we'll insert a new view.crash object)
@@ -87,8 +87,11 @@ struct RumViewEventParser {
      * close as possible to the declaration of `Spans`.
      */
     bool HasAllRequiredMatches() const {
+      // Note that view.is_active is technically not required in the rum-events-format
+      // schema, but in practice, an SDK never emits a RUM View event without an
+      // explicit value for view.is_active
       return date.OK() && session_type.OK() && view_id.OK() && view_url.OK() &&
-             view_error_count.OK() && view_error_end_pos != 0 &&
+             view_is_active.OK() && view_error_count.OK() && view_error_end_pos != 0 &&
              dd_format_version.OK() && dd_document_version.OK() && type.OK();
     }
 
@@ -145,7 +148,7 @@ struct RumViewEventParser {
       if (!validate_required(view_id)) { return false; }
       if (!validate_required(view_url)) { return false; }
       if (!validate_optional(view_name)) { return false; }
-      if (!validate_optional(view_is_active)) { return false; }
+      if (!validate_required(view_is_active)) { return false; }
       if (!validate_required(view_error_count)) { return false; }
       if (view_error_end_pos < prev_end) { return false; }
       prev_end = view_error_end_pos;
