@@ -96,14 +96,25 @@ struct JsonScanner {
   /**
    * If currently positioned at a valid JSON object literal, advances past the leading
    * '{' and returns true, allowing top-level property values to be parsed via
-   * subsequent calls to SkipObjectProperty() and TrySkipObjectPropertyKey(), for as
-   * long as the scanner remains in a state where `OK() && Peek() != '}' between each
-   * property.
+   * subsequent calls to SkipObjectProperty(), SkipObjectSeparator(), and
+   * TrySkipObjectPropertyKey(), for as long as the scanner remains in a state where
+   * `OK() && Peek() != '}' between each property.
    *
    * If not positioned at a valid object value, triggers failure and returns false. A
    * return value of false always implies that Fail() has been called.
    */
   bool EnterObject();
+
+  /**
+   * Must be called after a property value has been consumed, either via
+   * SkipObjectProperty() or by a successful call to TrySkipObjectPropertyKey() plus an
+   * explicit value skip.
+   *
+   * If positioned at a comma, skips past that delimiter so that the next read will
+   * occur at the start of the next value. If positioned at a closing curly brace, does
+   * nothing. If positioned at any other character, triggers failure.
+   */
+  void SkipObjectPropertySeparator();
 
   /**
    * If currently positioned at the beginning of an object property (i.e. the opening

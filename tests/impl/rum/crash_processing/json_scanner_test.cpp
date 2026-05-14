@@ -303,75 +303,107 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
   }
 
   SECTION("Object value parsing") {
-    // Given a JSON object value from which we want to parse the following properties:
-    // - bar -> `"world"`
-    // - baz -> `[{"ok":true}]`
-    // - quux -> (not found)
-    // - nested.x -> `100`
-    // - nested.y -> `3.33333333333333333333333`
-    JsonScanner scanner{
-        R"({"foo":"hello","bar":"world","nested":{"x":100,"y":3.33333333333333333333333,"z":0},"baz":[{"ok":true}]})"
-    };
-    JsonScanner::Span got_bar{};
-    JsonScanner::Span got_baz{};
-    JsonScanner::Span got_quux{};
-    JsonScanner::Span got_nested_x{};
-    JsonScanner::Span got_nested_y{};
+    SECTION(
+        "M properly identify spans of literal values W checking specific properties"
+    ) {
+      // Given a JSON object value from which we want to parse the following properties:
+      // - bar -> `"world"`
+      // - baz -> `[{"ok":true}]`
+      // - quux -> (not found)
+      // - nested.x -> `100`
+      // - nested.y -> `3.33333333333333333333333`
+      JsonScanner scanner{
+          R"({"foo":"hello","bar":"world","nested":{"x":100,"y":3.33333333333333333333333,"z":0},"baz":[{"ok":true}]})"
+      };
+      JsonScanner::Span got_bar{};
+      JsonScanner::Span got_baz{};
+      JsonScanner::Span got_quux{};
+      JsonScanner::Span got_nested_x{};
+      JsonScanner::Span got_nested_y{};
 
-    // When we use BeginObject(), TrySkipObjectPropertyKey() branches, and
-    // SkipObjectProperty() to traverse the value and identify the spans where various
-    // values appear
-    if (scanner.EnterObject()) {
-      while (scanner.OK() && scanner.Peek() != '}') {
-        if (scanner.TrySkipObjectPropertyKey("bar")) {
-          got_bar = scanner.SkipStringLiteral();
-        } else if (scanner.TrySkipObjectPropertyKey("baz")) {
-          got_baz = scanner.SkipArrayLiteral();
-        } else if (scanner.TrySkipObjectPropertyKey("quux")) {
-          got_quux = scanner.SkipValue();
-        } else if (scanner.TrySkipObjectPropertyKey("nested")) {
-          // We expect "nested" to be an object; enter a nested loop to parse its
-          // properties
-          if (scanner.EnterObject()) {
-            while (scanner.OK() && scanner.Peek() != '}') {
-              if (scanner.TrySkipObjectPropertyKey("x")) {
-                got_nested_x = scanner.SkipNumberLiteral();
-              } else if (scanner.TrySkipObjectPropertyKey("y")) {
-                got_nested_y = scanner.SkipNumberLiteral();
-              } else {
-                // Unrecognized property of 'nested' object; skip it
-                scanner.SkipObjectProperty();
+      // When we use BeginObject(), TrySkipObjectPropertyKey() branches, and
+      // SkipObjectProperty() to traverse the value and identify the spans where various
+      // values appear
+      if (scanner.EnterObject()) {
+        while (scanner.OK() && scanner.Peek() != '}') {
+          if (scanner.TrySkipObjectPropertyKey("bar")) {
+            got_bar = scanner.SkipStringLiteral();
+          } else if (scanner.TrySkipObjectPropertyKey("baz")) {
+            got_baz = scanner.SkipArrayLiteral();
+          } else if (scanner.TrySkipObjectPropertyKey("quux")) {
+            got_quux = scanner.SkipValue();
+          } else if (scanner.TrySkipObjectPropertyKey("nested")) {
+            // We expect "nested" to be an object; enter a nested loop to parse its
+            // properties
+            if (scanner.EnterObject()) {
+              while (scanner.OK() && scanner.Peek() != '}') {
+                if (scanner.TrySkipObjectPropertyKey("x")) {
+                  got_nested_x = scanner.SkipNumberLiteral();
+                } else if (scanner.TrySkipObjectPropertyKey("y")) {
+                  got_nested_y = scanner.SkipNumberLiteral();
+                } else {
+                  // Unrecognized property of 'nested' object; skip it
+                  scanner.SkipObjectProperty();
+                }
+                // Skip commas after properties of nested object
+                scanner.SkipObjectPropertySeparator();
               }
 
-              // Skip commas after properties of nested object
-              if (scanner.Peek() == ',') {
+              // If we've successfully reached the closing '}' of the nested object,
+              // skip past it
+              if (scanner.OK()) {
                 scanner.Advance();
               }
             }
-
-            // If we've successfully reached the closing '}' of the nested object, skip
-            // past it
-            if (scanner.OK()) {
-              scanner.Advance();
-            }
+          } else {
+            // Unrecognized top-level property; skip it
+            scanner.SkipObjectProperty();
           }
-        } else {
-          // Unrecognized top-level property; skip it
-          scanner.SkipObjectProperty();
+
+          // Skip commas after properties of top-level object
+          scanner.SkipObjectPropertySeparator();
         }
 
-        // Skip commas after properties of top-level object
-        if (scanner.Peek() == ',') {
+        // Skip past final '}'
+        if (scanner.OK()) {
           scanner.Advance();
         }
       }
+
+      // Then we identify the byte ranges for all expected literal values
+      REQUIRE(span_substr(scanner, got_bar) == "\"world\"");
+      REQUIRE(span_substr(scanner, got_baz) == "[{\"ok\":true}]");
+      REQUIRE(!got_quux.OK());
+      REQUIRE(span_substr(scanner, got_nested_x) == "100");
+      REQUIRE(span_substr(scanner, got_nested_y) == "3.33333333333333333333333");
     }
 
-    // Then we identify the byte ranges for all expected literal values
-    REQUIRE(span_substr(scanner, got_bar) == "\"world\"");
-    REQUIRE(span_substr(scanner, got_baz) == "[{\"ok\":true}]");
-    REQUIRE(!got_quux.OK());
-    REQUIRE(span_substr(scanner, got_nested_x) == "100");
-    REQUIRE(span_substr(scanner, got_nested_y) == "3.33333333333333333333333");
+    SECTION("M require delimiters around object properties") {
+      // Use a helper function to traverse the given JSON value one object property at a
+      // time, capturing no values, returning true if we successfully reach the end of
+      // the string without triggering failure
+      auto scan_object = [](std::string_view s) -> bool {
+        JsonScanner scanner{s};
+        if (scanner.EnterObject()) {
+          while (scanner.OK() && scanner.Peek() != '}') {
+            scanner.SkipObjectProperty();
+            scanner.SkipObjectPropertySeparator();
+          }
+          if (scanner.OK()) {
+            scanner.Advance();
+          }
+        }
+        return scanner.OK() && scanner.pos == s.size();
+      };
+
+      // When we scan a valid object, Then we succeed
+      REQUIRE(scan_object(R"({"foo":"hello","bar":"world"})") == true);
+
+      // When we scan an object that's missing a closing brace, Then we fail
+      REQUIRE(scan_object(R"({"foo":"hello","bar":"world")") == false);
+
+      // When we scan an object that's missing commas between properties, Then we fail
+      REQUIRE(scan_object(R"({"foo":"hello""bar":"world"})") == false);
+    }
   }
 }

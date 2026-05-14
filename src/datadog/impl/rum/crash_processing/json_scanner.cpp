@@ -253,12 +253,20 @@ JsonScanner::Span JsonScanner::SkipObjectLiteral() {
 }
 
 bool JsonScanner::EnterObject() {
-  if (!OK() || Peek() != '{') {
+  if (Peek() != '{') {
     Fail();
     return false;
   }
   Advance();
   return true;
+}
+
+void JsonScanner::SkipObjectPropertySeparator() {
+  if (Peek() == ',') {
+    Advance();
+  } else if (Peek() != '}') {
+    Fail();
+  }
 }
 
 bool JsonScanner::SkipObjectProperty() {
