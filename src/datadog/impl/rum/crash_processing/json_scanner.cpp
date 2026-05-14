@@ -202,9 +202,14 @@ JsonScanner::Span JsonScanner::SkipArrayLiteral() {
     // Skip the next item
     SkipValue();
 
-    // If the value is followed by a comma, skip it
+    // If the value is followed by a comma, skip it; a trailing comma (i.e. comma
+    // immediately before ']') is not valid JSON
     if (Peek() == ',') {
       Advance();
+      if (Peek() == ']') {
+        Fail();
+        return Span{};
+      }
     }
   }
 
@@ -234,9 +239,14 @@ JsonScanner::Span JsonScanner::SkipObjectLiteral() {
       return Span{};
     }
 
-    // If the value is followed by a comma, skip it
+    // If the value is followed by a comma, skip it; a trailing comma (i.e. comma
+    // immediately before '}') is not valid JSON
     if (Peek() == ',') {
       Advance();
+      if (Peek() == '}') {
+        Fail();
+        return Span{};
+      }
     }
   }
 

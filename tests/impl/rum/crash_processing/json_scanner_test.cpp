@@ -64,7 +64,13 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
           "",
           ",,,",
           ",{}",
+          "{,}",
           "}{",
+          ",[]",
+          "[,]",
+          "][",
+          "{\"x\":100]",
+          "[100}",
           "tralse",
           "\"hello",
           "hello\"",
@@ -203,6 +209,13 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
       REQUIRE(!scanner.OK());
       REQUIRE(!span.OK());
     }
+
+    SECTION("M fail W array has a trailing comma") {
+      JsonScanner scanner{"[1,]"};
+      auto span = scanner.SkipArrayLiteral();
+      REQUIRE(!scanner.OK());
+      REQUIRE(!span.OK());
+    }
   }
 
   SECTION("SkipObjectLiteral") {
@@ -232,6 +245,13 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
     SECTION("M fail W property value is invalid") {
       // A failure inside SkipValue propagates out through the object loop
       JsonScanner scanner{R"({"a":tralse})"};
+      auto span = scanner.SkipObjectLiteral();
+      REQUIRE(!scanner.OK());
+      REQUIRE(!span.OK());
+    }
+
+    SECTION("M fail W object has a trailing comma") {
+      JsonScanner scanner{R"({"a":1,})"};
       auto span = scanner.SkipObjectLiteral();
       REQUIRE(!scanner.OK());
       REQUIRE(!span.OK());
