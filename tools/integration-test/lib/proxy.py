@@ -12,8 +12,9 @@ import json
 import asyncio
 import threading
 from urllib.parse import urlparse
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Optional, List
+from typing import Optional, List, Dict
 
 from mitmproxy.tools.dump import DumpMaster
 from mitmproxy import http, options
@@ -53,10 +54,9 @@ class CapturedRequest:
 
 
 class ProxyAddon:
-    requests: List[CapturedRequest]
-
     def __init__(self):
-        self.requests = []
+        self._lock = threading.Lock()
+        self._requests: Dict[Optional[int], List[CapturedRequest]] = defaultdict(list)
 
     def request(self, flow: http.HTTPFlow) -> None:
         # Examine the first part of the request URL's path
@@ -77,15 +77,32 @@ class ProxyAddon:
                 flow.request.path = '/' + tail
             else:
                 flow.request.path = '/'
-        
-        # Push the details of this request onto our queue
-        self.requests.append(CapturedRequest(
+
+        captured = CapturedRequest(
             sdk_id=sdk_id,
             method=flow.request.method,
             url=urlparse(flow.request.url),
             headers=dict(flow.request.headers),
             body=flow.request.content,
-        ))
+        )
+        with self._lock:
+            self._requests[sdk_id].append(captured)
+
+        # Return a synthetic 200 OK directly rather than forwarding to the upstream
+        # intake endpoint. This avoids needing real credentials and eliminates network
+        # round-trips to Datadog servers.
+        flow.response = http.Response.make(200, b'{}', {'Content-Type': 'application/json'})
+
+    def drain(self, sdk_id: int) -> List[CapturedRequest]:
+        """
+        Returns and removes all captured requests for the given `sdk_id`. Calling this
+        after the corresponding process has exited is safe: all of that process's HTTP
+        requests are guaranteed to have been captured before the process exits, since the
+        SDK waits for HTTP responses before completing a flush, and this hook fires before
+        any response is sent.
+        """
+        with self._lock:
+            return self._requests.pop(sdk_id, [])
 
         # We're spoofing the intake endpoint: just return 200
         flow.response = http.Response.make(200, b'{}', {'Content-Type': 'application/json'})
@@ -137,7 +154,11 @@ class ProxyServer:
         self._thread = threading.Thread(target=_run, daemon=True)
         self._thread.start()
 
-    def stop(self) -> List[CapturedRequest]:
+    def drain(self, sdk_id: int) -> List[CapturedRequest]:
+        """Delegates to the addon's drain method."""
+        return self._addon.drain(sdk_id)
+
+    def stop(self) -> None:
         """
         Cleanly stops mitmproxy and joins on the background thread.
         """
@@ -153,5 +174,3 @@ class ProxyServer:
         # Wait for the proxy thread to finish
         if self._thread is not None:
             self._thread.join()
-
-        return self._addon.requests

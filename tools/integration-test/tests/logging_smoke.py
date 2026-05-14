@@ -3,49 +3,59 @@
 #
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2025-Present Datadog, Inc.
-from lib.test import TestInput
+from lib.test import TestContext
 
 
-def main(t: TestInput):
+async def main(t: TestContext):
     """
-    logging: smoke test
+    Logging: smoke test
 
     Performs a basic smoke test to verify that we can register the logging feature,
     create a logger, and generate log events.
-    ---
-    # Configure the repl for integration tests
-    set-config client-token fake-client-token
-    set-config tracking-consent granted
-    set-config service dd-sdk-cpp-repl
-    set-config flush-on-stop
-
-    # Start an SDK instance configured with logging as its only feature, with a single
-    # logger created before core start
-    create-core
-    register-logging
-    create-logger
-    start-core
-
-    # Set user info so it appears in log events
-    set-user-info user-123 name:"Jane Doe" email:jane@example.com
-
-    # Emit a single log message
-    log "Hello from the logging smoke test"
-
-    # Shut down the core and exit, flushing requests on SDK stop
-    stop-core
     """
-    # We should have received a single HTTP request for our log event
-    assert len(t.requests) == 1
-    assert t.requests[0].method == 'POST'
-    assert t.requests[0].url.path == '/api/v2/logs'
+    # Given a process with an SDK instance configured to send events on shutdown
+    p = t.spawn_repl()
+    p.run("""
+        set-config client-token fake-client-token
+        set-config tracking-consent granted
+        set-config flush-on-stop  
+        create-core
+    """)
 
-    # And the SDK should have sent a single log event that conveys our message
-    events = t.events('/api/v2/logs')
+    # And a started Core with the logging feature registered
+    p.run("""
+        register-logging
+        create-logger
+        start-core
+    """)
+
+    # And user details configured via SetUserInfo
+    p.run("""
+        set-user-info user-123 name:"Jane Doe" email:jane@example.com
+    """)
+
+    # When we emit a log message, stop the core, and exit (triggering flush-on-stop)
+    p.run("""
+        log "Hello from the logging smoke test"
+        stop-core
+        exit
+    """)
+    await p.join()
+
+    # The the process exits successfully
+    assert p.exitcode == 0, f'repl exited with code {p.exitcode}\n{p.stderr}'
+
+    # And we've received a single HTTP request for our log event
+    assert len(p.requests) == 1
+    assert p.requests[0].method == 'POST'
+    assert p.requests[0].url.path == '/api/v2/logs'
+
+    # And that request contains a single log event that conveys our message
+    events = [e for req in p.requests if req.url.path == '/api/v2/logs' for e in req.json]
     assert len(events) == 1
     assert events[0]['message'] == 'Hello from the logging smoke test'
 
-    # And the log event should include the user info we set
+    # And the log event includes the user info we set
     assert events[0]['usr']['id'] == 'user-123'
     assert events[0]['usr']['name'] == 'Jane Doe'
     assert events[0]['usr']['email'] == 'jane@example.com'
