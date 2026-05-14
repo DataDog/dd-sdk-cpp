@@ -5,6 +5,8 @@
 // Copyright 2025-Present Datadog, Inc.
 
 // clang-format off
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 #include <comdef.h>   // COM definitions; must follow windows.h
 #include <wbemidl.h>  // WMI interfaces; must follow windows.h

@@ -5,6 +5,7 @@
 // Copyright 2025-Present Datadog, Inc.
 
 #define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
 #include <windows.h>
 
 #include <memory>
