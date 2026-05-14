@@ -97,7 +97,7 @@ if __name__ == "__main__":
     def run_test(test_index: int):
         test = tests[test_index]
         sdk_id = test_index
-        repl_results[test_index] = run_repl(proxy_url, sdk_id, test.script)
+        repl_results[test_index] = run_repl('.', proxy_url, sdk_id, test.script)
 
     def run_test_thread(thread_index: int, stride: int):
         test_index = thread_index
