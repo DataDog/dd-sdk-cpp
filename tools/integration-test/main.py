@@ -109,6 +109,18 @@ if __name__ == "__main__":
             except Exception:
                 stdout, stderr = _gather_repl_output(ctx)
                 test_results[test_index] = (False, stdout, stderr, traceback.format_exc())
+            finally:
+                unjoined = [p for p in ctx._repls if p.exitcode == -1]
+                for p in unjoined:
+                    p.terminate()
+                current = test_results[test_index]
+                if unjoined and current is not None and current[0]:
+                    pids = ', '.join(str(p.pid) for p in unjoined)
+                    stdout, stderr = _gather_repl_output(ctx)
+                    test_results[test_index] = (
+                        False, stdout, stderr,
+                        'Test exited without joining repl process(es) (pid(s): %s)' % pids
+                    )
 
     def run_test_thread(thread_index: int, stride: int):
         test_index = thread_index

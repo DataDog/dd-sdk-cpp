@@ -114,3 +114,9 @@ class ReplProcess:
         self.exitcode = self._proc.returncode
         self.requests = self._proxy.drain(self._sdk_id)
         return self.exitcode
+
+    def terminate(self):
+        """Terminates the process if it has not been joined, then waits for it to exit."""
+        if self.exitcode == -1:
+            self._proc.terminate()
+            self._proc.wait()
