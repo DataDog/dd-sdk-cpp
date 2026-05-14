@@ -57,7 +57,7 @@ if __name__ == "__main__":
 
     # repl must already be built (in build/): the CI job should take care of this before
     # running this script
-    check_repl_binary()
+    repl_binary_path = check_repl_binary()
 
     # Load all integration tests defined in tools/integration-test/tests/
     tests = collect_tests()
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     def run_test(test_index: int):
         test = tests[test_index]
         sdk_id = test_index
-        repl_results[test_index] = run_repl('.', proxy_url, sdk_id, test.script)
+        repl_results[test_index] = run_repl(repl_binary_path, '.', proxy_url, sdk_id, test.script)
 
     def run_test_thread(thread_index: int, stride: int):
         test_index = thread_index

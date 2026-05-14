@@ -13,9 +13,6 @@ from dataclasses import dataclass
 
 
 __repo_root__ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-__repl_binary__ = os.path.join(__repo_root__, 'build', 'examples', 'dd_native_repl')
-if sys.platform == 'win32':
-    __repl_binary__ += '.exe'
 
 
 @dataclass
@@ -29,17 +26,36 @@ class ReplResult:
         return self.exitcode == 0 and not self.stderr
 
 
-def check_repl_binary():
-    if not os.path.isfile(__repl_binary__):
-        print('ERROR: repl binary not found at: %s' % __repl_binary__)
+def _find_repl_binary() -> str:
+    if sys.platform == 'win32':
+        # MSVC places binaries in config-specific subdirectories; use whichever is found
+        for config in ('Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel'):
+            relpath = os.path.join('build', 'examples', config, 'dd_native_repl.exe')
+            abspath = os.path.join(__repo_root__, relpath)
+            if os.path.isfile(abspath):
+                return abspath
+    else:
+        # macOS/Linux builds use an unambiguous path
+        abspath = os.path.join(__repo_root__, 'build', 'examples', 'dd_native_repl')
+        if os.path.isfile(abspath):
+            return abspath
+        
+    return ''
+
+
+def check_repl_binary() -> str:
+    repl_binary_path = _find_repl_binary()
+    if not repl_binary_path:
+        print('ERROR: repl binary not found within: %s' % __repo_root__)
         print('Running integration tests requires a valid CMake build with DD_BUILD_EXAMPLES enabled.')
         print('Reconfigure with -DDD_BUILD_EXAMPLES=ON (or -DDD_DEVELOPMENT=ON) and run cmake --build build.')
         sys.exit(1)
+    return repl_binary_path
 
 
-def run_repl(storage_path: str, custom_endpoint_url: str, sdk_id: int, script: str) -> ReplResult:
+def run_repl(repl_binary_path: str, storage_path: str, custom_endpoint_url: str, sdk_id: int, script: str) -> ReplResult:
     args = [
-        __repl_binary__,
+        repl_binary_path,
         '--abort-on-error',
         '--abort-on-warning',
         f'--storage-path={storage_path}',
