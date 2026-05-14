@@ -7,6 +7,7 @@
 #include "datadog/impl/core/storage_queue.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <future>
 #include <memory>
 #include <vector>
 
@@ -163,5 +164,77 @@ TEST_CASE("StorageMessage", "[unit]") {
       REQUIRE(message.type == StorageMessageType::EventGenerated);
     }
     // Destructor is called here - test passes if no crashes occur
+  }
+
+  SECTION("M create FlushWork message W static factory method used") {
+    // Given a shared promise that the storage thread will fulfill
+    auto promise = std::make_shared<std::promise<void>>();
+    const auto* raw = promise.get();
+
+    // When creating a FlushWork message via the factory
+    auto message = StorageMessage::FlushWork(promise);
+
+    // Then the message has the correct type and the payload owns the same promise
+    REQUIRE(message.type == StorageMessageType::FlushWork);
+    REQUIRE(message.payload.flush.done.get() == raw);
+  }
+
+  SECTION("M move construct properly W union contains FlushWork") {
+    // Given a FlushWork message carrying a shared promise, and a future obtained from
+    // that promise before the move
+    auto promise = std::make_shared<std::promise<void>>();
+    std::future<void> future = promise->get_future();
+    auto original = StorageMessage::FlushWork(std::move(promise));
+
+    // When move constructing from it
+    auto moved = std::move(original);
+
+    // Then the moved message retains the type and owns the promise
+    REQUIRE(moved.type == StorageMessageType::FlushWork);
+    REQUIRE(moved.payload.flush.done != nullptr);
+
+    // And fulfilling via the moved-into message unblocks the caller's future
+    moved.payload.flush.done->set_value();
+    REQUIRE(future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+  }
+
+  SECTION(
+      "M move assign properly W source is FlushWork and destination is EventGenerated"
+  ) {
+    // Given a destination EventGenerated message and a source FlushWork message;
+    // capture a future from the FlushWork's promise before the move
+    FeatureId feature_id = CreateFeatureId("SWAP");
+    Block event_data{"to be overwritten"};
+    auto destination =
+        StorageMessage::EventGenerated(feature_id, event_data, {}, false);
+    auto promise = std::make_shared<std::promise<void>>();
+    std::future<void> future = promise->get_future();
+    auto source = StorageMessage::FlushWork(std::move(promise));
+
+    // When move-assigning across types
+    destination = std::move(source);
+
+    // Then the destination correctly adopts the FlushWork type and promise
+    REQUIRE(destination.type == StorageMessageType::FlushWork);
+    REQUIRE(destination.payload.flush.done != nullptr);
+
+    // And the carried promise still drives the original future
+    destination.payload.flush.done->set_value();
+    REQUIRE(future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
+  }
+
+  SECTION("M properly destruct W union contains FlushWork") {
+    // Given a FlushWork message in a limited scope; capture a future before destruction
+    auto promise = std::make_shared<std::promise<void>>();
+    std::future<void> future = promise->get_future();
+    {
+      auto message = StorageMessage::FlushWork(promise);
+      REQUIRE(message.type == StorageMessageType::FlushWork);
+    }
+    // Destruction releases the message's reference to the promise; this thread's
+    // shared_ptr (`promise`) still owns it, so the future state is intact
+    REQUIRE(future.wait_for(std::chrono::seconds(0)) == std::future_status::timeout);
+    promise->set_value();
+    REQUIRE(future.wait_for(std::chrono::seconds(0)) == std::future_status::ready);
   }
 }

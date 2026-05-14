@@ -30,6 +30,9 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "source") {
     return HandleSource(state, input.Shift());
   }
+  if (input.Peek() == "flush-work") {
+    return HandleFlushWork(state, input.Shift());
+  }
   if (input.Peek() == "sleep") {
     return HandleSleep(state, input.Shift());
   }

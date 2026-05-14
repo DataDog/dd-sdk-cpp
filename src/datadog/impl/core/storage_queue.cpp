@@ -34,6 +34,10 @@ StorageMessage::~StorageMessage() {
     case StorageMessageType::EventGenerated:
       payload.event_generated.~StorageMessage_EventGenerated();
       break;
+
+    case StorageMessageType::FlushWork:
+      payload.flush.~StorageMessage_FlushWork();
+      break;
   }
 }
 
@@ -52,6 +56,10 @@ StorageMessage::StorageMessage(StorageMessage&& other) noexcept : type(other.typ
     case StorageMessageType::EventGenerated:
       new (&payload.event_generated)
           StorageMessage_EventGenerated(std::move(other.payload.event_generated));
+      break;
+
+    case StorageMessageType::FlushWork:
+      new (&payload.flush) StorageMessage_FlushWork(std::move(other.payload.flush));
       break;
   }
 }
@@ -77,6 +85,10 @@ StorageMessage& StorageMessage::operator=(StorageMessage&& other) noexcept {
         new (&payload.event_generated)
             StorageMessage_EventGenerated(std::move(other.payload.event_generated));
         break;
+
+      case StorageMessageType::FlushWork:
+        new (&payload.flush) StorageMessage_FlushWork(std::move(other.payload.flush));
+        break;
     }
   }
   return *this;
@@ -99,6 +111,12 @@ StorageMessage StorageMessage::EventGenerated(
   new (&m.payload.event_generated) StorageMessage_EventGenerated{
       feature_id, event, event_metadata, bypass_tracking_consent
   };
+  return m;
+}
+
+StorageMessage StorageMessage::FlushWork(std::shared_ptr<std::promise<void>> done) {
+  StorageMessage m{StorageMessageType::FlushWork};
+  new (&m.payload.flush) StorageMessage_FlushWork{std::move(done)};
   return m;
 }
 

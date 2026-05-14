@@ -12,6 +12,7 @@ struct State;
 
 // util
 CommandResult HandleSource(State& state, const CommandInput& args);
+CommandResult HandleFlushWork(State& state, const CommandInput& args);
 CommandResult HandleSleep(State& state, const CommandInput& args);
 CommandResult HandleUrl(State& state, const CommandInput& args);
 CommandResult HandleNop(State& state, const CommandInput& args);

@@ -230,4 +230,10 @@ void Core::Stop() {
   }
 }
 
+void Core::Internal_FlushWork() {
+  if (_impl) {
+    _impl->FlushWork();
+  }
+}
+
 }  // namespace datadog

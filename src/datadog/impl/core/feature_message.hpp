@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <future>
+#include <memory>
 #include <variant>
 
 #include "datadog/attribute.hpp"
@@ -96,6 +98,15 @@ struct CrashReportProcessedMessage {
 };
 
 /**
+ * Sentinel produced by `Core::FlushWork()` to synchronize with the messaging thread.
+ * Carries a shared promise that the messaging thread fulfills once it pops this message
+ * from the queue; not delivered to feature handlers.
+ */
+struct FlushWorkMessage {
+  std::shared_ptr<std::promise<void>> done;
+};
+
+/**
  * Discriminated union of all message types that can be dispatched through the
  * `MessageBus`. Add new variants here as additional cross-feature communication needs
  * arise.
@@ -106,6 +117,7 @@ using FeatureMessage = std::variant<
     RumActiveViewUpdatedMessage,
     RumActiveViewLostMessage,
     RumGlobalAttributesChangedMessage,
-    CrashReportProcessedMessage>;
+    CrashReportProcessedMessage,
+    FlushWorkMessage>;
 
 }  // namespace datadog::impl
