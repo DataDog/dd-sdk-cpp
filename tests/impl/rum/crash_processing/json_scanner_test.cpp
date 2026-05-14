@@ -108,6 +108,27 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
     }
   }
 
+  SECTION("SkipBoolLiteral") {
+    SECTION("M succeed W value is true or false") {
+      auto s = GENERATE(as<std::string_view>(), "true", "false");
+      INFO("input value: " << s);
+      JsonScanner scanner{s};
+      auto span = scanner.SkipBoolLiteral();
+      REQUIRE(scanner.OK());
+      REQUIRE(span.OK());
+      REQUIRE(span_substr(scanner, span) == s);
+    }
+
+    SECTION("M fail W value is anything other than true or false") {
+      auto s = GENERATE(as<std::string_view>(), "null", "", "400", "\"true\"", "True");
+      INFO("input value: " << s);
+      JsonScanner scanner{s};
+      auto span = scanner.SkipBoolLiteral();
+      REQUIRE(!scanner.OK());
+      REQUIRE(!span.OK());
+    }
+  }
+
   SECTION("SkipNumberLiteral") {
     SECTION("M fail W number is structurally invalid") {
       auto s = GENERATE(
