@@ -59,6 +59,13 @@ JsonScanner::Span JsonScanner::SkipNameLiteral(std::string_view name) {
   return Span{start, pos - start};
 }
 
+JsonScanner::Span JsonScanner::SkipBoolLiteral() {
+  if (Peek() == 't') {
+    return SkipNameLiteral("true");
+  }
+  return SkipNameLiteral("false");
+}
+
 JsonScanner::Span JsonScanner::SkipNumberLiteral() {
   // No-op if already failed
   if (!OK()) {

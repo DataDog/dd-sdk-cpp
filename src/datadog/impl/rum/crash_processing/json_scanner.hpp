@@ -60,6 +60,12 @@ struct JsonScanner {
   Span SkipNameLiteral(std::string_view name);
 
   /**
+   * If currently positioned at a literal true or false value, skips it and returns its
+   * range in the input string. Otherwise, triggers failure.
+   */
+  Span SkipBoolLiteral();
+
+  /**
    * If currently positioned at a valid JSON number literal, skips past it and returns
    * the range of the entire value, including any leading minus sign, trailing decimals,
    * etc. Otherwise, triggers failure.
