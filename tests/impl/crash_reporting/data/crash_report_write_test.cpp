@@ -44,9 +44,7 @@ TEST_CASE("WriteCrashReport", "[unit][crash_reporting]") {
   SECTION("M produce file with expected binary contents for latest format") {
     // Given the binary contents of the crash report file we expect to produce at the
     // current version
-    const uint8_t* data_ptr = MOCK_CRASH_REPORT_V1;
-    const size_t data_size = std::size(MOCK_CRASH_REPORT_V1);
-    std::string_view data{reinterpret_cast<const char*>(data_ptr), data_size};
+    std::string_view data = MOCK_CRASH_REPORT_V1.Get();
 
     // When we serialize a crash report using the same values that the mock data was
     // generated from

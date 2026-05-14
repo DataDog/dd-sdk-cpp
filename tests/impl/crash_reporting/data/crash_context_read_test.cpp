@@ -9,6 +9,8 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/storage/path.hpp"
+#include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
 
 #include "mock/filesystem.hpp"
 #include "support/catch.hpp"
@@ -22,10 +24,7 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
   MockFilesystem fs;
 
   // And the binary contents of an example crash context file
-  const std::string_view data{
-      reinterpret_cast<const char*>(MOCK_CRASH_CONTEXT_V1),
-      std::size(MOCK_CRASH_CONTEXT_V1)
-  };
+  const std::string_view data = MOCK_CRASH_CONTEXT_V1.Get();
 
   SECTION("M parse crash context file and return expected field values") {
     // Given a file that contains our golden crash context data
@@ -44,21 +43,47 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(result.data.has_value());
     REQUIRE(result.fs_result == FilesystemResult::OK);
 
-    // And all fields contain the values encoded in the mock binary data
+    // And all fields contain the values encoded in the mock data
+    const CrashContext& got = *result.data;
+    REQUIRE(got.service == "mock-service");
+    REQUIRE(got.env == "mock-env");
+    REQUIRE(got.application_version == "1.2.3");
+    REQUIRE(got.source == "rum-cpp");
+    REQUIRE(got.sdk_version == "2.0.0");
+    REQUIRE(got.tracking_consent == datadog::TrackingConsent::Pending);
+    REQUIRE(got.os_name == "mock-os");
+    REQUIRE(got.os_version == "2.3.4");
+    REQUIRE(got.os_build == "mock-build-number");
+    REQUIRE(got.os_version_major == "2");
+    REQUIRE(got.device_type == "desktop");
+    REQUIRE(got.device_name == "mock-device");
+    REQUIRE(got.device_model == "mock-model");
+    REQUIRE(got.device_brand == "mock-brand");
+    REQUIRE(got.device_architecture == "x86_64");
+    REQUIRE(got.device_locale == "en-US");
+    REQUIRE(got.device_time_zone == "America/New_York");
+    REQUIRE(got.user_id == "usr-123");
+    REQUIRE(got.user_name == "Alice");
+    REQUIRE(got.user_email == "alice@example.com");
+    REQUIRE(got.user_extra.GetType() == datadog::ValueType::Object);
+    REQUIRE(got.user_extra.GetObjectPropertyCount() == 0);
+    REQUIRE(got.account_id == "acct-456");
+    REQUIRE(got.account_name == "Acme Corp");
+    REQUIRE(got.account_extra.GetType() == datadog::ValueType::Object);
+    REQUIRE(got.account_extra.GetObjectPropertyCount() == 0);
     REQUIRE(
-        result.data->rum_application_id ==
-        *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef")
-    );
-    REQUIRE(
-        result.data->rum_session_id ==
+        got.rum_session_state.session_id ==
         *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef")
     );
+    REQUIRE(got.rum_session_state.is_sampled == true);
+    REQUIRE(got.rum_session_state.is_active == true);
+    REQUIRE(got.rum_session_state.is_initial_session == false);
+    REQUIRE(got.rum_session_state.has_tracked_any_view == true);
+    REQUIRE(got.last_view_event_json == R"({"type":"view"})");
+    REQUIRE(got.global_rum_attributes.GetType() == datadog::ValueType::Object);
+    REQUIRE(got.global_rum_attributes.GetObjectPropertyCount() == 1);
     REQUIRE(
-        result.data->rum_view_id == *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef")
-    );
-    REQUIRE(
-        result.data->rum_action_id ==
-        *UUID::Parse("4c10171e-4334-4334-4334-b0000eeeefff")
+        got.global_rum_attributes.GetObjectProperty("plan").GetStringValue() == "gold"
     );
   }
 
@@ -103,15 +128,10 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
   SECTION("M return Malformed W file is truncated") {
     // Given a variety of files that abruptly end at various points midway through the
     // data for a valid crash context file
-    auto file_size = GENERATE(
-        as<size_t>(),
-        1,
-        5,
-        64,
-        sizeof(MOCK_CRASH_CONTEXT_V1) - 8,
-        sizeof(MOCK_CRASH_CONTEXT_V1) - 1
-    );
-    REQUIRE(file_size <= data.size());
+    const size_t data_size = data.size();
+    auto file_size =
+        GENERATE_COPY(as<size_t>(), 1, 5, 64, 192, 199, data_size - 8, data_size - 1);
+    REQUIRE(file_size < data.size());
     const std::string_view truncated_data{data.data(), file_size};
     fs.Touch("crash.ctx", truncated_data);
 

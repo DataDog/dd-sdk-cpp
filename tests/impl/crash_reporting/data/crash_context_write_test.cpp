@@ -8,8 +8,8 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/storage/path.hpp"
+#include "datadog/impl/crash_reporting/data/crash_context_read.hpp"
 
 #include "mock/filesystem.hpp"
 #include "support/catch.hpp"
@@ -22,6 +22,9 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
   // Given a mock filesystem
   MockFilesystem fs;
 
+  // And a reusable encode buffer (caller-owned, as required by WriteCrashContext)
+  std::vector<char> encode_buf;
+
   // And file paths where we'll write <crash>.ctx and <crash>.ctx.tmp
   PlatformPath path;
   REQUIRE(path.Encode("crash.ctx"));
@@ -31,20 +34,46 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
   SECTION("M produce .ctx file with expected binary contents for latest format") {
     // Given the binary contents of the crash context file we expect to produce at the
     // current version
-    const uint8_t* data_ptr = MOCK_CRASH_CONTEXT_V1;
-    const size_t data_size = std::size(MOCK_CRASH_CONTEXT_V1);
-    std::string_view data{reinterpret_cast<const char*>(data_ptr), data_size};
+    std::string_view data = MOCK_CRASH_CONTEXT_V1.Get();
 
     // And the canonical context values that were used to come up with that binary data
-    const RumFeatureContext rum_ctx{
-        *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef"),
-        *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef"),
-        *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef"),
-        *UUID::Parse("4c10171e-4334-4334-4334-b0000eeeefff")
-    };
+    CrashContext ctx{};
+    ctx.service = "mock-service";
+    ctx.env = "mock-env";
+    ctx.application_version = "1.2.3";
+    ctx.source = "rum-cpp";
+    ctx.sdk_version = "2.0.0";
+    ctx.tracking_consent = TrackingConsent::Pending;
+    ctx.os_name = "mock-os";
+    ctx.os_version = "2.3.4";
+    ctx.os_build = "mock-build-number";
+    ctx.os_version_major = "2";
+    ctx.device_type = "desktop";
+    ctx.device_name = "mock-device";
+    ctx.device_model = "mock-model";
+    ctx.device_brand = "mock-brand";
+    ctx.device_architecture = "x86_64";
+    ctx.device_locale = "en-US";
+    ctx.device_time_zone = "America/New_York";
+    ctx.user_id = "usr-123";
+    ctx.user_name = "Alice";
+    ctx.user_email = "alice@example.com";
+    ctx.user_extra = Attribute::Object();
+    ctx.account_id = "acct-456";
+    ctx.account_name = "Acme Corp";
+    ctx.account_extra = Attribute::Object();
+    ctx.rum_session_state.session_id =
+        *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+    ctx.rum_session_state.is_sampled = true;
+    ctx.rum_session_state.is_active = true;
+    ctx.rum_session_state.is_initial_session = false;
+    ctx.rum_session_state.has_tracked_any_view = true;
+    ctx.last_view_event_json = R"({"type":"view"})";
+    ctx.global_rum_attributes = Attribute::Object(1);
+    ctx.global_rum_attributes.SetObjectProperty("plan", Attribute::String("gold"));
 
-    // When we serialize our context to the mock file
-    const bool ok = WriteCrashContext(fs, path, tmp_path, rum_ctx);
+    // When we serialize it to the mock filesystem
+    const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, ctx);
 
     // Then serialization succeeds
     REQUIRE(ok);
@@ -67,7 +96,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);
@@ -89,7 +118,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);
@@ -112,7 +141,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     );
 
     // When we attempt to serialize any context using that path
-    const bool ok = WriteCrashContext(fs, path, tmp_path, RumFeatureContext{});
+    const bool ok = WriteCrashContext(fs, path, tmp_path, encode_buf, CrashContext{});
 
     // Then serialization fails
     REQUIRE(!ok);

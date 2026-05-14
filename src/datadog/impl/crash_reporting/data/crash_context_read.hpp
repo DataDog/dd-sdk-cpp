@@ -8,23 +8,12 @@
 
 #include <optional>
 
-#include "datadog/uuid.hpp"
-
+#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
 
 namespace datadog::impl {
 
 class File;
-
-/**
- * In-memory representation of the complete contents of a crash context file.
- */
-struct CrashContextFile {
-  UUID rum_application_id;
-  UUID rum_session_id;
-  UUID rum_view_id;
-  UUID rum_action_id;
-};
 
 /**
  * Result of a call to ReadCrashContext. Use GetStatus() to differentiate between error
@@ -33,13 +22,13 @@ struct CrashContextFile {
  * the file.
  */
 struct ReadCrashContextResult {
-  std::optional<CrashContextFile> data;
+  std::optional<CrashContext> data;
   FilesystemResult fs_result{FilesystemResult::OK};
 
   enum class Status : uint8_t {
     OK,         // Valid file read with no errors; data has a value
     ReadError,  // A filesystem error occurred while reading; fs_error != OK
-    Malformed   // File does not contain a valid, complete crash report
+    Malformed   // File does not contain a valid, complete crash context
   };
 
   Status GetStatus() const {

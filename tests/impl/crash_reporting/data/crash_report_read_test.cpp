@@ -19,10 +19,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
   MockFilesystem fs;
 
   // And the binary contents of an example crash report file
-  const std::string_view data{
-      reinterpret_cast<const char*>(MOCK_CRASH_REPORT_V1),
-      std::size(MOCK_CRASH_REPORT_V1)
-  };
+  const std::string_view data = MOCK_CRASH_REPORT_V1.Get();
 
   SECTION(
       "M return OK with data with expected field values W file is a valid crash report"
@@ -132,16 +129,9 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
   SECTION("M return Malformed W file is truncated") {
     // Given a variety of files that abruptly end at various points midway through the
     // data for a valid crash report file
-    auto file_size = GENERATE(
-        as<size_t>(),
-        1,
-        5,
-        64,
-        192,
-        199,
-        sizeof(MOCK_CRASH_REPORT_V1) - 8,
-        sizeof(MOCK_CRASH_REPORT_V1) - 1
-    );
+    const size_t data_size = data.size();
+    auto file_size =
+        GENERATE_COPY(as<size_t>(), 1, 5, 64, 192, 199, data_size - 8, data_size - 1);
     REQUIRE(file_size <= data.size());
     const std::string_view truncated_data{data.data(), file_size};
     fs.Touch("crash", truncated_data);

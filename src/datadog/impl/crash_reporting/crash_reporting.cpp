@@ -9,12 +9,20 @@
 #include <memory>
 
 #include "datadog/impl/core/feature_message.hpp"
+#include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/util/assert.hpp"
-#include "datadog/impl/core/writer.hpp"
+#include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/crash_reporting/crash_processing.hpp"
 
 namespace datadog::impl {
+
+template <typename T>
+static void encode_json_to_string(std::string& out, const T& value) {
+  const size_t n = GetJsonSize(value);
+  out.resize(n);
+  out.resize(WriteJson(out.data(), n, value));
+}
 
 CrashReporting::CrashReporting(
     ICrashHandler& handler, IFilesystem& fs, const StoragePath& crash_storage_dir_path
@@ -38,26 +46,63 @@ CrashReporting::MakeMessageHandler() {
   // Bind a weak_ptr to this so the callback will silently no-op after we're destroyed
   const auto weak_self = weak_from_this();
   return [weak_self](const FeatureMessage& msg) {
-    // Handle ContextChangedMessage by conveying the latest RUM context to the handler
-    const auto* context_changed = std::get_if<ContextChangedMessage>(&msg);
-    if (!context_changed || !context_changed->context.rum) {
-      return;
-    }
-
-    // Abort if our weak_ptr is no longer valid: if the messaging thread is still
-    // running after our feature is destroyed, we should silently drop the message
+    // Abort if our weak_ptr is no longer valid
     auto self = std::static_pointer_cast<CrashReporting>(weak_self.lock());
     if (!self) {
       return;
     }
 
-    // Only notify the handler if RUM context has actually changed since last time
-    const auto& rum_ctx = *context_changed->context.rum;
-    if (self->_last_rum_ctx == rum_ctx) {
+    CrashContext& cc = self->_crash_context;
+
+    // MSVC flags each `else if (const auto* m = ...)` branch as shadowing an outer `m`,
+    // even though the scopes are mutually exclusive
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4456)
+#endif
+    if (const auto* m = std::get_if<ContextChangedMessage>(&msg)) {
+      // Copy SDK identity and platform info from the CoreContext snapshot into the
+      // accumulated CrashContext. The os/device pointers are guaranteed non-null while
+      // the Core is running.
+      const CoreContext& ctx = m->context;
+      cc.service = ctx.service;
+      cc.env = ctx.env;
+      cc.application_version = ctx.application_version;
+      cc.source = ctx.source;
+      cc.sdk_version = ctx.sdk_version;
+      cc.tracking_consent = ctx.tracking_consent;
+      cc.os_name = ctx.os->name;
+      cc.os_version = ctx.os->version;
+      cc.os_build = ctx.os->build;
+      cc.os_version_major = ctx.os->version_major;
+      cc.device_type = ctx.device->type;
+      cc.device_name = ctx.device->name;
+      cc.device_model = ctx.device->model;
+      cc.device_brand = ctx.device->brand;
+      cc.device_architecture = ctx.device->architecture;
+      cc.device_locale = ctx.device->locale;
+      cc.device_time_zone = ctx.device->time_zone;
+      cc.user_id = ctx.user_info.id;
+      cc.user_name = ctx.user_info.name;
+      cc.user_email = ctx.user_info.email;
+      cc.user_extra = ctx.user_info.extra;
+    } else if (const auto* m = std::get_if<RumSessionStateChangedMessage>(&msg)) {
+      cc.rum_session_state = m->session_state;
+    } else if (const auto* m = std::get_if<RumActiveViewUpdatedMessage>(&msg)) {
+      encode_json_to_string(cc.last_view_event_json, m->view_event);
+    } else if (std::get_if<RumActiveViewLostMessage>(&msg)) {
+      cc.last_view_event_json.clear();
+    } else if (const auto* m = std::get_if<RumGlobalAttributesChangedMessage>(&msg)) {
+      cc.global_rum_attributes = m->attributes;
+    } else {
+      // CrashReportProcessedMessage does not affect crash context; no action needed
       return;
     }
-    self->_last_rum_ctx = rum_ctx;
-    self->_handler.SetRumContext(self->_fs, rum_ctx);
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+    self->_handler.SetCrashContext(self->_fs, cc);
   };
 }
 

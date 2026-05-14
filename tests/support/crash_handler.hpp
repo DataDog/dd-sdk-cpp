@@ -9,7 +9,7 @@
 #include <optional>
 #include <string_view>
 
-#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
 
@@ -17,8 +17,8 @@ using namespace datadog;
 
 class MockCrashHandler : public impl::ICrashHandler {
  public:
-  size_t num_set_rum_context_calls{0};
-  std::optional<impl::RumFeatureContext> last_rum_ctx;
+  size_t num_set_crash_context_calls{0};
+  std::optional<impl::CrashContext> last_crash_ctx;
 
   // ICrashHandler interface
   bool Initialize(
@@ -34,11 +34,9 @@ class MockCrashHandler : public impl::ICrashHandler {
     return true;
   }
 
-  void SetRumContext(
-      impl::IFilesystem& fs, const impl::RumFeatureContext& rum_ctx
-  ) override {
+  void SetCrashContext(impl::IFilesystem& fs, const impl::CrashContext& ctx) override {
     (void)fs;
-    num_set_rum_context_calls++;
-    last_rum_ctx = rum_ctx;
+    num_set_crash_context_calls++;
+    last_crash_ctx = ctx;
   };
 };

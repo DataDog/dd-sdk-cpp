@@ -20,8 +20,8 @@
 #include <cinttypes>
 #include <ctime>
 #include <type_traits>
+#include <vector>
 
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/storage/util.hpp"
@@ -416,14 +416,19 @@ class InProcessCrashHandler final : public ICrashHandler {
     }
   }
 
-  void SetRumContext(IFilesystem& fs, const RumFeatureContext& rum_ctx) override {
+  void SetCrashContext(IFilesystem& fs, const CrashContext& ctx) override {
     WriteCrashContext(
-        fs, s_crash_context_file_path, s_crash_context_tmp_file_path, rum_ctx
+        fs,
+        s_crash_context_file_path,
+        s_crash_context_tmp_file_path,
+        _context_encode_buf,
+        ctx
     );
   }
 
  private:
   bool _initialized{false};
+  std::vector<char> _context_encode_buf;
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {

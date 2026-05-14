@@ -6,6 +6,7 @@
 
 #include "datadog/impl/crash_reporting/crash_reporting.hpp"
 
+#include <chrono>
 #include <memory>
 
 #include "datadog/impl/core/feature_message.hpp"
@@ -20,12 +21,8 @@
 
 using namespace datadog::impl;
 
-static const UUID APPLICATION_ID = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
-static const UUID SESSION_ID = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
-static const UUID VIEW_ID = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
-
 TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
-  // Given a mock CoreContext value that will be copied into ContextChangedMessage
+  // Given a mock CoreContext value that will be copied into messages
   CoreContext context = MOCK_CONTEXT;
 
   // And some required ICrashHandler dependencies that are not exercised in this test
@@ -45,87 +42,144 @@ TEST_CASE("CrashReporting message handling", "[unit][crash_reporting]") {
   auto message_handler_func = *message_handler;
   REQUIRE(message_handler_func);
 
-  SECTION(
-      "M convey RUM context to handler W ContextChangedMessage supplies new RUM context"
-  ) {
-    // When the feature handles a ContextChangedMessage that provides new RUM context
-    context.rum.emplace(
-        RumFeatureContext{APPLICATION_ID, SESSION_ID, VIEW_ID, UUID::Zero}
-    );
+  SECTION("M convey SDK context to handler W ContextChangedMessage is received") {
+    // When the feature handles a ContextChangedMessage
     message_handler_func(ContextChangedMessage{context});
 
-    // Then our handler has been notified of the latest RUM context values
-    REQUIRE(handler.num_set_rum_context_calls == 1);
-    REQUIRE(handler.last_rum_ctx.has_value());
-    REQUIRE(handler.last_rum_ctx->application_id == APPLICATION_ID);
-    REQUIRE(handler.last_rum_ctx->session_id == SESSION_ID);
-    REQUIRE(handler.last_rum_ctx->view_id == VIEW_ID);
-    REQUIRE(handler.last_rum_ctx->action_id == UUID::Zero);
+    // Then our handler has been notified with the context fields populated from
+    // MOCK_CONTEXT
+    REQUIRE(handler.num_set_crash_context_calls == 1);
+    REQUIRE(handler.last_crash_ctx.has_value());
+    REQUIRE(handler.last_crash_ctx->service == "mock-service");
+    REQUIRE(handler.last_crash_ctx->env == "mock-env");
+    REQUIRE(handler.last_crash_ctx->os_name == "mock-os");
+    REQUIRE(handler.last_crash_ctx->device_type == "desktop");
 
-    SECTION(
-        "M not convey RUM context to handler W ContextChangedMessage carries no "
-        "meaningful changes to RUM context"
-    ) {
-      // When another message arrives with identical RumFeatureContext values
-      context.service = "contrived";  // Change CoreContext, but not its rum member
+    SECTION("M convey updated context W ContextChangedMessage carries any change") {
+      // When another message arrives with a changed field
+      context.tracking_consent = datadog::TrackingConsent::Granted;
       message_handler_func(ContextChangedMessage{context});
 
-      // Then no ICrashHandler::SetRumContext call was made
-      REQUIRE(handler.num_set_rum_context_calls == 1);
-      REQUIRE(handler.last_rum_ctx.has_value());
-      REQUIRE(handler.last_rum_ctx->application_id == APPLICATION_ID);
-      REQUIRE(handler.last_rum_ctx->session_id == SESSION_ID);
-      REQUIRE(handler.last_rum_ctx->view_id == VIEW_ID);
-      REQUIRE(handler.last_rum_ctx->action_id == UUID::Zero);
-    }
-
-    SECTION(
-        "M convey updated RUM context to handler W ContextChangedMessage carries any "
-        "change to RUM context"
-    ) {
-      // When another message arrives with different RumFeatureContext values
-      const UUID new_view_id = *UUID::Parse("c1488c09-e763-41e6-8f53-4f40d6916c31");
-      const UUID new_action_id = *UUID::Parse("10cb6a8f-852f-46f6-8ce4-6d9265e77dac");
-      context.rum->view_id = new_view_id;
-      context.rum->action_id = new_action_id;
-      message_handler_func(ContextChangedMessage{context});
-
-      // Then a second ICrashHandler::SetRumContext call was made
-      REQUIRE(handler.num_set_rum_context_calls == 2);
-      REQUIRE(handler.last_rum_ctx.has_value());
-      REQUIRE(handler.last_rum_ctx->application_id == APPLICATION_ID);
-      REQUIRE(handler.last_rum_ctx->session_id == SESSION_ID);
-      REQUIRE(handler.last_rum_ctx->view_id == new_view_id);
-      REQUIRE(handler.last_rum_ctx->action_id == new_action_id);
+      // Then a second SetCrashContext call was made reflecting the update
+      REQUIRE(handler.num_set_crash_context_calls == 2);
+      REQUIRE(
+          handler.last_crash_ctx->tracking_consent == datadog::TrackingConsent::Granted
+      );
     }
   }
 
+  SECTION("M update session state W RumSessionStateChangedMessage is received") {
+    // When the feature handles a RumSessionStateChangedMessage with a new session
+    RumSessionState state{};
+    state.session_id = *datadog::UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+    state.is_sampled = true;
+    state.is_active = true;
+    message_handler_func(RumSessionStateChangedMessage{state});
+
+    // Then the handler receives the updated session state
+    REQUIRE(handler.num_set_crash_context_calls == 1);
+    REQUIRE(handler.last_crash_ctx.has_value());
+    REQUIRE(
+        handler.last_crash_ctx->rum_session_state.session_id ==
+        *datadog::UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef")
+    );
+    REQUIRE(handler.last_crash_ctx->rum_session_state.is_sampled);
+    REQUIRE(handler.last_crash_ctx->rum_session_state.is_active);
+  }
+
+  SECTION("M serialize active view W RumActiveViewUpdatedMessage is received") {
+    // Given a minimal RumViewEvent
+    const datadog::Timestamp date{std::chrono::nanoseconds(946684799999999999)};
+    const datadog::UUID app_id =
+        *datadog::UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+    const datadog::UUID session_id =
+        *datadog::UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+    const datadog::UUID view_id =
+        *datadog::UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
+    RumViewEvent view_event{
+        date,
+        app_id,
+        session_id,
+        RumSessionType::User,
+        view_id,
+        "my-view",
+        0,
+        0,
+        0,
+        0,
+        0
+    };
+
+    // When the feature handles a RumActiveViewUpdatedMessage
+    message_handler_func(RumActiveViewUpdatedMessage{view_event});
+
+    // Then the handler is notified and last_view_event_json is populated
+    REQUIRE(handler.num_set_crash_context_calls == 1);
+    REQUIRE(handler.last_crash_ctx.has_value());
+    REQUIRE(!handler.last_crash_ctx->last_view_event_json.empty());
+
+    SECTION("M clear view JSON W subsequent RumActiveViewLostMessage is received") {
+      // When the active view is then lost
+      message_handler_func(RumActiveViewLostMessage{});
+
+      // Then the handler is notified and last_view_event_json is cleared
+      REQUIRE(handler.num_set_crash_context_calls == 2);
+      REQUIRE(handler.last_crash_ctx->last_view_event_json.empty());
+    }
+  }
+
+  SECTION(
+      "M clear view JSON W RumActiveViewLostMessage is received with no prior view"
+  ) {
+    // When a lost-view message is received without a prior view update
+    message_handler_func(RumActiveViewLostMessage{});
+
+    // Then the handler is notified (even if nothing changed)
+    REQUIRE(handler.num_set_crash_context_calls == 1);
+    REQUIRE(handler.last_crash_ctx.has_value());
+    REQUIRE(handler.last_crash_ctx->last_view_event_json.empty());
+  }
+
+  SECTION(
+      "M serialize global attributes W RumGlobalAttributesChangedMessage is received"
+  ) {
+    // When the feature handles a RumGlobalAttributesChangedMessage with some attributes
+    message_handler_func(RumGlobalAttributesChangedMessage{datadog::Attribute{}});
+
+    // Then the handler is notified and global_rum_attributes holds the sent value
+    REQUIRE(handler.num_set_crash_context_calls == 1);
+    REQUIRE(handler.last_crash_ctx.has_value());
+    REQUIRE(
+        handler.last_crash_ctx->global_rum_attributes.GetType() ==
+        datadog::ValueType::Null
+    );
+  }
+
+  SECTION("M do nothing W CrashReportProcessedMessage is received") {
+    // When the feature handles a CrashReportProcessedMessage (originating from itself)
+    message_handler_func(CrashReportProcessedMessage{CrashReport{}});
+
+    // Then no SetCrashContext call is made: this message does not affect crash context
+    REQUIRE(handler.num_set_crash_context_calls == 0);
+  }
+
   SECTION("M safely do nothing W message arrives after feature is destroyed") {
-    // When the last std::shared_ptr<CrashReporting> is destroyed, causing the feature
-    // implementation to be destroyed
+    // When the last std::shared_ptr<CrashReporting> is destroyed
     crash_reporting.reset();
 
-    // And a lingering message-handler callback receives a message that would ordinarily
-    // result in a state change within crash reporting
+    // And a lingering message-handler callback receives a message
     REQUIRE(message_handler_func);
-    context.rum.emplace(
-        RumFeatureContext{APPLICATION_ID, SESSION_ID, UUID::Zero, UUID::Zero}
-    );
     message_handler_func(ContextChangedMessage{context});
 
-    // Then nothing happens: the weak_ptr check in the handler callback causes the
-    // message to be dropped, preventing use-after-free
-    REQUIRE(handler.num_set_rum_context_calls == 0);
-    REQUIRE(!handler.last_rum_ctx.has_value());
+    // Then nothing happens: the weak_ptr check prevents use-after-free
+    REQUIRE(handler.num_set_crash_context_calls == 0);
+    REQUIRE(!handler.last_crash_ctx.has_value());
   }
 }
 
 TEST_CASE("CrashReporting message publishing", "[unit][crash_reporting]") {
   // Given crash file binary data that test sections can write to the mock filesystem
-  static const std::string_view CRASH_FILE_DATA{
-      reinterpret_cast<const char*>(MOCK_CRASH_REPORT_V1),
-      std::size(MOCK_CRASH_REPORT_V1)
-  };
+  static const std::string_view CRASH_FILE_DATA = MOCK_CRASH_REPORT_V1.Get();
 
   // And a mock filesystem and storage path that test sections can populate with crash
   // files as needed

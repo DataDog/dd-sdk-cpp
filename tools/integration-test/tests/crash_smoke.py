@@ -24,6 +24,7 @@ async def main(t: TestContext):
     register-rum
     start-core
     start-view foo
+    sleep 10
     crash bad-sdk-usage
     """)
     await p1.join()

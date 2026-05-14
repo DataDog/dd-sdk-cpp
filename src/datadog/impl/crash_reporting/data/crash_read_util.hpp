@@ -71,6 +71,21 @@ inline CrashFileReadResult ReadUInt64(File& file, uint64_t& out) {
   return ReadBytes(file, dst, 8);
 }
 
+inline CrashFileReadResult ReadUInt8(File& file, uint8_t& out) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  char* dst = reinterpret_cast<char*>(&out);
+  return ReadBytes(file, dst, 1);
+}
+
+inline CrashFileReadResult ReadBool(File& file, bool& out) {
+  char c;
+  auto res = ReadBytes(file, &c, 1);
+  if (res.OK()) {
+    out = c != 0;
+  }
+  return res;
+}
+
 /**
  * Reads a single 16-byte UUID value from the file, populating `out_uuid`.
  *
