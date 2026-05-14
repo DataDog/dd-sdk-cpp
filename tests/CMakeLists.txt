@@ -82,6 +82,7 @@ add_executable(dd_native_tests
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp
     impl/rum/crash_processing/json_scanner_test.cpp
+    impl/rum/crash_processing/view_event_mutation_test.cpp
     impl/rum/crash_processing/view_event_parser_test.cpp
     impl/rum/scopes/action_test.cpp
     impl/rum/scopes/application_test.cpp
