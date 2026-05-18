@@ -208,7 +208,7 @@ static std::string format_stack_error_tracking(const CrashReport& crash) {
     DATADOG_ASSERT(index <= 999, "frame_index not capped by max_frames");
     std::array<char, 3> index_buf{};
     index_buf.fill(' ');
-    std::to_chars(index_buf.begin(), index_buf.end(), index);
+    std::to_chars(index_buf.data(), index_buf.data() + index_buf.size(), index);
     result.append(index_buf.data(), index_buf.size());
     result.push_back(' ');
 
