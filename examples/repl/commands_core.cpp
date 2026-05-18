@@ -108,6 +108,59 @@ CommandResult HandleClearUserInfo(State& state, const CommandInput&) {
   return CommandResult::OK("Core::ClearUserInfo()");
 }
 
+CommandResult HandleSetAccountInfo(State& state, const CommandInput& args) {
+  if (!state.core) {
+    return CommandResult::Error("Core does not exist!");
+  }
+
+  // Positional args: id (required)
+  auto pos = args.Positional();
+  auto id = Unquote(pos[0]);
+  if (id.empty()) {
+    return CommandResult::Error("No account id given!");
+  }
+
+  // Named args: name (optional)
+  auto named = args.Named();
+  auto name = Unquote(named.Get("name"));
+
+  state.core->SetAccountInfo(id, name);
+  return CommandResult::OK("Core::SetAccountInfo()");
+}
+
+CommandResult HandleAddAccountExtraInfo(State& state, const CommandInput& args) {
+  if (!state.core) {
+    return CommandResult::Error("Core does not exist!");
+  }
+
+  // Named args: arbitrary key-value pairs added as string attributes
+  auto named = args.Named();
+  if (named.n == 0) {
+    return CommandResult::Error("No key-value pairs given!");
+  }
+
+  datadog::Attribute extra = datadog::Attribute::Object(named.n);
+  for (size_t i = 0; i < named.n; i++) {
+    extra.SetObjectProperty(
+        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+        named.values[i].name,
+        datadog::Attribute::String(named.values[i].value)
+        // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
+    );
+  }
+
+  state.core->AddAccountExtraInfo(extra);
+  return CommandResult::OK("Core::AddAccountExtraInfo()");
+}
+
+CommandResult HandleClearAccountInfo(State& state, const CommandInput&) {
+  if (!state.core) {
+    return CommandResult::Error("Core does not exist!");
+  }
+  state.core->ClearAccountInfo();
+  return CommandResult::OK("Core::ClearAccountInfo()");
+}
+
 CommandResult HandleStartCore(State& state, const CommandInput&) {
   if (!state.core) {
     return CommandResult::Error("Core does not exist!");

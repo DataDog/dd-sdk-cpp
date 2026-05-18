@@ -217,6 +217,26 @@ void Core::ClearUserInfo() {
   }
 }
 
+void Core::SetAccountInfo(
+    std::string_view id, std::string_view name, const Attribute& extra_info
+) {
+  if (_impl) {
+    _impl->SetAccountInfo(id, name, extra_info);
+  }
+}
+
+void Core::AddAccountExtraInfo(const Attribute& extra_info) {
+  if (_impl) {
+    _impl->AddAccountExtraInfo(extra_info);
+  }
+}
+
+void Core::ClearAccountInfo() {
+  if (_impl) {
+    _impl->ClearAccountInfo();
+  }
+}
+
 bool Core::Start() {
   if (_impl) {
     return _impl->Start();

@@ -23,6 +23,7 @@ async def main(t: TestContext):
     register-crash-reporting
     register-rum
     start-core
+    set-account-info acct-456 name:"Bits"
     start-view foo
     sleep 10
     crash bad-sdk-usage
@@ -92,6 +93,8 @@ async def main(t: TestContext):
     assert rum_events[0]['type'] == 'view'
     assert rum_events[0]['application']['id'] == 'a991ca10-4004-4004-4004-beefbeefbeef'
     assert rum_events[0]['view']['is_active'] == True
+    assert rum_events[0]['account']['id'] == 'acct-456'
+    assert rum_events[0]['account']['name'] == 'Bits'
 
     # TODO(RUM-15994): Validate that p2 also produces a RUM Error event describing the
     # crash, as well as another RUM View event that increments error/crash counts, sets

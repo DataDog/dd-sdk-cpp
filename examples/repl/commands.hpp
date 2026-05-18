@@ -30,6 +30,9 @@ CommandResult HandleSetTrackingConsent(State& state, const CommandInput& args);
 CommandResult HandleSetUserInfo(State& state, const CommandInput& args);
 CommandResult HandleAddUserExtraInfo(State& state, const CommandInput& args);
 CommandResult HandleClearUserInfo(State& state, const CommandInput& args);
+CommandResult HandleSetAccountInfo(State& state, const CommandInput& args);
+CommandResult HandleAddAccountExtraInfo(State& state, const CommandInput& args);
+CommandResult HandleClearAccountInfo(State& state, const CommandInput& args);
 CommandResult HandleStartCore(State& state, const CommandInput& args);
 CommandResult HandleStopCore(State& state, const CommandInput& args);
 

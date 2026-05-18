@@ -330,6 +330,25 @@ class Core {
   void ClearUserInfo();
 
   /**
+   * Mutates `CoreContext::account_info` to match the provided values.
+   */
+  void SetAccountInfo(
+      std::string_view id, std::string_view name, const Attribute& extra
+  );
+
+  /**
+   * Mutates `CoreContext::account_info` to merge the provided values into any existing
+   * extra attributes. If `extra` is not an Object with 1 or more properties, has no
+   * effect.
+   */
+  void AddAccountExtraInfo(const Attribute& extra);
+
+  /**
+   * Mutates `CoreContext::account_info`, resetting it to a default (empty) state.
+   */
+  void ClearAccountInfo();
+
+  /**
    * Initializes the core.
    *
    * Must be called before RegisterFeature() or Start() may be called. May not be called

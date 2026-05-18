@@ -145,7 +145,8 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
     ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
 
     // RumAccountProperties
-    ev.account.value.emplace("708876d3e663c2eb");
+    ev.account.value.emplace();
+    ev.account.value->id = "708876d3e663c2eb";
     ev.account.value->name = "Important Account";
 
     // RumConnectivityProperties
@@ -550,7 +551,8 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
     ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
 
     // RumAccountProperties
-    ev.account.value.emplace("708876d3e663c2eb");
+    ev.account.value.emplace();
+    ev.account.value->id = "708876d3e663c2eb";
     ev.account.value->name = "Important Account";
 
     // RumConnectivityProperties
@@ -789,7 +791,8 @@ TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
     ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
 
     // RumAccountProperties
-    ev.account.value.emplace("708876d3e663c2eb");
+    ev.account.value.emplace();
+    ev.account.value->id = "708876d3e663c2eb";
     ev.account.value->name = "Important Account";
 
     // RumConnectivityProperties
@@ -1077,7 +1080,8 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
     ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
 
     // RumAccountProperties
-    ev.account.value.emplace("708876d3e663c2eb");
+    ev.account.value.emplace();
+    ev.account.value->id = "708876d3e663c2eb";
     ev.account.value->name = "Important Account";
 
     // RumConnectivityProperties

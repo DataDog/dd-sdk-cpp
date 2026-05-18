@@ -210,6 +210,14 @@ void Logging::ProcessLogEvent(
     lu.extra = context.user_info.extra;
   }
 
+  // Enrich with account info if available
+  if (!context.account_info.IsEmpty()) {
+    LogAccountInfo& la = ev.account.value.emplace();
+    la.id = context.account_info.id;
+    la.name = context.account_info.name;
+    la.extra = context.account_info.extra;
+  }
+
   // Enrich with OS properties
   if (context.os) {
     ev.os.value.emplace(
