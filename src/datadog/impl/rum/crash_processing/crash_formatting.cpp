@@ -39,7 +39,7 @@ static std::string format_error_message_win32(uint64_t fault_code) {
   char hex_code_buf[11];  // "0x" + 8 hex digits + terminator
   // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
   std::snprintf(&hex_code_buf[0], sizeof(hex_code_buf), "0x%08X", code);
-  std::string_view hex_code(&hex_code_buf[0], sizeof(hex_code_buf));
+  std::string_view hex_code(&hex_code_buf[0], sizeof(hex_code_buf) - 1);
 
   // Check the code against a list of common codes to resolve a human-readable name
   struct KnownExceptionCode {
