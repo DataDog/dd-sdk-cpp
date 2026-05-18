@@ -41,6 +41,7 @@ std::optional<Report> CrashReporting::UploadThread_PrepareReport(
   return std::nullopt;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 std::optional<std::function<void(const FeatureMessage&)>>
 CrashReporting::MakeMessageHandler() {
   // Bind a weak_ptr to this so the callback will silently no-op after we're destroyed

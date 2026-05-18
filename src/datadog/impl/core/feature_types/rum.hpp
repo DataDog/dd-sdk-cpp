@@ -331,7 +331,7 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
 
 struct RumAccountProperties {
   // From _common-schema.json
-  OmitIfEmpty<std::string> id;
+  std::string id;
   OmitIfEmpty<std::string> name;
   // Extra account attributes merged inline as additional JSON properties
   Attribute extra;

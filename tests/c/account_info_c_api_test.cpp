@@ -244,9 +244,13 @@ TEST_CASE("dd_core account info", "[unit][core]" FEATURE_TAGS "[c-api]") {
     late_core_start();
     auto account_values = generate_events_and_stop_core();
 
+    // Log events omit empty id; RUM events always include id per schema
     REQUIRE(
-        account_values.require_identical() ==
-        nlohmann::json{{"bar", "hello"}, {"baz", "world"}}
+        account_values.logging == nlohmann::json{{"bar", "hello"}, {"baz", "world"}}
+    );
+    REQUIRE(
+        account_values.rum ==
+        nlohmann::json{{"bar", "hello"}, {"baz", "world"}, {"id", ""}}
     );
   }
 
@@ -298,7 +302,9 @@ TEST_CASE("dd_core account info", "[unit][core]" FEATURE_TAGS "[c-api]") {
     late_core_start();
     auto account_values = generate_events_and_stop_core();
 
-    REQUIRE(account_values.require_identical() == nlohmann::json{{"name", "Bits"}});
+    // Log events omit empty id; RUM events always include id per schema
+    REQUIRE(account_values.logging == nlohmann::json{{"name", "Bits"}});
+    REQUIRE(account_values.rum == nlohmann::json{{"id", ""}, {"name", "Bits"}});
   }
 
   SECTION("M omit name W dd_core_set_account_info supplies no name") {

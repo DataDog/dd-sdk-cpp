@@ -25,6 +25,7 @@
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
 // NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 CommandResult Handle(State& state, const CommandInput& input) {
   // Utility
   if (input.Peek() == "source") {
