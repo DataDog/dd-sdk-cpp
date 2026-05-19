@@ -54,8 +54,12 @@ TEST_CASE("RumViewEventMutation", "[unit][crash_reporting]") {
     ev.usr.value->extra.SetObjectProperty("id", Attribute::Int(100));
     ev.usr.value->extra.SetObjectProperty("view", Attribute::Int(101));
     ev.usr.value->extra.SetObjectProperty("type", Attribute::String("view"));
-    ev.context = Attribute::Object(8);
-    ev.context.value.SetObjectProperty("id", Attribute::Int(200));
+
+    auto with_context = GENERATE(false, true);
+    if (with_context) {
+      ev.context = Attribute::Object(8);
+      ev.context.value.SetObjectProperty("id", Attribute::Int(200));
+    }
 
     // And a string containing the JSON payload encoded from that RumViewEvent
     std::vector<uint8_t> buf;
@@ -69,8 +73,9 @@ TEST_CASE("RumViewEventMutation", "[unit][crash_reporting]") {
 
     // When we produce a mutated view event in response to a crash report
     uint64_t crash_timestamp_ms = 946684803000;
+    std::string_view context_json{R"({"foo":111,"bar":222})"};
     std::string got = MutateViewEventForCrash(
-        view_json, parser.spans, parser.values, crash_timestamp_ms
+        view_json, parser.spans, parser.values, crash_timestamp_ms, context_json
     );
 
     // Then the resulting string is a valid JSON object
@@ -113,7 +118,8 @@ TEST_CASE("RumViewEventMutation", "[unit][crash_reporting]") {
         "resource": {"count": 7}
       },
       "context": {
-        "id": 200
+        "foo": 111,
+        "bar": 222
       },
       "_dd": {
         "format_version": 2,

@@ -18,7 +18,8 @@ std::string MutateViewEventForCrash(
     std::string_view view_event_json,
     const RumViewEventParser::Spans& spans,
     const RumViewEventParser::Values& values,
-    uint64_t crash_timestamp_ms
+    uint64_t crash_timestamp_ms,
+    std::string_view context_json
 ) {
   // These invariants are enforced by `RumViewEventParser::Parse()`, and we should never
   // attempt mutation after a failed parse
@@ -81,6 +82,11 @@ std::string MutateViewEventForCrash(
   // including a leading comma
   constexpr std::string_view view_crash_str = ",\"crash\":{\"count\":1}";
 
+  // Prefix used when inserting a new context property (no context in original event):
+  // the leading comma separates _dd from the new property, and the comma already at
+  // dd_end_pos is preserved as the separator before type
+  constexpr std::string_view context_key_str = ",\"context\":";
+
   // Compute the net change in size from inserting or replacing values in our JSON
   // object: substitutions may grow or shrink the string, so we need signed arithmetic
   int64_t size_delta = 0;
@@ -102,6 +108,15 @@ std::string MutateViewEventForCrash(
     // We're replacing `_dd.document_version` with an incremented value
     size_delta += static_cast<int64_t>(dd_document_version_str.size()) -
                   static_cast<int64_t>(spans.dd_document_version.len);
+
+    // We're either replacing an existing context value or inserting a new one
+    if (spans.context.OK()) {
+      size_delta += static_cast<int64_t>(context_json.size()) -
+                    static_cast<int64_t>(spans.context.len);
+    } else {
+      size_delta += static_cast<int64_t>(context_key_str.size()) +
+                    static_cast<int64_t>(context_json.size());
+    }
   }
 
   // We now know the exact size of our result value: perform a single allocation to
@@ -153,6 +168,22 @@ std::string MutateViewEventForCrash(
   copy_range(pos, spans.dd_document_version.i);
   result.append(dd_document_version_str);
   pos = spans.dd_document_version.i + spans.dd_document_version.len;
+
+  // Either replace the existing context value or insert a new one, depending on whether
+  // the original value had a top-level context property.
+  if (spans.context.OK()) {
+    // 'context' already existed: replace its value entirely and proceed
+    copy_range(pos, spans.context.i);
+    result.append(context_json);
+    pos = spans.context.i + spans.context.len;
+  } else {
+    // 'context' did not exist: insert a new `,"context":<value>` just before the comma
+    // that follows `"_dd":{...}`, resuming the remaining copies from that comma
+    copy_range(pos, spans.dd_end_pos);
+    result.append(context_key_str);
+    result.append(context_json);
+    pos = spans.dd_end_pos;
+  }
 
   // Copy the remainder of the original event unchanged
   copy_range(pos, view_event_json.size());

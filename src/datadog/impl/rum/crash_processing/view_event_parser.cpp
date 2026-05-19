@@ -143,6 +143,22 @@ void RumViewEventParser::ScanRootObject(JsonScanner& scanner) {
         ScanViewObject(scanner);
       } else if (scanner.TrySkipObjectPropertyKey("_dd")) {
         ScanInternalObject(scanner);
+
+        // In the event that there's no 'context' value in the original view event, we
+        // may need to insert a new property: store the position of the comma that
+        // follows `"_dd":{...}` so we can insert it at that point if needed
+        if (scanner.Peek() == ',') {
+          // We should always have a comma after _dd in all events produced by the SDK,
+          // even if context is not present, because 'type' follows '_dd' and both are
+          // required
+          spans.dd_end_pos = scanner.pos;
+        } else {
+          scanner.Fail();
+        }
+      } else if (scanner.TrySkipObjectPropertyKey("context")) {
+        // In the event that a context value _is_ found, we'll replace it rather than
+        // inserting a brand new value
+        spans.context = scanner.SkipObjectLiteral();
       } else if (scanner.TrySkipObjectPropertyKey("type")) {
         spans.type = scanner.SkipStringLiteral();
       } else {
