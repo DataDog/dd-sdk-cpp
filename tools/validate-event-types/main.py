@@ -41,6 +41,7 @@ __schema_test_event_relpath__ = os.path.join('samples', 'rum-events', 'view.json
 
 __cpp_test_relpaths__ = [
     os.path.join('impl', 'core', 'feature_types', 'rum_test.cpp'),
+    os.path.join('impl', 'rum', 'crash_processing', 'crash_handling_test.cpp'),
     os.path.join('impl', 'rum', 'crash_processing', 'view_event_mutation_test.cpp'),
     os.path.join('c', 'rum_c_api_test.cpp'),
     os.path.join('cpp', 'rum_cpp_api_test.cpp'),

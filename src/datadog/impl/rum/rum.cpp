@@ -12,6 +12,7 @@
 
 #include "datadog/impl/core/request_builder.hpp"
 #include "datadog/impl/core/writer.hpp"
+#include "datadog/impl/rum/crash_processing/crash_handling.hpp"
 
 namespace datadog::impl {
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
@@ -40,6 +41,39 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
   // each event block as a JSON object and concatenating those values into a JSON array
   // on the fly as the request body is built
   return Report{builder.GetUrl(), builder.GetHeaders(), TLVBatchWriter{reader}};
+}
+
+std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandler() {
+  // Bind a weak_ptr to this so the callback will silently no-op after we're destroyed
+  const auto weak_self = weak_from_this();
+  return [weak_self](const FeatureMessage& msg) {
+    // On CrashReportProcessedMessage, enqueue a context-thread callback that will
+    // process a copy of the CrashReport, potentially producing a RUM Error event to
+    // describe the crash, and also potentially producing an updated RUM View event
+    if (const auto* m = std::get_if<CrashReportProcessedMessage>(&msg)) {
+      // Abort if our weak_ptr is no longer valid
+      auto self = std::static_pointer_cast<Rum>(weak_self.lock());
+      if (!self) {
+        return;
+      }
+
+      // Get off the messaging thread ASAP: copy the CrashReport value to the context
+      // thread for processing
+      self->_scope->ExecuteOnContextThread([weak_self, crash = m->crash](
+                                               const CoreContext&,
+                                               const EventWriter& event_writer,
+                                               const MessagePublisher&
+                                           ) {
+        // We're now on the context thread; check that our Rum implementation is
+        // still alive
+        auto self = std::static_pointer_cast<Rum>(weak_self.lock());
+        if (!self) {
+          return;
+        }
+        ContextThread_HandleCrashReport(self->_deps, crash, event_writer);
+      });
+    }
+  };
 }
 
 void Rum::Start() {
