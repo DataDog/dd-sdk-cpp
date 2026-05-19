@@ -34,8 +34,9 @@ namespace datadog::impl {
  * - `view.crash` is inserted, unconditionally set to `{"count":1}`
  * - `_dd.document_version` is incremented, ensuring that the new event supersedes all
  *   previous events describing the same view
- * - `context` is inserted or replaced with the given pre-encoded JSON value given in
- *   `context_json`
+ * - If `context_json` is non-empty, `context` is inserted or replaced with the given
+ *   pre-encoded JSON value. If `context_json` is empty, any original `context` value is
+ *   retained as-is.
  */
 std::string MutateViewEventForCrash(
     std::string_view view_event_json,

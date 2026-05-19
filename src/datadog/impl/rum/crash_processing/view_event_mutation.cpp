@@ -109,13 +109,16 @@ std::string MutateViewEventForCrash(
     size_delta += static_cast<int64_t>(dd_document_version_str.size()) -
                   static_cast<int64_t>(spans.dd_document_version.len);
 
-    // We're either replacing an existing context value or inserting a new one
-    if (spans.context.OK()) {
-      size_delta += static_cast<int64_t>(context_json.size()) -
-                    static_cast<int64_t>(spans.context.len);
-    } else {
-      size_delta += static_cast<int64_t>(context_key_str.size()) +
-                    static_cast<int64_t>(context_json.size());
+    // We're either replacing an existing context value or inserting a new one, but only
+    // if `context_json` is provided
+    if (!context_json.empty()) {
+      if (spans.context.OK()) {
+        size_delta += static_cast<int64_t>(context_json.size()) -
+                      static_cast<int64_t>(spans.context.len);
+      } else {
+        size_delta += static_cast<int64_t>(context_key_str.size()) +
+                      static_cast<int64_t>(context_json.size());
+      }
     }
   }
 
@@ -169,20 +172,23 @@ std::string MutateViewEventForCrash(
   result.append(dd_document_version_str);
   pos = spans.dd_document_version.i + spans.dd_document_version.len;
 
-  // Either replace the existing context value or insert a new one, depending on whether
-  // the original value had a top-level context property.
-  if (spans.context.OK()) {
-    // 'context' already existed: replace its value entirely and proceed
-    copy_range(pos, spans.context.i);
-    result.append(context_json);
-    pos = spans.context.i + spans.context.len;
-  } else {
-    // 'context' did not exist: insert a new `,"context":<value>` just before the comma
-    // that follows `"_dd":{...}`, resuming the remaining copies from that comma
-    copy_range(pos, spans.dd_end_pos);
-    result.append(context_key_str);
-    result.append(context_json);
-    pos = spans.dd_end_pos;
+  // If we have a new value for `context`, either replace the existing context value or
+  // insert a new one, depending on whether the original value had a top-level context
+  // property
+  if (!context_json.empty()) {
+    if (spans.context.OK()) {
+      // 'context' already existed: replace its value entirely and proceed
+      copy_range(pos, spans.context.i);
+      result.append(context_json);
+      pos = spans.context.i + spans.context.len;
+    } else {
+      // 'context' did not exist: insert a new `,"context":<value>` just before the
+      // comma that follows `"_dd":{...}`, resuming the remaining copies from that comma
+      copy_range(pos, spans.dd_end_pos);
+      result.append(context_key_str);
+      result.append(context_json);
+      pos = spans.dd_end_pos;
+    }
   }
 
   // Copy the remainder of the original event unchanged
