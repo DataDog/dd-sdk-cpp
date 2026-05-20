@@ -108,8 +108,7 @@ struct RumEventEnrichment {
     if (ctx.account_info.IsEmpty()) {
       return;
     }
-    RumAccountProperties& a = ev.account.value.emplace();
-    a.id = ctx.account_info.id;
+    RumAccountProperties& a = ev.account.value.emplace(ctx.account_info.id);
     a.name = ctx.account_info.name;
     a.extra = ctx.account_info.extra;
   }
