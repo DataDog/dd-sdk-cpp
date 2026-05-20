@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "datadog/impl/core/util/json.hpp"
+#include "datadog/impl/core/version.hpp"
 
 /**
  * Given a value of any JSON-serializable type T, serializes it with `EncodeJson` and
@@ -73,6 +74,10 @@ enum class TemplateVar : uint8_t {
    */
   NONZERO_UUID,
   /**
+   * Evaluates to the value of DATADOG_BUILD_ARCH as defined in impl/core/version.hpp.
+   */
+  CPU_ARCH,
+  /**
    * Substitutes the `error.source_type` value associated with the current
    * platforms: "macos" for Darwin, "windows" for Win32, "linux" otherwise.
    */
@@ -109,6 +114,8 @@ inline std::optional<TemplateVar> ParseTemplateVar(const nlohmann::json& value) 
   std::optional<TemplateVar> result;
   if (var_name == "NONZERO_UUID") {
     result = TemplateVar::NONZERO_UUID;
+  } else if (var_name == "CPU_ARCH") {
+    result = TemplateVar::CPU_ARCH;
   } else if (var_name == "ERROR_SOURCE_TYPE_PLATFORM_NAME") {
     result = TemplateVar::ERROR_SOURCE_TYPE_PLATFORM_NAME;
   } else if (var_name == "ERROR_MESSAGE_APPLICATION_CRASH") {
@@ -162,6 +169,10 @@ inline void EvaluateTemplateVars(const nlohmann::json& got, nlohmann::json& want
           }
         } break;
 
+        case TemplateVar::CPU_ARCH: {
+          want_val = DATADOG_BUILD_ARCH;
+        } break;
+
         case TemplateVar::ERROR_SOURCE_TYPE_PLATFORM_NAME: {
 #ifdef _WIN32
           want_val = "windows";
@@ -179,7 +190,7 @@ inline void EvaluateTemplateVars(const nlohmann::json& got, nlohmann::json& want
               got_val.get_ref<const std::string&>().find("Application crash: ") == 0) {
             want_val = got_val;
           }
-        }
+        } break;
       }
     }
 
