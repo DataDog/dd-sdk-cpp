@@ -14,7 +14,7 @@
 using namespace datadog;
 using namespace datadog::impl;
 
-TEST_CASE("RumViewEventMutation", "[unit][crash_reporting]") {
+TEST_CASE("MutateViewEventForCrash", "[unit][crash_reporting]") {
   SECTION(
       "M produce modified view event W provided with valid event and parse results"
   ) {
@@ -54,8 +54,12 @@ TEST_CASE("RumViewEventMutation", "[unit][crash_reporting]") {
     ev.usr.value->extra.SetObjectProperty("id", Attribute::Int(100));
     ev.usr.value->extra.SetObjectProperty("view", Attribute::Int(101));
     ev.usr.value->extra.SetObjectProperty("type", Attribute::String("view"));
-    ev.context = Attribute::Object(8);
-    ev.context.value.SetObjectProperty("id", Attribute::Int(200));
+
+    auto with_context = GENERATE(false, true);
+    if (with_context) {
+      ev.context = Attribute::Object(8);
+      ev.context.value.SetObjectProperty("id", Attribute::Int(200));
+    }
 
     // And a string containing the JSON payload encoded from that RumViewEvent
     std::vector<uint8_t> buf;
@@ -67,58 +71,162 @@ TEST_CASE("RumViewEventMutation", "[unit][crash_reporting]") {
     RumViewEventParser parser;
     REQUIRE(parser.Parse(view_json));
 
-    // When we produce a mutated view event in response to a crash report
-    uint64_t crash_timestamp_ms = 946684803000;
-    std::string got = MutateViewEventForCrash(
-        view_json, parser.spans, parser.values, crash_timestamp_ms
-    );
+    SECTION("{with no context overwrite}") {
+      // When we produce a mutated view event in response to a crash report
+      uint64_t crash_timestamp_ms = 946684803000;
+      std::string_view context_json{""};
+      std::string got = MutateViewEventForCrash(
+          view_json, parser.spans, parser.values, crash_timestamp_ms, context_json
+      );
 
-    // Then the resulting string is a valid JSON object
-    auto got_obj = nlohmann::json::parse(got);
-    REQUIRE(got_obj.is_object());
+      // Then the resulting string is a valid JSON object
+      auto got_obj = nlohmann::json::parse(got);
+      REQUIRE(got_obj.is_object());
 
-    // And it is also a schema-compliant RUM View event that exactly matches our
-    // original event, except for a few mutated fields which have the expected values
-    RequireEventMatch(got_obj, DATADOG_RUM_EVENT_LITERAL(R"({
-      "type": "view",
-      "date": 946684802999,
-      "build_version": "mock-build-version",
-      "build_id": "mock-\"build\"-id",
-      "os": {
-        "name": "MockOS",
-        "version": "5.6.0",
-        "version_major": "5"
-      },
-      "usr": {
-        "id": "user-id",
-        "view": 101,
-        "type": "view"
-      },
-      "application": {
-        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
-      },
-      "session": {
-        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
-        "type": "synthetics"
-      },
-      "view": {
-        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
-        "url": "my-view",
-        "name": "My View 🪟",
-        "is_active": false,
-        "time_spent": 42,
-        "action": {"count": 3},
-        "error": {"count": 10},
-        "crash": {"count": 1},
-        "resource": {"count": 7}
-      },
-      "context": {
-        "id": 200
-      },
-      "_dd": {
-        "format_version": 2,
-        "document_version": 100
+      // And it's also a complete view event, but since we didn't provide a
+      // `context_json` value, the original context object from the original view is
+      // retained, provided that one existed
+      if (with_context) {
+        RequireEventMatch(got_obj, DATADOG_RUM_EVENT_LITERAL(R"({
+          "type": "view",
+          "date": 946684802999,
+          "build_version": "mock-build-version",
+          "build_id": "mock-\"build\"-id",
+          "os": {
+            "name": "MockOS",
+            "version": "5.6.0",
+            "version_major": "5"
+          },
+          "usr": {
+            "id": "user-id",
+            "view": 101,
+            "type": "view"
+          },
+          "application": {
+            "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+          },
+          "session": {
+            "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+            "type": "synthetics"
+          },
+          "view": {
+            "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+            "url": "my-view",
+            "name": "My View 🪟",
+            "is_active": false,
+            "time_spent": 42,
+            "action": {"count": 3},
+            "error": {"count": 10},
+            "crash": {"count": 1},
+            "resource": {"count": 7}
+          },
+          "context": {
+            "id": 200
+          },
+          "_dd": {
+            "format_version": 2,
+            "document_version": 100
+          }
+        })"));
+      } else {
+        RequireEventMatch(got_obj, DATADOG_RUM_EVENT_LITERAL(R"({
+          "type": "view",
+          "date": 946684802999,
+          "build_version": "mock-build-version",
+          "build_id": "mock-\"build\"-id",
+          "os": {
+            "name": "MockOS",
+            "version": "5.6.0",
+            "version_major": "5"
+          },
+          "usr": {
+            "id": "user-id",
+            "view": 101,
+            "type": "view"
+          },
+          "application": {
+            "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+          },
+          "session": {
+            "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+            "type": "synthetics"
+          },
+          "view": {
+            "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+            "url": "my-view",
+            "name": "My View 🪟",
+            "is_active": false,
+            "time_spent": 42,
+            "action": {"count": 3},
+            "error": {"count": 10},
+            "crash": {"count": 1},
+            "resource": {"count": 7}
+          },
+          "_dd": {
+            "format_version": 2,
+            "document_version": 100
+          }
+        })"));
       }
-    })"));
+    }
+
+    SECTION("{with context overwrite}") {
+      // When we produce a mutated view event in response to a crash report
+      uint64_t crash_timestamp_ms = 946684803000;
+      std::string_view context_json{R"({"foo":111,"bar":222})"};
+      std::string got = MutateViewEventForCrash(
+          view_json, parser.spans, parser.values, crash_timestamp_ms, context_json
+      );
+
+      // Then the resulting string is a valid JSON object
+      auto got_obj = nlohmann::json::parse(got);
+      REQUIRE(got_obj.is_object());
+
+      // And it is also a schema-compliant RUM View event that exactly matches our
+      // original event, except for a few mutated fields which have the expected values,
+      // and with `context` replaced by our provided context_json value
+      RequireEventMatch(got_obj, DATADOG_RUM_EVENT_LITERAL(R"({
+        "type": "view",
+        "date": 946684802999,
+        "build_version": "mock-build-version",
+        "build_id": "mock-\"build\"-id",
+        "os": {
+          "name": "MockOS",
+          "version": "5.6.0",
+          "version_major": "5"
+        },
+        "usr": {
+          "id": "user-id",
+          "view": 101,
+          "type": "view"
+        },
+        "application": {
+          "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+        },
+        "session": {
+          "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+          "type": "synthetics"
+        },
+        "view": {
+          "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+          "url": "my-view",
+          "name": "My View 🪟",
+          "is_active": false,
+          "time_spent": 42,
+          "action": {"count": 3},
+          "error": {"count": 10},
+          "crash": {"count": 1},
+          "resource": {"count": 7}
+        },
+        "context": {
+          "foo": 111,
+          "bar": 222
+        },
+        "_dd": {
+          "format_version": 2,
+          "document_version": 100
+        }
+      })"));
+    }
   }
 }

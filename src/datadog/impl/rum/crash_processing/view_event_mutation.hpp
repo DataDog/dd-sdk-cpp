@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <string_view>
 
 #include "datadog/impl/rum/crash_processing/view_event_parser.hpp"
 
@@ -33,12 +34,16 @@ namespace datadog::impl {
  * - `view.crash` is inserted, unconditionally set to `{"count":1}`
  * - `_dd.document_version` is incremented, ensuring that the new event supersedes all
  *   previous events describing the same view
+ * - If `context_json` is non-empty, `context` is inserted or replaced with the given
+ *   pre-encoded JSON value. If `context_json` is empty, any original `context` value is
+ *   retained as-is.
  */
 std::string MutateViewEventForCrash(
     std::string_view view_event_json,
     const RumViewEventParser::Spans& spans,
     const RumViewEventParser::Values& values,
-    uint64_t crash_timestamp_ms
+    uint64_t crash_timestamp_ms,
+    std::string_view context_json
 );
 
 }  // namespace datadog::impl

@@ -78,6 +78,9 @@ struct RumViewEventParser {
                                   //  where we'll insert a new view.crash object)
     Span dd_format_version;       // _dd.format_version
     Span dd_document_version;     // _dd.document_version
+    size_t dd_end_pos{};          // (index of comma after _dd object value, where we'll
+                                  //  insert context if no existing context object)
+    Span context;                 // context
     Span type;                    // type
 
     /**
@@ -92,7 +95,8 @@ struct RumViewEventParser {
       // explicit value for view.is_active
       return date.OK() && session_type.OK() && view_id.OK() && view_url.OK() &&
              view_is_active.OK() && view_error_count.OK() && view_error_end_pos != 0 &&
-             dd_format_version.OK() && dd_document_version.OK() && type.OK();
+             dd_format_version.OK() && dd_document_version.OK() && dd_end_pos != 0 &&
+             type.OK();
     }
 
     /**
@@ -137,6 +141,16 @@ struct RumViewEventParser {
         return true;
       };
 
+      // For required indices indicating positions where new values may be inserted, use
+      // the same logic as validate_required, treating these as single-char spans
+      auto validate_required_pos = [&](const size_t pos) -> bool {
+        if (pos < prev_end) {
+          return false;
+        }
+        prev_end = pos;
+        return true;
+      };
+
       // Require that the JSON payload we've parsed has all fields in the same order in
       // which they're declared in DATADOG_JSON_STRUCT(RumViewEvent, ...)
       // clang-format off
@@ -150,10 +164,11 @@ struct RumViewEventParser {
       if (!validate_optional(view_name)) { return false; }
       if (!validate_required(view_is_active)) { return false; }
       if (!validate_required(view_error_count)) { return false; }
-      if (view_error_end_pos < prev_end) { return false; }
-      prev_end = view_error_end_pos;
+      if (!validate_required_pos(view_error_end_pos)) { return false; }
       if (!validate_required(dd_format_version)) { return false; }
       if (!validate_required(dd_document_version)) { return false; }
+      if (!validate_required_pos(dd_end_pos)) { return false; }
+      if (!validate_optional(context)) { return false; }
       if (!validate_required(type)) { return false; }
       // clang-format on
 
@@ -173,7 +188,7 @@ struct RumViewEventParser {
     std::string build_version;       // build_version (optional; empty if not set)
     std::string build_id;            // build_id (optional; empty if not set)
     UUID view_id;                    // view.id
-    RumSessionType session_type;     // session.type
+    RumSessionType session_type{};   // session.type
     bool session_has_replay{};       // session.has_replay (optional; false if not set)
     std::string view_url;            // view.url
     std::string view_name;           // view.name (optional; empty if not set)
