@@ -634,6 +634,14 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
     _exit(128 + sig);
   }
 
+  // Read the system clock to compute an exact crash time in milliseconds: the POSIX
+  // standard documents that clock_gettime is async-signal-safe
+  struct timespec crash_ts;
+  clock_gettime(CLOCK_REALTIME, &crash_ts);
+  const uint64_t crash_timestamp_ms =
+      (static_cast<uint64_t>(crash_ts.tv_sec) * 1000) +
+      (static_cast<uint64_t>(crash_ts.tv_nsec) / 1000000);
+
   // We have a crash report file open and we should handle this crash; proceed with
   // writing to that file before chaining and/or exiting
   WriteCrashReportHeader(
@@ -643,7 +651,7 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
       0,                                           // fault_flags (0 on POSIX)
       static_cast<uint64_t>(getpid()),             // pid
       reinterpret_cast<uint64_t>(pthread_self()),  // tid
-      static_cast<uint64_t>(time(nullptr))         // timestamp
+      crash_timestamp_ms                           // timestamp_ms
   );
 
   // The provided ucontext value contains CPU register states saved at time of crash:

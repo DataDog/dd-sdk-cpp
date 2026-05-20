@@ -57,7 +57,7 @@ ReadCrashReportResult ReadCrashReport(File& file) {
   if (auto res = ReadUInt64(file, data.tid); !res.OK()) {
     return {std::nullopt, res.value, false};
   }
-  if (auto res = ReadUInt64(file, data.timestamp); !res.OK()) {
+  if (auto res = ReadUInt64(file, data.timestamp_ms); !res.OK()) {
     return {std::nullopt, res.value, false};
   }
 

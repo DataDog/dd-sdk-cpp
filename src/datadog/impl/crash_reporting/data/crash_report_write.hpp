@@ -33,7 +33,7 @@ void WriteCrashReportHeader(
     uint64_t fault_flags,
     uint64_t pid,
     uint64_t tid,
-    uint64_t timestamp
+    uint64_t timestamp_ms
 );
 
 /**

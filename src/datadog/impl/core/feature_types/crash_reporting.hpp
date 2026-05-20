@@ -98,7 +98,7 @@ struct CrashReport {
   uint64_t fault_flags;    // Exception flags on Windows; 0 otherwise
   uint64_t pid;            // PID of crashing process
   uint64_t tid;            // Thread ID of crashing thread
-  uint64_t timestamp;      // Unix timestamp read directly from system clock
+  uint64_t timestamp_ms;   // Unix timestamp in ms, read from system clock at crash time
 
   std::optional<CrashContext> context;
 

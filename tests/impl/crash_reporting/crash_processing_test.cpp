@@ -41,7 +41,7 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
     REQUIRE(crash.fault_flags == 0xcf);
     REQUIRE(crash.pid == 12345);
     REQUIRE(crash.tid == 6789);
-    REQUIRE(crash.timestamp == 1710000000000);
+    REQUIRE(crash.timestamp_ms == 1710000000000);
   }
 
   SECTION("M convey module details") {
@@ -357,7 +357,7 @@ TEST_CASE("ProcessCrashReports", "[unit][crash_reporting]") {
     REQUIRE(crash.fault_flags == 0);
     REQUIRE(crash.pid == 100);
     REQUIRE(crash.tid == 101);
-    REQUIRE(crash.timestamp == 1700000000000);
+    REQUIRE(crash.timestamp_ms == 1700000000000);
     REQUIRE(crash.modules.size() == 1);
     REQUIRE(crash.stack.size() == 4);
 
@@ -396,7 +396,7 @@ TEST_CASE("ProcessCrashReports", "[unit][crash_reporting]") {
     REQUIRE(crash.fault_flags == 0);
     REQUIRE(crash.pid == 100);
     REQUIRE(crash.tid == 101);
-    REQUIRE(crash.timestamp == 1700000000000);
+    REQUIRE(crash.timestamp_ms == 1700000000000);
     REQUIRE(crash.modules.size() == 1);
     REQUIRE(crash.stack.size() == 4);
 

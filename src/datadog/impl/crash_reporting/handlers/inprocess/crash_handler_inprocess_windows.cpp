@@ -154,6 +154,16 @@ static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
   // - 00 = Success, 01 = Informational, 10 = Warning, 11 = Error
   const DWORD code = exinfo->ExceptionRecord->ExceptionCode;
 
+  // Read the system clock to get a Unix timestamp for our crash, converting from
+  // 100-nanosecond intervals since 1601 to milliseconds since 1970:
+  // GetSystemTimeAsFileTime is documented as exception-safe
+  FILETIME crash_ft;
+  GetSystemTimeAsFileTime(&crash_ft);
+  ULARGE_INTEGER crash_uli;
+  crash_uli.LowPart = crash_ft.dwLowDateTime;
+  crash_uli.HighPart = crash_ft.dwHighDateTime;
+  const uint64_t crash_timestamp_ms = (crash_uli.QuadPart / 10000) - 11644473600000ULL;
+
   // Write file header with exception details
   WriteCrashReportHeader(
       file,
@@ -164,7 +174,7 @@ static LONG WINAPI crash_exception_filter(EXCEPTION_POINTERS* exinfo) {
       static_cast<uint64_t>(exinfo->ExceptionRecord->ExceptionFlags),  // fault_flags
       static_cast<uint64_t>(GetCurrentProcessId()),                    // pid
       static_cast<uint64_t>(GetCurrentThreadId()),                     // tid
-      static_cast<uint64_t>(time(nullptr))                             // timestamp
+      crash_timestamp_ms                                               // timestamp_ms
   );
 
   // Write loaded modules
