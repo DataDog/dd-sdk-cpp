@@ -43,6 +43,16 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
 }
 
 void Rum::Start() {
+  // _scope is initialized on SDK start; it's always valid here
+  if (!_scope) {
+    DATADOG_ASSERT(false, "_scope is invalid on Rum::Start");
+    return;
+  }
+
+  // Propagate our FeatureScope's diagnostic logger into _deps before reinitializing
+  // the scope tree, creating a copy since _scope is reset on Stop()
+  _deps.diagnostic_logger = _scope->diagnostic_logger;
+
   // Fully reinitialize RUM application state to clear all sessions/views/etc. from
   // previous runs
   _application = RumApplicationScope(_deps);
@@ -55,13 +65,11 @@ void Rum::Start() {
     std::shared_lock lock(_global_attributes_mutex);
     snapshot = _global_attributes.attribute;
   }
-  if (_scope) {
-    _scope->ExecuteOnContextThread(
-        [snapshot = std::move(snapshot)](
-            const CoreContext&, const EventWriter&, const MessagePublisher& pub
-        ) mutable { pub(RumGlobalAttributesChangedMessage{std::move(snapshot)}); }
-    );
-  }
+  _scope->ExecuteOnContextThread(
+      [snapshot = std::move(snapshot)](
+          const CoreContext&, const EventWriter&, const MessagePublisher& pub
+      ) mutable { pub(RumGlobalAttributesChangedMessage{std::move(snapshot)}); }
+  );
 
   // Dispatch SDKInit to start first session
   DispatchAsync(RumCommand::SDKInit(GetBaseCommandParams()));
