@@ -71,7 +71,16 @@ enum class TemplateVar : uint8_t {
    * In tests, any valid UUID besides 00000000-0000-0000-0000-000000000000 will be
    * accepted. In event validation, a random UUIDv4 value will be substituted.
    */
-  NONZERO_UUID
+  NONZERO_UUID,
+  /**
+   * Substitutes the `error.source_type` value associated with the current
+   * platforms: "macos" for Darwin, "windows" for Win32, "linux" otherwise.
+   */
+  ERROR_SOURCE_TYPE_PLATFORM_NAME,
+  /**
+   * Matches any string beginning with "Application crash: ".
+   */
+  ERROR_MESSAGE_APPLICATION_CRASH
 };
 
 /**
@@ -100,6 +109,10 @@ inline std::optional<TemplateVar> ParseTemplateVar(const nlohmann::json& value) 
   std::optional<TemplateVar> result;
   if (var_name == "NONZERO_UUID") {
     result = TemplateVar::NONZERO_UUID;
+  } else if (var_name == "ERROR_SOURCE_TYPE_PLATFORM_NAME") {
+    result = TemplateVar::ERROR_SOURCE_TYPE_PLATFORM_NAME;
+  } else if (var_name == "ERROR_MESSAGE_APPLICATION_CRASH") {
+    result = TemplateVar::ERROR_MESSAGE_APPLICATION_CRASH;
   } else {
     FAIL("Invalid TemplateVar name: " << var_name);
   }
@@ -148,6 +161,25 @@ inline void EvaluateTemplateVars(const nlohmann::json& got, nlohmann::json& want
             }
           }
         } break;
+
+        case TemplateVar::ERROR_SOURCE_TYPE_PLATFORM_NAME: {
+#ifdef _WIN32
+          want_val = "windows";
+#else
+#ifdef __APPLE__
+          want_val = "macos";
+#else
+          want_val = "linux";
+#endif
+#endif
+        } break;
+
+        case TemplateVar::ERROR_MESSAGE_APPLICATION_CRASH: {
+          if (got_val.is_string() &&
+              got_val.get_ref<const std::string&>().find("Application crash: ") == 0) {
+            want_val = got_val;
+          }
+        }
       }
     }
 
