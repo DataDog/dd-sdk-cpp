@@ -194,11 +194,20 @@ inline void EvaluateTemplateVars(const nlohmann::json& got, nlohmann::json& want
       }
     }
 
-    // Recurse into subobjects, fully traversing `want` regardless of whether we're
-    // still finding matching properties in `got`. Note that we _don't_ recurse into
-    // arrays.
+    // Recurse into subobjects and arrays, fully traversing `want` regardless of
+    // whether we're still finding matching properties in `got`.
     if (want_val.is_object()) {
       EvaluateTemplateVars(got_val, want_val);
+    } else if (want_val.is_array()) {
+      for (size_t i = 0; i < want_val.size(); ++i) {
+        nlohmann::json got_elem = nlohmann::json{nullptr};
+        if (got_val.is_array() && i < got_val.size()) {
+          got_elem = got_val[i];
+        }
+        if (want_val[i].is_object()) {
+          EvaluateTemplateVars(got_elem, want_val[i]);
+        }
+      }
     }
   }
 }
