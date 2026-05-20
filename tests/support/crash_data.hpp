@@ -90,6 +90,7 @@ static MockBinaryFile MOCK_CRASH_CONTEXT_V1 =
         .UInt8(1)                                      // rum_session_is_active
         .UInt8(0)                                      // rum_session_is_initial
         .UInt8(1)                                      // rum_session_has_any_view
+        .UInt8(0)                                      // rum_session_has_replay
         .String(R"({"type":"view"})")                  // last_view_event_json
         // global_rum_attributes ({"plan": "gold"})
         .UInt8(static_cast<uint8_t>(datadog::ValueType::Object))
