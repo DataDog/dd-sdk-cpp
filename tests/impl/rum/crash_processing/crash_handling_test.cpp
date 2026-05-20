@@ -272,6 +272,34 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     );
   }
 
+  SECTION("M disregard crash W last session was explicitly stopped prior to crash") {
+    // Given an otherwise valid crash report where the RumSessionState indicates that
+    // the last active session was no longer active, indicating that at the time of the
+    // crash, a StopSession call had explicitly stopped tracking
+    auto crash = make_crash_report();
+    crash.context->rum_session_state.is_active = false;
+
+    // When we process that crash
+    auto deps = make_deps();
+    ContextThread_HandleCrashReport(deps, crash, event_writer);
+
+    // Then no events are produced
+    REQUIRE(new_view_event.is_null());
+    REQUIRE(new_error_event.is_null());
+
+    // And a status message is logged as we happily ignore the report
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 0);
+    REQUIRE(diagnostics.status.size() == 1);
+    REQUIRE_THAT(
+        diagnostics.status[0],
+        Catch::Matchers::ContainsSubstring(
+            "Ignoring prior-process crash report: crash occurred after StopSession had "
+            "explicitly stopped RUM tracking"
+        )
+    );
+  }
+
   SECTION("M disregard crash W active session was excluded from sampling") {
     // Given a crash report where RumSessionState indicates that a session was active at
     // the time of the crash, but was excluded from sampling

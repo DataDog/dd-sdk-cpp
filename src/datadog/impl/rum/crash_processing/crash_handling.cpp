@@ -623,11 +623,21 @@ void ContextThread_HandleCrashReport(
       return;
     }
 
-    // If ctx.rum_session_state.is_active is false, the application called StopSession
-    // to explicitly end tracking prior to the crash. Consistent with the behavior of
-    // the iOS SDK, we don't handle this case any differently: it'll fall through to the
-    // checks below, giving crashes that occurred after StopSession a chance to be
-    // handled.
+    // An `is_active` value of false indicates that the application called StopSession
+    // to explicitly end all tracking in the current session. Once the SDK is in a
+    // post-StopSession state, it must refrain from all RUM tracking until new user
+    // interactions are explicitly recorded by the application (e.g. via StartView,
+    // AddAction, etc.). Since the crash occurred in this post-StopSession state, prior
+    // to the establishment of a new session, we should ignore it.
+    const bool rum_session_was_stopped = !ctx.rum_session_state.is_active;
+    if (rum_session_was_stopped) {
+      deps.diagnostic_logger.Status(
+          "Ignoring prior-process crash report: crash occurred after StopSession had "
+          "explicitly stopped RUM tracking",
+          {{"session_id", ctx.rum_session_state.session_id}}
+      );
+      return;
+    }
   }
 
   // We have a valid CrashContext, we had tracking consent at the time of the crash, and
