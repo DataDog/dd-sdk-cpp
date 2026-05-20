@@ -31,9 +31,10 @@ async def main(t: TestContext):
         start-core
     """)
 
-    # And user details configured via SetUserInfo
+    # And user and account details configured
     p.run("""
         set-user-info user-123 name:"Jane Doe" email:jane@example.com
+        set-account-info acct-456 name:"Bits"
     """)
 
     # When we emit a log message, stop the core, and exit (triggering flush-on-stop)
@@ -65,3 +66,7 @@ async def main(t: TestContext):
     assert events[0]['usr']['id'] == 'user-123'
     assert events[0]['usr']['name'] == 'Jane Doe'
     assert events[0]['usr']['email'] == 'jane@example.com'
+
+    # And the log event includes the account info we set
+    assert events[0]['account']['id'] == 'acct-456'
+    assert events[0]['account']['name'] == 'Bits'

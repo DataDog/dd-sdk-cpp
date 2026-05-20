@@ -166,6 +166,34 @@ void Core::ClearUserInfo() {
   UpdateContext([](CoreContext& ctx) { ctx.user_info = UserInfo{}; });
 }
 
+void Core::SetAccountInfo(
+    std::string_view id, std::string_view name, const Attribute& extra
+) {
+  AccountInfo account_info{
+      std::string{id},
+      std::string{name},
+      extra.GetType() == ValueType::Object ? extra : Attribute::Object(0)
+  };
+  UpdateContext([account_info = std::move(account_info)](CoreContext& ctx) mutable {
+    ctx.account_info = std::move(account_info);
+  });
+}
+
+void Core::AddAccountExtraInfo(const Attribute& extra) {
+  if (extra.GetObjectPropertyCount() == 0) {
+    return;
+  }
+  UpdateContext([extra](CoreContext& ctx) {
+    Attribute merged = Attribute::Object(0);
+    AttributeMerge::AssembleObject(merged, {ctx.account_info.extra, extra});
+    ctx.account_info.extra = std::move(merged);
+  });
+}
+
+void Core::ClearAccountInfo() {
+  UpdateContext([](CoreContext& ctx) { ctx.account_info = AccountInfo{}; });
+}
+
 bool Core::Init() {
   // We call Init() internally at the API binding layer; users should not be able to
   // attempt initialization of the same core twice

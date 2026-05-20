@@ -33,6 +33,7 @@ struct RumEventEnrichment {
     PopulateOsProperties(context, ev);
     PopulateDeviceProperties(context, ev);
     PopulateUserProperties(context, ev);
+    PopulateAccountProperties(context, ev);
   }
 
  private:
@@ -100,6 +101,17 @@ struct RumEventEnrichment {
     u.name = ctx.user_info.name;
     u.email = ctx.user_info.email;
     u.extra = ctx.user_info.extra;
+  }
+
+  template <typename T>
+  static void PopulateAccountProperties(const CoreContext& ctx, T& ev) {
+    if (ctx.account_info.IsEmpty()) {
+      return;
+    }
+    RumAccountProperties& a = ev.account.value.emplace();
+    a.id = ctx.account_info.id;
+    a.name = ctx.account_info.name;
+    a.extra = ctx.account_info.extra;
   }
 };
 

@@ -367,6 +367,55 @@ DATADOG_API void dd_core_add_user_extra_info(
  */
 DATADOG_API void dd_core_clear_user_info(dd_core_t* core);
 
+/**
+ * Supplies the SDK with information about the account associated with the current user
+ * session, which will be included in events sent to Datadog.
+ *
+ * A call to dd_core_set_account_info() entirely replaces any account info previously
+ * stored, including custom attributes added via dd_core_add_account_extra_info().
+ *
+ * dd_core_set_account_info() may be called before or after dd_core_start().
+ *
+ * @param id An arbitrary "account ID" string identifying the account; should be set to
+ * a non-empty value.
+ * @param name An arbitrary "account name" value; may be omitted.
+ * @param extra_info An object containing an arbitrary set of extra attributes
+ * describing the account, in the form of a value created with `dd_attribute_object()`
+ * that contains one or more property values. May be NULL to omit extra attributes.
+ * Extra attributes with property names of "id" or "name" will be ignored.
+ */
+DATADOG_API void dd_core_set_account_info(
+    dd_core_t* core, const char* id, const char* name, const dd_attribute_t* extra_info
+);
+
+/**
+ * Supplies the SDK with additional attributes that will be included when the account is
+ * identified in events.
+ *
+ * The property values in `extra_info` will be merged into any existing extra attributes
+ * supplied in prior calls to dd_core_set_account_info() or
+ * dd_core_add_account_extra_info(). If a property in `extra_info` matches the name of a
+ * property that was already set in a previous call, that property will have its value
+ * updated.
+ *
+ * dd_core_add_account_extra_info() may be called before or after dd_core_start().
+ *
+ * @param extra_info An attribute value with DD_VALUE_TYPE_OBJECT, containing property
+ *  values describing the account. If NULL, or if not an object with one or more
+ *  properties, has no effect. Extra attributes with property names of "id" or "name"
+ *  will be ignored.
+ */
+DATADOG_API void dd_core_add_account_extra_info(
+    dd_core_t* core, const dd_attribute_t* extra_info
+);
+
+/**
+ * Clears all account info previously supplied to the SDK.
+ *
+ * dd_core_clear_account_info() may be called before or after dd_core_start().
+ */
+DATADOG_API void dd_core_clear_account_info(dd_core_t* core);
+
 DATADOG_API bool dd_core_start(dd_core_t* core);
 DATADOG_API void dd_core_stop(dd_core_t* core);
 

@@ -310,6 +310,38 @@ void dd_core_clear_user_info(dd_core_t* core) {
   }
 }
 
+void dd_core_set_account_info(
+    dd_core_t* core, const char* id, const char* name, const dd_attribute_t* extra_info
+) {
+  if (core && core->impl) {
+    datadog::Attribute cpp_extra_info;
+    if (extra_info && extra_info->type == DD_VALUE_TYPE_OBJECT) {
+      cpp_extra_info = datadog::impl::AttributeConversion::CopyFromC(*extra_info);
+    }
+    core->impl->SetAccountInfo(
+        id ? std::string_view{id} : std::string_view{},
+        name ? std::string_view{name} : std::string_view{},
+        cpp_extra_info
+    );
+  }
+}
+
+void dd_core_add_account_extra_info(dd_core_t* core, const dd_attribute_t* extra_info) {
+  if (core && core->impl) {
+    datadog::Attribute cpp_extra_info;
+    if (extra_info && extra_info->type == DD_VALUE_TYPE_OBJECT) {
+      cpp_extra_info = datadog::impl::AttributeConversion::CopyFromC(*extra_info);
+    }
+    core->impl->AddAccountExtraInfo(cpp_extra_info);
+  }
+}
+
+void dd_core_clear_account_info(dd_core_t* core) {
+  if (core && core->impl) {
+    core->impl->ClearAccountInfo();
+  }
+}
+
 bool dd_core_start(dd_core_t* core) {
   if (core && core->impl) {
     return core->impl->Start();

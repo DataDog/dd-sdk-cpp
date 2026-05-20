@@ -433,6 +433,53 @@ class Core {
    */
   DATADOG_API void ClearUserInfo();
 
+  /**
+   * Supplies the SDK with information about the account associated with the current
+   * user session, which will be included in events sent to Datadog.
+   *
+   * A call to SetAccountInfo() entirely replaces any account info previously stored,
+   * including custom attributes added via AddAccountExtraInfo().
+   *
+   * SetAccountInfo() may be called before or after Start().
+   *
+   * @param id An arbitrary "account ID" string identifying the account; should be set
+   * to a non-empty value.
+   * @param name An arbitrary "account name" value; may be omitted.
+   * @param extra_info An object containing an arbitrary set of extra attributes
+   *  describing the account, in the form of a value created with `Attribute::Object()`
+   *  that contains one or more property values. Extra attributes with property names of
+   *  "id" or "name" will be ignored.
+   */
+  DATADOG_API void SetAccountInfo(
+      std::string_view id,
+      std::string_view name = {},
+      const Attribute& extra_info = Attribute::Object(0)
+  );
+
+  /**
+   * Supplies the SDK with additional attributes that will be included when the account
+   * is identified in events.
+   *
+   * The property values in `extra_info` will be merged into any existing extra
+   * attributes supplied in prior calls to SetAccountInfo() or AddAccountExtraInfo(). If
+   * a property in `extra_info` matches the name of a property that was already set in a
+   * previous call, that property will have its value updated.
+   *
+   * AddAccountExtraInfo() may be called before or after Start().
+   *
+   * @param extra_info An attribute value with ValueType::Object, containing property
+   *  values describing the account. If not an object with one or more properties, has
+   * no effect. Extra attributes with property names of "id" or "name" will be ignored.
+   */
+  DATADOG_API void AddAccountExtraInfo(const Attribute& extra_info);
+
+  /**
+   * Clears all account info previously supplied to the SDK.
+   *
+   * ClearAccountInfo() may be called before or after Start().
+   */
+  DATADOG_API void ClearAccountInfo();
+
   DATADOG_API bool Start();
   DATADOG_API void Stop();
 

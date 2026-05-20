@@ -25,6 +25,7 @@
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
 // NOLINTBEGIN(cppcoreguidelines-pro-type-vararg)
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 CommandResult Handle(State& state, const CommandInput& input) {
   // Utility
   if (input.Peek() == "source") {
@@ -71,6 +72,15 @@ CommandResult Handle(State& state, const CommandInput& input) {
   }
   if (input.Peek() == "clear-user-info") {
     return HandleClearUserInfo(state, input.Shift());
+  }
+  if (input.Peek() == "set-account-info") {
+    return HandleSetAccountInfo(state, input.Shift());
+  }
+  if (input.Peek() == "add-account-extra-info") {
+    return HandleAddAccountExtraInfo(state, input.Shift());
+  }
+  if (input.Peek() == "clear-account-info") {
+    return HandleClearAccountInfo(state, input.Shift());
   }
   if (input.Peek() == "start-core") {
     return HandleStartCore(state, input.Shift());
