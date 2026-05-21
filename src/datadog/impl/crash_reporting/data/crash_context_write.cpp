@@ -154,6 +154,7 @@ bool WriteCrashContext(
 
   // RumSessionState
   encode_buf.clear();  // begin third chunk
+  encode_uuid(ctx.rum_session_state.application_id);
   encode_uuid(ctx.rum_session_state.session_id);
   encode_uint8(ctx.rum_session_state.is_sampled ? 1 : 0);
   encode_uint8(ctx.rum_session_state.is_active ? 1 : 0);

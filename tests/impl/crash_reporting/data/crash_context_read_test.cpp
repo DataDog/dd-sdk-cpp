@@ -72,6 +72,10 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(got.account_extra.GetType() == datadog::ValueType::Object);
     REQUIRE(got.account_extra.GetObjectPropertyCount() == 0);
     REQUIRE(
+        got.rum_session_state.application_id ==
+        *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef")
+    );
+    REQUIRE(
         got.rum_session_state.session_id ==
         *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef")
     );

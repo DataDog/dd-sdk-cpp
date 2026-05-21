@@ -132,6 +132,9 @@ ReadCrashContextResult ReadCrashContext(File& file) {
   }
 
   // RUM session state
+  if (auto r = ReadUUID(file, ctx.rum_session_state.application_id); !r.OK()) {
+    return {std::nullopt, r.value};
+  }
   if (auto r = ReadUUID(file, ctx.rum_session_state.session_id); !r.OK()) {
     return {std::nullopt, r.value};
   }
