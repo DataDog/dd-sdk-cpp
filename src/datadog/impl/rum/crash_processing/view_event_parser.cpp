@@ -72,6 +72,16 @@ bool RumViewEventParser::Parse(std::string_view view_event_json) {
     }
   }
 
+  // Any valid View event must have a nonzero UUID set for application.id and session.id
+  if (!ParseUUID(extract(spans.application_id), values.application_id) ||
+      values.application_id == UUID::Zero) {
+    return false;
+  }
+  if (!ParseUUID(extract(spans.session_id), values.session_id) ||
+      values.session_id == UUID::Zero) {
+    return false;
+  }
+
   // Extract the basic details of the session that contained the view: these values
   // (session.type, and session.has_replay if true) will be carried forward into
   // RumErrorEvent::Session
@@ -86,7 +96,8 @@ bool RumViewEventParser::Parse(std::string_view view_event_json) {
 
   // Extract the basic details of the view: these same values (view.id, view.url, and
   // view.name if present) must be encoded in RumErrorEvent::View
-  if (!ParseUUID(extract(spans.view_id), values.view_id)) {
+  if (!ParseUUID(extract(spans.view_id), values.view_id) ||
+      values.view_id == UUID::Zero) {
     return false;
   }
   if (!ParseString(extract(spans.view_url), values.view_url)) {
@@ -133,6 +144,8 @@ void RumViewEventParser::ScanRootObject(JsonScanner& scanner) {
     while (scanner.OK() && scanner.Peek() != '}') {
       if (scanner.TrySkipObjectPropertyKey("date")) {
         spans.date = scanner.SkipNumberLiteral();
+      } else if (scanner.TrySkipObjectPropertyKey("application")) {
+        ScanApplicationObject(scanner);
       } else if (scanner.TrySkipObjectPropertyKey("build_version")) {
         spans.build_version = scanner.SkipStringLiteral();
       } else if (scanner.TrySkipObjectPropertyKey("build_id")) {
@@ -175,12 +188,35 @@ void RumViewEventParser::ScanRootObject(JsonScanner& scanner) {
   }
 }
 
+void RumViewEventParser::ScanApplicationObject(JsonScanner& scanner) {
+  // We expect 'application' to contain:
+  // {"id":"a991ca10-4004-4004-4004-beefbeefbeef",...}
+  if (scanner.EnterObject()) {
+    while (scanner.OK() && scanner.Peek() != '}') {
+      if (scanner.TrySkipObjectPropertyKey("id")) {
+        spans.application_id = scanner.SkipStringLiteral();
+      } else {
+        // Advance past properties that we don't need to handle
+        scanner.SkipObjectProperty();
+      }
+      // Skip delimiter between properties
+      scanner.SkipObjectPropertySeparator();
+    }
+    // Skip closing brace
+    if (scanner.OK()) {
+      scanner.Advance();
+    }
+  }
+}
+
 void RumViewEventParser::ScanSessionObject(JsonScanner& scanner) {
   // We expect 'session' to contain:
   // {"id":"5e551017-4114-4114-4114-beeeefbeeeef","type":"user"}
   if (scanner.EnterObject()) {
     while (scanner.OK() && scanner.Peek() != '}') {
-      if (scanner.TrySkipObjectPropertyKey("type")) {
+      if (scanner.TrySkipObjectPropertyKey("id")) {
+        spans.session_id = scanner.SkipStringLiteral();
+      } else if (scanner.TrySkipObjectPropertyKey("type")) {
         spans.session_type = scanner.SkipStringLiteral();
       } else if (scanner.TrySkipObjectPropertyKey("has_replay")) {
         spans.session_has_replay = scanner.SkipBoolLiteral();

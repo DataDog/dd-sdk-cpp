@@ -103,6 +103,8 @@ TEST_CASE("RumViewEventParser", "[unit][crash_reporting]") {
         parser.values.build_id ==
         std::string_view(with_build_info ? "mock-\"build\"-id" : "")
     );
+    REQUIRE(parser.values.application_id == application_id);
+    REQUIRE(parser.values.session_id == session_id);
     REQUIRE(parser.values.session_type == session_type);
     REQUIRE(parser.values.session_has_replay == with_session_replay);
     REQUIRE(parser.values.view_id == view_id);
