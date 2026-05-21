@@ -451,10 +451,6 @@ static void handle_crash_that_had_active_view(
 ) {
   // This function is only called for a specific subset of crashes
   DATADOG_ASSERT(
-      ctx.rum_session_state.session_id != UUID::Zero,
-      "crash in active session has nil session_id"
-  );
-  DATADOG_ASSERT(
       !ctx.last_view_event_json.empty(), "crash in active view has no last view event"
   );
 
@@ -525,14 +521,10 @@ static void handle_crash_that_had_active_view(
   // Regardless of whether we produced an updated view event, prepare a RUM Error event
   // to describe the crash in the context of that view, carrying over any relevant
   // details that were parsed from the View event
-  UUID application_id = ctx.rum_session_state.application_id;
-  if (application_id == UUID::Zero) {
-    application_id = deps.application_id;
-  }
   RumErrorEvent ev(
       crash_timestamp,
-      application_id,
-      ctx.rum_session_state.session_id,
+      parser.values.application_id,
+      parser.values.session_id,
       parser.values.session_type,
       parser.values.view_id,
       parser.values.view_url,
@@ -649,21 +641,23 @@ void ContextThread_HandleCrashReport(
 
   // We can take one of three major branches:
 
-  // 1. If no RUM session had been established at the time of the crash, we generate a
-  //    new session, with a random UUID, using our currently-configured application_id,
-  //    and then we make a new sampling decision for that session based on our current
-  //    configuration. Based on the results of that sampling decision, we either:
-  //     a.) Ignore the crash (when the new session is not sampled), or
-  //     b.) Synthesize an `ApplicationLaunch` view for the new session, then generate
-  //         both a RUM View event and a RUM Error event
-  if (ctx.rum_session_state.session_id == UUID::Zero) {
-    handle_crash_that_preceded_initial_session(deps, crash, ctx, event_writer);
+  // 1. If the crash occurred while a view was active (by which we can infer that it
+  //    also occurred during a session that was sampled in), we do two things in
+  //    sequence:
+  //    i. If the crash is less than 4 hours old, we mutate the last view event such
+  //       that it describes the final state of the view, recording that the view was
+  //       ended by the crash.
+  //   ii. Unconditionally, we produce a RUM Error event that describes the crash,
+  //       carrying over the requisite fields from the last view event such that the
+  //       Error is recorded in the context of that View.
+  if (!ctx.last_view_event_json.empty()) {
+    handle_crash_that_had_active_view(deps, crash, ctx, event_writer);
     return;
   }
 
   // 2. If the crash occurred with an active session but no active view, we branch based
   //    on RUM session state.
-  if (ctx.last_view_event_json.empty()) {
+  if (ctx.rum_session_state.session_id != UUID::Zero) {
     // 2a. If the crash occurred during the very first RUM session created, before any
     //     view had been tracked, we can synthesize an `ApplicationLaunch` view within
     //     that session, generating both a RUM View event and a RUM Error event.
@@ -688,15 +682,14 @@ void ContextThread_HandleCrashReport(
     return;
   }
 
-  // 3. Otherwise, the crash had an active view which belonged to an active, sampled-in
-  //    session. In this case, we do two things in sequence:
-  //    i. If the crash is less than 4 hours old, we mutate the last view event such
-  //       that it describes the final state of the view, recording that the view was
-  //       ended by the crash.
-  //   ii. Unconditionally, we produce a RUM Error event that describes the crash,
-  //       carrying over the requisite fields from the last view event such that the
-  //       Error is recorded in the context of that View.
-  handle_crash_that_had_active_view(deps, crash, ctx, event_writer);
+  // 3. Otherwise, no RUM session was established at the time of the crash, so we
+  //    generate a new session, with a random UUID, then we make a new sampling decision
+  //    for that session based on our current configuration. Based on the results of
+  //    that sampling decision, we either:
+  //     a.) Ignore the crash (when the new session is not sampled), or
+  //     b.) Synthesize an `ApplicationLaunch` view for the new session, then generate
+  //         both a RUM View event and a RUM Error event
+  handle_crash_that_preceded_initial_session(deps, crash, ctx, event_writer);
 }
 
 }  // namespace datadog::impl

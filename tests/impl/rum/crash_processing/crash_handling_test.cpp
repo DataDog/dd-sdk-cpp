@@ -748,6 +748,23 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     auto last_view = make_last_view_event();
     auto crash = make_crash_report(last_view);
 
+    // And regardless of whether the CrashContext includes up-to-date RumSessionState
+    // matching that view
+    auto with_outdated_session_state = GENERATE(false, true);
+    if (with_outdated_session_state) {
+      // This simulates the case where a crash occurs after the last view event is
+      // flushed but before corresponding changes in session state can be handled,
+      // allowing us to validate that we give precedence to the application and session
+      // details parsed from the view event
+      auto with_previous_session = GENERATE(false, true);
+      if (with_previous_session) {
+        crash.context->rum_session_state.session_id =
+            *UUID::Parse("44444444-4444-4444-4444-444444444444");
+      } else {
+        crash.context->rum_session_state.session_id = UUID::Zero;
+      }
+    }
+
     // When we process that crash shortly after it's reported
     auto deps = make_deps();
     ContextThread_HandleCrashReport(deps, crash, event_writer);
@@ -889,6 +906,13 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     // Given a crash report with an active view
     auto last_view = make_last_view_event();
     auto crash = make_crash_report(last_view);
+
+    // And regardless of whether the CrashContext includes up-to-date RumSessionState
+    // matching that view
+    auto with_outdated_session_state = GENERATE(false, true);
+    if (with_outdated_session_state) {
+      crash.context->rum_session_state.session_id = UUID::Zero;
+    }
 
     // When we process that crash after more than 4 hours have elapsed since the crash
     // (crash happened at 1699999990000ms; initial MockClock time was 1700000000000ms)
