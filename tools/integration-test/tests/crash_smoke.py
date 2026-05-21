@@ -162,12 +162,12 @@ async def main(t: TestContext):
     assert repl_image['is_system'] == False
 
     # And the program is described as having the same CPU architecture as this system
-    if platform.machine() in ('x64', 'x86_64', 'amd64'):
+    if platform.machine().lower() in ('x64', 'x86_64', 'amd64'):
         want_arch = 'x64'
-    elif platform.machine() in ('arm64', 'aarch64'):
+    elif platform.machine().lower() in ('arm64', 'aarch64'):
         want_arch = 'arm64'
     else:
-        assert False, 'unsupported CPU arch'
+        assert False, f'unsupported CPU arch {platform.machine()}'
     assert repl_image['arch'] == want_arch
 
     # And the range of the crashing process's address space where the executable was
