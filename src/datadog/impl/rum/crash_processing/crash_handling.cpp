@@ -230,7 +230,7 @@ static RumViewEvent create_application_launch_view_for_crash(
   const uint64_t view_time_spent_ns = 1;
 
   // Generate a random UUID to identify this view, and use a key that identifies it as
-  // a synthetic view created prior to
+  // a synthetic view created prior to the existence of any other views
   const UUID view_id = UUID::Random();
   const std::string_view view_url = "com/datadog/application-launch/view";
   const std::string_view view_name = "ApplicationLaunch";
@@ -307,8 +307,8 @@ static void handle_crash_that_preceded_initial_session(
   // or synthetics integrations
   const RumSessionType session_type = RumSessionType::User;
 
-  // We're creating a synthetic session in a new process that has succeeded the crashed
-  // session: there will never be Session Replay data for this session
+  // There will never be Session Replay data for this session, as it's being created
+  // solely to contain the crash
   const bool session_has_replay = false;
 
   // Generate an event describing a new ApplicationLaunch view to contain our crash
@@ -627,8 +627,8 @@ void ContextThread_HandleCrashReport(
   }
 
   // We have a valid CrashContext, we had tracking consent at the time of the crash, and
-  // the crash did not occur in a no-longer-active or non-sampled session: therefore, we
-  // should attempt to handle the crash.
+  // the crash did not occur in a non-sampled session: therefore, we should attempt to
+  // handle the crash.
 
   // We report crashes as RUM Errors, and an Error must be recorded in the context of a
   // RUM View, which itself belongs to a RUM Session. Therefore, depending on RUM state
