@@ -54,7 +54,10 @@ ImmutableContext::ImmutableContext(
           device->name,
           os->name,
           os->version
-      )) {}
+      )),
+      per_event_ddtags(
+          BuildDdTags(service, application_version, env, sdk_version, config.variant)
+      ) {}
 
 CoreContext::CoreContext(
     const ImmutableContext& im, TrackingConsent initial_tracking_consent
@@ -69,6 +72,7 @@ CoreContext::CoreContext(
       sdk_version(im.sdk_version),
       intake_origin(im.intake_origin),
       user_agent(im.user_agent),
+      per_event_ddtags(im.per_event_ddtags),
       tracking_consent(initial_tracking_consent) {}
 
 void CoreContext::Reset() { rum.reset(); }

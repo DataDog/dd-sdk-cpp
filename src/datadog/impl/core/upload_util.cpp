@@ -8,6 +8,8 @@
 
 #include <sstream>
 
+#include "datadog/impl/core/util/assert.hpp"
+
 namespace datadog::impl {
 
 static bool _is_valid_custom_endpoint_url(std::string_view s) {
@@ -102,6 +104,87 @@ std::string GetUserAgent(
   oss << ')';
 
   return oss.str();
+}
+
+std::string BuildDdTags(
+    std::string_view service,
+    std::string_view application_version,
+    std::string_view env,
+    std::string_view sdk_version,
+    std::string_view variant
+) {
+  // Prepare prefixes for all supported 'key:value' pairs
+  constexpr std::string_view service_prefix = "service:";
+  constexpr std::string_view version_prefix = "version:";
+  constexpr std::string_view env_prefix = "env:";
+  constexpr std::string_view sdk_version_prefix = "sdk_version:";
+  constexpr std::string_view variant_prefix = "variant:";
+
+  // service and env are set via config and are required in order to initialize the SDK;
+  // sdk_version is resolved internally and will never be empty
+  DATADOG_ASSERT(!service.empty(), "attempting to build ddtags w/o service");
+  DATADOG_ASSERT(!env.empty(), "attempting to build ddtags w/o env");
+  DATADOG_ASSERT(!sdk_version.empty(), "attempting to build ddtags w/o sdk_version");
+  size_t max_size = (service_prefix.size() + service.size()) +
+                    (1 + env_prefix.size() + env.size()) +
+                    (1 + sdk_version_prefix.size() + sdk_version.size());
+
+  // version and variant are not required; add them to our precomputed max size if
+  // present
+  if (!application_version.empty()) {
+    max_size += 1 + version_prefix.size() + application_version.size();
+  }
+  if (!variant.empty()) {
+    max_size += 1 + variant_prefix.size() + variant.size();
+  }
+
+  // Allocate a string large enough to hold the worst-case ddtags value, assuming no
+  // reserved characters need to be filtered out
+  std::string result;
+  result.reserve(max_size);
+
+  // We control the tag names, but application-provided values used in ddtags must be
+  // sanitized to strip any commas or colons
+  auto append_sanitized_tag_value = [&result](std::string_view s) {
+    for (const char c : s) {
+      if (c == ',' || c == ':') {
+        // In the edge case where every value in a non-empty string is a colon or comma,
+        // we end up with an empty tag value and that's OK
+        continue;
+      }
+      result += c;
+    }
+  };
+
+  // Append 'service:<service>' (required)
+  result += service_prefix;
+  append_sanitized_tag_value(service);
+
+  // Append ',version:<version>' if specified
+  if (!application_version.empty()) {
+    result += ',';
+    result += version_prefix;
+    append_sanitized_tag_value(application_version);
+  }
+
+  // Append ',env:<env>' (required)
+  result += ',';
+  result += env_prefix;
+  append_sanitized_tag_value(env);
+
+  // Append ',sdk_version:<sdk_version>' (required)
+  result += ',';
+  result += sdk_version_prefix;
+  append_sanitized_tag_value(sdk_version);
+
+  // Append ',variant:<variant>' if specified
+  if (!variant.empty()) {
+    result += ',';
+    result += variant_prefix;
+    result += variant;
+  }
+
+  return result;
 }
 
 }  // namespace datadog::impl
