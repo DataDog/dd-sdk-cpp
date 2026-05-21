@@ -131,6 +131,7 @@ static CrashReport make_crash_report(
           account_extra,             // account_extra
           // rum_sesion_state:
           {
+              *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef"),  // application_id
               *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef"),  // session_id
               true,                                                  // is_sampled
               true,                                                  // is_active
@@ -202,7 +203,10 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
   // And a set of RumScopeDependencies
   auto make_deps = [&](float session_sample_rate = 100.0f) {
-    RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
+    // Use a different application_id to simulate the case where the application has
+    // been reconfigured between launches, ensuring that the events generated for the
+    // crash carry the originally-configured ID as contained in CrashContext
+    RumConfig rum_config("99999999-4994-4994-4994-999999999999");
     rum_config.SetSessionSampleRate(session_sample_rate);
     RumScopeDependencies deps(rum_config, clock);
     deps.diagnostic_logger = logger;
@@ -301,7 +305,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
   ) {
     // Given a crash in a process where no session has ever existed
     auto crash = make_crash_report();
-    crash.context->rum_session_state = RumSessionState{};
+    crash.context->rum_session_state.session_id = UUID::Zero;
 
     // When we process that crash
     auto deps = make_deps();
@@ -482,7 +486,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
   ) {
     // Given a crash in a process where no session has ever existed
     auto crash = make_crash_report();
-    crash.context->rum_session_state = RumSessionState{};
+    crash.context->rum_session_state.session_id = UUID::Zero;
 
     // When we process that crash in an SDK instance that has a configured RUM session
     // sample rate of 0%

@@ -312,15 +312,19 @@ static void handle_crash_that_preceded_initial_session(
   const bool session_has_replay = false;
 
   // Generate an event describing a new ApplicationLaunch view to contain our crash
+  UUID application_id = ctx.rum_session_state.application_id;
+  if (application_id == UUID::Zero) {
+    application_id = deps.application_id;
+  }
   RumViewEvent view_ev = create_application_launch_view_for_crash(
-      deps.application_id, new_session_id, session_type, session_has_replay, crash, ctx
+      application_id, new_session_id, session_type, session_has_replay, crash, ctx
   );
   produce_event_for_crash(ctx, event_writer, deps.EncodeEvent(view_ev));
 
   // Generate a RUM Error event that reflects the details of our synthetic view
   RumErrorEvent ev(
       Timestamp{std::chrono::milliseconds(crash.timestamp_ms)},
-      deps.application_id,
+      application_id,
       new_session_id,
       session_type,
       view_ev.view.id,
@@ -392,8 +396,12 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
   const bool session_has_replay = ctx.rum_session_state.did_start_with_replay;
 
   // Generate an event describing a new ApplicationLaunch view to contain our crash
+  UUID application_id = ctx.rum_session_state.application_id;
+  if (application_id == UUID::Zero) {
+    application_id = deps.application_id;
+  }
   RumViewEvent view_ev = create_application_launch_view_for_crash(
-      deps.application_id,
+      application_id,
       ctx.rum_session_state.session_id,
       session_type,
       session_has_replay,
@@ -405,7 +413,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
   // Generate a RUM Error event that reflects the details of our synthetic view
   RumErrorEvent ev(
       Timestamp{std::chrono::milliseconds(crash.timestamp_ms)},
-      deps.application_id,
+      application_id,
       ctx.rum_session_state.session_id,
       session_type,
       view_ev.view.id,
@@ -517,9 +525,13 @@ static void handle_crash_that_had_active_view(
   // Regardless of whether we produced an updated view event, prepare a RUM Error event
   // to describe the crash in the context of that view, carrying over any relevant
   // details that were parsed from the View event
+  UUID application_id = ctx.rum_session_state.application_id;
+  if (application_id == UUID::Zero) {
+    application_id = deps.application_id;
+  }
   RumErrorEvent ev(
       crash_timestamp,
-      deps.application_id,
+      application_id,
       ctx.rum_session_state.session_id,
       parser.values.session_type,
       parser.values.view_id,
