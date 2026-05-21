@@ -83,6 +83,7 @@ TEST_CASE("Logger", "[unit][logging]") {
       "service": "mock-service",
       "date": "2023-11-14T22:13:20.000Z",
       "message": "This is an error",
+      "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3",
       "logger.name": "cool-logger",
       "logger.version": "1.2.3",
       "os": {
@@ -110,6 +111,7 @@ TEST_CASE("Logger", "[unit][logging]") {
       "service": "mock-service",
       "date": "2023-11-14T22:13:21.100Z",
       "message": "This is a warning",
+      "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3",
       "logger.name": "cool-logger",
       "logger.version": "1.2.3",
       "application_id": "0976f38a-ae45-4f7a-8436-0c98c227a7b3",

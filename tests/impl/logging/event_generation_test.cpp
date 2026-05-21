@@ -65,6 +65,7 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       "service": "my-overridden-service",
       "date": "2026-05-22T15:21:05.013Z",
       "message": "Hello, this is a log message",
+      "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3",
       "logger.name": "my-logger",
       "logger.version": "1.2.3",
       "os": {
