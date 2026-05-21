@@ -113,7 +113,7 @@ static void populate_event_from_crash_context(const CrashContext& ctx, T& mut_ev
     mut_ev.account.value.emplace(ctx.account_id);
     mut_ev.account.value->name = ctx.account_name;
     if (ctx.account_extra.GetObjectPropertyCount() > 0) {
-      // TODO: mut_ev.account.value->extra = ctx.account_extra;
+      mut_ev.account.value->extra = ctx.account_extra;
     }
   }
 

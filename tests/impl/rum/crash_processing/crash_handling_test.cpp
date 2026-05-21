@@ -348,7 +348,9 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       },
       "account": {
         "id": "fujda9i8z83457",
-        "name": "Important Account"
+        "name": "Important Account",
+        "service_tier": "good",
+        "ids": [8675309, 2813308004]
       },
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -411,7 +413,9 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       },
       "account": {
         "id": "fujda9i8z83457",
-        "name": "Important Account"
+        "name": "Important Account",
+        "service_tier": "good",
+        "ids": [8675309, 2813308004]
       },
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -557,7 +561,9 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       },
       "account": {
         "id": "fujda9i8z83457",
-        "name": "Important Account"
+        "name": "Important Account",
+        "service_tier": "good",
+        "ids": [8675309, 2813308004]
       },
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -620,7 +626,9 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       },
       "account": {
         "id": "fujda9i8z83457",
-        "name": "Important Account"
+        "name": "Important Account",
+        "service_tier": "good",
+        "ids": [8675309, 2813308004]
       },
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -810,7 +818,9 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       },
       "account": {
         "id": "fujda9i8z83457",
-        "name": "Important Account"
+        "name": "Important Account",
+        "service_tier": "good",
+        "ids": [8675309, 2813308004]
       },
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
@@ -920,7 +930,9 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       },
       "account": {
         "id": "fujda9i8z83457",
-        "name": "Important Account"
+        "name": "Important Account",
+        "service_tier": "good",
+        "ids": [8675309, 2813308004]
       },
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
