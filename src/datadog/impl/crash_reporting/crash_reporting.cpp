@@ -69,6 +69,7 @@ CrashReporting::MakeMessageHandler() {
       cc.service = ctx.service;
       cc.env = ctx.env;
       cc.application_version = ctx.application_version;
+      cc.variant = ctx.variant;
       cc.source = ctx.source;
       cc.sdk_version = ctx.sdk_version;
       cc.tracking_consent = ctx.tracking_consent;

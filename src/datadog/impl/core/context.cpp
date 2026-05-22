@@ -68,6 +68,7 @@ CoreContext::CoreContext(
       service(im.service),
       env(im.env),
       application_version(im.application_version),
+      variant(im.variant),
       source(im.source),
       sdk_version(im.sdk_version),
       intake_origin(im.intake_origin),
