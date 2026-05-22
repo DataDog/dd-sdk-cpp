@@ -41,7 +41,7 @@ target_link_libraries(your_library_or_program Datadog::dd_native)
 
 The Datadog C++ SDK provides an idiomatic C++ API which is suitable for use in any codebase targeting C++17 or newer.
 
-You can peruse the public C++ headers [here](./include-cpp/datadog/).
+You can read the public C++ headers [here](./include-cpp/datadog/).
 
 ```cpp
 #include "datadog.hpp"
@@ -73,7 +73,7 @@ For more detailed usage examples, see [the C++ example program](./examples/cpp/m
 
 The SDK also provides a C99-compliant API for use in C codebases, and for interoperability with languages and runtimes that expect an FFI with C linkage.
 
-You can peruse the public C headers [here](./include-c/datadog/).
+You can read the public C headers [here](./include-c/datadog/).
 
 ```c
 #include "datadog.h"
