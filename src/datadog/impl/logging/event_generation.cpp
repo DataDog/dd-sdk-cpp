@@ -10,6 +10,7 @@
 
 #include "datadog/impl/core/feature_types/logging.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
+#include "datadog/impl/core/upload_util.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/logging/data.hpp"
@@ -30,6 +31,21 @@ void ContextThread_GenerateLogEvent(
     service_name = ctx.service;
   }
 
+  // When the logger has a service override, build a fresh ddtags string using that
+  // service so that `ddtags` is consistent with the `service` field on the event
+  std::string override_ddtags;
+  std::string_view ddtags = ctx.per_event_ddtags;
+  if (!logger.service_override.empty()) {
+    override_ddtags = BuildDdTags(
+        logger.service_override,
+        ctx.application_version,
+        ctx.env,
+        ctx.sdk_version,
+        ctx.variant
+    );
+    ddtags = override_ddtags;
+  }
+
   // Construct a LogEvent with all required values, moving our original copy of the
   // application-provided message into the event struct
   LogEvent ev{
@@ -37,7 +53,7 @@ void ContextThread_GenerateLogEvent(
       service_name,
       call.timestamp,
       std::move(call.message),
-      ctx.per_event_ddtags,
+      ddtags,
       logger.name,
       ctx.sdk_version
   };

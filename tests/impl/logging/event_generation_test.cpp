@@ -65,7 +65,7 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       "service": "my-overridden-service",
       "date": "2026-05-22T15:21:05.013Z",
       "message": "Hello, this is a log message",
-      "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3",
+      "ddtags": "service:my-overridden-service,env:mock-env,sdk_version:1.2.3",
       "logger.name": "my-logger",
       "logger.version": "1.2.3",
       "os": {
@@ -118,9 +118,13 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     logger.service_override = "";
     ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
 
-    // Then the event carries the default service name configured for the SDK instance
+    // Then the event carries the default service name configured for the SDK instance,
+    // and ddtags reflects the same SDK-level service name
     REQUIRE(events.size() == 1);
     REQUIRE(events[0]["service"] == "mock-service");
+    REQUIRE(
+        events[0]["ddtags"] == "service:mock-service,env:mock-env,sdk_version:1.2.3"
+    );
   }
 
   SECTION("M format date as ISO timestamp") {

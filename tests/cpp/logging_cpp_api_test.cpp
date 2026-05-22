@@ -469,7 +469,9 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             {"message", "hello"},
             {"logger.name", "my-logger"},
             {"logger.version", "1.2.3"},
-            {"ddtags", DDTAGS}
+            {"ddtags",
+             "service:overridden-service,version:mock-application-version,"
+             "env:mock-env,sdk_version:1.2.3"}
         }})
     );
   }
