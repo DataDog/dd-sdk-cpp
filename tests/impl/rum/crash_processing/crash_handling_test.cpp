@@ -108,6 +108,7 @@ static CrashReport make_crash_report(
           "my-service",              // service
           "my-env",                  // env
           "1.0.0",                   // application_version
+          "Debug",                   // variant
           "rum-cpp",                 // source
           "2.0.2",                   // sdk_version
           TrackingConsent::Granted,  // tracking_consent

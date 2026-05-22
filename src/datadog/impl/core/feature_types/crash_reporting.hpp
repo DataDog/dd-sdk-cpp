@@ -37,6 +37,7 @@ struct CrashContext {
   std::string service;
   std::string env;
   std::string application_version;
+  std::string variant;
 
   // Internal SDK configuration details
   std::string source;
