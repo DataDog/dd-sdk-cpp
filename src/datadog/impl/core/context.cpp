@@ -41,6 +41,7 @@ ImmutableContext::ImmutableContext(
       service(config.service),
       env(config.env),
       application_version(config.application_version),
+      variant(config.variant),
       source(_override_or(config.internal_options.source, "rum-cpp")),
       sdk_version(_override_or(config.internal_options.sdk_version, SDK_VERSION)),
       intake_origin(
