@@ -50,7 +50,6 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
 
   // And a CoreContext snapshot
   CoreContext ctx = MOCK_CONTEXT;
-  ctx.sdk_version = "1.2.3";
 
   // And a buffer that can be reused for JSON serialization of event payloads
   std::vector<uint8_t> buf;

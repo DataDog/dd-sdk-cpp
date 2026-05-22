@@ -211,14 +211,14 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     const MockHttpRequest& request = client.requests[0];
     REQUIRE(
         request.url ==
-        "https://browser-intake-datadoghq.com/api/v1/test?ddsource=rum-cpp"
+        "https://browser-intake-datadoghq.com/api/v1/test?ddsource=mock-source"
     );
     REQUIRE_THAT(
         request.headers,
         Catch::Matchers::ContainsSubstring("Content-Type: text/plain\r\n") &&
             Catch::Matchers::ContainsSubstring("DD-API-KEY: mock-client-token\r\n") &&
-            Catch::Matchers::ContainsSubstring("DD-EVP-ORIGIN: rum-cpp\r\n") &&
-            Catch::Matchers::ContainsSubstring("DD-EVP-ORIGIN-VERSION: 0.") &&
+            Catch::Matchers::ContainsSubstring("DD-EVP-ORIGIN: mock-source\r\n") &&
+            Catch::Matchers::ContainsSubstring("DD-EVP-ORIGIN-VERSION: 1.2.3\r\n") &&
             Catch::Matchers::ContainsSubstring("DD-REQUEST-ID: ")
     );
     REQUIRE(request.body == "event-0,event-1");

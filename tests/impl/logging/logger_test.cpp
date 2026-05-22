@@ -32,7 +32,6 @@ TEST_CASE("Logger", "[unit][logging]") {
   // that feature as a running Core would
   auto logging = std::make_shared<impl::Logging>(clock);
   CoreContext ctx = MOCK_CONTEXT;
-  ctx.sdk_version = "0.0.1";
   FeatureTest test(ctx);
   test.Start(logging);
 
@@ -85,7 +84,7 @@ TEST_CASE("Logger", "[unit][logging]") {
       "date": "2023-11-14T22:13:20.000Z",
       "message": "This is an error",
       "logger.name": "cool-logger",
-      "logger.version": "0.0.1",
+      "logger.version": "1.2.3",
       "os": {
         "name": "mock-os",
         "version": "2.3.4",
@@ -112,7 +111,7 @@ TEST_CASE("Logger", "[unit][logging]") {
       "date": "2023-11-14T22:13:21.100Z",
       "message": "This is a warning",
       "logger.name": "cool-logger",
-      "logger.version": "0.0.1",
+      "logger.version": "1.2.3",
       "application_id": "0976f38a-ae45-4f7a-8436-0c98c227a7b3",
       "session_id": "ab45517b-40ae-4f90-8c8a-bff62c05a166",
       "usr": {
