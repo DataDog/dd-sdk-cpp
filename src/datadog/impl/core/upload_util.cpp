@@ -181,7 +181,7 @@ std::string BuildDdTags(
   if (!variant.empty()) {
     result += ',';
     result += variant_prefix;
-    result += variant;
+    append_sanitized_tag_value(variant);
   }
 
   return result;
