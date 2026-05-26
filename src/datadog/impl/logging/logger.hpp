@@ -17,6 +17,7 @@
 
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/logging/data.hpp"
+#include "datadog/impl/logging/tags.hpp"
 
 namespace datadog::impl {
 
@@ -43,6 +44,9 @@ class Logger {
   /**
    * Adds or updates a logger-level attribute, which will be included in log events
    * emitted by this logger.
+   *
+   * Attribute values are arbitrary JSON-encoded values that will be merged into the
+   * LogEvent payload as top-level object properties.
    */
   void AddAttribute(std::string_view key, const Attribute& value);
 
@@ -50,6 +54,45 @@ class Logger {
    * Removes a logger-level attribute, if any exists with the given name.
    */
   void RemoveAttribute(std::string_view key);
+
+  /**
+   * Adds a custom tag to this logger.
+   *
+   * Tags are '<key>:<value>' strings that will be concatenated with a set of internal
+   * tag values ('service', 'version', 'env', etc.), and included in the LogEvent
+   * payload's 'ddtags' property as a comma-delimited string.
+   */
+  void AddTag(std::string_view tag, const DiagnosticLogger& diagnostic_logger);
+
+  /**
+   * Adds a custom tag to this logger.
+   *
+   * For convenience, the API allows the application to provide both pre-formatted tag
+   * entries and separate (key, value) pairs. These constitute two separate code paths,
+   * since implementing this function as `AddTag(key + ":" + value)` would require an
+   * extra allocation.
+   */
+  void AddTag(
+      std::string_view key,
+      std::string_view value,
+      const DiagnosticLogger& diagnostic_logger
+  );
+
+  /**
+   * Removes any tag that was previously added to this logger with the given value.
+   * Requires an exact match: e.g. `RemoveTag("foo:value1")` will remove `foo:value1`
+   * but not `foo:value2`.
+   *
+   * Values are normalized prior to lookup: e.g. `RemoveTag("Foo:Bar")` will remove a
+   * tag that was previously added as `foo:bar`
+   */
+  void RemoveTag(std::string_view tag);
+
+  /**
+   * Removes all tags that match the given key: e.g. `RemoveTagsWithKey("Foo")` will
+   * remove any tags added as `foo`, `foo:value1`, `fOO:value2`, etc.
+   */
+  void RemoveTagsWithKey(std::string_view key);
 
   /**
    * Records a single Log call from the application, with the given log level, message
@@ -74,6 +117,18 @@ class Logger {
 
  private:
   /**
+   * Given the result of an attempt to add a custom tag to this logger:
+   * - does nothing if the tag was accepted as-is
+   * - logs a warning if the tag was accepted in modified form
+   * - logs an error if the tag was rejected
+   */
+  static void HandleAddTagResult(
+      LoggerTags::AddResult res,
+      std::string_view input_key,
+      const DiagnosticLogger& diagnostic_logger
+  );
+
+  /**
    * Determines whether the logger should generate a remote log event in response to a
    * new log call. Applies the configured log level threshold, making a random sampling
    * decision if needed.
@@ -82,6 +137,7 @@ class Logger {
 
   std::weak_ptr<Logging> _logging;  // Reference to Logging feature implementation
   Attribute _attributes;            // Logger-level attributes applied to all messages
+  LoggerTags _tags;                 // Custom tags to be appended to 'ddtags'
 
   // Immutable snapshot of configuration details that affect log messages
   std::shared_ptr<const LoggerConfigDetails> _details;

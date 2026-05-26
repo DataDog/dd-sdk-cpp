@@ -105,4 +105,12 @@ TEST_CASE("BuildDdTags", "[unit][core]") {
         "sdk_version:2\t0.0,variant:Debug\n?"
     );
   }
+
+  SECTION("M concatenate additional tags W tail is non-empty") {
+    const auto got =
+        BuildDdTags("my-service", "", "prod", "2.0.0", "", "foo:value1,bar:value2");
+    REQUIRE(
+        got == "service:my-service,env:prod,sdk_version:2.0.0,foo:value1,bar:value2"
+    );
+  }
 }
