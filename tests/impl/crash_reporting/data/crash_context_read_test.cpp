@@ -79,6 +79,7 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(got.rum_session_state.is_active == true);
     REQUIRE(got.rum_session_state.is_initial_session == false);
     REQUIRE(got.rum_session_state.has_tracked_any_view == true);
+    REQUIRE(got.rum_session_state.did_start_with_replay == false);
     REQUIRE(got.last_view_event_json == R"({"type":"view"})");
     REQUIRE(got.global_rum_attributes.GetType() == datadog::ValueType::Object);
     REQUIRE(got.global_rum_attributes.GetObjectPropertyCount() == 1);

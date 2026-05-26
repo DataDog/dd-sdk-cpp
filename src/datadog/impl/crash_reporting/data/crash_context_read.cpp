@@ -147,6 +147,9 @@ ReadCrashContextResult ReadCrashContext(File& file) {
   if (auto r = ReadBool(file, ctx.rum_session_state.has_tracked_any_view); !r.OK()) {
     return {std::nullopt, r.value};
   }
+  if (auto r = ReadBool(file, ctx.rum_session_state.did_start_with_replay); !r.OK()) {
+    return {std::nullopt, r.value};
+  }
 
   // Last RUM view event (as JSON string)
   if (auto r = ReadString(file, ctx.last_view_event_json, MAX_VIEW_EVENT_LEN);
