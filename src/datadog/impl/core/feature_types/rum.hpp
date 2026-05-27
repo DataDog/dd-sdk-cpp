@@ -343,6 +343,8 @@ struct RumAccountProperties {
   OmitIfEmpty<std::string> name;
   // Extra account attributes merged inline as additional JSON properties
   Attribute extra;
+
+  explicit RumAccountProperties(std::string_view in_id) : id(in_id) {}
 };
 DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     RumAccountProperties,
