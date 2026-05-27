@@ -42,6 +42,7 @@
  *         rum_session_is_active    uint8
  *         rum_session_is_initial   uint8
  *         rum_session_has_any_view uint8
+ *         rum_session_has_replay   uint8
  *         last_view_event_json     length-prefixed string (empty if no view)
  *         global_rum_attributes    (see AttributeBinarySerialization)
  *         CrashContextFooterMagic  uint64

@@ -256,12 +256,14 @@ std::optional<RumSessionState> RumApplicationScope::GetCurrentSessionState() con
   }
 
   // Interrogate the chosen RumSessionScope to populate our result value
+  const bool did_start_with_replay = false;
   return RumSessionState{
       session->GetSessionID(),
       session->IsSampled(),
       is_active,
       session->IsInitialSession(),
-      session->GetNumViewsOpened() > 0
+      session->GetNumViewsOpened() > 0,
+      did_start_with_replay
   };
 }
 

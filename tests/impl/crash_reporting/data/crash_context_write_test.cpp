@@ -68,6 +68,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     ctx.rum_session_state.is_active = true;
     ctx.rum_session_state.is_initial_session = false;
     ctx.rum_session_state.has_tracked_any_view = true;
+    ctx.rum_session_state.did_start_with_replay = false;
     ctx.last_view_event_json = R"({"type":"view"})";
     ctx.global_rum_attributes = Attribute::Object(1);
     ctx.global_rum_attributes.SetObjectProperty("plan", Attribute::String("gold"));

@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "datadog/impl/core/util/json.hpp"
+#include "datadog/impl/core/version.hpp"
 
 /**
  * Given a value of any JSON-serializable type T, serializes it with `EncodeJson` and
@@ -71,7 +72,20 @@ enum class TemplateVar : uint8_t {
    * In tests, any valid UUID besides 00000000-0000-0000-0000-000000000000 will be
    * accepted. In event validation, a random UUIDv4 value will be substituted.
    */
-  NONZERO_UUID
+  NONZERO_UUID,
+  /**
+   * Evaluates to the value of DATADOG_BUILD_ARCH as defined in impl/core/version.hpp.
+   */
+  CPU_ARCH,
+  /**
+   * Substitutes the `error.source_type` value associated with the current
+   * platforms: "macos" for Darwin, "windows" for Win32, "linux" otherwise.
+   */
+  ERROR_SOURCE_TYPE_PLATFORM_NAME,
+  /**
+   * Matches any string beginning with "Application crash: ".
+   */
+  ERROR_MESSAGE_APPLICATION_CRASH
 };
 
 /**
@@ -100,6 +114,12 @@ inline std::optional<TemplateVar> ParseTemplateVar(const nlohmann::json& value) 
   std::optional<TemplateVar> result;
   if (var_name == "NONZERO_UUID") {
     result = TemplateVar::NONZERO_UUID;
+  } else if (var_name == "CPU_ARCH") {
+    result = TemplateVar::CPU_ARCH;
+  } else if (var_name == "ERROR_SOURCE_TYPE_PLATFORM_NAME") {
+    result = TemplateVar::ERROR_SOURCE_TYPE_PLATFORM_NAME;
+  } else if (var_name == "ERROR_MESSAGE_APPLICATION_CRASH") {
+    result = TemplateVar::ERROR_MESSAGE_APPLICATION_CRASH;
   } else {
     FAIL("Invalid TemplateVar name: " << var_name);
   }
@@ -148,14 +168,46 @@ inline void EvaluateTemplateVars(const nlohmann::json& got, nlohmann::json& want
             }
           }
         } break;
+
+        case TemplateVar::CPU_ARCH: {
+          want_val = DATADOG_BUILD_ARCH;
+        } break;
+
+        case TemplateVar::ERROR_SOURCE_TYPE_PLATFORM_NAME: {
+#ifdef _WIN32
+          want_val = "windows";
+#else
+#ifdef __APPLE__
+          want_val = "macos";
+#else
+          want_val = "linux";
+#endif
+#endif
+        } break;
+
+        case TemplateVar::ERROR_MESSAGE_APPLICATION_CRASH: {
+          if (got_val.is_string() &&
+              got_val.get_ref<const std::string&>().find("Application crash: ") == 0) {
+            want_val = got_val;
+          }
+        } break;
       }
     }
 
-    // Recurse into subobjects, fully traversing `want` regardless of whether we're
-    // still finding matching properties in `got`. Note that we _don't_ recurse into
-    // arrays.
+    // Recurse into subobjects and arrays, fully traversing `want` regardless of
+    // whether we're still finding matching properties in `got`.
     if (want_val.is_object()) {
       EvaluateTemplateVars(got_val, want_val);
+    } else if (want_val.is_array()) {
+      for (size_t i = 0; i < want_val.size(); ++i) {
+        nlohmann::json got_elem = nlohmann::json{nullptr};
+        if (got_val.is_array() && i < got_val.size()) {
+          got_elem = got_val[i];
+        }
+        if (want_val[i].is_object()) {
+          EvaluateTemplateVars(got_elem, want_val[i]);
+        }
+      }
     }
   }
 }

@@ -47,7 +47,7 @@ TEST_CASE("ReadCrashReport", "[unit][crash_reporting]") {
     REQUIRE(result.data->fault_flags == 0);
     REQUIRE(result.data->pid == 100);
     REQUIRE(result.data->tid == 101);
-    REQUIRE(result.data->timestamp == 1700000000000ULL);
+    REQUIRE(result.data->timestamp_ms == 1700000000000ULL);
 
     // And there are two modules with the expected fields
     REQUIRE(result.data->modules.size() == 2);

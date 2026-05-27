@@ -157,19 +157,27 @@ struct RumFeatureContext {
  * has ever been started in the context of this session. These values are used to
  * determine whether RUM will implicitly create certain views (e.g. `ApplicationLaunch`)
  * in order to track events that occur while no foreground view is active.
+ *
+ * `did_start_with_replay` indicates that when the current session was started, Session
+ * Replay was enabled and was prepared to record activity for that session. (This value
+ * is always false, since we don't support Session Replay, but it's included for future
+ * compatibility and to allow SR-related logic to be implemented in RUM's crash-handling
+ * code.)
  */
 struct RumSessionState {
-  UUID session_id;            // UUID::Zero if no session exists
-  bool is_sampled;            // false if session is excluded from sampling
-  bool is_active;             // false if session has been ended via StopSession
-  bool is_initial_session;    // true if this session is the very first
-  bool has_tracked_any_view;  // true if any non-synthetic view has been recorded
+  UUID session_id;             // UUID::Zero if no session exists
+  bool is_sampled;             // false if session is excluded from sampling
+  bool is_active;              // false if session has been ended via StopSession
+  bool is_initial_session;     // true if this session is the very first
+  bool has_tracked_any_view;   // true if any non-synthetic view has been recorded
+  bool did_start_with_replay;  // true if SR was active when this session began
 
   bool operator==(const RumSessionState& other) const {
     return session_id == other.session_id && is_sampled == other.is_sampled &&
            is_active == other.is_active &&
            is_initial_session == other.is_initial_session &&
-           has_tracked_any_view == other.has_tracked_any_view;
+           has_tracked_any_view == other.has_tracked_any_view &&
+           did_start_with_replay == other.did_start_with_replay;
   }
   bool operator!=(const RumSessionState& other) const { return !(*this == other); }
 };

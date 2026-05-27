@@ -8,6 +8,8 @@ Utility code for reading the source of the C++ SDK's unit tests to discover JSON
 values that should be validated as RUM events.
 """
 import os
+import sys
+import platform
 import re
 import json
 import uuid
@@ -22,9 +24,25 @@ __cpp_macro_regex__ = re.compile(__cpp_macro_name__ + r'\(')
 __cpp_raw_string_literal_open__ = 'R"('
 __cpp_raw_string_literal_close__ = ')"'
 
+__cpu_arch__ = platform.machine()
+if __cpu_arch__ == 'x86_64':
+    __cpu_arch__ = 'x64'
+elif __cpu_arch__ == 'aarch64':
+    __cpu_arch__ = 'arm64'
+
+if sys.platform == 'win32':
+    __error_source_type__ = 'windows'
+elif sys.platform == 'darwin':
+    __error_source_type__ = 'macos'
+else:
+    __error_source_type__ = 'linux'
+
 __template_var_regex__ = re.compile(r'"\${__(.+)__}"')
 __template_substitutions__ = {
     'NONZERO_UUID': lambda: json.dumps(str(uuid.uuid4())),
+    'CPU_ARCH': lambda: json.dumps(__cpu_arch__),
+    'ERROR_SOURCE_TYPE_PLATFORM_NAME': lambda: json.dumps(__error_source_type__),
+    'ERROR_MESSAGE_APPLICATION_CRASH': lambda: json.dumps('Application crash: oh no')
 }
 
 def _apply_template_substitutions(s: str) -> str:

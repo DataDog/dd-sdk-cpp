@@ -44,7 +44,7 @@ bool WriteCrashContext(
   const size_t second_chunk_size =
       (8 + ctx.account_id.size()) + (8 + ctx.account_name.size());
   const size_t third_chunk_size =
-      16 + 1 + 1 + 1 + 1 + (8 + ctx.last_view_event_json.size());
+      16 + 1 + 1 + 1 + 1 + 1 + (8 + ctx.last_view_event_json.size());
   size_t encode_buf_capacity = 2048;
   encode_buf_capacity = std::max(encode_buf_capacity, first_chunk_size);
   encode_buf_capacity = std::max(encode_buf_capacity, second_chunk_size);
@@ -159,6 +159,7 @@ bool WriteCrashContext(
   encode_uint8(ctx.rum_session_state.is_active ? 1 : 0);
   encode_uint8(ctx.rum_session_state.is_initial_session ? 1 : 0);
   encode_uint8(ctx.rum_session_state.has_tracked_any_view ? 1 : 0);
+  encode_uint8(ctx.rum_session_state.did_start_with_replay ? 1 : 0);
 
   // Last RUM view event
   encode_string(ctx.last_view_event_json);
