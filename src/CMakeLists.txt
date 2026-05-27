@@ -204,6 +204,7 @@ target_sources(dd_native PRIVATE
     datadog/impl/rum/containers/resource_map.cpp
     datadog/impl/rum/containers/view_array.cpp
     datadog/impl/rum/crash_processing/crash_formatting.cpp
+    datadog/impl/rum/crash_processing/crash_handling.cpp
     datadog/impl/rum/crash_processing/json_scanner.cpp
     datadog/impl/rum/crash_processing/view_event_mutation.cpp
     datadog/impl/rum/crash_processing/view_event_parser.cpp
