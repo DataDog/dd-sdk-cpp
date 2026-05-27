@@ -35,7 +35,9 @@ static const CoreConfig MOCK_CORE_CONFIG =
         .SetApplicationVersion("mock-application-version")
         .SetBatchSize(BatchSize::Small)
         .SetUploadFrequency(UploadFrequency::Frequent)
-        .SetBatchProcessingLevel(BatchProcessingLevel::Low);
+        .SetBatchProcessingLevel(BatchProcessingLevel::Low)
+        .Internal_SetSource("mock-source")
+        .Internal_SetSdkVersion("1.2.3");
 
 /**
  * Encapsulates test setup, initializing a working Core implementation with mock

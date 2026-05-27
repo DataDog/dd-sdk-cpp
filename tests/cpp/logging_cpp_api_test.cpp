@@ -245,7 +245,8 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
     REQUIRE(test.client.requests.size() == 1);
     const MockHttpRequest& req = test.client.requests.front();
     REQUIRE(
-        req.url == "https://browser-intake-datadoghq.com/api/v2/logs?ddsource=rum-cpp"
+        req.url ==
+        "https://browser-intake-datadoghq.com/api/v2/logs?ddsource=mock-source"
     );
     REQUIRE(req.headers.find("Content-Type: application/json") != std::string::npos);
     REQUIRE(
@@ -258,7 +259,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "hello"},
-                {"logger.version", impl::SDK_VERSION}
+                {"logger.version", "1.2.3"}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -267,7 +268,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "gubed"},
-                {"logger.version", impl::SDK_VERSION}
+                {"logger.version", "1.2.3"}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -276,7 +277,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "ofni"},
-                {"logger.version", impl::SDK_VERSION}
+                {"logger.version", "1.2.3"}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -285,7 +286,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "eciton"},
-                {"logger.version", impl::SDK_VERSION}
+                {"logger.version", "1.2.3"}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -294,7 +295,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "nraw"},
-                {"logger.version", impl::SDK_VERSION}
+                {"logger.version", "1.2.3"}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -303,7 +304,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "rorre"},
-                {"logger.version", impl::SDK_VERSION}
+                {"logger.version", "1.2.3"}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -312,7 +313,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "lacitirc"},
-                {"logger.version", impl::SDK_VERSION}
+                {"logger.version", "1.2.3"}
             },
         }
     );
@@ -419,7 +420,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             {"service", "mock-service"},
             {"date", "2023-11-14T22:13:20.000Z"},
             {"message", "hello"},
-            {"logger.version", impl::SDK_VERSION}
+            {"logger.version", "1.2.3"}
         }})
     );
   }
@@ -455,7 +456,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             {"date", "2023-11-14T22:13:20.000Z"},
             {"message", "hello"},
             {"logger.name", "my-logger"},
-            {"logger.version", impl::SDK_VERSION}
+            {"logger.version", "1.2.3"}
         }})
     );
   }
@@ -493,7 +494,7 @@ TEST_CASE("Logger::Log", "[unit][logging][cpp-api]") {
             {"service", "mock-service"},
             {"date", "2023-11-14T22:13:20.000Z"},
             {"message", "hello"},
-            {"logger.version", impl::SDK_VERSION}
+            {"logger.version", "1.2.3"}
         }})
     );
   }
@@ -665,7 +666,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
-           {"logger.version", impl::SDK_VERSION},
+           {"logger.version", "1.2.3"},
            {"foo", 100},
            {"bar", "yes"}
        }})},
@@ -691,7 +692,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
-           {"logger.version", impl::SDK_VERSION},
+           {"logger.version", "1.2.3"},
            {"foo", 100},
            {"bar", 200}
        }})},
@@ -717,7 +718,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
-           {"logger.version", impl::SDK_VERSION},
+           {"logger.version", "1.2.3"},
            {"foo", 200}
        }})},
 
@@ -753,7 +754,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "hello"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -765,7 +766,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "gubed"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -777,7 +778,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "ofni"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -789,7 +790,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "eciton"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -801,7 +802,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "nraw"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -813,7 +814,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "rorre"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -825,7 +826,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "lacitirc"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -858,7 +859,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
-           {"logger.version", impl::SDK_VERSION},
+           {"logger.version", "1.2.3"},
            {"foo", 300},
            {"baz", 200},
            {"bar", 400}
@@ -892,7 +893,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
            {"service", "mock-service"},
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
-           {"logger.version", impl::SDK_VERSION},
+           {"logger.version", "1.2.3"},
            {"ok-global", 100},
            {"ok-logger", 200},
            {"ok-message", 300}
@@ -931,7 +932,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "alpha"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -943,7 +944,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
                {"service", "mock-service"},
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "bravo"},
-               {"logger.version", impl::SDK_VERSION},
+               {"logger.version", "1.2.3"},
            }
        }}
   };
