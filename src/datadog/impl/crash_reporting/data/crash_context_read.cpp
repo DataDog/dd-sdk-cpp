@@ -49,6 +49,9 @@ ReadCrashContextResult ReadCrashContext(File& file) {
       !r.OK()) {
     return {std::nullopt, r.value};
   }
+  if (auto r = ReadString(file, ctx.variant, MAX_SHORT_STRING_LEN); !r.OK()) {
+    return {std::nullopt, r.value};
+  }
 
   // Internal SDK configuration details
   if (auto r = ReadString(file, ctx.source, MAX_SHORT_STRING_LEN); !r.OK()) {

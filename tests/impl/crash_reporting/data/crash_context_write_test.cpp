@@ -41,6 +41,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     ctx.service = "mock-service";
     ctx.env = "mock-env";
     ctx.application_version = "1.2.3";
+    ctx.variant = "Debug";
     ctx.source = "rum-cpp";
     ctx.sdk_version = "2.0.0";
     ctx.tracking_consent = TrackingConsent::Pending;

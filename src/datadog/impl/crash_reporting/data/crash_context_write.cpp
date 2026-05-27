@@ -33,14 +33,14 @@ bool WriteCrashContext(
   const size_t first_chunk_size =
       16 + (8 + ctx.service.size()) + (8 + ctx.env.size()) +
       (8 + ctx.application_version.size()) + (8 + ctx.source.size()) +
-      (8 + ctx.sdk_version.size()) + 1 + (8 + ctx.os_name.size()) +
-      (8 + ctx.os_version.size()) + (8 + ctx.os_build.size()) +
-      (8 + ctx.os_version_major.size()) + (8 + ctx.device_type.size()) +
-      (8 + ctx.device_name.size()) + (8 + ctx.device_model.size()) +
-      (8 + ctx.device_brand.size()) + (8 + ctx.device_architecture.size()) +
-      (8 + ctx.device_locale.size()) + (8 + ctx.device_time_zone.size()) +
-      (8 + ctx.user_id.size()) + (8 + ctx.user_name.size()) +
-      (8 + ctx.user_email.size());
+      (8 + ctx.sdk_version.size()) + (8 + ctx.variant.size()) + 1 +
+      (8 + ctx.os_name.size()) + (8 + ctx.os_version.size()) +
+      (8 + ctx.os_build.size()) + (8 + ctx.os_version_major.size()) +
+      (8 + ctx.device_type.size()) + (8 + ctx.device_name.size()) +
+      (8 + ctx.device_model.size()) + (8 + ctx.device_brand.size()) +
+      (8 + ctx.device_architecture.size()) + (8 + ctx.device_locale.size()) +
+      (8 + ctx.device_time_zone.size()) + (8 + ctx.user_id.size()) +
+      (8 + ctx.user_name.size()) + (8 + ctx.user_email.size());
   const size_t second_chunk_size =
       (8 + ctx.account_id.size()) + (8 + ctx.account_name.size());
   const size_t third_chunk_size =
@@ -103,6 +103,7 @@ bool WriteCrashContext(
   encode_string(ctx.service);
   encode_string(ctx.env);
   encode_string(ctx.application_version);
+  encode_string(ctx.variant);
 
   // Internal SDK configuration details
   encode_string(ctx.source);

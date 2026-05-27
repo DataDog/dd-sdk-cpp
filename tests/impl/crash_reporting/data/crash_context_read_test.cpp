@@ -48,6 +48,7 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(got.service == "mock-service");
     REQUIRE(got.env == "mock-env");
     REQUIRE(got.application_version == "1.2.3");
+    REQUIRE(got.variant == "Debug");
     REQUIRE(got.source == "rum-cpp");
     REQUIRE(got.sdk_version == "2.0.0");
     REQUIRE(got.tracking_consent == datadog::TrackingConsent::Pending);
