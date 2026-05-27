@@ -10,9 +10,11 @@
 #include <shared_mutex>
 #include <string_view>
 
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/request_builder.hpp"
 #include "datadog/impl/core/writer.hpp"
 #include "datadog/impl/rum/crash_processing/crash_handling.hpp"
+#include "datadog/impl/rum/resource_types.hpp"
 
 namespace datadog::impl {
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
@@ -72,6 +74,23 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
         }
         ContextThread_HandleCrashReport(self->_deps, crash, event_writer);
       });
+    } else if (const auto* m = std::get_if<LoggerErrorMessage>(&msg)) {
+      auto self = std::static_pointer_cast<Rum>(weak_self.lock());
+      if (!self) {
+        return;
+      }
+
+      // Snapshot global RUM attributes merged with the log's user attributes, then
+      // override issued_at so the resulting RUM error event carries the log emission
+      // timestamp rather than the receipt time. The server-time offset is applied
+      // later by the RUM view scope when it writes the error event.
+      RumCommandParams params = self->GetBaseCommandParams(m->attributes);
+      params.issued_at = m->timestamp;
+      self->DispatchAsync(
+          RumCommand::AddError(
+              std::move(params), RumErrorSource::Logger, RumErrorDetails{m->message}
+          )
+      );
     }
   };
 }

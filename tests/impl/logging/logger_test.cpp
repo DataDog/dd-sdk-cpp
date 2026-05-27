@@ -6,6 +6,7 @@
 
 #include "datadog/impl/logging/logger.hpp"
 
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/logging/logging.hpp"
 
 #include "mock/clock.hpp"
@@ -86,7 +87,21 @@ TEST_CASE("Logger", "[unit][logging]") {
     // Then we end up with two events
     REQUIRE(test.events.size() == 2);
 
-    // And the first matches the state of the SDK at the time of our error call
+    // And exactly one LoggerErrorMessage was published (for the Error call; Warn does
+    // not cross the LogLevel::Error threshold)
+    auto error_msgs = std::vector<const LoggerErrorMessage*>{};
+    for (const auto& m : test.feature_messages) {
+      if (const auto* p = std::get_if<LoggerErrorMessage>(&m)) {
+        error_msgs.push_back(p);
+      }
+    }
+    REQUIRE(error_msgs.size() == 1);
+    REQUIRE(error_msgs[0]->message == "This is an error");
+    REQUIRE(error_msgs[0]->attributes.GetObjectProperty("foo").GetIntValue() == 333);
+    REQUIRE(error_msgs[0]->attributes.GetObjectProperty("bar").GetIntValue() == 444);
+
+    // And the first log event matches the state of the SDK at the time of our error
+    // call
     RequireEventMatch(nlohmann::json::parse(test.events[0].data), R"({
       "status": "error",
       "service": "mock-service",
