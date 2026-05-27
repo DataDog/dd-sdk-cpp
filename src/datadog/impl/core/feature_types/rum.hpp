@@ -165,6 +165,7 @@ struct RumFeatureContext {
  * code.)
  */
 struct RumSessionState {
+  UUID application_id;         // UUID::Zero if no RUM state was ever broadcast
   UUID session_id;             // UUID::Zero if no session exists
   bool is_sampled;             // false if session is excluded from sampling
   bool is_active;              // false if session has been ended via StopSession
@@ -173,8 +174,8 @@ struct RumSessionState {
   bool did_start_with_replay;  // true if SR was active when this session began
 
   bool operator==(const RumSessionState& other) const {
-    return session_id == other.session_id && is_sampled == other.is_sampled &&
-           is_active == other.is_active &&
+    return application_id == other.application_id && session_id == other.session_id &&
+           is_sampled == other.is_sampled && is_active == other.is_active &&
            is_initial_session == other.is_initial_session &&
            has_tracked_any_view == other.has_tracked_any_view &&
            did_start_with_replay == other.did_start_with_replay;

@@ -37,6 +37,7 @@
  *         account_id               length-prefixed string (empty if not set)
  *         account_name             length-prefixed string (empty if not set)
  *         account_extra            (see AttributeBinarySerialization)
+ *         rum_application_id       16 raw bytes (Zero if RUM state never broadcast)
  *         rum_session_id           16 raw bytes (UUID::Zero if no session)
  *         rum_session_is_sampled   uint8
  *         rum_session_is_active    uint8
