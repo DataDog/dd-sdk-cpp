@@ -68,6 +68,8 @@ struct LogEvent {
   IsoTimestamp date;
   std::string message;
 
+  std::string ddtags;
+
   OmitIfEmpty<std::string> logger_name;
   std::string logger_version;
 
@@ -94,6 +96,7 @@ struct LogEvent {
       std::string_view in_service,
       Timestamp in_date,
       std::string in_message,
+      std::string_view in_ddtags,
       std::string_view in_logger_name,
       std::string_view in_logger_version
   )
@@ -101,6 +104,7 @@ struct LogEvent {
         service(in_service),
         date(in_date),
         message(std::move(in_message)),
+        ddtags(in_ddtags),
         logger_name(in_logger_name),
         logger_version(in_logger_version) {}
 };
@@ -113,6 +117,8 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     DATADOG_JSON_FIELD(service),
     DATADOG_JSON_FIELD(date),
     DATADOG_JSON_FIELD(message),
+
+    DATADOG_JSON_FIELD(ddtags),
 
     DATADOG_JSON_FIELD_NAME(logger_name, "logger.name"),
     DATADOG_JSON_FIELD_NAME(logger_version, "logger.version"),
@@ -133,8 +139,7 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     DATADOG_JSON_RESERVED_FIELD(_dd),
     DATADOG_JSON_RESERVED_FIELD(network),
     DATADOG_JSON_RESERVED_FIELD(error),
-    DATADOG_JSON_RESERVED_FIELD(build_id),
-    DATADOG_JSON_RESERVED_FIELD(ddtags)
+    DATADOG_JSON_RESERVED_FIELD(build_id)
 )
 
 }  // namespace datadog::impl

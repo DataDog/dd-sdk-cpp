@@ -37,6 +37,7 @@ void ContextThread_GenerateLogEvent(
       service_name,
       call.timestamp,
       std::move(call.message),
+      ctx.per_event_ddtags,
       logger.name,
       ctx.sdk_version
   };

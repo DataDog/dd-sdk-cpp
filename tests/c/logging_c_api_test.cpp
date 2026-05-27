@@ -38,6 +38,10 @@ static const auto DEVICE_PROPERTIES = nlohmann::json{
     {"type", "desktop"}
 };
 
+static const nlohmann::json DDTAGS =
+    "service:mock-service,version:mock-application-version,"
+    "env:mock-env,sdk_version:1.2.3";
+
 TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
   SECTION("M safely do nothing W target object is null") {
     dd_attribute_t int_100 = dd_attribute_int(100);
@@ -388,7 +392,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "hello"},
-                {"logger.version", "1.2.3"}
+                {"logger.version", "1.2.3"},
+                {"ddtags", DDTAGS}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -397,7 +402,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "gubed"},
-                {"logger.version", "1.2.3"}
+                {"logger.version", "1.2.3"},
+                {"ddtags", DDTAGS}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -406,7 +412,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "ofni"},
-                {"logger.version", "1.2.3"}
+                {"logger.version", "1.2.3"},
+                {"ddtags", DDTAGS}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -415,7 +422,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "eciton"},
-                {"logger.version", "1.2.3"}
+                {"logger.version", "1.2.3"},
+                {"ddtags", DDTAGS}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -424,7 +432,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "nraw"},
-                {"logger.version", "1.2.3"}
+                {"logger.version", "1.2.3"},
+                {"ddtags", DDTAGS}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -433,7 +442,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "rorre"},
-                {"logger.version", "1.2.3"}
+                {"logger.version", "1.2.3"},
+                {"ddtags", DDTAGS}
             },
             nlohmann::json{
                 {"os", OS_PROPERTIES},
@@ -442,7 +452,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
                 {"service", "mock-service"},
                 {"date", "2023-11-14T22:13:20.000Z"},
                 {"message", "lacitirc"},
-                {"logger.version", "1.2.3"}
+                {"logger.version", "1.2.3"},
+                {"ddtags", DDTAGS}
             },
         }
     );
@@ -558,7 +569,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
             {"service", "mock-service"},
             {"date", "2023-11-14T22:13:20.000Z"},
             {"message", "hello"},
-            {"logger.version", "1.2.3"}
+            {"logger.version", "1.2.3"},
+            {"ddtags", DDTAGS}
         }})
     );
 
@@ -599,7 +611,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
             {"date", "2023-11-14T22:13:20.000Z"},
             {"message", "hello"},
             {"logger.name", "my-logger"},
-            {"logger.version", "1.2.3"}
+            {"logger.version", "1.2.3"},
+            {"ddtags", DDTAGS}
         }})
     );
 
@@ -646,7 +659,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
               {"service", "mock-service"},
               {"date", "2023-11-14T22:13:20.000Z"},
               {"message", "hello"},
-              {"logger.version", "1.2.3"}
+              {"logger.version", "1.2.3"},
+              {"ddtags", DDTAGS}
           }})
       );
 
@@ -699,7 +713,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
             {"message", "hello"},
             {"logger.name",
              "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhh"},
-            {"logger.version", "1.2.3"}
+            {"logger.version", "1.2.3"},
+            {"ddtags", DDTAGS}
         }})
     );
 
@@ -900,6 +915,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
            {"logger.version", "1.2.3"},
+           {"ddtags", DDTAGS},
            {"foo", 100},
            {"bar", "yes"}
        }})},
@@ -930,6 +946,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
            {"logger.version", "1.2.3"},
+           {"ddtags", DDTAGS},
            {"foo", 100},
            {"bar", 200}
        }})},
@@ -960,6 +977,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
            {"logger.version", "1.2.3"},
+           {"ddtags", DDTAGS},
            {"foo", 200}
        }})},
 
@@ -1004,6 +1022,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "hello"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -1016,6 +1035,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "gubed"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -1028,6 +1048,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "ofni"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -1040,6 +1061,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "eciton"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -1052,6 +1074,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "nraw"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -1064,6 +1087,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "rorre"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -1076,6 +1100,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "lacitirc"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -1119,6 +1144,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
            {"logger.version", "1.2.3"},
+           {"ddtags", DDTAGS},
            {"foo", 300},
            {"baz", 200},
            {"bar", 400}
@@ -1161,6 +1187,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
            {"date", "2023-11-14T22:13:20.000Z"},
            {"message", "hello"},
            {"logger.version", "1.2.3"},
+           {"ddtags", DDTAGS},
            {"ok-global", 100},
            {"ok-logger", 200},
            {"ok-message", 300}
@@ -1208,6 +1235,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "alpha"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS},
                {"foo", 100},
                {"bar", 200},
                {"baz", 300}
@@ -1220,6 +1248,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
                {"date", "2023-11-14T22:13:20.000Z"},
                {"message", "bravo"},
                {"logger.version", "1.2.3"},
+               {"ddtags", DDTAGS}
            }
        }}
   };
