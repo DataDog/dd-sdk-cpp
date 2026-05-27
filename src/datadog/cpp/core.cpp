@@ -79,6 +79,11 @@ CoreConfig& CoreConfig::SetApplicationVersion(std::string_view value) {
   return *this;
 }
 
+CoreConfig& CoreConfig::SetVariant(std::string_view value) {
+  variant = value;
+  return *this;
+}
+
 CoreConfig& CoreConfig::SetBatchSize(BatchSize value) {
   batch_size = value;
   return *this;

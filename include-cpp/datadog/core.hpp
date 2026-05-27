@@ -183,6 +183,7 @@ struct CoreConfig {
   std::string service;
   std::string env;
   std::string application_version;
+  std::string variant;
   BatchSize batch_size{BatchSize::Medium};
   UploadFrequency upload_frequency{UploadFrequency::Average};
   BatchProcessingLevel batch_processing_level{BatchProcessingLevel::Medium};
@@ -299,6 +300,12 @@ struct CoreConfig {
    * monitored.
    */
   DATADOG_API CoreConfig& SetApplicationVersion(std::string_view value);
+
+  /**
+   * Set the 'variant' value, identifying the flavor or build configuration of the
+   * application that's currently running.
+   */
+  DATADOG_API CoreConfig& SetVariant(std::string_view value);
 
   /**
    * Configures the SDK's batch size, which informs how quickly it will consider a batch

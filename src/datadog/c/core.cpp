@@ -31,6 +31,7 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     nullptr,                           // service
     nullptr,                           // env
     nullptr,                           // application_version
+    nullptr,                           // variant
     DD_BATCH_SIZE_MEDIUM,              // batch_size
     DD_UPLOAD_FREQUENCY_AVERAGE,       // upload_frequency
     DD_BATCH_PROCESSING_LEVEL_MEDIUM,  // batch_processing_level
@@ -166,6 +167,13 @@ void dd_core_config_set_application_version(
     return;
   }
   config->application_version = value;
+}
+
+void dd_core_config_set_variant(dd_core_config_t* config, const char* value) {
+  if (!config) {
+    return;
+  }
+  config->variant = value;
 }
 
 void dd_core_config_set_batch_size(dd_core_config_t* config, dd_batch_size_t value) {
