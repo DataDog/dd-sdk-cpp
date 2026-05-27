@@ -65,8 +65,10 @@ struct RumViewEventParser {
    */
   struct Spans {
     Span date;                    // date
+    Span application_id;          // application.id
     Span build_version;           // build_version (optional)
     Span build_id;                // build_id (optional)
+    Span session_id;              // session.id
     Span session_type;            // session.type
     Span session_has_replay;      // session.has_replay (optional)
     Span view_id;                 // view.id
@@ -93,8 +95,9 @@ struct RumViewEventParser {
       // Note that view.is_active is technically not required in the rum-events-format
       // schema, but in practice, an SDK never emits a RUM View event without an
       // explicit value for view.is_active
-      return date.OK() && session_type.OK() && view_id.OK() && view_url.OK() &&
-             view_is_active.OK() && view_error_count.OK() && view_error_end_pos != 0 &&
+      return date.OK() && application_id.OK() && session_id.OK() && session_type.OK() &&
+             view_id.OK() && view_url.OK() && view_is_active.OK() &&
+             view_error_count.OK() && view_error_end_pos != 0 &&
              dd_format_version.OK() && dd_document_version.OK() && dd_end_pos != 0 &&
              type.OK();
     }
@@ -155,8 +158,10 @@ struct RumViewEventParser {
       // which they're declared in DATADOG_JSON_STRUCT(RumViewEvent, ...)
       // clang-format off
       if (!validate_required(date)) { return false; }
+      if (!validate_required(application_id)) { return false; }
       if (!validate_optional(build_version)) { return false; }
       if (!validate_optional(build_id)) { return false; }
+      if (!validate_required(session_id)) { return false; }
       if (!validate_required(session_type)) { return false; }
       if (!validate_optional(session_has_replay)) { return false; }
       if (!validate_required(view_id)) { return false; }
@@ -187,6 +192,8 @@ struct RumViewEventParser {
   struct Values {
     std::string build_version;       // build_version (optional; empty if not set)
     std::string build_id;            // build_id (optional; empty if not set)
+    UUID application_id;             // application.id
+    UUID session_id;                 // session.id
     UUID view_id;                    // view.id
     RumSessionType session_type{};   // session.type
     bool session_has_replay{};       // session.has_replay (optional; false if not set)
@@ -202,6 +209,7 @@ struct RumViewEventParser {
   // Helper functions for traversing JSON objects to identify the substrings
   // representing literal values, whose ranges will be stored in `spans`
   void ScanRootObject(JsonScanner& scanner);
+  void ScanApplicationObject(JsonScanner& scanner);
   void ScanSessionObject(JsonScanner& scanner);
   void ScanViewObject(JsonScanner& scanner);
   static void ScanViewIncidenceCount(JsonScanner& scanner, Span& out_count_span);
