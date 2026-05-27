@@ -251,8 +251,8 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
   struct TestParams {
     std::string_view name;
     std::function<void(dd_rum_config_t*, dd_core_t*)> func;
-    std::vector<std::string_view> want_warnings;
-    std::vector<std::string_view> want_errors;
+    std::vector<std::string> want_warnings;
+    std::vector<std::string> want_errors;
   };
   std::vector<TestParams> tests = {
 
@@ -840,10 +840,8 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       tt.func(&config, core);
 
       // Then we get the expected set of diagnostic warnings and errors
-      REQUIRE(test.cpp_diagnostics.size() == 0);
-      DiagnosticAsserts diagnostics = test.Diagnostics();
-      diagnostics.RequireWarnings(tt.want_warnings);
-      diagnostics.RequireErrors(tt.want_errors);
+      REQUIRE(test.diagnostics.warning == tt.want_warnings);
+      REQUIRE(test.diagnostics.error == tt.want_errors);
     }
   }
 }
@@ -4117,7 +4115,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
       }
 
       // And the SDK produces no diagnostic errors or warnings
-      test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+      REQUIRE(test.diagnostics.warning.size() == 0);
+      REQUIRE(test.diagnostics.error.size() == 0);
 
       // And the assertions in our test case's assert callback hold true
       tt.assert_func(events);

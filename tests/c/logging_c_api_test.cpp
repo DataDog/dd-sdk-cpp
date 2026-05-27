@@ -141,7 +141,8 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
     REQUIRE(logger);
 
     // And we get no diagnostic errors or warnings
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
 
     // Cleanup
     dd_core_stop(core);
@@ -165,7 +166,8 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
 
     // Then we get a valid logger, even though the SDK isn't running yet
     REQUIRE(logger);
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
 
     // Cleanup
     dd_logger_destroy(logger);
@@ -186,7 +188,8 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
     REQUIRE(logger);
 
     // And we get no diagnostic errors or warnings
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
 
     // Cleanup
     dd_logger_destroy(logger);
@@ -201,8 +204,8 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
   struct TestParams {
     std::string_view name;
     std::function<void(dd_logging_t*)> func;
-    std::vector<std::string_view> want_warnings;
-    std::vector<std::string_view> want_errors;
+    std::vector<std::string> want_warnings;
+    std::vector<std::string> want_errors;
   };
   std::vector<TestParams> tests = {
 
@@ -346,10 +349,8 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
       dd_core_stop(core);
 
       // Then we get the expected set of diagnostic warnings and errors
-      REQUIRE(test.cpp_diagnostics.size() == 0);
-      DiagnosticAsserts diagnostics = test.Diagnostics();
-      diagnostics.RequireWarnings(tt.want_warnings);
-      diagnostics.RequireErrors(tt.want_errors);
+      REQUIRE(test.diagnostics.warning == tt.want_warnings);
+      REQUIRE(test.diagnostics.error == tt.want_errors);
     }
   }
 }
