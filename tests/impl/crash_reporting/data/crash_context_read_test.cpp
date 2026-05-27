@@ -48,6 +48,7 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(got.service == "mock-service");
     REQUIRE(got.env == "mock-env");
     REQUIRE(got.application_version == "1.2.3");
+    REQUIRE(got.variant == "Debug");
     REQUIRE(got.source == "rum-cpp");
     REQUIRE(got.sdk_version == "2.0.0");
     REQUIRE(got.tracking_consent == datadog::TrackingConsent::Pending);
@@ -71,6 +72,10 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(got.account_name == "Acme Corp");
     REQUIRE(got.account_extra.GetType() == datadog::ValueType::Object);
     REQUIRE(got.account_extra.GetObjectPropertyCount() == 0);
+    REQUIRE(
+        got.rum_session_state.application_id ==
+        *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef")
+    );
     REQUIRE(
         got.rum_session_state.session_id ==
         *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef")

@@ -81,7 +81,7 @@ void Logger::Log(
     LogLevel level, std::string_view message, const Attribute& attributes
 ) {
   if (_impl) {
-    _impl->EmitLogEvent(level, message, attributes);
+    _impl->Log(level, message, attributes);
   }
 }
 
@@ -115,12 +115,9 @@ std::shared_ptr<Logging> Logging::Register(const std::shared_ptr<Core>& core) {
 
   // Get essential state from the Core
   const platform::IClock& clock = core->_impl->GetClock();
-  std::string_view service_name = core->_impl->GetServiceName();
-  std::string_view application_version = core->_impl->GetApplicationVersion();
 
   // Initialize our Logging feature implementation
-  auto logging_impl =
-      std::make_shared<impl::Logging>(clock, service_name, application_version);
+  auto logging_impl = std::make_shared<impl::Logging>(clock);
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(logging_impl)) {

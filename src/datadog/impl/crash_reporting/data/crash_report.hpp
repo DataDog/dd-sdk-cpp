@@ -50,7 +50,7 @@
  * 0x0020: fault_flags
  * 0x0028: pid
  * 0x0030: tid
- * 0x0038: timestamp
+ * 0x0038: timestamp_ms
  * 0x0040: <CrashReportModuleMagic>
  * 0x0048: start_address
  * 0x0050: end_address
@@ -103,7 +103,7 @@ struct CrashReportHeader {
   uint64_t fault_flags;    // Exception flags on Windows; 0 otherwise
   uint64_t pid;            // PID of crashing process
   uint64_t tid;            // Thread ID of crashing thread
-  uint64_t timestamp;      // Unix timestamp read directly from system clock
+  uint64_t timestamp_ms;   // Unix timestamp in ms, read from system clock at crash time
 };
 
 /**

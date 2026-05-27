@@ -51,7 +51,7 @@ void WriteCrashReportHeader(
     uint64_t fault_flags,
     uint64_t pid,
     uint64_t tid,
-    uint64_t timestamp
+    uint64_t timestamp_ms
 ) {
   uint64_t values[] = {
       CrashReportHeaderMagic,
@@ -61,7 +61,7 @@ void WriteCrashReportHeader(
       fault_flags,
       pid,
       tid,
-      timestamp
+      timestamp_ms
   };
   write_uint64_values(fd, static_cast<uint64_t*>(values), std::size(values));
 }

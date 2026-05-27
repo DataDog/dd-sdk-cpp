@@ -41,6 +41,7 @@ ImmutableContext::ImmutableContext(
       service(config.service),
       env(config.env),
       application_version(config.application_version),
+      variant(config.variant),
       source(_override_or(config.internal_options.source, "rum-cpp")),
       sdk_version(_override_or(config.internal_options.sdk_version, SDK_VERSION)),
       intake_origin(
@@ -54,7 +55,10 @@ ImmutableContext::ImmutableContext(
           device->name,
           os->name,
           os->version
-      )) {}
+      )),
+      per_event_ddtags(
+          BuildDdTags(service, application_version, env, sdk_version, config.variant)
+      ) {}
 
 CoreContext::CoreContext(
     const ImmutableContext& im, TrackingConsent initial_tracking_consent
@@ -65,10 +69,12 @@ CoreContext::CoreContext(
       service(im.service),
       env(im.env),
       application_version(im.application_version),
+      variant(im.variant),
       source(im.source),
       sdk_version(im.sdk_version),
       intake_origin(im.intake_origin),
       user_agent(im.user_agent),
+      per_event_ddtags(im.per_event_ddtags),
       tracking_consent(initial_tracking_consent) {}
 
 void CoreContext::Reset() { rum.reset(); }

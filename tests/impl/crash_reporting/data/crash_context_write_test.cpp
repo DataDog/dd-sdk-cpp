@@ -41,6 +41,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     ctx.service = "mock-service";
     ctx.env = "mock-env";
     ctx.application_version = "1.2.3";
+    ctx.variant = "Debug";
     ctx.source = "rum-cpp";
     ctx.sdk_version = "2.0.0";
     ctx.tracking_consent = TrackingConsent::Pending;
@@ -62,6 +63,8 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     ctx.account_id = "acct-456";
     ctx.account_name = "Acme Corp";
     ctx.account_extra = Attribute::Object();
+    ctx.rum_session_state.application_id =
+        *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
     ctx.rum_session_state.session_id =
         *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
     ctx.rum_session_state.is_sampled = true;

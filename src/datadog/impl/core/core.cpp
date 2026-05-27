@@ -682,18 +682,4 @@ IFilesystem& Core::GetFilesystem() const {
   return *_subsystems.fs;
 }
 
-std::string_view Core::GetServiceName() const {
-  DATADOG_ASSERT(
-      _state >= CoreState::Initialized, "GetServiceName called before Core init"
-  );
-  return _config.service;
-}
-
-std::string_view Core::GetApplicationVersion() const {
-  DATADOG_ASSERT(
-      _state >= CoreState::Initialized, "GetApplicationVersion called before Core init"
-  );
-  return _config.application_version;
-}
-
 }  // namespace datadog::impl

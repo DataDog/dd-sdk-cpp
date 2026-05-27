@@ -270,7 +270,7 @@ CrashReport BuildCrashReport(
   crash.fault_flags = crf.fault_flags;
   crash.pid = crf.pid;
   crash.tid = crf.tid;
-  crash.timestamp = crf.timestamp;
+  crash.timestamp_ms = crf.timestamp_ms;
   crash.context = ccf;
 
   // The CrashReportFile contains the data written during the signal-safe path of the

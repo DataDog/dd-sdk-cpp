@@ -29,10 +29,17 @@ struct RumEventEnrichment {
    */
   template <typename T>
   static void PopulateCommonProperties(const CoreContext& context, T& ev) {
+    // Set 'ddtags' to reflect config: 'service:<service>,env:<env>' etc.
+    ev.ddtags = context.per_event_ddtags;
+
     // If SystemInfo details are available, populate 'os' and 'device' properties
     PopulateOsProperties(context, ev);
     PopulateDeviceProperties(context, ev);
+
+    // If the SDK has been configured with UserInfo, populate 'usr'
     PopulateUserProperties(context, ev);
+
+    // If we have AccountInfo, populate 'account'
     PopulateAccountProperties(context, ev);
   }
 
@@ -108,8 +115,7 @@ struct RumEventEnrichment {
     if (ctx.account_info.IsEmpty()) {
       return;
     }
-    RumAccountProperties& a = ev.account.value.emplace();
-    a.id = ctx.account_info.id;
+    RumAccountProperties& a = ev.account.value.emplace(ctx.account_info.id);
     a.name = ctx.account_info.name;
     a.extra = ctx.account_info.extra;
   }

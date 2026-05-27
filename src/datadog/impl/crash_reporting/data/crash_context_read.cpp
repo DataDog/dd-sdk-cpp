@@ -49,6 +49,9 @@ ReadCrashContextResult ReadCrashContext(File& file) {
       !r.OK()) {
     return {std::nullopt, r.value};
   }
+  if (auto r = ReadString(file, ctx.variant, MAX_SHORT_STRING_LEN); !r.OK()) {
+    return {std::nullopt, r.value};
+  }
 
   // Internal SDK configuration details
   if (auto r = ReadString(file, ctx.source, MAX_SHORT_STRING_LEN); !r.OK()) {
@@ -132,6 +135,9 @@ ReadCrashContextResult ReadCrashContext(File& file) {
   }
 
   // RUM session state
+  if (auto r = ReadUUID(file, ctx.rum_session_state.application_id); !r.OK()) {
+    return {std::nullopt, r.value};
+  }
   if (auto r = ReadUUID(file, ctx.rum_session_state.session_id); !r.OK()) {
     return {std::nullopt, r.value};
   }

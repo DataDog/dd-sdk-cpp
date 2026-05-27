@@ -179,6 +179,16 @@ CommandResult HandleSetConfig(State& state, const CommandInput& args) {
     return CommandResult::OK("CoreConfig::SetApplicationVersion()");
   }
 
+  // set-config variant <value>
+  if (args.Peek() == "variant") {
+    std::string_view value = args[1];
+    if (value.empty()) {
+      return CommandResult::Error("No value supplied for version!");
+    }
+    state.config.SetVariant(value);
+    return CommandResult::OK("CoreConfig::SetVariant()");
+  }
+
   // set-config batch-size <value>
   if (args.Peek() == "batch-size") {
     std::string_view value_str = args[1];

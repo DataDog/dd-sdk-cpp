@@ -234,6 +234,7 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
   std::string_view env = config.env != nullptr ? config.env : "";
   std::string_view application_version =
       config.application_version ? config.application_version : "";
+  std::string_view variant = config.variant ? config.variant : "";
 
   // Initialize a C++ config struct from our input values
   auto cpp_config =
@@ -246,6 +247,7 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
           .SetEventStorageLocation(config.event_storage_location)
           .SetSite(Site_FromC(config.site))
           .SetApplicationVersion(application_version)
+          .SetVariant(variant)
           .SetBatchSize(BatchSize_FromC(config.batch_size))
           .SetUploadFrequency(UploadFrequency_FromC(config.upload_frequency))
           .SetBatchProcessingLevel(

@@ -150,6 +150,7 @@ typedef struct dd_core_config {
   const char* service;
   const char* env;
   const char* application_version;
+  const char* variant;
   dd_batch_size_t batch_size;
   dd_upload_frequency_t upload_frequency;
   dd_batch_processing_level_t batch_processing_level;
@@ -269,6 +270,14 @@ DATADOG_API void dd_core_config_set_env(dd_core_config_t* config, const char* va
  * monitored.
  */
 DATADOG_API void dd_core_config_set_application_version(
+    dd_core_config_t* config, const char* value
+);
+
+/**
+ * Set the 'variant' value, identifying the flavor or build configuration of the
+ * application that's currently running.
+ */
+DATADOG_API void dd_core_config_set_variant(
     dd_core_config_t* config, const char* value
 );
 

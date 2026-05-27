@@ -80,10 +80,12 @@ add_executable(dd_native_tests
     impl/crash_reporting/data/crash_report_read_test.cpp
     impl/crash_reporting/crash_processing_test.cpp
     impl/crash_reporting/crash_reporting_test.cpp
+    impl/logging/event_generation_test.cpp
     impl/logging/logger_test.cpp
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp
     impl/rum/crash_processing/crash_formatting_test.cpp
+    impl/rum/crash_processing/crash_handling_test.cpp
     impl/rum/crash_processing/json_scanner_test.cpp
     impl/rum/crash_processing/view_event_mutation_test.cpp
     impl/rum/crash_processing/view_event_parser_test.cpp

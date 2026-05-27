@@ -40,4 +40,24 @@ std::string GetUserAgent(
     std::string_view os_version
 );
 
+/**
+ * Builds the string value for the core set of 'ddtags' values used to label uploaded
+ * data, as a comma-separated string containing `key:value` pairs, with any occurrence
+ * of ',' or ':' stripped out of all input values.
+ *
+ * In this context, 'ddtags' refers to the fixed set of values used for unified service
+ * tagging, supplied with uploads in event payloads, typically in a top-level property
+ * called 'ddtags' on each event object.
+ *
+ * In older iterations of RUM SDKs, these values were supplied per-batch as part of the
+ * URL query parameters on each HTTP request (e.g. '?ddtags=service:<service>,...').
+ */
+std::string BuildDdTags(
+    std::string_view service,
+    std::string_view application_version,
+    std::string_view env,
+    std::string_view sdk_version,
+    std::string_view variant
+);
+
 }  // namespace datadog::impl

@@ -145,8 +145,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
     ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
 
     // RumAccountProperties
-    ev.account.value.emplace();
-    ev.account.value->id = "708876d3e663c2eb";
+    ev.account.value.emplace("708876d3e663c2eb");
     ev.account.value->name = "Important Account";
 
     // RumConnectivityProperties
@@ -549,11 +548,16 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
     ev.usr.value->name = "John Q. Public";
     ev.usr.value->email = "jqpublic@example.com";
     ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+    ev.usr.value->extra = Attribute::Object(2);
+    ev.usr.value->extra.SetObjectProperty("foo", Attribute::Int(100));
+    ev.usr.value->extra.SetObjectProperty("bar", Attribute::Int(200));
 
     // RumAccountProperties
-    ev.account.value.emplace();
-    ev.account.value->id = "708876d3e663c2eb";
+    ev.account.value.emplace("708876d3e663c2eb");
     ev.account.value->name = "Important Account";
+    ev.account.value->extra = Attribute::Object(2);
+    ev.account.value->extra.SetObjectProperty("x", Attribute::Double(867.5309));
+    ev.account.value->extra.SetObjectProperty("y", Attribute::Double(-99.9));
 
     // RumConnectivityProperties
     ev.connectivity.value.emplace(RumConnectivityStatus::Connected);
@@ -640,11 +644,15 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
         "id": "390cfcd41",
         "name": "John Q. Public",
         "email": "jqpublic@example.com",
-        "anonymous_id": "a52beca3-34c1-4e35-9c26-d8a2daa212e6"
+        "anonymous_id": "a52beca3-34c1-4e35-9c26-d8a2daa212e6",
+        "foo": 100,
+        "bar": 200
       },
       "account": {
         "id": "708876d3e663c2eb",
-        "name": "Important Account"
+        "name": "Important Account",
+        "x": 867.5309,
+        "y": -99.9
       },
       "connectivity": {
         "status": "connected"
@@ -791,8 +799,7 @@ TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
     ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
 
     // RumAccountProperties
-    ev.account.value.emplace();
-    ev.account.value->id = "708876d3e663c2eb";
+    ev.account.value.emplace("708876d3e663c2eb");
     ev.account.value->name = "Important Account";
 
     // RumConnectivityProperties
@@ -1080,8 +1087,7 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
     ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
 
     // RumAccountProperties
-    ev.account.value.emplace();
-    ev.account.value->id = "708876d3e663c2eb";
+    ev.account.value.emplace("708876d3e663c2eb");
     ev.account.value->name = "Important Account";
 
     // RumConnectivityProperties
@@ -1560,6 +1566,7 @@ TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
   }
 
   SECTION("M include all optional properties W fully-populated event") {
+    ev.ddtags = "service:my-service,env:my-env,sdk_version:0.0.0";
     ev.view.name.value = "Checkout Screen";
     ev.vital.operation_key.value = "my-op-key";
     ev.source.value = RumSource::ReactNative;
@@ -1572,6 +1579,7 @@ TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
     device.name = "test-device";
     RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
       "date": 946684799999,
+      "ddtags": "service:my-service,env:my-env,sdk_version:0.0.0",
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
       },

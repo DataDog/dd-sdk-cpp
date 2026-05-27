@@ -60,6 +60,7 @@ static MockBinaryFile MOCK_CRASH_CONTEXT_V1 =
         .String("mock-service")       // service
         .String("mock-env")           // env
         .String("1.2.3")              // application_version
+        .String("Debug")              // variant
         .String("rum-cpp")            // source
         .String("2.0.0")              // sdk_version
         .UInt8(2)                     // tracking_consent (2: Pending)
@@ -85,6 +86,7 @@ static MockBinaryFile MOCK_CRASH_CONTEXT_V1 =
         // account_extra: (empty object)
         .UInt8(static_cast<uint8_t>(datadog::ValueType::Object))
         .UInt64(0)
+        .UUID("a991ca10-4004-4004-4004-beefbeefbeef")  // rum_application_id
         .UUID("5e551017-4114-4114-4114-beeeefbeeeef")  // rum_session_id
         .UInt8(1)                                      // rum_session_is_sampled
         .UInt8(1)                                      // rum_session_is_active

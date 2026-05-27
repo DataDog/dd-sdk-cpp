@@ -108,13 +108,9 @@ dd_logging_t* dd_logging_init(dd_core_t* core) {
 
   // Get essential state from the Core
   const datadog::platform::IClock& clock = core->impl->GetClock();
-  std::string_view service_name = core->impl->GetServiceName();
-  std::string_view application_version = core->impl->GetApplicationVersion();
 
   // Initialize our Logging feature implementation
-  auto logging_impl = std::make_shared<datadog::impl::Logging>(
-      clock, service_name, application_version
-  );
+  auto logging_impl = std::make_shared<datadog::impl::Logging>(clock);
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->impl->RegisterFeature(logging_impl)) {
@@ -313,7 +309,7 @@ void dd_logger_log_obj(
   }
 
   // Emit a log event, passing our attribute value
-  logger->impl->EmitLogEvent(datadog::LogLevel_FromC(level), message, cpp_attribute);
+  logger->impl->Log(datadog::LogLevel_FromC(level), message, cpp_attribute);
 }
 
 void dd_logger_info_obj(

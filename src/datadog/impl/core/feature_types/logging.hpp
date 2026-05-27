@@ -68,6 +68,8 @@ struct LogEvent {
   IsoTimestamp date;
   std::string message;
 
+  std::string ddtags;
+
   OmitIfEmpty<std::string> logger_name;
   std::string logger_version;
 
@@ -86,32 +88,25 @@ struct LogEvent {
   // from the union of global attributes, logger attributes, and message attributes
   Attribute user_attributes;
 
+  /**
+   * Initializes a payload for a single log event.
+   */
   explicit LogEvent(
-      std::string_view in_service_name,
+      LogLevel in_status,
+      std::string_view in_service,
+      Timestamp in_date,
+      std::string in_message,
+      std::string_view in_ddtags,
       std::string_view in_logger_name,
-      std::string_view in_logger_version,
-      size_t initial_attribute_capacity
+      std::string_view in_logger_version
   )
-      : status(LogLevel::Debug),
-        service(in_service_name),
-        date(Timestamp{}),
-        message(""),
+      : status(in_status),
+        service(in_service),
+        date(in_date),
+        message(std::move(in_message)),
+        ddtags(in_ddtags),
         logger_name(in_logger_name),
-        logger_version(in_logger_version),
-        user_attributes(Attribute::Object(initial_attribute_capacity)) {
-    message.reserve(256);
-  }
-
-  void Reset() {
-    rum_application_id = UUID::Zero;
-    rum_session_id = UUID::Zero;
-    rum_view_id = UUID::Zero;
-    rum_action_id = UUID::Zero;
-    os = std::nullopt;
-    device = std::nullopt;
-    usr = std::nullopt;
-    account = std::nullopt;
-  }
+        logger_version(in_logger_version) {}
 };
 
 DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
@@ -123,9 +118,12 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     DATADOG_JSON_FIELD(date),
     DATADOG_JSON_FIELD(message),
 
+    DATADOG_JSON_FIELD(ddtags),
+
     DATADOG_JSON_FIELD_NAME(logger_name, "logger.name"),
     DATADOG_JSON_FIELD_NAME(logger_version, "logger.version"),
 
+    // These property names are styled inconsistently; this is intentional
     DATADOG_JSON_FIELD_NAME(rum_application_id, "application_id"),
     DATADOG_JSON_FIELD_NAME(rum_session_id, "session_id"),
     DATADOG_JSON_FIELD_NAME(rum_view_id, "view.id"),
@@ -141,8 +139,7 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     DATADOG_JSON_RESERVED_FIELD(_dd),
     DATADOG_JSON_RESERVED_FIELD(network),
     DATADOG_JSON_RESERVED_FIELD(error),
-    DATADOG_JSON_RESERVED_FIELD(build_id),
-    DATADOG_JSON_RESERVED_FIELD(ddtags)
+    DATADOG_JSON_RESERVED_FIELD(build_id)
 )
 
 }  // namespace datadog::impl
