@@ -6,202 +6,138 @@
 
 #include "datadog/impl/logging/logger.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-#include <memory>
-
-#include "datadog/core.hpp"
-#include "datadog/logging.hpp"
-
-#include "datadog/impl/core/context.hpp"
-#include "datadog/impl/core/feature_scope.hpp"
-#include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/logging/logging.hpp"
 
 #include "mock/clock.hpp"
+#include "support/catch.hpp"
 #include "support/context.hpp"
 #include "support/feature.hpp"
+#include "support/json_serialization.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
 
-TEST_CASE("Logger RUM enrichment", "[unit][logging]") {
-  static const UUID uuid_9916 = *UUID::Parse("99163baf-48fe-458f-b777-eab1e4038342");
-  static const UUID uuid_d927 = *UUID::Parse("d927ca19-c812-45bb-918c-977809e63c95");
-  static const UUID uuid_e27c = *UUID::Parse("e27c9602-87b8-4722-b848-b58942212414");
-  static const UUID uuid_cfa4 = *UUID::Parse("cfa45eee-3262-44a1-a9dc-afb5ddba7c85");
+TEST_CASE("Logger", "[unit][logging]") {
+  // The context-thread logic used to generate log events is already exhaustively
+  // unit-tested in event_generation_test.cpp, and the API-layer tests in
+  // logging_c_api_test.cpp and logging_cpp_api_test.cpp have exhaustive end-to-end
+  // coverage for Logger usage scenarios. These tests are intended to validate
+  // golden-path implementation-layer usage.
 
-  auto has_uuid_value = [](const std::string& s, std::string_view name, UUID value) {
-    std::string substr = "";
-    substr += "\"";
-    substr += name;
-    substr += "\":\"";
-    substr += value.ToString();
-    substr += "\"";
-    return s.find(substr) != std::string::npos;
-  };
+  // Given a mock system clock
+  MockClock clock;
+  clock.FreezeAtMilliseconds(1700000000000);
 
-  auto has_no_value = [](const std::string& s, std::string_view name) {
-    std::string substr = "";
-    substr += "\"";
-    substr += name;
-    substr += "\":";
-    return s.find(substr) == std::string::npos;
-  };
+  // And a Logging feature implementation, along with a test harness that will operate
+  // that feature as a running Core would
+  auto logging = std::make_shared<impl::Logging>(clock);
+  CoreContext ctx = MOCK_CONTEXT;
+  ctx.sdk_version = "0.0.1";
+  FeatureTest test(ctx);
+  test.Start(logging);
 
-  SECTION("M include RUM attributes W context contains valid RUM state") {
-    // Given a valid Logging feature and a Logger with the default config
-    MockClock clock;
-    clock.FreezeAtMilliseconds(1700000000000);
-    auto logging = std::make_shared<impl::Logging>(clock, "mock-service", "1.0.0");
-    auto logger = logging->CreateLogger(LoggerConfig());
+  // And a Logger initialized with a reference to the Logging feature
+  auto logger = std::make_unique<impl::Logger>(
+      LoggerConfig().SetRemoteLogThreshold(LogLevel::Warn).SetName("cool-logger"),
+      logging
+  );
 
-    // When the SDK starts, then RUM publishes its context (simulating the async update
-    // that RUM enqueues after OnCoreStarted)
-    FeatureTest test(MOCK_CONTEXT);
-    test.Start(logging);
-    test.UpdateContext([&](CoreContext& ctx) {
-      ctx.rum = RumFeatureContext();
-      ctx.rum->application_id = uuid_9916;
-      ctx.rum->session_id = uuid_d927;
-      ctx.rum->view_id = uuid_e27c;
-      ctx.rum->action_id = uuid_cfa4;
+  SECTION("M produce log events W Log is called") {
+    // When we log an error message
+    Attribute error_attributes = Attribute::Object(2);
+    error_attributes.SetObjectProperty("foo", Attribute::Int(333));
+    error_attributes.SetObjectProperty("bar", Attribute::Int(444));
+    logger->Log(LogLevel::Error, "This is an error", error_attributes);
+
+    // And update our SDK state, apply some custom attributes, and log another message
+    clock.TickMilliseconds(1100);
+    test.UpdateContext([](CoreContext& ctx) {
+      ctx.rum.emplace();
+      ctx.rum->application_id = *UUID::Parse("0976f38a-ae45-4f7a-8436-0c98c227a7b3");
+      ctx.rum->session_id = *UUID::Parse("ab45517b-40ae-4f90-8c8a-bff62c05a166");
+      ctx.user_info.id = "u-123456";
     });
+    logging->AddAttribute("foo", Attribute::Int(11));
+    logging->AddAttribute("qux", Attribute::Int(22));
+    logger->AddAttribute("bar", Attribute::Int(33));
+    logger->AddAttribute("qux", Attribute::Int(44));
+    logger->AddAttribute("arf", Attribute::Int(55));
 
-    // And we emit a log event
-    logger->EmitLogEvent(LogLevel::Info, "hello");
+    Attribute warning_attributes = Attribute::Object(2);
+    warning_attributes.SetObjectProperty("bar", Attribute::Int(555));
+    warning_attributes.SetObjectProperty("baz", Attribute::Int(666));
+    logger->Log(LogLevel::Warn, "This is a warning", warning_attributes);
+
+    // And then finally log a message below our configured threshold
+    clock.TickMilliseconds(1100);
+    logger->Log(LogLevel::Info, "This is an info message");
+
+    // And then stop the simulated Core
     test.Stop(logging);
 
-    // Then the resulting log event contains the requisite RUM attributes:
-    // 'application_id', 'session_id', 'view.id', and 'user_action.id'
-    REQUIRE(test.events.size() == 1);
-    const CapturedEvent& event = test.events.back();
-    REQUIRE(has_uuid_value(event.data, "application_id", uuid_9916));
-    REQUIRE(has_uuid_value(event.data, "session_id", uuid_d927));
-    REQUIRE(has_uuid_value(event.data, "view.id", uuid_e27c));
-    REQUIRE(has_uuid_value(event.data, "user_action.id", uuid_cfa4));
-  }
+    // Then we end up with two events
+    REQUIRE(test.events.size() == 2);
 
-  SECTION("M omit individual RUM attributes W associated context value is UUID::Zero") {
-    // Given a valid Logging feature and a Logger with the default config
-    MockClock clock;
-    clock.FreezeAtMilliseconds(1700000000000);
-    auto logging = std::make_shared<impl::Logging>(clock, "mock-service", "1.0.0");
-    auto logger = logging->CreateLogger(LoggerConfig());
+    // And the first matches the state of the SDK at the time of our error call
+    RequireEventMatch(nlohmann::json::parse(test.events[0].data), R"({
+      "status": "error",
+      "service": "mock-service",
+      "date": "2023-11-14T22:13:20.000Z",
+      "message": "This is an error",
+      "logger.name": "cool-logger",
+      "logger.version": "0.0.1",
+      "os": {
+        "name": "mock-os",
+        "version": "2.3.4",
+        "build": "mock-build-number",
+        "version_major": "2"
+      },
+      "device": {
+        "type": "desktop",
+        "name": "mock-device",
+        "model": "mock-model",
+        "brand": "mock-brand",
+        "architecture": "x86_64",
+        "locale": "en-US",
+        "time_zone": "America/New_York"
+      },
+      "foo": 333,
+      "bar": 444
+    })");
 
-    // When the SDK starts, then RUM publishes a context with an application ID and
-    // session ID but no view or action ID
-    FeatureTest test(MOCK_CONTEXT);
-    test.Start(logging);
-    test.UpdateContext([&](CoreContext& ctx) {
-      ctx.rum = RumFeatureContext();
-      ctx.rum->application_id = uuid_9916;
-      ctx.rum->session_id = uuid_d927;
-    });
-
-    // And we emit a log event
-    logger->EmitLogEvent(LogLevel::Info, "hello");
-    test.Stop(logging);
-
-    // Then the resulting log event contains 'application_id' and 'session_id', but not
-    // 'view.id' or 'user_action.id'
-    REQUIRE(test.events.size() == 1);
-    const CapturedEvent& event = test.events.back();
-    REQUIRE(has_uuid_value(event.data, "application_id", uuid_9916));
-    REQUIRE(has_uuid_value(event.data, "session_id", uuid_d927));
-    REQUIRE(has_no_value(event.data, "view.id"));
-    REQUIRE(has_no_value(event.data, "user_action.id"));
-  }
-
-  SECTION("M preserve RUM attributes W user attributes have conflicting names") {
-    // Given a valid Logging feature and a Logger with the default config
-    MockClock clock;
-    clock.FreezeAtMilliseconds(1700000000000);
-    auto logging = std::make_shared<impl::Logging>(clock, "mock-service", "1.0.0");
-    auto logger = logging->CreateLogger(LoggerConfig());
-
-    // And user attributes named 'application_id' and 'session_id'
-    logger->AddAttribute("application_id", Attribute::String("user-application-id"));
-    logger->AddAttribute("session_id", Attribute::String("user-session-id"));
-
-    // When the SDK starts, then RUM publishes a context with only an application ID
-    FeatureTest test(MOCK_CONTEXT);
-    test.Start(logging);
-    test.UpdateContext([&](CoreContext& ctx) {
-      ctx.rum = RumFeatureContext();
-      ctx.rum->application_id = uuid_9916;
-    });
-
-    // And we emit a log event
-    logger->EmitLogEvent(LogLevel::Info, "hello");
-    test.Stop(logging);
-
-    // Then the resulting log event contains:
-    // - 'application_id' with our RUM context value, NOT the user-provided value
-    // - No 'session_id' value, since no RUM session_id exists and RUM attribute names
-    //   are reserved
-    // - No 'view.id' or 'user_action.id' attributes, since nothing sets them
-    REQUIRE(test.events.size() == 1);
-    const CapturedEvent& event = test.events.back();
-    REQUIRE(has_uuid_value(event.data, "application_id", uuid_9916));
-    REQUIRE(event.data.find("\"user-application-id\"") == std::string::npos);
-    REQUIRE(has_no_value(event.data, "session_id"));
-    REQUIRE(has_no_value(event.data, "view.id"));
-    REQUIRE(has_no_value(event.data, "user_action.id"));
-  }
-
-  SECTION("M not include RUM attributes W enrichment is explicitly disabled") {
-    // Given a Logger configured with 'enrich_with_rum_context' disabled
-    MockClock clock;
-    clock.FreezeAtMilliseconds(1700000000000);
-    auto logging = std::make_shared<impl::Logging>(clock, "mock-service", "1.0.0");
-    auto logger = logging->CreateLogger(LoggerConfig().SetEnrichWithRumContext(false));
-
-    // And a context that includes RUM session details
-    CoreContext context = MOCK_CONTEXT;
-    context.rum.emplace();
-    context.rum->application_id = uuid_9916;
-    context.rum->session_id = uuid_d927;
-    context.rum->view_id = uuid_e27c;
-    context.rum->action_id = uuid_cfa4;
-
-    // When we emit a log event while the SDK is running
-    FeatureTest test(context);
-    test.Start(logging);
-    logger->EmitLogEvent(LogLevel::Info, "hello");
-    test.Stop(logging);
-
-    // Then the resulting log event does not contain any RUM attributes
-    REQUIRE(test.events.size() == 1);
-    const CapturedEvent& event = test.events.back();
-    REQUIRE(has_no_value(event.data, "application_id"));
-    REQUIRE(has_no_value(event.data, "session_id"));
-    REQUIRE(has_no_value(event.data, "view.id"));
-    REQUIRE(has_no_value(event.data, "user_action.id"));
-  }
-
-  SECTION("M not include RUM attributes W RUM context is not present") {
-    // Given a valid Logging feature and a Logger with the default config
-    MockClock clock;
-    clock.FreezeAtMilliseconds(1700000000000);
-    auto logging = std::make_shared<impl::Logging>(clock, "mock-service", "1.0.0");
-    auto logger = logging->CreateLogger(LoggerConfig());
-
-    // And a context that has no RumFeatureContext
-    CoreContext context = MOCK_CONTEXT;
-
-    // When we emit a log event while the SDK is running
-    FeatureTest test(context);
-    test.Start(logging);
-    logger->EmitLogEvent(LogLevel::Info, "hello");
-    test.Stop(logging);
-
-    // Then the resulting log event does not contain any RUM attributes
-    REQUIRE(test.events.size() == 1);
-    const CapturedEvent& event = test.events.back();
-    REQUIRE(has_no_value(event.data, "application_id"));
-    REQUIRE(has_no_value(event.data, "session_id"));
-    REQUIRE(has_no_value(event.data, "view.id"));
-    REQUIRE(has_no_value(event.data, "user_action.id"));
+    // And the second lines up with our warning call
+    RequireEventMatch(nlohmann::json::parse(test.events[1].data), R"({
+      "status": "warn",
+      "service": "mock-service",
+      "date": "2023-11-14T22:13:21.100Z",
+      "message": "This is a warning",
+      "logger.name": "cool-logger",
+      "logger.version": "0.0.1",
+      "application_id": "0976f38a-ae45-4f7a-8436-0c98c227a7b3",
+      "session_id": "ab45517b-40ae-4f90-8c8a-bff62c05a166",
+      "usr": {
+        "id": "u-123456"
+      },
+      "os": {
+        "name": "mock-os",
+        "version": "2.3.4",
+        "build": "mock-build-number",
+        "version_major": "2"
+      },
+      "device": {
+        "type": "desktop",
+        "name": "mock-device",
+        "model": "mock-model",
+        "brand": "mock-brand",
+        "architecture": "x86_64",
+        "locale": "en-US",
+        "time_zone": "America/New_York"
+      },
+      "foo": 11,
+      "bar": 555,
+      "baz": 666,
+      "qux": 44,
+      "arf": 55
+    })");
   }
 }

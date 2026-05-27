@@ -194,6 +194,7 @@ endif()
 # === logging ===
 
 target_sources(dd_native PRIVATE
+    datadog/impl/logging/event_generation.cpp
     datadog/impl/logging/logger.cpp
     datadog/impl/logging/logging.cpp
 )

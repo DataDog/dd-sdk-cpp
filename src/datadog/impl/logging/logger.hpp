@@ -7,95 +7,90 @@
 #pragma once
 
 #include <cinttypes>
-#include <functional>
+#include <memory>
 #include <random>
-#include <shared_mutex>
-#include <string>
+#include <string_view>
 #include <vector>
 
 #include "datadog/attribute.hpp"
+#include "datadog/logging.hpp"
 
-#include "datadog/impl/core/attribute/typed_attribute.hpp"
-#include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/core/feature_types/logging.hpp"
-#include "datadog/impl/logging/types.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
+#include "datadog/impl/logging/data.hpp"
 
 namespace datadog::impl {
 
+class Logging;
+
 /**
- * Internal state that's owned by a specific logger but shared with the Logging feature
- * for the purposes of generating log events.
+ * Implementation-layer Logger object, wrapped at the API layer by `datadog::Logger` and
+ * `dd_logger_t`.
  *
- * Since we don't guarantee thread safety for individual loggers, we can assume
- * exclusive access to this state in any API call initiated on the owning Logger.
- */
-struct LoggerState {
-  // Current set of custom user attributes applied to this logger; to be merged with
-  // global and log-event-level attributes
-  ObjectAttribute user_attributes;
-
-  // In-memory representation of the event payload that will be emitted whenever a
-  // message is logged; reused between log calls
-  LogEvent event;
-
-  explicit LoggerState(
-      const std::optional<std::string>& in_service_name,
-      const std::optional<std::string>& in_logger_name,
-      size_t initial_attribute_capacity
-  );
-};
-
-struct LoggerEnrichmentConfig {
-  bool enable_rum;
-
-  explicit LoggerEnrichmentConfig(bool in_enable_rum);
-};
-
-/**
- * Function used by a Logger to generate a new log message.
- */
-using LogEventCallback = std::function<void(
-    LoggerState& mut_state,
-    const LoggerEnrichmentConfig& enrichment,
-    LogLevel level,
-    std::string_view message,
-    const Attribute& message_attributes
-)>;
-
-/**
- * Logger implementation. Owns its own logger-specific state, and handles the emitting
- * of log messages by relaying the requisite data to the logging feature implementation.
+ * Maintains a weak reference to the `Logging` feature for access to global state, and
+ * handles `Log` calls from the application by making sampling decisions on the calling
+ * thread, then enqueuing context-thread callbacks which will ultimately produce
+ * JSON-encoded `LogEvent` values for storage.
+ *
+ * As currently implemented, `Logger` is not designed to be thread-safe: the application
+ * developer is advised that any given Logger should only be used from one thread at a
+ * time. It _is_ safe to create and use multiple Loggers across different threads, so
+ * long as each Logger is confined to a single thread at a time.
  */
 class Logger {
  public:
-  /**
-   * Initializes a new logger with the given config.
-   */
-  explicit Logger(const LoggerConfig& config, const LogEventCallback& event_callback);
-
-  void AddAttribute(std::string_view name, const Attribute& value);
-  void RemoveAttribute(std::string_view name);
+  explicit Logger(const LoggerConfig& config, std::weak_ptr<Logging> logging);
 
   /**
-   * Handles a request to emit a single log message.
+   * Adds or updates a logger-level attribute, which will be included in log events
+   * emitted by this logger.
    */
-  void EmitLogEvent(
+  void AddAttribute(std::string_view key, const Attribute& value);
+
+  /**
+   * Removes a logger-level attribute, if any exists with the given name.
+   */
+  void RemoveAttribute(std::string_view key);
+
+  /**
+   * Records a single Log call from the application, with the given log level, message
+   * text, and set of custom log-level attribute values.
+   *
+   * If `level` meets the configured threshold and a sampling decision passes, a
+   * context-thread callback will be enqueued, causing a `LogEvent` to be generated and
+   * flushed to disk in response to this call.
+   *
+   * `message` is a view of the application-provided string value, whose ownership and
+   * lifetime we do not control. If the remote sampling decision passes, we will make a
+   * copy of this string.
+   *
+   * Any values given in `attributes` whose names match existing logger-level or global
+   * logging attributes will take precedence, shadowing those earlier values.
+   */
+  void Log(
       LogLevel level,
       std::string_view message,
-      const Attribute& message_attributes = Attribute()
-  );
+      const Attribute& attributes = Attribute()
+  ) const;
 
  private:
-  // Internal state used to make sampling decisions
-  LogLevel _min_level;
-  float _sampling_rate_unit;
-  std::mt19937 _sampling_rng;
-  std::uniform_real_distribution<float> _sampling_distribution;
+  /**
+   * Determines whether the logger should generate a remote log event in response to a
+   * new log call. Applies the configured log level threshold, making a random sampling
+   * decision if needed.
+   */
+  bool ShouldSendLogEvent(LogLevel level) const;
 
-  // State used when generating log events
-  LogEventCallback _event_callback;
-  LoggerState _state;
-  LoggerEnrichmentConfig _enrichment;
+  std::weak_ptr<Logging> _logging;  // Reference to Logging feature implementation
+  Attribute _attributes;            // Logger-level attributes applied to all messages
+
+  // Immutable snapshot of configuration details that affect log messages
+  std::shared_ptr<const LoggerConfigDetails> _details;
+
+  // Sampling state used in the caller thread
+  LogLevel _remote_log_threshold;
+  float _remote_sample_rate_unit;
+  mutable std::mt19937 _sampling_rng;
+  mutable std::uniform_real_distribution<float> _sampling_distribution;
 };
 
 }  // namespace datadog::impl
