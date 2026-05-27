@@ -64,6 +64,10 @@ TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
     dd_logger_destroy(nullptr);
     dd_logger_add_attribute(nullptr, "foo", &int_100);
     dd_logger_remove_attribute(nullptr, "foo");
+    dd_logger_add_tag(nullptr, "foo:bar");
+    dd_logger_add_tag_kv(nullptr, "foo", "bar");
+    dd_logger_remove_tag(nullptr, "foo:bar");
+    dd_logger_remove_tags_with_key(nullptr, "foo");
     dd_logger_log(nullptr, DD_LOG_LEVEL_INFO, "hello");
     dd_logger_debug(nullptr, "hello");
     dd_logger_info(nullptr, "hello");
@@ -334,6 +338,26 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
        {"dd_logger_remove_attribute call ignored: application must supply an attribute "
         "name"},
        {}},
+
+      // === dd_logger_add_tag() / dd_logger_add_tag_kv() ===
+
+      {"M reject tag with error W dd_logger_add_tag is called with NULL tag",
+       [](dd_logging_t* logging) {
+         dd_logger_t* logger = dd_logger_create(logging, nullptr);
+         dd_logger_add_tag(logger, nullptr);
+         dd_logger_destroy(logger);
+       },
+       {},
+       {"Logger tag was rejected: tags must not be empty {\"key\":\"\"}"}},
+
+      {"M reject tag with error W dd_logger_add_tag_kv is called with NULL key",
+       [](dd_logging_t* logging) {
+         dd_logger_t* logger = dd_logger_create(logging, nullptr);
+         dd_logger_add_tag_kv(logger, nullptr, "value");
+         dd_logger_destroy(logger);
+       },
+       {},
+       {"Logger tag was rejected: tags must not be empty {\"key\":\"\"}"}},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
@@ -1276,6 +1300,157 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
       // When we start the core, run our logging tests, and stop the core
       dd_core_start(core);
       tt.while_running(logging, logger);
+      dd_core_stop(core);
+
+      // Then the SDK should have sent the expected set of events
+      REQUIRE(test.client.requests.size() == 1);
+      REQUIRE(MergeJsonArrays(test.client.requests) == tt.want_request_body);
+
+      // Cleanup
+      dd_logger_destroy(logger);
+      dd_logging_destroy(logging);
+      dd_core_destroy(core);
+    }
+  }
+}
+
+TEST_CASE("dd_logger tags", "[unit][logging][c-api]") {
+  // These tests register the logging feature and initialize a logger, then they
+  // exercise tag manipulation while the core is running and examine the resulting HTTP
+  // request to see if it matches want_request_body
+  struct TestParams {
+    std::string_view name;
+    std::function<void(dd_logger_t*)> setup;
+    std::function<void(dd_logger_t*)> while_running;
+    nlohmann::json want_request_body;
+  };
+  // Constructs the expected ddtags value by appending custom tags to the standard set
+  auto ddtags_with = [](std::string_view suffix) {
+    return nlohmann::json(DDTAGS.get<std::string>() + "," + std::string(suffix));
+  };
+  std::vector<TestParams> tests = {
+      {"M append custom tag to ddtags W dd_logger_add_tag called with pre-formatted "
+       "entry",
+       [](dd_logger_t* logger) {
+         // Add a tag using the pre-formatted '<key>:<value>' form
+         dd_logger_add_tag(logger, "foo:hello");
+       },
+       [](dd_logger_t* logger) { dd_logger_info(logger, "hello"); },
+       nlohmann::json::array({nlohmann::json{
+           {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", "1.2.3"},
+           {"ddtags", ddtags_with("foo:hello")}
+       }})},
+
+      {"M append custom tag to ddtags W dd_logger_add_tag_kv called with separate key "
+       "and value",
+       [](dd_logger_t* logger) {
+         // Add a tag using the separate key/value form
+         dd_logger_add_tag_kv(logger, "bar", "world");
+       },
+       [](dd_logger_t* logger) { dd_logger_info(logger, "hello"); },
+       nlohmann::json::array({nlohmann::json{
+           {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", "1.2.3"},
+           {"ddtags", ddtags_with("bar:world")}
+       }})},
+
+      {"M remove exact tag W dd_logger_remove_tag is called with matching entry",
+       [](dd_logger_t* logger) {
+         // Add two tags with the same key but different values
+         dd_logger_add_tag(logger, "foo:1");
+         dd_logger_add_tag(logger, "foo:2");
+       },
+       [](dd_logger_t* logger) {
+         // Log a message with both tags present, then remove one and log again
+         dd_logger_info(logger, "alpha");
+         dd_logger_remove_tag(logger, "foo:1");
+         dd_logger_info(logger, "bravo");
+       },
+       nlohmann::json{
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "alpha"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:1,foo:2")}
+           },
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "bravo"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:2")}
+           }
+       }},
+
+      {"M remove all tags with key W dd_logger_remove_tags_with_key is called",
+       [](dd_logger_t* logger) {
+         // Add two tags under 'foo' and one under 'bar'
+         dd_logger_add_tag(logger, "foo:1");
+         dd_logger_add_tag(logger, "foo:2");
+         dd_logger_add_tag(logger, "bar:3");
+       },
+       [](dd_logger_t* logger) {
+         // Log a message with all tags, then remove all 'foo' entries and log again
+         dd_logger_info(logger, "alpha");
+         dd_logger_remove_tags_with_key(logger, "foo");
+         dd_logger_info(logger, "bravo");
+       },
+       nlohmann::json{
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "alpha"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:1,foo:2,bar:3")}
+           },
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "bravo"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("bar:3")}
+           }
+       }},
+  };
+  for (const auto& tt : tests) {
+    DYNAMIC_SECTION(tt.name) {
+      // Given a core
+      auto test = CoreTestHarness::Init();
+      test.clock.FreezeAtMilliseconds(1700000000000);
+      dd_core_t* core = CoreTestHarness::WrapForC(test);
+
+      // And a registered logging feature and a logger that our test has configured
+      dd_logging_t* logging = dd_logging_init(core);
+      dd_logger_t* logger = dd_logger_create(logging, nullptr);
+      tt.setup(logger);
+
+      // When we start the core, run our tag manipulation tests, and stop the core
+      dd_core_start(core);
+      tt.while_running(logger);
       dd_core_stop(core);
 
       // Then the SDK should have sent the expected set of events

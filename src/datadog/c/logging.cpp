@@ -255,6 +255,43 @@ void dd_logger_remove_attribute(dd_logger_t* logger, const char* name) {
   logger->impl->RemoveAttribute(name);
 }
 
+void dd_logger_add_tag(dd_logger_t* logger, const char* tag) {
+  // Permit no-op calls
+  if (!logger || !logger->impl) {
+    return;
+  }
+
+  // Allow empty strings: all validation logic is handled within impl::Logger, using the
+  // DiagnosticLogger that we provide
+  const std::string_view cpp_tag = tag ? std::string_view{tag} : std::string_view{};
+  logger->impl->AddTag(cpp_tag, logger->diagnostic_logger);
+}
+
+void dd_logger_add_tag_kv(dd_logger_t* logger, const char* key, const char* value) {
+  if (!logger || !logger->impl) {
+    return;
+  }
+  const std::string_view cpp_key = key ? std::string_view{key} : std::string_view{};
+  const std::string_view cpp_value = value ? std::string_view{value} : std::string_view{};
+  logger->impl->AddTag(cpp_key, cpp_value, logger->diagnostic_logger);
+}
+
+void dd_logger_remove_tag(dd_logger_t* logger, const char* tag) {
+  if (!logger || !logger->impl) {
+    return;
+  }
+  const std::string_view cpp_tag = tag ? std::string_view{tag} : std::string_view{};
+  logger->impl->RemoveTag(cpp_tag);
+}
+
+void dd_logger_remove_tags_with_key(dd_logger_t* logger, const char* key) {
+  if (!logger || !logger->impl) {
+    return;
+  }
+  const std::string_view cpp_key = key ? std::string_view{key} : std::string_view{};
+  logger->impl->RemoveTagsWithKey(cpp_key);
+}
+
 void dd_logger_log(dd_logger_t* logger, dd_log_level_t level, const char* message) {
   dd_logger_log_obj(logger, level, message, nullptr);
 }
