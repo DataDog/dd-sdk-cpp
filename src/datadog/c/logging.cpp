@@ -272,7 +272,8 @@ void dd_logger_add_tag_kv(dd_logger_t* logger, const char* key, const char* valu
     return;
   }
   const std::string_view cpp_key = key ? std::string_view{key} : std::string_view{};
-  const std::string_view cpp_value = value ? std::string_view{value} : std::string_view{};
+  const std::string_view cpp_value =
+      value ? std::string_view{value} : std::string_view{};
   logger->impl->AddTag(cpp_key, cpp_value, logger->diagnostic_logger);
 }
 
