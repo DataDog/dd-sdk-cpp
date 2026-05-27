@@ -612,7 +612,9 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
             {"message", "hello"},
             {"logger.name", "my-logger"},
             {"logger.version", "1.2.3"},
-            {"ddtags", DDTAGS}
+            {"ddtags",
+             "service:overridden-service,version:mock-application-version,"
+             "env:mock-env,sdk_version:1.2.3"}
         }})
     );
 
@@ -714,7 +716,10 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
             {"logger.name",
              "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhh"},
             {"logger.version", "1.2.3"},
-            {"ddtags", DDTAGS}
+            {"ddtags",
+             "service:aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggg"
+             "hhhhhhhhiiiiiiiijjjjjjjjkkkkkkkkllllllllmmmmmmmmnnnnnnnnooooooooppppppp,"
+             "version:mock-application-version,env:mock-env,sdk_version:1.2.3"}
         }})
     );
 
