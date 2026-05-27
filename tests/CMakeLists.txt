@@ -82,6 +82,7 @@ add_executable(dd_native_tests
     impl/crash_reporting/crash_reporting_test.cpp
     impl/logging/event_generation_test.cpp
     impl/logging/logger_test.cpp
+    impl/logging/tags_test.cpp
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp
     impl/rum/crash_processing/crash_formatting_test.cpp
