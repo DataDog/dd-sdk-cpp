@@ -81,3 +81,28 @@ TEST_CASE("GetUserAgent", "[unit][core]") {
     );
   }
 }
+
+TEST_CASE("BuildDdTags", "[unit][core]") {
+  SECTION("M produce comma-delimited key:val list W all required values provided") {
+    const auto got = BuildDdTags("my-service", "", "prod", "2.0.0", "");
+    REQUIRE(got == "service:my-service,env:prod,sdk_version:2.0.0");
+  }
+
+  SECTION("M include optional values W all values provided") {
+    const auto got = BuildDdTags("my-service", "1.2.3", "prod", "2.0.0", "Debug");
+    REQUIRE(
+        got ==
+        "service:my-service,version:1.2.3,env:prod,sdk_version:2.0.0,variant:Debug"
+    );
+  }
+
+  SECTION("M strip commas and colons from values, leaving all other chars intact") {
+    const auto got =
+        BuildDdTags("My:Service !", "1,2,3", "prod:blue", "2\t0.0", "Debug\n?");
+    REQUIRE(
+        got ==
+        "service:MyService !,version:123,env:prodblue,"
+        "sdk_version:2\t0.0,variant:Debug\n?"
+    );
+  }
+}

@@ -33,6 +33,7 @@ TEST_CASE("CoreContext", "[unit]") {
   // When CoreContext is constructed with OS info and device info
   CoreConfig config("token", "service", "env");
   config.SetApplicationVersion("3.0.0");
+  config.SetVariant("shipping");
   ImmutableContext imm(config, os_info, device_info, "reporter", "1.2.3");
   CoreContext ctx(imm, TrackingConsent::Pending);
 
@@ -62,6 +63,11 @@ TEST_CASE("CoreContext", "[unit]") {
   REQUIRE(ctx.sdk_version == SDK_VERSION);
   REQUIRE(ctx.intake_origin == "https://browser-intake-datadoghq.com");
   REQUIRE(ctx.user_agent == "service/3.0.0 reporter/1.2.3 (test-device; TestOS/1.2.3)");
+  REQUIRE(
+      ctx.per_event_ddtags ==
+      "service:service,version:3.0.0,env:env,sdk_version:" DATADOG_BUILD_VERSION
+      ",variant:shipping"
+  );
 
   // And essential SDK state defaults to its safe initial values
   REQUIRE(ctx.tracking_consent == TrackingConsent::Pending);
@@ -110,5 +116,6 @@ TEST_CASE("CoreContext", "[unit]") {
         "service/3.0.0 reporter/1.2.3 (test-device; TestOS/1.2.3)"
     );
     REQUIRE(snapshot_a.user_agent.data() == snapshot_b.user_agent.data());
+    REQUIRE(snapshot_a.per_event_ddtags.data() == snapshot_b.per_event_ddtags.data());
   }
 }

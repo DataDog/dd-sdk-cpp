@@ -83,6 +83,7 @@ struct ImmutableContext {
   std::string sdk_version;    // Internal cross-platform-SDK override, or SDK_VERSION
   std::string intake_origin;  // Derived from configured site or custom endpoint URL
   std::string user_agent;     // Built from config + HTTP client + DeviceInfo + OsInfo
+  std::string per_event_ddtags;  // 'service:<service>,env:<env>' etc.
 
   /**
    * Initializes the full set of ImmutableContext values given a set of values and
@@ -176,6 +177,13 @@ struct CoreContext {
    * e.g. `my.service/1.0.0 libcurl/8.11.0 (ThinkPad-T14-Gen-2; Ubuntu/22.04);`
    */
   std::string_view user_agent;
+
+  /**
+   * Unified service tags applied to all event payloads in a 'ddtags' property, e.g.
+   * 'service:foo,env:bar,...'; not to be confused with the upload-level retry telemetry
+   * values that use the same name and format (e.g. '?ddtags=retry_count:N,...').
+   */
+  std::string_view per_event_ddtags;
 
   // === Essential SDK state that may change during SDK operation ===
 
