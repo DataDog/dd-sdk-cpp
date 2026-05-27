@@ -255,11 +255,6 @@ static void remove_matching(std::string& buf, size_t& num_tags, Pred pred) {
 }
 
 LoggerTags::AddResult LoggerTags::Add(std::string_view key, std::string_view value) {
-  // Reject any attempt to add entries beyond the limit
-  if (num_tags >= MAX_TAGS_PER_LOGGER) {
-    return AddResult::RejectedDueToTagLimit;
-  }
-
   // Truncate and sanitize the input value so it conforms to our formatting requirements
   TagBuffer to_add;
   const auto sanitize_result = to_add.SanitizeAndStore(key, value);
@@ -300,6 +295,11 @@ LoggerTags::AddResult LoggerTags::Add(std::string_view key, std::string_view val
       // Tag already stored as described; consider it accepted as a no-op
       return sanitize_result;
     }
+  }
+
+  // Reject any attempt to add new tags beyond the limit
+  if (num_tags >= MAX_TAGS_PER_LOGGER) {
+    return AddResult::RejectedDueToTagLimit;
   }
 
   // Append the sanitized entry and increment our entry count
