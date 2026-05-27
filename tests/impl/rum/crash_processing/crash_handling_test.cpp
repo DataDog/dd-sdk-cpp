@@ -108,7 +108,7 @@ static CrashReport make_crash_report(
           "my-service",              // service
           "my-env",                  // env
           "1.0.0",                   // application_version
-          "Debug",                   // variant
+          "Shipping",                // variant
           "rum-cpp",                 // source
           "2.0.2",                   // sdk_version
           TrackingConsent::Granted,  // tracking_consent
@@ -326,6 +326,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       "date": 1699999990000,
       "service": "my-service",
       "version": "1.0.0",
+      "ddtags": "service:my-service,version:1.0.0,env:my-env,sdk_version:2.0.2,variant:Shipping",
       "os": {
         "name": "CoolOS",
         "version": "3.3.3",
@@ -391,6 +392,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       "date": 1699999990000,
       "service": "my-service",
       "version": "1.0.0",
+      "ddtags": "service:my-service,version:1.0.0,env:my-env,sdk_version:2.0.2,variant:Shipping",
       "os": {
         "name": "CoolOS",
         "version": "3.3.3",
@@ -539,6 +541,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       "date": 1699999990000,
       "service": "my-service",
       "version": "1.0.0",
+      "ddtags": "service:my-service,version:1.0.0,env:my-env,sdk_version:2.0.2,variant:Shipping",
       "os": {
         "name": "CoolOS",
         "version": "3.3.3",
@@ -604,6 +607,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       "date": 1699999990000,
       "service": "my-service",
       "version": "1.0.0",
+      "ddtags": "service:my-service,version:1.0.0,env:my-env,sdk_version:2.0.2,variant:Shipping",
       "os": {
         "name": "CoolOS",
         "version": "3.3.3",
@@ -813,6 +817,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       "date": 1699999990000,
       "service": "my-service",
       "version": "1.0.0",
+      "ddtags": "service:my-service,version:1.0.0,env:my-env,sdk_version:2.0.2,variant:Shipping",
       "os": {
         "name": "CoolOS",
         "version": "3.3.3",
@@ -932,6 +937,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
       "date": 1699999990000,
       "service": "my-service",
       "version": "1.0.0",
+      "ddtags": "service:my-service,version:1.0.0,env:my-env,sdk_version:2.0.2,variant:Shipping",
       "os": {
         "name": "CoolOS",
         "version": "3.3.3",

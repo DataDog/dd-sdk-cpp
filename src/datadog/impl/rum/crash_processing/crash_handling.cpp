@@ -10,6 +10,7 @@
 #include <chrono>
 
 #include "datadog/impl/core/feature_types/crash_reporting.hpp"
+#include "datadog/impl/core/upload_util.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/core/version.hpp"
@@ -68,7 +69,11 @@ static void populate_event_from_crash_context(const CrashContext& ctx, T& mut_ev
   mut_ev.service = ctx.service;
   mut_ev.version = ctx.application_version;
 
-  // TODO: Include ddtags, built from ctx?
+  // Populate ddtags, building a new value that matches the configuration details at the
+  // time of the crash
+  mut_ev.ddtags = BuildDdTags(
+      ctx.service, ctx.application_version, ctx.env, ctx.sdk_version, ctx.variant
+  );
 
   // If CrashContext includes values for any requred 'os' fields, populate 'os'
   if (!ctx.os_name.empty() || !ctx.os_version.empty() ||

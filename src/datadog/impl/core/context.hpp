@@ -78,6 +78,7 @@ struct ImmutableContext {
   std::string_view service;              // Required member of Core-owned CoreConfig
   std::string_view env;                  // Required member of Core-owned CoreConfig
   std::string_view application_version;  // Optional member of Core-owned CoreConfig
+  std::string_view variant;              // Optional member of Core-owned CoreConfig
 
   std::string source;         // Internal cross-platform-SDK override, or "rum-cpp"
   std::string sdk_version;    // Internal cross-platform-SDK override, or SDK_VERSION
@@ -151,6 +152,12 @@ struct CoreContext {
    * tagging. May be empty.
    */
   std::string_view application_version;
+
+  /**
+   * Build variant, config, or flavor describing the current application binary, for
+   * unified tagging. May be empty.
+   */
+  std::string_view variant;
 
   /**
    * Internal value identifying the Datadog SDK responsible for instrumenting this

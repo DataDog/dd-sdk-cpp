@@ -1566,6 +1566,7 @@ TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
   }
 
   SECTION("M include all optional properties W fully-populated event") {
+    ev.ddtags = "service:my-service,env:my-env,sdk_version:0.0.0";
     ev.view.name.value = "Checkout Screen";
     ev.vital.operation_key.value = "my-op-key";
     ev.source.value = RumSource::ReactNative;
@@ -1578,6 +1579,7 @@ TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
     device.name = "test-device";
     RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
       "date": 946684799999,
+      "ddtags": "service:my-service,env:my-env,sdk_version:0.0.0",
       "application": {
         "id": "a991ca10-4004-4004-4004-beefbeefbeef"
       },

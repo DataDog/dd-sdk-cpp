@@ -887,6 +887,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(events[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "view",
             "date": 1700000000000,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -943,6 +944,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(events[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "view",
             "date": 1700000000000,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -986,6 +988,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(events[1], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "view",
             "date": 1700000000000,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -1918,6 +1921,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(actions[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "action",
             "date": 1700000000000,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -2053,6 +2057,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(actions[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "action",
             "date": 1700000000000,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -2473,6 +2478,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(resources[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "resource",
             "date": 1700000000000,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -2554,6 +2560,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "error",
             "date": 1700000002400,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -2639,6 +2646,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "error",
             "date": 1700000002400,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -2709,6 +2717,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "error",
             "date": 1700000000005,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -2790,6 +2799,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(errors[0], DATADOG_RUM_EVENT_LITERAL(R"({
             "type": "error",
             "date": 1700000000005,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
             "os": {
               "name": "MockOS",
               "version": "1.0.0",
@@ -3651,6 +3661,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(vitals[0], DATADOG_RUM_EVENT_LITERAL(R"({
            "type": "vital",
            "date": 1700000000000,
+           "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
            "os": {
              "name": "MockOS",
              "version": "1.0.0",
@@ -3685,6 +3696,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
            "type": "vital",
            "date": 1700000000500,
+           "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
            "os": {
              "name": "MockOS",
              "version": "1.0.0",
@@ -3735,6 +3747,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
            "type": "vital",
            "date": 1700000000000,
+           "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
            "os": {
              "name": "MockOS",
              "version": "1.0.0",
@@ -3782,6 +3795,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(vitals[0], DATADOG_RUM_EVENT_LITERAL(R"({
            "type": "vital",
            "date": 1700000000000,
+           "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
            "os": {
              "name": "MockOS",
              "version": "1.0.0",
@@ -3817,6 +3831,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          RequireEventMatch(vitals[1], DATADOG_RUM_EVENT_LITERAL(R"({
            "type": "vital",
            "date": 1700000000000,
+           "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
            "os": {
              "name": "MockOS",
              "version": "1.0.0",
