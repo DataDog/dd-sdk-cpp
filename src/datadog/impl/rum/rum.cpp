@@ -49,6 +49,12 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
   // Bind a weak_ptr to this so the callback will silently no-op after we're destroyed
   const auto weak_self = weak_from_this();
   return [weak_self](const FeatureMessage& msg) {
+  // MSVC flags each `else if (const auto* m = ...)` branch as shadowing an outer `m`,
+  // even though the scopes are mutually exclusive
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4456)
+#endif
     // On CrashReportProcessedMessage, enqueue a context-thread callback that will
     // process a copy of the CrashReport, potentially producing a RUM Error event to
     // describe the crash, and also potentially producing an updated RUM View event
@@ -92,6 +98,9 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
           )
       );
     }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
   };
 }
 
