@@ -10,7 +10,6 @@
 #include <cinttypes>
 #include <functional>
 #include <optional>
-#include <random>
 #include <string>
 #include <vector>
 
@@ -36,11 +35,7 @@ struct RumScopeDependencies {
   const platform::IClock& clock;
 
  private:
-  // Internal state used in sampling decisions
-  float _sampling_rate_unit;
-  // Sampling state accessed only on the context thread
-  mutable std::mt19937 _sampling_rng;
-  mutable std::uniform_real_distribution<float> _sampling_distribution;
+  float _sampling_rate;  // 0–100, from RumConfig::session_sample_rate
 
   // Reusable buffer for encoding events; accessed only on the context thread
   mutable std::vector<uint8_t> _encode_buffer;
@@ -52,12 +47,15 @@ struct RumScopeDependencies {
 
  public:
   /**
-   * Makes a single sampling decision for a newly-created session. If the result is
-   * true, the session should be sampled, meaning that it should process the full set of
-   * commands and generate RUM events to be sent to intake. If false, the session should
-   * not be sampled, meaning it will ignore most commands and generate no events.
+   * Determines whether the session identified by `session_id` should be sampled in,
+   * using the deterministic Knuth multiplicative hash algorithm shared by the iOS and
+   * Android SDKs. The same `(session_id, sample_rate)` pair always yields the same
+   * decision on any platform.
+   *
+   * If the result is true, the session should process the full set of commands and
+   * generate RUM events. If false, the session generates no events.
    */
-  bool ShouldSampleSession() const;
+  bool ShouldSampleSession(const UUID& session_id) const;
 
   /**
    * Encodes a RUM event to JSON without writing it. The caller uses the returned
@@ -116,5 +114,17 @@ struct RumScope {};
  */
 template <typename T>
 using ScopeRef = std::optional<std::reference_wrapper<T>>;
+
+/**
+ * Core of the deterministic session-sampling algorithm, exposed for direct testing
+ * against cross-SDK seed vectors. The production path goes through
+ * `RumScopeDependencies::ShouldSampleSession`, which extracts the seed from the UUID
+ * before delegating here.
+ *
+ * Given a raw 64-bit `seed` and a `sample_rate` in [0, 100]: applies Knuth
+ * multiplicative hashing and compares the result against a threshold scaled from
+ * `sample_rate`. Returns true if the session should be sampled in.
+ */
+bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate);
 
 }  // namespace datadog::impl

@@ -6,11 +6,11 @@
 
 #include "datadog/impl/rum/scope.hpp"
 
-#include <string_view>
+#include <array>
+#include <cstdint>
 
 #include "datadog/rum.hpp"
-
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/uuid.hpp"
 
 namespace datadog::impl {
 
@@ -19,28 +19,54 @@ RumScopeDependencies::RumScopeDependencies(
 )
     : application_id(config.application_id),
       clock(in_clock),
-      _sampling_rate_unit(config.session_sample_rate / 100.0f),
-      _sampling_rng(std::random_device{}()),
-      _sampling_distribution(0.0f, 1.0f) {
+      _sampling_rate(config.session_sample_rate) {
   _encode_buffer.reserve(8192);
 }
 
-bool RumScopeDependencies::ShouldSampleSession() const {
-  // If sampling rate is 100%, all sessions are sampled
-  if (_sampling_rate_unit >= 1.0f) {
+namespace {
+
+// Decimal 1_111_111_111_111_111_111 — the Knuth multiplier shared by the iOS and
+// Android SDKs. NOT hex 0xFFFF...; the decimal "all 1s" form is load-bearing for
+// cross-SDK consistency.
+constexpr uint64_t kSamplerHasher = 0x0F6B75AB2BC471C7ULL;
+
+// 2^64 − 1: the unscaled upper bound for comparing the hash result.
+constexpr uint64_t kMaxId = 0xFFFFFFFFFFFFFFFFULL;
+
+// Extract the 48-bit RFC 4122 "node" field (bytes 10–15) as a uint64. Byte-by-byte
+// assembly is endian-independent on the host.
+uint64_t extract_seed(const std::array<uint8_t, 16>& uuid_bytes) {
+  uint64_t seed = 0;
+  for (size_t i = 10; i < 16; ++i) {
+    seed = (seed << 8) | static_cast<uint64_t>(uuid_bytes.at(i));
+  }
+  return seed;
+}
+
+}  // namespace
+
+bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate) {
+  if (sample_rate >= 100.0f) {
     return true;
   }
-
-  // If sampling rate is 0%, all sessions are ignored
-  if (_sampling_rate_unit <= 0.0f) {
+  if (sample_rate <= 0.0f) {
     return false;
   }
 
-  // Roll the dice to see if this session should be sampled. At a session sample rate of
-  // 0.2f, we keep 20% of sessions, so a roll _under_ the threshold means we should
-  // sample this session.
-  const float random_unit_value = _sampling_distribution(_sampling_rng);
-  return random_unit_value <= _sampling_rate_unit;
+  // Unsigned overflow wraps modulo 2^64 — well-defined in C++, and matches Swift's
+  // `&*` and Kotlin's ULong multiply exactly.
+  const uint64_t hash = seed * kSamplerHasher;
+
+  // Compute threshold in double, in the same order as the mobile SDKs:
+  // MAX_ID * rate / 100.0, not MAX_ID * (rate / 100.0) — the two differ in double.
+  const double threshold =
+      static_cast<double>(kMaxId) * static_cast<double>(sample_rate) / 100.0;
+
+  return static_cast<double>(hash) < threshold;
+}
+
+bool RumScopeDependencies::ShouldSampleSession(const UUID& session_id) const {
+  return ShouldSampleSessionFromSeed(extract_seed(session_id.bytes), _sampling_rate);
 }
 
 }  // namespace datadog::impl
