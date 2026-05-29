@@ -41,23 +41,23 @@ bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate) {
   // be implemented identically across all Datadog SDKs, regardless of language or
   // runtime.
 
-  // Multiply by our Knuth factor, effectively spreading out 48-bit input value across
-  // the range of [0..0xFFFFFFFFFFFFFFFF] in a uniform, predictable way. Unsigned
-  // overflow wrap at 2^64, which is well-defined in C++ and matches the iOS and Android
-  // SDKs (`&*` in Swift; ULong multiply in Kotlin) exactly
+  // Multiply by our Knuth factor, effectively spreading out the 48-bit input value
+  // across the range of [0..0xFFFFFFFFFFFFFFFF] in a uniform, predictable way. Unsigned
+  // overflow wraps at 2^64, which is well-defined in C++ and matches the iOS and
+  // Android SDKs exactly (`&*` in Swift; ULong multiply in Kotlin)
   static const uint64_t knuth_factor = 1111111111111111111ull;
   const uint64_t hash = seed * knuth_factor;
 
   // Using double-precision floating-point arithmetic, map our sample rate to the same
   // [0..0xFFFFFFFFFFFFFFFF] range. Note that order matters here: `max * (rate / 100.0)`
-  // would be mathematically the same, but would produce subtly different results from
-  // intermediate precision loss due to floating-point rounding error.
+  // would be mathematically the same, but would produce subtly different results due to
+  // intermediate floating-point rounding error.
   const double max_id_f64 = static_cast<double>(std::numeric_limits<uint64_t>::max());
   const double sample_rate_f64 = static_cast<double>(sample_rate);
   const double threshold = max_id_f64 * sample_rate_f64 / 100.0;
 
   // Compare our hash result to the threshold: if we landed under the sample rate, we'll
-  // sample the session (e.g. at 80% => 80% below sampled, 20% above dropped)
+  // track the session (e.g. at 80% => 80% below sampled, 20% above dropped)
   return static_cast<double>(hash) < threshold;
 }
 

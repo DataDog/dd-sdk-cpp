@@ -26,14 +26,12 @@ struct RumConfig;
 namespace datadog::impl {
 
 /**
- * Core of the deterministic session-sampling algorithm, exposed for direct testing
- * against cross-SDK seed vectors. The production path goes through
- * `RumScopeDependencies::ShouldSampleSession`, which extracts the seed from the UUID
- * before delegating here.
- *
  * Given a raw 64-bit `seed` and a `sample_rate` in [0, 100]: applies Knuth
  * multiplicative hashing and compares the result against a threshold scaled from
  * `sample_rate`. Returns true if the session should be sampled in.
+ *
+ * Exposed for direct testing with seed values used in other SDKs' test suites.
+ * Production code goes through `RumScopeDependencies::ShouldSampleSession`.
  */
 bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate);
 
@@ -60,12 +58,11 @@ struct RumScopeDependencies {
  public:
   /**
    * Determines whether the session identified by `session_id` should be sampled in,
-   * using the deterministic Knuth multiplicative hash algorithm shared by the iOS and
-   * Android SDKs. The same `(session_id, sample_rate)` pair always yields the same
-   * decision on any platform.
+   * using the deterministic Knuth multiplicative hash algorithm used by all RUM SDKs.
    *
-   * If the result is true, the session should process the full set of commands and
-   * generate RUM events. If false, the session generates no events.
+   * If true, RUM will process the full set of commands for this session and generate
+   * RUM events to be sent to intake. If false, the session is not sampled, meaning the
+   * session scope ignores most commands and generate no events.
    */
   bool ShouldSampleSession(const UUID& session_id) const;
 
