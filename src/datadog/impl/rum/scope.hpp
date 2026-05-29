@@ -26,6 +26,18 @@ struct RumConfig;
 namespace datadog::impl {
 
 /**
+ * Core of the deterministic session-sampling algorithm, exposed for direct testing
+ * against cross-SDK seed vectors. The production path goes through
+ * `RumScopeDependencies::ShouldSampleSession`, which extracts the seed from the UUID
+ * before delegating here.
+ *
+ * Given a raw 64-bit `seed` and a `sample_rate` in [0, 100]: applies Knuth
+ * multiplicative hashing and compares the result against a threshold scaled from
+ * `sample_rate`. Returns true if the session should be sampled in.
+ */
+bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate);
+
+/**
  * Immutable set of input values used during RumScope processing.
  */
 struct RumScopeDependencies {
@@ -35,7 +47,7 @@ struct RumScopeDependencies {
   const platform::IClock& clock;
 
  private:
-  float _sampling_rate;  // 0–100, from RumConfig::session_sample_rate
+  float _sampling_rate;  // [0.0f..100.f], from RumConfig::session_sample_rate
 
   // Reusable buffer for encoding events; accessed only on the context thread
   mutable std::vector<uint8_t> _encode_buffer;
@@ -114,17 +126,5 @@ struct RumScope {};
  */
 template <typename T>
 using ScopeRef = std::optional<std::reference_wrapper<T>>;
-
-/**
- * Core of the deterministic session-sampling algorithm, exposed for direct testing
- * against cross-SDK seed vectors. The production path goes through
- * `RumScopeDependencies::ShouldSampleSession`, which extracts the seed from the UUID
- * before delegating here.
- *
- * Given a raw 64-bit `seed` and a `sample_rate` in [0, 100]: applies Knuth
- * multiplicative hashing and compares the result against a threshold scaled from
- * `sample_rate`. Returns true if the session should be sampled in.
- */
-bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate);
 
 }  // namespace datadog::impl
