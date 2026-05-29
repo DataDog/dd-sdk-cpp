@@ -64,7 +64,7 @@ UUID UUID::Random() {
   value.bytes[15] = guid.Data4[7];
 #else
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-  uuid_generate(value.bytes.data());
+  uuid_generate_random(value.bytes.data());
 #endif
   return value;
 }
