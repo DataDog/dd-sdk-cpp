@@ -32,7 +32,7 @@ struct CoreContext;
  * JSON, exclusively reserved for the duration of the call.
  *
  * When the log level is `error` or `critical`, after writing the log event to storage
- * this function publishes a `LoggerErrorMessage` via `publisher` so that RUM (if
+ * this function publishes a `LogErrorGeneratedMessage` via `publisher` so that RUM (if
  * registered) can record a corresponding RUM error event.
  */
 void ContextThread_GenerateLogEvent(

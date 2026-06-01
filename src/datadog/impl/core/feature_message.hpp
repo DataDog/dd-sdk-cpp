@@ -98,16 +98,10 @@ struct CrashReportProcessedMessage {
 };
 
 /**
- * Emitted by the `Logging` feature when a logger emits an event at `error` or
- * `critical` level, after the log event itself has been written to storage. Carries the
- * log emission timestamp (device time; RUM applies the server-time offset), the log
- * message, and the merged set of user attributes (global logging attrs + logger attrs +
- * per-call attrs). `source` is always `"logger"` and is hard-coded by the RUM receiver.
- *
- * Session, view, and action IDs are NOT included — RUM's receiver resolves them from
- * its own current view scope at message-receive time.
+ * Emitted by the `Logging` feature upon generating a log event at `error` or `critical`
+ * level.
  */
-struct LoggerErrorMessage {
+struct LogErrorGeneratedMessage {
   Timestamp timestamp;
   std::string message;
   Attribute attributes;
@@ -125,6 +119,6 @@ using FeatureMessage = std::variant<
     RumActiveViewLostMessage,
     RumGlobalAttributesChangedMessage,
     CrashReportProcessedMessage,
-    LoggerErrorMessage>;
+    LogErrorGeneratedMessage>;
 
 }  // namespace datadog::impl

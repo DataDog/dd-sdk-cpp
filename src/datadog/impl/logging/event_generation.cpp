@@ -147,7 +147,7 @@ void ContextThread_GenerateLogEvent(
   // ev.user_attributes own the data (moved from call earlier in this function);
   // call.timestamp was copied (not moved) into ev.date and is still valid here.
   if (call.level >= LogLevel::Error) {
-    publisher(LoggerErrorMessage{call.timestamp, ev.message, ev.user_attributes});
+    publisher(LogErrorGeneratedMessage{call.timestamp, ev.message, ev.user_attributes});
   }
 }
 

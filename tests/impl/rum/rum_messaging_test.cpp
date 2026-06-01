@@ -529,9 +529,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(msg->attributes.GetObjectProperty("bar").GetIntValue() == 100);
   }
 
-  // === LoggerErrorMessage ===
+  // === LogErrorGeneratedMessage ===
 
-  SECTION("M produce a RUM error event W LoggerErrorMessage is received") {
+  SECTION("M produce a RUM error event W LogErrorGeneratedMessage is received") {
     // Given a started Rum feature with an active view
     auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
     FeatureTest test(MOCK_CONTEXT);
@@ -544,11 +544,12 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(handler_opt.has_value());
     const auto& handler = *handler_opt;
 
-    // When the Logging feature delivers a LoggerErrorMessage for an error/critical log
+    // When the Logging feature delivers a LogErrorGeneratedMessage for an
+    // error/critical log
     Attribute log_attrs = Attribute::Object(1);
     log_attrs.SetObjectProperty("custom_key", Attribute::String("custom_value"));
     const Timestamp log_time{std::chrono::milliseconds(1700000001234)};
-    handler(LoggerErrorMessage{log_time, "something exploded", log_attrs});
+    handler(LogErrorGeneratedMessage{log_time, "something exploded", log_attrs});
 
     // And the SDK is stopped (flushing all pending context-thread work)
     test.Stop(rum);

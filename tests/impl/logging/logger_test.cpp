@@ -87,11 +87,11 @@ TEST_CASE("Logger", "[unit][logging]") {
     // Then we end up with two events
     REQUIRE(test.events.size() == 2);
 
-    // And exactly one LoggerErrorMessage was published (for the Error call; Warn does
-    // not cross the LogLevel::Error threshold)
-    auto error_msgs = std::vector<const LoggerErrorMessage*>{};
+    // And exactly one LogErrorGeneratedMessage was published (for the Error call; Warn
+    // does not cross the LogLevel::Error threshold)
+    auto error_msgs = std::vector<const LogErrorGeneratedMessage*>{};
     for (const auto& m : test.feature_messages) {
-      if (const auto* p = std::get_if<LoggerErrorMessage>(&m)) {
+      if (const auto* p = std::get_if<LogErrorGeneratedMessage>(&m)) {
         error_msgs.push_back(p);
       }
     }

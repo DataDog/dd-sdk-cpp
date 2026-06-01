@@ -80,18 +80,24 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
         }
         ContextThread_HandleCrashReport(self->_deps, crash, event_writer);
       });
-    } else if (const auto* m = std::get_if<LoggerErrorMessage>(&msg)) {
+    } else if (const auto* m = std::get_if<LogErrorGeneratedMessage>(&msg)) {
+      // Abort if our weak_ptr is no longer valid
       auto self = std::static_pointer_cast<Rum>(weak_self.lock());
       if (!self) {
         return;
       }
 
-      // Snapshot global RUM attributes merged with the log's user attributes, then
-      // override issued_at so the resulting RUM error event carries the log emission
-      // timestamp rather than the receipt time. The server-time offset is applied
-      // later by the RUM view scope when it writes the error event.
+      // We'll generate an AddError command to record a RUM Error, but we need it to
+      // carry basic information from our log event:
+      // - attributes is the result of merging our log message's custom attributes into
+      //   the set of
+      // - issued_at reflects the local system time at the moment that the call to
+      //   Logger::Error(), Logger::Critical() etc. was made
       RumCommandParams params = self->GetBaseCommandParams(m->attributes);
       params.issued_at = m->timestamp;
+
+      // Dispatch an AddError command that records our log message, with the
+      // 'error.source' value hardcoded to "logger"
       self->DispatchAsync(
           RumCommand::AddError(
               std::move(params), RumErrorSource::Logger, RumErrorDetails{m->message}
