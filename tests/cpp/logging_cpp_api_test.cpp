@@ -761,13 +761,13 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          obj.SetObjectProperty("baz", Attribute::Int(300));
 
          // Emit messages from our logger, testing all functions for coverage
-         logger.Log(LogLevel::Info, "hello", obj);
+         logger.Log(LogLevel::Info, "hello", LogError{}, obj);
          logger.Debug("gubed", obj);
          logger.Info("ofni", obj);
          logger.Notice("eciton", obj);
          logger.Warn("nraw", obj);
-         logger.Error("rorre", obj);
-         logger.Critical("lacitirc", obj);
+         logger.Error("rorre", LogError{}, obj);
+         logger.Critical("lacitirc", LogError{}, obj);
        },
        // Event should include "foo":100,"bar":200,"baz":300
        nlohmann::json{

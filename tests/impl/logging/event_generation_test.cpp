@@ -44,6 +44,8 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   LogCallDetails call{
       LogLevel::Info,
       "Hello, this is a log message",
+      "",
+      "",
       Timestamp{std::chrono::nanoseconds(1779463265013148820)},
       Attribute(),
       ""

@@ -59,13 +59,13 @@ int main(int argc, char* argv[]) {
   dd_core_set_tracking_consent(core, DD_TRACKING_CONSENT_GRANTED);
 
   // Use our logger to send a message
-  dd_logger_info(logger, "Hello world!");
+  dd_logger_info(logger, "Hello world!", NULL);
 
   // Start a RUM View
   dd_rum_start_view(rum, "main_menu", NULL);
 
   // Log messages will now be correlated with our session and view in the RUM UI
-  dd_logger_info(logger, "Main menu loaded");
+  dd_logger_info(logger, "Main menu loaded", NULL);
 
   // Record a RUM Action
   dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "Start Menu Navigation", NULL);
