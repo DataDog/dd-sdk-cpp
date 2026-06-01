@@ -121,6 +121,10 @@ void ContextThread_GenerateLogEvent(
     device.time_zone = ctx.device->time_zone;
   }
 
+  // Add error details if present; Logger::Log only populates these for Error/Critical
+  ev.error_kind = std::move(call.error_kind);
+  ev.error_stack = std::move(call.error_stack);
+
   // Add extra user attributes, to be merged into the event payload as top-level JSON
   // properties
   ev.user_attributes = std::move(call.merged_attributes);

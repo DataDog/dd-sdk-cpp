@@ -1458,6 +1458,93 @@ TEST_CASE("dd_logger tags", "[unit][logging][c-api]") {
   }
 }
 
+TEST_CASE("dd_logger error details", "[unit][logging][c-api]") {
+  // Given a started core with a logger
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  dd_core_t* core = CoreTestHarness::WrapForC(test);
+  dd_logging_t* logging = dd_logging_init(core);
+  dd_logger_t* logger = dd_logger_create(logging, nullptr);
+  dd_core_start(core);
+
+  SECTION("M include error.kind and error.stack W dd_logger_error called with both") {
+    // When dd_logger_error is called with a fully-populated error struct
+    dd_log_error_t err{"SomeException", "frame 0\nframe 1"};
+    dd_logger_error(logger, "msg", &err, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries both error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION(
+      "M include error.kind and error.stack W dd_logger_critical called with both"
+  ) {
+    // When dd_logger_critical is called with a fully-populated error struct
+    dd_log_error_t err{"SomeException", "frame 0\nframe 1"};
+    dd_logger_critical(logger, "msg", &err, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries both error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M omit error fields W err is NULL") {
+    // When dd_logger_error is called with a null error pointer
+    dd_logger_error(logger, "msg", nullptr, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries neither error field
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  SECTION("M omit error fields W err has empty strings") {
+    // When dd_logger_error is called with an error struct whose fields are both empty
+    dd_log_error_t err{"", ""};
+    dd_logger_error(logger, "msg", &err, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries neither error field
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  SECTION("M omit error fields W level is below error") {
+    // When dd_logger_log is called at WARN with error details provided
+    dd_log_error_t err{"SomeException", "trace"};
+    dd_logger_log(logger, DD_LOG_LEVEL_WARN, "msg", &err, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries neither error field, since the level guard in
+    // Logger::Log strips them before they reach the context thread
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  // Cleanup
+  dd_logger_destroy(logger);
+  dd_logging_destroy(logging);
+  dd_core_destroy(core);
+}
+
 TEST_CASE("dd_logger thread-safety", "[unit][logging][c-api][thread-safety]") {
   // Given a running SDK with logging enabled
   auto test = CoreTestHarness::Init();
