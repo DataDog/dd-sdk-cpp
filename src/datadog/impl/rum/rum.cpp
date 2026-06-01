@@ -100,7 +100,9 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
       // 'error.source' value hardcoded to "logger"
       self->DispatchAsync(
           RumCommand::AddError(
-              std::move(params), RumErrorSource::Logger, RumErrorDetails{m->message}
+              std::move(params),
+              RumErrorSource::Logger,
+              RumErrorDetails{m->message, m->error_kind, m->error_stack}
           )
       );
     }

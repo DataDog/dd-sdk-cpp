@@ -545,11 +545,19 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     const auto& handler = *handler_opt;
 
     // When the Logging feature delivers a LogErrorGeneratedMessage for an
-    // error/critical log
+    // error/critical log, including error details
     Attribute log_attrs = Attribute::Object(1);
     log_attrs.SetObjectProperty("custom_key", Attribute::String("custom_value"));
     const Timestamp log_time{std::chrono::milliseconds(1700000001234)};
-    handler(LogErrorGeneratedMessage{log_time, "something exploded", log_attrs});
+    handler(
+        LogErrorGeneratedMessage{
+            log_time,
+            "something exploded",
+            "SomeException",
+            "frame 0\nframe 1",
+            log_attrs,
+        }
+    );
 
     // And the SDK is stopped (flushing all pending context-thread work)
     test.Stop(rum);
@@ -565,9 +573,12 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(error_events.size() == 1);
     const auto& error_event = error_events[0];
 
-    // And the error carries the log's source, message, timestamp, and user attributes
+    // And the error carries the log's source, message, timestamp, user attributes,
+    // and error details (error.type from error_kind, error.stack from error_stack)
     REQUIRE(error_event["error"]["source"] == "logger");
     REQUIRE(error_event["error"]["message"] == "something exploded");
+    REQUIRE(error_event["error"]["type"] == "SomeException");
+    REQUIRE(error_event["error"]["stack"] == "frame 0\nframe 1");
     REQUIRE(error_event["date"] == 1700000001234);
     REQUIRE(error_event["context"]["custom_key"] == "custom_value");
   }

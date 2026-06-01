@@ -143,11 +143,19 @@ void ContextThread_GenerateLogEvent(
   const bool bypass_tracking_consent = false;
   event_writer(data, {}, bypass_tracking_consent);
 
-  // After writing the log event, forward it to RUM as an error event. ev.message and
-  // ev.user_attributes own the data (moved from call earlier in this function);
-  // call.timestamp was copied (not moved) into ev.date and is still valid here.
+  // After writing the log event, forward it to RUM as an error event: LogEvent owns
+  // strings and attributes that will simply go out of scope after this call, so we can
+  // transfer ownership of those values into the message
   if (call.level >= LogLevel::Error) {
-    publisher(LogErrorGeneratedMessage{call.timestamp, ev.message, ev.user_attributes});
+    publisher(
+        LogErrorGeneratedMessage{
+            call.timestamp,
+            std::move(ev.message),
+            std::move(ev.error_kind.value),
+            std::move(ev.error_stack.value),
+            std::move(ev.user_attributes),
+        }
+    );
   }
 }
 

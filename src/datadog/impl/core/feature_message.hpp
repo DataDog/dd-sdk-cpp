@@ -104,6 +104,8 @@ struct CrashReportProcessedMessage {
 struct LogErrorGeneratedMessage {
   Timestamp timestamp;
   std::string message;
+  std::string error_kind;
+  std::string error_stack;
   Attribute attributes;
 };
 

@@ -448,9 +448,11 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       return true;
     };
 
-    // And a set of user attributes on the call
+    // And a set of user attributes and error details on the call
     call.merged_attributes.InitObject(1);
     call.merged_attributes.SetObjectProperty("key", Attribute::String("value"));
+    call.error_kind = "SomeException";
+    call.error_stack = "frame 0\nframe 1";
 
     // When we generate events at error and critical level
     auto error_call = call;
@@ -467,17 +469,22 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
         logger, critical_call, ctx, event_writer, buf, publisher
     );
 
-    // Then each call produces one LogErrorGeneratedMessage on the bus
+    // Then each call produces one LogErrorGeneratedMessage on the bus carrying
+    // the log's message, timestamp, attributes, and error details
     REQUIRE(messages.size() == 2);
 
     const auto* first = std::get_if<LogErrorGeneratedMessage>(&messages[0]);
     REQUIRE(first != nullptr);
     REQUIRE(first->message == "something went wrong");
     REQUIRE(first->timestamp == call.timestamp);
+    REQUIRE(first->error_kind == "SomeException");
+    REQUIRE(first->error_stack == "frame 0\nframe 1");
 
     const auto* second = std::get_if<LogErrorGeneratedMessage>(&messages[1]);
     REQUIRE(second != nullptr);
     REQUIRE(second->message == "fatal problem");
+    REQUIRE(second->error_kind == "SomeException");
+    REQUIRE(second->error_stack == "frame 0\nframe 1");
   }
 
   SECTION("M not publish LogErrorGeneratedMessage W level is below error") {
