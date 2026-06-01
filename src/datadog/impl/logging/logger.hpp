@@ -96,15 +96,16 @@ class Logger {
 
   /**
    * Records a single Log call from the application, with the given log level, message
-   * text, and set of custom log-level attribute values.
+   * text, optional error details (if applicable) and set of custom log-level attribute
+   * values.
    *
    * If `level` meets the configured threshold and a sampling decision passes, a
    * context-thread callback will be enqueued, causing a `LogEvent` to be generated and
    * flushed to disk in response to this call.
    *
-   * `message` is a view of the application-provided string value, whose ownership and
-   * lifetime we do not control. If the remote sampling decision passes, we will make a
-   * copy of this string.
+   * `message`, `err.kind`, and `err.stack` are views of application-provided string
+   * values, whose ownership and lifetime we do not control. If the remote sampling
+   * decision passes, we will make copies of all relevant strings.
    *
    * Any values given in `attributes` whose names match existing logger-level or global
    * logging attributes will take precedence, shadowing those earlier values.
@@ -112,7 +113,8 @@ class Logger {
   void Log(
       LogLevel level,
       std::string_view message,
-      const Attribute& attributes = Attribute()
+      const LogError& err,
+      const Attribute& attributes
   ) const;
 
  private:

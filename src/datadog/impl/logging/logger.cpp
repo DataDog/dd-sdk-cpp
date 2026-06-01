@@ -70,7 +70,10 @@ void Logger::RemoveTagsWithKey(std::string_view key) {
 }
 
 void Logger::Log(
-    LogLevel level, std::string_view message, const Attribute& attributes
+    LogLevel level,
+    std::string_view message,
+    const LogError& err,
+    const Attribute& attributes
 ) const {
   // Lock our weak_ptr to ensure that the Logging feature implementation is still alive
   // and will remain so for the duration of this call
@@ -90,11 +93,22 @@ void Logger::Log(
     // to produce a LogEvent, starting with logger-specific configuration details
     std::shared_ptr<const LoggerConfigDetails> logger_details = _details;
 
+    // If this call includes error details, and its severity level is error or higher,
+    // create copies of any strings provided in those error details
+    std::string error_kind;
+    std::string error_stack;
+    if (level >= LogLevel::Error) {
+      error_kind = err.kind;
+      error_stack = err.stack;
+    }
+
     // Next, copy the message and all related message-specific details so it can be
     // passed to the context thread
     LogCallDetails log_call{
         level,
         std::string{message},
+        std::move(error_kind),
+        std::move(error_stack),
         logging->_clock.Now(),
         Attribute::Object(),
         std::string{_tags.Get()}
