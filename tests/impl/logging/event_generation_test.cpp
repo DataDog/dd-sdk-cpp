@@ -145,7 +145,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     // When the log call includes a non-empty snapshot of custom tags applied to the
     // logger
     call.logger_tags = "foo:hello1,bar";
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the event carries a ddtags value where our custom logger tags are
     // concatenated after the internal values
@@ -164,7 +166,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     // logger, and the service name uses the default value
     logger.service_override = "";
     call.logger_tags = "foo:hello1,bar";
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the event carries a ddtags value where our custom logger tags are
     // concatenated after the internal values
@@ -412,7 +416,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     // When a log call carries non-empty error_kind and error_stack
     call.error_kind = "SomeException";
     call.error_stack = "frame 0\nframe 1";
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the resulting event carries both error fields
     REQUIRE(events.size() == 1);
@@ -424,7 +430,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     // When a log call carries empty error_kind and error_stack (the default)
     REQUIRE(call.error_kind.empty());
     REQUIRE(call.error_stack.empty());
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the resulting event carries neither error field
     REQUIRE(events.size() == 1);
@@ -432,7 +440,7 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     REQUIRE(!events[0].contains("error.stack"));
   }
 
-  SECTION("M publish LoggerErrorMessage W level is error or critical") {
+  SECTION("M publish LogErrorGeneratedMessage W level is error or critical") {
     // Given a capturing publisher
     std::vector<FeatureMessage> messages;
     MessagePublisher publisher = [&](FeatureMessage msg) {
@@ -459,20 +467,20 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
         logger, critical_call, ctx, event_writer, buf, publisher
     );
 
-    // Then each call produces one LoggerErrorMessage on the bus
+    // Then each call produces one LogErrorGeneratedMessage on the bus
     REQUIRE(messages.size() == 2);
 
-    const auto* first = std::get_if<LoggerErrorMessage>(&messages[0]);
+    const auto* first = std::get_if<LogErrorGeneratedMessage>(&messages[0]);
     REQUIRE(first != nullptr);
     REQUIRE(first->message == "something went wrong");
     REQUIRE(first->timestamp == call.timestamp);
 
-    const auto* second = std::get_if<LoggerErrorMessage>(&messages[1]);
+    const auto* second = std::get_if<LogErrorGeneratedMessage>(&messages[1]);
     REQUIRE(second != nullptr);
     REQUIRE(second->message == "fatal problem");
   }
 
-  SECTION("M not publish LoggerErrorMessage W level is below error") {
+  SECTION("M not publish LogErrorGeneratedMessage W level is below error") {
     // Given a capturing publisher
     std::vector<FeatureMessage> messages;
     MessagePublisher publisher = [&](FeatureMessage msg) {
@@ -487,7 +495,7 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     call.level = t;
     ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf, publisher);
 
-    // Then no LoggerErrorMessage is published
+    // Then no LogErrorGeneratedMessage is published
     REQUIRE(messages.empty());
   }
 }
