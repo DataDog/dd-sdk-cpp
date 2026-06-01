@@ -21,7 +21,7 @@ int main()  // NOLINT(bugprone-exception-escape)
   datadog::CoreConfig config("fake-client-token", "example-service", "development");
   config.SetApplicationVersion("1.0.0");
 
-  auto core = datadog::Core::Create(config);
+  auto core = datadog::Core::Create(config, datadog::TrackingConsent::Pending);
   if (!core) {
     std::cout << "Failed to create Datadog core\n";
     return 1;

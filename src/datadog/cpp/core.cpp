@@ -44,11 +44,6 @@ CoreConfig& CoreConfig::SetDiagnosticThreshold(DiagnosticLevel value) {
   return *this;
 }
 
-CoreConfig& CoreConfig::SetInitialTrackingConsent(TrackingConsent value) {
-  tracking_consent = value;
-  return *this;
-}
-
 CoreConfig& CoreConfig::SetEventStorageLocation(std::string_view value) {
   event_storage_location = value;
   return *this;
@@ -137,7 +132,9 @@ Core::Core(
 
 Core::~Core() = default;
 
-std::shared_ptr<Core> Core::Create(const CoreConfig& config) {
+std::shared_ptr<Core> Core::Create(
+    const CoreConfig& config, TrackingConsent tracking_consent
+) {
   // Prepare a diagnostic logger that will allow us to emit errors for invalid API usage
   const impl::DiagnosticLogger diagnostic_logger{
       config.diagnostic_handler, config.diagnostic_threshold
@@ -177,7 +174,8 @@ std::shared_ptr<Core> Core::Create(const CoreConfig& config) {
   impl::CoreSubsystems subsystems = std::move(*subsystems_result);
 
   // Create the core implementation
-  auto impl = std::make_unique<impl::Core>(config, std::move(subsystems));
+  auto impl =
+      std::make_unique<impl::Core>(config, tracking_consent, std::move(subsystems));
   if (!impl->Init()) {
     // If subsystem initialization fails, return a no-op core
     return std::make_shared<Core>(Core::PrivateCtorTag{});

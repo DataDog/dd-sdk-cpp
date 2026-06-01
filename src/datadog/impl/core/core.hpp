@@ -286,7 +286,11 @@ class Core {
   /**
    * Constructs a new core from the provided configuration.
    */
-  explicit Core(const CoreConfig& config, CoreSubsystems&& subsystems);
+  explicit Core(
+      const CoreConfig& config,
+      TrackingConsent tracking_consent,
+      CoreSubsystems&& subsystems
+  );
 
   /**
    * Ensures that the core is stopped, if necessary, when it goes out of scope.
@@ -418,6 +422,7 @@ class Core {
   // Initialized in ctor
   CoreState _state{CoreState::Uninitialized};
   CoreConfig _config;
+  TrackingConsent _tracking_consent;
   ImmutableContext _immutable_context;
   DiagnosticLogger _diagnostic_logger;
   std::unique_ptr<CoreContextProvider> _context_provider;

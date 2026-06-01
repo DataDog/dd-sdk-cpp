@@ -50,7 +50,9 @@ TEST_CASE("BatchWriter", "[unit]") {
   // and initial state
   auto init_writer = [&](const BatchWriterConfig config,
                          TrackingConsent initial_consent = TrackingConsent::Pending) {
-    return BatchWriter(logger, initial_consent, fs, *storage, clock, config);
+    BatchWriter writer(logger, fs, *storage, clock, config);
+    writer.SetTrackingConsent(initial_consent);
+    return writer;
   };
 
   SECTION("M successfully write event W valid event data provided") {

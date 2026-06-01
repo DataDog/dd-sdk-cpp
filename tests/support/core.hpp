@@ -31,7 +31,6 @@ static void on_c_diagnostic(const dd_diagnostic_message_t* message, void* userda
 static const CoreConfig MOCK_CORE_CONFIG =
     CoreConfig("mock-client-token", "mock-service", "mock-env")
         .SetEventStorageLocation("app")
-        .SetInitialTrackingConsent(TrackingConsent::Granted)
         .SetApplicationVersion("mock-application-version")
         .SetBatchSize(BatchSize::Small)
         .SetUploadFrequency(UploadFrequency::Frequent)
@@ -72,7 +71,11 @@ struct CoreTestHarness {
         fs(in_fs),
         client(in_client) {}
 
-  static CoreTestHarness Init(CoreConfig config, bool flush_http_requests = true) {
+  static CoreTestHarness Init(
+      CoreConfig config,
+      TrackingConsent tracking_consent = TrackingConsent::Granted,
+      bool flush_http_requests = true
+  ) {
     // Create mock implementations of required core subsystems
     auto _clock = std::make_unique<MockClock>();
     auto _fs = std::make_unique<MockFilesystem>();
@@ -95,6 +98,7 @@ struct CoreTestHarness {
     }
     auto core = std::make_unique<impl::Core>(
         config,
+        tracking_consent,
         impl::CoreSubsystems(
             std::move(_clock), std::move(_fs), std::move(_http), std::move(_system_info)
         )
@@ -115,7 +119,7 @@ struct CoreTestHarness {
   }
 
   static CoreTestHarness Init(bool flush_http_requests = true) {
-    return Init(MOCK_CORE_CONFIG, flush_http_requests);
+    return Init(MOCK_CORE_CONFIG, TrackingConsent::Granted, flush_http_requests);
   }
 
   /**

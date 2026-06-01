@@ -52,13 +52,15 @@ void your_application_code() {
   auto config = datadog::CoreConfig("<your-client-id>", "<your-service>", "<your-env>");
   config.SetEventStorageLocation("<your-storage-directory>");
 
-  // Create the core, set tracking consent based on user input
-  auto core = datadog::Core::Create(config);
-  core->SetTrackingConsent(datadog::TrackingConsent::Granted);
+  // Create the core with initial tracking consent
+  auto core = datadog::Core::Create(config, datadog::TrackingConsent::Pending);
 
   // Register features and call feature-specific APIs
   auto logging = datadog::Logging::Register(core);
   auto logger = logging->CreateLogger();
+
+  // Update the core's tracking consent once the user has confirmed their consent
+  core->SetTrackingConsent(datadog::TrackingConsent::Granted);
 
   // Start the SDK, use features while running, and stop when done
   core->Start();
@@ -85,17 +87,19 @@ void your_application_code() {
   dd_core_config_init(&config, "<your-client-id>", "<your-service>", "<your-env>");
   dd_core_config_set_event_storage_location(&config, "<your-storage-directory>");
 
-  // Create the core, set tracking consent based on user input
-  dd_core_t* core = dd_core_create(&config);
-  dd_core_set_tracking_consent(core, DD_TRACKING_CONSENT_GRANTED);
+  // Create the core with initial tracking consent
+  dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
   // Register features and call feature-specific APIs
   dd_logging_t* logging = dd_logging_init(core);
   dd_logger_t* logger = dd_logger_create(logging, NULL);
 
+  // Update the core's tracking consent once the user has confirmed their consent
+  dd_core_set_tracking_consent(core, DD_TRACKING_CONSENT_GRANTED);
+
   // Start the SDK, use features while running, and stop when done
   dd_core_start(&core);
-  dd_logger_info(logger, "This message will be sent to Datadog");
+  dd_logger_info(logger, "This message will be sent to Datadog", NULL);
   dd_core_stop(&core);
 
   // Clean up SDK resources when done

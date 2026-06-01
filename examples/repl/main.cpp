@@ -377,10 +377,7 @@ int main(int argc, char* argv[]) {  // NOLINT
     }
 
     // Prepare an SDK instance with all features and start it
-    if (!Run(state, "set-config tracking-consent granted")) {
-      return 1;
-    }
-    if (!Run(state, "create-core")) {
+    if (!Run(state, "create-core tracking-consent:granted")) {
       return 1;
     }
     if (!Run(state, "register-logging")) {

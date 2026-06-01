@@ -176,7 +176,6 @@ struct CoreConfig {
  private:
   DiagnosticHandler diagnostic_handler{StderrDiagnosticHandler};
   DiagnosticLevel diagnostic_threshold{DiagnosticLevel::Warning};
-  TrackingConsent tracking_consent{TrackingConsent::Pending};
   std::string event_storage_location;
   Site site{Site::us1};
   std::string client_token;
@@ -241,14 +240,6 @@ struct CoreConfig {
    * this value will be passed to the configured diagnostic handler callback.
    */
   DATADOG_API CoreConfig& SetDiagnosticThreshold(DiagnosticLevel value);
-
-  /**
-   * Sets the tracking consent value used on SDK startup. Defaults to Pending.
-   *
-   * If the user's tracking consent changes after the SDK is initialized, call
-   * @ref datadog::Core::SetTrackingConsent() to update it at runtime.
-   */
-  DATADOG_API CoreConfig& SetInitialTrackingConsent(TrackingConsent value);
 
   /**
    * Sets the directory path where the Datadog SDK will create a subdirectory to store
@@ -386,8 +377,22 @@ class Core {
   );
   DATADOG_API ~Core();
 
-  DATADOG_API static std::shared_ptr<Core> Create(const CoreConfig& config);
+  /**
+   * Creates a new instance of the Datadog SDK, with the provided configuration and
+   * initial tracking consent. The resulting Core is used as a top-level handle to the
+   * SDK.
+   */
+  DATADOG_API static std::shared_ptr<Core> Create(
+      const CoreConfig& config, TrackingConsent tracking_consent
+  );
 
+  /**
+   * Informs the SDK of a change in the user's consent to tracking. This function may be
+   * called at any point during the lifetime of the Core. Changing to
+   * TrackingConsent::Granted will allow data to be uploaded to Datadog intake via HTTP;
+   * changing to TrackingConsent::NotGranted will drop all pending data and disable
+   * storage and upload of event data.
+   */
   DATADOG_API void SetTrackingConsent(TrackingConsent value);
 
   /**

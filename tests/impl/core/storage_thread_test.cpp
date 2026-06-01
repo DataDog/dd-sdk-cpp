@@ -76,9 +76,9 @@ TEST_CASE("StorageThreadMain", "[unit]") {
     auto writer_config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
 
     // Create a BatchWriter for alpha and construct RegisteredFeature state
-    auto alpha_writer = std::make_unique<BatchWriter>(
-        logger, alpha_consent, fs, *alpha_events, clock, writer_config
-    );
+    auto alpha_writer =
+        std::make_unique<BatchWriter>(logger, fs, *alpha_events, clock, writer_config);
+    alpha_writer->SetTrackingConsent(alpha_consent);
     features.emplace_back(
         CreateFeatureId("ALFA"),
         "alpha",
@@ -89,9 +89,9 @@ TEST_CASE("StorageThreadMain", "[unit]") {
     );
 
     // Create a BatchWriter for bravo and construct RegisteredFeature state
-    auto bravo_writer = std::make_unique<BatchWriter>(
-        logger, bravo_consent, fs, *bravo_events, clock, writer_config
-    );
+    auto bravo_writer =
+        std::make_unique<BatchWriter>(logger, fs, *bravo_events, clock, writer_config);
+    bravo_writer->SetTrackingConsent(bravo_consent);
     features.emplace_back(
         CreateFeatureId("BRVO"),
         "bravo",

@@ -30,7 +30,7 @@ TEST_CASE("Core null safety", "[unit][core][cpp-api]") {
     config.SetDiagnosticHandler(nullptr);
 
     // When we create a Core from that config
-    auto core = Core::Create(config);
+    auto core = Core::Create(config, TrackingConsent::Pending);
 
     // Then we get a valid object that handles all member functions calls as a no-op
     REQUIRE(core != nullptr);
@@ -58,7 +58,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
 
     // When we attempt to create a core from that config
     {
-      auto core = Core::Create(config);
+      auto core = Core::Create(config, TrackingConsent::Pending);
     }
 
     // Then a single warning is emitted to let us know that the default behavior of
@@ -89,7 +89,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
 
     // When we attempt to create a core from that config
     {
-      auto core = Core::Create(config);
+      auto core = Core::Create(config, TrackingConsent::Pending);
     }
 
     // Then no diagnostic warnings/errors are emitted
@@ -105,7 +105,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
     diagnostics.ConfigureCpp(config);
 
     // When we attempt to create a core from that config
-    auto core = Core::Create(config);
+    auto core = Core::Create(config, TrackingConsent::Pending);
 
     // Then we receive a diagnostic error
     REQUIRE(diagnostics.TotalSize() == 1);
@@ -123,7 +123,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
     diagnostics.ConfigureCpp(config);
 
     // When we attempt to create a core from that config
-    auto core = Core::Create(config);
+    auto core = Core::Create(config, TrackingConsent::Pending);
 
     // Then we receive a diagnostic error
     REQUIRE(diagnostics.TotalSize() == 1);
@@ -141,7 +141,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
     diagnostics.ConfigureCpp(config);
 
     // When we attempt to create a core from that config
-    auto core = Core::Create(config);
+    auto core = Core::Create(config, TrackingConsent::Pending);
 
     // Then we receive a diagnostic error
     REQUIRE(diagnostics.TotalSize() == 1);
@@ -162,7 +162,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
   // modifications and diagnostic output.
   struct TestParams {
     std::string_view name;
-    std::function<void(CoreConfig&, TempDirectory&)> setup_func;
+    std::function<TrackingConsent(CoreConfig&, TempDirectory&)> setup_func;
     std::function<void(bool, const DiagnosticMessageBuffer&, TempDirectory&)>
         assert_func;
   };
@@ -173,6 +173,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
          // When we configure the SDK to use our temp directory for storage, without
          // explicitly setting tracking consent
          config.SetEventStorageLocation(tmpdir.path);
+         return TrackingConsent::Pending;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -203,7 +204,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
          // When we configure the SDK to use our temp directory for storage, and we set
          // our initial tracking consent to 'granted'
          config.SetEventStorageLocation(tmpdir.path);
-         config.SetInitialTrackingConsent(TrackingConsent::Granted);
+         return TrackingConsent::Granted;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -237,7 +238,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
          // And we configure the SDK to use our temp directory for storage, and we set
          // our initial tracking consent to 'granted'
          config.SetEventStorageLocation(tmpdir.path);
-         config.SetInitialTrackingConsent(TrackingConsent::Granted);
+         return TrackingConsent::Granted;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -272,6 +273,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
 
          // And we configure the SDK to use our temp directory for storage
          config.SetEventStorageLocation(tmpdir.path);
+         return TrackingConsent::Pending;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -300,6 +302,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
          // When we configure the SDK to use a nonexistent directory for storage
          auto nonexistent_path = std::filesystem::path(tmpdir.path) / "nonexistent-dir";
          config.SetEventStorageLocation(nonexistent_path.string());
+         return TrackingConsent::Pending;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -333,10 +336,10 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
       diagnostics.ConfigureCpp(config);
 
       // When we configure the event storage location used by this test case
-      tt.setup_func(config, tmpdir);
+      const auto tracking_consent = tt.setup_func(config, tmpdir);
 
       // And then we register logging, create a logger, and attempt to start the core
-      auto core = Core::Create(config);
+      auto core = Core::Create(config, tracking_consent);
       auto logging = Logging::Register(core);
       auto logger = logging->CreateLogger();
       const bool started = core->Start();
@@ -369,7 +372,7 @@ TEST_CASE(
     config.Internal_SetSource("unity");
 
     // When we create a core from that config (no crash / rejection)
-    auto core = Core::Create(config);
+    auto core = Core::Create(config, TrackingConsent::Pending);
 
     // Then the core is valid
     REQUIRE(core != nullptr);
@@ -382,7 +385,7 @@ TEST_CASE(
 
     // The second call should silently overwrite the first; creation should succeed
     config.SetEventStorageLocation(".");
-    auto core = Core::Create(config);
+    auto core = Core::Create(config, TrackingConsent::Pending);
     REQUIRE(core != nullptr);
   }
 }

@@ -19,9 +19,8 @@ async def main(t: TestContext):
     p = t.spawn_repl()
     p.run("""
         set-config client-token fake-client-token
-        set-config tracking-consent granted
         set-config flush-on-stop  
-        create-core
+        create-core tracking-consent:granted
     """)
 
     # And a started Core with the logging feature registered

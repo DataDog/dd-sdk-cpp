@@ -177,7 +177,6 @@ class BatchWriter {
  public:
   explicit BatchWriter(
       const DiagnosticLogger& in_diagnostic_logger,
-      TrackingConsent in_consent,
       IFilesystem& in_fs,
       FeatureEventStorage& in_storage,
       const platform::IClock& in_clock,
