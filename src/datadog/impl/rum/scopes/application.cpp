@@ -123,9 +123,9 @@ RumSessionScope RumApplicationScope::CreateSession(
   const bool is_initial_session = prev_session == nullptr;
   const UUID session_id = UUID::Random();
 
-  // Make a new, independent sampling decision for each new session
+  // Make a deterministic sampling decision for this session based on its ID
   const RumScopeDependencies& deps = _deps;
-  const bool is_sampled = deps.ShouldSampleSession();
+  const bool is_sampled = deps.ShouldSampleSession(session_id);
 
   // Determine the proper "session precondition" value, which indicates the reason
   // the session was started

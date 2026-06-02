@@ -10,7 +10,6 @@
 #include <cinttypes>
 #include <functional>
 #include <optional>
-#include <random>
 #include <string>
 #include <vector>
 
@@ -27,6 +26,16 @@ struct RumConfig;
 namespace datadog::impl {
 
 /**
+ * Given a raw 64-bit `seed` and a `sample_rate` in [0, 100]: applies Knuth
+ * multiplicative hashing and compares the result against a threshold scaled from
+ * `sample_rate`. Returns true if the session should be sampled in.
+ *
+ * Exposed for direct testing with seed values used in other SDKs' test suites.
+ * Production code goes through `RumScopeDependencies::ShouldSampleSession`.
+ */
+bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate);
+
+/**
  * Immutable set of input values used during RumScope processing.
  */
 struct RumScopeDependencies {
@@ -36,11 +45,7 @@ struct RumScopeDependencies {
   const platform::IClock& clock;
 
  private:
-  // Internal state used in sampling decisions
-  float _sampling_rate_unit;
-  // Sampling state accessed only on the context thread
-  mutable std::mt19937 _sampling_rng;
-  mutable std::uniform_real_distribution<float> _sampling_distribution;
+  float _sampling_rate;  // [0.0f..100.f], from RumConfig::session_sample_rate
 
   // Reusable buffer for encoding events; accessed only on the context thread
   mutable std::vector<uint8_t> _encode_buffer;
@@ -52,12 +57,14 @@ struct RumScopeDependencies {
 
  public:
   /**
-   * Makes a single sampling decision for a newly-created session. If the result is
-   * true, the session should be sampled, meaning that it should process the full set of
-   * commands and generate RUM events to be sent to intake. If false, the session should
-   * not be sampled, meaning it will ignore most commands and generate no events.
+   * Determines whether the session identified by `session_id` should be sampled in,
+   * using the deterministic Knuth multiplicative hash algorithm used by all RUM SDKs.
+   *
+   * If true, RUM will process the full set of commands for this session and generate
+   * RUM events to be sent to intake. If false, the session is not sampled, meaning the
+   * session scope ignores most commands and generate no events.
    */
-  bool ShouldSampleSession() const;
+  bool ShouldSampleSession(const UUID& session_id) const;
 
   /**
    * Encodes a RUM event to JSON without writing it. The caller uses the returned
