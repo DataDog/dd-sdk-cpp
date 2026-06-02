@@ -243,7 +243,7 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
               config.diagnostic_handler, config.diagnostic_handler_userdata
           ))
           .SetDiagnosticThreshold(DiagnosticLevel_FromC(config.diagnostic_threshold))
-          .SetEventStorageLocation(config.event_storage_location)
+          .SetApplicationStoragePath(config.application_storage_path)
           .SetSite(Site_FromC(config.site))
           .SetApplicationVersion(application_version)
           .SetVariant(variant)

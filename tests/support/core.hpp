@@ -30,7 +30,7 @@ static void on_c_diagnostic(const dd_diagnostic_message_t* message, void* userda
  */
 static const CoreConfig MOCK_CORE_CONFIG =
     CoreConfig("mock-client-token", "mock-service", "mock-env")
-        .SetEventStorageLocation("app")
+        .SetApplicationStoragePath("app")
         .SetApplicationVersion("mock-application-version")
         .SetBatchSize(BatchSize::Small)
         .SetUploadFrequency(UploadFrequency::Frequent)

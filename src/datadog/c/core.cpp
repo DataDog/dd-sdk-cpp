@@ -25,7 +25,7 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     nullptr,                           // diagnostic_handler_userdata
     DD_DIAGNOSTIC_LEVEL_WARNING,       // diagnostic_threshold
     DD_TRACKING_CONSENT_PENDING,       // tracking_consent
-    {0},                               // event_storage_location
+    {0},                               // application_storage_path
     DD_SITE_US1,                       // site
     nullptr,                           // client_token
     nullptr,                           // service
@@ -94,13 +94,13 @@ void dd_core_config_set_diagnostic_handler_userdata(
   config->diagnostic_handler_userdata = value;
 }
 
-void dd_core_config_set_event_storage_location(
+void dd_core_config_set_application_storage_path(
     dd_core_config_t* config, const char* value
 ) {
   if (!config || !value) {
     return;
   }
-  const size_t capacity = std::size(config->event_storage_location);
+  const size_t capacity = std::size(config->application_storage_path);
   const std::size_t max_len = capacity - 1;
   const void* p_null{
       std::memchr(value, '\0', max_len + 1)
@@ -112,15 +112,15 @@ void dd_core_config_set_event_storage_location(
         config->diagnostic_threshold
     );
     diagnostic_logger.Error(
-        "Unable to accept value passed to dd_core_config_set_event_storage_location: "
+        "Unable to accept value passed to dd_core_config_set_application_storage_path: "
         "length limit exceeded"
     );
     return;
   }
   const size_t len = static_cast<const char*>(p_null) - value;
-  std::memcpy(static_cast<char*>(config->event_storage_location), value, len);
+  std::memcpy(static_cast<char*>(config->application_storage_path), value, len);
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
-  config->event_storage_location[len] = '\0';
+  config->application_storage_path[len] = '\0';
 }
 
 void dd_core_config_set_site(dd_core_config_t* config, dd_site_t value) {

@@ -26,7 +26,7 @@ TEST_CASE(
     // Given an SDK config with a missing client token, which should result in a
     // diagnostic error before the Core can be initialized
     CoreConfig config("", "my-service", "my-env");
-    config.SetEventStorageLocation(".");
+    config.SetApplicationStoragePath(".");
 
     // And a user-supplied diagnostic message handler callback that will validate the
     // expected message and increment a count so we can verify that it was called
@@ -51,7 +51,7 @@ TEST_CASE(
   SECTION("M invoke handler callback W API usage error occurs on feature init") {
     // Given a valid core config
     CoreConfig config("my-client-token", "my-service", "my-env");
-    config.SetEventStorageLocation(".");
+    config.SetApplicationStoragePath(".");
 
     // And a RUM config that will cause RUM initialization to fail and produce a
     // diagnostic error
@@ -91,7 +91,7 @@ TEST_CASE(
   SECTION("M invoke handler callback W API usage warning occurs after feature init") {
     // Given a valid core config and a valid RUM config
     CoreConfig config("my-client-token", "my-service", "my-env");
-    config.SetEventStorageLocation(".");
+    config.SetApplicationStoragePath(".");
     RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
 
     // And a handler callback that will increment callback_count and validate that we
@@ -134,7 +134,7 @@ TEST_CASE(
   ) {
     // Given a valid core config and a valid RUM config
     CoreConfig config("my-client-token", "my-service", "my-env");
-    config.SetEventStorageLocation(".");
+    config.SetApplicationStoragePath(".");
     RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
 
     // And a handler callback that will increment callback_count when called
@@ -170,7 +170,7 @@ TEST_CASE(
   SECTION("M invoke handler callback W error occurs in implementation layer") {
     // Given a valid core config
     CoreConfig config("my-client-token", "my-service", "my-env");
-    config.SetEventStorageLocation(".");
+    config.SetApplicationStoragePath(".");
 
     // And a handler callback that will increment callback_count and validate that we
     // get the expected error on SDK start

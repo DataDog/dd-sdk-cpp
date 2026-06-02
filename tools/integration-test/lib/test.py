@@ -59,7 +59,7 @@ class TestContext:
             '--abort-on-error',
             '--abort-on-warning',
             f'--custom-endpoint-url={self._proxy_url}/sdk-{sdk_id}',
-            f'--storage-path={self.storage.path}',
+            f'--application-storage-path={self.storage.path}',
         ]
         proc = subprocess.Popen(
             args,

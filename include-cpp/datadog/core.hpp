@@ -176,7 +176,7 @@ struct CoreConfig {
  private:
   DiagnosticHandler diagnostic_handler{StderrDiagnosticHandler};
   DiagnosticLevel diagnostic_threshold{DiagnosticLevel::Warning};
-  std::string event_storage_location;
+  std::string application_storage_path;
   Site site{Site::us1};
   std::string client_token;
   std::string service;
@@ -250,20 +250,20 @@ struct CoreConfig {
    * delete files. No shell expansions (e.g. ~, environment variables) are performed.
    *
    * Upon SDK start, the SDK will attempt to create a .datadog/ subdirectory within the
-   * event storage location you provided. If unsuccessful, the SDK will print a
+   * application storage path you provided. If unsuccessful, the SDK will print a
    * diagnostic error and fail to start.
    *
    * During normal operation, the SDK will assume exclusive ownership of all files
    * within the .datadog/ directory; freely creating and deleting files as needed. It
-   * will NOT read or modify any other path within the event storage location.
+   * will NOT read or modify any other path within the application storage path.
    *
-   * It is highly recommended that you explicitly specify an event storage location when
+   * It is highly recommended that you explicitly specify an application storage path when
    * configuring an instance of the SDK. If you do not, the SDK will print a warning,
    * but it will attempt to create a .datadog/ subdirectory within the working directory
    * for the current process. If you prefer to use the current working directory,
-   * explicitly configure the SDK with config.SetEventStorageLocation(".").
+   * explicitly configure the SDK with config.SetApplicationStoragePath(".").
    */
-  DATADOG_API CoreConfig& SetEventStorageLocation(std::string_view value);
+  DATADOG_API CoreConfig& SetApplicationStoragePath(std::string_view value);
 
   /**
    * Sets the site (i.e. Datadog datacenter) where data for your organization is stored.

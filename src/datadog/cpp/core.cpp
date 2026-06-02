@@ -44,8 +44,8 @@ CoreConfig& CoreConfig::SetDiagnosticThreshold(DiagnosticLevel value) {
   return *this;
 }
 
-CoreConfig& CoreConfig::SetEventStorageLocation(std::string_view value) {
-  event_storage_location = value;
+CoreConfig& CoreConfig::SetApplicationStoragePath(std::string_view value) {
+  application_storage_path = value;
   return *this;
 }
 

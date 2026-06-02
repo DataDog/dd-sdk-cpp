@@ -358,8 +358,8 @@ int main(int argc, char* argv[]) {  // NOLINT
       return 1;
     }
   }
-  if (!args.storage_path.empty()) {
-    if (!SetConfig(state, "event-storage-location", args.storage_path)) {
+  if (!args.application_storage_path.empty()) {
+    if (!SetConfig(state, "application-storage-path", args.application_storage_path)) {
       return 1;
     }
   }

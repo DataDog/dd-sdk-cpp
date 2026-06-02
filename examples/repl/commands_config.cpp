@@ -83,14 +83,14 @@ std::optional<datadog::BatchProcessingLevel> ParseBatchProcessingLevel(
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 CommandResult HandleSetConfig(State& state, const CommandInput& args) {
-  // set-config event-storage-location <value>
-  if (args.Peek() == "event-storage-location") {
+  // set-config application-storage-path <value>
+  if (args.Peek() == "application-storage-path") {
     std::string_view value_str = Unquote(args[1]);
     if (value_str.empty()) {
-      return CommandResult::Error("No value supplied for event-storage-location!");
+      return CommandResult::Error("No value supplied for application-storage-path!");
     }
-    state.config.SetEventStorageLocation(value_str);
-    return CommandResult::OK("CoreConfig::SetEventStorageLocation()");
+    state.config.SetApplicationStoragePath(value_str);
+    return CommandResult::OK("CoreConfig::SetApplicationStoragePath()");
   }
 
   // set-config site <value>

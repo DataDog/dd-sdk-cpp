@@ -48,11 +48,11 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
   DiagnosticMessageBuffer diagnostics;
 
   SECTION(
-      "M accept config but print event-storage-location warning W initialized with "
+      "M accept config but print application-storage-path warning W initialized with "
       "required values"
   ) {
     // Given a config struct that's been initialized with the bare-minimum set of
-    // values, without an explicit event storage path being configured
+    // values, without an explicit application storage path being configured
     CoreConfig config("my-client-token", "my-service", "my-env");
     diagnostics.ConfigureCpp(config);
 
@@ -68,7 +68,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
     REQUIRE(
         diagnostics.warning[0] ==
         "Events will be stored within .datadog/ in the current working directory: "
-        "application should call SetEventStorageLocation to specify a suitable "
+        "application should call SetApplicationStoragePath to specify a suitable "
         "application-specific directory where .datadog/ can be created"
     );
 
@@ -79,12 +79,12 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
 
   SECTION(
       "M accept config w/o warning W initialized with required values and "
-      "SetEventStorageLocation called"
+      "SetApplicationStoragePath called"
   ) {
     // Given a config struct that's been initialized with the bare-minimum set of
-    // values, with an event storage path explicitly configured
+    // values, with an application storage path explicitly configured
     CoreConfig config("my-client-token", "my-service", "my-env");
-    config.SetEventStorageLocation(".");
+    config.SetApplicationStoragePath(".");
     diagnostics.ConfigureCpp(config);
 
     // When we attempt to create a core from that config
@@ -154,7 +154,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
   }
 }
 
-TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
+TEST_CASE("Core application storage path", "[unit][core][cpp-api]") {
   // These tests use actual filesystem operations (in conjunction with TempDirectory)
   // to validate that the SDK writes events to the appropriate directory as configured.
   // We set up the SDK with logging, then produce a log event, then exit without
@@ -172,7 +172,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
        [](CoreConfig& config, TempDirectory& tmpdir) {
          // When we configure the SDK to use our temp directory for storage, without
          // explicitly setting tracking consent
-         config.SetEventStorageLocation(tmpdir.path);
+         config.SetApplicationStoragePath(tmpdir.path);
          return TrackingConsent::Pending;
        },
        [](bool started,
@@ -203,7 +203,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
        [](CoreConfig& config, TempDirectory& tmpdir) {
          // When we configure the SDK to use our temp directory for storage, and we set
          // our initial tracking consent to 'granted'
-         config.SetEventStorageLocation(tmpdir.path);
+         config.SetApplicationStoragePath(tmpdir.path);
          return TrackingConsent::Granted;
        },
        [](bool started,
@@ -237,7 +237,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
 
          // And we configure the SDK to use our temp directory for storage, and we set
          // our initial tracking consent to 'granted'
-         config.SetEventStorageLocation(tmpdir.path);
+         config.SetApplicationStoragePath(tmpdir.path);
          return TrackingConsent::Granted;
        },
        [](bool started,
@@ -272,7 +272,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
          REQUIRE(!tmpdir.DirectoryExists(".datadog"));
 
          // And we configure the SDK to use our temp directory for storage
-         config.SetEventStorageLocation(tmpdir.path);
+         config.SetApplicationStoragePath(tmpdir.path);
          return TrackingConsent::Pending;
        },
        [](bool started,
@@ -301,7 +301,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
        [](CoreConfig& config, TempDirectory& tmpdir) {
          // When we configure the SDK to use a nonexistent directory for storage
          auto nonexistent_path = std::filesystem::path(tmpdir.path) / "nonexistent-dir";
-         config.SetEventStorageLocation(nonexistent_path.string());
+         config.SetApplicationStoragePath(nonexistent_path.string());
          return TrackingConsent::Pending;
        },
        [](bool started,
@@ -335,7 +335,7 @@ TEST_CASE("Core event storage location", "[unit][core][cpp-api]") {
       DiagnosticMessageBuffer diagnostics;
       diagnostics.ConfigureCpp(config);
 
-      // When we configure the event storage location used by this test case
+      // When we configure the application storage path used by this test case
       const auto tracking_consent = tt.setup_func(config, tmpdir);
 
       // And then we register logging, create a logger, and attempt to start the core
@@ -368,7 +368,7 @@ TEST_CASE(
   SECTION("M apply source override W Internal_SetSource called") {
     // Given a config with a _dd.source override
     CoreConfig config("token", "service", "env");
-    config.SetEventStorageLocation(".");
+    config.SetApplicationStoragePath(".");
     config.Internal_SetSource("unity");
 
     // When we create a core from that config (no crash / rejection)
@@ -384,7 +384,7 @@ TEST_CASE(
     config.Internal_SetSource("flutter");
 
     // The second call should silently overwrite the first; creation should succeed
-    config.SetEventStorageLocation(".");
+    config.SetApplicationStoragePath(".");
     auto core = Core::Create(config, TrackingConsent::Pending);
     REQUIRE(core != nullptr);
   }

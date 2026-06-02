@@ -54,7 +54,7 @@ TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-
     // Given a config with a source override in internal_options
     dd_core_config_t config;
     dd_core_config_init(&config, "token", "service", "env");
-    dd_core_config_set_event_storage_location(&config, ".");
+    dd_core_config_set_application_storage_path(&config, ".");
     config.internal_options.source = "unity";
 
     // When we create a core from that config
@@ -82,11 +82,11 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
   DiagnosticMessageBuffer diagnostics;
 
   SECTION(
-      "M accept config but print event-storage-location warning W dd_core_config_init "
+      "M accept config but print application-storage-path warning W dd_core_config_init "
       "called"
   ) {
     // Given a config struct that's been initialized with the bare-minimum set of
-    // values, without an explicit event storage path being configured
+    // values, without an explicit application storage path being configured
     dd_core_config_t config;
     dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
     diagnostics.ConfigureC(&config);
@@ -105,7 +105,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     REQUIRE(
         diagnostics.warning[0] ==
         "Events will be stored within .datadog/ in the current working directory: "
-        "application should call SetEventStorageLocation to specify a suitable "
+        "application should call SetApplicationStoragePath to specify a suitable "
         "application-specific directory where .datadog/ can be created"
     );
 
@@ -116,13 +116,13 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
 
   SECTION(
       "M accept config w/o warning W dd_core_config_init + "
-      "dd_core_config_set_event_storage_location called"
+      "dd_core_config_set_application_storage_path called"
   ) {
     // Given a config struct that's been initialized with the bare-minimum set of
-    // values, with an event storage path explicitly configured
+    // values, with an application storage path explicitly configured
     dd_core_config_t config;
     dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    dd_core_config_set_event_storage_location(&config, ".");
+    dd_core_config_set_application_storage_path(&config, ".");
     diagnostics.ConfigureC(&config);
 
     // When we attempt to create a core from that config
@@ -143,7 +143,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     // Given a properly-initialized config struct
     dd_core_config_t config;
     dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    dd_core_config_set_event_storage_location(&config, ".");
+    dd_core_config_set_application_storage_path(&config, ".");
     diagnostics.ConfigureC(&config);
 
     // When we explicitly set the struct version to 1
@@ -249,7 +249,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
   }
 }
 
-TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
+TEST_CASE("dd_core application storage path", "[unit][core][c-api]") {
   // These tests use actual filesystem operations (in conjunction with TempDirectory)
   // to validate that the SDK writes events to the appropriate directory as configured.
   // We set up the SDK with logging, then produce a log event, then exit without
@@ -267,7 +267,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
        [](dd_core_config_t* config, TempDirectory& tmpdir) {
          // When we configure the SDK to use our temp directory for storage, without
          // explicitly setting tracking consent
-         dd_core_config_set_event_storage_location(config, tmpdir.path.c_str());
+         dd_core_config_set_application_storage_path(config, tmpdir.path.c_str());
          return DD_TRACKING_CONSENT_PENDING;
        },
        [](bool started,
@@ -298,7 +298,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
        [](dd_core_config_t* config, TempDirectory& tmpdir) {
          // When we configure the SDK to use our temp directory for storage, and we set
          // our initial tracking consent to 'granted'
-         dd_core_config_set_event_storage_location(config, tmpdir.path.c_str());
+         dd_core_config_set_application_storage_path(config, tmpdir.path.c_str());
          return DD_TRACKING_CONSENT_GRANTED;
        },
        [](bool started,
@@ -332,7 +332,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
 
          // And we configure the SDK to use our temp directory for storage, and we set
          // our initial tracking consent to 'granted'
-         dd_core_config_set_event_storage_location(config, tmpdir.path.c_str());
+         dd_core_config_set_application_storage_path(config, tmpdir.path.c_str());
          return DD_TRACKING_CONSENT_GRANTED;
        },
        [](bool started,
@@ -367,7 +367,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          REQUIRE(!tmpdir.DirectoryExists(".datadog"));
 
          // And we configure the SDK to use our temp directory for storage
-         dd_core_config_set_event_storage_location(config, tmpdir.path.c_str());
+         dd_core_config_set_application_storage_path(config, tmpdir.path.c_str());
          return DD_TRACKING_CONSENT_PENDING;
        },
        [](bool started,
@@ -395,7 +395,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
        [](dd_core_config_t* config, TempDirectory& tmpdir) {
          // When we configure the SDK to use a nonexistent directory for storage
          auto nonexistent_path = std::filesystem::path(tmpdir.path) / "nonexistent-dir";
-         dd_core_config_set_event_storage_location(
+         dd_core_config_set_application_storage_path(
              config, nonexistent_path.string().c_str()
          );
          return DD_TRACKING_CONSENT_PENDING;
@@ -432,7 +432,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
       DiagnosticMessageBuffer diagnostics;
       diagnostics.ConfigureC(&config);
 
-      // When we configure the event storage location used by this test case
+      // When we configure the application storage path used by this test case
       const dd_tracking_consent_t tracking_consent = tt.setup_func(&config, tmpdir);
 
       // And then we register logging, create a logger, and attempt to start the core
