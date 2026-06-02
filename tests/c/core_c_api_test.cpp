@@ -58,7 +58,7 @@ TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-
     config.internal_options.source = "unity";
 
     // When we create a core from that config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
     // Then the core is valid (source override doesn't prevent initialization)
     REQUIRE(core != nullptr);
@@ -68,7 +68,7 @@ TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-
 
 TEST_CASE("dd_core null safety", "[unit][core][c-api]") {
   SECTION("M safely do nothing W target object is null") {
-    REQUIRE(dd_core_create(nullptr) == nullptr);
+    REQUIRE(dd_core_create(nullptr, DD_TRACKING_CONSENT_PENDING) == nullptr);
     dd_core_destroy(nullptr);
 
     dd_core_set_tracking_consent(nullptr, DD_TRACKING_CONSENT_GRANTED);
@@ -92,7 +92,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     diagnostics.ConfigureC(&config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
     // Then we get a valid dd_core_t
     REQUIRE(core != nullptr);
@@ -126,7 +126,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     diagnostics.ConfigureC(&config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
     // Then we get a valid dd_core_t
     REQUIRE(core != nullptr);
@@ -150,7 +150,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     config.version = 1;
 
     // And we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
     // Then we get a valid dd_core_t, even in a future where CORE_CONFIG_VERSION has
     // been bumped and is no longer 1
@@ -169,7 +169,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     diagnostics.ConfigureC(&config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
     // Then we get null
     REQUIRE(core == nullptr);
@@ -187,7 +187,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     diagnostics.ConfigureC(&config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
     // Then we get null
     REQUIRE(core == nullptr);
@@ -210,7 +210,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     diagnostics.ConfigureC(&config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
     // Then we get null
     REQUIRE(core == nullptr);
@@ -233,7 +233,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     diagnostics.ConfigureC(&config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
 
     // Then we get null
     REQUIRE(core == nullptr);
@@ -257,7 +257,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
   // modifications and diagnostic output.
   struct TestParams {
     std::string_view name;
-    std::function<void(dd_core_config_t*, TempDirectory&)> setup_func;
+    std::function<dd_tracking_consent_t(dd_core_config_t*, TempDirectory&)> setup_func;
     std::function<void(bool, const DiagnosticMessageBuffer&, TempDirectory&)>
         assert_func;
   };
@@ -268,6 +268,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          // When we configure the SDK to use our temp directory for storage, without
          // explicitly setting tracking consent
          dd_core_config_set_event_storage_location(config, tmpdir.path.c_str());
+         return DD_TRACKING_CONSENT_PENDING;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -298,9 +299,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          // When we configure the SDK to use our temp directory for storage, and we set
          // our initial tracking consent to 'granted'
          dd_core_config_set_event_storage_location(config, tmpdir.path.c_str());
-         dd_core_config_set_initial_tracking_consent(
-             config, DD_TRACKING_CONSENT_GRANTED
-         );
+         return DD_TRACKING_CONSENT_GRANTED;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -334,9 +333,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          // And we configure the SDK to use our temp directory for storage, and we set
          // our initial tracking consent to 'granted'
          dd_core_config_set_event_storage_location(config, tmpdir.path.c_str());
-         dd_core_config_set_initial_tracking_consent(
-             config, DD_TRACKING_CONSENT_GRANTED
-         );
+         return DD_TRACKING_CONSENT_GRANTED;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -371,6 +368,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
 
          // And we configure the SDK to use our temp directory for storage
          dd_core_config_set_event_storage_location(config, tmpdir.path.c_str());
+         return DD_TRACKING_CONSENT_PENDING;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -400,6 +398,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
          dd_core_config_set_event_storage_location(
              config, nonexistent_path.string().c_str()
          );
+         return DD_TRACKING_CONSENT_PENDING;
        },
        [](bool started,
           const DiagnosticMessageBuffer& diagnostics,
@@ -434,10 +433,10 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
       diagnostics.ConfigureC(&config);
 
       // When we configure the event storage location used by this test case
-      tt.setup_func(&config, tmpdir);
+      const dd_tracking_consent_t tracking_consent = tt.setup_func(&config, tmpdir);
 
       // And then we register logging, create a logger, and attempt to start the core
-      dd_core_t* core = dd_core_create(&config);
+      dd_core_t* core = dd_core_create(&config, tracking_consent);
       dd_logging_t* logging = dd_logging_init(core);
       dd_logger_t* logger = dd_logger_create(logging, NULL);
       const bool started = dd_core_start(core);

@@ -92,7 +92,8 @@ void IntentionalCrash_BadSdkDtor(State& state) {
   // to provoke our crash
   if (!state.core) {
     state.core = datadog::Core::Create(
-        datadog::CoreConfig("fake-client-token", "fake-service", "fake-env")
+        datadog::CoreConfig("fake-client-token", "fake-service", "fake-env"),
+        datadog::TrackingConsent::Granted
     );
   }
 

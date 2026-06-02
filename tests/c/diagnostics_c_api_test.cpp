@@ -48,7 +48,7 @@ TEST_CASE(
     dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
 
     // When we attempt to use our improperly-initialized SDK config
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
     REQUIRE(!core);
 
     // Then we get exactly one callback invocation with the expected diagnostic message
@@ -86,7 +86,7 @@ TEST_CASE(
     dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
 
     // When we successfully create the core
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
     REQUIRE(core);
     REQUIRE(callback_count == 0);
 
@@ -132,7 +132,7 @@ TEST_CASE(
     dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
 
     // When we successfully create the core, initialize RUM, and start the SDK
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
     REQUIRE(core);
     REQUIRE(callback_count == 0);
     dd_rum_t* rum = dd_rum_init(core, &rum_config);
@@ -181,7 +181,7 @@ TEST_CASE(
     dd_core_config_set_diagnostic_threshold(&config, DD_DIAGNOSTIC_LEVEL_ERROR);
 
     // When we initialize RUM and make the same bad call to dd_rum_start_view
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
     REQUIRE(core);
     REQUIRE(callback_count == 0);
     dd_rum_t* rum = dd_rum_init(core, &rum_config);
@@ -230,7 +230,7 @@ TEST_CASE(
     dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
 
     // When we attempt to start the SDK without registering any features
-    dd_core_t* core = dd_core_create(&config);
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
     REQUIRE(core);
     REQUIRE(callback_count == 0);
     const bool started = dd_core_start(core);

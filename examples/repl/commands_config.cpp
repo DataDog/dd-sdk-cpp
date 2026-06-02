@@ -13,19 +13,6 @@
 
 namespace {
 
-std::optional<datadog::TrackingConsent> ParseTrackingConsent(std::string_view s) {
-  if (s == "granted") {
-    return datadog::TrackingConsent::Granted;
-  }
-  if (s == "not-granted") {
-    return datadog::TrackingConsent::NotGranted;
-  }
-  if (s == "pending") {
-    return datadog::TrackingConsent::Pending;
-  }
-  return std::nullopt;
-}
-
 std::optional<datadog::Site> ParseSite(std::string_view s) {
   if (s == "us1") {
     return datadog::Site::us1;
@@ -96,19 +83,6 @@ std::optional<datadog::BatchProcessingLevel> ParseBatchProcessingLevel(
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
 CommandResult HandleSetConfig(State& state, const CommandInput& args) {
-  // set-config tracking-consent <value>
-  if (args.Peek() == "tracking-consent") {
-    std::string_view value_str = args[1];
-    if (value_str.empty()) {
-      return CommandResult::Error("No value supplied for tracking-consent!");
-    }
-    if (auto value_opt = ParseTrackingConsent(value_str)) {
-      state.config.SetInitialTrackingConsent(*value_opt);
-      return CommandResult::OK("CoreConfig::SetTrackingConsent()");
-    }
-    return CommandResult::Error("Invalid tracking consent!");
-  }
-
   // set-config event-storage-location <value>
   if (args.Peek() == "event-storage-location") {
     std::string_view value_str = Unquote(args[1]);

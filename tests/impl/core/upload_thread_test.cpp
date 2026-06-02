@@ -103,7 +103,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
                          BatchProcessingLevel batch_processing_level
                      ) -> std::tuple<CoreConfig, UploadThreadConfig> {
     CoreConfig config = CoreConfig("mock-client-token", "mock-service", "mock-env")
-                            .SetInitialTrackingConsent(TrackingConsent::Granted)
                             .SetApplicationVersion("mock-application-version")
                             .SetBatchSize(batch_size)
                             .SetUploadFrequency(upload_frequency)

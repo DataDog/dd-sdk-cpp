@@ -19,7 +19,7 @@ int main(int argc, char* argv[]) {
   dd_core_config_init(&config, "fake-client-token", "example-service", "development");
   dd_core_config_set_application_version(&config, "1.0.0");
 
-  dd_core_t* core = dd_core_create(&config);
+  dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
   if (!core) {
     printf("Failed to create dd_core\n");
     return 1;

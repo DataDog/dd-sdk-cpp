@@ -94,15 +94,6 @@ void dd_core_config_set_diagnostic_handler_userdata(
   config->diagnostic_handler_userdata = value;
 }
 
-void dd_core_config_set_initial_tracking_consent(
-    dd_core_config_t* config, dd_tracking_consent_t value
-) {
-  if (!config) {
-    return;
-  }
-  config->tracking_consent = value;
-}
-
 void dd_core_config_set_event_storage_location(
     dd_core_config_t* config, const char* value
 ) {
@@ -201,7 +192,9 @@ void dd_core_config_set_batch_processing_level(
   config->batch_processing_level = value;
 }
 
-dd_core_t* dd_core_create(const dd_core_config_t* config) {
+dd_core_t* dd_core_create(
+    const dd_core_config_t* config, dd_tracking_consent_t tracking_consent
+) {
   // If we've not been given a valid config, return null (which effectively serves as a
   // no-op interface, since the C API tolerates null arguments)
   if (!config) {
@@ -261,9 +254,14 @@ dd_core_t* dd_core_create(const dd_core_config_t* config) {
   datadog::impl::CoreSubsystems subsystems = std::move(*subsystems_result);
 
   // Create the impl::Core object
-  auto impl = std::make_unique<datadog::impl::Core>(cpp_config, std::move(subsystems));
+  auto impl = std::make_unique<datadog::impl::Core>(
+      cpp_config,
+      datadog::TrackingConsent_FromC(tracking_consent),
+      std::move(subsystems)
+  );
 
-  // Perform mandatory initialization routines that might fail
+  // Perform mandatory initialization routines that might fail: this may include
+  // migration of event data from <old-pid>/ to <new-pid>/
   if (!impl->Init()) {
     return nullptr;
   }

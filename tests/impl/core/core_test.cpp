@@ -34,11 +34,11 @@ static impl::Core _make_core(
           .SetEventStorageLocation("app")
           .SetDiagnosticHandler(diagnostics.CreateHandler())
           .SetDiagnosticThreshold(datadog::DiagnosticLevel::Debug)
-          .SetInitialTrackingConsent(initial_tracking_consent)
           .SetApplicationVersion("1.0.0")
           .SetBatchSize(BatchSize::Small)
           .SetUploadFrequency(UploadFrequency::Frequent)
           .SetBatchProcessingLevel(BatchProcessingLevel::Low),
+      initial_tracking_consent,
       CoreSubsystems(
           std::make_unique<MockClock>(),
           std::move(fs),

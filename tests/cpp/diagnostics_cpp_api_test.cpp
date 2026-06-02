@@ -42,7 +42,7 @@ TEST_CASE(
     });
 
     // When we attempt to use our improperly-initialized SDK config
-    auto core = Core::Create(config);
+    auto core = Core::Create(config, TrackingConsent::Pending);
 
     // Then we get exactly one callback invocation with the expected diagnostic message
     REQUIRE(callback_count == 1);
@@ -72,7 +72,7 @@ TEST_CASE(
 
     // When we successfully create the core
     {
-      auto core = Core::Create(config);
+      auto core = Core::Create(config, TrackingConsent::Pending);
       REQUIRE(core);
       REQUIRE(callback_count == 0);
 
@@ -108,7 +108,7 @@ TEST_CASE(
 
     // When we successfully create the core, initialize RUM, and start the SDK
     {
-      auto core = Core::Create(config);
+      auto core = Core::Create(config, TrackingConsent::Pending);
       REQUIRE(core);
       REQUIRE(callback_count == 0);
       auto rum = Rum::Register(core, rum_config);
@@ -147,7 +147,7 @@ TEST_CASE(
 
     // When we initialize RUM and make the same bad call to StartView
     {
-      auto core = Core::Create(config);
+      auto core = Core::Create(config, TrackingConsent::Pending);
       REQUIRE(core);
       REQUIRE(callback_count == 0);
       auto rum = Rum::Register(core, rum_config);
@@ -187,7 +187,7 @@ TEST_CASE(
 
     // When we attempt to start the SDK without registering any features
     {
-      auto core = Core::Create(config);
+      auto core = Core::Create(config, TrackingConsent::Pending);
       REQUIRE(core);
       REQUIRE(callback_count == 0);
       const bool started = core->Start();

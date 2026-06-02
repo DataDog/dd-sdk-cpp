@@ -24,7 +24,8 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
     // well as a straight-up null pointer to a Core interface
     CoreConfig invalid_config("", "", "");
     invalid_config.SetDiagnosticHandler(nullptr);
-    std::shared_ptr<Core> noop_core = Core::Create(invalid_config);
+    std::shared_ptr<Core> noop_core =
+        Core::Create(invalid_config, TrackingConsent::Granted);
     std::shared_ptr<Core> null_core;
     std::vector<std::shared_ptr<Core>> cores = {noop_core, null_core};
 

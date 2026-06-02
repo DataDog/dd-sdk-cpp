@@ -205,16 +205,6 @@ DATADOG_API void dd_core_config_set_diagnostic_threshold(
 );
 
 /**
- * Sets the tracking consent value used on SDK startup. Defaults to PENDING.
- *
- * If the user's tracking consent changes after the SDK is initialized, call
- * dd_core_set_tracking_consent() to update it at runtime.
- */
-DATADOG_API void dd_core_config_set_initial_tracking_consent(
-    dd_core_config_t* config, dd_tracking_consent_t value
-);
-
-/**
  * Sets the directory path where the Datadog SDK will create a subdirectory to store all
  * of the transient data it creates during normal operation.
  *
@@ -316,9 +306,24 @@ DATADOG_API void dd_core_config_set_batch_processing_level(
  */
 typedef struct dd_core dd_core_t;
 
-DATADOG_API dd_core_t* dd_core_create(const dd_core_config_t* config);
+/**
+ * Creates a new instance of the Datadog SDK, with the provided configuration and
+ * initial tracking consent. The resulting core is used as a top-level handle to the
+ * SDK.
+ */
+DATADOG_API dd_core_t* dd_core_create(
+    const dd_core_config_t* config, dd_tracking_consent_t tracking_consent
+);
+
 DATADOG_API void dd_core_destroy(dd_core_t* core);
 
+/**
+ * Informs the SDK of a change in the user's consent to tracking. This function may be
+ * called at any point during the lifetime of the core. Changing to
+ * DD_TRACKING_CONSENT_GRANTED will allow data to be uploaded to Datadog intake via
+ * HTTP; changing to DD_TRACKING_CONSENT_NOT_GRANTED will drop all pending data and
+ * disable storage and upload of event data.
+ */
 DATADOG_API void dd_core_set_tracking_consent(
     dd_core_t* core, dd_tracking_consent_t value
 );

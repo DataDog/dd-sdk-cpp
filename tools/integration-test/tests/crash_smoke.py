@@ -22,8 +22,7 @@ async def main(t: TestContext):
     p1.run("""
     set-config client-token fake-client-token
     set-config rum-application-id a991ca10-4004-4004-4004-beefbeefbeef
-    set-config tracking-consent granted
-    create-core
+    create-core tracking-consent:granted
     register-crash-reporting
     register-rum
     start-core
@@ -66,9 +65,8 @@ async def main(t: TestContext):
     p2.run("""
     set-config client-token fake-client-token
     set-config rum-application-id a991ca10-4004-4004-4004-beefbeefbeef
-    set-config tracking-consent granted
     set-config flush-on-stop
-    create-core
+    create-core tracking-consent:granted
     register-crash-reporting
     register-rum
     start-core

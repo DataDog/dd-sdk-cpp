@@ -79,14 +79,13 @@ BatchWriterConfig BatchWriterConfig::FromBatchSize(BatchSize batch_size) {
 
 BatchWriter::BatchWriter(
     const DiagnosticLogger& in_diagnostic_logger,
-    TrackingConsent in_consent,
     IFilesystem& in_fs,
     FeatureEventStorage& in_storage,
     const platform::IClock& in_clock,
     BatchWriterConfig in_config
 )
     : _diagnostic_logger(in_diagnostic_logger),
-      _consent(in_consent),
+      _consent(TrackingConsent::Pending),
       _fs(in_fs),
       _storage(in_storage),
       _clock(in_clock),
