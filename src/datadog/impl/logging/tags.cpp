@@ -216,7 +216,7 @@ static std::string_view next_entry(std::string_view& mut_view) {
  */
 template <typename Pred>
 static void remove_matching(std::string& buf, size_t& num_tags, Pred pred) {
-  // Create a snapshot of our string before we've peformed any string mutation
+  // Create a view of our string that'll be mutated as we advance through tags
   std::string_view view = buf;
 
   // As we iterate through the string looking for matches, we'll make two state changes
