@@ -114,11 +114,42 @@ void Logger::RemoveTagsWithKey(std::string_view key) {
 }
 
 void Logger::Log(
-    LogLevel level, std::string_view message, const Attribute& attributes
+    LogLevel level,
+    std::string_view message,
+    const LogError& err,
+    const Attribute& attributes
 ) {
   if (_impl) {
-    _impl->Log(level, message, attributes);
+    _impl->Log(level, message, err, attributes);
   }
+}
+
+void Logger::Debug(std::string_view message, const Attribute& attributes) {
+  Log(LogLevel::Debug, message, LogError{}, attributes);
+}
+
+void Logger::Info(std::string_view message, const Attribute& attributes) {
+  Log(LogLevel::Info, message, LogError{}, attributes);
+}
+
+void Logger::Notice(std::string_view message, const Attribute& attributes) {
+  Log(LogLevel::Notice, message, LogError{}, attributes);
+}
+
+void Logger::Warn(std::string_view message, const Attribute& attributes) {
+  Log(LogLevel::Warn, message, LogError{}, attributes);
+}
+
+void Logger::Error(
+    std::string_view message, const LogError& err, const Attribute& attributes
+) {
+  Log(LogLevel::Error, message, err, attributes);
+}
+
+void Logger::Critical(
+    std::string_view message, const LogError& err, const Attribute& attributes
+) {
+  Log(LogLevel::Critical, message, err, attributes);
 }
 
 Logging::Logging(Logging::PrivateCtorTag)

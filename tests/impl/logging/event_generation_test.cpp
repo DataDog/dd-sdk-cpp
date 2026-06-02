@@ -44,6 +44,8 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   LogCallDetails call{
       LogLevel::Info,
       "Hello, this is a log message",
+      "",
+      "",
       Timestamp{std::chrono::nanoseconds(1779463265013148820)},
       Attribute(),
       ""
@@ -367,5 +369,29 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
             {"id", "account-456"}, {"name", "Important Account"}, {"foo", 9876}
         }
     );
+  }
+
+  SECTION("M include error.kind and error.stack W both are provided") {
+    // When a log call carries non-empty error_kind and error_stack
+    call.error_kind = "SomeException";
+    call.error_stack = "frame 0\nframe 1";
+    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+
+    // Then the resulting event carries both error fields
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M omit error fields W both are empty") {
+    // When a log call carries empty error_kind and error_stack (the default)
+    REQUIRE(call.error_kind.empty());
+    REQUIRE(call.error_stack.empty());
+    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+
+    // Then the resulting event carries neither error field
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
   }
 }

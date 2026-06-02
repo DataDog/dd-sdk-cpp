@@ -761,13 +761,13 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          obj.SetObjectProperty("baz", Attribute::Int(300));
 
          // Emit messages from our logger, testing all functions for coverage
-         logger.Log(LogLevel::Info, "hello", obj);
+         logger.Log(LogLevel::Info, "hello", LogError{}, obj);
          logger.Debug("gubed", obj);
          logger.Info("ofni", obj);
          logger.Notice("eciton", obj);
          logger.Warn("nraw", obj);
-         logger.Error("rorre", obj);
-         logger.Critical("lacitirc", obj);
+         logger.Error("rorre", LogError{}, obj);
+         logger.Critical("lacitirc", LogError{}, obj);
        },
        // Event should include "foo":100,"bar":200,"baz":300
        nlohmann::json{
@@ -1151,6 +1151,69 @@ TEST_CASE("Logger tags", "[unit][logging][cpp-api]") {
       REQUIRE(test.client.requests.size() == 1);
       REQUIRE(MergeJsonArrays(test.client.requests) == tt.want_request_body);
     }
+  }
+}
+
+TEST_CASE("Logger error details", "[unit][logging][cpp-api]") {
+  // Given a started core with a logger
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  auto core = CoreTestHarness::WrapForCpp(test);
+  auto logging = Logging::Register(core);
+  auto logger = logging->CreateLogger();
+  core->Start();
+
+  SECTION("M include error.kind and error.stack W Error called with both") {
+    // When Error is called with a fully-populated LogError
+    logger->Error("msg", LogError{"SomeException", "frame 0\nframe 1"});
+    core->Stop();
+
+    // Then the resulting event carries both error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M include error.kind and error.stack W Critical called with both") {
+    // When Critical is called with a fully-populated LogError
+    logger->Critical("msg", LogError{"SomeException", "frame 0\nframe 1"});
+    core->Stop();
+
+    // Then the resulting event carries both error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M omit error fields W LogError is default-constructed") {
+    // When Error is called with a default-constructed (empty) LogError
+    logger->Error("msg");
+    core->Stop();
+
+    // Then the resulting event carries neither error field
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  SECTION("M omit error fields W level is below error") {
+    // When Log is called at Warn with error details provided
+    logger->Log(LogLevel::Warn, "msg", LogError{"SomeException", "trace"});
+    core->Stop();
+
+    // Then the resulting event carries neither error field, since the level guard in
+    // Logger::Log strips them before they reach the context thread
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
   }
 }
 

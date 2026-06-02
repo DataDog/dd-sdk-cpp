@@ -51,7 +51,7 @@ TEST_CASE("Logger", "[unit][logging]") {
     Attribute error_attributes = Attribute::Object(2);
     error_attributes.SetObjectProperty("foo", Attribute::Int(333));
     error_attributes.SetObjectProperty("bar", Attribute::Int(444));
-    logger->Log(LogLevel::Error, "This is an error", error_attributes);
+    logger->Log(LogLevel::Error, "This is an error", LogError{}, error_attributes);
 
     // And update our SDK state, apply some custom attributes, add custom tags, and log
     // another message
@@ -79,11 +79,11 @@ TEST_CASE("Logger", "[unit][logging]") {
     Attribute warning_attributes = Attribute::Object(2);
     warning_attributes.SetObjectProperty("bar", Attribute::Int(555));
     warning_attributes.SetObjectProperty("baz", Attribute::Int(666));
-    logger->Log(LogLevel::Warn, "This is a warning", warning_attributes);
+    logger->Log(LogLevel::Warn, "This is a warning", LogError{}, warning_attributes);
 
     // And then finally log a message below our configured threshold
     clock.TickMilliseconds(1100);
-    logger->Log(LogLevel::Info, "This is an info message");
+    logger->Log(LogLevel::Info, "This is an info message", LogError{}, Attribute());
 
     // And then stop the simulated Core
     test.Stop(logging);
