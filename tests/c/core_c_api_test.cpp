@@ -82,8 +82,8 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
   DiagnosticMessageBuffer diagnostics;
 
   SECTION(
-      "M accept config but print application-storage-path warning W dd_core_config_init "
-      "called"
+      "M accept config but print application-storage-path warning W "
+      "dd_core_config_init called"
   ) {
     // Given a config struct that's been initialized with the bare-minimum set of
     // values, without an explicit application storage path being configured

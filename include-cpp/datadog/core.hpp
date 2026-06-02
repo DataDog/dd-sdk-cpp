@@ -257,11 +257,11 @@ struct CoreConfig {
    * within the .datadog/ directory; freely creating and deleting files as needed. It
    * will NOT read or modify any other path within the application storage path.
    *
-   * It is highly recommended that you explicitly specify an application storage path when
-   * configuring an instance of the SDK. If you do not, the SDK will print a warning,
-   * but it will attempt to create a .datadog/ subdirectory within the working directory
-   * for the current process. If you prefer to use the current working directory,
-   * explicitly configure the SDK with config.SetApplicationStoragePath(".").
+   * It is highly recommended that you explicitly specify an application storage path
+   * when configuring an instance of the SDK. If you do not, the SDK will print a
+   * warning, but it will attempt to create a .datadog/ subdirectory within the working
+   * directory for the current process. If you prefer to use the current working
+   * directory, explicitly configure the SDK with config.SetApplicationStoragePath(".").
    */
   DATADOG_API CoreConfig& SetApplicationStoragePath(std::string_view value);
 
