@@ -183,8 +183,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
   struct TestParams {
     std::string_view name;
     std::function<void(RumConfig&, std::shared_ptr<Core>&)> func;
-    std::vector<std::string_view> want_warnings;
-    std::vector<std::string_view> want_errors;
+    std::vector<std::string> want_warnings;
+    std::vector<std::string> want_errors;
   };
   std::vector<TestParams> tests = {
 
@@ -553,10 +553,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
       tt.func(config, core);
 
       // Then we get the expected set of diagnostic warnings and errors
-      REQUIRE(test.c_diagnostics.size() == 0);
-      DiagnosticAsserts diagnostics = test.Diagnostics();
-      diagnostics.RequireWarnings(tt.want_warnings);
-      diagnostics.RequireErrors(tt.want_errors);
+      REQUIRE(test.diagnostics.warning == tt.want_warnings);
+      REQUIRE(test.diagnostics.error == tt.want_errors);
     }
   }
 }

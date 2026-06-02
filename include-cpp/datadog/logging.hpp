@@ -98,6 +98,15 @@ struct LoggerConfig {
 };
 
 /**
+ * Caller-supplied details about an error recorded via a call to Logger::Error() or
+ * Logger::Critical().
+ */
+struct LogError {
+  std::string_view kind;   // Serialized as error.kind on log events; error.type for RUM
+  std::string_view stack;  // Serialized as error.stack on both log and RUM events
+};
+
+/**
  * Interface used to emit log messages.
  */
 class Logger {
@@ -108,7 +117,12 @@ class Logger {
 
  public:
   // Callers should use Logging::CreateLogger
-  explicit Logger(std::unique_ptr<impl::Logger>&& impl, PrivateCtorTag);
+  explicit Logger(
+      std::unique_ptr<impl::Logger>&& impl,
+      DiagnosticHandler diagnostic_handler,
+      DiagnosticLevel diagnostic_threshold,
+      PrivateCtorTag
+  );
   DATADOG_API ~Logger();
 
   /**
@@ -125,52 +139,125 @@ class Logger {
   DATADOG_API void RemoveAttribute(std::string_view name);
 
   /**
-   * Emits a log message at the given level. If attributes has type ValueType::Object,
-   * each of its named values will be included in the resulting log event, taking
-   * precedence over global and logger-level attributes in case of name conflict. If
-   * attributes is a value of any other type, it will be ignored.
+   * Adds a custom tag to this logger.
+   *
+   * Like custom attributes, a logger's custom tag values are attached to all events
+   * emitted by the logger. Whereas attributes can represent complex, JSON-like values,
+   * tags are simple `key:value` strings intended to support lightweight filtering,
+   * grouping, and aggregation of events.
+   *
+   * A tag's key is its first ':'-delimited token; and its value is everything that
+   * follows the first colon. A tag may be specified without a value, in which case no
+   * colon is required.
+   *
+   * Both keys and values are restricted to a subset of basic ASCII characters: only
+   * alphanumeric characters [a-z0-9] and punctuation characters [_:/.-]. A valid tag
+   * that includes characters outside of this range will be automatically normalized,
+   * e.g. `Foo!:Hello world` will become `foo_:hello_world`.
+   *
+   * A valid key must begin with a letter. A key will also be considered invalid if it
+   * conflicts with the set of keys reserved for internal use, which includes: service,
+   * version, env, sdk_version, variant, host, device, and source. Tags with invalid
+   * keys will be rejected.
+   *
+   * A logger may have no more than 100 custom tags, and each tag is limited to 200
+   * bytes in length. Any valid tag that exceeds the length limit will be automatically
+   * truncated.
+   */
+  DATADOG_API void AddTag(std::string_view tag);
+
+  /**
+   * Adds a custom tag to this logger using separate key and value strings.
+   */
+  DATADOG_API void AddTag(std::string_view key, std::string_view value);
+
+  /**
+   * Removes any previously-added tag that exactly matches the given value (both key and
+   * value) after sanitization.
+   */
+  DATADOG_API void RemoveTag(std::string_view tag);
+
+  /**
+   * Removes all previously-added tags whose key matches `key` (after sanitization).
+   */
+  DATADOG_API void RemoveTagsWithKey(std::string_view key);
+
+  /**
+   * Emits a log message at the given level.
+   *
+   * `err` will be used only if level is LogLevel::Error or higher.
+   *
+   * If `attributes` has type ValueType::Object, each of its named values will be
+   * included in the resulting log event, taking precedence over global and logger-level
+   * attributes in case of name conflict. If attributes is a value of any other type, it
+   * will be ignored.
    */
   DATADOG_API void Log(
       LogLevel level,
       std::string_view message,
+      const LogError& err = LogError(),
       const Attribute& attributes = Attribute()
   );
 
+  /**
+   * Emits a Debug-level message from the given logger, with an optional set of extra
+   * attribute values.
+   */
   DATADOG_API void Debug(
       std::string_view message, const Attribute& attributes = Attribute()
-  ) {
-    Log(LogLevel::Debug, message, attributes);
-  }
+  );
 
+  /**
+   * Emits an Info-level message from the given logger, with an optional set of extra
+   * attribute values.
+   */
   DATADOG_API void Info(
       std::string_view message, const Attribute& attributes = Attribute()
-  ) {
-    Log(LogLevel::Info, message, attributes);
-  }
+  );
 
+  /**
+   * Emits a Notice-level message from the given logger, with an optional set of extra
+   * attribute values.
+   */
   DATADOG_API void Notice(
       std::string_view message, const Attribute& attributes = Attribute()
-  ) {
-    Log(LogLevel::Notice, message, attributes);
-  }
+  );
 
+  /**
+   * Emits a Warning-level message from the given logger, with an optional set of extra
+   * attribute values.
+   */
   DATADOG_API void Warn(
       std::string_view message, const Attribute& attributes = Attribute()
-  ) {
-    Log(LogLevel::Warn, message, attributes);
-  }
+  );
 
+  /**
+   * Emits an Error-level message from the given logger, optionally described with the
+   * given error kind and stack trace, and with an optional set of extra attribute
+   * values.
+   *
+   * If RUM tracking is active, this call will automatically record a RUM Error in the
+   * active view.
+   */
   DATADOG_API void Error(
-      std::string_view message, const Attribute& attributes = Attribute()
-  ) {
-    Log(LogLevel::Error, message, attributes);
-  }
+      std::string_view message,
+      const LogError& err = LogError(),
+      const Attribute& attributes = Attribute()
+  );
 
+  /**
+   * Emits a Critical-level message from the given logger, optionally described with the
+   * given error kind and stack trace, and with an optional set of extra attribute
+   * values.
+   *
+   * If RUM tracking is active, this call will automatically record a RUM Error in the
+   * active view.
+   */
   DATADOG_API void Critical(
-      std::string_view message, const Attribute& attributes = Attribute()
-  ) {
-    Log(LogLevel::Critical, message, attributes);
-  }
+      std::string_view message,
+      const LogError& err = LogError(),
+      const Attribute& attributes = Attribute()
+  );
 
  private:
   // Forbid copying/moving: we use std::shared_ptr<Logger> at the API boundary
@@ -180,6 +267,8 @@ class Logger {
   Logger& operator=(Logger&&) = delete;
 
   std::unique_ptr<impl::Logger> _impl;
+  DiagnosticHandler _diagnostic_handler;
+  DiagnosticLevel _diagnostic_threshold;
 };
 
 /**

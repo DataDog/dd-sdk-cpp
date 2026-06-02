@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <chrono>
 #include <memory>
+#include <nlohmann/json.hpp>
 
 #include "datadog/core.hpp"
 #include "datadog/rum.hpp"
@@ -526,5 +527,59 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(msg->attributes.GetObjectPropertyCount() == 2);
     REQUIRE(msg->attributes.GetObjectProperty("foo").GetStringValue() == "hello");
     REQUIRE(msg->attributes.GetObjectProperty("bar").GetIntValue() == 100);
+  }
+
+  // === LogErrorGeneratedMessage ===
+
+  SECTION("M produce a RUM error event W LogErrorGeneratedMessage is received") {
+    // Given a started Rum feature with an active view
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    rum->StartView("main");
+
+    // And a message handler obtained from the feature (simulating what Core would do
+    // when wiring the message bus)
+    auto handler_opt = rum->MakeMessageHandler();
+    REQUIRE(handler_opt.has_value());
+    const auto& handler = *handler_opt;
+
+    // When the Logging feature delivers a LogErrorGeneratedMessage for an
+    // error/critical log, including error details
+    Attribute log_attrs = Attribute::Object(1);
+    log_attrs.SetObjectProperty("custom_key", Attribute::String("custom_value"));
+    const Timestamp log_time{std::chrono::milliseconds(1700000001234)};
+    handler(
+        LogErrorGeneratedMessage{
+            log_time,
+            "something exploded",
+            "SomeException",
+            "frame 0\nframe 1",
+            log_attrs,
+        }
+    );
+
+    // And the SDK is stopped (flushing all pending context-thread work)
+    test.Stop(rum);
+
+    // Then the events include a RUM error event
+    auto error_events = std::vector<nlohmann::json>{};
+    for (const auto& ev : test.events) {
+      auto obj = nlohmann::json::parse(ev.data);
+      if (obj.value("type", "") == "error") {
+        error_events.push_back(std::move(obj));
+      }
+    }
+    REQUIRE(error_events.size() == 1);
+    const auto& error_event = error_events[0];
+
+    // And the error carries the log's source, message, timestamp, user attributes,
+    // and error details (error.type from error_kind, error.stack from error_stack)
+    REQUIRE(error_event["error"]["source"] == "logger");
+    REQUIRE(error_event["error"]["message"] == "something exploded");
+    REQUIRE(error_event["error"]["type"] == "SomeException");
+    REQUIRE(error_event["error"]["stack"] == "frame 0\nframe 1");
+    REQUIRE(error_event["date"] == 1700000001234);
+    REQUIRE(error_event["context"]["custom_key"] == "custom_value");
   }
 }

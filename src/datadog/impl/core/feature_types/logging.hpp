@@ -68,6 +68,9 @@ struct LogEvent {
   IsoTimestamp date;
   std::string message;
 
+  OmitIfEmpty<std::string> error_kind;
+  OmitIfEmpty<std::string> error_stack;
+
   std::string ddtags;
 
   OmitIfEmpty<std::string> logger_name;
@@ -117,6 +120,8 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     DATADOG_JSON_FIELD(service),
     DATADOG_JSON_FIELD(date),
     DATADOG_JSON_FIELD(message),
+    DATADOG_JSON_FIELD_NAME(error_kind, "error.kind"),
+    DATADOG_JSON_FIELD_NAME(error_stack, "error.stack"),
 
     DATADOG_JSON_FIELD(ddtags),
 

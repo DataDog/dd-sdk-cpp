@@ -189,56 +189,137 @@ DATADOG_API void dd_logger_add_attribute(
 DATADOG_API void dd_logger_remove_attribute(dd_logger_t* logger, const char* name);
 
 /**
- * Emits a log message at the given level.
+ * Adds a custom tag to this logger.
+ *
+ * Like custom attributes, a logger's custom tag values are attached to all events
+ * emitted by the logger. Whereas attributes can represent complex, JSON-like values,
+ * tags are simple `key:value` strings intended to support lightweight filtering,
+ * grouping, and aggregation of events.
+ *
+ * A tag's key is its first ':'-delimited token; and its value is everything that
+ * follows the first colon. A tag may be specified without a value, in which case no
+ * colon is required.
+ *
+ * Both keys and values are restricted to a subset of basic ASCII characters: only
+ * alphanumeric characters [a-z0-9] and punctuation characters [_:/.-]. A valid tag that
+ * includes characters outside of this range will be automatically normalized, e.g.
+ * `Foo!:Hello world` will become `foo_:hello_world`.
+ *
+ * A valid key must begin with a letter. A key will also be considered invalid if it
+ * conflicts with the set of keys reserved for internal use, which includes: service,
+ * version, env, sdk_version, variant, host, device, and source. Tags with invalid keys
+ * will be rejected.
+ *
+ * A logger may have no more than 100 custom tags, and each tag is limited to 200 bytes
+ * in length. Any valid tag that exceeds the length limit will be automatically
+ * truncated.
  */
-DATADOG_API void dd_logger_log(
-    dd_logger_t* logger, dd_log_level_t level, const char* message
-);
-DATADOG_API void dd_logger_debug(dd_logger_t* logger, const char* message);
-DATADOG_API void dd_logger_info(dd_logger_t* logger, const char* message);
-DATADOG_API void dd_logger_notice(dd_logger_t* logger, const char* message);
-DATADOG_API void dd_logger_warn(dd_logger_t* logger, const char* message);
-DATADOG_API void dd_logger_error(dd_logger_t* logger, const char* message);
-DATADOG_API void dd_logger_critical(dd_logger_t* logger, const char* message);
+DATADOG_API void dd_logger_add_tag(dd_logger_t* logger, const char* tag);
 
 /**
- * Emits a log message at the given level, with the given set of message-level
- * attributes included.
+ * Adds a custom tag to this logger using separate key and value strings.
+ */
+DATADOG_API void dd_logger_add_tag_kv(
+    dd_logger_t* logger, const char* key, const char* value
+);
+
+/**
+ * Removes any previously-added tag that exactly matches the given value (both key and
+ * value) after sanitization.
+ */
+DATADOG_API void dd_logger_remove_tag(dd_logger_t* logger, const char* tag);
+
+/**
+ * Removes all previously-added tags whose key matches `key` (after sanitization).
+ */
+DATADOG_API void dd_logger_remove_tags_with_key(dd_logger_t* logger, const char* key);
+
+/**
+ * Caller-supplied details about an error recorded via a call to dd_logger_error() or
+ * dd_error_critical(). Values provided as NULL or empty will be omitted.
+ */
+typedef struct dd_log_error {
+  const char* kind;  /* Serialized as error.kind on log events; error.type for RUM */
+  const char* stack; /* Serialized as error.stack on both log and RUM events */
+} dd_log_error_t;
+
+/**
+ * Emits a log message at the given level.
  *
- * If attributes has type DD_VALUE_TYPE_OBJECT, each of its named values will be
+ * `err` will be used only if level is DD_LOG_LEVEL_ERROR or higher. `err` may always be
+ * NULL, regardless of log level.
+ *
+ * If `attributes` has type DD_VALUE_TYPE_OBJECT, each of its named values will be
  * included in the resulting log event, taking precedence over global and logger-level
  * attributes in case of name conflict. If attributes is a value of any other type, it
  * will be ignored.
  */
-DATADOG_API void dd_logger_log_obj(
+DATADOG_API void dd_logger_log(
     dd_logger_t* logger,
     dd_log_level_t level,
     const char* message,
+    const dd_log_error_t* err,
     const dd_attribute_t* attributes
 );
 
-DATADOG_API void dd_logger_info_obj(
+/**
+ * Emits a Debug-level message from the given logger, with an optional set of extra
+ * attribute values.
+ */
+DATADOG_API void dd_logger_debug(
     dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
-DATADOG_API void dd_logger_debug_obj(
+/**
+ * Emits an Info-level message from the given logger, with an optional set of extra
+ * attribute values.
+ */
+DATADOG_API void dd_logger_info(
     dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
-DATADOG_API void dd_logger_notice_obj(
+/**
+ * Emits a Notice-level message from the given logger, with an optional set of extra
+ * attribute values.
+ */
+DATADOG_API void dd_logger_notice(
     dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
-DATADOG_API void dd_logger_warn_obj(
+/**
+ * Emits a Warning-level message from the given logger, with an optional set of extra
+ * attribute values.
+ */
+DATADOG_API void dd_logger_warn(
     dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
 );
 
-DATADOG_API void dd_logger_error_obj(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+/**
+ * Emits an Error-level message from the given logger, optionally described with the
+ * given error kind and stack trace, and with an optional set of extra attribute values.
+ *
+ * If RUM tracking is active, this call will automatically record a RUM Error in the
+ * active view.
+ */
+DATADOG_API void dd_logger_error(
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 );
 
-DATADOG_API void dd_logger_critical_obj(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+/**
+ * Emits a Critical-level message from the given logger, optionally described with the
+ * given error kind and stack trace, and with an optional set of extra attribute values.
+ *
+ * If RUM tracking is active, this call will automatically record a RUM Error in the
+ * active view.
+ */
+DATADOG_API void dd_logger_critical(
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 );
 
 #ifdef __cplusplus

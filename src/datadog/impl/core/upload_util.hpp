@@ -47,17 +47,20 @@ std::string GetUserAgent(
  *
  * In this context, 'ddtags' refers to the fixed set of values used for unified service
  * tagging, supplied with uploads in event payloads, typically in a top-level property
- * called 'ddtags' on each event object.
+ * called 'ddtags' on each event object. (These values are distinct from a separate set
+ * of values provided per-HTTP-request in a `?ddtags` query parameter, which shares the
+ * same name for historical reasons.)
  *
- * In older iterations of RUM SDKs, these values were supplied per-batch as part of the
- * URL query parameters on each HTTP request (e.g. '?ddtags=service:<service>,...').
+ * `tail`, if provided, represents an additional set of comma-delimited tag values to be
+ * concatenated with the result.
  */
 std::string BuildDdTags(
     std::string_view service,
     std::string_view application_version,
     std::string_view env,
     std::string_view sdk_version,
-    std::string_view variant
+    std::string_view variant,
+    std::string_view tail = {}
 );
 
 }  // namespace datadog::impl

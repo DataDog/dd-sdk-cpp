@@ -64,20 +64,17 @@ TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
     dd_logger_destroy(nullptr);
     dd_logger_add_attribute(nullptr, "foo", &int_100);
     dd_logger_remove_attribute(nullptr, "foo");
-    dd_logger_log(nullptr, DD_LOG_LEVEL_INFO, "hello");
-    dd_logger_debug(nullptr, "hello");
-    dd_logger_info(nullptr, "hello");
-    dd_logger_notice(nullptr, "hello");
-    dd_logger_warn(nullptr, "hello");
-    dd_logger_error(nullptr, "hello");
-    dd_logger_critical(nullptr, "hello");
-    dd_logger_log_obj(nullptr, DD_LOG_LEVEL_INFO, "hello", &obj);
-    dd_logger_debug_obj(nullptr, "hello", &obj);
-    dd_logger_info_obj(nullptr, "hello", &obj);
-    dd_logger_notice_obj(nullptr, "hello", &obj);
-    dd_logger_warn_obj(nullptr, "hello", &obj);
-    dd_logger_error_obj(nullptr, "hello", &obj);
-    dd_logger_critical_obj(nullptr, "hello", &obj);
+    dd_logger_add_tag(nullptr, "foo:bar");
+    dd_logger_add_tag_kv(nullptr, "foo", "bar");
+    dd_logger_remove_tag(nullptr, "foo:bar");
+    dd_logger_remove_tags_with_key(nullptr, "foo");
+    dd_logger_log(nullptr, DD_LOG_LEVEL_INFO, "hello", nullptr, &obj);
+    dd_logger_debug(nullptr, "hello", &obj);
+    dd_logger_info(nullptr, "hello", &obj);
+    dd_logger_notice(nullptr, "hello", &obj);
+    dd_logger_warn(nullptr, "hello", &obj);
+    dd_logger_error(nullptr, "hello", nullptr, &obj);
+    dd_logger_critical(nullptr, "hello", nullptr, &obj);
 
     dd_attribute_free(&obj);
     dd_attribute_free(&int_100);
@@ -141,7 +138,8 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
     REQUIRE(logger);
 
     // And we get no diagnostic errors or warnings
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
 
     // Cleanup
     dd_core_stop(core);
@@ -165,7 +163,8 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
 
     // Then we get a valid logger, even though the SDK isn't running yet
     REQUIRE(logger);
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
 
     // Cleanup
     dd_logger_destroy(logger);
@@ -186,7 +185,8 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
     REQUIRE(logger);
 
     // And we get no diagnostic errors or warnings
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
 
     // Cleanup
     dd_logger_destroy(logger);
@@ -201,8 +201,8 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
   struct TestParams {
     std::string_view name;
     std::function<void(dd_logging_t*)> func;
-    std::vector<std::string_view> want_warnings;
-    std::vector<std::string_view> want_errors;
+    std::vector<std::string> want_warnings;
+    std::vector<std::string> want_errors;
   };
   std::vector<TestParams> tests = {
 
@@ -238,12 +238,12 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
          dd_logger_remove_attribute(logger_a, "bar");
 
          // Log a message
-         dd_logger_warn(logger_a, "hello");
+         dd_logger_warn(logger_a, "hello", nullptr);
 
          // Log a message with attributes
          dd_attribute_t message_attributes = dd_attribute_object(1);
          dd_attribute_object_property_set(&message_attributes, "bar", &str_val);
-         dd_logger_info_obj(logger_b, "goodbye", &message_attributes);
+         dd_logger_info(logger_b, "goodbye", &message_attributes);
          dd_attribute_free(&message_attributes);
 
          // Cleanup
@@ -331,6 +331,26 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
        {"dd_logger_remove_attribute call ignored: application must supply an attribute "
         "name"},
        {}},
+
+      // === dd_logger_add_tag() / dd_logger_add_tag_kv() ===
+
+      {"M reject tag with error W dd_logger_add_tag is called with NULL tag",
+       [](dd_logging_t* logging) {
+         dd_logger_t* logger = dd_logger_create(logging, nullptr);
+         dd_logger_add_tag(logger, nullptr);
+         dd_logger_destroy(logger);
+       },
+       {},
+       {"Logger tag was rejected: tags must not be empty {\"key\":\"\"}"}},
+
+      {"M reject tag with error W dd_logger_add_tag_kv is called with NULL key",
+       [](dd_logging_t* logging) {
+         dd_logger_t* logger = dd_logger_create(logging, nullptr);
+         dd_logger_add_tag_kv(logger, nullptr, "value");
+         dd_logger_destroy(logger);
+       },
+       {},
+       {"Logger tag was rejected: tags must not be empty {\"key\":\"\"}"}},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
@@ -346,10 +366,8 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
       dd_core_stop(core);
 
       // Then we get the expected set of diagnostic warnings and errors
-      REQUIRE(test.cpp_diagnostics.size() == 0);
-      DiagnosticAsserts diagnostics = test.Diagnostics();
-      diagnostics.RequireWarnings(tt.want_warnings);
-      diagnostics.RequireErrors(tt.want_errors);
+      REQUIRE(test.diagnostics.warning == tt.want_warnings);
+      REQUIRE(test.diagnostics.error == tt.want_errors);
     }
   }
 }
@@ -365,13 +383,13 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     dd_core_start(core);
 
     // When we emit a bunch of log messages and stop the core
-    dd_logger_log(logger, DD_LOG_LEVEL_INFO, "hello");
-    dd_logger_debug(logger, "gubed");
-    dd_logger_info(logger, "ofni");
-    dd_logger_notice(logger, "eciton");
-    dd_logger_warn(logger, "nraw");
-    dd_logger_error(logger, "rorre");
-    dd_logger_critical(logger, "lacitirc");
+    dd_logger_log(logger, DD_LOG_LEVEL_INFO, "hello", nullptr, nullptr);
+    dd_logger_debug(logger, "gubed", nullptr);
+    dd_logger_info(logger, "ofni", nullptr);
+    dd_logger_notice(logger, "eciton", nullptr);
+    dd_logger_warn(logger, "nraw", nullptr);
+    dd_logger_error(logger, "rorre", nullptr, nullptr);
+    dd_logger_critical(logger, "lacitirc", nullptr, nullptr);
     dd_core_stop(core);
 
     // Then the SDK sends a request that contains our log messages
@@ -473,7 +491,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     dd_logger_t* logger = dd_logger_create(logging, nullptr);
 
     // When we emit a log message prior to starting the core
-    dd_logger_info(logger, "ofni");
+    dd_logger_info(logger, "ofni", nullptr);
 
     // And we start and stop the core thereafter
     dd_core_start(core);
@@ -503,7 +521,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     dd_core_stop(core);
 
     // And make a log call thereafter
-    dd_logger_info(logger, "hello");
+    dd_logger_info(logger, "hello", nullptr);
 
     // Then no events are generated and no requests are sent, as any API calls
     // made after core stop are simply no-ops
@@ -532,7 +550,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     dd_core_destroy(core);
 
     // And we make a log call thereafter
-    dd_logger_info(logger, "hello");
+    dd_logger_info(logger, "hello", nullptr);
 
     // Then this is still a safe no-op, as the logger communicates the event to the
     // logging feature via a weak_ptr
@@ -554,7 +572,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     dd_logging_destroy(logging);
 
     // And we emit a log message and stop the core
-    dd_logger_info(logger, "hello");
+    dd_logger_info(logger, "hello", nullptr);
     dd_core_stop(core);
 
     // Then this is safe, as the API's references to features are shared: the API
@@ -595,7 +613,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     dd_core_start(core);
 
     // When we emit a log message and stop the core
-    dd_logger_info(logger, "hello");
+    dd_logger_info(logger, "hello", nullptr);
     dd_core_stop(core);
 
     // Then the resulting log event contains our logger-specific 'name' and
@@ -646,7 +664,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
       dd_core_start(core);
 
       // And we emit a log message and stop the core
-      dd_logger_info(logger, "hello");
+      dd_logger_info(logger, "hello", nullptr);
       dd_core_stop(core);
 
       // Then the resulting log event contains our default service name and no explicit
@@ -695,7 +713,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     dd_core_start(core);
 
     // When we emit a log message and stop the core
-    dd_logger_info(logger, "hello");
+    dd_logger_info(logger, "hello", nullptr);
     dd_core_stop(core);
 
     // Then the 'name' and 'service' values reflected in the resulting log event are
@@ -746,9 +764,9 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     // When we emit 10 warning messages, 10 error messages, and 10 critical
     // messages, then stop the core
     for (int i = 0; i < 10; i++) {
-      dd_logger_warn(logger, "perhaps this is bad");
-      dd_logger_error(logger, "this is definitely bad");
-      dd_logger_critical(logger, "hold the phone, this is very bad");
+      dd_logger_warn(logger, "perhaps this is bad", nullptr);
+      dd_logger_error(logger, "this is definitely bad", nullptr, nullptr);
+      dd_logger_critical(logger, "hold the phone, this is very bad", nullptr, nullptr);
     }
     dd_core_stop(core);
 
@@ -792,7 +810,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
 
     // When we emit 1000 log messages and stop the core
     for (int i = 0; i < 1000; i++) {
-      dd_logger_info(logger, "hello");
+      dd_logger_info(logger, "hello", nullptr);
     }
     dd_core_stop(core);
 
@@ -824,7 +842,7 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
 
     // When we emit 1000 log messages and stop the core
     for (int i = 0; i < 1000; i++) {
-      dd_logger_info(logger, "hello");
+      dd_logger_info(logger, "hello", nullptr);
     }
     dd_core_stop(core);
 
@@ -855,8 +873,8 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
 
     // When we emit 500 debug message and 500 log messages, then stop the core
     for (int i = 0; i < 500; i++) {
-      dd_logger_debug(logger, "this is not very important");
-      dd_logger_info(logger, "this might be important");
+      dd_logger_debug(logger, "this is not very important", nullptr);
+      dd_logger_info(logger, "this might be important", nullptr);
     }
     dd_core_stop(core);
 
@@ -909,7 +927,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Emit a message from our logger
-         dd_logger_info(logger, "hello");
+         dd_logger_info(logger, "hello", nullptr);
        },
        // Event should include "foo":100,"bar":"yes"
        nlohmann::json::array({nlohmann::json{
@@ -940,7 +958,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Emit a message from our logger
-         dd_logger_info(logger, "hello");
+         dd_logger_info(logger, "hello", nullptr);
        },
        // Event should include "foo":100,"bar":200
        nlohmann::json::array({nlohmann::json{
@@ -971,7 +989,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
        },
        [](dd_logging_t*, dd_logger_t* logger) {
          // Emit a message from our logger
-         dd_logger_info(logger, "hello");
+         dd_logger_info(logger, "hello", nullptr);
        },
        // Event should include "foo":200
        nlohmann::json::array({nlohmann::json{
@@ -1007,13 +1025,13 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
          dd_attribute_free(&int_300);
 
          // Emit messages from our logger, testing all functions for coverage
-         dd_logger_log_obj(logger, DD_LOG_LEVEL_INFO, "hello", &obj);
-         dd_logger_debug_obj(logger, "gubed", &obj);
-         dd_logger_info_obj(logger, "ofni", &obj);
-         dd_logger_notice_obj(logger, "eciton", &obj);
-         dd_logger_warn_obj(logger, "nraw", &obj);
-         dd_logger_error_obj(logger, "rorre", &obj);
-         dd_logger_critical_obj(logger, "lacitirc", &obj);
+         dd_logger_log(logger, DD_LOG_LEVEL_INFO, "hello", nullptr, &obj);
+         dd_logger_debug(logger, "gubed", &obj);
+         dd_logger_info(logger, "ofni", &obj);
+         dd_logger_notice(logger, "eciton", &obj);
+         dd_logger_warn(logger, "nraw", &obj);
+         dd_logger_error(logger, "rorre", nullptr, &obj);
+         dd_logger_critical(logger, "lacitirc", nullptr, &obj);
 
          dd_attribute_free(&obj);
        },
@@ -1137,7 +1155,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
          dd_attribute_free(&int_300);
          dd_attribute_free(&int_400);
 
-         dd_logger_info_obj(logger, "hello", &obj);
+         dd_logger_info(logger, "hello", &obj);
          dd_attribute_free(&obj);
        },
        // Event should include "foo":300,"baz":200,"bar":400
@@ -1179,7 +1197,7 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
          dd_attribute_object_property_set(&obj, "ok-message", &int_300);
          dd_attribute_free(&int_300);
 
-         dd_logger_info_obj(logger, "hello", &obj);
+         dd_logger_info(logger, "hello", &obj);
          dd_attribute_free(&obj);
        },
        // Event should include "ok-global":100,"ok-logger":200,"ok-message":300, but
@@ -1219,13 +1237,13 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
          dd_attribute_free(&int_300);
 
          // Emit a single log message
-         dd_logger_info_obj(logger, "alpha", &obj);
+         dd_logger_info(logger, "alpha", &obj);
 
          // Next: delete our three custom attributes and emit another message
          dd_logging_remove_attribute(logging, "foo");
          dd_logger_remove_attribute(logger, "bar");
          dd_attribute_object_property_delete(&obj, "baz");
-         dd_logger_info_obj(logger, "bravo", &obj);
+         dd_logger_info(logger, "bravo", &obj);
 
          dd_attribute_free(&obj);
        },
@@ -1289,6 +1307,244 @@ TEST_CASE("dd_logger attributes", "[unit][logging][c-api]") {
   }
 }
 
+TEST_CASE("dd_logger tags", "[unit][logging][c-api]") {
+  // These tests register the logging feature and initialize a logger, then they
+  // exercise tag manipulation while the core is running and examine the resulting HTTP
+  // request to see if it matches want_request_body
+  struct TestParams {
+    std::string_view name;
+    std::function<void(dd_logger_t*)> setup;
+    std::function<void(dd_logger_t*)> while_running;
+    nlohmann::json want_request_body;
+  };
+  // Constructs the expected ddtags value by appending custom tags to the standard set
+  auto ddtags_with = [](std::string_view suffix) {
+    return nlohmann::json(DDTAGS.get<std::string>() + "," + std::string(suffix));
+  };
+  std::vector<TestParams> tests = {
+      {"M append custom tag to ddtags W dd_logger_add_tag called with pre-formatted "
+       "entry",
+       [](dd_logger_t* logger) {
+         // Add a tag using the pre-formatted '<key>:<value>' form
+         dd_logger_add_tag(logger, "foo:hello");
+       },
+       [](dd_logger_t* logger) { dd_logger_info(logger, "hello", nullptr); },
+       nlohmann::json::array({nlohmann::json{
+           {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", "1.2.3"},
+           {"ddtags", ddtags_with("foo:hello")}
+       }})},
+
+      {"M append custom tag to ddtags W dd_logger_add_tag_kv called with separate key "
+       "and value",
+       [](dd_logger_t* logger) {
+         // Add a tag using the separate key/value form
+         dd_logger_add_tag_kv(logger, "bar", "world");
+       },
+       [](dd_logger_t* logger) { dd_logger_info(logger, "hello", nullptr); },
+       nlohmann::json::array({nlohmann::json{
+           {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", "1.2.3"},
+           {"ddtags", ddtags_with("bar:world")}
+       }})},
+
+      {"M remove exact tag W dd_logger_remove_tag is called with matching entry",
+       [](dd_logger_t* logger) {
+         // Add two tags with the same key but different values
+         dd_logger_add_tag(logger, "foo:1");
+         dd_logger_add_tag(logger, "foo:2");
+       },
+       [](dd_logger_t* logger) {
+         // Log a message with both tags present, then remove one and log again
+         dd_logger_info(logger, "alpha", nullptr);
+         dd_logger_remove_tag(logger, "foo:1");
+         dd_logger_info(logger, "bravo", nullptr);
+       },
+       nlohmann::json{
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "alpha"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:1,foo:2")}
+           },
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "bravo"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:2")}
+           }
+       }},
+
+      {"M remove all tags with key W dd_logger_remove_tags_with_key is called",
+       [](dd_logger_t* logger) {
+         // Add two tags under 'foo' and one under 'bar'
+         dd_logger_add_tag(logger, "foo:1");
+         dd_logger_add_tag(logger, "foo:2");
+         dd_logger_add_tag(logger, "bar:3");
+       },
+       [](dd_logger_t* logger) {
+         // Log a message with all tags, then remove all 'foo' entries and log again
+         dd_logger_info(logger, "alpha", nullptr);
+         dd_logger_remove_tags_with_key(logger, "foo");
+         dd_logger_info(logger, "bravo", nullptr);
+       },
+       nlohmann::json{
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "alpha"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:1,foo:2,bar:3")}
+           },
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "bravo"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("bar:3")}
+           }
+       }},
+  };
+  for (const auto& tt : tests) {
+    DYNAMIC_SECTION(tt.name) {
+      // Given a core
+      auto test = CoreTestHarness::Init();
+      test.clock.FreezeAtMilliseconds(1700000000000);
+      dd_core_t* core = CoreTestHarness::WrapForC(test);
+
+      // And a registered logging feature and a logger that our test has configured
+      dd_logging_t* logging = dd_logging_init(core);
+      dd_logger_t* logger = dd_logger_create(logging, nullptr);
+      tt.setup(logger);
+
+      // When we start the core, run our tag manipulation tests, and stop the core
+      dd_core_start(core);
+      tt.while_running(logger);
+      dd_core_stop(core);
+
+      // Then the SDK should have sent the expected set of events
+      REQUIRE(test.client.requests.size() == 1);
+      REQUIRE(MergeJsonArrays(test.client.requests) == tt.want_request_body);
+
+      // Cleanup
+      dd_logger_destroy(logger);
+      dd_logging_destroy(logging);
+      dd_core_destroy(core);
+    }
+  }
+}
+
+TEST_CASE("dd_logger error details", "[unit][logging][c-api]") {
+  // Given a started core with a logger
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  dd_core_t* core = CoreTestHarness::WrapForC(test);
+  dd_logging_t* logging = dd_logging_init(core);
+  dd_logger_t* logger = dd_logger_create(logging, nullptr);
+  dd_core_start(core);
+
+  SECTION("M include error.kind and error.stack W dd_logger_error called with both") {
+    // When dd_logger_error is called with a fully-populated error struct
+    dd_log_error_t err{"SomeException", "frame 0\nframe 1"};
+    dd_logger_error(logger, "msg", &err, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries both error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION(
+      "M include error.kind and error.stack W dd_logger_critical called with both"
+  ) {
+    // When dd_logger_critical is called with a fully-populated error struct
+    dd_log_error_t err{"SomeException", "frame 0\nframe 1"};
+    dd_logger_critical(logger, "msg", &err, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries both error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M omit error fields W err is NULL") {
+    // When dd_logger_error is called with a null error pointer
+    dd_logger_error(logger, "msg", nullptr, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries neither error field
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  SECTION("M omit error fields W err has empty strings") {
+    // When dd_logger_error is called with an error struct whose fields are both empty
+    dd_log_error_t err{"", ""};
+    dd_logger_error(logger, "msg", &err, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries neither error field
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  SECTION("M omit error fields W level is below error") {
+    // When dd_logger_log is called at WARN with error details provided
+    dd_log_error_t err{"SomeException", "trace"};
+    dd_logger_log(logger, DD_LOG_LEVEL_WARN, "msg", &err, nullptr);
+    dd_core_stop(core);
+
+    // Then the resulting event carries neither error field, since the level guard in
+    // Logger::Log strips them before they reach the context thread
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  // Cleanup
+  dd_logger_destroy(logger);
+  dd_logging_destroy(logging);
+  dd_core_destroy(core);
+}
+
 TEST_CASE("dd_logger thread-safety", "[unit][logging][c-api][thread-safety]") {
   // Given a running SDK with logging enabled
   auto test = CoreTestHarness::Init();
@@ -1307,7 +1563,7 @@ TEST_CASE("dd_logger thread-safety", "[unit][logging][c-api][thread-safety]") {
     dd_logger_t* logger = dd_logger_create(logging, &config);
     for (int i = 0; i < 100; ++i) {
       const std::string message = "message " + std::to_string(i);
-      dd_logger_info(logger, message.c_str());
+      dd_logger_info(logger, message.c_str(), nullptr);
     }
     dd_logger_destroy(logger);
   });

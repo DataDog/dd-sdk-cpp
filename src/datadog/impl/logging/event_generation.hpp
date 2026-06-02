@@ -30,13 +30,18 @@ struct CoreContext;
  *
  * `encode_buf` is a reusable buffer that can be used to serialize event payloads to
  * JSON, exclusively reserved for the duration of the call.
+ *
+ * When the log level is `error` or `critical`, after writing the log event to storage
+ * this function publishes a `LogErrorGeneratedMessage` via `publisher` so that RUM (if
+ * registered) can record a corresponding RUM error event.
  */
 void ContextThread_GenerateLogEvent(
     const LoggerConfigDetails& logger,
     LogCallDetails call,
     const CoreContext& ctx,
     const EventWriter& event_writer,
-    std::vector<uint8_t>& encode_buf
+    std::vector<uint8_t>& encode_buf,
+    const MessagePublisher& publisher
 );
 
 }  // namespace datadog::impl

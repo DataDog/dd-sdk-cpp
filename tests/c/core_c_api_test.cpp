@@ -446,7 +446,7 @@ TEST_CASE("dd_core event storage location", "[unit][core][c-api]") {
       // disk (log calls produce events synchronously, and stopping the core drains the
       // storage queue)
       if (started) {
-        dd_logger_info(logger, "hello");
+        dd_logger_info(logger, "hello", nullptr);
         dd_core_stop(core);
       }
 
@@ -481,7 +481,7 @@ TEST_CASE(
     dd_core_start(core);
 
     // When we emit a log event and stop the core
-    dd_logger_info(logger, "hello");
+    dd_logger_info(logger, "hello", nullptr);
     dd_core_stop(core);
 
     // Then the HTTP request reflects the overridden source
@@ -509,7 +509,7 @@ TEST_CASE(
     dd_core_start(core);
 
     // When we emit a log event and stop the core
-    dd_logger_info(logger, "hello");
+    dd_logger_info(logger, "hello", nullptr);
     dd_core_stop(core);
 
     // Then the HTTP request reflects the overridden SDK version

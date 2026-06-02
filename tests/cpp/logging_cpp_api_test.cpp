@@ -65,6 +65,10 @@ TEST_CASE("Logging null safety", "[unit][logging][cpp-api]") {
       REQUIRE(logger != nullptr);
       logger->AddAttribute("foo", Attribute::Int(2));
       logger->RemoveAttribute("bar");
+      logger->AddTag("foo:bar");
+      logger->AddTag("foo", "bar");
+      logger->RemoveTag("foo:bar");
+      logger->RemoveTagsWithKey("foo");
       logger->Info("hello");
     }
   }
@@ -118,7 +122,8 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
     REQUIRE(logger != nullptr);
 
     // And we get no diagnostic errors or warnings
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
   }
 
   SECTION("M return valid logger W core not yet started") {
@@ -134,7 +139,8 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
 
     // Then we get a valid logger, even though the SDK isn't running yet
     REQUIRE(logger != nullptr);
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
   }
 
   SECTION("M use default config W no config is provided") {
@@ -150,7 +156,8 @@ TEST_CASE("Logging::CreateLogger", "[unit][logging][cpp-api]") {
     REQUIRE(logger != nullptr);
 
     // And we get no diagnostic errors or warnings
-    test.Diagnostics().RequireNoWarnings().RequireNoErrors();
+    REQUIRE(test.diagnostics.warning.size() == 0);
+    REQUIRE(test.diagnostics.error.size() == 0);
   }
 }
 
@@ -160,8 +167,8 @@ TEST_CASE("Logging argument validation", "[unit][logging][cpp-api]") {
   struct TestParams {
     std::string_view name;
     std::function<void(std::shared_ptr<Logging>&)> func;
-    std::vector<std::string_view> want_warnings;
-    std::vector<std::string_view> want_errors;
+    std::vector<std::string> want_warnings;
+    std::vector<std::string> want_errors;
   };
   std::vector<TestParams> tests = {
 
@@ -218,10 +225,8 @@ TEST_CASE("Logging argument validation", "[unit][logging][cpp-api]") {
       core->Stop();
 
       // Then we get the expected set of diagnostic warnings and errors
-      REQUIRE(test.c_diagnostics.size() == 0);
-      DiagnosticAsserts diagnostics = test.Diagnostics();
-      diagnostics.RequireWarnings(tt.want_warnings);
-      diagnostics.RequireErrors(tt.want_errors);
+      REQUIRE(test.diagnostics.warning == tt.want_warnings);
+      REQUIRE(test.diagnostics.error == tt.want_errors);
     }
   }
 }
@@ -757,13 +762,13 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          obj.SetObjectProperty("baz", Attribute::Int(300));
 
          // Emit messages from our logger, testing all functions for coverage
-         logger.Log(LogLevel::Info, "hello", obj);
+         logger.Log(LogLevel::Info, "hello", LogError{}, obj);
          logger.Debug("gubed", obj);
          logger.Info("ofni", obj);
          logger.Notice("eciton", obj);
          logger.Warn("nraw", obj);
-         logger.Error("rorre", obj);
-         logger.Critical("lacitirc", obj);
+         logger.Error("rorre", LogError{}, obj);
+         logger.Critical("lacitirc", LogError{}, obj);
        },
        // Event should include "foo":100,"bar":200,"baz":300
        nlohmann::json{
@@ -1003,6 +1008,213 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
       REQUIRE(test.client.requests.size() == 1);
       REQUIRE(MergeJsonArrays(test.client.requests) == tt.want_request_body);
     }
+  }
+}
+
+TEST_CASE("Logger tags", "[unit][logging][cpp-api]") {
+  // These tests register the logging feature and initialize a logger, then they
+  // exercise tag manipulation while the core is running and examine the resulting HTTP
+  // request to see if it matches want_request_body
+  struct TestParams {
+    std::string_view name;
+    std::function<void(Logger&)> setup;
+    std::function<void(Logger&)> while_running;
+    nlohmann::json want_request_body;
+  };
+  // Constructs the expected ddtags value by appending custom tags to the standard set
+  auto ddtags_with = [](std::string_view suffix) {
+    return nlohmann::json(DDTAGS.get<std::string>() + "," + std::string(suffix));
+  };
+  std::vector<TestParams> tests = {
+      {"M append custom tag to ddtags W AddTag called with pre-formatted entry",
+       [](Logger& logger) {
+         // Add a tag using the pre-formatted '<key>:<value>' form
+         logger.AddTag("foo:hello");
+       },
+       [](Logger& logger) { logger.Info("hello"); },
+       nlohmann::json::array({nlohmann::json{
+           {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", "1.2.3"},
+           {"ddtags", ddtags_with("foo:hello")}
+       }})},
+
+      {"M append custom tag to ddtags W AddTag called with separate key and value",
+       [](Logger& logger) {
+         // Add a tag using the separate key/value form
+         logger.AddTag("bar", "world");
+       },
+       [](Logger& logger) { logger.Info("hello"); },
+       nlohmann::json::array({nlohmann::json{
+           {"os", OS_PROPERTIES},
+           {"device", DEVICE_PROPERTIES},
+           {"status", "info"},
+           {"service", "mock-service"},
+           {"date", "2023-11-14T22:13:20.000Z"},
+           {"message", "hello"},
+           {"logger.version", "1.2.3"},
+           {"ddtags", ddtags_with("bar:world")}
+       }})},
+
+      {"M remove exact tag W RemoveTag is called with matching entry",
+       [](Logger& logger) {
+         // Add two tags with the same key but different values
+         logger.AddTag("foo:1");
+         logger.AddTag("foo:2");
+       },
+       [](Logger& logger) {
+         // Log a message with both tags present, then remove one and log again
+         logger.Info("alpha");
+         logger.RemoveTag("foo:1");
+         logger.Info("bravo");
+       },
+       nlohmann::json{
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "alpha"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:1,foo:2")}
+           },
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "bravo"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:2")}
+           }
+       }},
+
+      {"M remove all tags with key W RemoveTagsWithKey is called",
+       [](Logger& logger) {
+         // Add two tags under 'foo' and one under 'bar'
+         logger.AddTag("foo:1");
+         logger.AddTag("foo:2");
+         logger.AddTag("bar:3");
+       },
+       [](Logger& logger) {
+         // Log a message with all tags, then remove all 'foo' entries and log again
+         logger.Info("alpha");
+         logger.RemoveTagsWithKey("foo");
+         logger.Info("bravo");
+       },
+       nlohmann::json{
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "alpha"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("foo:1,foo:2,bar:3")}
+           },
+           nlohmann::json{
+               {"os", OS_PROPERTIES},
+               {"device", DEVICE_PROPERTIES},
+               {"status", "info"},
+               {"service", "mock-service"},
+               {"date", "2023-11-14T22:13:20.000Z"},
+               {"message", "bravo"},
+               {"logger.version", "1.2.3"},
+               {"ddtags", ddtags_with("bar:3")}
+           }
+       }},
+  };
+  for (const auto& tt : tests) {
+    DYNAMIC_SECTION(tt.name) {
+      // Given a core
+      auto test = CoreTestHarness::Init();
+      test.clock.FreezeAtMilliseconds(1700000000000);
+      auto core = CoreTestHarness::WrapForCpp(test);
+
+      // And a registered logging feature and a logger that our test has configured
+      auto logging = Logging::Register(core);
+      auto logger = logging->CreateLogger();
+      tt.setup(*logger);
+
+      // When we start the core, run our tag manipulation tests, and stop the core
+      core->Start();
+      tt.while_running(*logger);
+      core->Stop();
+
+      // Then the SDK should have sent the expected set of events
+      REQUIRE(test.client.requests.size() == 1);
+      REQUIRE(MergeJsonArrays(test.client.requests) == tt.want_request_body);
+    }
+  }
+}
+
+TEST_CASE("Logger error details", "[unit][logging][cpp-api]") {
+  // Given a started core with a logger
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  auto core = CoreTestHarness::WrapForCpp(test);
+  auto logging = Logging::Register(core);
+  auto logger = logging->CreateLogger();
+  core->Start();
+
+  SECTION("M include error.kind and error.stack W Error called with both") {
+    // When Error is called with a fully-populated LogError
+    logger->Error("msg", LogError{"SomeException", "frame 0\nframe 1"});
+    core->Stop();
+
+    // Then the resulting event carries both error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M include error.kind and error.stack W Critical called with both") {
+    // When Critical is called with a fully-populated LogError
+    logger->Critical("msg", LogError{"SomeException", "frame 0\nframe 1"});
+    core->Stop();
+
+    // Then the resulting event carries both error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M omit error fields W LogError is default-constructed") {
+    // When Error is called with a default-constructed (empty) LogError
+    logger->Error("msg");
+    core->Stop();
+
+    // Then the resulting event carries neither error field
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  SECTION("M omit error fields W level is below error") {
+    // When Log is called at Warn with error details provided
+    logger->Log(LogLevel::Warn, "msg", LogError{"SomeException", "trace"});
+    core->Stop();
+
+    // Then the resulting event carries neither error field, since the level guard in
+    // Logger::Log strips them before they reach the context thread
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
   }
 }
 

@@ -9,6 +9,7 @@
 #include <cinttypes>
 #include <vector>
 
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/logging/data.hpp"
 
 #include "support/catch.hpp"
@@ -44,8 +45,11 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   LogCallDetails call{
       LogLevel::Info,
       "Hello, this is a log message",
+      "",
+      "",
       Timestamp{std::chrono::nanoseconds(1779463265013148820)},
-      Attribute()
+      Attribute(),
+      ""
   };
 
   // And a CoreContext snapshot
@@ -54,9 +58,15 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   // And a buffer that can be reused for JSON serialization of event payloads
   std::vector<uint8_t> buf;
 
+  // And a no-op MessagePublisher for test cases that are not concerned with bus
+  // messages
+  MessagePublisher noop_publisher = [](FeatureMessage) { return true; };
+
   SECTION("M produce a valid JSON-encoded LogEvent") {
     // When we attempt to generate a log event from our default set of test values
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then we produce a single JSON-encoded LogEvent with all relevant details
     REQUIRE(events.size() == 1);
@@ -106,7 +116,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
 
     // When we generate a log event at that level
     call.level = t.level;
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the resulting 'status' value is set accordingly
     REQUIRE(events.size() == 1);
@@ -116,7 +128,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   SECTION("M use default service name W no per-logger override is configured") {
     // When the Logger has no service-name override configured
     logger.service_override = "";
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the event carries the default service name configured for the SDK instance,
     // and ddtags reflects the same SDK-level service name
@@ -127,11 +141,51 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     );
   }
 
+  SECTION("M append tags to ddtags W custom tag values are present") {
+    // When the log call includes a non-empty snapshot of custom tags applied to the
+    // logger
+    call.logger_tags = "foo:hello1,bar";
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
+
+    // Then the event carries a ddtags value where our custom logger tags are
+    // concatenated after the internal values
+    REQUIRE(events.size() == 1);
+    REQUIRE(
+        events[0]["ddtags"] ==
+        "service:my-overridden-service,env:mock-env,sdk_version:1.2.3,foo:hello1,bar"
+    );
+  }
+
+  SECTION(
+      "M append tags to ddtags W custom tag values are present and service name is not "
+      "overridden"
+  ) {
+    // When the log call includes a non-empty snapshot of custom tags applied to the
+    // logger, and the service name uses the default value
+    logger.service_override = "";
+    call.logger_tags = "foo:hello1,bar";
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
+
+    // Then the event carries a ddtags value where our custom logger tags are
+    // concatenated after the internal values
+    REQUIRE(events.size() == 1);
+    REQUIRE(
+        events[0]["ddtags"] ==
+        "service:mock-service,env:mock-env,sdk_version:1.2.3,foo:hello1,bar"
+    );
+  }
+
   SECTION("M format date as ISO timestamp") {
     // When the log call is timestamped with a value equivalent to 59 seconds,
     // indicating 59 seconds after midnight on January 1, 1970, UTC
     call.timestamp = Timestamp{std::chrono::seconds(59)};
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the resulting 'date' value reflects that point in time
     REQUIRE(events.size() == 1);
@@ -146,7 +200,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
 
     // When we generate a log event using that message
     call.message = message;
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the resulting 'message' value contains it exactly as written, and the
     // message property is never omitted, even if blank
@@ -157,7 +213,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   SECTION("M omit logger.name W logger has no configured name") {
     // When we generate a log event from a logger which has no specified name
     logger.name = "";
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the resulting message has no 'logger.name' value. Note that iOS and Android
     // SDKs auto-populate this field with an application identifier, for which there is
@@ -171,7 +229,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   SECTION("M omit os W no OsInfo has been resolved") {
     // When we have no valid OsInfo pointer in CoreContext, Then 'os' is omitted
     ctx.os = nullptr;
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
     REQUIRE(events.size() == 1);
     REQUIRE(events[0]["message"] == "Hello, this is a log message");
     REQUIRE(!events[0].contains("os"));
@@ -180,7 +240,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   SECTION("M omit device W no DeviceInfo has been resolved") {
     // When we have no valid DeviceInfo pointer in CoreContext, Then 'device' is omitted
     ctx.device = nullptr;
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
     REQUIRE(events.size() == 1);
     REQUIRE(events[0]["message"] == "Hello, this is a log message");
     REQUIRE(!events[0].contains("device"));
@@ -194,7 +256,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     call.merged_attributes.InitObject(2);
     call.merged_attributes.SetObjectProperty("foo", Attribute::Int(100));
     call.merged_attributes.SetObjectProperty("bar", Attribute::String("hello"));
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
 
     // Then the resulting JSON object includes those custom values as top-level
     // properties
@@ -212,7 +276,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       ctx.rum.emplace();
 
       // Then our event carries no RUM IDs
-      ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+      ContextThread_GenerateLogEvent(
+          logger, call, ctx, event_writer, buf, noop_publisher
+      );
       REQUIRE(events.size() == 1);
       REQUIRE(!events[0].contains("application_id"));
       REQUIRE(!events[0].contains("session_id"));
@@ -227,7 +293,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       ctx.rum->session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
 
       // Then our event carries these two RUM IDs
-      ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+      ContextThread_GenerateLogEvent(
+          logger, call, ctx, event_writer, buf, noop_publisher
+      );
       REQUIRE(events.size() == 1);
       const auto& ev = events[0];
       REQUIRE(ev["application_id"] == "a991ca10-4004-4004-4004-beefbeefbeef");
@@ -244,7 +312,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       ctx.rum->view_id = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
 
       // Then our event carries these three RUM IDs
-      ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+      ContextThread_GenerateLogEvent(
+          logger, call, ctx, event_writer, buf, noop_publisher
+      );
       REQUIRE(events.size() == 1);
       const auto& ev = events[0];
       REQUIRE(ev["application_id"] == "a991ca10-4004-4004-4004-beefbeefbeef");
@@ -265,7 +335,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       ctx.rum->action_id = *UUID::Parse("4c10171e-4334-4334-4334-b0000eeeefff");
 
       // Then our event carries these four RUM IDs
-      ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+      ContextThread_GenerateLogEvent(
+          logger, call, ctx, event_writer, buf, noop_publisher
+      );
       REQUIRE(events.size() == 1);
       const auto& ev = events[0];
       REQUIRE(ev["application_id"] == "a991ca10-4004-4004-4004-beefbeefbeef");
@@ -286,7 +358,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       logger.enrich_with_rum_context = false;
 
       // Then our event carries no RUM IDs
-      ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+      ContextThread_GenerateLogEvent(
+          logger, call, ctx, event_writer, buf, noop_publisher
+      );
       REQUIRE(events.size() == 1);
       REQUIRE(!events[0].contains("application_id"));
       REQUIRE(!events[0].contains("session_id"));
@@ -304,7 +378,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     ctx.user_info.extra.SetObjectProperty("foo", Attribute::Int(5678));
 
     // Then our event carries that information in 'usr'
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
     REQUIRE(events.size() == 1);
     REQUIRE(
         events[0]["usr"] == nlohmann::json{
@@ -324,7 +400,9 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     ctx.account_info.extra.SetObjectProperty("foo", Attribute::Int(9876));
 
     // Then our event carries that information in 'account'
-    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
     REQUIRE(events.size() == 1);
     REQUIRE(
         events[0]["account"] ==
@@ -332,5 +410,99 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
             {"id", "account-456"}, {"name", "Important Account"}, {"foo", 9876}
         }
     );
+  }
+
+  SECTION("M include error.kind and error.stack W both are provided") {
+    // When a log call carries non-empty error_kind and error_stack
+    call.error_kind = "SomeException";
+    call.error_stack = "frame 0\nframe 1";
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
+
+    // Then the resulting event carries both error fields
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M omit error fields W both are empty") {
+    // When a log call carries empty error_kind and error_stack (the default)
+    REQUIRE(call.error_kind.empty());
+    REQUIRE(call.error_stack.empty());
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher
+    );
+
+    // Then the resulting event carries neither error field
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.kind"));
+    REQUIRE(!events[0].contains("error.stack"));
+  }
+
+  SECTION("M publish LogErrorGeneratedMessage W level is error or critical") {
+    // Given a capturing publisher
+    std::vector<FeatureMessage> messages;
+    MessagePublisher publisher = [&](FeatureMessage msg) {
+      messages.push_back(std::move(msg));
+      return true;
+    };
+
+    // And a set of user attributes and error details on the call
+    call.merged_attributes.InitObject(1);
+    call.merged_attributes.SetObjectProperty("key", Attribute::String("value"));
+    call.error_kind = "SomeException";
+    call.error_stack = "frame 0\nframe 1";
+
+    // When we generate events at error and critical level
+    auto error_call = call;
+    error_call.level = LogLevel::Error;
+    error_call.message = "something went wrong";
+    ContextThread_GenerateLogEvent(
+        logger, error_call, ctx, event_writer, buf, publisher
+    );
+
+    auto critical_call = call;
+    critical_call.level = LogLevel::Critical;
+    critical_call.message = "fatal problem";
+    ContextThread_GenerateLogEvent(
+        logger, critical_call, ctx, event_writer, buf, publisher
+    );
+
+    // Then each call produces one LogErrorGeneratedMessage on the bus carrying
+    // the log's message, timestamp, attributes, and error details
+    REQUIRE(messages.size() == 2);
+
+    const auto* first = std::get_if<LogErrorGeneratedMessage>(&messages[0]);
+    REQUIRE(first != nullptr);
+    REQUIRE(first->message == "something went wrong");
+    REQUIRE(first->timestamp == call.timestamp);
+    REQUIRE(first->error_kind == "SomeException");
+    REQUIRE(first->error_stack == "frame 0\nframe 1");
+
+    const auto* second = std::get_if<LogErrorGeneratedMessage>(&messages[1]);
+    REQUIRE(second != nullptr);
+    REQUIRE(second->message == "fatal problem");
+    REQUIRE(second->error_kind == "SomeException");
+    REQUIRE(second->error_stack == "frame 0\nframe 1");
+  }
+
+  SECTION("M not publish LogErrorGeneratedMessage W level is below error") {
+    // Given a capturing publisher
+    std::vector<FeatureMessage> messages;
+    MessagePublisher publisher = [&](FeatureMessage msg) {
+      messages.push_back(std::move(msg));
+      return true;
+    };
+
+    // When we generate events at levels below error
+    auto t =
+        GENERATE(LogLevel::Debug, LogLevel::Info, LogLevel::Notice, LogLevel::Warn);
+    CAPTURE(t);
+    call.level = t;
+    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf, publisher);
+
+    // Then no LogErrorGeneratedMessage is published
+    REQUIRE(messages.empty());
   }
 }

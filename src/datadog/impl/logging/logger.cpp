@@ -10,6 +10,7 @@
 #include "datadog/impl/core/feature_types/logging.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/logging/event_generation.hpp"
 #include "datadog/impl/logging/logging.hpp"
 
@@ -42,8 +43,37 @@ void Logger::RemoveAttribute(std::string_view key) {
   _attributes.DeleteObjectProperty(key);
 }
 
+void Logger::AddTag(std::string_view tag, const DiagnosticLogger& diagnostic_logger) {
+  // Add a pre-':'-concatenated tag entry to our set of logger tags
+  const auto res = _tags.AddEntry(tag);
+  HandleAddTagResult(res, tag.substr(0, tag.find(':')), diagnostic_logger);
+}
+
+void Logger::AddTag(
+    std::string_view key,
+    std::string_view value,
+    const DiagnosticLogger& diagnostic_logger
+) {
+  // Add a new '<key>:<value>' entry formed from the given values
+  const auto res = _tags.Add(key, value);
+  HandleAddTagResult(res, key, diagnostic_logger);
+}
+
+void Logger::RemoveTag(std::string_view tag) {
+  // Remove any entry that was previously added with this exact value
+  _tags.RemoveEntry(tag);
+}
+
+void Logger::RemoveTagsWithKey(std::string_view key) {
+  // Remove any and all entries prefixed with this key
+  _tags.RemoveEntriesWithKey(key);
+}
+
 void Logger::Log(
-    LogLevel level, std::string_view message, const Attribute& attributes
+    LogLevel level,
+    std::string_view message,
+    const LogError& err,
+    const Attribute& attributes
 ) const {
   // Lock our weak_ptr to ensure that the Logging feature implementation is still alive
   // and will remain so for the duration of this call
@@ -63,10 +93,25 @@ void Logger::Log(
     // to produce a LogEvent, starting with logger-specific configuration details
     std::shared_ptr<const LoggerConfigDetails> logger_details = _details;
 
+    // If this call includes error details, and its severity level is error or higher,
+    // create copies of any strings provided in those error details
+    std::string error_kind;
+    std::string error_stack;
+    if (level >= LogLevel::Error) {
+      error_kind = err.kind;
+      error_stack = err.stack;
+    }
+
     // Next, copy the message and all related message-specific details so it can be
     // passed to the context thread
     LogCallDetails log_call{
-        level, std::string{message}, logging->_clock.Now(), Attribute::Object()
+        level,
+        std::string{message},
+        std::move(error_kind),
+        std::move(error_stack),
+        logging->_clock.Now(),
+        Attribute::Object(),
+        std::string{_tags.Get()}
     };
 
     // Grab a snapshot of the global logging attributes set for the feature, then merge
@@ -92,16 +137,63 @@ void Logger::Log(
         [logger = std::move(logger_details), call = std::move(log_call), &encode_buf](
             const CoreContext& ctx,
             const EventWriter& event_writer,
-            const MessagePublisher&
+            const MessagePublisher& publisher
         ) mutable {
           // Use a mutable lambda and std::move the LogCallDetails so we can pass
           // ownership of our std::string copy of the message, rather than creating
           // another copy
           ContextThread_GenerateLogEvent(
-              *logger, std::move(call), ctx, event_writer, encode_buf
+              *logger, std::move(call), ctx, event_writer, encode_buf, publisher
           );
         }
     );
+  }
+}
+
+void Logger::HandleAddTagResult(
+    LoggerTags::AddResult res,
+    std::string_view input_key,
+    const DiagnosticLogger& diagnostic_logger
+) {
+  switch (res) {
+    case LoggerTags::AddResult::Accepted:
+      break;
+    case LoggerTags::AddResult::AcceptedWithTruncation:
+      diagnostic_logger.Warning(
+          "Logger tag was truncated due to excessive length: tags must not exceed 200 "
+          "bytes in length",
+          {{"key", input_key}}
+      );
+      break;
+    case LoggerTags::AddResult::AcceptedWithSanitization:
+      diagnostic_logger.Warning(
+          "Logger tag was modified to conform to required format rules: tags must be "
+          "lowercase alphanumeric and contain no special characters other than [_:./-]",
+          {{"key", input_key}}
+      );
+      break;
+    case LoggerTags::AddResult::RejectedAsEmpty:
+      diagnostic_logger.Error(
+          "Logger tag was rejected: tags must not be empty", {{"key", input_key}}
+      );
+      break;
+    case LoggerTags::AddResult::RejectedAsNotBeginningAZ:
+      diagnostic_logger.Error(
+          "Logger tag was rejected: tags must begin with a letter", {{"key", input_key}}
+      );
+      break;
+    case LoggerTags::AddResult::RejectedAsReserved:
+      diagnostic_logger.Error(
+          "Logger tag was rejected: tags must not conflict with reserved values",
+          {{"key", input_key}}
+      );
+      break;
+    case LoggerTags::AddResult::RejectedDueToTagLimit:
+      diagnostic_logger.Error(
+          "Logger tag was rejected: loggers may not have more than 100 tags",
+          {{"key", input_key}}
+      );
+      break;
   }
 }
 

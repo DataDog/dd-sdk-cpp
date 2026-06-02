@@ -21,14 +21,21 @@ inline LogLevel LogLevel_FromC(dd_log_level_t value) {
   return static_cast<LogLevel>(value);
 }
 
-inline datadog::LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config) {
-  return datadog::LoggerConfig()
+inline LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config) {
+  return LoggerConfig()
       .SetRemoteSampleRate(config.remote_sample_rate)
       .SetService(config.service)
       .SetName(config.name)
       .SetRemoteLogThreshold(LogLevel_FromC(config.remote_log_threshold))
       .SetInitialAttributeCapacity(config.initial_attribute_capacity)
       .SetEnrichWithRumContext(config.enrich_with_rum_context);
+}
+
+inline LogError LogError_FromC(const dd_log_error_t& err) {
+  return LogError{
+      err.kind ? std::string_view{err.kind} : std::string_view{},
+      err.stack ? std::string_view{err.stack} : std::string_view{}
+  };
 }
 
 }  // namespace datadog

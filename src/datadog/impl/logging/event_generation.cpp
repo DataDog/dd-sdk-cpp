@@ -8,6 +8,7 @@
 
 #include <string_view>
 
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_types/logging.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/upload_util.hpp"
@@ -22,7 +23,8 @@ void ContextThread_GenerateLogEvent(
     LogCallDetails call,
     const CoreContext& ctx,
     const EventWriter& event_writer,
-    std::vector<uint8_t>& encode_buf
+    std::vector<uint8_t>& encode_buf,
+    const MessagePublisher& publisher
 ) {
   // Use the overridden service name configured for this Logger if we have one;
   // otherwise fall back to the service name from SDK config
@@ -31,17 +33,22 @@ void ContextThread_GenerateLogEvent(
     service_name = ctx.service;
   }
 
-  // When the logger has a service override, build a fresh ddtags string using that
-  // service so that `ddtags` is consistent with the `service` field on the event
-  std::string override_ddtags;
+  // If the logger has no service override and no custom tags, we can use the immutable
+  // ddtags value provided via CoreContext
   std::string_view ddtags = ctx.per_event_ddtags;
-  if (!logger.service_override.empty()) {
+
+  // Otherwise, we need to build a fresh ddtags string that incorporates all the
+  // relevant details from `CoreContext`, plus any service override or additional tags
+  // configured for this logger
+  std::string override_ddtags;
+  if (!logger.service_override.empty() || !call.logger_tags.empty()) {
     override_ddtags = BuildDdTags(
-        logger.service_override,
+        logger.service_override.empty() ? ctx.service : logger.service_override,
         ctx.application_version,
         ctx.env,
         ctx.sdk_version,
-        ctx.variant
+        ctx.variant,
+        call.logger_tags
     );
     ddtags = override_ddtags;
   }
@@ -116,6 +123,10 @@ void ContextThread_GenerateLogEvent(
     device.time_zone = ctx.device->time_zone;
   }
 
+  // Add error details if present; Logger::Log only populates these for Error/Critical
+  ev.error_kind = std::move(call.error_kind);
+  ev.error_stack = std::move(call.error_stack);
+
   // Add extra user attributes, to be merged into the event payload as top-level JSON
   // properties
   ev.user_attributes = std::move(call.merged_attributes);
@@ -131,6 +142,21 @@ void ContextThread_GenerateLogEvent(
   // Enqueue the event for storage
   const bool bypass_tracking_consent = false;
   event_writer(data, {}, bypass_tracking_consent);
+
+  // After writing the log event, forward it to RUM as an error event: LogEvent owns
+  // strings and attributes that will simply go out of scope after this call, so we can
+  // transfer ownership of those values into the message
+  if (call.level >= LogLevel::Error) {
+    publisher(
+        LogErrorGeneratedMessage{
+            call.timestamp,
+            std::move(ev.message),
+            std::move(ev.error_kind.value),
+            std::move(ev.error_stack.value),
+            std::move(ev.user_attributes),
+        }
+    );
+  }
 }
 
 }  // namespace datadog::impl

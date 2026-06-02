@@ -31,8 +31,11 @@ struct LoggerConfigDetails {
 struct LogCallDetails {
   LogLevel level;
   std::string message;
+  std::string error_kind;
+  std::string error_stack;
   Timestamp timestamp;
   Attribute merged_attributes;
+  std::string logger_tags;
 };
 
 }  // namespace datadog::impl
