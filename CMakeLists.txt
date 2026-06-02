@@ -102,7 +102,7 @@ endif()
 
 # Include the library itself
 add_subdirectory(src)
-add_library(Datadog::sdk ALIAS sdk)
+add_library(Datadog::sdk ALIAS ddsdkcpp)
 
 # If configured to build examples, include examples/ in the build
 if(DD_BUILD_EXAMPLES)

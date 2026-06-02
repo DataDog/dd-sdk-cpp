@@ -108,7 +108,7 @@ add_executable(tests
 
 # crash_context_write and crash_report_write are only compiled into sdk when using
 # the in-process crash handler; only include their tests if they're present in the build
-get_target_property(_sdk_sources sdk SOURCES)
+get_target_property(_sdk_sources ddsdkcpp SOURCES)
 set(_crash_src_dir "datadog/impl/crash_reporting/data")
 if("${_crash_src_dir}/crash_context_write.cpp" IN_LIST _sdk_sources)
     target_sources(tests PRIVATE
@@ -161,7 +161,7 @@ target_include_directories(tests
 
 target_link_libraries(tests
     PRIVATE
-    sdk
+    ddsdkcpp
     Catch2::Catch2WithMain
 )
 

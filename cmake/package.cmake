@@ -4,7 +4,7 @@ add_executable(version ${DD_SDK_ROOT_DIR}/src/version/main.cpp)
 target_enable_strict_warnings(version)
 target_enable_coverage(version)
 target_enable_sanitizers(version)
-target_link_libraries(version PRIVATE sdk)
+target_link_libraries(version PRIVATE ddsdkcpp)
 target_include_directories(version PRIVATE ${DD_SDK_ROOT_DIR}/src)
 
 # When that target is finished building, run `./version -e artifact` to write the

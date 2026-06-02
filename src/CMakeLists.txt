@@ -6,7 +6,7 @@ else()
 endif()
 
 # Main library target, with both C and C++ APIs
-add_library(sdk ${DD_LIBRARY_TYPE}
+add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/c/attribute.cpp
     datadog/c/core.cpp
     datadog/c/crash_reporting.cpp
@@ -58,7 +58,7 @@ add_library(sdk ${DD_LIBRARY_TYPE}
 )
 
 # core/storage, with IFilesystem implementation determined per-platform
-target_sources(sdk PRIVATE
+target_sources(ddsdkcpp PRIVATE
     datadog/impl/core/storage/artifact.cpp
     datadog/impl/core/storage/feature_event.cpp
     datadog/impl/core/storage/filesystem_wrapper.cpp
@@ -67,52 +67,53 @@ target_sources(sdk PRIVATE
     datadog/impl/core/storage/util.cpp
 )
 if(WIN32)
-    target_sources(sdk PRIVATE datadog/impl/core/storage/filesystem_windows.cpp)
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/storage/filesystem_windows.cpp)
 else()
-    target_sources(sdk PRIVATE datadog/impl/core/storage/filesystem_posix.cpp)
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/storage/filesystem_posix.cpp)
 endif()
 
 # Inject version number from CMake project config
-target_compile_definitions(sdk PUBLIC DATADOG_BUILD_VERSION="${ddsdkcpp_VERSION}")
+target_compile_definitions(ddsdkcpp PUBLIC DATADOG_BUILD_VERSION="${ddsdkcpp_VERSION}")
 if(DD_GIT_REVISION_ID)
-    target_compile_definitions(sdk PUBLIC DATADOG_GIT_REVISION_ID="${DD_GIT_REVISION_ID}")
+    target_compile_definitions(ddsdkcpp PUBLIC DATADOG_GIT_REVISION_ID="${DD_GIT_REVISION_ID}")
 endif()
 
 # Enable position-independent code for ASLR, shared library usage, etc.
-set_target_properties(sdk PROPERTIES
+set_target_properties(ddsdkcpp PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     OUTPUT_NAME ddsdkcpp
+    EXPORT_NAME sdk
 )
 
 # Any C++ project that depends on this target must compile with C++17 or newer
-target_compile_features(sdk PUBLIC cxx_std_17)
+target_compile_features(ddsdkcpp PUBLIC cxx_std_17)
 
 # Add internal-only, header-only dependencies as PRIVATE SYSTEM includes
-target_include_external_deps(sdk)
+target_include_external_deps(ddsdkcpp)
 
 # Use strict compiler warnings, warnings-as-errors, when building the SDK
-target_enable_strict_warnings(sdk)
+target_enable_strict_warnings(ddsdkcpp)
 
 # Conditionally define WITH_DATADOG_ASSERTS based on build config
-target_enable_datadog_assert(sdk)
+target_enable_datadog_assert(ddsdkcpp)
 
 # Conditionally define DATADOG_SHARED_LIB, WITH_DATADOG_EXPORTS
-target_enable_shared_library_support(sdk)
+target_enable_shared_library_support(ddsdkcpp)
 
 # Add clang-tidy to the build if enabled
-target_enable_clang_tidy(sdk)
+target_enable_clang_tidy(ddsdkcpp)
 
 # Compile and link with profile instrumentation if coverage is enabled
-target_enable_coverage(sdk)
+target_enable_coverage(ddsdkcpp)
 
 # Compile and link with sanitizers if enabled
-target_enable_sanitizers(sdk)
+target_enable_sanitizers(ddsdkcpp)
 
 # Configure include paths: when building the library, pull in public includes from
 # include-c/ and include-cpp/; when using an installed build, resolve public headers
 # from the build's include dir
-target_include_directories(sdk
-    PUBLIC 
+target_include_directories(ddsdkcpp
+    PUBLIC
         $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-c>
         $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-cpp>
         $<INSTALL_INTERFACE:include>
@@ -141,18 +142,18 @@ if(NOT WIN32)
         if(NOT UUID_LIBRARY)
             message(FATAL_ERROR "UUID library not found")
         endif()
-        target_link_libraries(sdk PRIVATE ${UUID_LIBRARY})
+        target_link_libraries(ddsdkcpp PRIVATE ${UUID_LIBRARY})
     endif()
 endif()
 
 # Platform-specific support for system clock functionality
 option(DD_CLOCK_USE_DEFAULT "Use default clock implementation. If disabled, you must supply an implementation of platform/clock.hpp in a file specified as DD_CLOCK_SRC" ON)
 if(DD_CLOCK_USE_DEFAULT)
-    target_sources(sdk PRIVATE datadog/impl/core/platform/clock_std.cpp)
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/clock_std.cpp)
 else()
     set(DD_CLOCK_SRC "" CACHE STRING "Path to custom implementation of platform/clock.hpp")
     if(DD_CLOCK_SRC)
-        target_sources(sdk PRIVATE ${DD_CLOCK_SRC})
+        target_sources(ddsdkcpp PRIVATE ${DD_CLOCK_SRC})
     endif()
 endif()
 
@@ -165,14 +166,14 @@ if(DD_HTTP_USE_DEFAULT)
     else()
         include(${DD_SDK_ROOT_DIR}/cmake/deps/libcurl.cmake)
     endif()
-    target_link_libraries(sdk PRIVATE CURL::libcurl)
+    target_link_libraries(ddsdkcpp PRIVATE CURL::libcurl)
     get_target_property(CURL_INCLUDE_DIRS CURL::libcurl INTERFACE_INCLUDE_DIRECTORIES)
-    target_include_directories(sdk SYSTEM PRIVATE ${CURL_INCLUDE_DIRS})
-    target_sources(sdk PRIVATE datadog/impl/core/platform/http_curl.cpp)
+    target_include_directories(ddsdkcpp SYSTEM PRIVATE ${CURL_INCLUDE_DIRS})
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/http_curl.cpp)
 else()
     set(DD_HTTP_SRC "" CACHE STRING "Path to custom implementation of platform/http.hpp")
     if(DD_HTTP_SRC)
-        target_sources(sdk PRIVATE ${DD_HTTP_SRC})
+        target_sources(ddsdkcpp PRIVATE ${DD_HTTP_SRC})
     endif()
 endif()
 
@@ -180,23 +181,23 @@ endif()
 option(DD_SYSTEMINFO_USE_DEFAULT "Use default system info implementation. If disabled, you must supply an implementation of platform/system_info.hpp in a file specified as DD_SYSTEMINFO_SRC" ON)
 if(DD_SYSTEMINFO_USE_DEFAULT)
     if(WIN32)
-        target_sources(sdk PRIVATE datadog/impl/core/platform/system_info_windows.cpp)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/system_info_windows.cpp)
     elseif(APPLE)
-        target_sources(sdk PRIVATE datadog/impl/core/platform/system_info_macos.cpp)
-        target_link_libraries(sdk PRIVATE "-framework CoreFoundation")
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/system_info_macos.cpp)
+        target_link_libraries(ddsdkcpp PRIVATE "-framework CoreFoundation")
     elseif(UNIX)
-        target_sources(sdk PRIVATE datadog/impl/core/platform/system_info_linux.cpp)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/system_info_linux.cpp)
     endif()
 else()
     set(DD_SYSTEMINFO_SRC "" CACHE STRING "Path to custom implementation of platform/system_info.hpp")
     if(DD_SYSTEMINFO_SRC)
-        target_sources(sdk PRIVATE ${DD_SYSTEMINFO_SRC})
+        target_sources(ddsdkcpp PRIVATE ${DD_SYSTEMINFO_SRC})
     endif()
 endif()
 
 # === logging ===
 
-target_sources(sdk PRIVATE
+target_sources(ddsdkcpp PRIVATE
     datadog/impl/logging/event_generation.cpp
     datadog/impl/logging/logger.cpp
     datadog/impl/logging/logging.cpp
@@ -205,7 +206,7 @@ target_sources(sdk PRIVATE
 
 # === rum ===
 
-target_sources(sdk PRIVATE
+target_sources(ddsdkcpp PRIVATE
     datadog/impl/rum/containers/resource_map.cpp
     datadog/impl/rum/containers/view_array.cpp
     datadog/impl/rum/crash_processing/crash_formatting.cpp
@@ -225,7 +226,7 @@ target_sources(sdk PRIVATE
 
 # === crash_reporting ===
 
-target_sources(sdk PRIVATE
+target_sources(ddsdkcpp PRIVATE
     datadog/impl/crash_reporting/data/crash_context_read.cpp
     datadog/impl/crash_reporting/data/crash_report_read.cpp
     datadog/impl/crash_reporting/crash_handler_init.cpp
@@ -235,42 +236,42 @@ target_sources(sdk PRIVATE
 
 if(DD_CRASH_MODE STREQUAL "noop")
     # No-op crash handler implementation requires no additional code
-    target_sources(sdk PRIVATE
+    target_sources(ddsdkcpp PRIVATE
         datadog/impl/crash_reporting/handlers/noop/crash_handler_noop.cpp
     )
 elseif(DD_CRASH_MODE STREQUAL "inprocess")
     # In-process crash handler needs to write binary crash report files
-    target_sources(sdk PRIVATE
+    target_sources(ddsdkcpp PRIVATE
         datadog/impl/crash_reporting/data/crash_context_write.cpp
         datadog/impl/crash_reporting/data/crash_report_write.cpp
     )
 
     # In-process crash handler needs to cache module build IDs, in addition to compiling
     # a platform-specific ICrashHandler implementation (POSIX or Windows)
-    target_sources(sdk PRIVATE
+    target_sources(ddsdkcpp PRIVATE
         datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.cpp
     )
     if(WIN32)
-        target_sources(sdk PRIVATE
+        target_sources(ddsdkcpp PRIVATE
             datadog/impl/crash_reporting/handlers/inprocess/crash_handler_inprocess_windows.cpp
         )
     elseif(UNIX)
-        target_sources(sdk PRIVATE
+        target_sources(ddsdkcpp PRIVATE
             datadog/impl/crash_reporting/handlers/inprocess/crash_handler_inprocess_posix.cpp
         )
         # POSIX stack-walking currently depends on intact frame pointers
-        target_compile_options(sdk PRIVATE -fno-omit-frame-pointer)
+        target_compile_options(ddsdkcpp PRIVATE -fno-omit-frame-pointer)
     else()
         message(FATAL_ERROR "In-process crash handler not supported on this platform")
     endif()
 elseif(DD_CRASH_MODE STREQUAL "crashpad")
     # If building with crashpad support, integrate crashpad as a dependency: this
     # adds an ExternalProject target that will build crashpad, then adds the
-    # resulting static lib as a dependency for sdk. To ensure
+    # resulting static lib as a dependency for ddsdkcpp. To ensure
     # binary-compatible builds, this script must run after compile/link options for
-    # sdk are fully configured.
+    # ddsdkcpp are fully configured.
     include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
-    target_sources(sdk PRIVATE
+    target_sources(ddsdkcpp PRIVATE
         datadog/impl/crash_reporting/handlers/crashpad/crash_handler_crashpad.cpp
     )
 else()
@@ -279,7 +280,7 @@ endif()
 
 # Install configuration
 if(DD_BUILD_INSTALL)
-    install(TARGETS sdk
+    install(TARGETS ddsdkcpp
         EXPORT DatadogTargets
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
