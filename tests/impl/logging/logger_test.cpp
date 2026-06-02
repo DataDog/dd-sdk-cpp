@@ -68,8 +68,13 @@ TEST_CASE("Logger", "[unit][logging]") {
     logger->AddAttribute("qux", Attribute::Int(44));
     logger->AddAttribute("arf", Attribute::Int(55));
     logger->AddTag("foo:hello", diagnostic_logger);
+    logger->AddTag("foo:hello2", diagnostic_logger);
     logger->AddTag("bar", "world", diagnostic_logger);
+    logger->AddTag("bar", diagnostic_logger);
     logger->AddTag("baz", diagnostic_logger);
+    logger->RemoveTagsWithKey("bar");
+    logger->RemoveTag("foo:hello");
+    logger->RemoveTag("not:real");
 
     Attribute warning_attributes = Attribute::Object(2);
     warning_attributes.SetObjectProperty("bar", Attribute::Int(555));
@@ -120,7 +125,7 @@ TEST_CASE("Logger", "[unit][logging]") {
       "service": "mock-service",
       "date": "2023-11-14T22:13:21.100Z",
       "message": "This is a warning",
-      "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3,foo:hello,bar:world,baz",
+      "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3,foo:hello2,baz",
       "logger.name": "cool-logger",
       "logger.version": "1.2.3",
       "application_id": "0976f38a-ae45-4f7a-8436-0c98c227a7b3",
