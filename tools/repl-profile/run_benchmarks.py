@@ -15,7 +15,7 @@ so it can be stored in a SQLite database, benchmark-results.db.
 See tools/repl-profile/benchmarks/ for the definition of each benchmark.
 
 To profile an optimized release build, configure with `-DCMAKE_BUILD_TYPE=Release` and
-`-DDD_BUILD_EXAMPLES=ON`, then run `cmake --build build [--target dd_native_repl]`. This
+`-DDD_BUILD_EXAMPLES=ON`, then run `cmake --build build [--target repl]`. This
 script will examine your CMakeCache.txt file to ascertain the build configuration it's
 profiling.
 

@@ -1,5 +1,5 @@
 @echo off
-REM Run dd_native_repl with a series of commands to trigger a crash
+REM Run repl.exe with a series of commands to trigger a crash
 
 (
 echo set-config client-token fake-client-token
@@ -12,4 +12,4 @@ echo start-core
 echo sleep 1
 echo crash %*
 echo sleep 100
-) | build\examples\Debug\dd_native_repl.exe
+) | build\examples\Debug\repl.exe

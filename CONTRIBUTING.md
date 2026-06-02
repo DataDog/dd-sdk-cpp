@@ -70,7 +70,7 @@ cmake --build build --config Debug
 
 ### Running tests
 
-Unit tests are written using [Catch2](https://github.com/catchorg/Catch2). If you configure with `DD_DEVELOPMENT` (or `DD_BUILD_TESTING`), the build will produce a Catch2 binary at `./build/tests/dd_native_tests`. You may run that binary directly, or use CTest, to invoke the test suite:
+Unit tests are written using [Catch2](https://github.com/catchorg/Catch2). If you configure with `DD_DEVELOPMENT` (or `DD_BUILD_TESTING`), the build will produce a Catch2 binary at `./build/tests/tests`. You may run that binary directly, or use CTest, to invoke the test suite:
 
 ```
 ctest --test-dir build

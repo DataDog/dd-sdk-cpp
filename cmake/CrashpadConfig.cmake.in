@@ -7,7 +7,7 @@
 # - `crashpad::client`: The static library built from crashpad alongside the SDK build,
 #     e.g. `libclient.a` or `client.lib`, with all its linker dependencies defined. The
 #     generated `DatadogTargets.cmake` file implicitly establishes the dependency
-#     between dd_native and crashpad::client.
+#     between `sdk` and `crashpad::client`.
 #     
 # - `crashpad::handler`: The crashpad_handler executable built from crashpad, which must
 #     be distributed alongside the final application. Using `datadog_enable(executable)`
@@ -21,7 +21,7 @@
 get_filename_component(CRASHPAD_CMAKE_DIR "${CMAKE_CURRENT_LIST_FILE}" PATH)
 get_filename_component(CRASHPAD_INSTALL_PREFIX "${CRASHPAD_CMAKE_DIR}/../../.." ABSOLUTE)
 
-# dd_native depends on crashpad::client, the binaries for which are precompiled and
+# The `sdk` target depends on crashpad::client, the binaries for which are precompiled and
 # distributed in lib/
 add_library(crashpad::client STATIC IMPORTED)
 if (WIN32)

@@ -9,7 +9,7 @@
                 "--build",
                 "${workspaceFolder}/build",
                 "--target",
-                "dd_native_tests"
+                "tests"
             ],
             "group": {
                 "kind": "build",

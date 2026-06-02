@@ -35,13 +35,13 @@ def _find_repl_binary() -> str:
     if sys.platform == 'win32':
         # MSVC places binaries in config-specific subdirectories; use whichever is found
         for config in ('Debug', 'Release', 'RelWithDebInfo', 'MinSizeRel'):
-            relpath = os.path.join('build', 'examples', config, 'dd_native_repl.exe')
+            relpath = os.path.join('build', 'examples', config, 'repl.exe')
             abspath = os.path.join(__repo_root__, relpath)
             if os.path.isfile(abspath):
                 return abspath
     else:
         # macOS/Linux builds use an unambiguous path
-        abspath = os.path.join(__repo_root__, 'build', 'examples', 'dd_native_repl')
+        abspath = os.path.join(__repo_root__, 'build', 'examples', 'repl')
         if os.path.isfile(abspath):
             return abspath
         
@@ -66,7 +66,7 @@ def _normalize_input(s: str) -> str:
 
 class ReplProcess:
     """
-    Represents a single running instance of the dd_native_repl subprocess. Commands are
+    Represents a single running instance of the repl subprocess. Commands are
     written to stdin via `run()`; `join()` closes stdin, waits for the process to exit,
     and populates the result attributes.
     """

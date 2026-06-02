@@ -76,7 +76,7 @@ persistently-corrupt download means the cached file must be removed.
 |---|---|
 | `include-c/`, `include-cpp/` | Public C and C++ API headers |
 | `src/datadog/impl/` | SDK implementation (core, rum, logging, crash_reporting) |
-| `tests/` | Catch2 unit tests (binary: `build/tests/dd_native_tests`) |
+| `tests/` | Catch2 unit tests (binary: `build/tests/tests`) |
 | `examples/` | Example C and C++ programs using the SDK |
 | `cmake/` | Build configuration modules |
 | `CONTRIBUTING.md` | Full developer guide (the canonical reference) |

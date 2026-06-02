@@ -31,10 +31,10 @@ set(DD_BUILD_SHARED OFF)
 set(DD_HTTP_USE_SYSTEM_LIBCURL OFF)
 ```
 
-To use the SDK within your own projects, add `Datadog::dd_native` as a dependency for the relevant targets:
+To use the SDK within your own projects, add `Datadog::sdk` as a dependency for the relevant targets:
 
 ```
-target_link_libraries(your_library_or_program Datadog::dd_native)
+target_link_libraries(your_library_or_program Datadog::sdk)
 ```
 
 ## Using the C++ API

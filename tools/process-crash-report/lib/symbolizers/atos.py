@@ -50,7 +50,7 @@ class AtosSymbolizer(Symbolizer):
         Runs: atos -o <module.path> -l <module.base_address> <raw_address>
 
         Example output:
-            "_start (in dd_native_repl) + 52"
+            "_start (in repl) + 52"
             "malloc_zone_malloc (in libsystem_malloc.dylib) (malloc.c:123)"
 
         If symbolication fails, atos outputs the hex address:
@@ -109,7 +109,7 @@ class AtosSymbolizer(Symbolizer):
 
             # Parse atos output format
             # Examples:
-            #   "_start (in dd_native_repl) + 52"
+            #   "_start (in repl) + 52"
             #   "malloc_zone_malloc (in libsystem_malloc.dylib) (malloc.c:123)"
             #   "foo::bar() (foo.cpp:42)"
 

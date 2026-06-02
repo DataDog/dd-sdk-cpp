@@ -102,7 +102,7 @@ endif()
 
 # Include the library itself
 add_subdirectory(src)
-add_library(Datadog::dd_native ALIAS dd_native)
+add_library(Datadog::sdk ALIAS sdk)
 
 # If configured to build examples, include examples/ in the build
 if(DD_BUILD_EXAMPLES)
@@ -128,9 +128,9 @@ if(DD_IS_TOP_LEVEL AND TARGET check-format AND DD_BUILD_TESTING)
         COMMENT "Running local CI checks: clang-format, build (with clang-tidy), and tests"
         VERBATIM
     )
-    # Building dd_native_tests forces a full compile of the SDK and tests,
+    # Building the `tests` target forces a full compile of the SDK and test suite,
     # which is where clang-tidy runs via CXX_CLANG_TIDY / C_CLANG_TIDY.
-    add_dependencies(check-all check-format dd_native_tests)
+    add_dependencies(check-all check-format tests)
 endif()
 
 # If configured to build developer tools, include the CMake targets defined in tools/

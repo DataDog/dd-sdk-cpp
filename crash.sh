@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Run dd_native_repl with a series of commands to trigger a crash
-build/examples/dd_native_repl <<EOF
+# Run repl with a series of commands to trigger a crash
+build/examples/repl <<EOF
 set-config client-token fake-client-token
 set-config rum-application-id 1df685d5-43e0-47e5-b6c7-c13aaf2d6fbe
 create-core

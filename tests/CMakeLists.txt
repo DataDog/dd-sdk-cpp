@@ -3,7 +3,7 @@ include(${DD_SDK_ROOT_DIR}/cmake/deps/catch2.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/deps/nlohmann-json.cmake)
 
 # Create test executable
-add_executable(dd_native_tests
+add_executable(tests
     c/attribute_c_api_test.cpp
     c/core_c_api_test.cpp
     c/diagnostics_c_api_test.cpp
@@ -106,62 +106,62 @@ add_executable(dd_native_tests
     support/attribute_debug.cpp
 )
 
-# crash_context_write and crash_report_write are only compiled into dd_native when using
+# crash_context_write and crash_report_write are only compiled into sdk when using
 # the in-process crash handler; only include their tests if they're present in the build
-get_target_property(_dd_native_sources dd_native SOURCES)
+get_target_property(_sdk_sources sdk SOURCES)
 set(_crash_src_dir "datadog/impl/crash_reporting/data")
-if("${_crash_src_dir}/crash_context_write.cpp" IN_LIST _dd_native_sources)
-    target_sources(dd_native_tests PRIVATE
+if("${_crash_src_dir}/crash_context_write.cpp" IN_LIST _sdk_sources)
+    target_sources(tests PRIVATE
         impl/crash_reporting/data/crash_context_write_test.cpp
     )
 endif()
-if("${_crash_src_dir}/crash_report_write.cpp" IN_LIST _dd_native_sources)
-    target_sources(dd_native_tests PRIVATE
+if("${_crash_src_dir}/crash_report_write.cpp" IN_LIST _sdk_sources)
+    target_sources(tests PRIVATE
         impl/crash_reporting/data/crash_report_write_test.cpp
     )
 endif()
-unset(_dd_native_sources)
+unset(_sdk_sources)
 unset(_crash_src_dir)
 
 # Add Windows-specific tests
 if(WIN32)
-    target_sources(dd_native_tests PRIVATE
+    target_sources(tests PRIVATE
         impl/core/platform/windows_timezone_mapping_test.cpp
     )
 endif()
 
-target_include_external_deps(dd_native_tests)
-target_enable_strict_warnings(dd_native_tests)
-target_enable_datadog_assert(dd_native_tests)
-target_enable_coverage(dd_native_tests)
-target_enable_sanitizers(dd_native_tests)
+target_include_external_deps(tests)
+target_enable_strict_warnings(tests)
+target_enable_datadog_assert(tests)
+target_enable_coverage(tests)
+target_enable_sanitizers(tests)
 
 if(DD_ENABLE_TEST_ALLOCATION_TRACKING)
-    target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=1)
+    target_compile_definitions(tests PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=1)
 else()
-    target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=0)
+    target_compile_definitions(tests PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=0)
 endif()
 
 # Strict checks in memory tests are automatically enabled on our default
 # macOS/Clang/libc++ development environment; disabled by default everywhere else
 if(DD_ENABLE_STRICT_MEMORY_CHECKS)
-    target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_STRICT_MEMORY_CHECKS=1)
+    target_compile_definitions(tests PRIVATE WITH_DATADOG_STRICT_MEMORY_CHECKS=1)
 endif()
 
 # Asserts in thread-safety tests are disabled by default, as they're inherently
 # timing-dependent and can therefore be flaky; but they can be explicitly enabled
 if(DD_ENABLE_STRICT_THREADING_CHECKS)
-    target_compile_definitions(dd_native_tests PRIVATE WITH_DATADOG_STRICT_THREADING_CHECKS=1)
+    target_compile_definitions(tests PRIVATE WITH_DATADOG_STRICT_THREADING_CHECKS=1)
 endif()
 
-target_include_directories(dd_native_tests
+target_include_directories(tests
     PRIVATE ${DD_SDK_ROOT_DIR}/src
     PRIVATE .
 )
 
-target_link_libraries(dd_native_tests
+target_link_libraries(tests
     PRIVATE
-    dd_native
+    sdk
     Catch2::Catch2WithMain
 )
 
@@ -170,14 +170,14 @@ include(CTest)
 include(Catch)
 
 # The vast majority of tests can be run in parallel and require no special configuration
-catch_discover_tests(dd_native_tests
+catch_discover_tests(tests
     TEST_SPEC "~[writes-to-cwd-datadog]"
 )
 
 # A small subset of tests need to write to $(pwd)/.datadog/, then assert on its contents
 # before deleting it - for these tests, use a RESOURCE_LOCK to ensure that they're each
 # run serially
-catch_discover_tests(dd_native_tests
+catch_discover_tests(tests
     TEST_SPEC "[writes-to-cwd-datadog]"
     PROPERTIES RESOURCE_LOCK "cwd-datadog"
 )
