@@ -6,9 +6,11 @@
 
 #pragma once
 
+#include <string>
 #include <variant>
 
 #include "datadog/attribute.hpp"
+#include "datadog/timestamp.hpp"
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_types/crash_reporting.hpp"
@@ -96,6 +98,18 @@ struct CrashReportProcessedMessage {
 };
 
 /**
+ * Emitted by the `Logging` feature upon generating a log event at `error` or `critical`
+ * level.
+ */
+struct LogErrorGeneratedMessage {
+  Timestamp timestamp;
+  std::string message;
+  std::string error_kind;
+  std::string error_stack;
+  Attribute attributes;
+};
+
+/**
  * Discriminated union of all message types that can be dispatched through the
  * `MessageBus`. Add new variants here as additional cross-feature communication needs
  * arise.
@@ -106,6 +120,7 @@ using FeatureMessage = std::variant<
     RumActiveViewUpdatedMessage,
     RumActiveViewLostMessage,
     RumGlobalAttributesChangedMessage,
-    CrashReportProcessedMessage>;
+    CrashReportProcessedMessage,
+    LogErrorGeneratedMessage>;
 
 }  // namespace datadog::impl

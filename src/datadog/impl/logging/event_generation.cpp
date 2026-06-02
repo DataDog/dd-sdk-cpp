@@ -8,6 +8,7 @@
 
 #include <string_view>
 
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_types/logging.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/upload_util.hpp"
@@ -22,7 +23,8 @@ void ContextThread_GenerateLogEvent(
     LogCallDetails call,
     const CoreContext& ctx,
     const EventWriter& event_writer,
-    std::vector<uint8_t>& encode_buf
+    std::vector<uint8_t>& encode_buf,
+    const MessagePublisher& publisher
 ) {
   // Use the overridden service name configured for this Logger if we have one;
   // otherwise fall back to the service name from SDK config
@@ -140,6 +142,21 @@ void ContextThread_GenerateLogEvent(
   // Enqueue the event for storage
   const bool bypass_tracking_consent = false;
   event_writer(data, {}, bypass_tracking_consent);
+
+  // After writing the log event, forward it to RUM as an error event: LogEvent owns
+  // strings and attributes that will simply go out of scope after this call, so we can
+  // transfer ownership of those values into the message
+  if (call.level >= LogLevel::Error) {
+    publisher(
+        LogErrorGeneratedMessage{
+            call.timestamp,
+            std::move(ev.message),
+            std::move(ev.error_kind.value),
+            std::move(ev.error_stack.value),
+            std::move(ev.user_attributes),
+        }
+    );
+  }
 }
 
 }  // namespace datadog::impl

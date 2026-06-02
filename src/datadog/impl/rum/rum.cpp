@@ -10,9 +10,11 @@
 #include <shared_mutex>
 #include <string_view>
 
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/request_builder.hpp"
 #include "datadog/impl/core/writer.hpp"
 #include "datadog/impl/rum/crash_processing/crash_handling.hpp"
+#include "datadog/impl/rum/resource_types.hpp"
 
 namespace datadog::impl {
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
@@ -47,6 +49,12 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
   // Bind a weak_ptr to this so the callback will silently no-op after we're destroyed
   const auto weak_self = weak_from_this();
   return [weak_self](const FeatureMessage& msg) {
+  // MSVC flags each `else if (const auto* m = ...)` branch as shadowing an outer `m`,
+  // even though the scopes are mutually exclusive
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable : 4456)
+#endif
     // On CrashReportProcessedMessage, enqueue a context-thread callback that will
     // process a copy of the CrashReport, potentially producing a RUM Error event to
     // describe the crash, and also potentially producing an updated RUM View event
@@ -72,7 +80,35 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
         }
         ContextThread_HandleCrashReport(self->_deps, crash, event_writer);
       });
+    } else if (const auto* m = std::get_if<LogErrorGeneratedMessage>(&msg)) {
+      // Abort if our weak_ptr is no longer valid
+      auto self = std::static_pointer_cast<Rum>(weak_self.lock());
+      if (!self) {
+        return;
+      }
+
+      // We'll generate an AddError command to record a RUM Error, but we need it to
+      // carry basic information from our log event:
+      // - attributes is the result of merging our log message's custom attributes into
+      //   the set of
+      // - issued_at reflects the local system time at the moment that the call to
+      //   Logger::Error(), Logger::Critical() etc. was made
+      RumCommandParams params = self->GetBaseCommandParams(m->attributes);
+      params.issued_at = m->timestamp;
+
+      // Dispatch an AddError command that records our log message, with the
+      // 'error.source' value hardcoded to "logger"
+      self->DispatchAsync(
+          RumCommand::AddError(
+              std::move(params),
+              RumErrorSource::Logger,
+              RumErrorDetails{m->message, m->error_kind, m->error_stack}
+          )
+      );
     }
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
   };
 }
 

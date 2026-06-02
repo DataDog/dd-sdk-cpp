@@ -137,13 +137,13 @@ void Logger::Log(
         [logger = std::move(logger_details), call = std::move(log_call), &encode_buf](
             const CoreContext& ctx,
             const EventWriter& event_writer,
-            const MessagePublisher&
+            const MessagePublisher& publisher
         ) mutable {
           // Use a mutable lambda and std::move the LogCallDetails so we can pass
           // ownership of our std::string copy of the message, rather than creating
           // another copy
           ContextThread_GenerateLogEvent(
-              *logger, std::move(call), ctx, event_writer, encode_buf
+              *logger, std::move(call), ctx, event_writer, encode_buf, publisher
           );
         }
     );
