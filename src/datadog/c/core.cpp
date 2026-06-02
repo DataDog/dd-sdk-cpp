@@ -266,9 +266,6 @@ dd_core_t* dd_core_create(
     return nullptr;
   }
 
-  // Set the initial tracking consent, which may perform migration of
-  impl->SetTrackingConsent(datadog::TrackingConsent_FromC(tracking_consent));
-
   // Wrap the core in a dynamically-allocated dd_core struct, which will own our
   // implementation via unique_ptr, ensuring cleanup as long as we delete the dd_core
   return new dd_core(std::move(impl), std::move(diagnostic_logger));
