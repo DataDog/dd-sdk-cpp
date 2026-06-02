@@ -108,7 +108,12 @@ class Logger {
 
  public:
   // Callers should use Logging::CreateLogger
-  explicit Logger(std::unique_ptr<impl::Logger>&& impl, PrivateCtorTag);
+  explicit Logger(
+      std::unique_ptr<impl::Logger>&& impl,
+      DiagnosticHandler diagnostic_handler,
+      DiagnosticLevel diagnostic_threshold,
+      PrivateCtorTag
+  );
   DATADOG_API ~Logger();
 
   /**
@@ -123,6 +128,50 @@ class Logger {
    * given name.
    */
   DATADOG_API void RemoveAttribute(std::string_view name);
+
+  /**
+   * Adds a custom tag to this logger.
+   *
+   * Like custom attributes, a logger's custom tag values are attached to all events
+   * emitted by the logger. Whereas attributes can represent complex, JSON-like values,
+   * tags are simple `key:value` strings intended to support lightweight filtering,
+   * grouping, and aggregation of events.
+   *
+   * A tag's key is its first ':'-delimited token; and its value is everything that
+   * follows the first colon. A tag may be specified without a value, in which case no
+   * colon is required.
+   *
+   * Both keys and values are restricted to a subset of basic ASCII characters: only
+   * alphanumeric characters [a-z0-9] and punctuation characters [_:/.-]. A valid tag
+   * that includes characters outside of this range will be automatically normalized,
+   * e.g. `Foo!:Hello world` will become `foo_:hello_world`.
+   *
+   * A valid key must begin with a letter. A key will also be considered invalid if it
+   * conflicts with the set of keys reserved for internal use, which includes: service,
+   * version, env, sdk_version, variant, host, device, and source. Tags with invalid
+   * keys will be rejected.
+   *
+   * A logger may have no more than 100 custom tags, and each tag is limited to 200
+   * bytes in length. Any valid tag that exceeds the length limit will be automatically
+   * truncated.
+   */
+  DATADOG_API void AddTag(std::string_view tag);
+
+  /**
+   * Adds a custom tag to this logger using separate key and value strings.
+   */
+  DATADOG_API void AddTag(std::string_view key, std::string_view value);
+
+  /**
+   * Removes any previously-added tag that exactly matches the given value (both key and
+   * value) after sanitization.
+   */
+  DATADOG_API void RemoveTag(std::string_view tag);
+
+  /**
+   * Removes all previously-added tags whose key matches `key` (after sanitization).
+   */
+  DATADOG_API void RemoveTagsWithKey(std::string_view key);
 
   /**
    * Emits a log message at the given level. If attributes has type ValueType::Object,
@@ -180,6 +229,8 @@ class Logger {
   Logger& operator=(Logger&&) = delete;
 
   std::unique_ptr<impl::Logger> _impl;
+  DiagnosticHandler _diagnostic_handler;
+  DiagnosticLevel _diagnostic_threshold;
 };
 
 /**

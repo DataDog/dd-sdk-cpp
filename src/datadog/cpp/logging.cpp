@@ -10,6 +10,7 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/logging/logger.hpp"
 #include "datadog/impl/logging/logging.hpp"
 
@@ -60,8 +61,15 @@ LoggerConfig& LoggerConfig::SetEnrichWithRumContext(bool value) {
   return *this;
 }
 
-Logger::Logger(std::unique_ptr<impl::Logger>&& impl, PrivateCtorTag)
-    : _impl(std::move(impl)) {}
+Logger::Logger(
+    std::unique_ptr<impl::Logger>&& impl,
+    DiagnosticHandler diagnostic_handler,
+    DiagnosticLevel diagnostic_threshold,
+    PrivateCtorTag
+)
+    : _impl(std::move(impl)),
+      _diagnostic_handler(std::move(diagnostic_handler)),
+      _diagnostic_threshold(diagnostic_threshold) {}
 
 Logger::~Logger() = default;
 
@@ -74,6 +82,34 @@ void Logger::AddAttribute(std::string_view name, const Attribute& value) {
 void Logger::RemoveAttribute(std::string_view name) {
   if (_impl) {
     _impl->RemoveAttribute(name);
+  }
+}
+
+void Logger::AddTag(std::string_view tag) {
+  if (_impl) {
+    _impl->AddTag(
+        tag, impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}
+    );
+  }
+}
+
+void Logger::AddTag(std::string_view key, std::string_view value) {
+  if (_impl) {
+    _impl->AddTag(
+        key, value, impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}
+    );
+  }
+}
+
+void Logger::RemoveTag(std::string_view tag) {
+  if (_impl) {
+    _impl->RemoveTag(tag);
+  }
+}
+
+void Logger::RemoveTagsWithKey(std::string_view key) {
+  if (_impl) {
+    _impl->RemoveTagsWithKey(key);
   }
 }
 
@@ -148,10 +184,15 @@ void Logging::RemoveAttribute(std::string_view name) {
 
 std::shared_ptr<Logger> Logging::CreateLogger(const LoggerConfig& config) {
   if (!_impl) {
-    return std::make_shared<Logger>(nullptr, Logger::PrivateCtorTag{});
+    return std::make_shared<Logger>(
+        nullptr, nullptr, DiagnosticLevel::Error, Logger::PrivateCtorTag{}
+    );
   }
   return std::make_shared<Logger>(
-      _impl->CreateLogger(config), Logger::PrivateCtorTag{}
+      _impl->CreateLogger(config),
+      _diagnostic_handler,
+      _diagnostic_threshold,
+      Logger::PrivateCtorTag{}
   );
 }
 
