@@ -111,7 +111,8 @@ std::string BuildDdTags(
     std::string_view application_version,
     std::string_view env,
     std::string_view sdk_version,
-    std::string_view variant
+    std::string_view variant,
+    std::string_view tail
 ) {
   // Prepare prefixes for all supported 'key:value' pairs
   constexpr std::string_view service_prefix = "service:";
@@ -129,13 +130,16 @@ std::string BuildDdTags(
                     (1 + env_prefix.size() + env.size()) +
                     (1 + sdk_version_prefix.size() + sdk_version.size());
 
-  // version and variant are not required; add them to our precomputed max size if
-  // present
+  // version, variant, and tail are not required; add them to our precomputed max size
+  // if present
   if (!application_version.empty()) {
     max_size += 1 + version_prefix.size() + application_version.size();
   }
   if (!variant.empty()) {
     max_size += 1 + variant_prefix.size() + variant.size();
+  }
+  if (!tail.empty()) {
+    max_size += 1 + tail.size();
   }
 
   // Allocate a string large enough to hold the worst-case ddtags value, assuming no
@@ -182,6 +186,13 @@ std::string BuildDdTags(
     result += ',';
     result += variant_prefix;
     append_sanitized_tag_value(variant);
+  }
+
+  // Append ',<tail>' if provided, assuming that the value is already sanitized (see
+  // also LoggerTags)
+  if (!tail.empty()) {
+    result += ',';
+    result += tail;
   }
 
   return result;

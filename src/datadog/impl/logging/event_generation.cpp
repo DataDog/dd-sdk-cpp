@@ -31,17 +31,22 @@ void ContextThread_GenerateLogEvent(
     service_name = ctx.service;
   }
 
-  // When the logger has a service override, build a fresh ddtags string using that
-  // service so that `ddtags` is consistent with the `service` field on the event
-  std::string override_ddtags;
+  // If the logger has no service override and no custom tags, we can use the immutable
+  // ddtags value provided via CoreContext
   std::string_view ddtags = ctx.per_event_ddtags;
-  if (!logger.service_override.empty()) {
+
+  // Otherwise, we need to build a fresh ddtags string that incorporates all the
+  // relevant details from `CoreContext`, plus any service override or additional tags
+  // configured for this logger
+  std::string override_ddtags;
+  if (!logger.service_override.empty() || !call.logger_tags.empty()) {
     override_ddtags = BuildDdTags(
-        logger.service_override,
+        logger.service_override.empty() ? ctx.service : logger.service_override,
         ctx.application_version,
         ctx.env,
         ctx.sdk_version,
-        ctx.variant
+        ctx.variant,
+        call.logger_tags
     );
     ddtags = override_ddtags;
   }

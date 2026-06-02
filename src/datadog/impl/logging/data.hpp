@@ -33,6 +33,7 @@ struct LogCallDetails {
   std::string message;
   Timestamp timestamp;
   Attribute merged_attributes;
+  std::string logger_tags;
 };
 
 }  // namespace datadog::impl

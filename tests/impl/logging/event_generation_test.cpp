@@ -45,7 +45,8 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       LogLevel::Info,
       "Hello, this is a log message",
       Timestamp{std::chrono::nanoseconds(1779463265013148820)},
-      Attribute()
+      Attribute(),
+      ""
   };
 
   // And a CoreContext snapshot
@@ -124,6 +125,40 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     REQUIRE(events[0]["service"] == "mock-service");
     REQUIRE(
         events[0]["ddtags"] == "service:mock-service,env:mock-env,sdk_version:1.2.3"
+    );
+  }
+
+  SECTION("M append tags to ddtags W custom tag values are present") {
+    // When the log call includes a non-empty snapshot of custom tags applied to the
+    // logger
+    call.logger_tags = "foo:hello1,bar";
+    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+
+    // Then the event carries a ddtags value where our custom logger tags are
+    // concatenated after the internal values
+    REQUIRE(events.size() == 1);
+    REQUIRE(
+        events[0]["ddtags"] ==
+        "service:my-overridden-service,env:mock-env,sdk_version:1.2.3,foo:hello1,bar"
+    );
+  }
+
+  SECTION(
+      "M append tags to ddtags W custom tag values are present and service name is not "
+      "overridden"
+  ) {
+    // When the log call includes a non-empty snapshot of custom tags applied to the
+    // logger, and the service name uses the default value
+    logger.service_override = "";
+    call.logger_tags = "foo:hello1,bar";
+    ContextThread_GenerateLogEvent(logger, call, ctx, event_writer, buf);
+
+    // Then the event carries a ddtags value where our custom logger tags are
+    // concatenated after the internal values
+    REQUIRE(events.size() == 1);
+    REQUIRE(
+        events[0]["ddtags"] ==
+        "service:mock-service,env:mock-env,sdk_version:1.2.3,foo:hello1,bar"
     );
   }
 

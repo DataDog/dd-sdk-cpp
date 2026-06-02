@@ -11,6 +11,7 @@
 #include "mock/clock.hpp"
 #include "support/catch.hpp"
 #include "support/context.hpp"
+#include "support/diagnostics.hpp"
 #include "support/feature.hpp"
 #include "support/json_serialization.hpp"
 
@@ -27,6 +28,10 @@ TEST_CASE("Logger", "[unit][logging]") {
   // Given a mock system clock
   MockClock clock;
   clock.FreezeAtMilliseconds(1700000000000);
+
+  // And a DiagnosticLogger that will capture warnings about usage
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger diagnostic_logger = diagnostics.CreateTestLogger();
 
   // And a Logging feature implementation, along with a test harness that will operate
   // that feature as a running Core would
@@ -48,7 +53,8 @@ TEST_CASE("Logger", "[unit][logging]") {
     error_attributes.SetObjectProperty("bar", Attribute::Int(444));
     logger->Log(LogLevel::Error, "This is an error", error_attributes);
 
-    // And update our SDK state, apply some custom attributes, and log another message
+    // And update our SDK state, apply some custom attributes, add custom tags, and log
+    // another message
     clock.TickMilliseconds(1100);
     test.UpdateContext([](CoreContext& ctx) {
       ctx.rum.emplace();
@@ -61,6 +67,14 @@ TEST_CASE("Logger", "[unit][logging]") {
     logger->AddAttribute("bar", Attribute::Int(33));
     logger->AddAttribute("qux", Attribute::Int(44));
     logger->AddAttribute("arf", Attribute::Int(55));
+    logger->AddTag("foo:hello", diagnostic_logger);
+    logger->AddTag("foo:hello2", diagnostic_logger);
+    logger->AddTag("bar", "world", diagnostic_logger);
+    logger->AddTag("bar", diagnostic_logger);
+    logger->AddTag("baz", diagnostic_logger);
+    logger->RemoveTagsWithKey("bar");
+    logger->RemoveTag("foo:hello");
+    logger->RemoveTag("not:real");
 
     Attribute warning_attributes = Attribute::Object(2);
     warning_attributes.SetObjectProperty("bar", Attribute::Int(555));
@@ -111,7 +125,7 @@ TEST_CASE("Logger", "[unit][logging]") {
       "service": "mock-service",
       "date": "2023-11-14T22:13:21.100Z",
       "message": "This is a warning",
-      "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3",
+      "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3,foo:hello2,baz",
       "logger.name": "cool-logger",
       "logger.version": "1.2.3",
       "application_id": "0976f38a-ae45-4f7a-8436-0c98c227a7b3",
@@ -140,5 +154,8 @@ TEST_CASE("Logger", "[unit][logging]") {
       "qux": 44,
       "arf": 55
     })");
+
+    // And no diagnostic messages were emitted from our nominal AddTag calls
+    REQUIRE(diagnostics.TotalSize() == 0);
   }
 }
