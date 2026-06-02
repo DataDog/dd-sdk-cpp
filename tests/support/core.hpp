@@ -57,8 +57,7 @@ struct CoreTestHarness {
   MockFilesystem& fs;
   MockHttpClient& client;
 
-  std::vector<dd_diagnostic_message_t> c_diagnostics;
-  std::vector<DiagnosticMessage> cpp_diagnostics;
+  DiagnosticMessageBuffer diagnostics;
 
   explicit CoreTestHarness(
       std::unique_ptr<impl::Core>&& in_core,
@@ -136,20 +135,14 @@ struct CoreTestHarness {
   static std::shared_ptr<Core> WrapForCpp(CoreTestHarness& test) {
     return std::make_shared<Core>(
         std::move(test._core),
-        [&](const DiagnosticMessage& message) {
-          test.cpp_diagnostics.push_back(message);
-        },
+        test.diagnostics.CreateHandler(),
         DiagnosticLevel::Debug,
         Core::PrivateCtorTag{}
     );
-  }
-
-  DiagnosticAsserts Diagnostics() const {
-    return DiagnosticAsserts{c_diagnostics, cpp_diagnostics};
   }
 };
 
 static void on_c_diagnostic(const dd_diagnostic_message_t* message, void* userdata) {
   CoreTestHarness& test = *reinterpret_cast<CoreTestHarness*>(userdata);
-  test.c_diagnostics.push_back(*message);
+  test.diagnostics.CreateHandler()(DiagnosticMessage_FromC(*message));
 }
