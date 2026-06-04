@@ -283,7 +283,7 @@ def main() -> None:
 
     # Summarized details of auto-generate CHANGELOG edits, to be listed under
     # "[changelog] consists of:", e.g.
-    # - 3 feature changes
+    # - 4 feature changes
     # - 1 fix
     changelog_summary_lis: list[str] = []
     if changelog.breaking_changes:
