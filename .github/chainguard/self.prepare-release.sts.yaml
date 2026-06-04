@@ -1,0 +1,15 @@
+# Trust policy allowing dd-octo-sts to grant our prepare-release CI job a GitHub token
+issuer: https://gitlab.ddbuild.io
+
+# The job only runs in develop, and is manually triggered from the GitLab UI
+subject_pattern: "project_path:DataDog/dd-sdk-cpp:ref_type:branch:ref:develop"
+claim_pattern:
+  project_path: "DataDog/dd-sdk-cpp"
+  ref_type: "branch"
+  pipeline_source: "web"
+  ci_config_ref_uri: "gitlab.ddbuild.io/DataDog/dd-sdk-cpp//.gitlab-ci.yml@refs/heads/develop"
+
+# We need to push commits/branches and open pull requests
+permissions:
+  contents: write
+  pull_requests: write

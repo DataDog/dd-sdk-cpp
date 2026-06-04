@@ -1,3 +1,22 @@
+# dd-octo-sts is required in release jobs, where we need to obtain a short-lived GitHub
+# token to push changes, open PRs, create GH releases, etc. To upgrade:
+# - `crane ls registry.ddbuild.io/dd-octo-sts | sort -rV | head` to find latest version
+# - `crane digest registry.ddbuild.io/dd-octo-sts:<version-tag>` to get sha256 digest
+ARG DD_OCTO_STS_TAG=v1.10.6
+ARG DD_OCTO_STS_DIGEST=sha256:2b1a69019340da2be0e1e71de4d827acee2fdc5ee38f676dd96aa88c112ed6e8
+
+# commit-headless is required in the prepare-release job, in order to sign commits that
+# are pushed to origin. To upgrade:
+# - `crane ls registry.ddbuild.io/commit-headless | sort -rV | head`
+# - `crane digest registry.ddbuild.io/commit-headless:<version-tag>`
+ARG COMMIT_HEADLESS_TAG=v3.3.0
+ARG COMMIT_HEADLESS_DIGEST=sha256:754a5bc4f2451bbd355ab84bce0d57952c143308d219a17306ba0947852f6711
+
+# Alias images that contain binaries for internal Datadog tools, so we can pull those
+# binaries into our image at a later stage
+FROM registry.ddbuild.io/dd-octo-sts:${DD_OCTO_STS_TAG}@${DD_OCTO_STS_DIGEST} AS dd_octo_sts
+FROM registry.ddbuild.io/commit-headless:${COMMIT_HEADLESS_TAG}@${COMMIT_HEADLESS_DIGEST} AS commit_headless
+
 # This Dockerfile describes the build environment used for Linux builds of dd-sdk-cpp,
 # with various toolchain versions defined using multi-stage targets
 FROM ubuntu:22.04 AS base
@@ -42,6 +61,22 @@ ENV DD_SYSTEM_PYTHON=/usr/bin/python3.12
 
 # Use Ninja by default for CMake builds on Linux: it's ~6x faster than Make
 ENV CMAKE_GENERATOR=Ninja
+
+# Install the binaries for:
+# - dd-octo-sts, which allows our CI release jobs to exchange GitLab OIDC tokens for
+#   short-lived GitHub tokens, according to the trust policies described in
+#   .github/chainguard/
+# - commit-headless, which allows our CI release jobs to sign their commits
+COPY --from=dd_octo_sts /usr/local/bin/dd-octo-sts /usr/local/bin/dd-octo-sts
+COPY --from=commit_headless /commit-headless /usr/local/bin/commit-headless
+
+# Install the authanywhere binary: this will let our CI runner use its GitLab OIDC/CI
+# identity to obtain a Datadog internal service-auth JWT (with aud: rapid-ai-platform)
+# so it can make requests to the AI Gateway in scripts that make LLM calls
+RUN if [ $(uname -m) = x86_64 ]; then AAA="amd64"; else AAA="arm64"; fi; \
+  wget "binaries.ddbuild.io/dd-source/authanywhere/LATEST/authanywhere-linux-${AAA}" \
+  && mv "authanywhere-linux-${AAA}" /bin/authanywhere \
+  && chmod +x /bin/authanywhere
 
 # Install CMake from Kitware repo to get the latest version
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
