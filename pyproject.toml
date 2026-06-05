@@ -26,10 +26,6 @@ generate-windows-timezone-mapping = []
 # intercept HTTP requests
 integration-test = ["mitmproxy"]
 
-# tools/process-crash-report: offline tool used to parse binary crash dumps written by
-# the SDK when built with DD_CRASH_MODE=inprocess
-process-crash-report = []
-
 # tools/repl-profile: runner for repl-based profiling benchmarks; requires
 # datadog-api-client to submit metrics to the relevant internal Datadog org, requires
 # additional deps for visualization tool used to interactively examine results
@@ -45,7 +41,6 @@ all = [
   "dd-sdk-cpp-tools[bootstrap-crashpad]",
   "dd-sdk-cpp-tools[generate-windows-timezone-mapping]",
   "dd-sdk-cpp-tools[integration-test]",
-  "dd-sdk-cpp-tools[process-crash-report]",
   "dd-sdk-cpp-tools[repl-profile]",
   "dd-sdk-cpp-tools[validate-event-types]"
 ]
