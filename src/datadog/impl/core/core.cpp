@@ -21,8 +21,7 @@
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
 
-// OK, right, GitLab CI wasn't running because the repo was made public.
-// CodeSync config change has now been merged, but is it deployed yet?
+// codesync-worker has been deployed to prod, so maybe now CI will run?
 
 namespace datadog::impl {
 
