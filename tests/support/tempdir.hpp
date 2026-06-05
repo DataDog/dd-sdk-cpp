@@ -67,7 +67,7 @@ static std::string _generate_random_string() {
  */
 static std::filesystem::path _build_temp_dir_path() {
   const std::filesystem::path root = _get_temp_root();
-  return root / "dd-native-test" / _generate_random_string();
+  return root / "dd-sdk-cpp-test" / _generate_random_string();
 }
 
 /**

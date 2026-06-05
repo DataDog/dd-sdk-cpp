@@ -120,7 +120,7 @@ def main() -> int:
             print("Error: No crash reports found in .datadog/.crashes/", file=sys.stderr)
             print("", file=sys.stderr)
             print("Generate a crash report by running a program that uses the SDK", file=sys.stderr)
-            print("and triggers a crash (e.g., dd_native_repl with a crash command).", file=sys.stderr)
+            print("and triggers a crash (e.g., repl with a crash command).", file=sys.stderr)
             return 1
 
     # === Handle Raw Output Mode ===

@@ -150,7 +150,7 @@ async def main(t: TestContext):
 
     # And at least one of those entries describes the program that crashed, which in our
     # case is the SDK's own repl example program
-    exe_name = 'dd_native_repl'
+    exe_name = 'repl'
     if sys.platform == 'win32':
         exe_name += '.exe'
     repl_image = next((x for x in p2_error['error']['binary_images'] if x['name'] == exe_name), None)

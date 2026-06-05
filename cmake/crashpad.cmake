@@ -9,12 +9,12 @@ include(ExternalProject)
 # current CMake build directory
 set(CRASHPAD_BUILD_DIR ${CMAKE_BINARY_DIR}/_deps/crashpad-build)
 
-# Our main library target for the C++ SDK (dd_native) will need to link against the
-# crashpad_client static lib once it's built. To ensure binary compatibility, we need to
-# resolve the relevant details of our CMake build configuration, so that we can produce
-# a GN build with the compatible set of options.
-get_target_property(DD_COMPILE_OPTIONS dd_native COMPILE_OPTIONS)
-get_target_property(DD_LINK_OPTIONS dd_native LINK_OPTIONS)
+# The `ddsdkcpp` target will need to link against the crashpad_client static lib once
+# it's built. To ensure binary compatibility, we need to resolve the relevant details
+# of our CMake build configuration, so that we can produce a GN build with the
+# compatible set of options.
+get_target_property(DD_COMPILE_OPTIONS ddsdkcpp COMPILE_OPTIONS)
+get_target_property(DD_LINK_OPTIONS ddsdkcpp LINK_OPTIONS)
 
 # Convert lists to pipe-separated strings to avoid shell parsing issues (CMake lists use
 # semicolons, which would be expanded to separate arguments). We use pipe '|' as a
@@ -160,17 +160,17 @@ set_target_properties(crashpad::handler PROPERTIES
 )
 add_dependencies(crashpad::handler crashpad_handler_exe_file)
 
-# Update the main library target for the SDK to link against the crashpad client
-target_include_directories(dd_native SYSTEM PRIVATE
+# Update the `ddsdkcpp` target to link against the crashpad client
+target_include_directories(ddsdkcpp SYSTEM PRIVATE
     ${DD_SDK_ROOT_DIR}/chromium/crashpad/crashpad
     ${DD_SDK_ROOT_DIR}/chromium/crashpad/crashpad/third_party/mini_chromium/mini_chromium
 )
-target_link_libraries(dd_native PRIVATE crashpad::client)
+target_link_libraries(ddsdkcpp PRIVATE crashpad::client)
 
-# Establish a direct dependency between dd_native and crashpad_external: this ensures
-# that CMake will download and build the crashpad source before attempting to compile
-# dd_native
-add_dependencies(dd_native crashpad_external)
+# Establish a direct dependency between `ddsdkcpp` and `crashpad_external`: this
+# ensures that CMake will download and build the crashpad source before attempting to
+# compile the `ddsdkcpp` target
+add_dependencies(ddsdkcpp crashpad_external)
 
 # When generating an installed build of the SDK, include headers, artifacts, and CMake
 # scripts for Crashpad as well
@@ -179,7 +179,7 @@ if(DD_BUILD_INSTALL)
     # internally within the implementation layer of the SDK
 
     # Crashpad static libs should be distributed in lib/, as an application that links
-    # against Datadog::dd_native will be linked against crashpad::client transitively
+    # against Datadog::sdk will be linked against crashpad::client transitively
     install(FILES ${CRASHPAD_CLIENT_LIB_PATH} DESTINATION lib)
     install(FILES ${CRASHPAD_COMMON_LIB_PATH} DESTINATION lib)
     install(FILES ${CRASHPAD_UTIL_LIB_PATH} DESTINATION lib)

@@ -17,13 +17,13 @@
  * toolchain, SDK version, etc.
  *
  * Examples:
- * > ./dd_native_version
+ * > ./version
  * 0.2.0
- * > ./dd_native_version artifact
+ * > ./version artifact
  * ddsdkcpp-v0.2.0-macos-arm64-clang-libc++-static-release
  */
 int main(int argc, char* argv[]) {
-  // Usage: dd_native_version [-e] [artifact|version]
+  // Usage: ./version [-e] [artifact|version]
   int i = 1;
 
   // Behave like 'echo': print newline by default, supress if called with -e

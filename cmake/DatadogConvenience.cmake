@@ -11,7 +11,7 @@
 #   configuring a handler path in development builds of my-app.
 #
 # Call this function after including the SDK via FetchContent or find_package(Datadog).
-# If you need finer-grained control, link against `Datadog::dd_native` directly instead.
+# If you need finer-grained control, link against `Datadog::sdk` directly instead.
 #
 function(datadog_enable target)
     # Require that the target exists
@@ -22,7 +22,7 @@ function(datadog_enable target)
     # Add the core Datadog SDK library module as a dependency, allowing builds of this
     # target to a.) resolve #include "datadog.hpp" etc. to the SDK's include/ dir, and
     # b.) link against all required libs in the SDK's lib/ dir
-    target_link_libraries(${target} PRIVATE Datadog::dd_native)
+    target_link_libraries(${target} PRIVATE Datadog::sdk)
 
     # If the SDK was built with crashpad support, ensure that the crashpad_handler
     # executable is present alongside the application binary post-build

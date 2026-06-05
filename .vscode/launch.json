@@ -5,7 +5,7 @@
             "name": "Debug Tests",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/build/tests/dd_native_tests",
+            "program": "${workspaceFolder}/build/tests/tests",
             "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",

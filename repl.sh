@@ -73,7 +73,7 @@ if [ "$BUILD_SDK" == "1" ]; then
     fi
     tmux send-keys -t "$TMUX_SESSION_NAME:.$MAIN_PANE" 'cmake --build build && '
 fi
-tmux send-keys -t "$TMUX_SESSION_NAME:.$MAIN_PANE" "clear && build/examples/dd_native_repl"
+tmux send-keys -t "$TMUX_SESSION_NAME:.$MAIN_PANE" "clear && build/examples/repl"
 if [ "$USE_PROXY" == "1" ]; then
     tmux send-keys -t "$TMUX_SESSION_NAME:.$MAIN_PANE" " --custom-endpoint-url=http://localhost:8080"
 fi

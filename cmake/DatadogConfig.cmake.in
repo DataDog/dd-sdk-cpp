@@ -5,11 +5,11 @@
 # Once `DatadogConfig.cmake` is included via `find_package(Datadog)`, these targets will
 # be defined:
 #
-# - `Datadog::dd_native`: The primary library for the Datadog C++ SDK.
+# - `Datadog::sdk`: The primary library for the Datadog C++ SDK.
 #
 # The following convenience function is also provided:
 #
-# - `datadog_enable(app)`: Given an executable target `app`, adds dd_native as a linker
+# - `datadog_enable(app)`: Given an executable target `app`, adds `Datadog::sdk` as a linker
 #    dependency for that target, ensuring that its source can include datadog headers
 #    (from either the C or C++ API) and call functions from those headers. If the SDK
 #    build includes crash reporting support via Crashpad, also adds a post-build step to

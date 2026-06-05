@@ -15,7 +15,7 @@ from lib.profile import Profile
 
 
 __repo_root__ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
-__repl_binary__ = os.path.join(__repo_root__, 'build', 'examples', 'dd_native_repl')
+__repl_binary__ = os.path.join(__repo_root__, 'build', 'examples', 'repl')
 if sys.platform == 'win32':
     __repl_binary__ += '.exe'
 

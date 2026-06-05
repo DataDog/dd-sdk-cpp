@@ -47,10 +47,10 @@ if(DD_BUILD_TESTING AND DD_ENABLE_COVERAGE AND COVERAGE_SUPPORTED)
         #   data and the test binaries, excluding system headers and test files
         set(COVERAGE_IGNORE_REGEX "'(/usr/|/tests/|/build/)'")
         add_custom_target(coverage
-            DEPENDS coverage-clean dd_native_tests
+            DEPENDS coverage-clean tests
             COMMAND ${CMAKE_COMMAND} -E env LLVM_PROFILE_FILE=${CMAKE_BINARY_DIR}/coverage/test-%p-%m.profraw ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR}
             COMMAND ${LLVM_PROFDATA_BINARY} merge -sparse ${CMAKE_BINARY_DIR}/coverage/*.profraw -o ${CMAKE_BINARY_DIR}/coverage/merged.profdata
-            COMMAND ${LLVM_COV_BINARY} show -format=html -output-dir=${CMAKE_BINARY_DIR}/coverage/html -ignore-filename-regex=${COVERAGE_IGNORE_REGEX} $<TARGET_FILE:dd_native_tests> -instr-profile=${CMAKE_BINARY_DIR}/coverage/merged.profdata
+            COMMAND ${LLVM_COV_BINARY} show -format=html -output-dir=${CMAKE_BINARY_DIR}/coverage/html -ignore-filename-regex=${COVERAGE_IGNORE_REGEX} $<TARGET_FILE:tests> -instr-profile=${CMAKE_BINARY_DIR}/coverage/merged.profdata
             COMMENT "Generating coverage report in ${CMAKE_BINARY_DIR}/coverage/html"
         )
     else()
