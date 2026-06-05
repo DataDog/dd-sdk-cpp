@@ -21,8 +21,6 @@
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
 
-// codesync-worker has been deployed to prod, so maybe now CI will run?
-
 namespace datadog::impl {
 
 nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
