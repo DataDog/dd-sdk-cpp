@@ -50,7 +50,7 @@ void your_application_code() {
   // Initialize SDK configuration, specifying the path to a directory where your
   // application can store transient files: the SDK will create .datadog/ there
   auto config = datadog::CoreConfig("<your-client-id>", "<your-service>", "<your-env>");
-  config.SetEventStorageLocation("<your-storage-directory>");
+  config.SetApplicationStoragePath("<your-storage-directory>");
 
   // Create the core with initial tracking consent
   auto core = datadog::Core::Create(config, datadog::TrackingConsent::Pending);
@@ -85,7 +85,7 @@ void your_application_code() {
   // application can store transient files: the SDK will create .datadog/ there
   dd_core_config_t config;
   dd_core_config_init(&config, "<your-client-id>", "<your-service>", "<your-env>");
-  dd_core_config_set_event_storage_location(&config, "<your-storage-directory>");
+  dd_core_config_set_application_storage_path(&config, "<your-storage-directory>");
 
   // Create the core with initial tracking consent
   dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);

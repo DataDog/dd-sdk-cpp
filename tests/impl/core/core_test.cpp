@@ -31,7 +31,7 @@ static impl::Core _make_core(
   fs->Mkdirs("app");
   return impl::Core(
       CoreConfig("test-client-token", "initial-service", "initial-env")
-          .SetEventStorageLocation("app")
+          .SetApplicationStoragePath("app")
           .SetDiagnosticHandler(diagnostics.CreateHandler())
           .SetDiagnosticThreshold(datadog::DiagnosticLevel::Debug)
           .SetApplicationVersion("1.0.0")

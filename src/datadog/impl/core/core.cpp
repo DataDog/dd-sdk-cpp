@@ -237,7 +237,7 @@ bool Core::Init() {
   // new storage directory- this may scale with the amount of leftover data, and could
   // potentially be offloaded to the storage thread to avoid blocking SDK init.
   _storage.emplace(*_subsystems.fs, _diagnostic_logger, pid);
-  if (!_storage->Initialize(_config.event_storage_location, "main")) {
+  if (!_storage->Initialize(_config.application_storage_path, "main")) {
     _diagnostic_logger.Error(
         "Core initialization failed: could not initialize SDK storage"
     );

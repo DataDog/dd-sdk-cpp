@@ -65,8 +65,8 @@ Args Args::Parse(int argc, char* argv[]) {
       result.custom_endpoint_url = *val;
       continue;
     }
-    if (auto val = check_arg("--storage-path", i, argc, argv)) {
-      result.storage_path = *val;
+    if (auto val = check_arg("--application-storage-path", i, argc, argv)) {
+      result.application_storage_path = *val;
       continue;
     }
   }
