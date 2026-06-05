@@ -21,8 +21,8 @@
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
 
-// Is GitLab CI acting up in general for this repo, or is it only failing to pick up
-// changes and run pipelines in one specific branch?
+// OK, right, GitLab CI wasn't running because the repo was made public.
+// CodeSync config change has now been merged, but is it deployed yet?
 
 namespace datadog::impl {
 
