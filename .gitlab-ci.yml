@@ -3,8 +3,9 @@ stages:
   - validate
   - build
   - package
-  - release
+  - publish-release  # (main only)
   - signal-success
+  - prepare-release  # (develop only, manual)
 
 variables:
   # We must explicitly specify `--parallel <jobs>` when building targets that invoke C++
@@ -365,60 +366,13 @@ package-windows:
     paths:
       - build/ddsdkcpp-*.zip
 
-# Stage 'release' runs a different job depending on the branch in which CI is running:
-# - in `develop`: Job 'prepare-release' can be manually triggered to create a branch
-#                 release/X.Y.Z from develop and prepare a PR for merge into main
-# -    in `main`: Job 'publish-release' will detect when the SDK version has been
-#                 updated and will push a tag X.Y.Z, then create GitHub release X.Y.Z
-#                 with all the release artifacts produced in this pipeline run.
-
-prepare-release:
-  stage: release
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop"'
-      when: manual
-      # TODO(RUM-16643): DELETEME; rule is temporary to allow testing in feature branch
-    - if: '$CI_COMMIT_BRANCH == "aforsythe/RUM-16643/release-automation"'
-      when: manual
-  variables:
-    # Custom values can be provided when manually triggering the job in the GitLab UI
-    BUMP_TYPE: ""  # Set BUMP_TYPE=minor etc. to override conventional commits
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  tags: [arch:amd64]
-  image: ${GOLDEN_LINUX_IMAGE}
-  before_script:
-    # We need a short-lived GitHub token to push changes and open PRs; see:
-    # - .github/chainguard/self.prepare-release.sts.yaml
-    - dd-octo-sts --disable-tracing debug --scope DataDog/dd-sdk-cpp --policy self.prepare-release
-    - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.prepare-release > /tmp/gh-token.txt
-  script:
-    # The `gh` CLI picks up `GITHUB_TOKEN` automatically; for `git` we need to point the
-    # remote at GitHub using the token for HTTPS auth, and we also need to configure
-    # dd-octo-sts-specific username and email
-    - export GITHUB_TOKEN=$(cat /tmp/gh-token.txt)
-    - git config user.name "dd-octo-sts[bot]"
-    - git config user.email "200755185+dd-octo-sts[bot]@users.noreply.github.com"
-    - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
-    # Since we'll push commits that need to be merged to main, we also need to use
-    # commit-headless so those commits will be signed: verify that it's installed
-    - commit-headless version
-    # We also need a Datadog-issued token with an audience of 'rapid-ai-platform' in
-    # order to make requests to the AI Gateway for LLM calls: we use authanywhere to
-    # obtain this token
-    - export AI_GATEWAY_TOKEN=$(authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io)
-    # Use tools/prepare-release to bump the version number, update the version in
-    # CMakeLists.txt, update CHANGELOG.md based on contents of PRs included in this
-    # release, push a release/X.Y.Z branch, and open a PR into main
-    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[prepare-release]'
-    - .venv/bin/python tools/prepare-release/main.py ${BUMP_TYPE:+--bump $BUMP_TYPE}
-  after_script:
-    # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
-    - dd-octo-sts --disable-tracing revoke --token "$(cat /tmp/gh-token.txt)"
+# Stage 'publish-release' runs only in `main`: it detects when the SDK version has been
+# updated and will create GitHub release (and tag) X.Y.Z with all the release artifacts
+# produced in this pipeline run. This is Phase 2 of a two-phase release process: for
+# Phase 1, see the 'prepare-release' job below.
 
 publish-release:
-  stage: release
+  stage: publish-release
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
   dependencies:
@@ -479,3 +433,56 @@ signal-success:
   image: ${GOLDEN_LINUX_IMAGE}
   script:
     - echo "All CI jobs were successful!"
+
+# Jobs below this point are manually-triggered release tasks that run only in `develop`
+# and that should not block approval of PRs in other branches.
+
+# Stage 'prepare-release' runs only in `develop`: it can be manually triggered to create
+# a branch release/X.Y.Z from develop and prepare a PR for merge into main. This is
+# Phase 1 of the release process; Phase 2 (publish-release) will begin automatically
+# once the release PR is merged to main.
+
+prepare-release:
+  stage: prepare-release
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      when: manual
+      # TODO(RUM-16643): DELETEME; rule is temporary to allow testing in feature branch
+    - if: '$CI_COMMIT_BRANCH == "aforsythe/RUM-16643/release-automation"'
+      when: manual
+  variables:
+    # Custom values can be provided when manually triggering the job in the GitLab UI
+    BUMP_TYPE: ""  # Set BUMP_TYPE=minor etc. to override conventional commits
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  before_script:
+    # We need a short-lived GitHub token to push changes and open PRs; see:
+    # - .github/chainguard/self.prepare-release.sts.yaml
+    - dd-octo-sts --disable-tracing debug --scope DataDog/dd-sdk-cpp --policy self.prepare-release
+    - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.prepare-release > /tmp/gh-token.txt
+  script:
+    # The `gh` CLI picks up `GITHUB_TOKEN` automatically; for `git` we need to point the
+    # remote at GitHub using the token for HTTPS auth, and we also need to configure
+    # dd-octo-sts-specific username and email
+    - export GITHUB_TOKEN=$(cat /tmp/gh-token.txt)
+    - git config user.name "dd-octo-sts[bot]"
+    - git config user.email "200755185+dd-octo-sts[bot]@users.noreply.github.com"
+    - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
+    # Since we'll push commits that need to be merged to main, we also need to use
+    # commit-headless so those commits will be signed: verify that it's installed
+    - commit-headless version
+    # We also need a Datadog-issued token with an audience of 'rapid-ai-platform' in
+    # order to make requests to the AI Gateway for LLM calls: we use authanywhere to
+    # obtain this token
+    - export AI_GATEWAY_TOKEN=$(authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io)
+    # Use tools/prepare-release to bump the version number, update the version in
+    # CMakeLists.txt, update CHANGELOG.md based on contents of PRs included in this
+    # release, push a release/X.Y.Z branch, and open a PR into main
+    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[prepare-release]'
+    - .venv/bin/python tools/prepare-release/main.py ${BUMP_TYPE:+--bump $BUMP_TYPE}
+  after_script:
+    # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
+    - dd-octo-sts --disable-tracing revoke --token "$(cat /tmp/gh-token.txt)"
