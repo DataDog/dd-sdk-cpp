@@ -12,9 +12,9 @@
 
 #include "datadog/impl/core/attribute/merge.hpp"
 #include "datadog/impl/core/context_thread.hpp"
+#include "datadog/impl/core/http/client.hpp"
 #include "datadog/impl/core/messaging_thread.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/platform/http.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
@@ -23,15 +23,12 @@
 
 namespace datadog::impl {
 
-nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
-    const CoreConfig& config
-) {
+std::optional<CoreSubsystems> CoreSubsystems::Init(const DiagnosticLogger& logger) {
   // Prepare a wrapper object that can read from the system clock
-  auto clock = platform::Clock::Init();
+  std::unique_ptr<platform::IClock> clock = platform::Clock::Init();
   if (!clock) {
-    return nonstd::make_unexpected(
-        ErrorMessage("clock subsystem could not be initialized")
-    );
+    logger.Error("Failed to initialize IClock");
+    return std::nullopt;
   }
 
   // Create an instance of IFilesystem, which wraps platform-specific APIs for examining
@@ -39,25 +36,19 @@ nonstd::expected<CoreSubsystems, ErrorMessage> CoreSubsystems::Init(
   // locks on files
   std::unique_ptr<IFilesystem> fs = CreateFilesystem();
   if (!fs) {
-    return nonstd::make_unexpected(
-        ErrorMessage("filesystem interface could not be initialized")
-    );
+    logger.Error("Failed to initialize IFilesystem");
+    return std::nullopt;
   }
 
   // Prepare whatever HTTP client library we'll use to create HTTP clients
-  auto http_result = platform::Http::Init();
-  if (!http_result) {
-    return nonstd::make_unexpected(
-        http_result.error().AddPrefix("HTTP subsystem could not be initialized")
-    );
+  std::unique_ptr<IHttpSubsystem> http = Http::Init(logger);
+  if (!http) {
+    return std::nullopt;
   }
-  auto http = std::move(*http_result);
 
   // Initialize system information collection
-  impl::DiagnosticLogger diagnostic_logger{
-      config.diagnostic_handler, config.diagnostic_threshold
-  };
-  auto system_info = platform::SystemInfo::Init(diagnostic_logger);
+  std::unique_ptr<platform::ISystemInfo> system_info =
+      platform::SystemInfo::Init(logger);
 
   // Return our newly-created subsystems, to be transferred into the Core
   return CoreSubsystems(

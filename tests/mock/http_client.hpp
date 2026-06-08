@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-#include "datadog/impl/core/platform/http.hpp"
+#include "datadog/impl/core/http/client.hpp"
 
 using namespace datadog;
 
@@ -43,21 +43,21 @@ struct MockHttpRequest {
 /**
  * Mock implementation of IHttpClient.
  */
-class MockHttpClient : public platform::IHttpClient {
+class MockHttpClient : public impl::IHttpClient {
  public:
   // Details of calls to Post will be recorded here
   std::vector<MockHttpRequest> requests;
 
   // Tests can set this value after ctor to determine the result that that client will
   // receive; or use the helper functions below
-  platform::HttpResult result{platform::HttpResultType::GotResponse, 200};
+  impl::HttpResult result{impl::HttpResultType::GotResponse, 200};
 
  public:
   /**
    * Subsequent calls to Post() will result in an HTTP response with this status code.
    */
   void SimulateResponse(int status_code) {
-    result.type = platform::HttpResultType::GotResponse;
+    result.type = impl::HttpResultType::GotResponse;
     result.status_code = status_code;
   }
 
@@ -65,7 +65,7 @@ class MockHttpClient : public platform::IHttpClient {
    * Subsequent calls to Post() will result in GotNoResponse_Retryable.
    */
   void SimulateTransientNetworkError() {
-    result.type = platform::HttpResultType::GotNoResponse_Retryable;
+    result.type = impl::HttpResultType::GotNoResponse_Retryable;
     result.status_code = 0;
   }
 
@@ -73,7 +73,7 @@ class MockHttpClient : public platform::IHttpClient {
    * Subsequent calls to Post() will result in GotNoResponse_NonRetryable.
    */
   void SimulateBadRequest() {
-    result.type = platform::HttpResultType::GotNoResponse_NonRetryable;
+    result.type = impl::HttpResultType::GotNoResponse_NonRetryable;
     result.status_code = 0;
   }
 
@@ -82,8 +82,8 @@ class MockHttpClient : public platform::IHttpClient {
    * request details into the requests vector for later examination. Returns the mock
    * result value last configured, or HTTP 200 by default.
    */
-  virtual platform::HttpResult Post(
-      const char* url, const char* headers, platform::HttpBodyWriter body_writer
+  virtual impl::HttpResult Post(
+      const char* url, const char* headers, impl::HttpBodyWriter body_writer
   ) override {
     // Record the details of this request
     MockHttpRequest request;
@@ -94,7 +94,7 @@ class MockHttpClient : public platform::IHttpClient {
     char buffer[1024];
     while (true) {
       const size_t num_bytes_read = body_writer(buffer, sizeof(buffer));
-      if (num_bytes_read == platform::HTTP_WRITE_RESULT_ABORT) {
+      if (num_bytes_read == impl::HTTP_WRITE_RESULT_ABORT) {
         request.aborted = true;
         break;
       }
@@ -115,7 +115,7 @@ class MockHttpClient : public platform::IHttpClient {
 /**
  * Mock implementation of IHttpSubsystem; creates MockHttpClient;
  */
-class MockHttpSubsystem : public platform::IHttpSubsystem {
+class MockHttpSubsystem : public impl::IHttpSubsystem {
  public:
   // Non-owning pointers to any clients created via CreateClient(): pointers become
   // invalid when clients are destroyed; this simply allows test code to grab a
@@ -126,7 +126,7 @@ class MockHttpSubsystem : public platform::IHttpSubsystem {
 
   std::string_view GetVersion() const override { return "0.0.0"; }
 
-  std::unique_ptr<platform::IHttpClient> CreateClient() override {
+  std::unique_ptr<impl::IHttpClient> CreateClient() override {
     auto client = std::make_unique<MockHttpClient>();
     clients.push_back(client.get());
     return client;

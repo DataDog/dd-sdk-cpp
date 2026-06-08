@@ -15,8 +15,6 @@
 #include <thread>
 #include <vector>
 
-#include "nonstd/expected.hpp"
-
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature.hpp"
@@ -35,11 +33,13 @@
 // Forward declarations
 namespace datadog::platform {
 class IClock;
-class IHttpSubsystem;
-class IHttpClient;
 }  // namespace datadog::platform
 
 namespace datadog::impl {
+
+// Forward declarations
+class IHttpSubsystem;
+class IHttpClient;
 
 /**
  * Describes the lifecycle of the Core.
@@ -82,13 +82,13 @@ enum class CoreState : uint8_t {
 struct CoreSubsystems {
   std::unique_ptr<platform::IClock> clock;
   std::unique_ptr<IFilesystem> fs;
-  std::unique_ptr<platform::IHttpSubsystem> http;
+  std::unique_ptr<IHttpSubsystem> http;
   std::unique_ptr<platform::ISystemInfo> system_info;
 
   explicit CoreSubsystems(
       std::unique_ptr<platform::IClock>&& in_clock,
       std::unique_ptr<IFilesystem>&& in_fs,
-      std::unique_ptr<platform::IHttpSubsystem>&& in_http,
+      std::unique_ptr<IHttpSubsystem>&& in_http,
       std::unique_ptr<platform::ISystemInfo>&& in_system_info
   )
       : clock(std::move(in_clock)),
@@ -107,7 +107,7 @@ struct CoreSubsystems {
    * Test builds do not use this function; they instead initialize mock
    * implementations.
    */
-  static nonstd::expected<CoreSubsystems, ErrorMessage> Init(const CoreConfig& config);
+  static std::optional<CoreSubsystems> Init(const DiagnosticLogger& logger);
 };
 
 /**
@@ -429,7 +429,7 @@ class Core {
   CoreSubsystems _subsystems;
 
   // Initialized on Init, before features can be registered
-  std::unique_ptr<platform::IHttpClient> _http_client;
+  std::unique_ptr<IHttpClient> _http_client;
   std::optional<SdkStorage> _storage;
 
   // Initialized before Start in response to user-initiated feature registration

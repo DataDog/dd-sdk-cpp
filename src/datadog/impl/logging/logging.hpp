@@ -32,7 +32,7 @@ class Logging final : public Feature {
   std::string_view GetName() const override { return "logs"; }
 
   std::optional<Report> UploadThread_PrepareReport(
-      BatchReader& reader, RequestBuilder& builder
+      BatchReader& reader, HttpRequestBuilder& builder
   ) override;
 
  public:

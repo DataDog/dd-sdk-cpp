@@ -52,24 +52,22 @@ enum class _process_and_upload_batch_result : uint8_t {
   bad_batch
 };
 
-static _process_and_upload_batch_result _interpret_http_result(
-    platform::HttpResult res
-) {
+static _process_and_upload_batch_result _interpret_http_result(const HttpResult res) {
   switch (res.type) {
     // If we couldn't even attempt the request, or if we failed to get a response for a
     // reason that indicates an inherent problem with the request, rather than transient
     // network conditions etc., consider the batch file a poison pill and delete it
-    case platform::HttpResultType::SentNoRequest:
-    case platform::HttpResultType::GotNoResponse_NonRetryable:
+    case HttpResultType::SentNoRequest:
+    case HttpResultType::GotNoResponse_NonRetryable:
       return _process_and_upload_batch_result::bad_batch;
 
     // If we failed to complete the request due to transient network conditions, keep
     // the batch file around, but don't process any more batches for now
-    case platform::HttpResultType::GotNoResponse_Retryable:
+    case HttpResultType::GotNoResponse_Retryable:
       return _process_and_upload_batch_result::retryable_failure;
 
     // If we got a valid HTTP response, discriminate based on the status code
-    case platform::HttpResultType::GotResponse:
+    case HttpResultType::GotResponse:
       // Any 200-level response indicates success
       if (res.status_code >= 200 && res.status_code <= 299) {
         return _process_and_upload_batch_result::success;
@@ -101,10 +99,10 @@ static _process_and_upload_batch_result _interpret_http_result(
 static _process_and_upload_batch_result _process_and_upload_batch(
     DiagnosticLogger& diagnostic_logger,
     Feature& feature_impl,
-    RequestBuilder& request_builder,
+    HttpRequestBuilder& request_builder,
     FilesystemWrapper& fsw,
     const StoragePath& file_path,
-    platform::IHttpClient& http_client,
+    IHttpClient& http_client,
     std::vector<char>& mut_read_buffer
 ) {
   // This file is ready to process: attempt to open it for read
@@ -138,23 +136,23 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   diagnostic_logger.Debug(
       "Initiating HTTP request", {{"method", "POST"}, {"url", report->url}}
   );
-  const platform::HttpResult res =
+  const HttpResult res =
       http_client.Post(report->url, report->headers, report->body_writer);
   switch (res.type) {
-    case platform::HttpResultType::SentNoRequest:
+    case HttpResultType::SentNoRequest:
       diagnostic_logger.Debug("Failed to send HTTP request", {{"url", report->url}});
       break;
-    case platform::HttpResultType::GotNoResponse_NonRetryable:
+    case HttpResultType::GotNoResponse_NonRetryable:
       diagnostic_logger.Debug(
           "Got no HTTP response", {{"url", report->url}, {"is_retryable", false}}
       );
       break;
-    case platform::HttpResultType::GotNoResponse_Retryable:
+    case HttpResultType::GotNoResponse_Retryable:
       diagnostic_logger.Debug(
           "Got no HTTP response", {{"url", report->url}, {"is_retryable", true}}
       );
       break;
-    case platform::HttpResultType::GotResponse:
+    case HttpResultType::GotResponse:
       diagnostic_logger.Debug(
           "Got HTTP response",
           {{"url", report->url}, {"status_code", static_cast<int64_t>(res.status_code)}}
@@ -173,7 +171,7 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     const platform::IClock& clock,
     RegisteredFeature& feature,
     IFilesystem& fs,
-    platform::IHttpClient& http_client,
+    IHttpClient& http_client,
     std::vector<std::string>& mut_filenames,
     std::vector<char>& mut_read_buffer
 )
@@ -459,7 +457,7 @@ Duration Internal_HandleUploadProc(
     FeatureId feature_id,
     std::vector<RegisteredFeature>& features,
     IFilesystem& fs,
-    platform::IHttpClient& http_client,
+    IHttpClient& http_client,
     std::vector<std::string>& mut_filenames,
     std::vector<char>& mut_read_buffer
 ) {
@@ -502,7 +500,7 @@ void UploadThreadMain(
     UploadScheduler& scheduler,
     std::vector<RegisteredFeature>& features,
     IFilesystem& fs,
-    platform::IHttpClient& http_client
+    IHttpClient& http_client
 ) {
   diagnostic_logger.Debug("Upload thread starting");
 

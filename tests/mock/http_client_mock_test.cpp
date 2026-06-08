@@ -8,11 +8,9 @@
 #include <string>
 #include <vector>
 
-#include "datadog/impl/core/platform/http.hpp"
-
 #include "mock/http_client.hpp"
 
-using namespace datadog::platform;
+using namespace datadog::impl;
 
 TEST_CASE("MockHttpClient Default Behavior", "[unit][mock-http-client]") {
   MockHttpClient client;

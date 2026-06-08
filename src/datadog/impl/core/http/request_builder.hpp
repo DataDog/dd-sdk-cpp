@@ -21,9 +21,9 @@ struct CoreContext;
 /**
  * Interface used by a Feature to build HTTP requests.
  */
-class RequestBuilder {
+class HttpRequestBuilder {
  public:
-  explicit RequestBuilder(const CoreContext& ctx);
+  explicit HttpRequestBuilder(const CoreContext& ctx);
 
   /**
    * Reinitializes the URL and Headers to begin building the details for a new request.
@@ -38,7 +38,7 @@ class RequestBuilder {
    * uses in all requests. After calling Reset(), you may set additional query params
    * and header values with AddQueryParam() and AddHeader().
    */
-  RequestBuilder& Reset(std::string_view path, std::string_view content_type);
+  HttpRequestBuilder& Reset(std::string_view path, std::string_view content_type);
 
   /**
    * Appends a query parameter to the URL as "?<name>=<value>" or "&<name>=<value>".
@@ -52,18 +52,18 @@ class RequestBuilder {
    * based on application-provided values), this function will need to be updated to
    * escape strings.
    */
-  RequestBuilder& AddQueryParam(std::string_view name, std::string_view value);
+  HttpRequestBuilder& AddQueryParam(std::string_view name, std::string_view value);
 
   /**
    * Calls AddQueryParam("ddsource", <source>), where `source` is the source value
    * configured for this SDK instance (e.g. "rum-cpp", "unity", etc.)
    */
-  RequestBuilder& AddQueryParam_ddsource();
+  HttpRequestBuilder& AddQueryParam_ddsource();
 
   /**
    * Appends a request header value as "<name>: <value>\r\n".
    */
-  RequestBuilder& AddHeader(std::string_view name, std::string_view value);
+  HttpRequestBuilder& AddHeader(std::string_view name, std::string_view value);
 
   /**
    * Returns the URL value constructed by the previous call to Reset() and any

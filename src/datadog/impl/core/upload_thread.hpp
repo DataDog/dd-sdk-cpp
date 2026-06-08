@@ -14,9 +14,9 @@
 #include <vector>
 
 #include "datadog/impl/core/feature.hpp"
+#include "datadog/impl/core/http/client.hpp"
+#include "datadog/impl/core/http/request_builder.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/platform/http.hpp"
-#include "datadog/impl/core/request_builder.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 
@@ -68,7 +68,7 @@ struct UploadThreadConfig {
  * will increase as a result.
  */
 struct UploadThreadState {
-  RequestBuilder request_builder;
+  HttpRequestBuilder request_builder;
 
   Duration current_delay;
   Duration min_delay;
@@ -104,7 +104,7 @@ Duration Internal_HandleUploadProc(
     FeatureId feature_id,
     std::vector<struct RegisteredFeature>& features,
     class IFilesystem& fs,
-    platform::IHttpClient& http_client,
+    IHttpClient& http_client,
     std::vector<std::string>& mut_filenames,
     std::vector<char>& mut_read_buffer
 );
@@ -132,7 +132,7 @@ void UploadThreadMain(
     class UploadScheduler& scheduler,
     std::vector<struct RegisteredFeature>& features,
     class IFilesystem& fs,
-    platform::IHttpClient& http_client
+    IHttpClient& http_client
 );
 
 }  // namespace datadog::impl
