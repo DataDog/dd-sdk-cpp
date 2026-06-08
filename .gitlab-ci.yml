@@ -388,14 +388,16 @@ prepare-release:
       aud: dd-octo-sts
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
-  script:
+  before_script:
     # We need a short-lived GitHub token to push changes and open PRs; see:
     # - .github/chainguard/self.prepare-release.sts.yaml
+    - dd-octo-sts --disable-tracing debug --scope DataDog/dd-sdk-cpp --policy self.prepare-release
+    - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.prepare-release > /tmp/gh-token.txt
+  script:
     # The `gh` CLI picks up `GITHUB_TOKEN` automatically; for `git` we need to point the
     # remote at GitHub using the token for HTTPS auth, and we also need to configure
     # dd-octo-sts-specific username and email
-    - dd-octo-sts debug --disable-tracing --scope DataDog/dd-sdk-cpp --policy self.prepare-release
-    - export GITHUB_TOKEN=$(dd-octo-sts token --disable-tracing --scope DataDog/dd-sdk-cpp --policy self.prepare-release)
+    - export GITHUB_TOKEN=$(cat /tmp/gh-token.txt)
     - git config user.name "dd-octo-sts[bot]"
     - git config user.email "200755185+dd-octo-sts[bot]@users.noreply.github.com"
     - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
@@ -411,6 +413,9 @@ prepare-release:
     # release, push a release/X.Y.Z branch, and open a PR into main
     - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[prepare-release]'
     - .venv/bin/python tools/prepare-release/main.py ${BUMP_TYPE:+--bump $BUMP_TYPE}
+  after_script:
+    # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
+    - dd-octo-sts --disable-tracing revoke --token "$(cat /tmp/gh-token.txt)"
 
 publish-release:
   stage: release
@@ -431,6 +436,11 @@ publish-release:
     # the pipeline to continue, so that a green circle for this job is always a
     # definitive signal that a new release was published
     exit_codes: [2]
+  before_script:
+    # We need to push tags and create releases: use dd-octo-sts to obtain a GitHub token
+    # with the trust policy defined at .github/chainguard/self.publish-release.sts.yaml
+    - dd-octo-sts --disable-tracing debug --scope DataDog/dd-sdk-cpp --policy self.publish-release
+    - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.publish-release > /tmp/gh-token.txt
   script:
     # Upstream 'package' jobs should have produced archives containing prebuilt binaries
     # to be used in this release: these '*.tar.gz'/'*.zip' files are tagged as artifacts
@@ -446,10 +456,8 @@ publish-release:
         echo "ERROR: No archive files found in previous jobs' artifacts" >&2
         exit 1
       fi
-    # We need to push tags and create releases: use dd-octo-sts to obtain a GitHub token
-    # with the trust policy defined at .github/chainguard/self.publish-release.sts.yaml
-    - dd-octo-sts debug --disable-tracing --scope DataDog/dd-sdk-cpp --policy self.publish-release
-    - export GITHUB_TOKEN=$(dd-octo-sts token --disable-tracing --scope DataDog/dd-sdk-cpp --policy self.publish-release)
+    # Configure token for git and GitHub commands used in our script
+    - export GITHUB_TOKEN=$(cat /tmp/gh-token.txt)
     - git config user.name "dd-octo-sts[bot]"
     - git config user.email "200755185+dd-octo-sts[bot]@users.noreply.github.com"
     - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
@@ -457,6 +465,9 @@ publish-release:
     # our archives with prebuilt binaries
     - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[publish-release]'
     - .venv/bin/python tools/publish-release/main.py "${ARCHIVE_FILES[@]}"
+  after_script:
+    # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
+    - dd-octo-sts --disable-tracing revoke --token "$(cat /tmp/gh-token.txt)"
 
 # Stage 'signal-success' is a no-op that runs after all other CI jobs have passed. The
 # 'dd-protected-branches' ruleset (see https://github.com/DataDog/dd-sdk-cpp/rules)
