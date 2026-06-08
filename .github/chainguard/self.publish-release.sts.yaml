@@ -2,12 +2,12 @@
 issuer: https://gitlab.ddbuild.io
 
 # The job runs on any push into main
-subject_pattern: "project_path:DataDog/dd-sdk-cpp:ref_type:branch:ref:main"
+subject: "project_path:DataDog/dd-sdk-cpp:ref_type:branch:ref:main"
 claim_pattern:
-  project_path: "DataDog/dd-sdk-cpp"
-  ref_type: "branch"
+  ci_config_ref_uri: "gitlab\.ddbuild\.io/DataDog/dd-sdk-cpp//\.gitlab-ci\.yml@refs/heads/main"
   pipeline_source: "push"
-  ci_config_ref_uri: "gitlab.ddbuild.io/DataDog/dd-sdk-cpp//.gitlab-ci.yml@refs/heads/main"
+  project_path: "DataDog/dd-sdk-cpp"
+  ref_path: "refs/heads/main"
 
 # We need to create GitHub releases and open pull requests
 permissions:
