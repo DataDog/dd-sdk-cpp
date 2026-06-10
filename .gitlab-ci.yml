@@ -445,7 +445,7 @@ signal-success:
 prepare-release:
   stage: prepare-release
   rules:
-    - if: '$CI_COMMIT_BRANCH == "aforsythe/RUM-16643/release-automation"'
+    - if: '$CI_COMMIT_BRANCH == "develop"'
       when: manual
   variables:
     # Custom values can be provided when manually triggering the job in the GitLab UI
