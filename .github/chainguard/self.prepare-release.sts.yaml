@@ -5,7 +5,7 @@ issuer: https://gitlab.ddbuild.io
 # pipeline run itself is triggered by a push
 subject: "project_path:DataDog/dd-sdk-cpp:ref_type:branch:ref:develop"
 claim_pattern:
-  ci_config_ref_uri: "gitlab\.ddbuild\.io/DataDog/dd-sdk-cpp//\.gitlab-ci\.yml@refs/heads/develop"
+  ci_config_ref_uri: 'gitlab\.ddbuild\.io/DataDog/dd-sdk-cpp//\.gitlab-ci\.yml@refs/heads/develop'
   pipeline_source: "push"
   project_path: "DataDog/dd-sdk-cpp"
   ref_path: "refs/heads/develop"
