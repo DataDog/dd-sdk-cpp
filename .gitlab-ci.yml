@@ -5,7 +5,7 @@ stages:
   - package
   - publish-release  # (main only)
   - signal-success
-  - prepare-release  # (develop only, manually triggered)
+  - prepare-release  # (develop only, manual)
 
 variables:
   # We must explicitly specify `--parallel <jobs>` when building targets that invoke C++
@@ -445,7 +445,7 @@ signal-success:
 prepare-release:
   stage: prepare-release
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop"'
+    - if: '$CI_COMMIT_BRANCH == "aforsythe/RUM-16643/release-automation"'
       when: manual
   variables:
     # Custom values can be provided when manually triggering the job in the GitLab UI
