@@ -5,7 +5,7 @@ stages:
   - package
   - publish-release  # (main only)
   - signal-success
-  - prepare-release  # (develop only, manual)
+  - prepare-release  # (develop only, manually triggered)
 
 variables:
   # We must explicitly specify `--parallel <jobs>` when building targets that invoke C++
