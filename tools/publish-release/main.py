@@ -125,9 +125,24 @@ def main():
         *args.archives
     )
 
-    # Now that the release is complete, open a PR to merge `main` into `develop`: this
-    # ensures that modifications made to CMakeLists.txt, CHANGELOG.md, etc. in the
-    # release branch make their way back to develop
+    # Now that the release is complete, we want to merge from `main` to `develop`,
+    # ensuring that modifications made to CMakeLists.txt, CHANGELOG.md, etc. in the
+    # release branch make their way back to develop. If such a PR already exists, we can
+    # finish here.
+    existing_pr_url = gh(
+        "pr", "list",
+        "--base", "develop",
+        "--head", "main",
+        "--state", "open",
+        "--json", "url",
+        "--jq", ".[0].url"
+    ).strip()
+    if existing_pr_url and existing_pr_url != "null":
+        print(f"Release {sdk_version} complete.")
+        print(f"A merge-down PR already exists: {existing_pr_url}")
+        return
+
+    # Otherwise, no merge-down PR is open, so we can create one
     pr_body = '\n'.join([
         f"The release of **dd-sdk-cpp** version **{sdk_version}** has been merged to "
         "`main`, and a new GitHub release has been successfully published from that "
@@ -141,13 +156,21 @@ def main():
         "bumps, changelog updates, etc.)_ from the release branch.",
         "",
     ])
-    pr_url = gh(
-        "pr", "create",
-        "--base", "develop",
-        "--head", "main",
-        "--title", f"chore: Merge changes from release/{sdk_version} to develop",
-        "--body", pr_body
-    ).strip()
+
+    # At this point, we've successfully created a release: regardless of whether we
+    # successfully create the final merge-down PR, the release was published and we
+    # should signal that fact clearly with exit code 0 (Green job == release published)
+    try:
+        pr_url = gh(
+            "pr", "create",
+            "--base", "develop",
+            "--head", "main",
+            "--title", f"chore: Merge changes from release/{sdk_version} to develop",
+            "--body", pr_body
+        ).strip()
+    except RuntimeError as e:
+        print(f"WARNING: Release {sdk_version} complete, but failed to open merge-down PR: {e}")
+        return
 
     print(f"Release {sdk_version} complete.")
     print(f"Final merge-down PR ready for review: {pr_url}")
