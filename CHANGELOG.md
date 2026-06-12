@@ -1,3 +1,7 @@
+## 0.3.1
+
+- Maintenance release; no significant changes.
+
 ## 0.3.0
 
 > [!NOTE]
