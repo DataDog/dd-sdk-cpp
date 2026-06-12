@@ -15,7 +15,7 @@ def git(*args: str) -> str:
     result = subprocess.run(["git", *args], capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"git {' '.join(args)}: {result.stderr.strip()}")
-    return result.stdout.strip()
+    return result.stdout.rstrip()
 
 
 def merged_pr_numbers(base: str) -> list[int]:
