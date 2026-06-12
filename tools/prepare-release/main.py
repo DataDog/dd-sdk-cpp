@@ -6,6 +6,7 @@
 # Copyright 2025-Present Datadog, Inc.
 from __future__ import annotations
 
+import os
 import re
 import sys
 import argparse
@@ -253,7 +254,7 @@ def main() -> None:
     # verify that we're actually cutting the release from such a state. It's possible
     # that this won't be the case if we're testing or deliberately releasing from an
     # older state, so flag it as a warning in the PR description but don't fail outright
-    base_branch = git("branch", "--show-current")
+    base_branch = os.environ.get("CI_COMMIT_BRANCH") or git("branch", "--show-current")
     git("fetch", "origin", base_branch)
     remote_head_sha = git("rev-parse", f"origin/{base_branch}")
 

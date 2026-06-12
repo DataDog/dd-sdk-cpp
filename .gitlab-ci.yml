@@ -449,7 +449,8 @@ prepare-release:
       when: manual
   variables:
     # Custom values can be provided when manually triggering the job in the GitLab UI
-    BUMP_TYPE: ""  # Set BUMP_TYPE=minor etc. to override conventional commits
+    BUMP_TYPE: ""   # Set BUMP_TYPE=minor etc. to override conventional commits
+    GIT_DEPTH: "0"  # Run a full clone so `git log <tag>..HEAD` finds all merged PRs
   id_tokens:
     DDOCTOSTS_ID_TOKEN:
       aud: dd-octo-sts
