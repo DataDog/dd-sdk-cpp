@@ -36,13 +36,25 @@ repl-profile = ["datadog-api-client", "streamlit", "pandas", "plotly"]
 # validation; gitpython to clone rum-events-format repo
 validate-event-types = ["jsonschema", "referencing", "gitpython"]
 
+# tools/prepare-release: Cuts a new release/X.Y.Z branch from develop, bumps the version
+# number in CMakeLists.txt, updates CHANGELOG.md based on PRs being released, and opens
+# a PR from release/X.Y.Z into main
+prepare-release = ["anthropic"]
+
+# tools/publish-release: In main, checks whether version in CMakeLists.txt does not yet
+# have a GitHub release, and if so: creates and pushes a tag X.Y.Z, creates a GitHub
+# release X.Y.Z, and uploads all release artifacts from the CI pipeline to that release
+publish-release = []
+
 # Dummy target to install dependencies for all tools
 all = [
   "dd-sdk-cpp-tools[bootstrap-crashpad]",
   "dd-sdk-cpp-tools[generate-windows-timezone-mapping]",
   "dd-sdk-cpp-tools[integration-test]",
   "dd-sdk-cpp-tools[repl-profile]",
-  "dd-sdk-cpp-tools[validate-event-types]"
+  "dd-sdk-cpp-tools[validate-event-types]",
+  "dd-sdk-cpp-tools[prepare-release]",
+  "dd-sdk-cpp-tools[publish-release]",
 ]
 
 # This is a trivial pyproject.toml used solely to manage dependencies; we don't release

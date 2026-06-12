@@ -44,7 +44,6 @@ FetchContent_Declare(
     curl
     URL "https://github.com/curl/curl/releases/download/curl-8_11_0/curl-8.11.0.tar.gz"
     URL_MD5 "7b6b3613ed9be7b6c010e0750b2c48bb"
-    DOWNLOAD_EXTRACT_TIMESTAMP true
 )
 FetchContent_MakeAvailable(curl)
 
