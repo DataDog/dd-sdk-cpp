@@ -134,8 +134,8 @@ def main():
         "--base", "develop",
         "--head", "main",
         "--state", "open",
-        "--json", "url",
-        "--jq", ".[0].url"
+        "--json", "url,headRepositoryOwner",
+        "--jq", "[.[] | select(.headRepositoryOwner.login == \"DataDog\")] | .[0].url"
     ).strip()
     if existing_pr_url and existing_pr_url != "null":
         print(f"Release {sdk_version} complete.")
