@@ -371,7 +371,7 @@ def main() -> None:
     # either file is unchanged, or if any other files have untracked changes, we're not
     # in the expected state and we should abort the release
     status = git("status", "--porcelain")
-    changed_files = {line[3:] for line in status.splitlines() if line.strip()}
+    changed_files = {line.split(' ')[-1] for line in status.splitlines() if line.strip()}
     if changed_files != {"CMakeLists.txt", "CHANGELOG.md"}:
         raise RuntimeError(f"Unexpected working tree state prior to commit:\n{status}")
     
