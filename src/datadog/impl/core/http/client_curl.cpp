@@ -4,15 +4,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-/**
- * Default HTTP client implementation using libcurl.
- */
-#include "datadog/impl/core/platform/http.hpp"
+#include "datadog/impl/core/http/client.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 
 #include "curl/curl.h"
 
-namespace datadog::platform {
+namespace datadog::impl {
 
 /**
  * Callback passed via CURLOPT_READFUNCTION in order to populate the body of an HTTP
@@ -273,7 +270,7 @@ class CurlHttpSubsystem final : public IHttpSubsystem {
   }
 };
 
-Http::InitResult Http::Init() {
+std::unique_ptr<IHttpSubsystem> Http::Init(const DiagnosticLogger& logger) {
   // Initialize curl: if successful, return an HttpSubsystem implementation
   CURLcode res = curl_global_init(CURL_GLOBAL_ALL);
   if (res == CURLE_OK) {
@@ -282,34 +279,33 @@ Http::InitResult Http::Init() {
     return std::make_unique<CurlHttpSubsystem>();
   }
 
-  // If curl initialization fails, attempt to gather diagnostic info
-  Attribute curl_version = Attribute::String("n/a");
-  Attribute ssl_version = Attribute::String("n/a");
-  Attribute zlib_version = Attribute::String("n/a");
+  // If curl initialization fails, log a diagnostic error describing the failure
+  const char* curl_error_text = curl_easy_strerror(res);
+  std::string_view curl_error =
+      curl_error_text ? std::string_view{curl_error_text} : std::string_view{};
   curl_version_info_data* info = curl_version_info(CURLVERSION_NOW);
+  std::string_view curl_version{};
+  std::string_view ssl_version{};
+  std::string_view zlib_version{};
   if (info) {
     if (info->version) {
-      curl_version.SetString(info->version);
+      curl_version = std::string_view{info->version};
     }
     if (info->ssl_version) {
-      ssl_version.SetString(info->ssl_version);
+      ssl_version = std::string_view{info->ssl_version};
     }
     if (info->libz_version) {
-      zlib_version.SetString(info->libz_version);
+      zlib_version = std::string_view{info->libz_version};
     }
   }
-
-  // Return an error that wraps the human-readable libcurl error message and includes
-  // diagnostic info in custom attributes
-  const char* curl_error_text = curl_easy_strerror(res);
-  return nonstd::make_unexpected(
-      datadog::impl::ErrorMessage(
-          curl_error_text,
-          {{"curl_version", curl_version},
-           {"ssl_version", ssl_version},
-           {"zlib_version", zlib_version}}
-      ).AddPrefix("libcurl init failed")
+  logger.Error(
+      "Failed to initialize libcurl",
+      {{"error", curl_error},
+       {"curl_version", curl_version},
+       {"ssl_version", ssl_version},
+       {"zlib_version", zlib_version}}
   );
+  return nullptr;
 }
 
-}  // namespace datadog::platform
+}  // namespace datadog::impl

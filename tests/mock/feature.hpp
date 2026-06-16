@@ -14,7 +14,7 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature_read.hpp"
-#include "datadog/impl/core/writer.hpp"
+#include "datadog/impl/core/http/body_writer_string.hpp"
 
 using namespace datadog;
 
@@ -98,7 +98,7 @@ class MockFeature : public impl::Feature {
    * Default implementation to record reports generated under test.
    */
   virtual std::optional<impl::Report> UploadThread_PrepareReport(
-      impl::BatchReader& reader, impl::RequestBuilder& builder
+      impl::BatchReader& reader, impl::HttpRequestBuilder& builder
   ) override {
     // Use a report struct to contain all the relevant data about this call
     MockReport report;

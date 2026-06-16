@@ -6,8 +6,8 @@
 
 #include "datadog/impl/logging/logging.hpp"
 
-#include "datadog/impl/core/request_builder.hpp"
-#include "datadog/impl/core/writer.hpp"
+#include "datadog/impl/core/http/body_writer_tlv.hpp"
+#include "datadog/impl/core/http/request_builder.hpp"
 #include "datadog/impl/logging/logger.hpp"
 
 namespace datadog::impl {
@@ -16,7 +16,7 @@ Logging::Logging(const platform::IClock& clock)
     : _clock(clock), _global_attributes(8) {}
 
 std::optional<Report> Logging::UploadThread_PrepareReport(
-    BatchReader& reader, RequestBuilder& builder
+    BatchReader& reader, HttpRequestBuilder& builder
 ) {
   // Log events are sent to logs intake, as a JSON-serialized array of LogEvent objects
   builder.Reset("/api/v2/logs", "application/json");

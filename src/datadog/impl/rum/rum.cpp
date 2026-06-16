@@ -11,8 +11,8 @@
 #include <string_view>
 
 #include "datadog/impl/core/feature_message.hpp"
-#include "datadog/impl/core/request_builder.hpp"
-#include "datadog/impl/core/writer.hpp"
+#include "datadog/impl/core/http/body_writer_tlv.hpp"
+#include "datadog/impl/core/http/request_builder.hpp"
 #include "datadog/impl/rum/crash_processing/crash_handling.hpp"
 #include "datadog/impl/rum/resource_types.hpp"
 
@@ -24,7 +24,7 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
       _application_snapshot() {}
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
-    BatchReader& reader, RequestBuilder& builder
+    BatchReader& reader, HttpRequestBuilder& builder
 ) {
   // This preliminary implementation just streams all RUM events directly, a la Logging
 

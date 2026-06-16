@@ -72,7 +72,7 @@ typedef LONG(WINAPI* RtlGetVersionFunc)(OSVERSIONINFOEXW*);
  * @param logger Logger for emitting debug messages on failure
  * @return true if successful, false otherwise
  */
-bool GetWindowsVersion(OSVERSIONINFOEXW& info, impl::DiagnosticLogger& logger) {
+bool GetWindowsVersion(OSVERSIONINFOEXW& info, const impl::DiagnosticLogger& logger) {
   // Load ntdll.dll and get RtlGetVersion function pointer
   HMODULE ntdll = GetModuleHandleW(L"ntdll.dll");
   if (!ntdll) {
@@ -167,12 +167,12 @@ std::string WideToUtf8(const std::wstring& wstr) {
 class WmiQueryContext {
   IWbemLocator* locator_ = nullptr;
   IWbemServices* services_ = nullptr;
-  impl::DiagnosticLogger& logger_;
+  const impl::DiagnosticLogger& logger_;
   bool initialized_ = false;
   bool com_initialized_ = false;
 
  public:
-  explicit WmiQueryContext(impl::DiagnosticLogger& logger) : logger_(logger) {}
+  explicit WmiQueryContext(const impl::DiagnosticLogger& logger) : logger_(logger) {}
 
   ~WmiQueryContext() {
     if (services_) {
@@ -395,7 +395,7 @@ std::string MapProcessorArchitecture(WORD arch) {
  * @param logger Diagnostic logger for warnings
  * @return Locale string (e.g., "en-US"), or empty on failure
  */
-std::string GetDeviceLocale(impl::DiagnosticLogger& logger) {
+std::string GetDeviceLocale(const impl::DiagnosticLogger& logger) {
   wchar_t locale_name[LOCALE_NAME_MAX_LENGTH];
   int result = GetUserDefaultLocaleName(locale_name, LOCALE_NAME_MAX_LENGTH);
   if (result == 0) {
@@ -418,7 +418,7 @@ std::string GetDeviceLocale(impl::DiagnosticLogger& logger) {
  * @param logger Diagnostic logger for warnings
  * @return IANA timezone ID (e.g., "America/Los_Angeles"), or empty on failure
  */
-std::string GetDeviceTimezone(impl::DiagnosticLogger& logger) {
+std::string GetDeviceTimezone(const impl::DiagnosticLogger& logger) {
   DYNAMIC_TIME_ZONE_INFORMATION tz_info;
   DWORD result = GetDynamicTimeZoneInformation(&tz_info);
 
@@ -463,7 +463,7 @@ class WindowsSystemInfo final : public ISystemInfo {
   DeviceInfo _device_info;
 
  public:
-  explicit WindowsSystemInfo(impl::DiagnosticLogger& logger) {
+  explicit WindowsSystemInfo(const impl::DiagnosticLogger& logger) {
     // Collect OS information
     OSVERSIONINFOEXW version_info = {};
 
@@ -564,7 +564,7 @@ class WindowsSystemInfo final : public ISystemInfo {
   const DeviceInfo& GetDeviceInfo() const override { return _device_info; }
 };
 
-std::unique_ptr<ISystemInfo> SystemInfo::Init(impl::DiagnosticLogger& logger) {
+std::unique_ptr<ISystemInfo> SystemInfo::Init(const impl::DiagnosticLogger& logger) {
   return std::make_unique<WindowsSystemInfo>(logger);
 }
 

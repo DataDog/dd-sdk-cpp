@@ -4,60 +4,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/writer.hpp"
-
-#include <cstring>
+#include "datadog/impl/core/http/body_writer_tlv.hpp"
 
 #include "datadog/impl/core/feature_read.hpp"
-#include "datadog/impl/core/tlv.hpp"
+#include "datadog/impl/core/http/body_writer_util.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog::impl {
-
-static size_t _chunked_write(
-    char* dst, size_t dst_size, const char* src, size_t src_size
-) {
-  // Checks for zero size should occur before we're called
-  DATADOG_ASSERT(dst_size > 0, "Attempted write with zero-length dst buffer");
-  DATADOG_ASSERT(src_size > 0, "Attempted write with zero-length src buffer");
-
-  // Copy from src as many bytes as will fit in dst
-  const size_t num_bytes_to_copy = std::min(dst_size, src_size);
-  std::memcpy(dst, src, num_bytes_to_copy);
-  return num_bytes_to_copy;
-}
-
-static size_t _handle_chunked_write(
-    char* dst,
-    size_t dst_size,
-    const char* src_buffer,
-    size_t src_buffer_size,
-    size_t& mut_offset
-) {
-  // Compute the position we're reading from and how many bytes are found there
-  const char* src = src_buffer + mut_offset;
-  const size_t src_size = src_buffer_size - mut_offset;
-
-  // If there's nothing left to write, write 0 bytes and return
-  if (src_size == 0) {
-    return 0;
-  }
-
-  // Perform the write, then increment our stored offset
-  const size_t num_bytes_written = _chunked_write(dst, dst_size, src, src_size);
-  mut_offset += num_bytes_written;
-  return num_bytes_written;
-}
-
-size_t StringWriter::operator()(char* buffer, size_t num_bytes) {
-  // If an HTTP client implementation is silly enough to ask us to write to an empty
-  // buffer, guard against it
-  if (num_bytes == 0) {
-    return 0;
-  }
-
-  return _handle_chunked_write(buffer, num_bytes, s.data(), s.size(), offset);
-}
 
 size_t TLVBatchWriter::State::Write(char*& mut_dst, size_t dst_size) {
   const size_t n = _handle_chunked_write(mut_dst, dst_size, s.data(), s.size(), offset);
@@ -90,13 +43,13 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes) {
       // If we fail to read from the batch file, abort the request
       auto first = reader.ReadNext();
       if (first.status == BatchReader::Result::Status::Error) {
-        return platform::HTTP_WRITE_RESULT_ABORT;
+        return HTTP_WRITE_RESULT_ABORT;
       }
 
       // If we reach the end of the file without finding a single event block, abort the
       // request
       if (first.status == BatchReader::Result::Status::EndOfFile) {
-        return platform::HTTP_WRITE_RESULT_ABORT;
+        return HTTP_WRITE_RESULT_ABORT;
       }
 
       // We've read a valid TLV block
@@ -136,7 +89,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes) {
         // Read the next TLV block from the file, aborting on any read failure
         auto next = reader.ReadNext();
         if (next.status == BatchReader::Result::Status::Error) {
-          return platform::HTTP_WRITE_RESULT_ABORT;
+          return HTTP_WRITE_RESULT_ABORT;
         }
 
         // Read OK: if we've cleanly reached the end of the file, we can wrap up
@@ -206,7 +159,7 @@ size_t TLVBatchWriter::operator()(char* buffer, size_t num_bytes) {
 
   // Our state-machine logic shouldn't let us get here
   DATADOG_ASSERT(false, "Unexpected state in TLVBatchWriter");
-  return platform::HTTP_WRITE_RESULT_ABORT;
+  return HTTP_WRITE_RESULT_ABORT;
 }
 
 }  // namespace datadog::impl

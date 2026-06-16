@@ -24,8 +24,8 @@ IncludeCategories:
   # System headers (e.g. <cstdio> after <stdio.h>)
   - Regex: '^<.*>'
     Priority: 2
-  # Third-party dependencies (nonstd::expected, hhinant/date, Crashpad client, etc.)
-  - Regex: '^"(nonstd|date|client|nlohmann)/'
+  # Third-party dependencies (hhinant/date, Crashpad client, etc.)
+  - Regex: '^"(date|client|nlohmann)/'
     Priority: 3
   # Private datadog headers: these go after public headers, but we match them first
   - Regex: '^"datadog/(c|cpp|impl)/'

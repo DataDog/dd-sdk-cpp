@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/platform/http.hpp"
+#include "datadog/impl/core/http/client.hpp"
 
 #include <algorithm>
 #include <catch2/catch_test_macros.hpp>
@@ -14,29 +14,25 @@
 #include <iomanip>
 #include <sstream>
 
-#include "datadog/impl/core/writer.hpp"
+#include "datadog/impl/core/http/body_writer_string.hpp"
 
 #include "support/http_server.hpp"
 
 using namespace datadog;
 
-// Tag [platform-http] describes tests used to validate that a platform-specific or
-// user-provided implementation of platform/http.hpp behaves as expected
+// These tests validate whichever implementation of IHttpClient has been provided at
+// build-time
 
-TEST_CASE("Http", "[unit][platform-http]") {
+TEST_CASE("Http", "[unit][http]") {
   SECTION("M create a valid IHttpSubsystem W static Init is called") {
-    auto http_result = platform::Http::Init();
-    REQUIRE(http_result.has_value());
-    auto http = std::move(*http_result);
+    auto http = impl::Http::Init(impl::DiagnosticLogger{});
     REQUIRE(http != nullptr);
   }
 }
 
-TEST_CASE("IHttpSubsystem", "[unit][platform-http]") {
+TEST_CASE("IHttpSubsystem", "[unit][http]") {
   // Given an HTTP subsystem
-  auto http_result = platform::Http::Init();
-  REQUIRE(http_result.has_value());
-  auto http = std::move(*http_result);
+  auto http = impl::Http::Init(impl::DiagnosticLogger{});
   REQUIRE(http != nullptr);
 
   SECTION("M create a valid IHttpClient W ") {
@@ -45,11 +41,9 @@ TEST_CASE("IHttpSubsystem", "[unit][platform-http]") {
   }
 }
 
-TEST_CASE("IHttpClient", "[unit][platform-http]") {
+TEST_CASE("IHttpClient", "[unit][http]") {
   // Given an HTTP client
-  auto http_result = platform::Http::Init();
-  REQUIRE(http_result.has_value());
-  auto http = std::move(*http_result);
+  auto http = impl::Http::Init(impl::DiagnosticLogger{});
   REQUIRE(http != nullptr);
   auto client = http->CreateClient();
   REQUIRE(client != nullptr);
@@ -69,7 +63,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
     auto result = client->Post(url.c_str(), headers.c_str(), body_writer);
 
     // Then it gets a valid response
-    REQUIRE(result.type == platform::HttpResultType::GotResponse);
+    REQUIRE(result.type == impl::HttpResultType::GotResponse);
     REQUIRE(result.status_code == 200);
 
     // And the server receives the expected request
@@ -100,7 +94,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
       auto result = client->Post(url.c_str(), "", impl::StringWriter{"hi"});
 
       // Then it dutifully conveys that status code
-      REQUIRE(result.type == platform::HttpResultType::GotResponse);
+      REQUIRE(result.type == impl::HttpResultType::GotResponse);
       REQUIRE(result.status_code == status_code);
     }
 
@@ -123,7 +117,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
     );
 
     // Then the client will indicate a retryable error in response to reading EOF
-    REQUIRE(result.type == platform::HttpResultType::GotNoResponse_Retryable);
+    REQUIRE(result.type == impl::HttpResultType::GotNoResponse_Retryable);
     REQUIRE(result.status_code == 0);
 
     // And it will do so without delay
@@ -135,7 +129,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
     auto result = client->Post("!@#$%^&", "", impl::StringWriter{"hi"});
 
     // Then the client will that it got no response, non-retryable
-    REQUIRE(result.type == platform::HttpResultType::GotNoResponse_NonRetryable);
+    REQUIRE(result.type == impl::HttpResultType::GotNoResponse_NonRetryable);
     REQUIRE(result.status_code == 0);
   }
 
@@ -161,7 +155,7 @@ TEST_CASE("IHttpClient", "[unit][platform-http]") {
     auto result = client->Post(url.c_str(), headers.c_str(), impl::StringWriter{s});
 
     // Then the client will get an OK response
-    REQUIRE(result.type == platform::HttpResultType::GotResponse);
+    REQUIRE(result.type == impl::HttpResultType::GotResponse);
     REQUIRE(result.status_code == 202);
 
     // And the server will have received the full payload

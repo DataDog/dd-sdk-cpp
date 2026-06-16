@@ -59,7 +59,7 @@ std::string ParseOsReleaseValue(std::string_view line, std::string_view key) {
  * @return true if file was successfully parsed
  */
 bool ParseOsRelease(
-    std::string& name, std::string& version, impl::DiagnosticLogger& logger
+    std::string& name, std::string& version, const impl::DiagnosticLogger& logger
 ) {
   std::ifstream file("/etc/os-release");
   if (!file.is_open()) {
@@ -153,7 +153,7 @@ std::string ReadDmiFile(const char* filename) {
  * @param logger Diagnostic logger for warnings
  * @return Locale string (e.g., "en-US"), or empty on failure
  */
-std::string ParseLinuxLocale(impl::DiagnosticLogger& logger) {
+std::string ParseLinuxLocale(const impl::DiagnosticLogger& logger) {
   // Check LC_ALL first, then LANG
   // NOTE: getenv is not thread-safe with concurrent *modifications* to environment
   // variables. This would technically be a race condition if the client application
@@ -212,7 +212,7 @@ std::string ParseLinuxLocale(impl::DiagnosticLogger& logger) {
  * @param logger Diagnostic logger for warnings
  * @return IANA timezone (e.g., "America/New_York"), or empty on failure
  */
-std::string GetLinuxTimezone(impl::DiagnosticLogger& logger) {
+std::string GetLinuxTimezone(const impl::DiagnosticLogger& logger) {
   char buffer[PATH_MAX];
   ssize_t len =
       readlink("/etc/localtime", static_cast<char*>(buffer), sizeof(buffer) - 1);
@@ -257,7 +257,7 @@ class LinuxSystemInfo final : public ISystemInfo {
   DeviceInfo _device_info;
 
  public:
-  explicit LinuxSystemInfo(impl::DiagnosticLogger& logger) {
+  explicit LinuxSystemInfo(const impl::DiagnosticLogger& logger) {
     // Collect OS information
     // Parse /etc/os-release for name and version
     if (!ParseOsRelease(_os_info.name, _os_info.version, logger)) {
@@ -325,7 +325,7 @@ class LinuxSystemInfo final : public ISystemInfo {
   const DeviceInfo& GetDeviceInfo() const override { return _device_info; }
 };
 
-std::unique_ptr<ISystemInfo> SystemInfo::Init(impl::DiagnosticLogger& logger) {
+std::unique_ptr<ISystemInfo> SystemInfo::Init(const impl::DiagnosticLogger& logger) {
   return std::make_unique<LinuxSystemInfo>(logger);
 }
 

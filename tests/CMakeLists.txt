@@ -34,6 +34,10 @@ add_executable(tests
     impl/core/events/struct_test.cpp
     impl/core/events/timestamp_test.cpp
     impl/core/feature_types/rum_test.cpp
+    impl/core/http/body_writer_string_test.cpp
+    impl/core/http/body_writer_tlv_test.cpp
+    impl/core/http/client_test.cpp
+    impl/core/http/request_builder_test.cpp
     impl/core/json/primitives/bool_test.cpp
     impl/core/json/primitives/float_test.cpp
     impl/core/json/primitives/integer_test.cpp
@@ -44,7 +48,6 @@ add_executable(tests
     impl/core/json/attribute_test.cpp
     impl/core/json/optional_test.cpp
     impl/core/platform/clock_test.cpp
-    impl/core/platform/http_test.cpp
     impl/core/platform/system_info_test.cpp
     impl/core/storage/artifact_test.cpp
     impl/core/storage/feature_event_test.cpp
@@ -53,7 +56,6 @@ add_executable(tests
     impl/core/storage/path_test.cpp
     impl/core/storage/sdk_test.cpp
     impl/core/util/diagnostics_test.cpp
-    impl/core/util/error_message_test.cpp
     impl/core/util/json_test.cpp
     impl/core/util/validation_test.cpp
     impl/core/block_test.cpp
@@ -67,7 +69,6 @@ add_executable(tests
     impl/core/feature_scope_test.cpp
     impl/core/feature_test.cpp
     impl/core/queue_test.cpp
-    impl/core/request_builder_test.cpp
     impl/core/storage_queue_test.cpp
     impl/core/storage_thread_test.cpp
     impl/core/storage_write_test.cpp
@@ -75,7 +76,6 @@ add_executable(tests
     impl/core/upload_scheduler_test.cpp
     impl/core/upload_thread_test.cpp
     impl/core/upload_util_test.cpp
-    impl/core/writer_test.cpp
     impl/crash_reporting/data/crash_context_read_test.cpp
     impl/crash_reporting/data/crash_report_read_test.cpp
     impl/crash_reporting/crash_processing_test.cpp
