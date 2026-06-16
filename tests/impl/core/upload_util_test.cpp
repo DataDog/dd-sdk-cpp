@@ -30,6 +30,9 @@ TEST_CASE("GetIntakeOrigin", "[unit][core]") {
     REQUIRE(
         GetIntakeOrigin(Site::us1_fed, "") == "https://browser-intake-ddog-gov.com"
     );
+    REQUIRE(
+        GetIntakeOrigin(Site::us2_fed, "") == "https://browser-intake-us2-ddog-gov.com"
+    );
   }
 
   SECTION("M override with custom endpoint W custom endpoint is given") {
