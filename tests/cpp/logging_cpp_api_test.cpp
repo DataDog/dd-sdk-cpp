@@ -205,7 +205,7 @@ TEST_CASE("Logging argument validation", "[unit][logging][cpp-api]") {
          // Log a message with attributes
          Attribute message_attributes = Attribute::Object(1);
          message_attributes.SetObjectProperty("bar", Attribute::String("world"));
-         logger_b->Info("goodbye", message_attributes);
+         logger_b->Info("goodbye", LogError{}, message_attributes);
        },
        // All of the above should complete with 0 warnings and 0 errors
        {},
@@ -763,10 +763,10 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
 
          // Emit messages from our logger, testing all functions for coverage
          logger.Log(LogLevel::Info, "hello", LogError{}, obj);
-         logger.Debug("gubed", obj);
-         logger.Info("ofni", obj);
-         logger.Notice("eciton", obj);
-         logger.Warn("nraw", obj);
+         logger.Debug("gubed", LogError{}, obj);
+         logger.Info("ofni", LogError{}, obj);
+         logger.Notice("eciton", LogError{}, obj);
+         logger.Warn("nraw", LogError{}, obj);
          logger.Error("rorre", LogError{}, obj);
          logger.Critical("lacitirc", LogError{}, obj);
        },
@@ -881,7 +881,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          Attribute obj = Attribute::Object(2);
          obj.SetObjectProperty("foo", Attribute::Int(300));
          obj.SetObjectProperty("bar", Attribute::Int(400));
-         logger.Info("hello", obj);
+         logger.Info("hello", LogError{}, obj);
        },
        // Event should include "foo":300,"baz":200,"bar":400
        nlohmann::json::array({nlohmann::json{
@@ -915,7 +915,7 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          obj.SetObjectProperty("message", Attribute::Int(300));
          obj.SetObjectProperty("_dd", Attribute::Int(300));
          obj.SetObjectProperty("ok-message", Attribute::Int(300));
-         logger.Info("hello", obj);
+         logger.Info("hello", LogError{}, obj);
        },
        // Event should include "ok-global":100,"ok-logger":200,"ok-message":300, but
        // all other custom attributes should be entirely ignored
@@ -948,13 +948,13 @@ TEST_CASE("Logger attributes", "[unit][logging][cpp-api]") {
          obj.SetObjectProperty("baz", Attribute::Int(300));
 
          // Emit a single log message
-         logger.Info("alpha", obj);
+         logger.Info("alpha", LogError{}, obj);
 
          // Next: delete our three custom attributes and emit another message
          logging.RemoveAttribute("foo");
          logger.RemoveAttribute("bar");
          obj.DeleteObjectProperty("baz");
-         logger.Info("bravo", obj);
+         logger.Info("bravo", LogError{}, obj);
        },
        // Our first event should have all three custom attribute values, while the
        // second event should have none
@@ -1164,28 +1164,44 @@ TEST_CASE("Logger error details", "[unit][logging][cpp-api]") {
   auto logger = logging->CreateLogger();
   core->Start();
 
-  SECTION("M include error.kind and error.stack W Error called with both") {
+  SECTION("M include all error fields W Error called with all three") {
     // When Error is called with a fully-populated LogError
-    logger->Error("msg", LogError{"SomeException", "frame 0\nframe 1"});
+    logger->Error("msg", LogError{"err msg", "SomeException", "frame 0\nframe 1"});
     core->Stop();
 
-    // Then the resulting event carries both error fields
+    // Then the resulting event carries all three error fields
     REQUIRE(test.client.requests.size() == 1);
     auto events = MergeJsonArrays(test.client.requests);
     REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.message"] == "err msg");
     REQUIRE(events[0]["error.kind"] == "SomeException");
     REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
   }
 
-  SECTION("M include error.kind and error.stack W Critical called with both") {
+  SECTION("M include all error fields W Critical called with all three") {
     // When Critical is called with a fully-populated LogError
-    logger->Critical("msg", LogError{"SomeException", "frame 0\nframe 1"});
+    logger->Critical("msg", LogError{"err msg", "SomeException", "frame 0\nframe 1"});
     core->Stop();
 
-    // Then the resulting event carries both error fields
+    // Then the resulting event carries all three error fields
     REQUIRE(test.client.requests.size() == 1);
     auto events = MergeJsonArrays(test.client.requests);
     REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.message"] == "err msg");
+    REQUIRE(events[0]["error.kind"] == "SomeException");
+    REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
+  }
+
+  SECTION("M include all error fields W Warn called with all three") {
+    // When Warn is called with a fully-populated LogError
+    logger->Warn("msg", LogError{"err msg", "SomeException", "frame 0\nframe 1"});
+    core->Stop();
+
+    // Then the resulting event carries all three error fields
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.message"] == "err msg");
     REQUIRE(events[0]["error.kind"] == "SomeException");
     REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
   }
@@ -1195,24 +1211,11 @@ TEST_CASE("Logger error details", "[unit][logging][cpp-api]") {
     logger->Error("msg");
     core->Stop();
 
-    // Then the resulting event carries neither error field
+    // Then the resulting event carries none of the error fields
     REQUIRE(test.client.requests.size() == 1);
     auto events = MergeJsonArrays(test.client.requests);
     REQUIRE(events.size() == 1);
-    REQUIRE(!events[0].contains("error.kind"));
-    REQUIRE(!events[0].contains("error.stack"));
-  }
-
-  SECTION("M omit error fields W level is below error") {
-    // When Log is called at Warn with error details provided
-    logger->Log(LogLevel::Warn, "msg", LogError{"SomeException", "trace"});
-    core->Stop();
-
-    // Then the resulting event carries neither error field, since the level guard in
-    // Logger::Log strips them before they reach the context thread
-    REQUIRE(test.client.requests.size() == 1);
-    auto events = MergeJsonArrays(test.client.requests);
-    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.message"));
     REQUIRE(!events[0].contains("error.kind"));
     REQUIRE(!events[0].contains("error.stack"));
   }

@@ -99,7 +99,7 @@ void your_application_code() {
 
   // Start the SDK, use features while running, and stop when done
   dd_core_start(&core);
-  dd_logger_info(logger, "This message will be sent to Datadog", NULL);
+  dd_logger_info(logger, "This message will be sent to Datadog", NULL, NULL);
   dd_core_stop(&core);
 
   // Clean up SDK resources when done

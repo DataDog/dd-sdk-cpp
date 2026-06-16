@@ -123,7 +123,8 @@ void ContextThread_GenerateLogEvent(
     device.time_zone = ctx.device->time_zone;
   }
 
-  // Add error details if present; Logger::Log only populates these for Error/Critical
+  // Add any error details provided with this call
+  ev.error_message = std::move(call.error_message);
   ev.error_kind = std::move(call.error_kind);
   ev.error_stack = std::move(call.error_stack);
 
@@ -150,7 +151,7 @@ void ContextThread_GenerateLogEvent(
     publisher(
         LogErrorGeneratedMessage{
             call.timestamp,
-            std::move(ev.message),
+            std::move(ev.error_message.value),
             std::move(ev.error_kind.value),
             std::move(ev.error_stack.value),
             std::move(ev.user_attributes),

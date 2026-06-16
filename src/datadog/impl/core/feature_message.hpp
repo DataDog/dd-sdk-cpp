@@ -99,11 +99,11 @@ struct CrashReportProcessedMessage {
 
 /**
  * Emitted by the `Logging` feature upon generating a log event at `error` or `critical`
- * level.
+ * level, carrying the error details needed to record a RUM Error.
  */
 struct LogErrorGeneratedMessage {
   Timestamp timestamp;
-  std::string message;
+  std::string error_message;
   std::string error_kind;
   std::string error_stack;
   Attribute attributes;

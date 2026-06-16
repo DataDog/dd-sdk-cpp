@@ -96,13 +96,13 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
       RumCommandParams params = self->GetBaseCommandParams(m->attributes);
       params.issued_at = m->timestamp;
 
-      // Dispatch an AddError command that records our log message, with the
+      // Dispatch an AddError command that records the error details, with the
       // 'error.source' value hardcoded to "logger"
       self->DispatchAsync(
           RumCommand::AddError(
               std::move(params),
               RumErrorSource::Logger,
-              RumErrorDetails{m->message, m->error_kind, m->error_stack}
+              RumErrorDetails{m->error_message, m->error_kind, m->error_stack}
           )
       );
     }

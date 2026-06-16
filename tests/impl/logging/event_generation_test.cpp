@@ -47,6 +47,7 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
       "Hello, this is a log message",
       "",
       "",
+      "",
       Timestamp{std::chrono::nanoseconds(1779463265013148820)},
       Attribute(),
       ""
@@ -412,30 +413,34 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     );
   }
 
-  SECTION("M include error.kind and error.stack W both are provided") {
-    // When a log call carries non-empty error_kind and error_stack
+  SECTION("M include error fields W all are provided") {
+    // When a log call carries non-empty error_message, error_kind, and error_stack
+    call.error_message = "something bad happened";
     call.error_kind = "SomeException";
     call.error_stack = "frame 0\nframe 1";
     ContextThread_GenerateLogEvent(
         logger, call, ctx, event_writer, buf, noop_publisher
     );
 
-    // Then the resulting event carries both error fields
+    // Then the resulting event carries all three error fields
     REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.message"] == "something bad happened");
     REQUIRE(events[0]["error.kind"] == "SomeException");
     REQUIRE(events[0]["error.stack"] == "frame 0\nframe 1");
   }
 
-  SECTION("M omit error fields W both are empty") {
-    // When a log call carries empty error_kind and error_stack (the default)
+  SECTION("M omit error fields W all are empty") {
+    // When a log call carries no error details (the default)
+    REQUIRE(call.error_message.empty());
     REQUIRE(call.error_kind.empty());
     REQUIRE(call.error_stack.empty());
     ContextThread_GenerateLogEvent(
         logger, call, ctx, event_writer, buf, noop_publisher
     );
 
-    // Then the resulting event carries neither error field
+    // Then the resulting event carries none of the error fields
     REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.message"));
     REQUIRE(!events[0].contains("error.kind"));
     REQUIRE(!events[0].contains("error.stack"));
   }
@@ -451,6 +456,7 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     // And a set of user attributes and error details on the call
     call.merged_attributes.InitObject(1);
     call.merged_attributes.SetObjectProperty("key", Attribute::String("value"));
+    call.error_message = "something bad happened";
     call.error_kind = "SomeException";
     call.error_stack = "frame 0\nframe 1";
 
@@ -470,19 +476,19 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
     );
 
     // Then each call produces one LogErrorGeneratedMessage on the bus carrying
-    // the log's message, timestamp, attributes, and error details
+    // the error's own message, timestamp, attributes, and error details
     REQUIRE(messages.size() == 2);
 
     const auto* first = std::get_if<LogErrorGeneratedMessage>(&messages[0]);
     REQUIRE(first != nullptr);
-    REQUIRE(first->message == "something went wrong");
+    REQUIRE(first->error_message == "something bad happened");
     REQUIRE(first->timestamp == call.timestamp);
     REQUIRE(first->error_kind == "SomeException");
     REQUIRE(first->error_stack == "frame 0\nframe 1");
 
     const auto* second = std::get_if<LogErrorGeneratedMessage>(&messages[1]);
     REQUIRE(second != nullptr);
-    REQUIRE(second->message == "fatal problem");
+    REQUIRE(second->error_message == "something bad happened");
     REQUIRE(second->error_kind == "SomeException");
     REQUIRE(second->error_stack == "frame 0\nframe 1");
   }

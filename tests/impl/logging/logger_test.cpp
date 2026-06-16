@@ -52,7 +52,12 @@ TEST_CASE("Logger", "[unit][logging]") {
     Attribute error_attributes = Attribute::Object(2);
     error_attributes.SetObjectProperty("foo", Attribute::Int(333));
     error_attributes.SetObjectProperty("bar", Attribute::Int(444));
-    logger->Log(LogLevel::Error, "This is an error", LogError{}, error_attributes);
+    logger->Log(
+        LogLevel::Error,
+        "This is an error",
+        LogError{"error detail", {}, {}},
+        error_attributes
+    );
 
     // And update our SDK state, apply some custom attributes, add custom tags, and log
     // another message
@@ -101,7 +106,7 @@ TEST_CASE("Logger", "[unit][logging]") {
       }
     }
     REQUIRE(error_msgs.size() == 1);
-    REQUIRE(error_msgs[0]->message == "This is an error");
+    REQUIRE(error_msgs[0]->error_message == "error detail");
     REQUIRE(error_msgs[0]->attributes.GetObjectProperty("foo").GetIntValue() == 333);
     REQUIRE(error_msgs[0]->attributes.GetObjectProperty("bar").GetIntValue() == 444);
 
@@ -112,6 +117,7 @@ TEST_CASE("Logger", "[unit][logging]") {
       "service": "mock-service",
       "date": "2023-11-14T22:13:20.000Z",
       "message": "This is an error",
+      "error.message": "error detail",
       "ddtags": "service:mock-service,env:mock-env,sdk_version:1.2.3",
       "logger.name": "cool-logger",
       "logger.version": "1.2.3",
