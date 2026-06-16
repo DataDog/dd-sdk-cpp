@@ -295,6 +295,38 @@ DATADOG_API void dd_core_config_set_batch_processing_level(
     dd_core_config_t* config, dd_batch_processing_level_t value
 );
 
+/**
+ * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+ * without notice. Do not use in production code.
+ */
+DATADOG_API void dd_core_config_internal_flush_http_requests_on_stop(
+    dd_core_config_t* config
+);
+
+/**
+ * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+ * without notice. Do not use in production code.
+ */
+DATADOG_API void dd_core_config_internal_set_custom_endpoint_url(
+    dd_core_config_t* config, const char* value
+);
+
+/**
+ * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+ * without notice. Do not use in production code.
+ */
+DATADOG_API void dd_core_config_internal_set_source(
+    dd_core_config_t* config, const char* value
+);
+
+/**
+ * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+ * without notice. Do not use in production code.
+ */
+DATADOG_API void dd_core_config_internal_set_sdk_version(
+    dd_core_config_t* config, const char* value
+);
+
 // === SDK Core ===
 
 /**

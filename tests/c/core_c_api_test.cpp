@@ -55,7 +55,7 @@ TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-
     dd_core_config_t config;
     dd_core_config_init(&config, "token", "service", "env");
     dd_core_config_set_application_storage_path(&config, ".");
-    config.internal_options.source = "unity";
+    dd_core_config_internal_set_source(&config, "unity");
 
     // When we create a core from that config
     dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
