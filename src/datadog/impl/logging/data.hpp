@@ -31,6 +31,7 @@ struct LoggerConfigDetails {
 struct LogCallDetails {
   LogLevel level;
   std::string message;
+  std::string error_message;
   std::string error_kind;
   std::string error_stack;
   Timestamp timestamp;

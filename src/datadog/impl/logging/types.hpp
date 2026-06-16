@@ -33,6 +33,7 @@ inline LoggerConfig LoggerConfig_FromC(const dd_logger_config_t& config) {
 
 inline LogError LogError_FromC(const dd_log_error_t& err) {
   return LogError{
+      err.message ? std::string_view{err.message} : std::string_view{},
       err.kind ? std::string_view{err.kind} : std::string_view{},
       err.stack ? std::string_view{err.stack} : std::string_view{}
   };

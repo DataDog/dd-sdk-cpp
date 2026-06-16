@@ -235,19 +235,20 @@ DATADOG_API void dd_logger_remove_tag(dd_logger_t* logger, const char* tag);
 DATADOG_API void dd_logger_remove_tags_with_key(dd_logger_t* logger, const char* key);
 
 /**
- * Caller-supplied details about an error recorded via a call to dd_logger_error() or
- * dd_error_critical(). Values provided as NULL or empty will be omitted.
+ * Caller-supplied details about an error attached to a log event. Values provided as
+ * NULL or empty will be omitted from the resulting event.
  */
 typedef struct dd_log_error {
-  const char* kind;  /* Serialized as error.kind on log events; error.type for RUM */
-  const char* stack; /* Serialized as error.stack on both log and RUM events */
+  const char* message; /* Serialized as error.message on both log and RUM events */
+  const char* kind;    /* Serialized as error.kind on log events; error.type for RUM */
+  const char* stack;   /* Serialized as error.stack on both log and RUM events */
 } dd_log_error_t;
 
 /**
  * Emits a log message at the given level.
  *
- * `err` will be used only if level is DD_LOG_LEVEL_ERROR or higher. `err` may always be
- * NULL, regardless of log level.
+ * `err` may be NULL at any log level. When non-NULL, its fields are included in the
+ * resulting log event unconditionally.
  *
  * If `attributes` has type DD_VALUE_TYPE_OBJECT, each of its named values will be
  * included in the resulting log event, taking precedence over global and logger-level
@@ -263,40 +264,52 @@ DATADOG_API void dd_logger_log(
 );
 
 /**
- * Emits a Debug-level message from the given logger, with an optional set of extra
- * attribute values.
+ * Emits a Debug-level message from the given logger, with optional error details and an
+ * optional set of extra attribute values.
  */
 DATADOG_API void dd_logger_debug(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 );
 
 /**
- * Emits an Info-level message from the given logger, with an optional set of extra
- * attribute values.
+ * Emits an Info-level message from the given logger, with optional error details and an
+ * optional set of extra attribute values.
  */
 DATADOG_API void dd_logger_info(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 );
 
 /**
- * Emits a Notice-level message from the given logger, with an optional set of extra
- * attribute values.
+ * Emits a Notice-level message from the given logger, with optional error details and
+ * an optional set of extra attribute values.
  */
 DATADOG_API void dd_logger_notice(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 );
 
 /**
- * Emits a Warning-level message from the given logger, with an optional set of extra
- * attribute values.
+ * Emits a Warning-level message from the given logger, with optional error details and
+ * an optional set of extra attribute values.
  */
 DATADOG_API void dd_logger_warn(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 );
 
 /**
- * Emits an Error-level message from the given logger, optionally described with the
- * given error kind and stack trace, and with an optional set of extra attribute values.
+ * Emits an Error-level message from the given logger, with optional error details and
+ * an optional set of extra attribute values.
  *
  * If RUM tracking is active, this call will automatically record a RUM Error in the
  * active view.
@@ -309,8 +322,8 @@ DATADOG_API void dd_logger_error(
 );
 
 /**
- * Emits a Critical-level message from the given logger, optionally described with the
- * given error kind and stack trace, and with an optional set of extra attribute values.
+ * Emits a Critical-level message from the given logger, with optional error details and
+ * an optional set of extra attribute values.
  *
  * If RUM tracking is active, this call will automatically record a RUM Error in the
  * active view.

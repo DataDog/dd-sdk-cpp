@@ -63,7 +63,7 @@ TEST_CASE("dd_core user info", "[unit][core]" FEATURE_TAGS "[c-api]") {
     // Each test case should call dd_core_start(); we assume it's already started
 
     // Produce a single log event
-    dd_logger_info(logger, "hello", nullptr);
+    dd_logger_info(logger, "hello", nullptr, nullptr);
 
     // Produce a series of RUM events to verify that user info is faithfully conveyed
     // across all event types
