@@ -181,4 +181,191 @@ TEST_CASE_METHOD(ResourceFixture, "RumResourceScope::Process", "[unit][rum]") {
     REQUIRE(event["error"]["resource"]["url"] == "https://www.example.com/api/foo");
     REQUIRE(event["error"]["resource"]["status_code"] == 100);
   }
+
+  SECTION(
+      "M populate _dd fields and exclude trace attrs from context W trace attributes "
+      "provided on StartResource"
+  ) {
+    // Given a scope started with all four tracing attributes and a regular attribute
+    Attribute start_attrs = Attribute::Object(5);
+    start_attrs.SetObjectProperty("_dd.trace_id", Attribute::String("1a2b3c4d"));
+    start_attrs.SetObjectProperty("_dd.span_id", Attribute::String("5678"));
+    start_attrs.SetObjectProperty("_dd.parent_span_id", Attribute::String("9abc"));
+    start_attrs.SetObjectProperty("_dd.rule_psr", Attribute::Double(0.5));
+    start_attrs.SetObjectProperty("foo", Attribute::Int(42));
+
+    RumResourceScope traced_scope(
+        deps,
+        parent,
+        *UUID::Parse(RESOURCE_ID),
+        "traced-resource-key",
+        RumResourceMethod::Get,
+        "https://www.example.com/api/traced",
+        clock.Now(),
+        start_attrs
+    );
+
+    // When we stop the resource without additional attributes
+    clock.TickMilliseconds(5);
+    traced_scope.Process(
+        RumCommand::StopResource(
+            GetBaseParams(),
+            "traced-resource-key",
+            RumResponseDetails{200, 100, RumResourceType::Xhr}
+        ),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then the resource event has the tracing values on _dd
+    auto resources = event_capture.Resources();
+    REQUIRE(resources.size() == 1);
+    const auto& event = resources.front();
+    REQUIRE(event["_dd"]["trace_id"] == "1a2b3c4d");
+    REQUIRE(event["_dd"]["span_id"] == "5678");
+    REQUIRE(event["_dd"]["parent_span_id"] == "9abc");
+    REQUIRE(event["_dd"]["rule_psr"] == 0.5);
+
+    // And context contains only the non-trace attribute
+    REQUIRE(event["context"] == nlohmann::json{{"foo", 42}});
+  }
+
+  SECTION(
+      "M populate _dd fields and exclude trace attrs from context W trace attributes "
+      "provided on StopResource"
+  ) {
+    // Given a scope started with no attributes
+    RumResourceScope traced_scope(
+        deps,
+        parent,
+        *UUID::Parse(RESOURCE_ID),
+        "traced-resource-key",
+        RumResourceMethod::Get,
+        "https://www.example.com/api/traced",
+        clock.Now(),
+        Attribute()
+    );
+
+    // When we stop the resource with all four tracing attributes and a regular
+    // attribute
+    clock.TickMilliseconds(5);
+    Attribute stop_attrs = Attribute::Object(5);
+    stop_attrs.SetObjectProperty("_dd.trace_id", Attribute::String("aabbccdd"));
+    stop_attrs.SetObjectProperty("_dd.span_id", Attribute::String("1234"));
+    stop_attrs.SetObjectProperty("_dd.parent_span_id", Attribute::String("5678"));
+    stop_attrs.SetObjectProperty("_dd.rule_psr", Attribute::Double(0.25));
+    stop_attrs.SetObjectProperty("foo", Attribute::Int(42));
+
+    traced_scope.Process(
+        RumCommand::StopResource(
+            RumCommandParams(clock.Now(), {}, stop_attrs),
+            "traced-resource-key",
+            RumResponseDetails{200, 100, RumResourceType::Xhr}
+        ),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then the resource event has the tracing values on _dd
+    auto resources = event_capture.Resources();
+    REQUIRE(resources.size() == 1);
+    const auto& event = resources.front();
+    REQUIRE(event["_dd"]["trace_id"] == "aabbccdd");
+    REQUIRE(event["_dd"]["span_id"] == "1234");
+    REQUIRE(event["_dd"]["parent_span_id"] == "5678");
+    REQUIRE(event["_dd"]["rule_psr"] == 0.25);
+
+    // And context contains only the non-trace attribute
+    REQUIRE(event["context"] == nlohmann::json{{"foo", 42}});
+  }
+
+  SECTION(
+      "M populate _dd fields and exclude trace attrs from context on error event W "
+      "trace attributes provided on StopResourceWithError"
+  ) {
+    // Given a scope started with all four tracing attributes and a regular attribute
+    Attribute start_attrs = Attribute::Object(5);
+    start_attrs.SetObjectProperty("_dd.trace_id", Attribute::String("cafebabe"));
+    start_attrs.SetObjectProperty("_dd.span_id", Attribute::String("deadbeef"));
+    start_attrs.SetObjectProperty("_dd.parent_span_id", Attribute::String("feedface"));
+    start_attrs.SetObjectProperty("_dd.rule_psr", Attribute::Double(1.0));
+    start_attrs.SetObjectProperty("foo", Attribute::Int(42));
+
+    RumResourceScope traced_scope(
+        deps,
+        parent,
+        *UUID::Parse(RESOURCE_ID),
+        "traced-error-key",
+        RumResourceMethod::Post,
+        "https://www.example.com/api/write",
+        clock.Now(),
+        start_attrs
+    );
+
+    // When the resource is stopped with an error
+    clock.TickMilliseconds(5);
+    traced_scope.Process(
+        RumCommand::StopResource(
+            GetBaseParams(),
+            "traced-error-key",
+            RumResponseDetails{500},
+            RumErrorDetails{"internal error", "ServerError", "trace\n"}
+        ),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then the error event has the tracing values on _dd
+    auto errors = event_capture.Errors();
+    REQUIRE(errors.size() == 1);
+    const auto& event = errors.front();
+    REQUIRE(event["_dd"]["trace_id"] == "cafebabe");
+    REQUIRE(event["_dd"]["span_id"] == "deadbeef");
+    REQUIRE(event["_dd"]["parent_span_id"] == "feedface");
+    REQUIRE(event["_dd"]["rule_psr"] == 1.0);
+
+    // And context contains only the non-trace attribute
+    REQUIRE(event["context"] == nlohmann::json{{"foo", 42}});
+  }
+
+  SECTION(
+      "M exclude key from context without populating _dd W trace attribute has "
+      "wrong type"
+  ) {
+    // Given a scope started with _dd.trace_id set to an integer (wrong type)
+    Attribute start_attrs = Attribute::Object(1);
+    start_attrs.SetObjectProperty("_dd.trace_id", Attribute::Int(12345));
+
+    RumResourceScope traced_scope(
+        deps,
+        parent,
+        *UUID::Parse(RESOURCE_ID),
+        "traced-resource-key",
+        RumResourceMethod::Get,
+        "https://www.example.com/api/traced",
+        clock.Now(),
+        start_attrs
+    );
+
+    // When we stop the resource
+    clock.TickMilliseconds(5);
+    traced_scope.Process(
+        RumCommand::StopResource(
+            GetBaseParams(),
+            "traced-resource-key",
+            RumResponseDetails{200, 100, RumResourceType::Xhr}
+        ),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then _dd.trace_id is absent from the event (wrong type was not applied)
+    auto resources = event_capture.Resources();
+    REQUIRE(resources.size() == 1);
+    const auto& event = resources.front();
+    REQUIRE(!event["_dd"].contains("trace_id"));
+
+    // And the key is also absent from context (it was consumed regardless of type)
+    REQUIRE(!event.contains("context"));
+  }
 }

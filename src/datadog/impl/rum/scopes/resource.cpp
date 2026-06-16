@@ -15,6 +15,38 @@
 
 namespace datadog::impl {
 
+/**
+ * Extracts the four cross-platform tracing attributes from `context`, populating the
+ * corresponding fields of `dd` and removing those keys from `context` so they don't
+ * appear in the event's 'context' field. Works for any event Internal struct that
+ * carries span_id, parent_span_id, trace_id, and rule_psr (resource and error).
+ */
+template <typename Internal>
+static void extract_trace_attributes(Attribute& context, Internal& dd) {
+  auto extract_string = [&](std::string_view key, OmitIfEmpty<std::string>& field) {
+    if (context.FindObjectProperty(key) < 0) {
+      return;
+    }
+    const Attribute val = context.GetObjectProperty(key);
+    if (val.GetType() == ValueType::String) {
+      field = std::string(val.GetStringValue());
+    }
+    context.DeleteObjectProperty(key);
+  };
+
+  extract_string("_dd.trace_id", dd.trace_id);
+  extract_string("_dd.span_id", dd.span_id);
+  extract_string("_dd.parent_span_id", dd.parent_span_id);
+
+  if (context.FindObjectProperty("_dd.rule_psr") >= 0) {
+    const Attribute val = context.GetObjectProperty("_dd.rule_psr");
+    if (val.GetType() == ValueType::Double) {
+      dd.rule_psr = static_cast<float>(val.GetDoubleValue());
+    }
+    context.DeleteObjectProperty("_dd.rule_psr");
+  }
+}
+
 RumResourceScope::RumResourceScope(
     const RumScopeDependencies& deps,
     RumViewScope& parent,
@@ -151,8 +183,11 @@ void RumResourceScope::SendResourceEvent(
 
   // Set 'context' to the full set of user-specified attributes that should be included
   // in this event, including global and view attributes, as well as any resource-level
-  // attributes specified in StartResource and/or StopResource
+  // attributes specified in StartResource and/or StopResource. Before assigning to the
+  // event, extract any cross-platform tracing attributes (e.g. "_dd.trace_id") from
+  // the merged context and map them to their corresponding fields on ev._dd.
   Attribute context = MergeAttributesForEventContext(base);
+  extract_trace_attributes(context, ev._dd);
   if (context.GetObjectPropertyCount() > 0) {
     ev.context.value = context;
   }
@@ -226,8 +261,10 @@ void RumResourceScope::SendErrorEvent(
 
   // Set 'context' to the full set of user-specified attributes that should be included
   // in this event, including global and view attributes, as well as any resource-level
-  // attributes specified in StartResource and/or StopResourceWithError
+  // attributes specified in StartResource and/or StopResourceWithError. Extract any
+  // cross-platform tracing attributes before assigning so they land on _dd instead.
   Attribute context = MergeAttributesForEventContext(base);
+  extract_trace_attributes(context, ev._dd);
   if (context.GetObjectPropertyCount() > 0) {
     ev.context.value = context;
   }

@@ -1145,6 +1145,10 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
 
     // RumErrorEvent::Internal
     ev._dd.browser_sdk_version = "3.1.2";
+    ev._dd.trace_id = "1a2b3c4d5e6f7a8b";
+    ev._dd.span_id = "9876543210";
+    ev._dd.parent_span_id = "1122334455";
+    ev._dd.rule_psr = 0.5f;
 
     // RumErrorEvent::Action
     ev.action.value.emplace(*UUID::Parse("4aa1315e-4cb3-4d32-90cf-a92bfd02c38c"));
@@ -1365,7 +1369,11 @@ Last 8 instructions at CS:EIP:
           "session_replay_sample_rate": 5,
           "profiling_sample_rate": 20
         },
-        "browser_sdk_version": "3.1.2"
+        "browser_sdk_version": "3.1.2",
+        "span_id": "9876543210",
+        "parent_span_id": "1122334455",
+        "trace_id": "1a2b3c4d5e6f7a8b",
+        "rule_psr": 0.5
       }
     })"));
   }
