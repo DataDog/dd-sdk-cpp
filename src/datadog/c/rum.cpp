@@ -172,11 +172,7 @@ void dd_rum_stop_session(dd_rum_t* rum) {
   rum->impl->StopSession();
 }
 
-void dd_rum_start_view(dd_rum_t* rum, const char* key, const char* name) {
-  dd_rum_start_view_obj(rum, key, name, nullptr);
-}
-
-void dd_rum_start_view_obj(
+void dd_rum_start_view(
     dd_rum_t* rum, const char* key, const char* name, const dd_attribute_t* attributes
 ) {
   // Permit no-op calls
@@ -256,11 +252,7 @@ void dd_rum_remove_view_attribute(dd_rum_t* rum, const char* name) {
   rum->impl->RemoveViewAttribute(name);
 }
 
-void dd_rum_stop_view(dd_rum_t* rum, const char* key) {
-  dd_rum_stop_view_obj(rum, key, nullptr);
-}
-
-void dd_rum_stop_view_obj(
+void dd_rum_stop_view(
     dd_rum_t* rum, const char* key, const dd_attribute_t* attributes
 ) {
   // Permit no-op calls

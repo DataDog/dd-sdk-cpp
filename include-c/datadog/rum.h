@@ -133,14 +133,12 @@ DATADOG_API void dd_rum_stop_session(dd_rum_t* rum);
  * session.
  *
  * When a new view is started, all existing views are implicitly stopped.
+ *
+ * If `attributes` is an object with one or more properties, those custom attribute
+ * values will be associated with the new view and attached to all RUM events sent in
+ * the context of that view.
  */
-DATADOG_API void dd_rum_start_view(dd_rum_t* rum, const char* key, const char* name);
-
-/**
- * Starts a new RUM view, associating an initial set of custom attributes with that
- * view.
- */
-DATADOG_API void dd_rum_start_view_obj(
+DATADOG_API void dd_rum_start_view(
     dd_rum_t* rum, const char* key, const char* name, const dd_attribute_t* attributes
 );
 
@@ -168,15 +166,10 @@ DATADOG_API void dd_rum_add_view_attribute(
 DATADOG_API void dd_rum_remove_view_attribute(dd_rum_t* rum, const char* name);
 
 /**
- * Stops any active RUM views that are identified with the given key.
+ * Stops any active RUM views that have the given key, optionally including the provided
+ * set of custom user attributes in the final event sent for that view.
  */
-DATADOG_API void dd_rum_stop_view(dd_rum_t* rum, const char* key);
-
-/**
- * Stops any active RUM views that have the given key, and includes the provided set of
- * custom user attributes in the final event sent for that view.
- */
-DATADOG_API void dd_rum_stop_view_obj(
+DATADOG_API void dd_rum_stop_view(
     dd_rum_t* rum, const char* key, const dd_attribute_t* attributes
 );
 

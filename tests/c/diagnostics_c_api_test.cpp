@@ -142,7 +142,7 @@ TEST_CASE(
     REQUIRE(callback_count == 0);
 
     // And then we attempt to start a view without specifying a valid key
-    dd_rum_start_view(rum, "", "");
+    dd_rum_start_view(rum, "", "", nullptr);
 
     // Then the SDK passes a warning to our diagnostic handler function
     REQUIRE(callback_count == 1);
@@ -189,7 +189,7 @@ TEST_CASE(
     REQUIRE(callback_count == 0);
     REQUIRE(dd_core_start(core));
     REQUIRE(callback_count == 0);
-    dd_rum_start_view(rum, "", "");
+    dd_rum_start_view(rum, "", "", nullptr);
 
     // Then we get no callbacks from the SDK, because a warning does not meet our
     // configured threshold

@@ -69,7 +69,7 @@ TEST_CASE("dd_core user info", "[unit][core]" FEATURE_TAGS "[c-api]") {
     // across all event types
     auto rum_event_types_tested =
         std::unordered_set<std::string>{"view", "action", "resource", "vital", "error"};
-    dd_rum_start_view(rum, "view", nullptr);
+    dd_rum_start_view(rum, "view", nullptr, nullptr);
     dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "action", nullptr);
     dd_rum_start_resource(rum, "resource", DD_RUM_RESOURCE_METHOD_GET, "/foo", nullptr);
     dd_rum_stop_resource(rum, "resource", 200, 0, DD_RUM_RESOURCE_TYPE_OTHER, nullptr);
