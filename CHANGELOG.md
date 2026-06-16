@@ -2,16 +2,12 @@
 
 ### Breaking Changes
 
-- The `dd_log_error_t` / `datadog::LogError` type now includes an `error.message` field, and all `dd_logger_<level>()` / `datadog::Logger::<Level>()` functions now require an `err` parameter at every log level (e.g. `dd_logger_info(logger, "msg", NULL)` must become `dd_logger_info(logger, "msg", NULL, NULL)`).
-
-### Features
-
-- Error details (`kind`, `stack`, and `message`) can now be attached to log events at any severity level, not just `error` and `critical`, matching the behavior of mobile SDKs.
-- The C API now provides setter functions for internal options (`source`, `sdk_version`, `custom_endpoint_url`, etc.) on `dd_core_config_t`, removing the need for FFI consumers to rely on struct-layout assumptions when configuring these options.
+- When recording a log message via `dd_logger_<level>()` or `datadog::Logger::<Level>()`, the API allows an `err` parameter to be passed regardless of log level.
+- The `err` value passed in log calls now accepts a `message` string, which will be included in resulting log and RUM events as `error.message`.
 
 ### Fixes
 
-- In the RUM forwarding path, `error.message` is now correctly populated from the error object's own message rather than the log message text.
+- When a logger forwards error details to RUM, RUM now correctly populates `error.message` from the error message rather than the log message text.
 
 ## 0.3.0
 
