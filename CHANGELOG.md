@@ -1,3 +1,14 @@
+## 0.4.0
+
+### Breaking Changes
+
+- When recording a log message via `dd_logger_<level>()` or `datadog::Logger::<Level>()`, the API allows an `err` parameter to be passed regardless of log level.
+- The `err` value passed in log calls now accepts a `message` string, which will be included in resulting log and RUM events as `error.message`.
+
+### Fixes
+
+- When a logger forwards error details to RUM, RUM now correctly populates `error.message` from the error message rather than the log message text.
+
 ## 0.3.0
 
 > [!NOTE]
