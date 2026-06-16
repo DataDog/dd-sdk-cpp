@@ -3,8 +3,9 @@ stages:
   - validate
   - build
   - package
-  - release
+  - publish-release  # (main only)
   - signal-success
+  - prepare-release  # (develop only, manual)
 
 variables:
   # We must explicitly specify `--parallel <jobs>` when building targets that invoke C++
@@ -32,7 +33,7 @@ variables:
   # Our Linux toolchain images are tagged with this version, e.g.
   # 'ci/dd-sdk-cpp:clang15-v2': bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
-  LINUX_TOOLCHAIN_IMAGE_VERSION: v9
+  LINUX_TOOLCHAIN_IMAGE_VERSION: v10
 
   # The Windows (MSVC) toolchain image is built separately: since Windows images tend to
   # be large, they are also tagged '<toolchain>-latest' on push, and then the AMI build
@@ -365,43 +366,62 @@ package-windows:
     paths:
       - build/ddsdkcpp-*.zip
 
-# Stage 'release' gathers all the artifacts from the 'package' stage and... prints their
-# names.
+# Stage 'publish-release' runs only in `main`: it detects when the SDK version has been
+# updated and will create GitHub release (and tag) X.Y.Z with all the release artifacts
+# produced in this pipeline run. This is Phase 2 of a two-phase release process: for
+# Phase 1, see the 'prepare-release' job below.
 
-create-release:
-  stage: release
+publish-release:
+  stage: publish-release
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-      changes: [CMakeLists.txt]  # Contains canonical project version number
-    - when: never
   dependencies:
     - package-linux
     - package-macos
     - package-windows
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
+  allow_failure:
+    # Exit code 2 is used to signal that there's already a release for the current
+    # version: in that case, turn the job orange (rather than green or red) and allow
+    # the pipeline to continue, so that a green circle for this job is always a
+    # definitive signal that a new release was published
+    exit_codes: [2]
+  before_script:
+    # We need to push tags and create releases: use dd-octo-sts to obtain a GitHub token
+    # with the trust policy defined at .github/chainguard/self.publish-release.sts.yaml
+    - dd-octo-sts --disable-tracing debug --scope DataDog/dd-sdk-cpp --policy self.publish-release
+    - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.publish-release > /tmp/gh-token.txt
   script:
-    # TODO: Verify whether release actually needs to happen; get GitHub App Token;
-    # create draft release; upload artifacts
-    - RELEASE_VERSION=$(grep -E '^project\(ddsdkcpp VERSION ([0-9]+\.[0-9]+\.[0-9]+[^ ]*)' CMakeLists.txt | cut -d' ' -f3)
+    # Upstream 'package' jobs should have produced archives containing prebuilt binaries
+    # to be used in this release: these '*.tar.gz'/'*.zip' files are tagged as artifacts
+    # in those CI jobs, meaning they should be automatically copied into our `build`
+    # directory
     - |
-      if [ "$RELEASE_VERSION" == "" ]; then
-        echo "ERROR: Failed to parse version from CMakeLists.txt" >&2
-        exit 1
-      fi
-    - ARCHIVE_FILES=$(find build -maxdepth 1 -type f \( -name 'ddsdkcpp-*.tar.gz' -o -name 'ddsdkcpp-*.zip' \))
-    - |
-      if [ "$ARCHIVE_FILES" == "" ]; then
+      mapfile -d '' ARCHIVE_FILES < <(
+        find build -maxdepth 1 -type f \
+          \( -name 'ddsdkcpp-*.tar.gz' -o -name 'ddsdkcpp-*.zip' \) \
+          -print0
+      )
+      if [ "${#ARCHIVE_FILES[@]}" -eq 0 ]; then
         echo "ERROR: No archive files found in previous jobs' artifacts" >&2
         exit 1
       fi
-    - |
-      echo "Preparing release of dd-sdk-cpp $RELEASE_VERSION."
-      echo "Artifacts found:"
-      for ARCHIVE_PATH in $ARCHIVE_FILES; do
-        ARCHIVE_FILENAME=$(basename "$ARCHIVE_PATH")
-        echo "- $ARCHIVE_FILENAME"
-      done
+    # Configure token for git and GitHub commands used in our script
+    - export GITHUB_TOKEN=$(cat /tmp/gh-token.txt)
+    - git config user.name "dd-octo-sts[bot]"
+    - git config user.email "200755185+dd-octo-sts[bot]@users.noreply.github.com"
+    - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
+    # Use tools/publish-release to push a tag and create a GitHub release that includes
+    # our archives with prebuilt binaries
+    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[publish-release]'
+    - .venv/bin/python tools/publish-release/main.py "${ARCHIVE_FILES[@]}"
+  after_script:
+    # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
+    - dd-octo-sts --disable-tracing revoke --token "$(cat /tmp/gh-token.txt)"
 
 # Stage 'signal-success' is a no-op that runs after all other CI jobs have passed. The
 # 'dd-protected-branches' ruleset (see https://github.com/DataDog/dd-sdk-cpp/rules)
@@ -413,3 +433,54 @@ signal-success:
   image: ${GOLDEN_LINUX_IMAGE}
   script:
     - echo "All CI jobs were successful!"
+
+# Jobs below this point are manually-triggered release tasks that run only in `develop`
+# and that should not block approval of PRs in other branches.
+
+# Stage 'prepare-release' runs only in `develop`: it can be manually triggered to create
+# a branch release/X.Y.Z from develop and prepare a PR for merge into main. This is
+# Phase 1 of the release process; Phase 2 (publish-release) will begin automatically
+# once the release PR is merged to main.
+
+prepare-release:
+  stage: prepare-release
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop"'
+      when: manual
+  variables:
+    # Custom values can be provided when manually triggering the job in the GitLab UI
+    BUMP_TYPE: ""   # Set BUMP_TYPE=minor etc. to override conventional commits
+    GIT_DEPTH: "0"  # Run a full clone so `git log <tag>..HEAD` finds all merged PRs
+  id_tokens:
+    DDOCTOSTS_ID_TOKEN:
+      aud: dd-octo-sts
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  before_script:
+    # We need a short-lived GitHub token to push changes and open PRs; see:
+    # - .github/chainguard/self.prepare-release.sts.yaml
+    - dd-octo-sts --disable-tracing debug --scope DataDog/dd-sdk-cpp --policy self.prepare-release
+    - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.prepare-release > /tmp/gh-token.txt
+  script:
+    # The `gh` CLI picks up `GITHUB_TOKEN` automatically; for `git` we need to point the
+    # remote at GitHub using the token for HTTPS auth, and we also need to configure
+    # dd-octo-sts-specific username and email
+    - export GITHUB_TOKEN=$(cat /tmp/gh-token.txt)
+    - git config user.name "dd-octo-sts[bot]"
+    - git config user.email "200755185+dd-octo-sts[bot]@users.noreply.github.com"
+    - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
+    # Since we'll push commits that need to be merged to main, we also need to use
+    # commit-headless so those commits will be signed: verify that it's installed
+    - commit-headless version
+    # We also need a Datadog-issued token with an audience of 'rapid-ai-platform' in
+    # order to make requests to the AI Gateway for LLM calls: we use authanywhere to
+    # obtain this token
+    - export AI_GATEWAY_TOKEN=$(authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io)
+    # Use tools/prepare-release to bump the version number, update the version in
+    # CMakeLists.txt, update CHANGELOG.md based on contents of PRs included in this
+    # release, push a release/X.Y.Z branch, and open a PR into main
+    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[prepare-release]'
+    - .venv/bin/python tools/prepare-release/main.py ${BUMP_TYPE:+--bump $BUMP_TYPE}
+  after_script:
+    # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
+    - dd-octo-sts --disable-tracing revoke --token "$(cat /tmp/gh-token.txt)"

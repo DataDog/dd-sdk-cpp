@@ -55,7 +55,7 @@ TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-
     dd_core_config_t config;
     dd_core_config_init(&config, "token", "service", "env");
     dd_core_config_set_application_storage_path(&config, ".");
-    config.internal_options.source = "unity";
+    dd_core_config_internal_set_source(&config, "unity");
 
     // When we create a core from that config
     dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
@@ -446,7 +446,7 @@ TEST_CASE("dd_core application storage path", "[unit][core][c-api]") {
       // disk (log calls produce events synchronously, and stopping the core drains the
       // storage queue)
       if (started) {
-        dd_logger_info(logger, "hello", nullptr);
+        dd_logger_info(logger, "hello", nullptr, nullptr);
         dd_core_stop(core);
       }
 
@@ -481,7 +481,7 @@ TEST_CASE(
     dd_core_start(core);
 
     // When we emit a log event and stop the core
-    dd_logger_info(logger, "hello", nullptr);
+    dd_logger_info(logger, "hello", nullptr, nullptr);
     dd_core_stop(core);
 
     // Then the HTTP request reflects the overridden source
@@ -509,7 +509,7 @@ TEST_CASE(
     dd_core_start(core);
 
     // When we emit a log event and stop the core
-    dd_logger_info(logger, "hello", nullptr);
+    dd_logger_info(logger, "hello", nullptr, nullptr);
     dd_core_stop(core);
 
     // Then the HTTP request reflects the overridden SDK version

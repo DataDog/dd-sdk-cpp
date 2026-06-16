@@ -330,27 +330,39 @@ void dd_logger_log(
 }
 
 void dd_logger_debug(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 ) {
-  dd_logger_log(logger, DD_LOG_LEVEL_DEBUG, message, nullptr, attributes);
+  dd_logger_log(logger, DD_LOG_LEVEL_DEBUG, message, err, attributes);
 }
 
 void dd_logger_info(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 ) {
-  dd_logger_log(logger, DD_LOG_LEVEL_INFO, message, nullptr, attributes);
+  dd_logger_log(logger, DD_LOG_LEVEL_INFO, message, err, attributes);
 }
 
 void dd_logger_notice(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 ) {
-  dd_logger_log(logger, DD_LOG_LEVEL_NOTICE, message, nullptr, attributes);
+  dd_logger_log(logger, DD_LOG_LEVEL_NOTICE, message, err, attributes);
 }
 
 void dd_logger_warn(
-    dd_logger_t* logger, const char* message, const dd_attribute_t* attributes
+    dd_logger_t* logger,
+    const char* message,
+    const dd_log_error_t* err,
+    const dd_attribute_t* attributes
 ) {
-  dd_logger_log(logger, DD_LOG_LEVEL_WARN, message, nullptr, attributes);
+  dd_logger_log(logger, DD_LOG_LEVEL_WARN, message, err, attributes);
 }
 
 void dd_logger_error(

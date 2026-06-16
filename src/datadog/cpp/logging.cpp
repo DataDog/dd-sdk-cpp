@@ -124,20 +124,28 @@ void Logger::Log(
   }
 }
 
-void Logger::Debug(std::string_view message, const Attribute& attributes) {
-  Log(LogLevel::Debug, message, LogError{}, attributes);
+void Logger::Debug(
+    std::string_view message, const LogError& err, const Attribute& attributes
+) {
+  Log(LogLevel::Debug, message, err, attributes);
 }
 
-void Logger::Info(std::string_view message, const Attribute& attributes) {
-  Log(LogLevel::Info, message, LogError{}, attributes);
+void Logger::Info(
+    std::string_view message, const LogError& err, const Attribute& attributes
+) {
+  Log(LogLevel::Info, message, err, attributes);
 }
 
-void Logger::Notice(std::string_view message, const Attribute& attributes) {
-  Log(LogLevel::Notice, message, LogError{}, attributes);
+void Logger::Notice(
+    std::string_view message, const LogError& err, const Attribute& attributes
+) {
+  Log(LogLevel::Notice, message, err, attributes);
 }
 
-void Logger::Warn(std::string_view message, const Attribute& attributes) {
-  Log(LogLevel::Warn, message, LogError{}, attributes);
+void Logger::Warn(
+    std::string_view message, const LogError& err, const Attribute& attributes
+) {
+  Log(LogLevel::Warn, message, err, attributes);
 }
 
 void Logger::Error(

@@ -98,10 +98,10 @@ struct LoggerConfig {
 };
 
 /**
- * Caller-supplied details about an error recorded via a call to Logger::Error() or
- * Logger::Critical().
+ * Caller-supplied details about an error attached to a log event.
  */
 struct LogError {
+  std::string_view message;  // Serialized as error.message on both log and RUM events
   std::string_view kind;   // Serialized as error.kind on log events; error.type for RUM
   std::string_view stack;  // Serialized as error.stack on both log and RUM events
 };
@@ -185,7 +185,8 @@ class Logger {
   /**
    * Emits a log message at the given level.
    *
-   * `err` will be used only if level is LogLevel::Error or higher.
+   * `err` may be omitted at any log level. When provided, its non-empty fields are
+   * included in the resulting log event unconditionally.
    *
    * If `attributes` has type ValueType::Object, each of its named values will be
    * included in the resulting log event, taking precedence over global and logger-level
@@ -200,41 +201,48 @@ class Logger {
   );
 
   /**
-   * Emits a Debug-level message from the given logger, with an optional set of extra
-   * attribute values.
+   * Emits a Debug-level message from the given logger, with optional error details and
+   * an optional set of extra attribute values.
    */
   DATADOG_API void Debug(
-      std::string_view message, const Attribute& attributes = Attribute()
+      std::string_view message,
+      const LogError& err = LogError(),
+      const Attribute& attributes = Attribute()
   );
 
   /**
-   * Emits an Info-level message from the given logger, with an optional set of extra
-   * attribute values.
+   * Emits an Info-level message from the given logger, with optional error details and
+   * an optional set of extra attribute values.
    */
   DATADOG_API void Info(
-      std::string_view message, const Attribute& attributes = Attribute()
+      std::string_view message,
+      const LogError& err = LogError(),
+      const Attribute& attributes = Attribute()
   );
 
   /**
-   * Emits a Notice-level message from the given logger, with an optional set of extra
-   * attribute values.
+   * Emits a Notice-level message from the given logger, with optional error details and
+   * an optional set of extra attribute values.
    */
   DATADOG_API void Notice(
-      std::string_view message, const Attribute& attributes = Attribute()
+      std::string_view message,
+      const LogError& err = LogError(),
+      const Attribute& attributes = Attribute()
   );
 
   /**
-   * Emits a Warning-level message from the given logger, with an optional set of extra
-   * attribute values.
+   * Emits a Warning-level message from the given logger, with optional error details
+   * and an optional set of extra attribute values.
    */
   DATADOG_API void Warn(
-      std::string_view message, const Attribute& attributes = Attribute()
+      std::string_view message,
+      const LogError& err = LogError(),
+      const Attribute& attributes = Attribute()
   );
 
   /**
-   * Emits an Error-level message from the given logger, optionally described with the
-   * given error kind and stack trace, and with an optional set of extra attribute
-   * values.
+   * Emits an Error-level message from the given logger, with optional error details and
+   * an optional set of extra attribute values.
    *
    * If RUM tracking is active, this call will automatically record a RUM Error in the
    * active view.
@@ -246,9 +254,8 @@ class Logger {
   );
 
   /**
-   * Emits a Critical-level message from the given logger, optionally described with the
-   * given error kind and stack trace, and with an optional set of extra attribute
-   * values.
+   * Emits a Critical-level message from the given logger, with optional error details
+   * and an optional set of extra attribute values.
    *
    * If RUM tracking is active, this call will automatically record a RUM Error in the
    * active view.

@@ -192,6 +192,38 @@ void dd_core_config_set_batch_processing_level(
   config->batch_processing_level = value;
 }
 
+void dd_core_config_internal_flush_http_requests_on_stop(dd_core_config_t* config) {
+  if (!config) {
+    return;
+  }
+  config->internal_options.flush_http_requests_on_stop = true;
+}
+
+void dd_core_config_internal_set_custom_endpoint_url(
+    dd_core_config_t* config, const char* value
+) {
+  if (!config) {
+    return;
+  }
+  config->internal_options.custom_endpoint_url = value;
+}
+
+void dd_core_config_internal_set_source(dd_core_config_t* config, const char* value) {
+  if (!config) {
+    return;
+  }
+  config->internal_options.source = value;
+}
+
+void dd_core_config_internal_set_sdk_version(
+    dd_core_config_t* config, const char* value
+) {
+  if (!config) {
+    return;
+  }
+  config->internal_options.sdk_version = value;
+}
+
 dd_core_t* dd_core_create(
     const dd_core_config_t* config, dd_tracking_consent_t tracking_consent
 ) {
