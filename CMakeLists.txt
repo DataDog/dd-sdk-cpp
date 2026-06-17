@@ -30,9 +30,9 @@ if(DD_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     # Use debug if running a local development build to actively work on the SDK;
     # otherwise produce an optimized release build with symbols.
     if(DD_DEVELOPMENT)
-        set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type")
+        set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
     else()
-        set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build type")
+        set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build type" FORCE)
     endif()
 endif()
 
