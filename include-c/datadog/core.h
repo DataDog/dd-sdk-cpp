@@ -92,6 +92,7 @@ typedef enum {
   DD_SITE_AP1,
   DD_SITE_AP2,
   DD_SITE_US1_FED,
+  DD_SITE_US2_FED,
 } dd_site_t;
 
 /**
