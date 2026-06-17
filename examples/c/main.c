@@ -17,7 +17,7 @@ int main(int argc, char* argv[]) {
   // Prepare our configuration and create the Datadog SDK Core
   dd_core_config_t config;
   dd_core_config_init(&config, "fake-client-token", "example-service", "development");
-  dd_core_config_set_application_version(&config, "1.0.0");
+  dd_core_config_set_version(&config, "1.0.0");
 
   dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
   if (!core) {

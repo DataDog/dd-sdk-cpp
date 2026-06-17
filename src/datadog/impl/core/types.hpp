@@ -248,7 +248,7 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
           .SetDiagnosticThreshold(DiagnosticLevel_FromC(config.diagnostic_threshold))
           .SetApplicationStoragePath(config.application_storage_path)
           .SetSite(Site_FromC(config.site))
-          .SetApplicationVersion(application_version)
+          .SetVersion(application_version)
           .SetVariant(variant)
           .SetBatchSize(BatchSize_FromC(config.batch_size))
           .SetUploadFrequency(UploadFrequency_FromC(config.upload_frequency))

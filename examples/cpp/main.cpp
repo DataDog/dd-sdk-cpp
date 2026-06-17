@@ -19,7 +19,7 @@ int main()  // NOLINT(bugprone-exception-escape)
 
   // Prepare our configuration and create the Datadog SDK Core
   datadog::CoreConfig config("fake-client-token", "example-service", "development");
-  config.SetApplicationVersion("1.0.0");
+  config.SetVersion("1.0.0");
 
   auto core = datadog::Core::Create(config, datadog::TrackingConsent::Pending);
   if (!core) {

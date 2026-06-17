@@ -34,7 +34,7 @@ static impl::Core _make_core(
           .SetApplicationStoragePath("app")
           .SetDiagnosticHandler(diagnostics.CreateHandler())
           .SetDiagnosticThreshold(datadog::DiagnosticLevel::Debug)
-          .SetApplicationVersion("1.0.0")
+          .SetVersion("1.0.0")
           .SetBatchSize(BatchSize::Small)
           .SetUploadFrequency(UploadFrequency::Frequent)
           .SetBatchProcessingLevel(BatchProcessingLevel::Low),
