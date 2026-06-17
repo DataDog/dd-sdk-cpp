@@ -2,5 +2,9 @@ Component,Origin,License,Copyright
 Catch2,"https://github.com/catchorg/Catch2/",BSL-1.0,Copyright Catch2 Authors
 curl,"https://github.com/curl/curl/",curl,Copyright (c) 1996 - 2025 Daniel Stenberg
 date,"https://github.com/HowardHinnant/date/",MIT,"Copyright (c) 2015, 2016, 2017 Howard Hinnant et al."
+Crashpad,"https://chromium.googlesource.com/crashpad/crashpad",Apache-2.0,Copyright The Crashpad Authors
+lss,"https://chromium.googlesource.com/linux-syscall-support",BSD-3-Clause,Copyright 2005-2011 Google LLC
+mini_chromium,"https://chromium.googlesource.com/chromium/mini_chromium",BSD-3-Clause,Copyright 2006-2008 The Chromium Authors
 nlohmann/json,"https://github.com/nlohmann/json",MIT,Copyright (c) 2013-2025 Niels Lohmann
 Unicode CLDR,"https://github.com/unicode-org/cldr",Unicode License,"Copyright © Unicode, Inc."
+zlib,"https://zlib.net",zlib,"Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler"
