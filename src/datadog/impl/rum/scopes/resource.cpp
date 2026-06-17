@@ -16,16 +16,29 @@
 namespace datadog::impl {
 
 /**
- * Extracts the four cross-platform tracing attributes from `context`, populating the
- * corresponding fields of `dd` and removing those keys from `context` so they don't
- * appear in the event's 'context' field. Works for any event Internal struct that
- * carries span_id, parent_span_id, trace_id, and rule_psr (resource and error).
+ * Extracts the four cross-platform tracing attributes from the merged event `context`,
+ * populating `dd` and removing the keys from `context` so they don't appear in the
+ * event's 'context' field.
+ *
+ * To avoid consuming global or view attributes that happen to share a key name, each
+ * key is only extracted if it is present in at least one of `start_attrs` or
+ * `stop_attrs` — the per-resource attribute sets accumulated from StartResource and
+ * StopResource[WithError] calls. This check requires no copies: `start_attrs` and
+ * `stop_attrs` are read-only; only `context` (the already-merged result) is mutated.
+ * Works for any Internal struct that carries span_id, parent_span_id, trace_id, and
+ * rule_psr (resource and error).
  */
 template <typename Internal>
-static void extract_trace_attributes(Attribute& context, Internal& dd) {
+static void extract_resource_trace_attributes(
+    const Attribute& start_attrs,
+    const Attribute& stop_attrs,
+    Attribute& context,
+    Internal& dd
+) {
   auto extract_string = [&](std::string_view key, OmitIfEmpty<std::string>& field) {
-    if (context.FindObjectProperty(key) < 0) {
-      return;
+    if (start_attrs.FindObjectProperty(key) < 0 &&
+        stop_attrs.FindObjectProperty(key) < 0) {
+      return;  // not a resource-level attr; leave in context
     }
     const Attribute val = context.GetObjectProperty(key);
     if (val.GetType() == ValueType::String) {
@@ -38,7 +51,8 @@ static void extract_trace_attributes(Attribute& context, Internal& dd) {
   extract_string("_dd.span_id", dd.span_id);
   extract_string("_dd.parent_span_id", dd.parent_span_id);
 
-  if (context.FindObjectProperty("_dd.rule_psr") >= 0) {
+  if (start_attrs.FindObjectProperty("_dd.rule_psr") >= 0 ||
+      stop_attrs.FindObjectProperty("_dd.rule_psr") >= 0) {
     const Attribute val = context.GetObjectProperty("_dd.rule_psr");
     if (val.GetType() == ValueType::Double) {
       dd.rule_psr = static_cast<float>(val.GetDoubleValue());
@@ -183,11 +197,11 @@ void RumResourceScope::SendResourceEvent(
 
   // Set 'context' to the full set of user-specified attributes that should be included
   // in this event, including global and view attributes, as well as any resource-level
-  // attributes specified in StartResource and/or StopResource. Before assigning to the
-  // event, extract any cross-platform tracing attributes (e.g. "_dd.trace_id") from
-  // the merged context and map them to their corresponding fields on ev._dd.
+  // attributes specified in StartResource and/or StopResource. After merging, extract
+  // any cross-platform tracing attributes that originated from the per-resource sets
+  // so they land on ev._dd rather than in context.
   Attribute context = MergeAttributesForEventContext(base);
-  extract_trace_attributes(context, ev._dd);
+  extract_resource_trace_attributes(_attributes, base.attributes, context, ev._dd);
   if (context.GetObjectPropertyCount() > 0) {
     ev.context.value = context;
   }
@@ -261,10 +275,11 @@ void RumResourceScope::SendErrorEvent(
 
   // Set 'context' to the full set of user-specified attributes that should be included
   // in this event, including global and view attributes, as well as any resource-level
-  // attributes specified in StartResource and/or StopResourceWithError. Extract any
-  // cross-platform tracing attributes before assigning so they land on _dd instead.
+  // attributes specified in StartResource and/or StopResourceWithError. After merging,
+  // extract any cross-platform tracing attributes that originated from the per-resource
+  // sets so they land on ev._dd rather than in context.
   Attribute context = MergeAttributesForEventContext(base);
-  extract_trace_attributes(context, ev._dd);
+  extract_resource_trace_attributes(_attributes, base.attributes, context, ev._dd);
   if (context.GetObjectPropertyCount() > 0) {
     ev.context.value = context;
   }

@@ -368,4 +368,42 @@ TEST_CASE_METHOD(ResourceFixture, "RumResourceScope::Process", "[unit][rum]") {
     // And the key is also absent from context (it was consumed regardless of type)
     REQUIRE(!event.contains("context"));
   }
+
+  SECTION(
+      "M preserve global _dd attrs in context and not promote to _dd W tracing key set "
+      "as a global attribute"
+  ) {
+    // Given the stop command carries _dd.trace_id as a *global* attribute (not a
+    // per-resource attribute), along with a regular global attribute
+    Attribute global_attrs = Attribute::Object(2);
+    global_attrs.SetObjectProperty(
+        "_dd.trace_id", Attribute::String("global-trace-id")
+    );
+    global_attrs.SetObjectProperty("foo", Attribute::Int(42));
+
+    // When we stop the resource using those global attributes
+    clock.TickMilliseconds(5);
+    scope.Process(
+        RumCommand::StopResource(
+            RumCommandParams(clock.Now(), global_attrs, {}),
+            "my-resource-key",
+            RumResponseDetails{200, 100, RumResourceType::Xhr}
+        ),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then _dd.trace_id is NOT promoted to _dd (it came from global, not resource
+    // attrs)
+    auto resources = event_capture.Resources();
+    REQUIRE(resources.size() == 1);
+    const auto& event = resources.front();
+    REQUIRE(!event["_dd"].contains("trace_id"));
+
+    // And both global attributes appear in context unchanged
+    REQUIRE(
+        event["context"] ==
+        nlohmann::json{{"_dd.trace_id", "global-trace-id"}, {"foo", 42}}
+    );
+  }
 }
