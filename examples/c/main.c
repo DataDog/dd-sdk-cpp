@@ -62,7 +62,7 @@ int main(int argc, char* argv[]) {
   dd_logger_info(logger, "Hello world!", NULL, NULL);
 
   // Start a RUM View
-  dd_rum_start_view(rum, "main_menu", NULL);
+  dd_rum_start_view(rum, "main_menu", NULL, NULL);
 
   // Log messages will now be correlated with our session and view in the RUM UI
   dd_logger_info(logger, "Main menu loaded", NULL, NULL);
@@ -81,7 +81,7 @@ int main(int argc, char* argv[]) {
   );
 
   // Stop the RUM view
-  dd_rum_stop_view(rum, "main_menu");
+  dd_rum_stop_view(rum, "main_menu", NULL);
 
   // Stop the core on application shutdown
   printf("Core started successfully. Shutting down...\n");

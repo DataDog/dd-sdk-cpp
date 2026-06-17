@@ -37,12 +37,12 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
 
     dd_rum_stop_session(nullptr);
 
-    dd_rum_start_view(nullptr, "foo", "My View");
-    dd_rum_start_view_obj(nullptr, "foo", "My View", &obj);
+    dd_rum_start_view(nullptr, "foo", "My View", nullptr);
+    dd_rum_start_view(nullptr, "foo", "My View", &obj);
     dd_rum_add_view_attribute(nullptr, "something", &int_100);
     dd_rum_remove_view_attribute(nullptr, "something");
-    dd_rum_stop_view(nullptr, "foo");
-    dd_rum_stop_view_obj(nullptr, "foo", &obj);
+    dd_rum_stop_view(nullptr, "foo", nullptr);
+    dd_rum_stop_view(nullptr, "foo", &obj);
 
     dd_rum_add_action(nullptr, DD_RUM_ACTION_TYPE_CLICK, "Button", &obj);
     dd_rum_start_action(nullptr, DD_RUM_ACTION_TYPE_CLICK, "Button", &obj);
@@ -173,10 +173,10 @@ TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
   // And a series of RUM API calls that should be no-ops when the SDK isn't running
   auto test_func = [](dd_rum_t* rum) {
     dd_attribute_t int_100 = dd_attribute_int(100);
-    dd_rum_start_view(rum, "foo", "Foo");
+    dd_rum_start_view(rum, "foo", "Foo", nullptr);
     dd_rum_add_attribute(rum, "attr1", &int_100);
     dd_rum_remove_attribute(rum, "attr1");
-    dd_rum_start_view(rum, "bar", "Bar");
+    dd_rum_start_view(rum, "bar", "Bar", nullptr);
     dd_rum_add_view_attribute(rum, "attr2", &int_100);
     dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "action1", NULL);
     dd_rum_start_resource(
@@ -184,9 +184,9 @@ TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
     );
     dd_rum_stop_resource(rum, "res1", 204, 0, DD_RUM_RESOURCE_TYPE_FETCH, NULL);
     dd_rum_remove_view_attribute(rum, "attr2");
-    dd_rum_stop_view(rum, "bar");
+    dd_rum_stop_view(rum, "bar", nullptr);
     dd_rum_stop_session(rum);
-    dd_rum_start_view(rum, "foo", "Foo");
+    dd_rum_start_view(rum, "foo", "Foo", nullptr);
     dd_rum_start_resource(
         rum, "res2", DD_RUM_RESOURCE_METHOD_POST, "http://api/bar", NULL
     );
@@ -275,7 +275,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
          dd_attribute_t view_attributes = dd_attribute_object(1);
          dd_attribute_t str_val = dd_attribute_string("hello");
          dd_attribute_object_property_set(&view_attributes, "bar", &str_val);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &view_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &view_attributes);
 
          // Modify view attributes
          dd_attribute_set_string(&str_val, "world");
@@ -283,7 +283,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
          dd_rum_remove_view_attribute(rum, "bar");
 
          // Stop the view
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
 
          // Shut down the SDK
          dd_core_stop(core);
@@ -375,7 +375,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_start_view is called with NULL key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, nullptr, "My View");
+           dd_rum_start_view(rum, nullptr, "My View", nullptr);
          });
        },
        {"dd_rum_start_view call ignored: application must supply a non-empty view key"},
@@ -384,7 +384,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_start_view is called with empty key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "", "My View");
+           dd_rum_start_view(rum, "", "My View", nullptr);
          });
        },
        {"dd_rum_start_view call ignored: application must supply a non-empty view key"},
@@ -393,7 +393,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print no warning W dd_rum_start_view is called with NULL view name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", nullptr);
+           dd_rum_start_view(rum, "my-view", nullptr, nullptr);
          });
        },
        {},
@@ -402,7 +402,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print no warning W dd_rum_start_view is called with empty view name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "");
+           dd_rum_start_view(rum, "my-view", "", nullptr);
          });
        },
        {},
@@ -412,14 +412,18 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
 
       {"M print warning W dd_rum_stop_view is called with NULL key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
-         with_rum(config, core, [](dd_rum_t* rum) { dd_rum_stop_view(rum, nullptr); });
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_stop_view(rum, nullptr, nullptr);
+         });
        },
        {"dd_rum_stop_view call ignored: application must supply a non-empty view key"},
        {}},
 
       {"M print warning W dd_rum_stop_view is called with empty key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
-         with_rum(config, core, [](dd_rum_t* rum) { dd_rum_stop_view(rum, ""); });
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_stop_view(rum, "", nullptr);
+         });
        },
        {"dd_rum_stop_view call ignored: application must supply a non-empty view key"},
        {}},
@@ -429,7 +433,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_add_view_attribute is called with NULL attribute name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_attribute_t int_100 = dd_attribute_int(100);
            dd_rum_add_view_attribute(rum, nullptr, &int_100);
            dd_attribute_free(&int_100);
@@ -442,7 +446,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_add_view_attribute is called with NULL value",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_add_view_attribute(rum, "foo", nullptr);
          });
        },
@@ -455,7 +459,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_remove_view_attribute is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_remove_view_attribute(rum, nullptr);
          });
        },
@@ -468,7 +472,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_add_action is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, NULL, NULL);
          });
        },
@@ -479,7 +483,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_add_action is called with empty name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "", NULL);
          });
        },
@@ -490,7 +494,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_start_action is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, NULL, NULL);
          });
        },
@@ -501,7 +505,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_start_action is called with empty name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "", NULL);
          });
        },
@@ -514,7 +518,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_start_resource is called with NULL key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_resource(
                rum, NULL, DD_RUM_RESOURCE_METHOD_GET, "http://localhost:5000/foo", NULL
            );
@@ -527,7 +531,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_start_resource is called with empty key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_resource(
                rum, "", DD_RUM_RESOURCE_METHOD_GET, "http://localhost:5000/foo", NULL
            );
@@ -540,7 +544,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_start_resource is called with NULL URL",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_resource(rum, "foo", DD_RUM_RESOURCE_METHOD_GET, NULL, NULL);
          });
        },
@@ -550,7 +554,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_start_resource is called with empty URL",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_resource(rum, "foo", DD_RUM_RESOURCE_METHOD_GET, "", NULL);
          });
        },
@@ -560,7 +564,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_stop_resource is called with NULL key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_stop_resource(rum, NULL, 0, -1, DD_RUM_RESOURCE_TYPE_UNKNOWN, NULL);
          });
        },
@@ -571,7 +575,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_stop_resource is called with empty key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_stop_resource(rum, "", 0, -1, DD_RUM_RESOURCE_TYPE_UNKNOWN, NULL);
          });
        },
@@ -582,7 +586,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_stop_resource_with_error is called with NULL key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_stop_resource_with_error(
                rum, NULL, "Connection failed", "", "", false, 0, NULL
            );
@@ -595,7 +599,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_stop_resource_with_error is called with empty key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_stop_resource_with_error(
                rum, "", "Connection failed", "", "", false, 0, NULL
            );
@@ -609,7 +613,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        "message",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_stop_resource_with_error(rum, "foo", NULL, "", "", false, 0, NULL);
          });
        },
@@ -621,7 +625,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        "message",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_stop_resource_with_error(rum, "foo", "", "", "", false, 0, NULL);
          });
        },
@@ -634,7 +638,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_add_error is called with NULL error message",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_add_error(rum, DD_RUM_ERROR_SOURCE_SOURCE, NULL, "Error", "", NULL);
          });
        },
@@ -645,7 +649,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print warning W dd_rum_add_error is called with empty error message",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_add_error(rum, DD_RUM_ERROR_SOURCE_SOURCE, "", "Error", "", NULL);
          });
        },
@@ -658,7 +662,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print error W dd_rum_start_operation is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_operation(rum, nullptr, nullptr, nullptr);
          });
        },
@@ -669,7 +673,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print error W dd_rum_start_operation is called with empty name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_operation(rum, "", nullptr, nullptr);
          });
        },
@@ -681,7 +685,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        "name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_operation(rum, "   ", nullptr, nullptr);
          });
        },
@@ -693,7 +697,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        "key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_operation(rum, "checkout", "   ", nullptr);
          });
        },
@@ -704,7 +708,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print no error W dd_rum_start_operation is called with empty key",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            // Empty key means "no key" — valid
            dd_rum_start_operation(rum, "checkout", "", nullptr);
          });
@@ -715,7 +719,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print error W dd_rum_succeed_operation is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_succeed_operation(rum, nullptr, nullptr, nullptr);
          });
        },
@@ -728,7 +732,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        "name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_succeed_operation(rum, "\t", nullptr, nullptr);
          });
        },
@@ -739,7 +743,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print error W dd_rum_fail_operation is called with NULL name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_fail_operation(
                rum, nullptr, DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
            );
@@ -753,7 +757,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
        "name",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_fail_operation(
                rum, " \n ", DD_RUM_FAILURE_REASON_ABANDONED, nullptr, nullptr
            );
@@ -771,7 +775,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M warn but still emit W dd_rum_start_operation name contains a space",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_operation(rum, "user login", nullptr, nullptr);
          });
        },
@@ -783,7 +787,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M warn but still emit W dd_rum_succeed_operation name contains a slash",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_succeed_operation(rum, "api/v1", nullptr, nullptr);
          });
        },
@@ -795,7 +799,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M warn but still emit W dd_rum_fail_operation name contains non-ASCII bytes",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_fail_operation(
                rum, "ログイン", DD_RUM_FAILURE_REASON_OTHER, nullptr, nullptr
            );
@@ -809,7 +813,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print no error W dd_rum_start_operation uses every allowed character class",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            dd_rum_start_operation(rum, "Login-v2@1.0.0_step$1", nullptr, nullptr);
          });
        },
@@ -819,7 +823,7 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
       {"M print no error W dd_rum_start_operation operation_key contains a space",
        [&](dd_rum_config_t* config, dd_core_t* core) {
          with_rum(config, core, [](dd_rum_t* rum) {
-           dd_rum_start_view(rum, "my-view", "My View");
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
            // operation_key has no character-set restriction in the schema
            dd_rum_start_operation(rum, "login", "session 42 / user foo", nullptr);
          });
@@ -876,7 +880,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock&) {
          // When we create a RUM view
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then RUM produces exactly one view event
@@ -931,9 +935,9 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and then later stop it
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then RUM produces two events
@@ -1035,9 +1039,9 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and then later replace it with a different view
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_start_view(rum, "my-other-view", "My Other View");
+         dd_rum_start_view(rum, "my-other-view", "My Other View", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then RUM produces three events: a start and stop for 'my-view', and a start
@@ -1066,8 +1070,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // When we start and stop 100 views
          for (int i = 0; i < 100; i++) {
            std::string view_key = "view-" + std::to_string(i);
-           dd_rum_start_view(rum, view_key.c_str(), "");
-           dd_rum_stop_view(rum, view_key.c_str());
+           dd_rum_start_view(rum, view_key.c_str(), "", nullptr);
+           dd_rum_stop_view(rum, view_key.c_str(), nullptr);
          }
        },
        [](const nlohmann::json& events) {
@@ -1087,7 +1091,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // event) to ensure that we create an independent session for each view
          for (int i = 0; i < 1000; i++) {
            std::string view_key = "view-" + std::to_string(i);
-           dd_rum_start_view(rum, view_key.c_str(), "");
+           dd_rum_start_view(rum, view_key.c_str(), "", nullptr);
            clock.Tick(std::chrono::seconds(1));
            dd_rum_stop_session(rum);
          }
@@ -1109,7 +1113,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_100 = dd_attribute_int(100);
          dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
          dd_attribute_free(&int_100);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_attributes);
          dd_attribute_free(&start_view_attributes);
        },
        [](const nlohmann::json& events) {
@@ -1127,7 +1131,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_100 = dd_attribute_int(100);
          dd_attribute_object_property_set(&my_view_attributes, "foo", &int_100);
          dd_attribute_free(&int_100);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &my_view_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &my_view_attributes);
          dd_attribute_free(&my_view_attributes);
 
          // And 15 seconds passes
@@ -1138,7 +1142,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_200 = dd_attribute_int(200);
          dd_attribute_object_property_set(&other_view_attributes, "bar", &int_200);
          dd_attribute_free(&int_200);
-         dd_rum_start_view_obj(rum, "other-view", "Other View", &other_view_attributes);
+         dd_rum_start_view(rum, "other-view", "Other View", &other_view_attributes);
          dd_attribute_free(&other_view_attributes);
        },
        [](const nlohmann::json& events) {
@@ -1173,7 +1177,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_100 = dd_attribute_int(100);
          dd_attribute_object_property_set(&my_view_attributes, "foo", &int_100);
          dd_attribute_free(&int_100);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &my_view_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &my_view_attributes);
          dd_attribute_free(&my_view_attributes);
 
          // And 15 seconds passes
@@ -1184,7 +1188,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_200 = dd_attribute_int(200);
          dd_attribute_object_property_set(&my_view_2_attributes, "bar", &int_200);
          dd_attribute_free(&int_200);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &my_view_2_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &my_view_2_attributes);
          dd_attribute_free(&my_view_2_attributes);
        },
        [](const nlohmann::json& events) {
@@ -1224,7 +1228,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&start_view_attributes, "bar", &int_200);
          dd_attribute_free(&int_100);
          dd_attribute_free(&int_200);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_attributes);
          dd_attribute_free(&start_view_attributes);
 
          // And 15 seconds passes
@@ -1238,7 +1242,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&stop_view_attributes, "baz", &int_400);
          dd_attribute_free(&int_300);
          dd_attribute_free(&int_400);
-         dd_rum_stop_view_obj(rum, "my-view", &stop_view_attributes);
+         dd_rum_stop_view(rum, "my-view", &stop_view_attributes);
          dd_attribute_free(&stop_view_attributes);
        },
        [](const nlohmann::json& events) {
@@ -1267,7 +1271,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock& clock) {
          // When we start a new view with no attributes
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
 
          // And we then set {"foo":100} on the view after its creation
          dd_attribute_t int_100 = dd_attribute_int(100);
@@ -1278,7 +1282,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          clock.Tick(std::chrono::seconds(15));
 
          // And we issue a StopView call to produce another view event
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then we get two view events, one at start and one at stop
@@ -1298,7 +1302,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock& clock) {
          // When we start a new view with no attributes
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
 
          // And we then set {"foo":100} on the view after its creation
          dd_attribute_t int_100 = dd_attribute_int(100);
@@ -1312,7 +1316,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then our final view event has {"foo":200}
@@ -1326,7 +1330,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock& clock) {
          // When we start a new view with no attributes
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
 
          // And we then set {"foo":100,"bar":200} on the view after its creation
          dd_attribute_t int_100 = dd_attribute_int(100);
@@ -1341,7 +1345,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then our final view event has {"bar":200}
@@ -1354,14 +1358,14 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock& clock) {
          // When we start a new view with no attributes
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
 
          // And we then attempt to delete an attribute called "foo", which doens't exist
          dd_rum_remove_view_attribute(rum, "foo");
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then our final view event has no user attributes
@@ -1385,7 +1389,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
          dd_attribute_set_int(&int_val, 4);
          dd_attribute_object_property_set(&start_view_obj, "dog", &int_val);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_obj);
          dd_attribute_free(&start_view_obj);
 
          // And we then delete "baker" and set {"charlie":"modified"} and {"dog":444}
@@ -1405,7 +1409,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&stop_view_obj, "dog", &int_val);
          dd_attribute_set_int(&int_val, 99);
          dd_attribute_object_property_set(&stop_view_obj, "easy", &int_val);
-         dd_rum_stop_view_obj(rum, "my-view", &stop_view_obj);
+         dd_rum_stop_view(rum, "my-view", &stop_view_obj);
          dd_attribute_free(&stop_view_obj);
 
          // Cleanup
@@ -1449,7 +1453,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_100 = dd_attribute_int(100);
          dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
          dd_attribute_free(&int_100);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_attributes);
          dd_attribute_free(&start_view_attributes);
        },
        [](const nlohmann::json& events) {
@@ -1473,7 +1477,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_100 = dd_attribute_int(100);
          dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
          dd_attribute_free(&int_100);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_attributes);
          dd_attribute_free(&start_view_attributes);
 
          // And we update our global attribute to {"x":"world"}
@@ -1483,7 +1487,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then we get two view events
@@ -1514,7 +1518,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_100 = dd_attribute_int(100);
          dd_attribute_object_property_set(&start_view_attributes, "foo", &int_100);
          dd_attribute_free(&int_100);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_attributes);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_attributes);
          dd_attribute_free(&start_view_attributes);
 
          // And we then delete the global attribute "x"
@@ -1522,7 +1526,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then we get two view events
@@ -1571,7 +1575,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
          dd_attribute_set_int(&int_val, 300);
          dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_obj);
          dd_attribute_free(&start_view_obj);
 
          // And we then remove the global "alpha"
@@ -1587,7 +1591,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And we stop the view 15 seconds later
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
 
          // Cleanup
          dd_attribute_free(&int_val);
@@ -1644,7 +1648,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
          dd_attribute_set_int(&int_val, 300);
          dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_obj);
          dd_attribute_free(&start_view_obj);
 
          // And we start a resource within the active view
@@ -1659,7 +1663,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // And 15 seconds later, we create a new view with the same key, thereby
          // stopping the original view while it still has pending resources
          clock.Tick(std::chrono::seconds(15));
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
 
          // And we modify global attributes after the original view has stopped,
          // deleting "alpha" and adding {"delta":4}
@@ -1682,7 +1686,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
 
          // And finally, 5 seconds after that, we close the new view
          clock.Tick(std::chrono::seconds(5));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
 
          // Cleanup
          dd_attribute_free(&int_val);
@@ -1799,7 +1803,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&start_view_obj, "baker", &int_val);
          dd_attribute_set_int(&int_val, 300);
          dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_obj);
          dd_attribute_free(&start_view_obj);
 
          // And we allow 30 minutes to pass without user activity, such that on the next
@@ -1885,7 +1889,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock&) {
          // When we create a RUM view and record an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
        },
        [](const nlohmann::json& events) {
@@ -1902,7 +1906,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock&) {
          // When we create a RUM view and record an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
 
          // And we then stop that action explicitly
@@ -1971,7 +1975,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and record an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
 
          // And we then stop that action explicitly after a 2-second delay
@@ -1994,7 +1998,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and record an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
 
          // And we wait 15 seconds and initiate any RUM operation that will result in a
@@ -2017,7 +2021,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and record an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
 
          // And then 4s later, we initiate any RUM operation that will result in a
@@ -2041,7 +2045,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock&) {
          // When we create a RUM view and add a custom discrete action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "custom1", NULL);
        },
        [](const nlohmann::json& events) {
@@ -2102,7 +2106,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock&) {
          // When we create a RUM view and add a discrete action whose type is not custom
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
        },
        [](const nlohmann::json& events) {
@@ -2120,7 +2124,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and add a discrete action whose type is not custom
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 150ms later, we initiate any RUM operation that will result in a
@@ -2142,7 +2146,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and add a discrete action whose type is not custom
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 50ms later, we explicitly stop the current action
@@ -2164,7 +2168,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start a continuous custom action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CUSTOM, "long-custom", NULL);
 
          // And then at T+2s, we add a discrete custom action
@@ -2201,7 +2205,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start an action with type 'click'
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 50ms later, we explicitly stop the current action, passing a
@@ -2227,7 +2231,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start an action with name "button1"
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 50ms later, we explicitly stop the current action, passing no name
@@ -2251,7 +2255,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start an action with name "button1"
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 50ms later, we explicitly stop the current action, passing no name
@@ -2276,7 +2280,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start an action with name "button1"
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 50ms later, we explicitly stop the current action, passing a
@@ -2305,12 +2309,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 50ms later, we explicitly stop the current view
          clock.Tick(std::chrono::milliseconds(50));
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then we end up with a single action event, as our action is cleanly stopped
@@ -2335,12 +2339,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 50ms later, we start a new view, effectively ending the current one
          clock.Tick(std::chrono::milliseconds(50));
-         dd_rum_start_view(rum, "another-view", "Another View");
+         dd_rum_start_view(rum, "another-view", "Another View", nullptr);
        },
        [](const nlohmann::json& events) {
          // Then we end up with a single action event, as our action is cleanly stopped
@@ -2377,7 +2381,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 50ms later, we explicitly stop the session
@@ -2407,7 +2411,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start an action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then 7h later, we attempt to stop the action
@@ -2430,7 +2434,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_t* rum, MockClock&) {
          // When we create a RUM view and record the start of a resource, without
          // recording the end of that resource
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_resource(
              rum,
              "get-profile-123",
@@ -2452,7 +2456,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and record the start of a resource
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_resource(
              rum,
              "get-profile-123",
@@ -2525,7 +2529,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and record the start of a resource
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_resource(
              rum,
              "get-profile-123",
@@ -2611,7 +2615,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and record the start of a resource
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_resource(
              rum,
              "get-profile-123",
@@ -2697,7 +2701,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and then record an error at T+5ms
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          clock.TickMilliseconds(5);
          dd_rum_add_error(
              rum,
@@ -2777,7 +2781,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and a RUM action, and then record an error at
          // T+5ms
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
          clock.TickMilliseconds(5);
          dd_rum_add_error(
@@ -2848,7 +2852,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and add an action with a type other than custom
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then at T+50ms, a resource begins
@@ -2905,7 +2909,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start a RUM action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
 
          // And then at T+9.8s, a resource begins
@@ -2952,7 +2956,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and start a RUM action
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_action(rum, DD_RUM_ACTION_TYPE_SCROLL, "scroll1", NULL);
 
          // And then at T+9.8s, a resource begins
@@ -3018,7 +3022,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and add an action with a type other than
          // custom
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then at T+150ms, a resource begins
@@ -3065,7 +3069,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and add an action with a type other than custom
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then at T+50ms, a resource begins
@@ -3118,7 +3122,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        },
        [](dd_rum_t* rum, MockClock& clock) {
          // When we create a RUM view and add an action with a type other than custom
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
 
          // And then at T+50ms, a resource begins
@@ -3164,7 +3168,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_val = dd_attribute_int(1);
 
          // When we create a RUM view and start an action with {"alpha":1,"bravo":2}
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_attribute_t start_action_obj = dd_attribute_object(2);
          dd_attribute_object_property_set(&start_action_obj, "alpha", &int_val);
          dd_attribute_set_int(&int_val, 2);
@@ -3195,7 +3199,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_val = dd_attribute_int(1);
 
          // When we create a RUM view and start an action with {"alpha":1,"bravo":2}
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_attribute_t start_action_obj = dd_attribute_object(2);
          dd_attribute_object_property_set(&start_action_obj, "alpha", &int_val);
          dd_attribute_set_int(&int_val, 2);
@@ -3236,7 +3240,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_val = dd_attribute_int(1);
 
          // When we create a RUM view and start an action with {"alpha":1,"bravo":2}
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_attribute_t start_action_obj = dd_attribute_object(2);
          dd_attribute_object_property_set(&start_action_obj, "alpha", &int_val);
          dd_attribute_set_int(&int_val, 2);
@@ -3251,7 +3255,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&stop_view_obj, "bravo", &int_val);
          dd_attribute_set_int(&int_val, 33);
          dd_attribute_object_property_set(&stop_view_obj, "charlie", &int_val);
-         dd_rum_stop_view(rum, "my-view");
+         dd_rum_stop_view(rum, "my-view", nullptr);
          dd_attribute_free(&stop_view_obj);
 
          // Cleanup
@@ -3288,7 +3292,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
          dd_attribute_set_int(&int_val, 444);
          dd_attribute_object_property_set(&start_view_obj, "dog", &int_val);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_obj);
          dd_attribute_free(&start_view_obj);
 
          // When we start an action with {"alpha":1,"bravo":2,"dog":"good"}
@@ -3337,7 +3341,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_val = dd_attribute_int(1);
 
          // When we create a RUM view and start a resource with {"alpha":1,"bravo":2}
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_attribute_t start_resource_obj = dd_attribute_object(2);
          dd_attribute_object_property_set(&start_resource_obj, "alpha", &int_val);
          dd_attribute_set_int(&int_val, 2);
@@ -3376,7 +3380,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_val = dd_attribute_int(1);
 
          // When we create a RUM view and start a resource with {"alpha":1,"bravo":2}
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_attribute_t start_resource_obj = dd_attribute_object(2);
          dd_attribute_object_property_set(&start_resource_obj, "alpha", &int_val);
          dd_attribute_set_int(&int_val, 2);
@@ -3430,7 +3434,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_val = dd_attribute_int(1);
 
          // When we create a RUM view and start a resource with {"alpha":1,"bravo":2}
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_attribute_t start_resource_obj = dd_attribute_object(2);
          dd_attribute_object_property_set(&start_resource_obj, "alpha", &int_val);
          dd_attribute_set_int(&int_val, 2);
@@ -3497,7 +3501,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
          dd_attribute_set_int(&int_val, 444);
          dd_attribute_object_property_set(&start_view_obj, "dog", &int_val);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_obj);
          dd_attribute_free(&start_view_obj);
 
          // When we start a resource with {"alpha":1,"bravo":2,"dog":"good"}
@@ -3554,7 +3558,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_t int_val = dd_attribute_int(1);
 
          // When we create a RUM view and add an error with {"alpha":1,"bravo":2}
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_attribute_t add_error_obj = dd_attribute_object(2);
          dd_attribute_object_property_set(&add_error_obj, "alpha", &int_val);
          dd_attribute_set_int(&int_val, 2);
@@ -3600,7 +3604,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&start_view_obj, "charlie", &int_val);
          dd_attribute_set_int(&int_val, 444);
          dd_attribute_object_property_set(&start_view_obj, "dog", &int_val);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &start_view_obj);
+         dd_rum_start_view(rum, "my-view", "My View", &start_view_obj);
          dd_attribute_free(&start_view_obj);
 
          // When we add an error with {"alpha":1,"bravo":2,"dog":"good"}
@@ -3647,7 +3651,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
       {"M emit start and end vital events W operation succeeds",
        [](dd_rum_config_t*) {},
        [](dd_rum_t* rum, MockClock& clock) {
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_operation(rum, "checkout", nullptr, nullptr);
          clock.Tick(std::chrono::milliseconds(500));
          dd_rum_succeed_operation(rum, "checkout", nullptr, nullptr);
@@ -3732,7 +3736,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
       {"M emit end vital with failure_reason W operation fails with error",
        [](dd_rum_config_t*) {},
        [](dd_rum_t* rum, MockClock&) {
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_operation(rum, "upload", nullptr, nullptr);
          dd_rum_fail_operation(
              rum, "upload", DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
@@ -3782,7 +3786,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
       {"M include operation_key in vital events W operation started with key",
        [](dd_rum_config_t*) {},
        [](dd_rum_t* rum, MockClock&) {
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_operation(rum, "checkout", "cart-42", nullptr);
          dd_rum_succeed_operation(rum, "checkout", "cart-42", nullptr);
        },
@@ -3868,7 +3872,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        "attributes",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_attribute_t attrs = dd_attribute_object(2);
          dd_attribute_t cart_id = dd_attribute_string("cart-123");
          dd_attribute_t item_count = dd_attribute_int(3);
@@ -3895,7 +3899,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        "attributes",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_operation(rum, "upload", nullptr, nullptr);
          dd_attribute_t attrs = dd_attribute_object(1);
          dd_attribute_t bytes = dd_attribute_int(1024000);
@@ -3915,7 +3919,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        "attributes",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_operation(rum, "login", nullptr, nullptr);
          dd_attribute_t attrs = dd_attribute_object(2);
          dd_attribute_t error_code = dd_attribute_string("INVALID_CREDS");
@@ -3957,7 +3961,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          dd_attribute_object_property_set(&view_attrs, "baker", &baker_view);
          dd_attribute_object_property_set(&view_attrs, "charlie", &charlie);
          dd_attribute_object_property_set(&view_attrs, "dog", &dog_view);
-         dd_rum_start_view_obj(rum, "my-view", "My View", &view_attrs);
+         dd_rum_start_view(rum, "my-view", "My View", &view_attrs);
          dd_attribute_free(&baker_view);
          dd_attribute_free(&charlie);
          dd_attribute_free(&dog_view);
@@ -4034,7 +4038,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
        "together",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
 
          // StartOperation with {"start.timestamp":"2024-01-01"}
          dd_attribute_t start_attrs = dd_attribute_object(1);
@@ -4076,7 +4080,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
       {"M omit context field in vital event W no attributes provided",
        [](dd_rum_config*) {},
        [](dd_rum_t* rum, MockClock&) {
-         dd_rum_start_view(rum, "my-view", "My View");
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
          dd_rum_start_operation(rum, "checkout", nullptr, nullptr);    // no attributes
          dd_rum_succeed_operation(rum, "checkout", nullptr, nullptr);  // no attributes
        },
