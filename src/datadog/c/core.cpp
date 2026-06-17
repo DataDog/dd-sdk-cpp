@@ -150,9 +150,7 @@ void dd_core_config_set_env(dd_core_config_t* config, const char* value) {
   config->env = value;
 }
 
-void dd_core_config_set_application_version(
-    dd_core_config_t* config, const char* value
-) {
+void dd_core_config_set_version(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }

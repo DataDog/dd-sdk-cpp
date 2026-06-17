@@ -290,7 +290,7 @@ struct CoreConfig {
    * Set the 'version' value, identifying the version of your applicating that's being
    * monitored.
    */
-  DATADOG_API CoreConfig& SetApplicationVersion(std::string_view value);
+  DATADOG_API CoreConfig& SetVersion(std::string_view value);
 
   /**
    * Set the 'variant' value, identifying the flavor or build configuration of the

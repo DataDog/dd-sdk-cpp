@@ -69,7 +69,7 @@ CoreConfig& CoreConfig::SetEnv(std::string_view value) {
   return *this;
 }
 
-CoreConfig& CoreConfig::SetApplicationVersion(std::string_view value) {
+CoreConfig& CoreConfig::SetVersion(std::string_view value) {
   application_version = value;
   return *this;
 }

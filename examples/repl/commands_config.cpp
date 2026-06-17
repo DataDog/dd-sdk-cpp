@@ -146,11 +146,11 @@ CommandResult HandleSetConfig(State& state, const CommandInput& args) {
     // If given a value of 'auto', compute a value procedurally based on SDK version
     if (value == "auto") {
       auto info = datadog::GetVersionInfo();
-      state.config.SetApplicationVersion(info.revision_id);
+      state.config.SetVersion(info.revision_id);
     } else {
-      state.config.SetApplicationVersion(value);
+      state.config.SetVersion(value);
     }
-    return CommandResult::OK("CoreConfig::SetApplicationVersion()");
+    return CommandResult::OK("CoreConfig::SetVersion()");
   }
 
   // set-config variant <value>
