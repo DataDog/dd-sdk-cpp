@@ -188,7 +188,7 @@ class RumSessionScope {
       const RumCommandParams& base,
       std::string_view name,
       RumVitalStepType step_type,
-      std::optional<std::string_view> operation_key,
+      const std::optional<std::string>& operation_key,
       std::optional<RumVitalFailureReason> failure_reason,
       const CoreContext& context,
       const EventWriter& writer
