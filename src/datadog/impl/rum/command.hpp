@@ -275,8 +275,8 @@ struct RumStartOperationPayload {
   static constexpr const char* COMMAND_NAME = "StartOperation";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
 
-  std::string_view name;
-  std::optional<std::string_view> operation_key;
+  std::string name;
+  std::optional<std::string> operation_key;
 
   explicit RumStartOperationPayload(
       std::string_view in_name, std::optional<std::string_view> in_operation_key
@@ -293,8 +293,8 @@ struct RumStopOperationPayload {
   static constexpr const char* COMMAND_NAME = "StopOperation";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
 
-  std::string_view name;
-  std::optional<std::string_view> operation_key;
+  std::string name;
+  std::optional<std::string> operation_key;
   std::optional<RumOperationFailureReason> failure_reason;
 
   explicit RumStopOperationPayload(
