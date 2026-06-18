@@ -97,16 +97,17 @@ function(datadog_install target)
         endif()
     endif()
 
-    # Determine whether the SDK was built as a shared library, either in this build
-    # or as a pre-built package consumed via find_package
-    set(_dd_is_shared OFF)
-    if(DD_BUILD_SHARED OR DATADOG_BUILT_WITH_DD_BUILD_SHARED)
-        set(_dd_is_shared ON)
+    # Presence of the ddsdkcpp target distinguishes FetchContent (real target in scope)
+    # from find_package (only the imported Datadog::sdk alias is available). Each path
+    # uses its own authoritative shared-lib indicator so a stale DD_BUILD_SHARED cache
+    # entry in the consuming project can't corrupt the find_package path.
+    if(TARGET ddsdkcpp)
+        set(_dd_is_shared "${DD_BUILD_SHARED}")
+    else()
+        set(_dd_is_shared "${DATADOG_BUILT_WITH_DD_BUILD_SHARED}")
     endif()
 
     if(_dd_is_shared)
-        # When consumed via FetchContent, ddsdkcpp is the real (non-imported) library
-        # target. When consumed via find_package, Datadog::sdk is an IMPORTED target.
         if(TARGET ddsdkcpp)
             install(TARGETS ddsdkcpp
                 LIBRARY DESTINATION "${ARG_LIBRARY_DESTINATION}"
