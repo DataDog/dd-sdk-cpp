@@ -22,6 +22,20 @@ endif()
 option(DD_DEVELOPMENT "Enable development mode (examples, tests, analysis, asserts)" OFF)
 option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools (e.g. clang-format) may be automatically downloaded and installed to llvm-tools/" OFF)
 
+# If building the SDK as the top-level project and not using a multi-config generator,
+# ensure that CMAKE_BUILD_TYPE is set to a reasonable default. Note that when the SDK is
+# included in another project as a dependency, that project owns CMAKE_BUILD_TYPE and
+# must set it explicitly.
+if(DD_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+    # Use debug if running a local development build to actively work on the SDK;
+    # otherwise produce an optimized release build with symbols.
+    if(DD_DEVELOPMENT)
+        set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
+    else()
+        set(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING "Build type" FORCE)
+    endif()
+endif()
+
 # Top-level options for the build
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
 set(DD_CRASH_MODE "inprocess" CACHE STRING "Crash handler mode: noop, inprocess, or crashpad")
