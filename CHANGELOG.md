@@ -1,3 +1,22 @@
+## 0.4.1
+
+### Breaking Changes
+
+- The `dd_rum_start_view_obj()` and `dd_rum_stop_view_obj()` functions have been removed; use `dd_rum_start_view()` and `dd_rum_stop_view()` instead, passing `NULL` for the attributes argument when no custom attributes are needed.
+- `datadog::CoreConfig::SetApplicationVersion()` is renamed to `datadog::CoreConfig::SetVersion()` (and the C API `dd_core_config_set_application_version()` to `dd_core_config_set_version()`) to align with unified tagging conventions used by other Datadog SDKs.
+- The `datadog_install()` CMake function now accepts named `RUNTIME_DESTINATION` and `LIBRARY_DESTINATION` keyword arguments instead of a single positional directory argument, defaulting to `bin` and `lib` respectively.
+
+### Features
+
+- `datadog_install()` now automatically deploys the SDK shared library alongside the application and configures the correct `RPATH` on POSIX systems when using a shared-library build (`DD_BUILD_SHARED=ON`).
+- Added support for the `gov2` datacenter (`us2-fed` site) with the `browser-intake-us2-ddog-gov.com` endpoint.
+- Building the SDK from source without specifying `CMAKE_BUILD_TYPE` now defaults to `RelWithDebInfo` (or `Debug` when `DD_DEVELOPMENT=ON`) instead of producing an unoptimized, symbolless binary.
+
+### Fixes
+
+- Trace context attributes (`_dd.trace_id`, `_dd.span_id`, `_dd.parent_span_id`, `_dd.rule_psr`) set on RUM resource scopes are now correctly mapped to the corresponding fields on `RumResourceEvent` and `RumErrorEvent` instead of being left in the generic `context` object.
+- Fixed a potential crash that could occur when string values passed to the RUM Operations API (`name` or `key`) were destroyed or modified shortly after the call.
+
 ## 0.4.0
 
 ### Breaking Changes

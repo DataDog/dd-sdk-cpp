@@ -6,7 +6,7 @@ if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
   set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum macOS version")
 endif()
 
-project(ddsdkcpp VERSION 0.4.0 LANGUAGES C CXX)
+project(ddsdkcpp VERSION 0.4.1 LANGUAGES C CXX)
 
 # If we're the top-level project, we're being built in the original source repo, where
 # we want to generate installable builds, etc; if not, we're being pulled in as a
