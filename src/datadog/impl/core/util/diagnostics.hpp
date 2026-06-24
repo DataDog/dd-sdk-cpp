@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <climits>
 #include <initializer_list>
 #include <string_view>
 #include <utility>
@@ -29,12 +30,52 @@ namespace datadog::impl {
 using DiagnosticAttributeValue =
     std::variant<bool, int64_t, uint64_t, double, Timestamp, UUID, std::string_view>;
 
+namespace detail {
+
+/**
+ * Constructs a DiagnosticAttributeValue from an arbitrary value. The integer overloads
+ * exist because, on 32-bit targets (e.g. armv7), `size_t` is `unsigned int`, which
+ * matches neither `int64_t` nor `uint64_t` in the variant; routing `int`/`unsigned int`
+ * through `int64_t` resolves the otherwise-ambiguous variant construction.
+ */
+template <typename T>
+DiagnosticAttributeValue ToDiagnosticValue(T&& value) {
+  return DiagnosticAttributeValue(std::forward<T>(value));
+}
+#if UINT_MAX != UINT64_MAX
+inline DiagnosticAttributeValue ToDiagnosticValue(int value) {
+  return DiagnosticAttributeValue(static_cast<int64_t>(value));
+}
+inline DiagnosticAttributeValue ToDiagnosticValue(unsigned int value) {
+  return DiagnosticAttributeValue(static_cast<int64_t>(value));
+}
+#endif
+
+}  // namespace detail
+
+/**
+ * A single named attribute in a diagnostic log message.
+ *
+ * Call sites construct these via brace-initialization, e.g. `{{"key", value}, ...}`. We
+ * use a dedicated type rather than std::pair because brace-initializing
+ * `std::pair<std::string_view, DiagnosticAttributeValue>` fails to compile with Clang
+ * 15 on 32-bit targets (e.g. armv7); constructing the variant explicitly in the
+ * constructor avoids that.
+ */
+struct DiagnosticAttribute {
+  std::string_view key;
+  DiagnosticAttributeValue value;
+
+  template <typename T>
+  DiagnosticAttribute(std::string_view in_key, T&& in_value)
+      : key(in_key), value(detail::ToDiagnosticValue(std::forward<T>(in_value))) {}
+};
+
 /**
  * A static list of attribute values to include in a specific log message. Serialized as
  * a JSON object; see `json/diagnostic_attribute.hpp`.
  */
-using DiagnosticAttributeList =
-    std::initializer_list<std::pair<std::string_view, DiagnosticAttributeValue>>;
+using DiagnosticAttributeList = std::initializer_list<DiagnosticAttribute>;
 
 /**
  * Wraps a user-provided (or SDK-default) diagnostic message handler callback, providing

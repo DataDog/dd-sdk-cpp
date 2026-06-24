@@ -29,8 +29,8 @@ size_t GetJsonSize(const DiagnosticAttributeList& value) {
     size += n - 1;  // commas, without space
     size += n;      // colons, without space
     for (const auto& kvp : value) {
-      size += kvp.first.size() + 2;     // quoted name, no escaping
-      size += GetJsonSize(kvp.second);  // JSON-serialized value
+      size += kvp.key.size() + 2;      // quoted name, no escaping
+      size += GetJsonSize(kvp.value);  // JSON-serialized value
     }
   }
   return size;
@@ -56,16 +56,16 @@ size_t WriteJson(char* dst, size_t n, const DiagnosticAttributeList& value) {
 
     // Write '"<name>":', without escaping the attribute name
     DATADOG_ASSERT(
-        ptr + kvp.first.size() + 3 < end, "JSON property name would overflow buffer"
+        ptr + kvp.key.size() + 3 < end, "JSON property name would overflow buffer"
     );
     *ptr++ = '"';
-    std::memcpy(ptr, kvp.first.data(), kvp.first.size());
-    ptr += kvp.first.size();
+    std::memcpy(ptr, kvp.key.data(), kvp.key.size());
+    ptr += kvp.key.size();
     *ptr++ = '"';
     *ptr++ = ':';
 
     // Write the Attribute value as JSON
-    const size_t json_value_size = WriteJson(ptr, end - ptr, kvp.second);
+    const size_t json_value_size = WriteJson(ptr, end - ptr, kvp.value);
     DATADOG_ASSERT(ptr + json_value_size < end, "JSON value has overflowed buffer");
     ptr += json_value_size;
   }

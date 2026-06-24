@@ -441,7 +441,7 @@ UploadThreadState::UploadThreadState(
 Duration UploadThreadState::IncreaseDelayTowardMax() {
   const int64_t current = current_delay.count();
   const int64_t ten_percent = static_cast<int64_t>(static_cast<double>(current) * 0.1);
-  current_delay = Duration(std::min(max_delay.count(), current + ten_percent));
+  current_delay = Duration(std::min<int64_t>(max_delay.count(), current + ten_percent));
   return current_delay;
 }
 

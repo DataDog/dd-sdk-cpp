@@ -145,7 +145,9 @@ Attribute Attribute::Int(int64_t value) { return Attribute(ValueType::Int, value
 Attribute Attribute::UInt(uint64_t value) { return Attribute(ValueType::UInt, value); }
 
 Attribute Attribute::Timestamp(datadog::Timestamp value) {
-  return Attribute(ValueType::Timestamp, value.time_since_epoch().count());
+  return Attribute(
+      ValueType::Timestamp, static_cast<int64_t>(value.time_since_epoch().count())
+  );
 }
 
 Attribute Attribute::Double(double value) {
