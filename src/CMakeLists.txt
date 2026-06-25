@@ -124,6 +124,14 @@ if(DD_GIT_REVISION_ID)
     target_compile_definitions(ddsdkcpp PUBLIC DATADOG_GIT_REVISION_ID="${DD_GIT_REVISION_ID}")
 endif()
 
+# When building a universal (multi-architecture) binary, the preprocessor arch
+# detection in version.hpp would resolve to whichever slice is being compiled.
+# Signal the universal case explicitly so the artifact name reflects it.
+list(LENGTH CMAKE_OSX_ARCHITECTURES _dd_arch_count)
+if(_dd_arch_count GREATER 1)
+    target_compile_definitions(ddsdkcpp PUBLIC DATADOG_BUILD_IS_UNIVERSAL)
+endif()
+
 # Enable position-independent code for ASLR, shared library usage, etc.
 set_target_properties(ddsdkcpp PROPERTIES
     POSITION_INDEPENDENT_CODE ON
@@ -131,8 +139,13 @@ set_target_properties(ddsdkcpp PROPERTIES
     EXPORT_NAME sdk
 )
 
-# Any C++ project that depends on this target must compile with C++17 or newer
-target_compile_features(ddsdkcpp PUBLIC cxx_std_17)
+# Building the SDK requires either C++17 or C++20 at a minimum, depending on
+# configuration. (The C++ API adheres to C++17, and the C API adheres to C99.)
+if(DD_CRASH_MODE STREQUAL "crashpad")
+    target_compile_features(ddsdkcpp PUBLIC cxx_std_20)
+else()
+    target_compile_features(ddsdkcpp PUBLIC cxx_std_17)
+endif()
 
 # Add internal-only, header-only dependencies as PRIVATE SYSTEM includes
 target_include_external_deps(ddsdkcpp)

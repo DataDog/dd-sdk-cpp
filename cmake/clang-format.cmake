@@ -13,7 +13,7 @@
 # When the SDK is consumed via FetchContent or add_subdirectory, we do not want
 # generic names like 'format' or 'check-format' leaking into the parent
 # project's target list.
-if(NOT DD_IS_TOP_LEVEL)
+if(NOT PROJECT_IS_TOP_LEVEL)
     return()
 endif()
 

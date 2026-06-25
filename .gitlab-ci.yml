@@ -325,8 +325,10 @@ package-macos:
       # macos-{arch}-clang-libc++-shared-release
       - BUILD_CONFIGURATION: RelWithDebInfo
         BUILD_SHARED_LIBS: "ON"
+        CMAKE_OSX_DEPLOYMENT_TARGET: "13.0"
+        CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
   script:
-    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -S . -B build
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET} -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} -S . -B build
     - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - stat build/artifact_name.txt
     - stat "build/$(cat build/artifact_name.txt).tar.gz"
