@@ -180,20 +180,21 @@ if(DD_BUILD_INSTALL)
 
     # Crashpad static libs should be distributed in lib/, as an application that links
     # against Datadog::sdk will be linked against crashpad::client transitively
-    install(FILES ${CRASHPAD_CLIENT_LIB_PATH} DESTINATION lib)
-    install(FILES ${CRASHPAD_COMMON_LIB_PATH} DESTINATION lib)
-    install(FILES ${CRASHPAD_UTIL_LIB_PATH} DESTINATION lib)
-    install(FILES ${CRASHPAD_BASE_LIB_PATH} DESTINATION lib)
+    install(FILES ${CRASHPAD_CLIENT_LIB_PATH} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(FILES ${CRASHPAD_COMMON_LIB_PATH} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(FILES ${CRASHPAD_UTIL_LIB_PATH} DESTINATION ${CMAKE_INSTALL_LIBDIR})
+    install(FILES ${CRASHPAD_BASE_LIB_PATH} DESTINATION ${CMAKE_INSTALL_LIBDIR})
     if(APPLE)
-        install(FILES ${CRASHPAD_MIG_OUTPUT_LIB_PATH} DESTINATION lib)
+        install(FILES ${CRASHPAD_MIG_OUTPUT_LIB_PATH} DESTINATION ${CMAKE_INSTALL_LIBDIR})
     endif()
 
     # The Crashpad handler executable should be distributed in bin/
     install(PROGRAMS ${CRASHPAD_HANDLER_EXE_PATH} DESTINATION bin)
 
     # CrashpadConfig.cmake should be generated from the .cmake.in template and
-    # distributed in lib/cmake/Crashpad so that DatadogConfig.cmake can include it
-    set(CRASHPAD_CONFIG_INSTALL_DIR lib/cmake/Crashpad)
+    # distributed alongside DatadogConfig.cmake so that the relative include path
+    # in DatadogConfig.cmake resolves correctly regardless of CMAKE_INSTALL_LIBDIR
+    set(CRASHPAD_CONFIG_INSTALL_DIR ${CMAKE_INSTALL_LIBDIR}/cmake/Crashpad)
     configure_file(
         ${CMAKE_SOURCE_DIR}/cmake/CrashpadConfig.cmake.in
         ${CMAKE_BINARY_DIR}/CrashpadConfig.cmake
