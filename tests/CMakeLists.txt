@@ -132,6 +132,15 @@ endif()
 
 target_include_external_deps(tests)
 target_enable_strict_warnings(tests)
+
+# Catch2's std::unreachable polyfill uses __assume(false) before std::terminate()
+# in NDEBUG builds, which makes MSVC flag the terminate() call as unreachable code
+# (C4702). This is a back-end/codegen warning, so /external:W0 can't suppress it and
+# /WX promotes it to an error. Disable C4702 for this target to work around it.
+if(MSVC)
+    target_compile_options(tests PRIVATE /wd4702)
+endif()
+
 target_enable_datadog_assert(tests)
 target_enable_coverage(tests)
 target_enable_sanitizers(tests)

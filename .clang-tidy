@@ -16,6 +16,7 @@ Checks: [
   -readability-redundant-access-specifiers, # public:/private: can delineate logical groupings of members; should be close to what they modify
   -readability-named-parameter,             # allow parameter name to be omitted (conflicts with clang-diagnostic-unused-parameter)
   -readability-use-anyofallof,              # a for loop is perfectly readable; `std::all_of()` with a lambda is not inherently clearer
+  -readability-container-contains,          # `contains()` is C++20-only; codebase must also compile under C++17
 
   performance-*,
 
