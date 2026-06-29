@@ -162,19 +162,28 @@ class GnArgs:
             args.mac_deployment_target = cmake_osx_deployment_target
 
         # extra_cflags, extra_cflags_cc: Parse from DD_COMPILE_OPTIONS (pipe-separated);
-        # filter out warnings etc.
+        # filter out warnings and sanitizer flags. Sanitizer flags are stripped because
+        # crashpad's GN build uses its own compiler (from depot_tools), which may have a
+        # different ASan ABI version than the Xcode toolchain used to link the final
+        # binary: passing -fsanitize=* through would produce crashpad objects that
+        # reference ASan runtime symbols incompatible with Xcode's ASan runtime.
         dd_compile_options_encoded = vars.get('DD_COMPILE_OPTIONS', '')
         dd_compile_options = {x.strip() for x in dd_compile_options_encoded.split('|') if x.strip()}
         for opt in dd_compile_options:
             if opt.startswith('-W') or opt.startswith('/W'):
                 continue
+            if opt.startswith('-fsanitize') or opt.startswith('-fno-sanitize'):
+                continue
             args.extra_cflags.add(opt)
             args.extra_cflags_cc.add(opt)
 
-        # extra_ldflags: Parse from DD_LINK_OPTIONS (pipe-separated)
+        # extra_ldflags: Parse from DD_LINK_OPTIONS (pipe-separated); strip sanitizer
+        # flags for the same reason as above
         dd_link_options_encoded = vars.get('DD_LINK_OPTIONS', '')
         dd_link_options = {x.strip() for x in dd_link_options_encoded.split('|') if x.strip()}
         for opt in dd_link_options:
+            if opt.startswith('-fsanitize') or opt.startswith('-fno-sanitize'):
+                continue
             args.extra_ldflags.add(opt)
 
         # On Windows, require MSVC_RUNTIME_LIBRARY and ensure that we're building
