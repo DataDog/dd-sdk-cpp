@@ -9,6 +9,12 @@
 #include <string>
 #include <vector>
 
+// Win32 preprocessor defines must be set before Crashpad includes
+#ifdef _WIN32
+#define WIN32_LEAN_AND_MEAN
+#define NOMINMAX
+#endif
+
 #include "client/annotation.h"
 #include "client/crash_report_database.h"
 #include "client/crashpad_client.h"
@@ -19,8 +25,6 @@
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
 #include <windows.h>  // GetModuleFileName
 #else
 #include <limits.h>  // PATH_MAX
