@@ -43,8 +43,10 @@
 #define DATADOB_BUILD_PLATFORM "unsupported-platform"
 #endif
 
-// arch: e.g. 'x64', 'arm64'
-#if defined(__x86_64__) || defined(_M_X64)
+// arch: e.g. 'x64', 'arm64', 'universal'
+#if defined(DATADOG_BUILD_IS_UNIVERSAL)
+#define DATADOG_BUILD_ARCH "universal"
+#elif defined(__x86_64__) || defined(_M_X64)
 #define DATADOG_BUILD_ARCH "x64"
 #elif defined(__aarch64__) || defined(_M_ARM64)
 #define DATADOG_BUILD_ARCH "arm64"

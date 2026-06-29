@@ -1,21 +1,30 @@
 cmake_minimum_required(VERSION 3.21)
 
-# Default to targeting macOS v15: this must appear before project() as it affects
-# toolchain selection
-if(APPLE AND NOT DEFINED CMAKE_OSX_DEPLOYMENT_TARGET)
-  set(CMAKE_OSX_DEPLOYMENT_TARGET "15.0" CACHE STRING "Minimum macOS version")
-endif()
+# When building dd-sdk-cpp from source, you should generally ensure that your top-level
+# build defines these standard properties, either in your project's CMakeLists.txt or in
+# the cmake configure command for your build.
+#
+# On all platforms:
+#
+# - CMAKE_BUILD_TYPE (e.g. 'RelWithDebInfo'): setting this for your project ensures that
+#   the SDK will be compiled with the same level of optimization and debug symbol
+#   visibility as the rest of your project.
+#
+# On Windows:
+#
+# - MSVC_RUNTIME_LIBRARY (e.g. 'MultiThreadedDLL'): controls the CRT version that your
+#   application links against; the SDK should link against the same CRT for ABI
+#   compatibility.
+#
+# On macOS:
+#
+# - CMAKE_OSX_DEPLOYMENT_TARGET (e.g. '11.0'): determines the minimum supported macOS
+#   version for your application; the SDK should match.
+#
+# - CMAKE_OSX_ARCHITECTURES (e.g. 'arm64;x86_64' for universal binaries): determines the
+#   target architecture(s) for the build.
 
 project(ddsdkcpp VERSION 0.4.0 LANGUAGES C CXX)
-
-# If we're the top-level project, we're being built in the original source repo, where
-# we want to generate installable builds, etc; if not, we're being pulled in as a
-# third-party dependency via FetchContent
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-    set(DD_IS_TOP_LEVEL ON)
-else()
-    set(DD_IS_TOP_LEVEL OFF)
-endif()
 
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
@@ -26,7 +35,7 @@ option(DD_DEVELOPMENT_ALLOW_AUTO_INSTALL "If enabled, required development tools
 # ensure that CMAKE_BUILD_TYPE is set to a reasonable default. Note that when the SDK is
 # included in another project as a dependency, that project owns CMAKE_BUILD_TYPE and
 # must set it explicitly.
-if(DD_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+if(PROJECT_IS_TOP_LEVEL AND NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     # Use debug if running a local development build to actively work on the SDK;
     # otherwise produce an optimized release build with symbols.
     if(DD_DEVELOPMENT)
@@ -43,10 +52,8 @@ set_property(CACHE DD_CRASH_MODE PROPERTY STRINGS "noop" "inprocess" "crashpad")
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
 option(DD_BUILD_TOOLS "Build optional utilities from C++ source within tools/" ${DD_DEVELOPMENT})
-option(DD_BUILD_INSTALL "Enable install targets" ${DD_IS_TOP_LEVEL})
-if(DD_BUILD_INSTALL)
-    option(DD_BUILD_PACKAGE "Enable package targets and build required tools" ${DD_BUILD_INSTALL})
-endif()
+option(DD_BUILD_INSTALL "Enable install targets" ${PROJECT_IS_TOP_LEVEL})
+option(DD_BUILD_PACKAGE "Enable package targets and build required tools" ${PROJECT_IS_TOP_LEVEL})
 option(DD_ENABLE_GIT_REVISION_INFO "Stamp the build with the git branch name, commit sha, and blob hash of src/ (incl. pending changes) computed at configure-time" ${DD_BUILD_INSTALL})
 option(DD_ENABLE_EVENT_VALIDATION "Include targets for validating JSON event payloads against rum-events-format schemas (requires Python)" ${DD_DEVELOPMENT})
 option(DD_ENABLE_INTEGRATION_TEST "Include targets for running integration tests (requires Python and DD_BUILD_EXAMPLES)" "${DD_DEVELOPMENT}")
@@ -61,7 +68,7 @@ option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
 
 # C API targets C99; C++ API targets C++17
-if(DD_IS_TOP_LEVEL)
+if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_C_STANDARD 99)
     set(CMAKE_CXX_STANDARD 17)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -83,9 +90,10 @@ set(DD_SDK_ROOT_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
 # datadog_enable(primary_executable_target) in their CMake builds
 include("${DD_SDK_ROOT_DIR}/cmake/DatadogConvenience.cmake")
 if(DD_BUILD_INSTALL)
+    include(GNUInstallDirs)
     install(FILES
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/DatadogConvenience.cmake"
-        DESTINATION lib/cmake/Datadog
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Datadog
     )
 endif()
 
@@ -134,9 +142,9 @@ endif()
 # property), and the test suite. Agents and contributors should prefer this
 # single target over invoking each check individually.
 #
-# Gated on DD_IS_TOP_LEVEL so the generic 'check-all' name does not leak into
+# Gated on PROJECT_IS_TOP_LEVEL so the generic 'check-all' name does not leak into
 # parent projects that consume this SDK via FetchContent or add_subdirectory.
-if(DD_IS_TOP_LEVEL AND TARGET check-format AND DD_BUILD_TESTING)
+if(PROJECT_IS_TOP_LEVEL AND TARGET check-format AND DD_BUILD_TESTING)
     add_custom_target(check-all
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure
         COMMENT "Running local CI checks: clang-format, build (with clang-tidy), and tests"
@@ -155,8 +163,6 @@ endif()
 
 # Only install when DD_BUILD_INSTALL is enabled
 if(DD_BUILD_INSTALL)
-    include(GNUInstallDirs)
-
     # Install headers
     install(DIRECTORY include-c/
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
@@ -172,7 +178,7 @@ if(DD_BUILD_INSTALL)
     install(EXPORT DatadogTargets
         FILE DatadogTargets.cmake
         NAMESPACE Datadog::
-        DESTINATION lib/cmake/Datadog
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Datadog
     )
 
     include(CMakePackageConfigHelpers)
@@ -185,17 +191,17 @@ if(DD_BUILD_INSTALL)
     configure_package_config_file(
         "${CMAKE_CURRENT_SOURCE_DIR}/cmake/DatadogConfig.cmake.in"
         "${CMAKE_CURRENT_BINARY_DIR}/DatadogConfig.cmake"
-        INSTALL_DESTINATION lib/cmake/Datadog
+        INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Datadog
     )
 
     install(FILES
         "${CMAKE_CURRENT_BINARY_DIR}/DatadogConfig.cmake"
         "${CMAKE_CURRENT_BINARY_DIR}/DatadogConfigVersion.cmake"
-        DESTINATION lib/cmake/Datadog
+        DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/Datadog
     )
 endif()
 
 # If including package commands, build the required utilities and define package targets
-if (DD_BUILD_PACKAGE)
+if (DD_BUILD_INSTALL AND DD_BUILD_PACKAGE)
     include(${DD_SDK_ROOT_DIR}/cmake/package.cmake)
 endif()
