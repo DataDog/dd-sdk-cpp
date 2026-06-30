@@ -163,7 +163,17 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
     // address points to the instruction to be executed after this function returns
     // (immediately following the call that created this frame). Symbolication tools
     // will adjust to resolve the actual call site.
+#ifdef __aarch64__
+    // Strip pointer authentication codes from the return address: on AArch64, return
+    // addresses stored on the stack have a PAC signature encoded in their upper 16
+    // bits, so we need to mask to 48-bit virtual address space to end up with the
+    // actual address within the relevant module.
+    uint64_t raw_ret = reinterpret_cast<uint64_t>(ret_addr);
+    raw_ret &= 0x0000ffffffffffff;
+    WriteCrashReportStackFrame(fd, raw_ret);
+#else
     WriteCrashReportStackFrame(fd, reinterpret_cast<uint64_t>(ret_addr));
+#endif
 
     // Reading frame[0] into fp (effectively dereferencing fp) moves to the next frame
     fp = frame[0];
