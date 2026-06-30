@@ -4,13 +4,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/writer.hpp"
+#include "datadog/impl/core/http/body_writer_tlv.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cstring>
 
 #include "datadog/impl/core/feature_read.hpp"
-#include "datadog/impl/core/platform/http.hpp"
+#include "datadog/impl/core/http/client.hpp"
 #include "datadog/impl/core/tlv.hpp"
 
 #include "mock/filesystem.hpp"
@@ -19,74 +19,6 @@
 
 using namespace datadog;
 using namespace datadog::impl;
-
-TEST_CASE("StringWriter", "[unit]") {
-  SECTION("M write string to buffer W called as functor") {
-    // Given a StringWriter initialized from a string of length 8
-    std::string s{"deadbeef"};
-    platform::HttpBodyWriter writer = StringWriter{s};
-
-    // When the string is written to a buffer of size 8
-    char buffer[8];
-    const size_t num_bytes_written = writer(buffer, 8);
-
-    // Then those 8 bytes are copied exactly
-    REQUIRE(num_bytes_written == 8);
-    REQUIRE(std::strstr(buffer, "deadbeef") == buffer);
-  }
-
-  SECTION("M not include null terminator W called as functor") {
-    // Given a StringWriter initialized from a string of length 8
-    std::string s{"deadbeef"};
-    platform::HttpBodyWriter writer = StringWriter{s};
-
-    // When the string is written to a buffer of size 9
-    char buffer[9];
-    std::memset(buffer, 'z', 9);
-    const size_t num_bytes_written = writer(buffer, 9);
-
-    // Then only 8 bytes are written, without null terminator
-    REQUIRE(num_bytes_written == 8);
-    REQUIRE(std::memcmp(buffer, "deadbeefz", 9) == 0);
-  }
-
-  SECTION("M write in multiple parts W buffer size is small") {
-    // Given a StringWriter initialized from a string of length 8
-    std::string s{"deadbeef"};
-    platform::HttpBodyWriter writer = StringWriter{s};
-
-    // When the string is written to a buffer given a dst size of 4
-    char buffer[9];
-    std::memset(buffer, '_', 9);
-    size_t num_bytes_written = writer(buffer, 4);
-
-    // Then only 4 bytes are written, without null terminator
-    REQUIRE(num_bytes_written == 4);
-    REQUIRE(std::memcmp(buffer, "dead_____", 9) == 0);
-
-    // And: When another write is performed with the same size
-    num_bytes_written = writer(buffer + 4, 4);
-
-    // Then the writer picks up where it left off
-    REQUIRE(num_bytes_written == 4);
-    REQUIRE(std::memcmp(buffer, "deadbeef_", 9) == 0);
-  }
-
-  SECTION("M return EOF W finished writing") {
-    // Given a StringWriter that's written all it can write
-    std::string s{"deadbeef"};
-    platform::HttpBodyWriter writer = StringWriter{s};
-    char buffer[8];
-    size_t num_bytes_written = writer(buffer, 8);
-    REQUIRE(num_bytes_written == 8);
-
-    // When write is called again
-    num_bytes_written = writer(buffer, 8);
-
-    // Then nothing is written, and 0 signals EOF
-    REQUIRE(num_bytes_written == 0);
-  }
-}
 
 TEST_CASE("TLVBatchWriter", "[unit][writer]") {
   // Given a diagnostic logger that will buffer messages
@@ -144,14 +76,14 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
     REQUIRE(infile.value == FilesystemResult::OK);
     BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader};
+    HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we demand the next (up to) 256 bytes
     char buffer[256];
     const size_t num_bytes_written = writer(buffer, 256);
 
     // Then a subsequent write call does nothing and returns 0
-    REQUIRE(writer(buffer, sizeof(buffer)) == platform::HTTP_WRITE_RESULT_EOF);
+    REQUIRE(writer(buffer, sizeof(buffer)) == HTTP_WRITE_RESULT_EOF);
 
     // And the writer formats all events into the buffer as a JSON array
     REQUIRE(num_bytes_written == 28);
@@ -165,7 +97,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
     REQUIRE(infile.value == FilesystemResult::OK);
     BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader};
+    HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we demand the first 16 bytes
     char buffer[256];
@@ -180,7 +112,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     num_bytes_written = writer(buffer + 16, 16);
 
     // Then a subsequent write call does nothing and returns 0
-    REQUIRE(writer(buffer, sizeof(buffer)) == platform::HTTP_WRITE_RESULT_EOF);
+    REQUIRE(writer(buffer, sizeof(buffer)) == HTTP_WRITE_RESULT_EOF);
 
     // And we should have the whole batch encoded
     REQUIRE(num_bytes_written == 12);
@@ -192,7 +124,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
     REQUIRE(infile.value == FilesystemResult::OK);
     BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader, "", "", ""};
+    HttpBodyWriter writer = TLVBatchWriter{reader, "", "", ""};
 
     // When we demand the full contents 256 bytes
     char buffer[256];
@@ -212,7 +144,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
     REQUIRE(infile.value == FilesystemResult::OK);
     BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader, prefix, delimiter, suffix};
+    HttpBodyWriter writer = TLVBatchWriter{reader, prefix, delimiter, suffix};
 
     // And a write buffer
     char buffer[256];
@@ -261,8 +193,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
       auto infile = fs.Wrapper().OpenForRead("three-events.dat", false);
       REQUIRE(infile.value == FilesystemResult::OK);
       BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-      platform::HttpBodyWriter writer =
-          TLVBatchWriter{reader, prefix, delimiter, suffix};
+      HttpBodyWriter writer = TLVBatchWriter{reader, prefix, delimiter, suffix};
 
       // When we continually call the write func until it returns zero
       std::memset(buffer, '_', sizeof(buffer));
@@ -282,14 +213,14 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     auto infile = fs.Wrapper().OpenForRead("empty.dat", false);
     REQUIRE(infile.value == FilesystemResult::OK);
     BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader};
+    HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we demand the contents
     char buffer[256];
     const size_t num_bytes_written = writer(buffer, 256);
 
     // Then the lack of any event data makes the batch invalid
-    REQUIRE(num_bytes_written == platform::HTTP_WRITE_RESULT_ABORT);
+    REQUIRE(num_bytes_written == HTTP_WRITE_RESULT_ABORT);
   }
 
   SECTION("M abort request W file contains only metadata blocks") {
@@ -297,14 +228,14 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     auto infile = fs.Wrapper().OpenForRead("only-metadata.dat", false);
     REQUIRE(infile.value == FilesystemResult::OK);
     BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader};
+    HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we demand the full contents
     char buffer[256];
     const size_t num_bytes_written = writer(buffer, 256);
 
     // Then lack of any event data makes the batch invalid
-    REQUIRE(num_bytes_written == platform::HTTP_WRITE_RESULT_ABORT);
+    REQUIRE(num_bytes_written == HTTP_WRITE_RESULT_ABORT);
   }
 
   SECTION("M abort request W file read fails due to IO error") {
@@ -312,7 +243,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     auto infile = fs.Wrapper().OpenForRead("badfile.dat", false);
     REQUIRE(infile.value == FilesystemResult::OK);
     BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader};
+    HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we read successfully once
     char buffer[256];
@@ -324,7 +255,7 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
 
     // Then the next write returns abort
     num_bytes_written = writer(buffer + 16, 16);
-    REQUIRE(num_bytes_written == platform::HTTP_WRITE_RESULT_ABORT);
+    REQUIRE(num_bytes_written == HTTP_WRITE_RESULT_ABORT);
   }
 
   SECTION("M abort request W file read fails due to invalid format") {
@@ -332,13 +263,13 @@ TEST_CASE("TLVBatchWriter", "[unit][writer]") {
     auto infile = fs.Wrapper().OpenForRead("nontlv.dat", false);
     REQUIRE(infile.value == FilesystemResult::OK);
     BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
-    platform::HttpBodyWriter writer = TLVBatchWriter{reader};
+    HttpBodyWriter writer = TLVBatchWriter{reader};
 
     // When we attempt to write
     char buffer[256];
     const size_t num_bytes_written = writer(buffer, 256);
 
     // Then the first call returns abort due to invalid format
-    REQUIRE(num_bytes_written == platform::HTTP_WRITE_RESULT_ABORT);
+    REQUIRE(num_bytes_written == HTTP_WRITE_RESULT_ABORT);
   }
 }

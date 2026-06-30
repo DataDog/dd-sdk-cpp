@@ -32,7 +32,7 @@ CrashReporting::CrashReporting(
 }
 
 std::optional<Report> CrashReporting::UploadThread_PrepareReport(
-    BatchReader& reader, RequestBuilder& builder
+    BatchReader& reader, HttpRequestBuilder& builder
 ) {
   // The Crash Reporting feature implementation does not currently generate or upload
   // any events in-process

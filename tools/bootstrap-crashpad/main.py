@@ -161,13 +161,32 @@ class GnArgs:
                 raise ValueError('CMAKE_OSX_DEPLOYMENT_TARGET must be specified for macOS builds')
             args.mac_deployment_target = cmake_osx_deployment_target
 
-        # extra_cflags, extra_cflags_cc: Parse from DD_COMPILE_OPTIONS (pipe-separated);
-        # filter out warnings etc.
+        # extra_cflags, extra_cflags_cc: Parse from DD_COMPILE_OPTIONS (pipe-separated).
+        # crashpad's GN build uses its own compiler (from depot_tools), so we need to:
+        # - drop any flags that aren't strictly necessary to ensure ABI compatibility
+        # - preserve any flags that _do_ affect binary compatibility
+        # - translate any foreign options (e.g. from MSVC) to natively-supported flags
         dd_compile_options_encoded = vars.get('DD_COMPILE_OPTIONS', '')
         dd_compile_options = {x.strip() for x in dd_compile_options_encoded.split('|') if x.strip()}
         for opt in dd_compile_options:
-            if opt.startswith('-W') or opt.startswith('/W'):
+            # Strip any clang/GCC warning flags
+            if opt.startswith('-W'):
                 continue
+
+            # Strip MSVC warning flags, including configuration for which includes are
+            # treated as external and therefore exempt from strict warnings
+            if opt.startswith('/W') or opt.startswith('/external:'):
+                continue
+
+            # The depot_tools compiler supports sanitizers, but it's not guaranteed to
+            # use the same ABI version of ASan, TSan, etc.: strip these flags to ensure
+            # that our crashpad build doesn't reference sanitizer symbols that are
+            # incompatible with our SDK's build's sanitizer versions.
+            if opt.startswith('-fsanitize') or opt.startswith('-fno-sanitize'):
+                continue
+
+            # All remaining flags are carried into the GN build directly: this is
+            # brittle, but it ensures that we explicitly deal with all compiler flags
             args.extra_cflags.add(opt)
             args.extra_cflags_cc.add(opt)
 
@@ -175,6 +194,9 @@ class GnArgs:
         dd_link_options_encoded = vars.get('DD_LINK_OPTIONS', '')
         dd_link_options = {x.strip() for x in dd_link_options_encoded.split('|') if x.strip()}
         for opt in dd_link_options:
+            # Strip sanitizer flags for the same reasons noted above
+            if opt.startswith('-fsanitize') or opt.startswith('-fno-sanitize'):
+                continue
             args.extra_ldflags.add(opt)
 
         # On Windows, require MSVC_RUNTIME_LIBRARY and ensure that we're building

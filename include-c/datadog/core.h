@@ -92,6 +92,7 @@ typedef enum {
   DD_SITE_AP1,
   DD_SITE_AP2,
   DD_SITE_US1_FED,
+  DD_SITE_US2_FED,
 } dd_site_t;
 
 /**
@@ -259,7 +260,7 @@ DATADOG_API void dd_core_config_set_env(dd_core_config_t* config, const char* va
  * Sets the 'version' value, identifying the version of your applicating that's being
  * monitored.
  */
-DATADOG_API void dd_core_config_set_application_version(
+DATADOG_API void dd_core_config_set_version(
     dd_core_config_t* config, const char* value
 );
 

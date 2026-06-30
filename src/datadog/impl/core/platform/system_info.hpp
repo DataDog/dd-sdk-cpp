@@ -115,7 +115,7 @@ namespace SystemInfo {
  * If the SDK is unable to resolve values, it will emit diagnostic messages with
  * DiagnosticLevel::Debug, and default/fallback values will be used.
  */
-std::unique_ptr<ISystemInfo> Init(impl::DiagnosticLogger& logger);
+std::unique_ptr<ISystemInfo> Init(const impl::DiagnosticLogger& logger);
 };  // namespace SystemInfo
 
 }  // namespace datadog::platform

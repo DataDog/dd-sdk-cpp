@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/request_builder.hpp"
+#include "datadog/impl/core/http/request_builder.hpp"
 
 #include <algorithm>
 
@@ -16,7 +16,7 @@
 
 namespace datadog::impl {
 
-RequestBuilder::RequestBuilder(const CoreContext& ctx)
+HttpRequestBuilder::HttpRequestBuilder(const CoreContext& ctx)
     : _intake_origin(ctx.intake_origin),
       _user_agent(ctx.user_agent),
       _client_token(ctx.client_token),
@@ -26,7 +26,7 @@ RequestBuilder::RequestBuilder(const CoreContext& ctx)
   _headers_buffer.reserve(512);
 }
 
-RequestBuilder& RequestBuilder::Reset(
+HttpRequestBuilder& HttpRequestBuilder::Reset(
     std::string_view path, std::string_view content_type
 ) {
   // Origin should never end with '/'; path should always start with '/'
@@ -71,7 +71,7 @@ RequestBuilder& RequestBuilder::Reset(
   return *this;
 }
 
-RequestBuilder& RequestBuilder::AddQueryParam(
+HttpRequestBuilder& HttpRequestBuilder::AddQueryParam(
     std::string_view name, std::string_view value
 ) {
   // We only use this function internally with values that do not require URL-encoding:
@@ -110,11 +110,11 @@ RequestBuilder& RequestBuilder::AddQueryParam(
   return *this;
 }
 
-RequestBuilder& RequestBuilder::AddQueryParam_ddsource() {
+HttpRequestBuilder& HttpRequestBuilder::AddQueryParam_ddsource() {
   return AddQueryParam("ddsource", _source);
 }
 
-RequestBuilder& RequestBuilder::AddHeader(
+HttpRequestBuilder& HttpRequestBuilder::AddHeader(
     std::string_view name, std::string_view value
 ) {
   // Header values should not contain CRLF

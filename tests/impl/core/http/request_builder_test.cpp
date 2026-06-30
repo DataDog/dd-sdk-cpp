@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/request_builder.hpp"
+#include "datadog/impl/core/http/request_builder.hpp"
 
 #include <string_view>
 
@@ -18,7 +18,7 @@
 using namespace datadog;
 using namespace datadog::impl;
 
-TEST_CASE("RequestBuilder", "[unit][core]") {
+TEST_CASE("HttpRequestBuilder", "[unit][core]") {
   // Given an initial CoreContext value that contains the immutable configuration
   // details affecting HTTP requests (none of which can change after SDK start)
   CoreConfig config("my-client-token", "my-service", "my-env");
@@ -28,8 +28,8 @@ TEST_CASE("RequestBuilder", "[unit][core]") {
   ImmutableContext imm(config, MOCK_OS_INFO, MOCK_DEVICE_INFO, "http-client", "1.1.2");
   CoreContext ctx(imm, TrackingConsent::Pending);
 
-  // And a RequestBuilder initialized from that context
-  RequestBuilder builder(ctx);
+  // And a HttpRequestBuilder initialized from that context
+  HttpRequestBuilder builder(ctx);
 
   SECTION("M produce expected URL and headers") {
     // When we build a request to /foo/bar with a couple of parameters and custom

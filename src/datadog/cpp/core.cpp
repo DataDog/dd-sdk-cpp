@@ -69,7 +69,7 @@ CoreConfig& CoreConfig::SetEnv(std::string_view value) {
   return *this;
 }
 
-CoreConfig& CoreConfig::SetApplicationVersion(std::string_view value) {
+CoreConfig& CoreConfig::SetVersion(std::string_view value) {
   application_version = value;
   return *this;
 }
@@ -164,18 +164,14 @@ std::shared_ptr<Core> Core::Create(
   }
 
   // Create core subsystems using default implementations
-  auto subsystems_result = impl::CoreSubsystems::Init(config);
-  if (!subsystems_result) {
-    // If we fail to initialize subsystems, log an error and return a no-op Core
-    auto err = subsystems_result.error().AddPrefix("SDK initialization failed");
-    diagnostic_logger.Error(err.Format().c_str());
+  auto subsystems = impl::CoreSubsystems::Init(diagnostic_logger);
+  if (!subsystems.has_value()) {
     return std::make_shared<Core>(Core::PrivateCtorTag{});
   }
-  impl::CoreSubsystems subsystems = std::move(*subsystems_result);
 
   // Create the core implementation
   auto impl =
-      std::make_unique<impl::Core>(config, tracking_consent, std::move(subsystems));
+      std::make_unique<impl::Core>(config, tracking_consent, std::move(*subsystems));
   if (!impl->Init()) {
     // If subsystem initialization fails, return a no-op core
     return std::make_shared<Core>(Core::PrivateCtorTag{});

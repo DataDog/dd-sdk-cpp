@@ -12,21 +12,19 @@
 #include <optional>
 #include <string_view>
 
-#include "nonstd/expected.hpp"
-
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_id.hpp"
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
-#include "datadog/impl/core/platform/http.hpp"
+#include "datadog/impl/core/http/body_writer.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog::impl {
 
 class BatchReader;
-class RequestBuilder;
+class HttpRequestBuilder;
 
 /**
  * Lightweight description of an HTTP request that should be made in order to upload a
@@ -49,7 +47,7 @@ struct Report {
    * large event payloads to be streamed directly to the HTTP layer without intermediate
    * copies.
    */
-  platform::HttpBodyWriter body_writer;
+  HttpBodyWriter body_writer;
 };
 
 /**
@@ -136,7 +134,7 @@ class Feature : public std::enable_shared_from_this<Feature> {
    * feature is ready to be processed and uploaded.
    */
   virtual std::optional<Report> UploadThread_PrepareReport(
-      BatchReader& reader, RequestBuilder& builder
+      BatchReader& reader, HttpRequestBuilder& builder
   ) = 0;
 
   /**

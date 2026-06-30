@@ -34,6 +34,8 @@ if(DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad")
     include("${CMAKE_CURRENT_LIST_DIR}/../Crashpad/CrashpadConfig.cmake")
 endif()
 
+set(DATADOG_BUILT_WITH_DD_BUILD_SHARED @DD_BUILD_SHARED@)
+
 # Include DatadogTargets.cmake, which is generated from our build-time CMake
 # configuration and includes all exported targets with the relevant details of how to
 # link them into an application along with all their dependencies

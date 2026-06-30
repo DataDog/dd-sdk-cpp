@@ -92,6 +92,7 @@ inline Site Site_FromC(dd_site_t value) {
   static_assert(static_cast<int>(Site::ap1) == DD_SITE_AP1);
   static_assert(static_cast<int>(Site::ap2) == DD_SITE_AP2);
   static_assert(static_cast<int>(Site::us1_fed) == DD_SITE_US1_FED);
+  static_assert(static_cast<int>(Site::us2_fed) == DD_SITE_US2_FED);
   return static_cast<Site>(value);
 }
 
@@ -111,6 +112,8 @@ inline const char* Site_ToString(Site value) {
       return "ap2";
     case Site::us1_fed:
       return "us1_fed";
+    case Site::us2_fed:
+      return "us2_fed";
     default:
       return "";
   }
@@ -245,7 +248,7 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
           .SetDiagnosticThreshold(DiagnosticLevel_FromC(config.diagnostic_threshold))
           .SetApplicationStoragePath(config.application_storage_path)
           .SetSite(Site_FromC(config.site))
-          .SetApplicationVersion(application_version)
+          .SetVersion(application_version)
           .SetVariant(variant)
           .SetBatchSize(BatchSize_FromC(config.batch_size))
           .SetUploadFrequency(UploadFrequency_FromC(config.upload_frequency))

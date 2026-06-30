@@ -32,7 +32,7 @@ TEST_CASE("CoreContext", "[unit]") {
 
   // When CoreContext is constructed with OS info and device info
   CoreConfig config("token", "service", "env");
-  config.SetApplicationVersion("3.0.0");
+  config.SetVersion("3.0.0");
   config.SetVariant("shipping");
   ImmutableContext imm(config, os_info, device_info, "reporter", "1.2.3");
   CoreContext ctx(imm, TrackingConsent::Pending);

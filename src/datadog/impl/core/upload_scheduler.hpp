@@ -15,7 +15,6 @@
 
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/platform/http.hpp"
 #include "datadog/impl/core/types.hpp"
 
 namespace datadog::impl {

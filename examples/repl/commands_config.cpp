@@ -35,6 +35,9 @@ std::optional<datadog::Site> ParseSite(std::string_view s) {
   if (s == "us1_fed" || s == "us1-fed") {
     return datadog::Site::us1_fed;
   }
+  if (s == "us2_fed" || s == "us2-fed") {
+    return datadog::Site::us2_fed;
+  }
   return std::nullopt;
 }
 
@@ -146,11 +149,11 @@ CommandResult HandleSetConfig(State& state, const CommandInput& args) {
     // If given a value of 'auto', compute a value procedurally based on SDK version
     if (value == "auto") {
       auto info = datadog::GetVersionInfo();
-      state.config.SetApplicationVersion(info.revision_id);
+      state.config.SetVersion(info.revision_id);
     } else {
-      state.config.SetApplicationVersion(value);
+      state.config.SetVersion(value);
     }
-    return CommandResult::OK("CoreConfig::SetApplicationVersion()");
+    return CommandResult::OK("CoreConfig::SetVersion()");
   }
 
   // set-config variant <value>

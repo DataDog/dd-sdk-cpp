@@ -1,3 +1,29 @@
+## 0.5.0
+
+### Breaking Changes
+
+- `dd_rum_start_view_obj()` and `dd_rum_stop_view_obj()` functions have been removed. Use `dd_rum_start_view()` and `dd_rum_stop_view()` instead.
+- `datadog::CoreConfig::SetApplicationVersion()` is renamed to `datadog::CoreConfig::SetVersion()` (and `dd_core_config_set_application_version()` is now `dd_core_config_set_version()`).
+- The `datadog_install()` CMake convenience function now requires keyword arguments `RUNTIME_DESTINATION` and `LIBRARY_DESTINATION`. Replace `datadog_install(bin)` with `datadog_install(RUNTIME_DESTINATION bin)`.
+
+### Features
+
+- Pre-built macOS release artifacts are now universal binaries containing both `arm64` and `x86_64` slices.
+- Added support for the `us2-fed` site.
+
+### Fixes
+
+- `datadog_install()` now automatically deploys the SDK shared library alongside the application and configures the correct runtime search path (`RPATH`) on POSIX platforms.
+- Strings passed as `name` or `key` to the RUM Operations API are now safely copied, preventing potential crashes or undefined behavior if the original string is destroyed or modified after the call returns.
+- Fixed compilation errors when building for 32-bit ARMv7 targets caused by C++ type-deduction issues.
+
+<!-- ### Internal Changes
+
+- UUID generation is now pluggable: platforms without a built-in UUID generator can supply their own implementation, while existing platforms continue to use their built-in generator by default.
+- RUM Resource events and Resource error events now correctly propagate trace context attributes (`_dd.trace_id`, `_dd.span_id`, `_dd.parent_span_id`, `_dd.rule_psr`) to their dedicated event fields rather than leaving them in the generic `context` object.
+
+-->
+
 ## 0.4.0
 
 ### Breaking Changes

@@ -93,7 +93,7 @@ std::string ExtractDeviceName(std::string_view model) {
  * @param logger Diagnostic logger for warnings
  * @return Locale string in format "en-US", or empty on failure
  */
-std::string GetUserLocale(impl::DiagnosticLogger& logger) {
+std::string GetUserLocale(const impl::DiagnosticLogger& logger) {
   CFLocaleRef locale = CFLocaleCopyCurrent();
   if (!locale) {
     logger.Debug("Unable to resolve device locale: CFLocaleCopyCurrent failed");
@@ -147,7 +147,7 @@ std::string GetUserLocale(impl::DiagnosticLogger& logger) {
  * @param logger Diagnostic logger for warnings
  * @return IANA timezone name (e.g., "America/Halifax"), or empty on failure
  */
-std::string GetSystemTimezone(impl::DiagnosticLogger& logger) {
+std::string GetSystemTimezone(const impl::DiagnosticLogger& logger) {
   CFTimeZoneRef tz = CFTimeZoneCopySystem();
   if (!tz) {
     logger.Debug("Unable to resolve device timezone: CFTimeZoneCopySystem failed");
@@ -192,7 +192,7 @@ std::string GetSystemTimezone(impl::DiagnosticLogger& logger) {
  * @param logger Diagnostic logger for warnings
  * @return Architecture string (e.g., "arm64", "x86_64"), or empty on failure
  */
-std::string GetArchitecture(impl::DiagnosticLogger& logger) {
+std::string GetArchitecture(const impl::DiagnosticLogger& logger) {
   struct utsname uts{};
   if (uname(&uts) != 0) {
     int err = errno;
@@ -219,7 +219,7 @@ class MacOSSystemInfo final : public ISystemInfo {
   DeviceInfo _device_info;
 
  public:
-  explicit MacOSSystemInfo(impl::DiagnosticLogger& logger) {
+  explicit MacOSSystemInfo(const impl::DiagnosticLogger& logger) {
     // Collect OS information
     _os_info.name = "macOS";
 
@@ -276,7 +276,7 @@ class MacOSSystemInfo final : public ISystemInfo {
   const DeviceInfo& GetDeviceInfo() const override { return _device_info; }
 };
 
-std::unique_ptr<ISystemInfo> SystemInfo::Init(impl::DiagnosticLogger& logger) {
+std::unique_ptr<ISystemInfo> SystemInfo::Init(const impl::DiagnosticLogger& logger) {
   return std::make_unique<MacOSSystemInfo>(logger);
 }
 

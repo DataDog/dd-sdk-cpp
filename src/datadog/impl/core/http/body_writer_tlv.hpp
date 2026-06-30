@@ -6,39 +6,16 @@
 
 #pragma once
 
-#include <optional>
+#include <cinttypes>
 #include <string_view>
+#include <type_traits>
 
-#include "datadog/impl/core/block.hpp"
-#include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/core/feature_read.hpp"
-#include "datadog/impl/core/platform/http.hpp"
+#include "datadog/impl/core/http/body_writer.hpp"
 
 namespace datadog::impl {
 
-/**
- * Implementation of HttpBodyWriter that streams a string value into the HTTP request
- * body.
- */
-struct StringWriter {
-  std::string_view s;
-  size_t offset{0};
-
-  /**
-   * Initializes a new StringWriter that will read the given string value and write it
-   * into the request body when used as a functor.
-   *
-   * @param s The string data to write into the request body. The underlying storage
-   *  for the string must remain stable throughout the lifetime of the StringWriter.
-   */
-  explicit StringWriter(std::string_view s) : s(s) {}
-
-  size_t operator()(char* buffer, size_t num_bytes);
-};
-static_assert(
-    std::is_convertible_v<StringWriter, platform::HttpBodyWriter>,
-    "StringWriter does not implement HttpBodyWriter"
-);
+// Forward declarations
+class BatchReader;
 
 /**
  * Implementation of HttpBodyWriter that streams the data read from a batch of TLV
@@ -130,6 +107,15 @@ struct TLVBatchWriter {
         suffix(in_suffix),
         state(in_prefix) {}
 
+  /**
+   * Function-call operator satisfying HttpBodyWriter:
+   * - std::function<size_t(char* buffer, size_t num_bytes)>
+   *
+   * Writes the next available `num_bytes`-sized chunk of data from the TLV blocks being
+   * read via BatchReader, using only "Event" blocks and automatically adding the
+   * delimiter sequence between event values, and automatically enclosing the entire set
+   * of values with the prefix and suffix sequences.
+   */
   size_t operator()(char* buffer, size_t num_bytes);
 };
 

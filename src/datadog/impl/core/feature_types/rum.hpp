@@ -1836,6 +1836,12 @@ struct RumErrorEvent {
     OmitIfNoValue<Configuration> configuration;
     OmitIfEmpty<std::string> browser_sdk_version;
 
+    // From error-schema.json
+    OmitIfEmpty<std::string> span_id;
+    OmitIfEmpty<std::string> parent_span_id;
+    OmitIfEmpty<std::string> trace_id;
+    OmitIfNoValue<float> rule_psr;
+
     Internal() {}
   };
   // From _common-schema.json
@@ -1934,7 +1940,12 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(format_version),
     DATADOG_JSON_FIELD(session),
     DATADOG_JSON_FIELD(configuration),
-    DATADOG_JSON_FIELD(browser_sdk_version)
+    DATADOG_JSON_FIELD(browser_sdk_version),
+    // From error-schema.json
+    DATADOG_JSON_FIELD(span_id),
+    DATADOG_JSON_FIELD(parent_span_id),
+    DATADOG_JSON_FIELD(trace_id),
+    DATADOG_JSON_FIELD(rule_psr)
 )
 DATADOG_JSON_STRUCT(
     RumErrorEvent::Action,
