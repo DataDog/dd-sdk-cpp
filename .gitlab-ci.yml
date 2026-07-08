@@ -33,7 +33,7 @@ variables:
   # Our Linux toolchain images are tagged with this version, e.g.
   # 'ci/dd-sdk-cpp:clang15-v2': bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
-  LINUX_TOOLCHAIN_IMAGE_VERSION: v10
+  LINUX_TOOLCHAIN_IMAGE_VERSION: v11
 
   # The Windows (MSVC) toolchain image is built separately: since Windows images tend to
   # be large, they are also tagged '<toolchain>-latest' on push, and then the AMI build
@@ -63,8 +63,10 @@ build-toolchain-image-linux:
     matrix:
       - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20]
   script:
+    - DIGEST_FILE=$(mktemp)
     - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}"
-    - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build --push ./ci/linux
+    - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build --push --metadata-file ${DIGEST_FILE} ./ci/linux
+    - ddsign sign ${TOOLCHAIN_IMAGE} --docker-metadata-file ${DIGEST_FILE}
 
 build-toolchain-image-windows:
   stage: build-toolchain-images
