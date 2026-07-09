@@ -1379,6 +1379,155 @@ Last 8 instructions at CS:EIP:
   }
 }
 
+TEST_CASE("RumLongTaskEvent", "[unit][feature_types][rum]") {
+  // Given a RumLongTaskEvent initialized with the minimum set of required properties
+  const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
+  const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+  const UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+  const RumSessionType session_type = RumSessionType::User;
+  const UUID view_id = *UUID::Parse("141ee144-4224-4224-4224-beeeeeeeeeef");
+  const std::string_view view_url = "my-view";
+  const UUID long_task_id = *UUID::Parse("dec0dec0-4004-4004-4004-beefbeefbeef");
+  const int64_t long_task_duration = 123456789;
+  RumLongTaskEvent ev{
+      date,
+      application_id,
+      session_id,
+      session_type,
+      view_id,
+      view_url,
+      long_task_id,
+      long_task_duration
+  };
+
+  SECTION("M produce a minimal long task event W only required values are set") {
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "long_task": {
+        "id": "dec0dec0-4004-4004-4004-beefbeefbeef",
+        "duration": 123456789
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "long_task"
+    })"));
+  }
+
+  SECTION("M generate valid event W all supported values are set") {
+    // RumLongTaskEvent
+    ev.date = Timestamp{std::chrono::nanoseconds(1761829845132015612)};
+    ev.service = "my-service";
+    ev.version = "my-version";
+    ev.build_version = "my-build-version";
+    ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
+    ev.ddtags = "service:my-service,env:test,foo:bar";
+    ev.source = RumSource::RumCpp;
+
+    // RumLongTaskEvent::Application
+    ev.application.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.application.current_locale = "en-US";
+
+    // RumLongTaskEvent::Session
+    ev.session.id = *UUID::Parse("f1f719db-ed81-4e63-9fe9-cf434c2af8e6");
+    ev.session.type = RumSessionType::Synthetics;
+    ev.session.has_replay = true;
+
+    // RumLongTaskEvent::View
+    ev.view.id = *UUID::Parse("18136cf5-e4a8-4e5c-9d65-7cab1703f17f");
+    ev.view.referrer = "https://referer.referrer";
+    ev.view.url = "https://example.com/yes";
+    ev.view.name = "Yes!!!🙌";
+
+    // RumLongTaskEvent::Internal::Session
+    ev._dd.session.value.emplace();
+    ev._dd.session.value->plan = 2;
+    ev._dd.session.value->session_precondition =
+        RumSessionPrecondition::InactivityTimeout;
+
+    // RumLongTaskEvent::Internal::Configuration
+    ev._dd.configuration.value.emplace(10.0f);
+    ev._dd.configuration.value->session_replay_sample_rate = 5.0f;
+    ev._dd.configuration.value->profiling_sample_rate = 20.0f;
+
+    // RumLongTaskEvent::Internal
+    ev._dd.browser_sdk_version = "3.1.2";
+
+    // RumLongTaskEvent::Action
+    ev.action.value.emplace(*UUID::Parse("4aa1315e-4cb3-4d32-90cf-a92bfd02c38c"));
+
+    // RumLongTaskEvent::LongTask
+    ev.long_task.id = *UUID::Parse("e1313013-4554-4554-4554-bbbbbb00eeff");
+    ev.long_task.duration = 987654321;
+    ev.long_task.is_frozen_frame = true;
+
+    // Custom user attributes (RumLongTaskEvent::context)
+    ev.context.value.InitObject(1);
+    ev.context.value.SetObjectProperty("foo", Attribute::Int(100));
+
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "type": "long_task",
+      "date": 1761829845132,
+      "service": "my-service",
+      "version": "my-version",
+      "build_version": "my-build-version",
+      "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
+      "ddtags": "service:my-service,env:test,foo:bar",
+      "source": "rum-cpp",
+      "application": {
+        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "current_locale": "en-US"
+      },
+      "session": {
+        "id": "f1f719db-ed81-4e63-9fe9-cf434c2af8e6",
+        "type": "synthetics",
+        "has_replay": true
+      },
+      "view": {
+        "id": "18136cf5-e4a8-4e5c-9d65-7cab1703f17f",
+        "referrer": "https://referer.referrer",
+        "url": "https://example.com/yes",
+        "name": "Yes!!!🙌"
+      },
+      "action": {
+        "id": "4aa1315e-4cb3-4d32-90cf-a92bfd02c38c"
+      },
+      "long_task": {
+        "id": "e1313013-4554-4554-4554-bbbbbb00eeff",
+        "duration": 987654321,
+        "is_frozen_frame": true
+      },
+      "context": {
+        "foo": 100
+      },
+      "_dd": {
+        "format_version": 2,
+        "session": {
+          "plan": 2,
+          "session_precondition": "inactivity_timeout"
+        },
+        "configuration": {
+          "session_sample_rate": 10,
+          "session_replay_sample_rate": 5,
+          "profiling_sample_rate": 20
+        },
+        "browser_sdk_version": "3.1.2"
+      }
+    })"));
+  }
+}
+
 TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
   // Given a RumVitalEvent initialized with the minimum set of required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};

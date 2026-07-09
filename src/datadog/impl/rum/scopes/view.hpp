@@ -198,6 +198,12 @@ class RumViewScope {
       const CoreContext& context,
       const EventWriter& writer
   );
+  ViewEventType HandleAddLongTask(
+      const RumCommandParams& base,
+      const RumAddLongTaskPayload& payload,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
 
   /**
    * Renders the view inactive, updating all necessary state to finalize the scope. This
@@ -242,6 +248,16 @@ class RumViewScope {
   void SendErrorEvent(
       const RumCommandParams& base,
       const RumAddErrorPayload& payload,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
+
+  /**
+   * Generates and sends a RUM long_task event in response to the given command.
+   */
+  void SendLongTaskEvent(
+      const RumCommandParams& base,
+      const RumAddLongTaskPayload& payload,
       const CoreContext& context,
       const EventWriter& writer
   );
@@ -292,6 +308,8 @@ class RumViewScope {
   uint64_t _num_actions_completed{0};
   uint64_t _num_errors_reported{0};
   uint64_t _num_resources_completed{0};
+  uint64_t _num_long_tasks_reported{0};
+  uint64_t _num_frozen_frames_reported{0};
 
   std::optional<RumActionScope> _active_action_scope;
 
