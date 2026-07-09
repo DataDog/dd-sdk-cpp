@@ -370,6 +370,32 @@ TEST_CASE_METHOD(ActionFixture, "RumActionScope::Process", "[unit][rum]") {
     REQUIRE(event["action"]["error"]["count"] == 1);
     REQUIRE(event["action"]["loading_time"] == 10000000);
   }
+
+  SECTION("M increment long_task count W long task is reported") {
+    // Given an active RumActionScope
+
+    // When we process AddLongTask
+    auto result = scope.Process(
+        RumCommand::AddLongTask(GetBaseParams(), std::chrono::milliseconds(50)),
+        GetTestContext(),
+        GetTestWriter()
+    );
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // And we then process StopAction to explicitly end the action 10ms later
+    clock.TickMilliseconds(10);
+    result = scope.Process(
+        RumCommand::StopAction(GetBaseParams(), ""), GetTestContext(), GetTestWriter()
+    );
+    REQUIRE(result == RumScopeResult::Close);
+    auto actions = event_capture.Actions();
+    REQUIRE(actions.size() == 1);
+
+    // Then we get an action event that has a long_task count of 1
+    const auto& event = actions.front();
+    REQUIRE(event["action"]["long_task"]["count"] == 1);
+    REQUIRE(event["action"]["loading_time"] == 10000000);
+  }
 }
 
 TEST_CASE("RumActionScope::PopulateContext", "[unit][rum]") {

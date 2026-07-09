@@ -268,6 +268,20 @@ struct RumAddErrorPayload {
 };
 
 /**
+ * On AddLongTask, the application has called the AddLongTask API function, recording
+ * that the application encountered a long task that should be reported in the context
+ * of the current view.
+ */
+struct RumAddLongTaskPayload {
+  static constexpr const char* COMMAND_NAME = "AddLongTask";
+  static constexpr RumCommandFlags FLAGS = RumCommandFlags::RequiresActiveView;
+
+  Duration duration;
+
+  explicit RumAddLongTaskPayload(Duration in_duration) : duration(in_duration) {}
+};
+
+/**
  * On StartOperation, the application has called the StartOperation API
  * function, recording the start of a user-facing operation (e.g. login, checkout).
  */
@@ -322,6 +336,7 @@ struct RumCommand {
       RumStartActionPayload,
       RumStopActionPayload,
       RumAddErrorPayload,
+      RumAddLongTaskPayload,
       RumStartOperationPayload,
       RumStopOperationPayload>;
 
@@ -410,6 +425,11 @@ struct RumCommand {
       RumCommandParams&& base, RumErrorSource source, const RumErrorDetails& error
   ) {
     return RumCommand(std::move(base), RumAddErrorPayload(source, error));
+  }
+
+  /** Creates a new 'AddLongTask' command. */
+  static RumCommand AddLongTask(RumCommandParams&& base, Duration duration) {
+    return RumCommand(std::move(base), RumAddLongTaskPayload(duration));
   }
 
   /** Creates a new 'StartOperation' command. */

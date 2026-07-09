@@ -404,6 +404,19 @@ class Rum {
   );
 
   /**
+   * Records that the application encountered a long task (a period during which the
+   * main thread was blocked for an extended duration) in the context of the current
+   * view.
+   *
+   * @param duration - The duration of the long task, in seconds. Must be positive.
+   * @param attributes - An optional set of custom attributes describing the long task,
+   *  provided as an Attribute with ValueType::Object.
+   */
+  DATADOG_API void AddLongTask(
+      double duration, const Attribute& attributes = Attribute()
+  );
+
+  /**
    * Records the start of a operation (e.g. login, checkout, upload).
    *
    * Each call emits a vital operation step event with step_type "start". The backend
