@@ -6,6 +6,8 @@
 
 #include "datadog/impl/core/util/validation.hpp"
 
+#include <limits>
+
 #include "support/catch.hpp"
 
 using namespace datadog::impl;
@@ -43,5 +45,39 @@ TEST_CASE("IsCBlankString", "[unit][validation]") {
   }
   SECTION("M return false W input value contains any non-whitespace") {
     REQUIRE(IsBlankCString("  \t  foo") == false);
+  }
+}
+
+TEST_CASE("IsValidLongTaskDurationSeconds", "[unit][validation]") {
+  SECTION("M return true W input value is a typical positive duration") {
+    REQUIRE(IsValidLongTaskDurationSeconds(0.005) == true);
+  }
+  SECTION("M return false W input value is zero") {
+    REQUIRE(IsValidLongTaskDurationSeconds(0) == false);
+  }
+  SECTION("M return false W input value is negative") {
+    REQUIRE(IsValidLongTaskDurationSeconds(-0.005) == false);
+  }
+  SECTION("M return false W input value is NaN") {
+    REQUIRE(
+        IsValidLongTaskDurationSeconds(std::numeric_limits<double>::quiet_NaN()) ==
+        false
+    );
+  }
+  SECTION("M return false W input value is positive infinity") {
+    REQUIRE(
+        IsValidLongTaskDurationSeconds(std::numeric_limits<double>::infinity()) == false
+    );
+  }
+  SECTION("M return false W input value is negative infinity") {
+    REQUIRE(
+        IsValidLongTaskDurationSeconds(-std::numeric_limits<double>::infinity()) ==
+        false
+    );
+  }
+  SECTION("M return false W input value overflows a nanosecond count") {
+    REQUIRE(
+        IsValidLongTaskDurationSeconds(std::numeric_limits<double>::max()) == false
+    );
   }
 }

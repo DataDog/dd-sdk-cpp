@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <cmath>
 #include <nlohmann/json.hpp>
 #include <string_view>
 #include <vector>
@@ -89,6 +90,48 @@ enum class TemplateVar : uint8_t {
 };
 
 /**
+ * Checks whether `want_val` is a numeric-tolerance placeholder of the form
+ * "${__APPROX:<expected>:<tolerance>__}" (e.g. "${__APPROX:5000000:1000__}" to accept
+ * any value within 1000 of 5000000). This is useful for asserting on values computed
+ * from a floating-point input (e.g. a long task duration converted from seconds to
+ * nanoseconds), where the exact result can vary by a handful of units of precision
+ * depending on the platform's floating-point rounding behavior.
+ *
+ * Returns true if `want_val` matches the placeholder syntax (regardless of whether the
+ * value in `got_val` actually satisfies the tolerance), in which case `want_val` will
+ * be overwritten with `got_val` when the tolerance check passes, so that it will pass a
+ * subsequent strict equality check. Returns false if `want_val` isn't of this form, in
+ * which case the caller should fall back to other template variable handling.
+ */
+inline bool TryEvaluateApproxNumberTemplateVar(
+    const nlohmann::json& got_val, nlohmann::json& want_val
+) {
+  static const std::string_view prefix = "${__APPROX:";
+  static const std::string_view suffix = "__}";
+
+  if (!want_val.is_string()) {
+    return false;
+  }
+  auto str = want_val.get<std::string_view>();
+  if (str.find(prefix) != 0 || str.size() < prefix.size() + suffix.size() ||
+      str.rfind(suffix) != str.size() - suffix.size()) {
+    return false;
+  }
+
+  std::string_view params =
+      str.substr(prefix.size(), str.size() - prefix.size() - suffix.size());
+  auto colon = params.find(':');
+  REQUIRE(colon != std::string_view::npos);
+  double expected = std::stod(std::string(params.substr(0, colon)));
+  double tolerance = std::stod(std::string(params.substr(colon + 1)));
+
+  if (got_val.is_number() && std::abs(got_val.get<double>() - expected) <= tolerance) {
+    want_val = got_val;
+  }
+  return true;
+}
+
+/**
  * Examines a JSON value to determine whether it represents a template placeholder.
  */
 inline std::optional<TemplateVar> ParseTemplateVar(const nlohmann::json& value) {
@@ -151,6 +194,13 @@ inline void EvaluateTemplateVars(const nlohmann::json& got, nlohmann::json& want
     nlohmann::json got_val = nlohmann::json{nullptr};
     if (got.is_object() && got.contains(key)) {
       got_val = got.at(key);
+    }
+
+    // Check whether the current value in `want` is a numeric-tolerance placeholder;
+    // if so, it's handled entirely by TryEvaluateApproxNumberTemplateVar and doesn't go
+    // through the ParseTemplateVar/TemplateVar enum machinery below.
+    if (TryEvaluateApproxNumberTemplateVar(got_val, want_val)) {
+      continue;
     }
 
     // Check whether the current value in `want` is a string representing a template var

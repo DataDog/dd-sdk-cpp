@@ -4,9 +4,12 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include <cctype>
+#include "datadog/impl/core/util/validation.hpp"
 
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include <cctype>
+#include <cmath>
+
+#include "datadog/timestamp.hpp"
 
 namespace datadog::impl {
 
@@ -20,6 +23,15 @@ bool IsBlankString(std::string_view s) {
 }
 
 bool IsBlankCString(const char* s) { return s == nullptr || IsBlankString(s); }
+
+bool IsValidLongTaskDurationSeconds(double duration_seconds) {
+  if (!std::isfinite(duration_seconds) || duration_seconds <= 0) {
+    return false;
+  }
+  constexpr double max_seconds = static_cast<double>(Duration::max().count()) *
+                                 Duration::period::num / Duration::period::den;
+  return duration_seconds <= max_seconds;
+}
 
 bool HasOnlyAllowedOperationNameCharacters(std::string_view s) {
   for (unsigned char c : s) {

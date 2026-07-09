@@ -666,8 +666,8 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
            dd_rum_add_long_task(rum, 0, NULL);
          });
        },
-       {"dd_rum_add_long_task call ignored: application must supply a positive "
-        "duration"},
+       {"dd_rum_add_long_task call ignored: application must supply a positive, "
+        "finite duration"},
        {}},
 
       // === dd_rum_start/succeed/fail_operation() ===
@@ -2908,7 +2908,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
             },
             "long_task": {
               "id": "${__NONZERO_UUID__}",
-              "duration": 5000000,
+              "duration": "${__APPROX:5000000:1000__}",
               "is_frozen_frame": false
             },
             "_dd": {
@@ -2982,7 +2982,7 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
             },
             "long_task": {
               "id": "${__NONZERO_UUID__}",
-              "duration": 800000000,
+              "duration": "${__APPROX:800000000:1000__}",
               "is_frozen_frame": true
             },
             "_dd": {

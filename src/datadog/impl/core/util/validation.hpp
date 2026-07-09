@@ -32,4 +32,13 @@ bool IsBlankCString(const char* s);
  */
 bool HasOnlyAllowedOperationNameCharacters(std::string_view s);
 
+/**
+ * Validates a duration (in seconds) passed to a long-task-reporting API: returns true
+ * if it is positive, finite, and small enough to convert to a datadog::Duration
+ * (nanosecond count) without overflow. Rejects NaN, +/-Infinity, and out-of-range
+ * values that would otherwise make the subsequent duration_cast to an integral
+ * nanosecond count undefined behavior.
+ */
+bool IsValidLongTaskDurationSeconds(double duration_seconds);
+
 }  // namespace datadog::impl

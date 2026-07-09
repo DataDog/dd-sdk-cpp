@@ -327,11 +327,12 @@ void Rum::AddError(
 
 void Rum::AddLongTask(double duration, const Attribute& attributes) {
   if (_impl) {
-    // The schema for RUM long_task events requires a positive duration; reject it,
-    // logging a warning
-    if (duration <= 0) {
+    // The schema for RUM long_task events requires a positive, finite duration that
+    // fits in a datadog::Duration; reject anything else, logging a warning
+    if (!impl::IsValidLongTaskDurationSeconds(duration)) {
       impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
-          "Rum::AddLongTask call ignored: application must supply a positive duration"
+          "Rum::AddLongTask call ignored: application must supply a positive, finite "
+          "duration"
       );
       return;
     }

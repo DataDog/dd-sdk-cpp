@@ -45,13 +45,24 @@ __template_substitutions__ = {
     'ERROR_MESSAGE_APPLICATION_CRASH': lambda: json.dumps('Application crash: oh no')
 }
 
+__approx_template_var_prefix__ = 'APPROX:'
+
+def _template_value(var_name: str) -> str:
+    # "APPROX:<expected>:<tolerance>" placeholders (see json_serialization.hpp) accept
+    # any numeric value within <tolerance> of <expected> at test time; for schema
+    # validation purposes it suffices to substitute the expected value itself.
+    if var_name.startswith(__approx_template_var_prefix__):
+        expected_str = var_name[len(__approx_template_var_prefix__):].split(':', 1)[0]
+        expected = float(expected_str)
+        return json.dumps(int(expected) if expected.is_integer() else expected)
+    value_thunk = __template_substitutions__.get(var_name)
+    if not value_thunk:
+        raise RuntimeError(f'Invalid template var {var_name}')
+    return value_thunk()
+
 def _apply_template_substitutions(s: str) -> str:
     def _replace(match: re.Match) -> str:
-        var_name = match.group(1)
-        value_thunk = __template_substitutions__.get(var_name)
-        if not value_thunk:
-            raise RuntimeError(f'Invalid template var {var_name}')
-        return value_thunk()
+        return _template_value(match.group(1))
     return re.sub(__template_var_regex__, _replace, s)
 
 

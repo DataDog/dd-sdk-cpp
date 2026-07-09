@@ -384,7 +384,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
            rum->AddLongTask(0);
          });
        },
-       {"Rum::AddLongTask call ignored: application must supply a positive duration"},
+       {"Rum::AddLongTask call ignored: application must supply a positive, finite "
+        "duration"},
        {}},
 
       // === StartOperation() / SucceedOperation() /
@@ -2452,7 +2453,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
             },
             "long_task": {
               "id": "${__NONZERO_UUID__}",
-              "duration": 5000000,
+              "duration": "${__APPROX:5000000:1000__}",
               "is_frozen_frame": false
             },
             "_dd": {
@@ -2526,7 +2527,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
             },
             "long_task": {
               "id": "${__NONZERO_UUID__}",
-              "duration": 800000000,
+              "duration": "${__APPROX:800000000:1000__}",
               "is_frozen_frame": true
             },
             "_dd": {

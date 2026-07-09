@@ -698,11 +698,12 @@ void dd_rum_add_long_task(dd_rum_t* rum, double duration, dd_attribute_t* attrib
     return;
   }
 
-  // The schema for RUM long_task events requires a positive duration; reject it,
-  // logging a warning
-  if (duration <= 0) {
+  // The schema for RUM long_task events requires a positive, finite duration that
+  // fits in a datadog::Duration; reject anything else, logging a warning
+  if (!datadog::impl::IsValidLongTaskDurationSeconds(duration)) {
     rum->diagnostic_logger.Warning(
-        "dd_rum_add_long_task call ignored: application must supply a positive duration"
+        "dd_rum_add_long_task call ignored: application must supply a positive, "
+        "finite duration"
     );
     return;
   }
