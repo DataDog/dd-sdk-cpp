@@ -9,12 +9,14 @@
 #include <iostream>
 #include <memory>
 
+#include "datadog/c/config_string.hpp"
 #include "datadog/c/core_glue.hpp"
 #include "datadog/impl/core/attribute/types.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/types.hpp"
 
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
+// NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 
 static const uint32_t CORE_CONFIG_VERSION = 1;
 
@@ -24,21 +26,21 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     nullptr,                           // diagnostic_handler_userdata
     DD_DIAGNOSTIC_LEVEL_WARNING,       // diagnostic_threshold
     DD_TRACKING_CONSENT_PENDING,       // tracking_consent
-    {0},                               // application_storage_path
+    "",                                // application_storage_path
     DD_SITE_US1,                       // site
-    nullptr,                           // client_token
-    nullptr,                           // service
-    nullptr,                           // env
-    nullptr,                           // application_version
-    nullptr,                           // variant
+    "",                                // client_token
+    "",                                // service
+    "",                                // env
+    "",                                // application_version
+    "",                                // variant
     DD_BATCH_SIZE_MEDIUM,              // batch_size
     DD_UPLOAD_FREQUENCY_AVERAGE,       // upload_frequency
     DD_BATCH_PROCESSING_LEVEL_MEDIUM,  // batch_processing_level
     {
-        false,    // internal_options.flush_http_requests_on_stop
-        nullptr,  // internal_options.custom_endpoint_url
-        nullptr,  // internal_options.source
-        nullptr   // internal_options.sdk_version
+        false,  // internal_options.flush_http_requests_on_stop
+        "",     // internal_options.custom_endpoint_url
+        "",     // internal_options.source
+        ""      // internal_options.sdk_version
     }
 };
 
@@ -61,9 +63,37 @@ void dd_core_config_init(
     return;
   }
   *config = DEFAULT_CORE_CONFIG;
-  config->client_token = client_token;
-  config->service = service;
-  config->env = env;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->client_token,
+      sizeof(config->client_token),
+      client_token,
+      logger,
+      "client_token value passed to dd_core_config_init exceeds "
+      "DATADOG_MAX_CLIENT_TOKEN_LEN (" DATADOG_CSTR(
+          DATADOG_MAX_CLIENT_TOKEN_LEN
+      ) ") and will be truncated"
+  );
+  assign_string_truncate(
+      config->service,
+      sizeof(config->service),
+      service,
+      logger,
+      "service value passed to dd_core_config_init exceeds DATADOG_MAX_SERVICE_LEN "
+      "(" DATADOG_CSTR(DATADOG_MAX_SERVICE_LEN) ") and will be truncated"
+  );
+  assign_string_truncate(
+      config->env,
+      sizeof(config->env),
+      env,
+      logger,
+      "env value passed to dd_core_config_init exceeds DATADOG_MAX_ENV_LEN "
+      "(" DATADOG_CSTR(DATADOG_MAX_ENV_LEN) ") and will be truncated"
+  );
 }
 
 void dd_core_config_set_diagnostic_handler(
@@ -99,27 +129,21 @@ void dd_core_config_set_application_storage_path(
   if (!config || !value) {
     return;
   }
-  const size_t capacity = std::size(config->application_storage_path);
-  const std::size_t max_len = capacity - 1;
-  const void* p_null{
-      std::memchr(value, '\0', max_len + 1)
-  };  // NOLINT(cppcoreguidelines-init-variables)
-  if (!p_null) {
-    auto diagnostic_logger = datadog::impl::DiagnosticLogger::FromC(
-        config->diagnostic_handler,
-        config->diagnostic_handler_userdata,
-        config->diagnostic_threshold
-    );
-    diagnostic_logger.Error(
-        "Unable to accept value passed to dd_core_config_set_application_storage_path: "
-        "length limit exceeded"
-    );
-    return;
-  }
-  const size_t len = static_cast<const char*>(p_null) - value;
-  std::memcpy(static_cast<char*>(config->application_storage_path), value, len);
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
-  config->application_storage_path[len] = '\0';
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_strict(
+      config->application_storage_path,
+      sizeof(config->application_storage_path),
+      value,
+      logger,
+      "application_storage_path value exceeds "
+      "DATADOG_MAX_APPLICATION_STORAGE_PATH_LEN (" DATADOG_CSTR(
+          DATADOG_MAX_APPLICATION_STORAGE_PATH_LEN
+      ) ") and will not be accepted"
+  );
 }
 
 void dd_core_config_set_site(dd_core_config_t* config, dd_site_t value) {
@@ -133,35 +157,100 @@ void dd_core_config_set_client_token(dd_core_config_t* config, const char* value
   if (!config) {
     return;
   }
-  config->client_token = value;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->client_token,
+      sizeof(config->client_token),
+      value,
+      logger,
+      "client_token value exceeds DATADOG_MAX_CLIENT_TOKEN_LEN (" DATADOG_CSTR(
+          DATADOG_MAX_CLIENT_TOKEN_LEN
+      ) ") and will be truncated"
+  );
 }
 
 void dd_core_config_set_service(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  config->service = value;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->service,
+      sizeof(config->service),
+      value,
+      logger,
+      "service value exceeds DATADOG_MAX_SERVICE_LEN (" DATADOG_CSTR(
+          DATADOG_MAX_SERVICE_LEN
+      ) ") and will be truncated"
+  );
 }
 
 void dd_core_config_set_env(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  config->env = value;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->env,
+      sizeof(config->env),
+      value,
+      logger,
+      "env value exceeds DATADOG_MAX_ENV_LEN (" DATADOG_CSTR(
+          DATADOG_MAX_ENV_LEN
+      ) ") and will be truncated"
+  );
 }
 
 void dd_core_config_set_version(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  config->application_version = value;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->application_version,
+      sizeof(config->application_version),
+      value,
+      logger,
+      "application version value exceeds DATADOG_MAX_VERSION_LEN (" DATADOG_CSTR(
+          DATADOG_MAX_VERSION_LEN
+      ) ") and will be truncated"
+  );
 }
 
 void dd_core_config_set_variant(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  config->variant = value;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->variant,
+      sizeof(config->variant),
+      value,
+      logger,
+      "variant value exceeds DATADOG_MAX_VARIANT_LEN (" DATADOG_CSTR(
+          DATADOG_MAX_VARIANT_LEN
+      ) ") and will be truncated"
+  );
 }
 
 void dd_core_config_set_batch_size(dd_core_config_t* config, dd_batch_size_t value) {
@@ -202,14 +291,41 @@ void dd_core_config_internal_set_custom_endpoint_url(
   if (!config) {
     return;
   }
-  config->internal_options.custom_endpoint_url = value;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->internal_options.custom_endpoint_url,
+      sizeof(config->internal_options.custom_endpoint_url),
+      value,
+      logger,
+      "custom endpoint URL value exceeds DATADOG_INTERNAL_MAX_CUSTOM_ENDPOINT_URL_LEN "
+      "(" DATADOG_CSTR(
+          DATADOG_INTERNAL_MAX_CUSTOM_ENDPOINT_URL_LEN
+      ) ") and will be truncated"
+  );
 }
 
 void dd_core_config_internal_set_source(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  config->internal_options.source = value;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->internal_options.source,
+      sizeof(config->internal_options.source),
+      value,
+      logger,
+      "source value exceeds DATADOG_INTERNAL_MAX_SOURCE_LEN (" DATADOG_CSTR(
+          DATADOG_INTERNAL_MAX_SOURCE_LEN
+      ) ") and will be truncated"
+  );
 }
 
 void dd_core_config_internal_set_sdk_version(
@@ -218,7 +334,20 @@ void dd_core_config_internal_set_sdk_version(
   if (!config) {
     return;
   }
-  config->internal_options.sdk_version = value;
+  auto logger = datadog::impl::DiagnosticLogger::FromC(
+      config->diagnostic_handler,
+      config->diagnostic_handler_userdata,
+      config->diagnostic_threshold
+  );
+  assign_string_truncate(
+      config->internal_options.sdk_version,
+      sizeof(config->internal_options.sdk_version),
+      value,
+      logger,
+      "SDK version value exceeds DATADOG_INTERNAL_MAX_SDK_VERSION_LEN (" DATADOG_CSTR(
+          DATADOG_INTERNAL_MAX_SDK_VERSION_LEN
+      ) ") and will be truncated"
+  );
 }
 
 dd_core_t* dd_core_create(
@@ -245,21 +374,21 @@ dd_core_t* dd_core_create(
   );
 
   // Likewise, if the config is missing any required values, reject it
-  if (!config->client_token || !config->client_token[0]) {
+  if (!config->client_token[0]) {
     diagnostic_logger.Error(
         "SDK initialization failed: application must supply a non-empty 'client_token' "
         "value in dd_core_config_t"
     );
     return nullptr;
   }
-  if (!config->service || !config->service[0]) {
+  if (!config->service[0]) {
     diagnostic_logger.Error(
         "SDK initialization failed: application must supply a non-empty 'service' "
         "value in dd_core_config_t"
     );
     return nullptr;
   }
-  if (!config->env || !config->env[0]) {
+  if (!config->env[0]) {
     diagnostic_logger.Error(
         "SDK initialization failed: application must supply a non-empty 'env' value in "
         "dd_core_config_t"
@@ -387,4 +516,5 @@ void dd_core_stop(dd_core_t* core) {
 }
 }
 
+// NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
 // NOLINTEND(cppcoreguidelines-owning-memory)

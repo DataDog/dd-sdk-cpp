@@ -16,7 +16,15 @@
 
 // These values establish the size of string buffers in the C API; they do not imply
 // that the Datadog platform imposes any such limits
-#define DATADOG_MAX_SERVICE_NAME_LEN 127
+#define DATADOG_MAX_APPLICATION_STORAGE_PATH_LEN 511
+#define DATADOG_MAX_CLIENT_TOKEN_LEN 63
+#define DATADOG_MAX_SERVICE_LEN 127
+#define DATADOG_MAX_ENV_LEN 127
+#define DATADOG_MAX_VERSION_LEN 127
+#define DATADOG_MAX_VARIANT_LEN 127
+#define DATADOG_INTERNAL_MAX_CUSTOM_ENDPOINT_URL_LEN 255
+#define DATADOG_INTERNAL_MAX_SOURCE_LEN 15
+#define DATADOG_INTERNAL_MAX_SDK_VERSION_LEN 31
 
 #ifdef __cplusplus
 extern "C" {
@@ -130,9 +138,9 @@ typedef enum {
  */
 typedef struct dd_internal_options {
   bool flush_http_requests_on_stop;
-  const char* custom_endpoint_url;
-  const char* source;
-  const char* sdk_version;
+  char custom_endpoint_url[DATADOG_INTERNAL_MAX_CUSTOM_ENDPOINT_URL_LEN + 1];
+  char source[DATADOG_INTERNAL_MAX_SOURCE_LEN + 1];
+  char sdk_version[DATADOG_INTERNAL_MAX_SDK_VERSION_LEN + 1];
 } dd_internal_options_t;
 
 /**
@@ -145,13 +153,13 @@ typedef struct dd_core_config {
   void* diagnostic_handler_userdata;
   dd_diagnostic_level_t diagnostic_threshold;
   dd_tracking_consent_t tracking_consent;
-  char application_storage_path[512];
+  char application_storage_path[DATADOG_MAX_APPLICATION_STORAGE_PATH_LEN + 1];
   dd_site_t site;
-  const char* client_token;
-  const char* service;
-  const char* env;
-  const char* application_version;
-  const char* variant;
+  char client_token[DATADOG_MAX_CLIENT_TOKEN_LEN + 1];
+  char service[DATADOG_MAX_SERVICE_LEN + 1];
+  char env[DATADOG_MAX_ENV_LEN + 1];
+  char application_version[DATADOG_MAX_VERSION_LEN + 1];
+  char variant[DATADOG_MAX_VARIANT_LEN + 1];
   dd_batch_size_t batch_size;
   dd_upload_frequency_t upload_frequency;
   dd_batch_processing_level_t batch_processing_level;
