@@ -233,6 +233,8 @@ test-macos:
   tags: [macos:tart]
   image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
   script:
+    - export PYENV_ROOT="$HOME/.pyenv"
+    - export PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
     - python -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
     - >
       cmake
