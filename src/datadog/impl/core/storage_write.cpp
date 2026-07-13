@@ -163,12 +163,17 @@ bool BatchWriter::FlushEvent(
     num_bytes += TLVBlockHeader::SIZE + event_metadata.size();
   }
 
-  // If the encoded size of this single event (metadata + event, with headers) exceeds
-  // the per-event limit, reject it outright
-  if (num_bytes > _config.max_event_size) {
+  // Reject the event if it exceeds either the per-event cap or the batch file size
+  // limit. In the normal production config max_event_size < max_file_size, so the event
+  // cap is the binding constraint; taking the minimum preserves the file-size guard for
+  // configurations where max_file_size may be set smaller than max_event_size.
+  const size_t max_write_size = std::min(_config.max_event_size, _config.max_file_size);
+  if (num_bytes > max_write_size) {
     _diagnostic_logger.Error(
-        "Event dropped; size of single event exceeds max event size",
-        {{"event_size", num_bytes}, {"max_event_size", _config.max_event_size}}
+        "Event dropped; size of single event exceeds max write size",
+        {{"event_size", num_bytes},
+         {"max_event_size", _config.max_event_size},
+         {"max_file_size", _config.max_file_size}}
     );
     return false;
   }
