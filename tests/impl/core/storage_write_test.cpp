@@ -972,6 +972,55 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(fs.IsFile(pending_prefix + "1700000000002"));
   }
 
+  SECTION(
+      "M not over-delete younger files W upload thread removes oldest file between "
+      "stat pass and delete pass"
+  ) {
+    // Given a batch writer with a directory quota of 50 bytes
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_directory_size = 50;
+    BatchWriter writer = init_writer(config);
+
+    // And three existing batch files at t=0, t=1, t=2, each 40 bytes — total 120 bytes,
+    // well over the 50-byte quota
+    fs.Touch(pending_prefix + "1700000000000", std::string(40, 'x'));
+    fs.Touch(pending_prefix + "1700000000001", std::string(40, 'y'));
+    fs.Touch(pending_prefix + "1700000000002", std::string(40, 'z'));
+
+    // The upload thread concurrently removes the oldest file between the stat pass and
+    // the deletion pass: simulate by making Delete return DoesNotExist for t=0 while
+    // leaving GetFileSize intact so the stat pass still sees its size (40 bytes).
+    //
+    // Note: the mock retains the file on disk even though Delete returns DoesNotExist;
+    // this mirrors the real scenario where the file is already gone externally but the
+    // mock cannot remove it via the simulated return-code path.
+    fs.SimulateFailure(
+        pending_prefix + "1700000000000",
+        FilesystemResult::DoesNotExist,
+        MockFilesystem::FailureFlags::Delete
+    );
+
+    // When a new write triggers the quota check
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-new", {}, false));
+
+    // Then the DoesNotExist result for t=0 is treated as a successful removal: its 40
+    // bytes are subtracted, leaving 80 bytes > 50. The loop then removes t=1 (40
+    // bytes), leaving 40 bytes ≤ 50 and stopping before t=2. Three files remain on
+    // disk: t=0 (physically present in mock despite DoesNotExist), t=2 (untouched),
+    // and the new batch file at t=100.
+    //
+    // Without the fix the DoesNotExist would be treated as a failure, keeping 120 bytes
+    // in total; the loop would then delete t=1 and t=2, leaving only t=0 and the new
+    // file — one more deletion than necessary.
+    std::vector<std::string> names = fs.Ls(pending_dir_path);
+    std::sort(names.begin(), names.end());
+    REQUIRE(names.size() == 3);
+    REQUIRE(names[0] == "1700000000000");
+    REQUIRE(names[1] == "1700000000002");
+    REQUIRE(names[2] == "1700000000100");
+  }
+
   SECTION("M write bypass event to granted dir W active file is warm in pending dir") {
     // Given a batch writer with consent Pending and a prior normal write that has
     // warmed up _active_file to a file in the pending directory

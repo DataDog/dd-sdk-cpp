@@ -505,12 +505,18 @@ void BatchWriter::PurgeDirectoryIfNeeded(const StoragePath& dir) {
       continue;
     }
     const auto delete_res = fsw.Delete(path_buf.CStr());
-    if (delete_res == FilesystemResult::OK) {
+    // DoesNotExist means the upload thread already removed this file concurrently;
+    // treat it as a successful removal so total and _last_known_filenames stay
+    // consistent and we don't over-delete younger files to compensate.
+    if (delete_res == FilesystemResult::OK ||
+        delete_res == FilesystemResult::DoesNotExist) {
       total -= sizes[i];
-      _diagnostic_logger.Debug(
-          "Deleted batch file to enforce directory size quota",
-          {{"path", path_buf.Get()}}
-      );
+      if (delete_res == FilesystemResult::OK) {
+        _diagnostic_logger.Debug(
+            "Deleted batch file to enforce directory size quota",
+            {{"path", path_buf.Get()}}
+        );
+      }
       const auto idx = static_cast<std::ptrdiff_t>(i);
       _last_known_filenames.erase(_last_known_filenames.begin() + idx);
       sizes.erase(sizes.begin() + idx);
