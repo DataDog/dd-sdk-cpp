@@ -336,24 +336,6 @@ TEST_CASE("BatchWriter", "[unit]") {
     );
   }
 
-  SECTION("M drop event W single write exceeds max file size") {
-    // Given a batch writer configured with a max batch file size of 16 bytes
-    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
-    config.max_file_size = 16;
-    BatchWriter writer = init_writer(config);
-
-    // When we attempt to write a 20-byte payload, which is larger than any file
-    // could contain
-    const bool write_ok = writer.HandleWrite("twenty-bytes-0", {}, false);
-
-    // Then the event is not accepted
-    REQUIRE(write_ok == false);
-
-    // And nothing is written to disk
-    std::vector<std::string> names = fs.Ls(pending_dir_path);
-    REQUIRE(names.empty());
-  }
-
   SECTION("M start new file W max writes per file exceeded") {
     // Given a batch writer configured to write no more than 2 events per file
     auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
@@ -785,6 +767,211 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(fs.Ls(pending_dir_path).size() == 0);
     auto names = fs.Ls(granted_dir_path);
     REQUIRE(names.size() == 1);
+  }
+
+  SECTION("M drop event W single write exceeds max_event_size but not max_file_size") {
+    // Given a batch writer with a generous max_file_size but a tight max_event_size
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_file_size = 1024 * 1024;  // 1 MB batch file — plenty of room
+    config.max_event_size = 20;          // only 20 bytes per event
+    BatchWriter writer = init_writer(config);
+
+    // When we attempt to write a payload where header (6 bytes) + data (15 bytes) = 21
+    REQUIRE_FALSE(writer.HandleWrite("fifteen-bytes!!", {}, false));
+
+    // Then nothing is written to disk
+    REQUIRE(fs.Ls(pending_dir_path).empty());
+  }
+
+  SECTION("M accept event W single write exactly equals max_event_size") {
+    // Given a batch writer with max_event_size set to exactly fit a 14-byte write
+    // (6-byte TLV header + 8 bytes data)
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_event_size = 14;
+    config.max_file_size = 1024 * 1024;
+    BatchWriter writer = init_writer(config);
+
+    // When we write an 8-byte event (total encoded size = 14 bytes)
+    REQUIRE(writer.HandleWrite("8-bytes!", {}, false));
+    REQUIRE(fs.Ls(pending_dir_path).size() == 1);
+  }
+
+  SECTION("M purge oldest files W directory size exceeds max_directory_size") {
+    // Given a batch writer with a directory quota of 50 bytes
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_directory_size = 50;
+    BatchWriter writer = init_writer(config);
+
+    // And three existing batch files each 40 bytes at timestamps 0, 1, and 2
+    // (total 120 bytes, well over the 50-byte quota)
+    fs.Touch(pending_prefix + "1700000000000", std::string(40, 'x'));
+    fs.Touch(pending_prefix + "1700000000001", std::string(40, 'y'));
+    fs.Touch(pending_prefix + "1700000000002", std::string(40, 'z'));
+
+    // When we write a new event 100ms later (triggers new file + quota check)
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-new", {}, false));
+
+    // Then the two oldest files are purged (oldest: 40 bytes → 80 > 50; next: 40
+    // bytes → 40 ≤ 50, stop), leaving only the youngest pre-existing file and the
+    // new batch file
+    std::vector<std::string> names = fs.Ls(pending_dir_path);
+    std::sort(names.begin(), names.end());
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "1700000000002");
+    REQUIRE(names[1] == "1700000000100");
+  }
+
+  SECTION("M not purge any files W directory size is within max_directory_size") {
+    // Given a batch writer with a generous quota
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_directory_size = 10000;
+    BatchWriter writer = init_writer(config);
+
+    // And a small existing file in the pending directory
+    fs.Touch(pending_prefix + "1700000000000", std::string(10, 'x'));
+
+    // When we write a new event after triggering a file rotation
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-new", {}, false));
+
+    // Then no files are deleted
+    std::vector<std::string> names = fs.Ls(pending_dir_path);
+    std::sort(names.begin(), names.end());
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "1700000000000");
+    REQUIRE(names[1] == "1700000000100");
+  }
+
+  SECTION("M not purge non-numeric-named files W directory contains foreign files") {
+    // Given a batch writer with a very small quota
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_directory_size = 1;
+    BatchWriter writer = init_writer(config);
+
+    // And a non-numerically-named file (not written by the SDK) that would push the
+    // directory over quota if counted
+    fs.Touch(pending_prefix + "not-a-batch", std::string(100, 'x'));
+
+    // When a new event triggers the quota check
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-new", {}, false));
+
+    // Then the non-SDK file is left untouched
+    REQUIRE(fs.IsFile(pending_prefix + "not-a-batch"));
+  }
+
+  SECTION(
+      "M leave existing files intact W directory listing fails on new file creation"
+  ) {
+    // Given a batch writer with a directory quota so tight that any existing file
+    // would trigger a purge
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_directory_size = 1;
+    BatchWriter writer = init_writer(config);
+
+    // And an existing batch file in the pending directory
+    fs.Touch(pending_prefix + "1700000000000", std::string(100, 'x'));
+
+    // And a filesystem that refuses to list the pending directory
+    fs.SimulateFailure(
+        pending_dir_path,
+        FilesystemResult::PermissionDenied,
+        MockFilesystem::FailureFlags::Ls
+    );
+
+    // When we attempt to write an event (no active file, so new-file path is taken and
+    // the quota check fires). The write also fails because filename resolution requires
+    // listing the same directory.
+    clock.TickMilliseconds(100);
+    writer.HandleWrite("event-new", {}, false);
+
+    // Then the pre-existing file is untouched — purge bailed out rather than
+    // deleting files based on an incomplete view of the directory
+    fs.ClearSimulatedFailure(pending_dir_path);
+    REQUIRE(fs.IsFile(pending_prefix + "1700000000000"));
+  }
+
+  SECTION(
+      "M drop event W metadata and event together exceed max_event_size but neither "
+      "alone would"
+  ) {
+    // Given a batch writer where max_event_size = 24 bytes.
+    // A 5-byte event alone encodes to 11 bytes (6-byte TLV header + 5 data), which is
+    // within the limit. An 8-byte metadata block encodes to 14 bytes. Combined they
+    // require 25 bytes, which exceeds the 24-byte cap.
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_file_size = 1024 * 1024;
+    config.max_event_size = 24;
+    BatchWriter writer = init_writer(config);
+
+    // When we write the 5-byte event with no metadata, it fits (11 bytes ≤ 24)
+    REQUIRE(writer.HandleWrite("event", {}, false));
+
+    // When we write the same event with an 8-byte metadata block, the combined size
+    // of 25 bytes exceeds the per-event cap
+    REQUIRE_FALSE(writer.HandleWrite("event", "metadata", false));
+
+    // Then only the first write produced a file; the second was dropped
+    REQUIRE(fs.Ls(pending_dir_path).size() == 1);
+  }
+
+  SECTION("M purge oldest files W quota exceeded in granted directory") {
+    // Given a batch writer writing to the granted directory with a 50-byte quota
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_directory_size = 50;
+    BatchWriter writer = init_writer(config, TrackingConsent::Granted);
+
+    // And three existing files of 40 bytes each (total 120 bytes, over the 50-byte
+    // quota)
+    fs.Touch(granted_prefix + "1700000000000", std::string(40, 'x'));
+    fs.Touch(granted_prefix + "1700000000001", std::string(40, 'y'));
+    fs.Touch(granted_prefix + "1700000000002", std::string(40, 'z'));
+
+    // When we write a new event 100ms later (triggers new file + quota check)
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-new", {}, false));
+
+    // Then the two oldest files are purged, leaving only the youngest pre-existing
+    // file and the new batch file
+    std::vector<std::string> names = fs.Ls(granted_dir_path);
+    std::sort(names.begin(), names.end());
+    REQUIRE(names.size() == 2);
+    REQUIRE(names[0] == "1700000000002");
+    REQUIRE(names[1] == "1700000000100");
+  }
+
+  SECTION(
+      "M treat GetFileSize failure as zero W file stat fails during quota check"
+  ) {
+    // Given a batch writer with a 50-byte quota
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
+    config.max_directory_size = 50;
+    BatchWriter writer = init_writer(config);
+
+    // And an oldest file that is 40 bytes but has a simulated stat failure, so it
+    // contributes 0 bytes to the quota total
+    fs.Touch(pending_prefix + "1700000000000", std::string(40, 'x'));
+    fs.SimulateFailure(
+        pending_prefix + "1700000000000",
+        FilesystemResult::UnknownError,
+        MockFilesystem::FailureFlags::Stat
+    );
+
+    // And two younger files of 10 bytes each (true total 60 bytes, but apparent total
+    // with the stat failure counted as 0 is only 20 bytes — within the 50-byte quota)
+    fs.Touch(pending_prefix + "1700000000001", std::string(10, 'y'));
+    fs.Touch(pending_prefix + "1700000000002", std::string(10, 'z'));
+
+    // When we write a new event 100ms later (triggers new file + quota check)
+    clock.TickMilliseconds(100);
+    REQUIRE(writer.HandleWrite("event-new", {}, false));
+
+    // Then no files are purged: the failed stat caused the directory to appear to be
+    // within quota, so the purge was a no-op
+    REQUIRE(fs.IsFile(pending_prefix + "1700000000000"));
+    REQUIRE(fs.IsFile(pending_prefix + "1700000000001"));
+    REQUIRE(fs.IsFile(pending_prefix + "1700000000002"));
   }
 
   SECTION("M write bypass event to granted dir W active file is warm in pending dir") {

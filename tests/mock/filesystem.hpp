@@ -32,6 +32,7 @@ class MockFilesystem : public impl::IFilesystem {
    * at (or, in some cases, one level beneath) the given path.
    */
   enum class FailureFlags : uint8_t {
+    Stat = (1 << 0),    // GetFileSize will fail for the target file
     Mkdir = (1 << 1),   // CreateDirectory will fail with target dir as parent
     Ls = (1 << 2),      // ListFiles and ListSubdirectories will fail in target dir
     Open = (1 << 3),    // OpenForRead and OpenForWrite will fail on file; in target dir
@@ -131,6 +132,7 @@ class MockFilesystem : public impl::IFilesystem {
   ) override;
   ReadResult Read(impl::PlatformFileHandle handle, char* dst, size_t n) override;
   impl::FilesystemResult Close(impl::PlatformFileHandle handle) override;
+  GetFileSizeResult GetFileSize(const impl::PlatformPath& path) override;
   impl::FilesystemResult Delete(const impl::PlatformPath& path) override;
   impl::FilesystemResult DeleteDirectory(const impl::PlatformPath& path) override;
   impl::FilesystemResult Rename(

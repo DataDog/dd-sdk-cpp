@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cctype>
 #include <charconv>
 #include <chrono>
 #include <iostream>
@@ -162,12 +163,12 @@ bool BatchWriter::FlushEvent(
     num_bytes += TLVBlockHeader::SIZE + event_metadata.size();
   }
 
-  // If the encoded size of this write (metadata + event, with headers) exceeds the
-  // maximum configured size for a single batch file, reject the event outright: even a
-  // brand new batch file could not contain it
-  if (num_bytes > _config.max_file_size) {
+  // If the encoded size of this single event (metadata + event, with headers) exceeds
+  // the per-event limit, reject it outright
+  if (num_bytes > _config.max_event_size) {
     _diagnostic_logger.Error(
-        "Event dropped; size of single event exceeds max batch file size"
+        "Event dropped; size of single event exceeds max event size",
+        {{"event_size", num_bytes}, {"max_event_size", _config.max_event_size}}
     );
     return false;
   }
@@ -288,11 +289,21 @@ BatchWriter::FileDetails* BatchWriter::PrepareFileForNextWrite(
     return &active_file;
   }
 
-  // If not, prepare to write a new file: start by figuring out what to name it
-  const auto next = GetFilenameForNextWrite(consent_dir_path, current_time);
+  // If we can't reuse the last file, prepare to write a new file. List the directory
+  // contents once here so that both the quota check and the filename search can share
+  // the same listing.
+  if (!CacheKnownFilenames(consent_dir_path)) {
+    active_file.Clear();
+    return nullptr;
+  }
+
+  // Enforce the directory size quota, using and updating the cached listing
+  PurgeDirectoryIfNeeded(consent_dir_path);
+
+  // Figure out what to name the new file, using the post-purge cached listing
+  const auto next = GetFilenameForNextWrite(current_time);
   if (!next) {
-    // Failed to resolve new filename (i.e. listing directory contents failed, or all
-    // potential filenames are in use); can't proceed with file creation
+    // All potential filenames are in use; can't proceed with file creation
     active_file.Clear();
     return nullptr;
   }
@@ -354,16 +365,11 @@ bool BatchWriter::CanReuseFileForNextWrite(
 }
 
 std::optional<std::pair<uint64_t, std::string>> BatchWriter::GetFilenameForNextWrite(
-    const StoragePath& consent_dir_path, Timestamp current_time
+    Timestamp current_time
 ) const {
-  // Our new file will use a filename that reflects the current timestamp, but it's
-  // possible that a file already exists with that name, and we don't want to reuse any
-  // existing files that we didn't create ourselves: so start by retrieving the list of
-  // existing filenames in our target directory
-  if (!CacheKnownFilenames(consent_dir_path)) {
-    // Failed to list directory contents; can't proceed with file creation
-    return std::nullopt;
-  }
+  // Our new file will use a filename reflecting the current timestamp. If a file with
+  // that name already exists (per the pre-populated _last_known_filenames), we
+  // increment by 1ms at a time to find a free slot, up to a limit of 100 attempts.
 
   // Use stack memory to convert uint64 to string for candidate filenames
   std::array<char, MAX_UINT64_DECIMAL_DIGITS> buffer{0};
@@ -427,9 +433,84 @@ bool BatchWriter::CacheKnownFilenames(const StoragePath& consent_dir_path) const
     return false;
   }
 
-  // Sort filenames for deterministic iteration in timestamp-name-order
+  // Sort filenames for deterministic iteration in timestamp-name-order, then strip any
+  // non-numeric names (files not written by the SDK) so that both PurgeDirectoryIfNeeded
+  // and GetFilenameForNextWrite operate only on batch files we own.
   std::sort(_last_known_filenames.begin(), _last_known_filenames.end());
+  _last_known_filenames.erase(
+      std::remove_if(
+          _last_known_filenames.begin(),
+          _last_known_filenames.end(),
+          [](const std::string& name) {
+            return !std::all_of(name.begin(), name.end(), [](unsigned char c) {
+              return std::isdigit(c);
+            });
+          }
+      ),
+      _last_known_filenames.end()
+  );
   return true;
+}
+
+void BatchWriter::PurgeDirectoryIfNeeded(const StoragePath& dir) {
+  // _last_known_filenames is pre-populated, sorted, and already filtered to numeric-named
+  // (SDK-written) batch files by CacheKnownFilenames.
+
+  // Accumulate sizes for each file using a reusable path buffer. Files whose size cannot
+  // be determined are treated as zero: they don't push the running total toward the quota
+  // threshold, but remain eligible for deletion if the purge loop runs and reaches them
+  // (without contributing to total reduction when deleted).
+  FilesystemWrapper fsw(_fs);
+  StoragePath path_buf;
+  std::vector<size_t> sizes;
+  sizes.reserve(_last_known_filenames.size());
+  size_t total = 0;
+  for (const std::string& name : _last_known_filenames) {
+    path_buf.MustSet(dir);
+    if (!path_buf.Append(name)) {
+      sizes.push_back(0);
+      continue;
+    }
+    const auto res = fsw.GetFileSize(path_buf.CStr());
+    const size_t file_size = res.value == FilesystemResult::OK ? res.size : 0;
+    sizes.push_back(file_size);
+    total += file_size;
+  }
+
+  if (total <= _config.max_directory_size) {
+    return;
+  }
+
+  // Delete oldest files until we're within quota, erasing each from _last_known_filenames
+  // and the parallel sizes vector in lock-step so GetFilenameForNextWrite sees the
+  // post-purge state. Iterate by index rather than iterator so we can erase in-place:
+  // on a successful deletion we don't advance i (the next element slides into position);
+  // on failure we skip the file and increment.
+  size_t i = 0;
+  while (i < _last_known_filenames.size() && total > _config.max_directory_size) {
+    path_buf.MustSet(dir);
+    if (!path_buf.Append(_last_known_filenames[i])) {
+      ++i;
+      continue;
+    }
+    const auto delete_res = fsw.Delete(path_buf.CStr());
+    if (delete_res == FilesystemResult::OK) {
+      total -= sizes[i];
+      _diagnostic_logger.Debug(
+          "Deleted batch file to enforce directory size quota",
+          {{"path", path_buf.Get()}}
+      );
+      const auto idx = static_cast<std::ptrdiff_t>(i);
+      _last_known_filenames.erase(_last_known_filenames.begin() + idx);
+      sizes.erase(sizes.begin() + idx);
+    } else {
+      _diagnostic_logger.Warning(
+          "Failed to delete batch file during directory quota enforcement",
+          {{"path", path_buf.Get()}, {"error", FilesystemResultStr(delete_res)}}
+      );
+      ++i;
+    }
+  }
 }
 
 }  // namespace datadog::impl
