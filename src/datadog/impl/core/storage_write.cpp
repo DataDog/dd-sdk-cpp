@@ -478,6 +478,11 @@ void BatchWriter::PurgeDirectoryIfNeeded(const StoragePath& dir) {
     total += file_size;
   }
 
+  // Note: this check covers only the files already on disk; it does not account for the
+  // new batch file that PrepareFileForNextWrite is about to create. The directory may
+  // therefore exceed max_directory_size by up to max_file_size after each rotation.
+  // This matches the iOS SDK's check-on-create design and the overshoot is bounded and
+  // transient, so it is accepted as a known limitation.
   if (total <= _config.max_directory_size) {
     return;
   }
