@@ -170,6 +170,16 @@ bool FeatureEventStorage::MigratePendingBatchesToGranted() {
   //    a file rename operation is atomic on both POSIX and Windows: the upload thread
   //    will never see a "partially-moved" file.
   //
+  // Race with upload-thread age-based eviction:
+  //
+  // The upload thread runs an eviction pass over _pending_root (deleting files older
+  // than 18h) independently of this migration. If the upload thread deletes a file
+  // between our ListFiles call and our Rename call for that file, the Rename returns
+  // DoesNotExist. We treat that as "already gone; continue" rather than a fatal error:
+  // the file was expired anyway and would never have been uploaded. Aborting on
+  // DoesNotExist would strand all younger files that appear later in the sorted
+  // listing.
+  //
   // Additional considerations re: filename conflicts:
   //
   // - The files we're moving are named with timestamps indicating file creation time,
@@ -257,6 +267,17 @@ bool FeatureEventStorage::MigratePendingBatchesToGranted() {
       _logger.Warning(
           "Could not delete pending-directory copy of duplicate batch file",
           {{"path", src_file_path.Get()}, {"error", FilesystemResultStr(delete_res)}}
+      );
+      continue;
+    }
+
+    // If the rename failed because the source file no longer exists, the upload
+    // thread's age-based eviction has already removed it. The file was expired and
+    // would not have been uploaded; skip it and continue migrating the remaining files.
+    if (rename_res == FilesystemResult::DoesNotExist) {
+      _logger.Debug(
+          "Pending batch file already evicted before migration; skipping",
+          {{"path", src_file_path.Get()}}
       );
       continue;
     }
