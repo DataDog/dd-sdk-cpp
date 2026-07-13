@@ -212,6 +212,52 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
   // Prepare a FilesystemWrapper that will handle path encoding transparently
   FilesystemWrapper fsw(fs);
 
+  const Timestamp now = clock.Now();
+
+  // Evict stale files from the pending-consent directory. These accumulate when consent
+  // is set to Pending and never resolved. The upload thread never reads from this
+  // directory, so its only clean-up mechanism is this age-based eviction pass.
+  //
+  // This runs before the granted-directory listing so that a transient failure listing
+  // the granted directory does not prevent eviction of stale pending files.
+  const StoragePath& pending_dir_path = feature.storage->GetPendingPath();
+  mut_filenames.clear();
+  const auto pending_list_res = fsw.ListFiles(pending_dir_path.CStr(), mut_filenames);
+  if (pending_list_res == FilesystemResult::OK) {
+    std::sort(mut_filenames.begin(), mut_filenames.end());
+    for (const std::string& pending_filename : mut_filenames) {
+      const auto file_age = batch_file_age(pending_filename, now);
+      if (!file_age) {
+        continue;
+      }
+      if (*file_age < config.max_file_age_for_read) {
+        // Files are sorted oldest-first; all subsequent files are also too young.
+        break;
+      }
+
+      StoragePath pending_file_path;
+      pending_file_path.MustSet(pending_dir_path);
+      if (!pending_file_path.Append(pending_filename)) {
+        continue;
+      }
+
+      const auto delete_res = fsw.Delete(pending_file_path.CStr());
+      if (delete_res == FilesystemResult::OK) {
+        diagnostic_logger.Debug(
+            "Deleted outdated pending batch file",
+            {{"feature", feature.name}, {"filename", pending_filename}}
+        );
+      } else {
+        diagnostic_logger.Warning(
+            "Failed to delete outdated pending batch file",
+            {{"feature", feature.name},
+             {"filename", pending_filename},
+             {"error", FilesystemResultStr(delete_res)}}
+        );
+      }
+    }
+  }
+
   // Retrieve a list of all filenames in the consent-granted event directory
   mut_filenames.clear();
   const StoragePath& granted_dir_path = feature.storage->GetGrantedPath();
@@ -230,7 +276,6 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
   _process_and_upload_batch_result last_batch_result{
       _process_and_upload_batch_result::success
   };
-  const Timestamp now = clock.Now();
   for (const std::string& filename : mut_filenames) {
     const auto file_age = batch_file_age(filename, now);
     if (!file_age) {
@@ -359,47 +404,6 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
            {"max_batches_per_cycle", config.max_batches_per_cycle}}
       );
       break;
-    }
-  }
-
-  // Evict stale files from the pending-consent directory. These accumulate when consent
-  // is set to Pending and never resolved. The upload thread never reads from this
-  // directory, so its only clean-up mechanism is this age-based eviction pass.
-  const StoragePath& pending_dir_path = feature.storage->GetPendingPath();
-  mut_filenames.clear();
-  const auto pending_list_res = fsw.ListFiles(pending_dir_path.CStr(), mut_filenames);
-  if (pending_list_res == FilesystemResult::OK) {
-    std::sort(mut_filenames.begin(), mut_filenames.end());
-    for (const std::string& pending_filename : mut_filenames) {
-      const auto file_age = batch_file_age(pending_filename, now);
-      if (!file_age) {
-        continue;
-      }
-      if (*file_age < config.max_file_age_for_read) {
-        // Files are sorted oldest-first; all subsequent files are also too young.
-        break;
-      }
-
-      StoragePath pending_file_path;
-      pending_file_path.MustSet(pending_dir_path);
-      if (!pending_file_path.Append(pending_filename)) {
-        continue;
-      }
-
-      const auto delete_res = fsw.Delete(pending_file_path.CStr());
-      if (delete_res == FilesystemResult::OK) {
-        diagnostic_logger.Debug(
-            "Deleted outdated pending batch file",
-            {{"feature", feature.name}, {"filename", pending_filename}}
-        );
-      } else {
-        diagnostic_logger.Warning(
-            "Failed to delete outdated pending batch file",
-            {{"feature", feature.name},
-             {"filename", pending_filename},
-             {"error", FilesystemResultStr(delete_res)}}
-        );
-      }
     }
   }
 
