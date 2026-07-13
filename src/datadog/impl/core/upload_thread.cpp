@@ -170,11 +170,12 @@ static _process_and_upload_batch_result _process_and_upload_batch(
 // relative to `now`. Returns nullopt for non-numeric filenames (non-SDK files that
 // should be left alone). Guards against underflow if the timestamp is in the future by
 // clamping the result to zero.
-static std::optional<Duration> batch_file_age(const std::string& filename, Timestamp now) {
+static std::optional<Duration> batch_file_age(
+    const std::string& filename, Timestamp now
+) {
   uint64_t timestamp_ms{0};
-  const auto parse_result = std::from_chars(
-      filename.data(), filename.data() + filename.size(), timestamp_ms
-  );
+  const auto parse_result =
+      std::from_chars(filename.data(), filename.data() + filename.size(), timestamp_ms);
   if (parse_result.ec != std::errc{} ||
       parse_result.ptr != filename.data() + filename.size()) {
     return std::nullopt;

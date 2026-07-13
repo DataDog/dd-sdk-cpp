@@ -975,9 +975,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(client.requests.empty());
   }
 
-  SECTION(
-      "M silently skip pending eviction W ListFiles fails on pending directory"
-  ) {
+  SECTION("M silently skip pending eviction W ListFiles fails on pending directory") {
     // Given an upload cycle with an 18-hour TTL
     clock.FreezeAtMilliseconds(1700000000000);
     MockHttpClient client;

@@ -941,9 +941,7 @@ TEST_CASE("BatchWriter", "[unit]") {
     REQUIRE(names[1] == "1700000000100");
   }
 
-  SECTION(
-      "M treat GetFileSize failure as zero W file stat fails during quota check"
-  ) {
+  SECTION("M treat GetFileSize failure as zero W file stat fails during quota check") {
     // Given a batch writer with a 50-byte quota
     auto config = BatchWriterConfig::FromBatchSize(BatchSize::Large);
     config.max_directory_size = 50;

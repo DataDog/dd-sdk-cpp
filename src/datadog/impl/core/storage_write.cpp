@@ -434,8 +434,9 @@ bool BatchWriter::CacheKnownFilenames(const StoragePath& consent_dir_path) const
   }
 
   // Sort filenames for deterministic iteration in timestamp-name-order, then strip any
-  // non-numeric names (files not written by the SDK) so that both PurgeDirectoryIfNeeded
-  // and GetFilenameForNextWrite operate only on batch files we own.
+  // non-numeric names (files not written by the SDK) so that both
+  // PurgeDirectoryIfNeeded and GetFilenameForNextWrite operate only on batch files we
+  // own.
   std::sort(_last_known_filenames.begin(), _last_known_filenames.end());
   _last_known_filenames.erase(
       std::remove_if(
@@ -453,13 +454,13 @@ bool BatchWriter::CacheKnownFilenames(const StoragePath& consent_dir_path) const
 }
 
 void BatchWriter::PurgeDirectoryIfNeeded(const StoragePath& dir) {
-  // _last_known_filenames is pre-populated, sorted, and already filtered to numeric-named
-  // (SDK-written) batch files by CacheKnownFilenames.
+  // _last_known_filenames is pre-populated, sorted, and already filtered to
+  // numeric-named (SDK-written) batch files by CacheKnownFilenames.
 
-  // Accumulate sizes for each file using a reusable path buffer. Files whose size cannot
-  // be determined are treated as zero: they don't push the running total toward the quota
-  // threshold, but remain eligible for deletion if the purge loop runs and reaches them
-  // (without contributing to total reduction when deleted).
+  // Accumulate sizes for each file using a reusable path buffer. Files whose size
+  // cannot be determined are treated as zero: they don't push the running total toward
+  // the quota threshold, but remain eligible for deletion if the purge loop runs and
+  // reaches them (without contributing to total reduction when deleted).
   FilesystemWrapper fsw(_fs);
   StoragePath path_buf;
   std::vector<size_t> sizes;
@@ -481,11 +482,11 @@ void BatchWriter::PurgeDirectoryIfNeeded(const StoragePath& dir) {
     return;
   }
 
-  // Delete oldest files until we're within quota, erasing each from _last_known_filenames
-  // and the parallel sizes vector in lock-step so GetFilenameForNextWrite sees the
-  // post-purge state. Iterate by index rather than iterator so we can erase in-place:
-  // on a successful deletion we don't advance i (the next element slides into position);
-  // on failure we skip the file and increment.
+  // Delete oldest files until we're within quota, erasing each from
+  // _last_known_filenames and the parallel sizes vector in lock-step so
+  // GetFilenameForNextWrite sees the post-purge state. Iterate by index rather than
+  // iterator so we can erase in-place: on a successful deletion we don't advance i (the
+  // next element slides into position); on failure we skip the file and increment.
   size_t i = 0;
   while (i < _last_known_filenames.size() && total > _config.max_directory_size) {
     path_buf.MustSet(dir);
