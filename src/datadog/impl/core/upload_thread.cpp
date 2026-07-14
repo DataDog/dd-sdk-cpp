@@ -110,8 +110,13 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   const bool hold_advisory_lock = false;
   auto open_result = fsw.OpenForRead(file_path.CStr(), hold_advisory_lock);
   if (open_result.value != FilesystemResult::OK) {
-    // If we failed to open the file for any reason, leave it in place and continue to
-    // the next file
+    if (open_result.value == FilesystemResult::DoesNotExist) {
+      // The file was removed by another agent (quota purge or age eviction) between
+      // the directory listing and this open. Treat it as a consumed batch so the
+      // upload cycle continues rather than backing off.
+      return _process_and_upload_batch_result::bad_batch;
+    }
+    // For any other open failure, leave the file in place and retry later
     return _process_and_upload_batch_result::retryable_failure;
   }
 
