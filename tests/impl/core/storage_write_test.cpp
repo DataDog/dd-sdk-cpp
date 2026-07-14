@@ -542,6 +542,44 @@ TEST_CASE("BatchWriter", "[unit]") {
   }
 
   SECTION(
+      "M delete remaining pending files W upload thread has already evicted one file "
+      "before consent-revocation cleanup runs"
+  ) {
+    // Given a BatchWriter that has written two batch files to the pending directory
+    auto config = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+    BatchWriter writer = init_writer(config);
+    REQUIRE(writer.HandleWrite("event-0", {}, false));
+    clock.Tick(std::chrono::seconds(60));
+    REQUIRE(writer.HandleWrite("event-1", {}, false));
+
+    // Then we have two batch files in the pending directory
+    auto names = fs.Ls(pending_dir_path);
+    std::sort(names.begin(), names.end());
+    REQUIRE(names.size() == 2);
+
+    // When the upload thread concurrently evicts the oldest file between our ListFiles
+    // call and our Delete call: simulate this by making Delete return DoesNotExist for
+    // the oldest pending file
+    fs.SimulateFailure(
+        pending_prefix + names[0],
+        FilesystemResult::DoesNotExist,
+        MockFilesystem::FailureFlags::Delete
+    );
+
+    // And consent is revoked
+    const bool ok = writer.SetTrackingConsent(TrackingConsent::NotGranted);
+
+    // Then the revocation succeeds despite the race: the DoesNotExist is treated as
+    // "already gone" and deletion continues to the younger file
+    REQUIRE(ok);
+
+    // The younger file is deleted; the older file remains in the mock because
+    // SimulateFailure intercepted (but did not execute) its Delete call
+    names = fs.Ls(pending_dir_path);
+    REQUIRE(names.size() == 1);
+  }
+
+  SECTION(
       "M move all files from pending to granted W tracking consent changes to Granted"
   ) {
     // Given a BatchWriter configured to write to 'intermediate-v1/'
