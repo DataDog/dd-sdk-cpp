@@ -384,9 +384,13 @@ Timestamp QueryProcessLaunchTime(const impl::DiagnosticLogger& logger) {
   int64_t boot_epoch_ns = realtime_ns - boottime_ns;
 
   // Convert starttime from ticks to nanoseconds since boot.
-  // Multiply before dividing to avoid truncation error from integer division.
+  // Divide into whole seconds and a remainder first to avoid overflowing int64_t
+  // when multiplying ticks by 1e9 before the division.
+  int64_t ticks = static_cast<int64_t>(starttime_ticks);
+  int64_t whole_sec = ticks / clk_tck;
+  int64_t rem_ticks = ticks % clk_tck;
   int64_t starttime_ns =
-      static_cast<int64_t>(starttime_ticks) * 1'000'000'000LL / clk_tck;
+      whole_sec * 1'000'000'000LL + rem_ticks * 1'000'000'000LL / clk_tck;
 
   return Timestamp{Duration{boot_epoch_ns + starttime_ns}};
 }
