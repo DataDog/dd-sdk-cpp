@@ -138,7 +138,7 @@ RUN dpkg --add-architecture i386 \
   && apt-get update \
   && apt-get install -y --no-install-recommends \
     -o Dpkg::Options::="--force-overwrite" \
-    gcc-multilib \
+    g++-multilib \
     libcurl4-openssl-dev:i386 \
     libssl-dev:i386 \
     zlib1g-dev:i386 \
