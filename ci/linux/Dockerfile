@@ -143,6 +143,12 @@ RUN dpkg --add-architecture i386 \
     libssl-dev:i386 \
     zlib1g-dev:i386 \
     uuid-dev:i386
-ENV CFLAGS=-m32
-ENV CXXFLAGS=-m32
+# -m32:                  compile and link as 32-bit x86
+# -D_FILE_OFFSET_BITS=64: redirect stat()/fopen()/etc. to their 64-bit equivalents
+#                         so that 32-bit code handles 64-bit inodes correctly on
+#                         Linux hosts with overlayfs (e.g. Kubernetes CI runners),
+#                         where inode numbers exceed 2^32 and 32-bit stat() returns
+#                         EOVERFLOW without this flag
+ENV CFLAGS="-m32 -D_FILE_OFFSET_BITS=64"
+ENV CXXFLAGS="-m32 -D_FILE_OFFSET_BITS=64"
 ENV LDFLAGS=-m32
