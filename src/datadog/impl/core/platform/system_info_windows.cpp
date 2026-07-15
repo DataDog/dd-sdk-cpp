@@ -465,7 +465,7 @@ namespace {
  * @param logger Diagnostic logger for warnings
  * @return Wall-clock launch time as a Timestamp, or zero on failure
  */
-Timestamp GetProcessLaunchTime(const impl::DiagnosticLogger& logger) {
+Timestamp QueryProcessLaunchTime(const impl::DiagnosticLogger& logger) {
   FILETIME creation_time, exit_time, kernel_time, user_time;
   if (!GetProcessTimes(
           GetCurrentProcess(), &creation_time, &exit_time, &kernel_time, &user_time
@@ -603,7 +603,7 @@ class WindowsSystemInfo final : public ISystemInfo {
     _device_info.time_zone = GetDeviceTimezone(logger);
 
     // Get process launch time
-    _process_launch_time = GetProcessLaunchTime(logger);
+    _process_launch_time = QueryProcessLaunchTime(logger);
   }
 
   int64_t GetPid() const override {

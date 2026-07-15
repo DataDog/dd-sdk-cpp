@@ -339,7 +339,7 @@ uint64_t ReadProcStatStarttime(const impl::DiagnosticLogger& logger) {
  * @param logger Diagnostic logger for warnings
  * @return Wall-clock launch time as a Timestamp, or zero on failure
  */
-Timestamp GetProcessLaunchTime(const impl::DiagnosticLogger& logger) {
+Timestamp QueryProcessLaunchTime(const impl::DiagnosticLogger& logger) {
   // Read starttime from /proc/self/stat
   uint64_t starttime_ticks = ReadProcStatStarttime(logger);
   if (starttime_ticks == 0) {
@@ -347,7 +347,7 @@ Timestamp GetProcessLaunchTime(const impl::DiagnosticLogger& logger) {
   }
 
   // Get clock tick rate
-  long clk_tck = sysconf(_SC_CLK_TCK);  // NOLINT(runtime/int)
+  int64_t clk_tck = static_cast<int64_t>(sysconf(_SC_CLK_TCK));
   if (clk_tck <= 0) {
     logger.Debug(
         "Unable to resolve process launch time: sysconf(_SC_CLK_TCK) returned invalid "
@@ -379,8 +379,8 @@ Timestamp GetProcessLaunchTime(const impl::DiagnosticLogger& logger) {
   }
 
   // Compute wall-clock boot time: realtime - boottime (both in nanoseconds)
-  int64_t realtime_ns = realtime_ts.tv_sec * 1'000'000'000LL + realtime_ts.tv_nsec;
-  int64_t boottime_ns = boottime_ts.tv_sec * 1'000'000'000LL + boottime_ts.tv_nsec;
+  int64_t realtime_ns = (realtime_ts.tv_sec * 1'000'000'000LL) + realtime_ts.tv_nsec;
+  int64_t boottime_ns = (boottime_ts.tv_sec * 1'000'000'000LL) + boottime_ts.tv_nsec;
   int64_t boot_epoch_ns = realtime_ns - boottime_ns;
 
   // Convert starttime from ticks to nanoseconds since boot.
@@ -468,7 +468,7 @@ class LinuxSystemInfo final : public ISystemInfo {
     _device_info.time_zone = GetLinuxTimezone(logger);
 
     // Get process launch time
-    _process_launch_time = GetProcessLaunchTime(logger);
+    _process_launch_time = QueryProcessLaunchTime(logger);
   }
 
   int64_t GetPid() const override { return static_cast<int64_t>(getpid()); }
