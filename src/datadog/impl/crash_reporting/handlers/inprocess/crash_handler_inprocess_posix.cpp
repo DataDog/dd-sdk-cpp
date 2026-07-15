@@ -651,7 +651,12 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
       ),                                // fault_address
       0,                                // fault_flags (0 on POSIX)
       static_cast<uint64_t>(getpid()),  // pid
+// pthread_t is a pointer on macOS but an integer type on Linux; cast accordingly
+#ifdef __APPLE__
       static_cast<uint64_t>(reinterpret_cast<uintptr_t>(pthread_self())),  // tid
+#else
+      static_cast<uint64_t>(pthread_self()),  // tid
+#endif
       crash_timestamp_ms  // timestamp_ms
   );
 
