@@ -688,6 +688,14 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   // Linux arm64: pc/fp (ARM64's x29 register = FP)
   ip = reinterpret_cast<void*>(uc->uc_mcontext.pc);
   fp = reinterpret_cast<void*>(uc->uc_mcontext.regs[29]);
+#elif defined(__i386__)
+  // Linux x86: eip/ebp
+  ip = reinterpret_cast<void*>(uc->uc_mcontext.gregs[REG_EIP]);
+  fp = reinterpret_cast<void*>(uc->uc_mcontext.gregs[REG_EBP]);
+#elif defined(__arm__)
+  // Linux armv7: pc/fp
+  ip = reinterpret_cast<void*>(uc->uc_mcontext.arm_pc);
+  fp = reinterpret_cast<void*>(uc->uc_mcontext.arm_fp);
 #else
 #error "Unsupported architecture for in-process crash handler on Linux"
 #endif
