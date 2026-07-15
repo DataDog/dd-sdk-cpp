@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 
+#include <climits>
 #include <cstring>
 #include <memory>
 
