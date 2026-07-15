@@ -161,7 +161,7 @@ async def main(t: TestContext):
 
     # And the program is described with the CPU architecture of the compiled binary
     # (which may differ from the host when cross-compiling, e.g. 32-bit x86 on amd64)
-    assert repl_image['arch'] == repl_arch(ctx._repl_binary_path)
+    assert repl_image['arch'] == repl_arch(t._repl_binary_path)
 
     # And the range of the crashing process's address space where the executable was
     # loaded is denoted, hex-formatted, with sensible values
