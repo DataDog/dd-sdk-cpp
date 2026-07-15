@@ -306,6 +306,14 @@ class PosixFilesystem final : public IFilesystem {
     return map_errno(errno);
   }
 
+  GetFileSizeResult GetFileSize(const PlatformPath& path) override {
+    struct stat st;
+    if (stat(path.Get(), &st) != 0) {
+      return {map_errno(errno), 0};
+    }
+    return {FilesystemResult::OK, static_cast<size_t>(st.st_size)};
+  }
+
   FilesystemResult Delete(const PlatformPath& path) override {
     const int result = unlink(path.Get());
     if (result == 0) {

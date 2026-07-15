@@ -116,6 +116,13 @@ FilesystemWrapper::OpenFileResult FilesystemWrapper::OpenForRead(
   return {res.value, File{_fs, res.handle}};
 }
 
+IFilesystem::GetFileSizeResult FilesystemWrapper::GetFileSize(const char* path) {
+  if (!_path.Encode(path)) {
+    return {FilesystemResult::PathEncodingFailed, 0};
+  }
+  return _fs.GetFileSize(_path);
+}
+
 FilesystemResult FilesystemWrapper::Delete(const char* path) {
   if (!_path.Encode(path)) {
     return FilesystemResult::PathEncodingFailed;

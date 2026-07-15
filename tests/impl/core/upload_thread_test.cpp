@@ -693,6 +693,71 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
   }
 
+  SECTION(
+      "M skip batch and continue processing W batch file is gone when opened"
+      " {race between quota purge and upload thread}"
+  ) {
+    // Given a single registered feature with three eligible batches, the second of
+    // which disappears between the directory listing and the open (simulating a
+    // concurrent quota purge)
+    clock.FreezeAtMilliseconds(1700000000000);
+    MockHttpClient client;
+    fs.Touch(
+        alpha_granted_prefix + "1699999955000",
+        MockTLVFile().AppendEvent("event-0").ToString()
+    );
+    fs.Touch(
+        alpha_granted_prefix + "1699999956000",
+        MockTLVFile().AppendEvent("event-1").ToString()
+    );
+    fs.Touch(
+        alpha_granted_prefix + "1699999957000",
+        MockTLVFile().AppendEvent("event-2").ToString()
+    );
+    const auto [core_config, config] = init_config(
+        BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
+    );
+    auto features = register_feature(UploadFrequency::Average);
+
+    // And a filesystem that will report DoesNotExist when the second file is opened
+    // (simulating the file being removed by the quota purge after listing)
+    fs.SimulateFailure(
+        alpha_granted_prefix + "1699999956000",
+        FilesystemResult::DoesNotExist,
+        MockFilesystem::FailureFlags::Open
+    );
+
+    // When we process uploads for that feature
+    std::vector<std::string> filenames;
+    std::vector<char> read_buffer;
+    Duration delay_until_next_cycle = Internal_HandleUploadProc(
+        logger,
+        config,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        fs,
+        client,
+        filenames,
+        read_buffer
+    );
+
+    // Then our first and third batches are uploaded (the missing second is skipped)
+    REQUIRE(alpha->reports.size() == 2);
+    REQUIRE(client.requests.size() == 2);
+    REQUIRE(client.requests[0].body == "event-0");
+    REQUIRE(client.requests[1].body == "event-2");
+
+    // And the upload cycle did not abort early: all three files are gone from disk
+    // (the first and third were deleted after successful upload; the second was deleted
+    // by the attempted fsw.Delete after bad_batch, since only its Open was blocked)
+    REQUIRE(fs.Ls(alpha_granted_dir).empty());
+
+    // And this feature's upload delay is reduced because the cycle finished with a
+    // successful upload
+    REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
+  }
+
   SECTION("M reject batch and continue processing W unable to process batch") {
     // Given a single registered feature with three eligible batches, the second of
     // which does not contain valid TLV data
@@ -830,6 +895,200 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
     // And this feature's upload delay is increased due to failure
     REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
+  }
+
+  SECTION("M delete outdated files W pending directory contains stale batch files") {
+    // Given an upload cycle configuration with an 18-hour TTL
+    clock.FreezeAtMilliseconds(1700000000000);
+    MockHttpClient client;
+    const auto [core_config, config] = init_config(
+        BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
+    );
+    auto features = register_feature(UploadFrequency::Average);
+
+    // And a pending directory containing one file that is over 18 hours old and one
+    // that is fresh
+    const std::string alpha_pending_dir =
+        "app/.datadog/main/12345/alpha/intermediate-v1";
+    const std::string alpha_pending_prefix = alpha_pending_dir + "/";
+    const uint64_t eighteen_hours_ms = 18ULL * 60 * 60 * 1000;
+    const uint64_t old_ts = 1700000000000ULL - eighteen_hours_ms - 1000;
+    const uint64_t fresh_ts = 1700000000000ULL - 1000;
+    fs.Touch(
+        alpha_pending_prefix + std::to_string(old_ts),
+        MockTLVFile().AppendEvent("old-event").ToString()
+    );
+    fs.Touch(
+        alpha_pending_prefix + std::to_string(fresh_ts),
+        MockTLVFile().AppendEvent("fresh-event").ToString()
+    );
+
+    // When we run an upload cycle
+    std::vector<std::string> filenames;
+    std::vector<char> read_buffer;
+    Internal_HandleUploadProc(
+        logger,
+        config,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        fs,
+        client,
+        filenames,
+        read_buffer
+    );
+
+    // Then the stale pending file is deleted
+    REQUIRE_FALSE(fs.IsFile(alpha_pending_prefix + std::to_string(old_ts)));
+
+    // And the fresh pending file is left intact
+    REQUIRE(fs.IsFile(alpha_pending_prefix + std::to_string(fresh_ts)));
+
+    // And no upload requests were made (pending files are never uploaded)
+    REQUIRE(client.requests.empty());
+  }
+
+  SECTION(
+      "M leave pending files intact W they are younger than max_file_age_for_read"
+  ) {
+    // Given an upload cycle configuration with an 18-hour TTL
+    clock.FreezeAtMilliseconds(1700000000000);
+    MockHttpClient client;
+    const auto [core_config, config] = init_config(
+        BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
+    );
+    auto features = register_feature(UploadFrequency::Average);
+
+    // And a pending directory with two files both younger than 18 hours
+    const std::string alpha_pending_dir =
+        "app/.datadog/main/12345/alpha/intermediate-v1";
+    const std::string alpha_pending_prefix = alpha_pending_dir + "/";
+    fs.Touch(
+        alpha_pending_prefix + "1699999000000",
+        MockTLVFile().AppendEvent("event-a").ToString()
+    );
+    fs.Touch(
+        alpha_pending_prefix + "1699999500000",
+        MockTLVFile().AppendEvent("event-b").ToString()
+    );
+
+    // When we run an upload cycle
+    std::vector<std::string> filenames;
+    std::vector<char> read_buffer;
+    Internal_HandleUploadProc(
+        logger,
+        config,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        fs,
+        client,
+        filenames,
+        read_buffer
+    );
+
+    // Then both pending files remain untouched
+    REQUIRE(fs.Ls(alpha_pending_dir).size() == 2);
+    REQUIRE(client.requests.empty());
+  }
+
+  SECTION("M not delete non-numeric files W pending directory contains non-SDK files") {
+    // Given an upload cycle with an 18-hour TTL
+    clock.FreezeAtMilliseconds(1700000000000);
+    MockHttpClient client;
+    const auto [core_config, config] = init_config(
+        BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
+    );
+    auto features = register_feature(UploadFrequency::Average);
+
+    const std::string alpha_pending_dir =
+        "app/.datadog/main/12345/alpha/intermediate-v1";
+    const std::string alpha_pending_prefix = alpha_pending_dir + "/";
+
+    // And a pending directory containing one stale SDK batch file and one
+    // non-numerically-named file that was not written by the SDK
+    const uint64_t eighteen_hours_ms = 18ULL * 60 * 60 * 1000;
+    const uint64_t old_ts = 1700000000000ULL - eighteen_hours_ms - 1000;
+    fs.Touch(
+        alpha_pending_prefix + std::to_string(old_ts),
+        MockTLVFile().AppendEvent("old-event").ToString()
+    );
+    fs.Touch(alpha_pending_prefix + "not-an-sdk-file", "foreign-data");
+
+    // When we run an upload cycle
+    std::vector<std::string> filenames;
+    std::vector<char> read_buffer;
+    Internal_HandleUploadProc(
+        logger,
+        config,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        fs,
+        client,
+        filenames,
+        read_buffer
+    );
+
+    // Then the stale SDK batch file is evicted
+    REQUIRE_FALSE(fs.IsFile(alpha_pending_prefix + std::to_string(old_ts)));
+
+    // But the non-SDK file is left untouched
+    REQUIRE(fs.IsFile(alpha_pending_prefix + "not-an-sdk-file"));
+
+    // And no upload requests were made
+    REQUIRE(client.requests.empty());
+  }
+
+  SECTION("M silently skip pending eviction W ListFiles fails on pending directory") {
+    // Given an upload cycle with an 18-hour TTL
+    clock.FreezeAtMilliseconds(1700000000000);
+    MockHttpClient client;
+    const auto [core_config, config] = init_config(
+        BatchSize::Medium, UploadFrequency::Average, BatchProcessingLevel::Medium
+    );
+    auto features = register_feature(UploadFrequency::Average);
+
+    const std::string alpha_pending_dir =
+        "app/.datadog/main/12345/alpha/intermediate-v1";
+    const std::string alpha_pending_prefix = alpha_pending_dir + "/";
+
+    // And a stale pending file that would normally be evicted
+    const uint64_t eighteen_hours_ms = 18ULL * 60 * 60 * 1000;
+    const uint64_t old_ts = 1700000000000ULL - eighteen_hours_ms - 1000;
+    fs.Touch(
+        alpha_pending_prefix + std::to_string(old_ts),
+        MockTLVFile().AppendEvent("old-event").ToString()
+    );
+
+    // But the pending directory refuses to be listed
+    fs.SimulateFailure(
+        alpha_pending_dir,
+        FilesystemResult::PermissionDenied,
+        MockFilesystem::FailureFlags::Ls
+    );
+
+    // When we run an upload cycle
+    std::vector<std::string> filenames;
+    std::vector<char> read_buffer;
+    Internal_HandleUploadProc(
+        logger,
+        config,
+        clock,
+        CreateFeatureId("ALFA"),
+        features,
+        fs,
+        client,
+        filenames,
+        read_buffer
+    );
+
+    // Then the pending eviction pass is silently skipped: the stale file remains
+    fs.ClearSimulatedFailure(alpha_pending_dir);
+    REQUIRE(fs.IsFile(alpha_pending_prefix + std::to_string(old_ts)));
+
+    // And no upload requests were made
+    REQUIRE(client.requests.empty());
   }
 
   SECTION("M reject batch and continue processing W upload gets HTTP client error") {
