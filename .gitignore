@@ -1,5 +1,7 @@
 build/
+build-i386/
 install/
+TESTING_I386_ON_MACOS.md
 llvm-tools/
 Testing/
 *.profraw
