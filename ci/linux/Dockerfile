@@ -19,7 +19,7 @@ FROM registry.ddbuild.io/commit-headless:${COMMIT_HEADLESS_TAG}@${COMMIT_HEADLES
 
 # This Dockerfile describes the build environment used for Linux builds of dd-sdk-cpp,
 # with various toolchain versions defined using multi-stage targets
-FROM ubuntu:22.04 AS base
+FROM ubuntu:24.04 AS base
 
 # Suppress prompts; default to UTC
 ENV DEBIAN_FRONTEND=noninteractive
@@ -47,17 +47,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
   git \
   ninja-build
 
-# Install Python 3.12 (not available in stock Ubuntu repos as of 22.04), for scripts
-# declared in pyproject.toml
-RUN add-apt-repository ppa:deadsnakes/ppa \
-  && apt update \
-  && apt install --no-install-recommends -y python3.12 python3.12-venv \
-  && python3.12 -m ensurepip
-
-# We still need the stock Python 3.10 to remain installed as the system-wide default
-# (for add-apt-repository etc.), so use an env var to override Python interpreter
-# resolution in our CMake build
-ENV DD_SYSTEM_PYTHON=/usr/bin/python3.12
+# Install Python 3.12 for use by build/test scripts
+RUN apt-get update && apt-get install -y --no-install-recommends \
+  python3 \
+  python3-pip \
+  python3-venv
 
 # Use Ninja by default for CMake builds on Linux: it's ~6x faster than Make
 ENV CMAKE_GENERATOR=Ninja
