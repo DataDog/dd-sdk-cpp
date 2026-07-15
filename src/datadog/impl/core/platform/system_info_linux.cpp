@@ -390,7 +390,7 @@ Timestamp QueryProcessLaunchTime(const impl::DiagnosticLogger& logger) {
   int64_t whole_sec = ticks / clk_tck;
   int64_t rem_ticks = ticks % clk_tck;
   int64_t starttime_ns =
-      whole_sec * 1'000'000'000LL + rem_ticks * 1'000'000'000LL / clk_tck;
+      (whole_sec * 1'000'000'000LL) + (rem_ticks * 1'000'000'000LL / clk_tck);
 
   return Timestamp{Duration{boot_epoch_ns + starttime_ns}};
 }
