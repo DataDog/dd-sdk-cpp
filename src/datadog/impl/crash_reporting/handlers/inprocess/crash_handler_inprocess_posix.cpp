@@ -22,6 +22,7 @@
 #include <cinttypes>
 #include <cstring>
 #include <ctime>
+#include <limits>
 
 // macOS binaries use Mach-O format, and shared libraries are loaded via dyld: we use
 // _dyld_get_image_header(), mach_header, et al. in order to enumerate and inspect the
@@ -318,7 +319,7 @@ static void write_modules(int fd) {
     // process memory. For all such pages, we accumulate the lowest-seen vmaddr and the
     // highest-seen vmaddr_end (vmaddr + vmsize), giving us the range in virtual memory
     // where the module is mapped, prior to ASLR slide.
-    uintptr_t min_vmaddr = 0xFFFFFFFFFFFFFFFF;
+    uintptr_t min_vmaddr = std::numeric_limits<uintptr_t>::max();
     uintptr_t max_vmaddr_end = 0;
     for (uint32_t cmd_idx = 0; cmd_idx < ncmds; cmd_idx++) {
       // If the current load comand describes a valid segment other than __PAGEZERO,
