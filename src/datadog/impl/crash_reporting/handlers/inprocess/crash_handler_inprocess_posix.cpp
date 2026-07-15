@@ -174,7 +174,16 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
     // assembler accepts the instruction regardless of -march, so no feature guard is
     // needed.
     uint64_t raw_ret = reinterpret_cast<uint64_t>(ret_addr);
-    asm("xpaci %0" : "+r"(raw_ret));
+    // xpaci strips PAC bits from an instruction-pointer value. We pin the operand to
+    // x16 and emit the instruction via .inst so that the assembler does not require
+    // -march=armv8.3-a+pauth; the encoding is unambiguous and fixed for a given
+    // register. x16 (IP0) is a caller-saved scratch register and safe to use here.
+    // xpaci x16 = 0xDAC143F0
+    {
+      register uint64_t r asm("x16") = raw_ret;
+      asm(".inst 0xDAC143F0" : "+r"(r));
+      raw_ret = r;
+    }
     WriteCrashReportStackFrame(fd, raw_ret);
 #else
     WriteCrashReportStackFrame(
