@@ -37,6 +37,9 @@ class IClock {
   /**
    * Returns the elapsed wall-clock time since the Unix epoch, i.e. since midnight
    * January 1, 1970, UTC, in nanoseconds.
+   *
+   * Return values are on the same time basis as ISystemInfo::GetProcessLaunchTime()
+   * and may be compared directly.
    */
   virtual Timestamp Now() const = 0;
 };

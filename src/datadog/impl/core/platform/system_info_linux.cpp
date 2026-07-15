@@ -6,11 +6,14 @@
 
 #include <limits.h>
 #include <sys/utsname.h>
+#include <time.h>
 #include <unistd.h>
 
 #include <cstdlib>
 #include <fstream>
 #include <string>
+
+#include "datadog/timestamp.hpp"
 
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
@@ -244,6 +247,150 @@ std::string GetLinuxTimezone(const impl::DiagnosticLogger& logger) {
   return "";
 }
 
+/**
+ * Parses the starttime field (field 22, zero-indexed field 21) from /proc/self/stat.
+ *
+ * /proc/self/stat fields are space-separated. The second field is the process name
+ * enclosed in parentheses and may itself contain spaces, so we skip past the closing
+ * parenthesis before counting fields.
+ *
+ * @param logger Diagnostic logger for warnings
+ * @return starttime in clock ticks since boot, or 0 on failure
+ */
+uint64_t ReadProcStatStarttime(const impl::DiagnosticLogger& logger) {
+  std::ifstream file("/proc/self/stat");
+  if (!file.is_open()) {
+    logger.Debug(
+        "Unable to resolve process launch time: failed to open /proc/self/stat"
+    );
+    return 0;
+  }
+
+  std::string content;
+  std::getline(file, content);
+
+  // Skip past the closing ')' of the comm field (field 2)
+  size_t rparen = content.rfind(')');
+  if (rparen == std::string::npos) {
+    logger.Debug(
+        "Unable to resolve process launch time: malformed /proc/self/stat (no closing "
+        "parenthesis)"
+    );
+    return 0;
+  }
+
+  // Fields after comm are space-separated starting at rparen+1.
+  // starttime is field 22 (1-indexed). Fields 3..21 must be skipped (19 fields)
+  // before reading field 22.
+  std::string_view remaining(content.c_str() + rparen + 1, content.size() - rparen - 1);
+  int fields_needed = 19;
+  size_t pos = 0;
+  for (int i = 0; i < fields_needed; ++i) {
+    // Skip leading spaces
+    while (pos < remaining.size() && remaining[pos] == ' ') {
+      ++pos;
+    }
+    // Skip the field value
+    while (pos < remaining.size() && remaining[pos] != ' ') {
+      ++pos;
+    }
+  }
+
+  // Skip leading spaces before starttime
+  while (pos < remaining.size() && remaining[pos] == ' ') {
+    ++pos;
+  }
+
+  if (pos >= remaining.size()) {
+    logger.Debug(
+        "Unable to resolve process launch time: /proc/self/stat has fewer fields than "
+        "expected"
+    );
+    return 0;
+  }
+
+  // Parse starttime as uint64
+  uint64_t starttime = 0;
+  bool parsed_any = false;
+  while (pos < remaining.size() && remaining[pos] >= '0' && remaining[pos] <= '9') {
+    starttime = starttime * 10 + static_cast<uint64_t>(remaining[pos] - '0');
+    ++pos;
+    parsed_any = true;
+  }
+
+  if (!parsed_any) {
+    logger.Debug(
+        "Unable to resolve process launch time: failed to parse starttime field in "
+        "/proc/self/stat"
+    );
+    return 0;
+  }
+
+  return starttime;
+}
+
+/**
+ * Retrieves the process launch time on Linux.
+ *
+ * Reads starttime (clock ticks since boot) from /proc/self/stat, converts to
+ * nanoseconds using sysconf(_SC_CLK_TCK), then adds to the wall-clock boot time
+ * derived from back-to-back CLOCK_BOOTTIME and CLOCK_REALTIME samples.
+ *
+ * @param logger Diagnostic logger for warnings
+ * @return Wall-clock launch time as a Timestamp, or zero on failure
+ */
+Timestamp GetProcessLaunchTime(const impl::DiagnosticLogger& logger) {
+  // Read starttime from /proc/self/stat
+  uint64_t starttime_ticks = ReadProcStatStarttime(logger);
+  if (starttime_ticks == 0) {
+    return Timestamp{};
+  }
+
+  // Get clock tick rate
+  long clk_tck = sysconf(_SC_CLK_TCK);  // NOLINT(runtime/int)
+  if (clk_tck <= 0) {
+    logger.Debug(
+        "Unable to resolve process launch time: sysconf(_SC_CLK_TCK) returned invalid "
+        "value",
+        {{"clk_tck", static_cast<int64_t>(clk_tck)}}
+    );
+    return Timestamp{};
+  }
+
+  // Sample CLOCK_BOOTTIME and CLOCK_REALTIME back-to-back to minimize drift between
+  // the two readings, then use their difference to derive the wall-clock boot time.
+  struct timespec boottime_ts{};
+  struct timespec realtime_ts{};
+  if (clock_gettime(CLOCK_BOOTTIME, &boottime_ts) != 0) {
+    int err = errno;
+    logger.Debug(
+        "Unable to resolve process launch time: clock_gettime(CLOCK_BOOTTIME) failed",
+        {{"errno", static_cast<int64_t>(err)}}
+    );
+    return Timestamp{};
+  }
+  if (clock_gettime(CLOCK_REALTIME, &realtime_ts) != 0) {
+    int err = errno;
+    logger.Debug(
+        "Unable to resolve process launch time: clock_gettime(CLOCK_REALTIME) failed",
+        {{"errno", static_cast<int64_t>(err)}}
+    );
+    return Timestamp{};
+  }
+
+  // Compute wall-clock boot time: realtime - boottime (both in nanoseconds)
+  int64_t realtime_ns = realtime_ts.tv_sec * 1'000'000'000LL + realtime_ts.tv_nsec;
+  int64_t boottime_ns = boottime_ts.tv_sec * 1'000'000'000LL + boottime_ts.tv_nsec;
+  int64_t boot_epoch_ns = realtime_ns - boottime_ns;
+
+  // Convert starttime from ticks to nanoseconds since boot.
+  // Multiply before dividing to avoid truncation error from integer division.
+  int64_t starttime_ns =
+      static_cast<int64_t>(starttime_ticks) * 1'000'000'000LL / clk_tck;
+
+  return Timestamp{Duration{boot_epoch_ns + starttime_ns}};
+}
+
 }  // namespace
 
 /**
@@ -255,6 +402,7 @@ std::string GetLinuxTimezone(const impl::DiagnosticLogger& logger) {
 class LinuxSystemInfo final : public ISystemInfo {
   OsInfo _os_info;
   DeviceInfo _device_info;
+  Timestamp _process_launch_time;
 
  public:
   explicit LinuxSystemInfo(const impl::DiagnosticLogger& logger) {
@@ -318,11 +466,15 @@ class LinuxSystemInfo final : public ISystemInfo {
 
     // Get timezone from /etc/localtime
     _device_info.time_zone = GetLinuxTimezone(logger);
+
+    // Get process launch time
+    _process_launch_time = GetProcessLaunchTime(logger);
   }
 
   int64_t GetPid() const override { return static_cast<int64_t>(getpid()); }
   const OsInfo& GetOsInfo() const override { return _os_info; }
   const DeviceInfo& GetDeviceInfo() const override { return _device_info; }
+  Timestamp GetProcessLaunchTime() const override { return _process_launch_time; }
 };
 
 std::unique_ptr<ISystemInfo> SystemInfo::Init(const impl::DiagnosticLogger& logger) {

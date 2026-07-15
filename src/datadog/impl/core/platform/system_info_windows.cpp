@@ -15,6 +15,8 @@
 #include <algorithm>
 #include <string>
 
+#include "datadog/timestamp.hpp"
+
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/platform/windows_timezone_mapping.hpp"
 #include "datadog/impl/core/util/assert.hpp"
@@ -452,6 +454,49 @@ std::string GetDeviceTimezone(const impl::DiagnosticLogger& logger) {
 
 }  // namespace
 
+namespace {
+
+/**
+ * Retrieves the process launch time using GetProcessTimes.
+ *
+ * FILETIME counts 100-nanosecond intervals since January 1, 1601 (Windows epoch).
+ * We subtract the offset between the Windows epoch and the Unix epoch to convert.
+ *
+ * @param logger Diagnostic logger for warnings
+ * @return Wall-clock launch time as a Timestamp, or zero on failure
+ */
+Timestamp GetProcessLaunchTime(const impl::DiagnosticLogger& logger) {
+  FILETIME creation_time, exit_time, kernel_time, user_time;
+  if (!GetProcessTimes(
+          GetCurrentProcess(), &creation_time, &exit_time, &kernel_time, &user_time
+      )) {
+    DWORD err = GetLastError();
+    logger.Debug(
+        "Unable to resolve process launch time: GetProcessTimes failed",
+        {{"error", static_cast<int64_t>(err)}}
+    );
+    return Timestamp{};
+  }
+
+  // Combine FILETIME halves into a single 64-bit count of 100-ns intervals
+  uint64_t ft = (static_cast<uint64_t>(creation_time.dwHighDateTime) << 32) |
+                creation_time.dwLowDateTime;
+
+  // Offset between Windows epoch (1601-01-01) and Unix epoch (1970-01-01),
+  // expressed in 100-nanosecond intervals: 116444736000000000
+  constexpr uint64_t kWindowsToUnixEpochIntervals = 116444736000000000ULL;
+  if (ft < kWindowsToUnixEpochIntervals) {
+    logger.Debug("Unable to resolve process launch time: FILETIME predates Unix epoch");
+    return Timestamp{};
+  }
+
+  // Convert remaining 100-ns intervals to nanoseconds
+  int64_t ns = static_cast<int64_t>((ft - kWindowsToUnixEpochIntervals) * 100ULL);
+  return Timestamp{Duration{ns}};
+}
+
+}  // namespace
+
 /**
  * Windows implementation of ISystemInfo.
  *
@@ -461,6 +506,7 @@ std::string GetDeviceTimezone(const impl::DiagnosticLogger& logger) {
 class WindowsSystemInfo final : public ISystemInfo {
   OsInfo _os_info;
   DeviceInfo _device_info;
+  Timestamp _process_launch_time;
 
  public:
   explicit WindowsSystemInfo(const impl::DiagnosticLogger& logger) {
@@ -555,6 +601,9 @@ class WindowsSystemInfo final : public ISystemInfo {
 
     // Get timezone (mapped to IANA timezone ID)
     _device_info.time_zone = GetDeviceTimezone(logger);
+
+    // Get process launch time
+    _process_launch_time = GetProcessLaunchTime(logger);
   }
 
   int64_t GetPid() const override {
@@ -562,6 +611,7 @@ class WindowsSystemInfo final : public ISystemInfo {
   }
   const OsInfo& GetOsInfo() const override { return _os_info; }
   const DeviceInfo& GetDeviceInfo() const override { return _device_info; }
+  Timestamp GetProcessLaunchTime() const override { return _process_launch_time; }
 };
 
 std::unique_ptr<ISystemInfo> SystemInfo::Init(const impl::DiagnosticLogger& logger) {
