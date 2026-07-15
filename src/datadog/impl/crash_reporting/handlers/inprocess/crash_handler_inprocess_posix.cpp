@@ -166,25 +166,15 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
     // stack. These bits must be cleared to recover the canonical virtual address before
     // the address can be compared against module load ranges.
     //
-    // When compiled for ARMv8.3-a or later (i.e. __ARM_FEATURE_PAUTH is defined), we
-    // use the xpaci instruction, which strips exactly the PAC bits as determined by the
-    // CPU's current key and VA configuration. This correctly handles kernels configured
-    // for 52-bit user VAs (CONFIG_ARM64_VA_BITS_52), where bits [51:48] are legitimate
-    // address bits that a hard-coded 48-bit mask would incorrectly zero.
-    //
-    // On ARMv8.0-8.2 hardware (no PAC support), the 48-bit mask is always correct
-    // because those CPUs never generate PAC-signed addresses and do not support 52-bit
-    // user VAs.
+    // xpaci strips exactly the PAC bits using the CPU's own key and VA-width
+    // configuration, so it is correct regardless of whether the kernel uses 48-bit or
+    // 52-bit user VAs (CONFIG_ARM64_VA_BITS_52). On pre-PAC hardware (ARMv8.0-8.2)
+    // xpaci falls in the HINT space and executes as a NOP, which is also correct
+    // because those CPUs never encode PAC bits in addresses. Clang's integrated
+    // assembler accepts the instruction regardless of -march, so no feature guard is
+    // needed.
     uint64_t raw_ret = reinterpret_cast<uint64_t>(ret_addr);
-#ifdef __ARM_FEATURE_PAUTH
-    // xpaci strips PAC bits from an instruction-pointer value using the CPU's
-    // knowledge of which bits are signature vs. address, so it's correct for any
-    // VA width (48-bit or 52-bit).
     asm("xpaci %0" : "+r"(raw_ret));
-#else
-    // ARMv8.0-8.2: no PAC, no 52-bit VA; mask to the 48-bit canonical address.
-    raw_ret &= 0x0000ffffffffffff;
-#endif
     WriteCrashReportStackFrame(fd, raw_ret);
 #else
     WriteCrashReportStackFrame(
