@@ -583,8 +583,8 @@ static void write_modules(int fd) {
       // included in our crash report: write that information to the output file
       WriteCrashReportModule(
           fd,
-          static_cast<uint64_t>(static_cast<uintptr_t>(start_addr)),
-          static_cast<uint64_t>(static_cast<uintptr_t>(end_addr)),
+          static_cast<uint64_t>(start_addr),
+          static_cast<uint64_t>(end_addr),
           pathname,
           build_id
       );
