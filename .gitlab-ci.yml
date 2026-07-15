@@ -124,7 +124,7 @@ test-linux-x86:
     # Install Python deps so we can run integration tests (mitmproxy runs as 64-bit
     # Python on the amd64 host; the repl binary it drives is the 32-bit cross-compiled
     # SDK example)
-    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
     - >
       cmake
       -DCMAKE_BUILD_TYPE=Debug
@@ -153,7 +153,7 @@ test-linux:
       - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
   script:
     # Install Python deps so we can run integration tests
-    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
     # Build the SDK with unit test suite and repl binaries included
     - >
       cmake
@@ -450,7 +450,7 @@ publish-release:
     - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
     # Use tools/publish-release to push a tag and create a GitHub release that includes
     # our archives with prebuilt binaries
-    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[publish-release]'
+    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[publish-release]'
     - .venv/bin/python tools/publish-release/main.py "${ARCHIVE_FILES[@]}"
   after_script:
     # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
@@ -512,7 +512,7 @@ prepare-release:
     # Use tools/prepare-release to bump the version number, update the version in
     # CMakeLists.txt, update CHANGELOG.md based on contents of PRs included in this
     # release, push a release/X.Y.Z branch, and open a PR into main
-    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[prepare-release]'
+    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[prepare-release]'
     - .venv/bin/python tools/prepare-release/main.py ${BUMP_TYPE:+--bump $BUMP_TYPE}
   after_script:
     # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
