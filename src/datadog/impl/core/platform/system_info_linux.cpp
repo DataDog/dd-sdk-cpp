@@ -352,7 +352,7 @@ Timestamp QueryProcessLaunchTime(const impl::DiagnosticLogger& logger) {
     logger.Debug(
         "Unable to resolve process launch time: sysconf(_SC_CLK_TCK) returned invalid "
         "value",
-        {{"clk_tck", static_cast<int64_t>(clk_tck)}}
+        {{"clk_tck", clk_tck}}
     );
     return Timestamp{};
   }
