@@ -81,7 +81,7 @@ RUN wget -qO /usr/share/keyrings/githubcli-archive-keyring.gpg https://cli.githu
 
 # Install CMake from Kitware repo to get the latest version
 RUN wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | tee /usr/share/keyrings/kitware-archive-keyring.gpg >/dev/null
-RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ jammy-rc main' | tee -a /etc/apt/sources.list.d/kitware.list >/dev/null \
+RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https://apt.kitware.com/ubuntu/ noble-rc main' | tee -a /etc/apt/sources.list.d/kitware.list >/dev/null \
   && apt-get update \
   && apt-get install -y --no-install-recommends cmake
 
@@ -105,6 +105,8 @@ ENV CXX=g++-13
 
 # Build `ci/dd-sdk-cpp/clang15` with: --target clang15
 FROM base AS clang15
+# apt.llvm.org does not publish LLVM 15 packages for Noble (24.04); the Jammy
+# (22.04) packages install and function correctly on Noble in practice.
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - \
   && echo 'deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy-15 main' | tee -a /etc/apt/sources.list.d/llvm.list \
   && apt-get update \
@@ -116,7 +118,7 @@ ENV CXX=clang++-15
 # Build `ci/dd-sdk-cpp/clang20` with: --target clang20
 FROM base AS clang20
 RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - \
-  && echo 'deb https://apt.llvm.org/jammy/ llvm-toolchain-jammy-20 main' | tee -a /etc/apt/sources.list.d/llvm.list \
+  && echo 'deb https://apt.llvm.org/noble/ llvm-toolchain-noble-20 main' | tee -a /etc/apt/sources.list.d/llvm.list \
   && apt-get update \
   && apt-get install -y --no-install-recommends clang-20 clang-format-20 clang-tidy-20
 ENV PATH="/usr/lib/llvm-20/bin:${PATH}"
