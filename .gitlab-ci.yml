@@ -121,10 +121,15 @@ test-linux-x86:
   tags: [arch:amd64]
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:clang20-x86-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
+    # Install Python deps so we can run integration tests (mitmproxy runs as 64-bit
+    # Python on the amd64 host; the repl binary it drives is the 32-bit cross-compiled
+    # SDK example)
+    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
     - >
       cmake
       -DCMAKE_BUILD_TYPE=Debug
       -DDD_ENABLE_ASSERTS=ON
+      -DDD_BUILD_EXAMPLES=ON
       -DDD_BUILD_TESTING=ON
       -DDD_HTTP_USE_SYSTEM_LIBCURL=ON
       -DDD_ENABLE_CLANG_TIDY=OFF
@@ -132,6 +137,7 @@ test-linux-x86:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
+    - .venv/bin/python tools/integration-test/main.py
   artifacts:
     when: always
     expire_in: "30 days"
