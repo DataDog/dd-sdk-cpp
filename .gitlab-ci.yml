@@ -309,7 +309,7 @@ package-linux:
         BUILD_SHARED_LIBS: "ON"
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
-    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -S . -B build
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
     - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - stat build/artifact_name.txt
     - stat "build/$(cat build/artifact_name.txt).tar.gz"
@@ -330,7 +330,7 @@ package-macos:
         CMAKE_OSX_DEPLOYMENT_TARGET: "14.0"
         CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
   script:
-    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET} -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} -S . -B build
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET} -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
     - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - stat build/artifact_name.txt
     - stat "build/$(cat build/artifact_name.txt).tar.gz"
@@ -363,7 +363,7 @@ package-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
   artifacts:
     expire_in: 1 week
