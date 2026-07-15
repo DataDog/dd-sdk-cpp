@@ -130,8 +130,9 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
   // pointer value or signs of stack corruption
   void* fp = frame_pointer;
   for (int i = 0; i < max_frames && fp != nullptr; i++) {
-    // If the frame pointer value is not 8-byte aligned, it's not a valid frame pointer
-    if ((reinterpret_cast<uintptr_t>(fp) & 0x7) != 0) {
+    // If the frame pointer value is not pointer-size aligned, it's not a valid frame
+    // pointer
+    if ((reinterpret_cast<uintptr_t>(fp) & (sizeof(void*) - 1)) != 0) {
       break;
     }
 
