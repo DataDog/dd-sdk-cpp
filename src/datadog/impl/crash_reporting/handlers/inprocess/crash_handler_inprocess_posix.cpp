@@ -23,13 +23,6 @@
 #include <cstring>
 #include <ctime>
 
-// We only officially support 64-bit architectures; this code may need to be revisited
-// if we add legacy 32-bit support
-static_assert(
-    sizeof(uint64_t) == sizeof(uintptr_t),
-    "Unexpected uintptr_t size; POSIX crash handler assumes LP64"
-);
-
 // macOS binaries use Mach-O format, and shared libraries are loaded via dyld: we use
 // _dyld_get_image_header(), mach_header, et al. in order to enumerate and inspect the
 // set of loaded modules
