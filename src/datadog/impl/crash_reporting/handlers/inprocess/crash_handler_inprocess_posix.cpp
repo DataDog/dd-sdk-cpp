@@ -706,9 +706,18 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   ip = reinterpret_cast<void*>(uc->uc_mcontext.gregs[REG_EIP]);
   fp = reinterpret_cast<void*>(uc->uc_mcontext.gregs[REG_EBP]);
 #elif defined(__arm__)
-  // Linux armv7: pc/fp
+  // Linux ARMv7: pc is always arm_pc. The frame pointer register depends on the
+  // instruction set state of the crashed thread at the time of the fault:
+  //   - ARM state:   r11 (arm_fp) is the frame pointer per AAPCS
+  //   - Thumb state: r7  (arm_r7) is the frame pointer per AAPCS Thumb convention
+  // The T-bit (bit 5) of the saved CPSR indicates which state was active.
   ip = reinterpret_cast<void*>(uc->uc_mcontext.arm_pc);
-  fp = reinterpret_cast<void*>(uc->uc_mcontext.arm_fp);
+  {
+    const bool thumb_state = (uc->uc_mcontext.arm_cpsr & (1U << 5)) != 0;
+    fp = reinterpret_cast<void*>(
+        thumb_state ? uc->uc_mcontext.arm_r7 : uc->uc_mcontext.arm_fp
+    );
+  }
 #else
 #error "Unsupported architecture for in-process crash handler on Linux"
 #endif
