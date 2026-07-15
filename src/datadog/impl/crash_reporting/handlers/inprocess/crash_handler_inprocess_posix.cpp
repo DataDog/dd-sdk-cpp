@@ -117,7 +117,9 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
   // The topmost (most-recently-pushed) frame in our callstack represents the function
   // in which the crash occurred: the value of the instruction pointer / program counter
   // at the time of the crash indicates exactly where the crash occurred
-  WriteCrashReportStackFrame(fd, reinterpret_cast<uint64_t>(instruction_pointer));
+  WriteCrashReportStackFrame(
+      fd, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(instruction_pointer))
+  );
 
   // Stop after 128 frames to bound execution time and prevent runaway traversal
   const int max_frames = 128;
@@ -156,7 +158,9 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
     // address points to the instruction to be executed after this function returns
     // (immediately following the call that created this frame). Symbolication tools
     // will adjust to resolve the actual call site.
-    WriteCrashReportStackFrame(fd, reinterpret_cast<uint64_t>(ret_addr));
+    WriteCrashReportStackFrame(
+        fd, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ret_addr))
+    );
 
     // Reading frame[0] into fp (effectively dereferencing fp) moves to the next frame
     fp = frame[0];
@@ -383,8 +387,8 @@ static void write_modules(int fd) {
     // Write the relevant details of this module
     WriteCrashReportModule(
         fd,
-        static_cast<uint64_t>(actual_start),
-        static_cast<uint64_t>(actual_end),
+        static_cast<uint64_t>(static_cast<uintptr_t>(actual_start)),
+        static_cast<uint64_t>(static_cast<uintptr_t>(actual_end)),
         image_name,
         build_id
     );
@@ -577,8 +581,8 @@ static void write_modules(int fd) {
       // included in our crash report: write that information to the output file
       WriteCrashReportModule(
           fd,
-          static_cast<uint64_t>(start_addr),
-          static_cast<uint64_t>(end_addr),
+          static_cast<uint64_t>(static_cast<uintptr_t>(start_addr)),
+          static_cast<uint64_t>(static_cast<uintptr_t>(end_addr)),
           pathname,
           build_id
       );
@@ -639,12 +643,14 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   // writing to that file before chaining and/or exiting
   WriteCrashReportHeader(
       fd,
-      static_cast<uint64_t>(sig),                  // fault_code (signal number)
-      reinterpret_cast<uint64_t>(info->si_addr),   // fault_address
-      0,                                           // fault_flags (0 on POSIX)
-      static_cast<uint64_t>(getpid()),             // pid
-      reinterpret_cast<uint64_t>(pthread_self()),  // tid
-      crash_timestamp_ms                           // timestamp_ms
+      static_cast<uint64_t>(sig),  // fault_code (signal number)
+      static_cast<uint64_t>(
+          reinterpret_cast<uintptr_t>(info->si_addr)
+      ),                                // fault_address
+      0,                                // fault_flags (0 on POSIX)
+      static_cast<uint64_t>(getpid()),  // pid
+      static_cast<uint64_t>(reinterpret_cast<uintptr_t>(pthread_self())),  // tid
+      crash_timestamp_ms  // timestamp_ms
   );
 
   // The provided ucontext value contains CPU register states saved at time of crash:
