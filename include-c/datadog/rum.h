@@ -399,8 +399,8 @@ DATADOG_API void dd_rum_stop_resource_with_error(
  * (time-to-initial-display).
  *
  * Should be called at most once, as early as the first interactive frame is presented.
- * If called when no view is active, the call is silently dropped. If called more than
- * once, subsequent calls are silently dropped.
+ * If called when no view is active, the event is still emitted with empty view context
+ * fields. If called more than once, subsequent calls are silently dropped.
  */
 DATADOG_API void dd_rum_report_app_display_initialized(dd_rum_t* rum);
 

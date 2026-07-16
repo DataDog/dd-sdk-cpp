@@ -410,8 +410,9 @@ class Rum {
    * `vital.app_launch_metric = "ttid"` (time-to-initial-display).
    *
    * This method should be called at most once, as early as the first interactive frame
-   * is presented. If called when no view is active, the call is silently dropped. If
-   * called more than once, subsequent calls are silently dropped.
+   * is presented. If called when no view is active, the event is still emitted with
+   * empty view context fields. If called more than once, subsequent calls are silently
+   * dropped.
    */
   DATADOG_API void ReportAppDisplayInitialized();
 
