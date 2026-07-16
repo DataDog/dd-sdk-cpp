@@ -67,6 +67,7 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
     dd_rum_fail_operation(
         nullptr, "upload", DD_RUM_FAILURE_REASON_ERROR, nullptr, nullptr
     );
+    dd_rum_report_app_display_initialized(nullptr);
   }
 }
 
@@ -230,6 +231,52 @@ TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
   }
 
   // Cleanup
+  dd_rum_destroy(rum);
+  dd_core_destroy(core);
+}
+
+TEST_CASE(
+    "dd_rum_report_app_display_initialized once-only guard", "[unit][rum][c-api]"
+) {
+  // Given an SDK with RUM initialized and an active view
+  dd_rum_config config;
+  dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  dd_core_t* core = CoreTestHarness::WrapForC(test);
+  dd_rum_t* rum = dd_rum_init(core, &config);
+  REQUIRE(rum);
+  REQUIRE(dd_core_start(core));
+
+  dd_rum_start_view(rum, "home", "Home Screen", nullptr);
+
+  SECTION("M be safe to call W called more than once") {
+    // When we call dd_rum_report_app_display_initialized twice, the SDK should not
+    // crash and both calls should complete safely (the second is silently dropped)
+    dd_rum_report_app_display_initialized(rum);
+    dd_rum_report_app_display_initialized(rum);
+
+    dd_core_stop(core);
+    // Then no errors were emitted (warnings are swallowed by the impl-level logger)
+    REQUIRE(test.diagnostics.error.empty());
+  }
+
+  SECTION("M be safe to call W SDK is stopped and restarted") {
+    // When we call dd_rum_report_app_display_initialized once, then stop and restart
+    dd_rum_report_app_display_initialized(rum);
+    dd_core_stop(core);
+    REQUIRE(dd_core_start(core));
+
+    // And start a new view in the fresh session
+    dd_rum_start_view(rum, "home2", "Home Screen 2", nullptr);
+
+    // Then calling again is safe (guard was reset on Stop)
+    dd_rum_report_app_display_initialized(rum);
+    dd_core_stop(core);
+
+    REQUIRE(test.diagnostics.error.empty());
+  }
+
   dd_rum_destroy(rum);
   dd_core_destroy(core);
 }

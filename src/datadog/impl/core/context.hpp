@@ -15,6 +15,7 @@
 
 #include "datadog/attribute.hpp"
 #include "datadog/core.hpp"
+#include "datadog/timestamp.hpp"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
 
@@ -74,6 +75,12 @@ struct ImmutableContext {
   const platform::OsInfo* os;          // Member of Core-owned ISystemInfo; always valid
   const platform::DeviceInfo* device;  // Member of Core-owned ISystemInfo; always valid
 
+  /**
+   * Wall-clock time at which the current process was launched, as nanoseconds since
+   * the Unix epoch. Zero if the launch time could not be determined.
+   */
+  Timestamp process_launch_time;
+
   std::string_view client_token;         // Required member of Core-owned CoreConfig
   std::string_view service;              // Required member of Core-owned CoreConfig
   std::string_view env;                  // Required member of Core-owned CoreConfig
@@ -96,6 +103,7 @@ struct ImmutableContext {
       const CoreConfig& config,
       const platform::OsInfo& os_info,
       const platform::DeviceInfo& device_info,
+      Timestamp process_launch_time,
       std::string_view http_subsystem_name,
       std::string_view http_subsystem_version
   );
@@ -128,6 +136,13 @@ struct CoreContext {
    * while the Core is in operation.
    */
   const platform::DeviceInfo* device;
+
+  /**
+   * Wall-clock time at which the current process was launched, as nanoseconds since
+   * the Unix epoch — on the same time basis as IClock::Now(). Zero if the launch time
+   * could not be determined.
+   */
+  Timestamp process_launch_time;
 
   /**
    * Client token configured for this SDK instance, used to authorize HTTP requests.

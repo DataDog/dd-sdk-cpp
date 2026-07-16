@@ -180,6 +180,29 @@ class RumSessionScope {
   );
 
   /**
+   * Handles the ReportAppDisplayInitialized command: validates that a view is active,
+   * computes the TTID duration, and emits the app-launch vital event.
+   */
+  void HandleReportAppDisplayInitialized(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
+
+  /**
+   * Constructs and emits the TTID app-launch vital event.
+   * `view` may be null when no view is active; in that case the event is emitted
+   * with `view.id` set to `UUID::Zero` and `view.url` set to `""`, matching the
+   * behaviour of the iOS and Android SDKs.
+   * `duration_ns` is the computed nanosecond duration from process launch to now.
+   */
+  void SendAppLaunchVitalEvent(
+      const RumCommandParams& base,
+      const RumViewScope* view,
+      double duration_ns,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
+
+  /**
    * Constructs and emits a RUM vital event in the context of the current session.
    * If there is an active view, the event will include view context; otherwise,
    * view fields will be empty/zero.

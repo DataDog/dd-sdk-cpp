@@ -32,11 +32,13 @@ ImmutableContext::ImmutableContext(
     const CoreConfig& config,
     const platform::OsInfo& os_info,
     const platform::DeviceInfo& device_info,
+    Timestamp in_process_launch_time,
     std::string_view http_subsystem_name,
     std::string_view http_subsystem_version
 )
     : os(&os_info),
       device(&device_info),
+      process_launch_time(in_process_launch_time),
       client_token(config.client_token),
       service(config.service),
       env(config.env),
@@ -65,6 +67,7 @@ CoreContext::CoreContext(
 )
     : os(im.os),
       device(im.device),
+      process_launch_time(im.process_launch_time),
       client_token(im.client_token),
       service(im.service),
       env(im.env),

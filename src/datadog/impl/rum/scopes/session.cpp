@@ -9,6 +9,7 @@
 #include <string>
 
 #include "datadog/impl/core/attribute/merge.hpp"
+#include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/rum/context.hpp"
 #include "datadog/impl/rum/scopes/application.hpp"
@@ -147,6 +148,13 @@ RumScopeResult RumSessionScope::Process(
         command.base.issued_at
     );
     _num_views_opened++;
+  }
+
+  // -- Handle TTID app-launch vital event (session-scoped, not delegated to views)
+
+  if (command.Is<RumReportAppDisplayInitializedPayload>()) {
+    HandleReportAppDisplayInitialized(command, context, writer);
+    return RumScopeResult::RemainOpen;
   }
 
   // -- Handle operation vital events (session-scoped, not delegated to views)
@@ -394,6 +402,82 @@ void RumSessionScope::SendVitalEvent(
   RumEventEnrichment::PopulateCommonProperties(context, ev);
 
   // Serialize and write the event
+  std::string_view json = deps.EncodeEvent(ev);
+  const bool bypass_tracking_consent = false;
+  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+}
+
+void RumSessionScope::HandleReportAppDisplayInitialized(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
+  const auto view_opt = GetActiveView();
+
+  // Compute TTID duration: time from process launch to the moment of this call.
+  const Timestamp& now = command.base.issued_at;
+  const Timestamp& launch = context.process_launch_time;
+  const double duration_ns = static_cast<double>((now - launch).count());
+
+  static constexpr double kMaxTTIDNs = 60.0 * 1'000'000'000.0;
+  if (duration_ns <= 0.0 || duration_ns >= kMaxTTIDNs) {
+    _deps.get().diagnostic_logger.Warning(
+        "Ignoring TTID; computed value falls outside expected range",
+        {{"ttid_ns", duration_ns}}
+    );
+    return;
+  }
+
+  // If no view is active, emit the event with zero/empty view fields — matching
+  // the behaviour of the iOS and Android SDKs.
+  const RumViewScope* view = view_opt ? &view_opt->get() : nullptr;
+  SendAppLaunchVitalEvent(command.base, view, duration_ns, context, writer);
+}
+
+void RumSessionScope::SendAppLaunchVitalEvent(
+    const RumCommandParams& base,
+    const RumViewScope* view,
+    double duration_ns,
+    const CoreContext& context,
+    const EventWriter& writer
+) {
+  const RumScopeDependencies& deps = _deps;
+
+  const UUID vital_id = UUID::Random();
+  RumVitalAppLaunchEvent ev(
+      context.process_launch_time,
+      deps.application_id,
+      _session_id,
+      RumSessionType::User,
+      view ? view->GetViewID() : UUID::Zero,
+      view ? view->GetKey() : "",
+      vital_id,
+      "time_to_initial_display",
+      RumVitalAppLaunchType::AppLaunch,
+      RumVitalAppLaunchMetric::TTID,
+      duration_ns
+  );
+
+  // Set optional view name
+  if (view && !view->GetName().empty()) {
+    ev.view.name.value = view->GetName();
+  }
+
+  // Set 'context' to the full set of user-specified attributes, merging:
+  // global <- view <- command
+  Attribute merged_attributes = Attribute::Object();
+  AttributeMerge::AssembleObject(
+      merged_attributes,
+      {base.global_attributes,
+       view ? view->GetAttributes() : Attribute::Object(),
+       base.attributes}
+  );
+  if (merged_attributes.GetObjectPropertyCount() > 0) {
+    ev.context.value = merged_attributes;
+  }
+
+  // Enrich with OS and device properties from CoreContext
+  RumEventEnrichment::PopulateCommonProperties(context, ev);
+
+  // Serialize and write
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
   writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
