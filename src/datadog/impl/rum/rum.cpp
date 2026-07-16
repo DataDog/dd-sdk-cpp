@@ -298,6 +298,15 @@ void Rum::StopOperation(
 }
 
 void Rum::ReportAppDisplayInitialized() {
+  // If the SDK is not running, drop silently — the same behaviour as every other
+  // DispatchAsync call when _scope is unset. Critically, do this check *before*
+  // consuming the one-shot _ttid_reported guard so that a pre-Start() or
+  // post-Stop() call does not permanently burn the guard and cause a subsequent
+  // valid call (after Start()) to be rejected as a duplicate.
+  if (!_scope) {
+    return;
+  }
+
   // Only emit once per SDK lifetime. Use test-and-set to guard against races between
   // concurrent callers without holding any lock: the first caller wins, all others
   // receive a warning and are dropped.
