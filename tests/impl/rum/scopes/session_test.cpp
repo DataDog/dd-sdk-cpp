@@ -1082,6 +1082,57 @@ TEST_CASE_METHOD(
   }
 
   SECTION(
+      "M use TTFD-call-time attribute snapshot W TTFD is deferred until TTID fires"
+  ) {
+    // Given a view and a known process launch time
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999990000})
+    };
+
+    // When ReportAppFullyDisplayed is called with a global attribute "env" = "prod"
+    Attribute ttfd_global = Attribute::Object();
+    ttfd_global.SetObjectProperty("env", Attribute::String("prod"));
+    const Timestamp ttfd_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999993000})
+    };
+    RumCommandParams ttfd_params(ttfd_issued_at, ttfd_global, {});
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(std::move(ttfd_params)),
+        ctx,
+        GetTestWriter()
+    );
+    REQUIRE(event_capture.Vitals().empty());
+
+    // And then ReportAppDisplayInitialized is called with a different global attribute
+    // "env" = "staging" (simulating a global attribute change between the two calls)
+    Attribute ttid_global = Attribute::Object();
+    ttid_global.SetObjectProperty("env", Attribute::String("staging"));
+    const Timestamp ttid_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    RumCommandParams ttid_params(ttid_issued_at, ttid_global, {});
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(std::move(ttid_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+
+    // The TTID event carries the TTID-call-time attribute snapshot
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(vitals[0]["context"]["env"] == "staging");
+
+    // The deferred TTFD event carries the TTFD-call-time attribute snapshot,
+    // not the TTID-call-time snapshot
+    REQUIRE(vitals[1]["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(vitals[1]["context"]["env"] == "prod");
+  }
+
+  SECTION(
       "M drop TTFD and warn W raw TTFD duration is out of range before TTID fires"
   ) {
     // Given a launch time such that TTFD raw duration = 95s (exceeds 90s max).

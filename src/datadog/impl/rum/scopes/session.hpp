@@ -267,9 +267,16 @@ class RumSessionScope {
   // HandleReportAppDisplayInitialized immediately before _ttid_has_fired is set.
   // Read by HandleReportAppFullyDisplayed to clamp TTFD when TTID has already fired.
   double _ttid_duration_ns{0.0};
-  // Raw TTFD duration (ns) stored when ReportAppFullyDisplayed fires before
+  // State captured when ReportAppFullyDisplayed fires before
   // ReportAppDisplayInitialized. Consumed and cleared when TTID subsequently fires.
-  std::optional<double> _pending_ttfd_duration_ns;
+  // `base` preserves the attribute snapshot from TTFD-call time so the deferred
+  // TTFD event carries the correct `context` values. `base.issued_at` is captured
+  // but not used: the event timestamp is always set to process_launch_time.
+  struct PendingTTFD {
+    double duration_ns;
+    RumCommandParams base;
+  };
+  std::optional<PendingTTFD> _pending_ttfd;
 
   // Total number of foreground views explicitly opened in this session scope
   // TODO(RUM-12242): Ensure that ApplicationLaunch view doesn't count toward this

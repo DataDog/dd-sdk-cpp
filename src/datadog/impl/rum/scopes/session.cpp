@@ -461,18 +461,15 @@ void RumSessionScope::HandleReportAppDisplayInitialized(
   // event now. Use max(ttfd_raw, ttid) to clamp cases where the developer called
   // ReportAppFullyDisplayed before the first frame was drawn - matching iOS/Android
   // behavior.
-  if (_pending_ttfd_duration_ns.has_value()) {
+  if (_pending_ttfd.has_value()) {
     _deps.get().diagnostic_logger.Warning(
         "ReportAppFullyDisplayed was called before ReportAppDisplayInitialized; "
         "TTFD duration will be clamped to TTID duration if necessary"
     );
     const double ttfd_duration_ns =
-        std::max(*_pending_ttfd_duration_ns, ttid_duration_ns);
-    // Note: command.base carries TTID's global-attribute snapshot, not TTFD's.
-    // Since neither API accepts per-call attributes, the only difference would be
-    // global attributes that changed between the two calls - an unlikely edge case.
+        std::max(_pending_ttfd->duration_ns, ttid_duration_ns);
     SendAppLaunchVitalEvent(
-        command.base,
+        _pending_ttfd->base,
         view,
         ttfd_duration_ns,
         RumVitalAppLaunchMetric::TTFD,
@@ -480,7 +477,7 @@ void RumSessionScope::HandleReportAppDisplayInitialized(
         context,
         writer
     );
-    _pending_ttfd_duration_ns.reset();
+    _pending_ttfd.reset();
   }
 }
 
@@ -502,10 +499,11 @@ void RumSessionScope::HandleReportAppFullyDisplayed(
   }
 
   if (!_ttid_has_fired) {
-    // TTID has not yet been recorded. Store the raw duration and defer emission
-    // until ReportAppDisplayInitialized fires, at which point both events will be
+    // TTID has not yet been recorded. Store the raw duration and command base
+    // (for the attribute snapshot) and defer emission until
+    // ReportAppDisplayInitialized fires, at which point both events will be
     // written together with any necessary clamping applied.
-    _pending_ttfd_duration_ns = duration_ns;
+    _pending_ttfd = PendingTTFD{duration_ns, command.base};
     return;
   }
 
