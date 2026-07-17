@@ -8,9 +8,13 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <cctype>
+#include <chrono>
 #include <limits>
 #include <regex>
 
+#include "datadog/timestamp.hpp"
+
+#include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 
 using namespace datadog;
@@ -86,6 +90,36 @@ TEST_CASE("SystemInfo", "[unit][platform-system-info]") {
     REQUIRE(device_info.architecture.length() < 256);
     REQUIRE(device_info.locale.length() < 256);
     REQUIRE(device_info.time_zone.length() < 256);
+  }
+
+  SECTION("M return valid process launch time W GetProcessLaunchTime called") {
+    // Given an initialized system info instance
+    auto system_info = platform::SystemInfo::Init(logger);
+    REQUIRE(system_info != nullptr);
+
+    // When we retrieve the process launch time
+    const Timestamp launch_time = system_info->GetProcessLaunchTime();
+
+    // Then it is after January 1, 2020, 00:00:00 UTC
+    const Timestamp start_of_2020{Duration{std::chrono::seconds(1577836800)}};
+    REQUIRE(launch_time.time_since_epoch() > start_of_2020.time_since_epoch());
+
+    // And it is before (or equal to) the current wall-clock time
+    const Timestamp now = platform::Clock::Init()->Now();
+    REQUIRE(launch_time.time_since_epoch() <= now.time_since_epoch());
+  }
+
+  SECTION("M return same value on repeated calls W GetProcessLaunchTime called twice") {
+    // Given an initialized system info instance
+    auto system_info = platform::SystemInfo::Init(logger);
+    REQUIRE(system_info != nullptr);
+
+    // When we retrieve the process launch time twice
+    const Timestamp first = system_info->GetProcessLaunchTime();
+    const Timestamp second = system_info->GetProcessLaunchTime();
+
+    // Then both calls return the same value (cached)
+    REQUIRE(first.time_since_epoch() == second.time_since_epoch());
   }
 
 // Platform-specific validation tests

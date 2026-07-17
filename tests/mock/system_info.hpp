@@ -17,6 +17,7 @@ class MockSystemInfo : public platform::ISystemInfo {
  public:
   platform::OsInfo os_info;
   platform::DeviceInfo device_info;
+  Timestamp process_launch_time{};
 
   MockSystemInfo()
       : os_info{"MockOS", "1.0.0", "12345", "1"},
@@ -27,4 +28,5 @@ class MockSystemInfo : public platform::ISystemInfo {
   int64_t GetPid() const override { return 12345; }
   const platform::OsInfo& GetOsInfo() const override { return os_info; }
   const platform::DeviceInfo& GetDeviceInfo() const override { return device_info; }
+  Timestamp GetProcessLaunchTime() const override { return process_launch_time; }
 };
