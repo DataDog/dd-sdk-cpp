@@ -263,6 +263,10 @@ class RumSessionScope {
   // Set to true after a successful TTID emit. Consulted by
   // HandleReportAppFullyDisplayed to decide whether to emit immediately or defer.
   bool _ttid_has_fired{false};
+  // Duration (ns) of the successfully-emitted TTID vital. Written once by
+  // HandleReportAppDisplayInitialized immediately before _ttid_has_fired is set.
+  // Read by HandleReportAppFullyDisplayed to clamp TTFD when TTID has already fired.
+  double _ttid_duration_ns{0.0};
   // Raw TTFD duration (ns) stored when ReportAppFullyDisplayed fires before
   // ReportAppDisplayInitialized. Consumed and cleared when TTID subsequently fires.
   std::optional<double> _pending_ttfd_duration_ns;

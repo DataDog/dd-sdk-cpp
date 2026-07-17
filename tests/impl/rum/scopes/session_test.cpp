@@ -883,6 +883,89 @@ TEST_CASE_METHOD(
     REQUIRE(event_capture.Diagnostics().warning.empty());
   }
 
+  // --- TTID/TTFD immediate-path clamp tests ---
+  // These sections exercise the case where TTID fires first and TTFD fires
+  // second but with a raw duration smaller than TTID (the timestamp-capture race).
+
+  SECTION(
+      "M clamp TTFD to TTID W TTID fires first and raw TTFD duration < TTID duration"
+  ) {
+    // TTID duration: 5s (5e9 ns). TTFD raw duration: 3s (3e9 ns).
+    // Expected: TTFD emitted with duration = max(3e9, 5e9) = 5e9 ns.
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999990000})
+    };
+    // clock frozen at 1700000000000 ms → duration from launch = 10s.
+    // Override issued_at for each command to get the desired durations.
+    const Timestamp ttid_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    RumCommandParams ttid_params(ttid_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(std::move(ttid_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    const Timestamp ttfd_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999993000})
+    };
+    RumCommandParams ttfd_params(ttfd_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(std::move(ttfd_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 5000000000.0);
+    REQUIRE(vitals[1]["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(vitals[1]["vital"]["duration"].get<double>() == 5000000000.0);
+    // No warning: TTFD after TTID is the normal in-order path
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  SECTION("M not clamp TTFD W TTID fires first and raw TTFD duration > TTID duration") {
+    // TTID duration: 5s (5e9 ns). TTFD raw duration: 8s (8e9 ns).
+    // Expected: TTFD emitted with duration = max(8e9, 5e9) = 8e9 ns (no clamp).
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999990000})
+    };
+    const Timestamp ttid_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    RumCommandParams ttid_params(ttid_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(std::move(ttid_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    const Timestamp ttfd_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999998000})
+    };
+    RumCommandParams ttfd_params(ttfd_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(std::move(ttfd_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 5000000000.0);
+    REQUIRE(vitals[1]["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(vitals[1]["vital"]["duration"].get<double>() == 8000000000.0);
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
   // --- TTID/TTFD ordering tests ---
   // These sections exercise the deferred-emit path: TTFD called before TTID.
 
