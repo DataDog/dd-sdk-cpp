@@ -1634,6 +1634,47 @@ TEST_CASE("RumVitalAppLaunchEvent", "[unit][feature_types][rum]") {
       }
     })"));
   }
+
+  SECTION("M serialize ttfd app_launch_metric W TTFD metric is set") {
+    RumVitalAppLaunchEvent ttfd_ev{
+        date,
+        application_id,
+        session_id,
+        session_type,
+        view_id,
+        view_url,
+        vital_id,
+        "time_to_full_display",
+        RumVitalAppLaunchType::AppLaunch,
+        RumVitalAppLaunchMetric::TTFD,
+        duration
+    };
+    RequireJsonObject(ttfd_ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user"
+      },
+      "view": {
+        "id": "141ee144-4224-4224-4224-beeeeeeeeeef",
+        "url": "my-view"
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "vital",
+      "vital": {
+        "id": "11111111-1111-4111-b111-111111111111",
+        "name": "time_to_full_display",
+        "type": "app_launch",
+        "app_launch_metric": "ttfd",
+        "duration": 1234567890.0
+      }
+    })"));
+  }
 }
 
 TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {

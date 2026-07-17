@@ -188,16 +188,29 @@ class RumSessionScope {
   );
 
   /**
-   * Constructs and emits the TTID app-launch vital event.
+   * Handles the ReportAppFullyDisplayed command: computes the TTFD duration and
+   * emits the app-launch vital event. If no view is active, the event is emitted
+   * with `view.id` set to `UUID::Zero` and `view.url` set to `""`.
+   */
+  void HandleReportAppFullyDisplayed(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
+
+  /**
+   * Constructs and emits an app-launch vital event (TTID or TTFD).
    * `view` may be null when no view is active; in that case the event is emitted
    * with `view.id` set to `UUID::Zero` and `view.url` set to `""`, matching the
-   * behaviour of the iOS and Android SDKs.
+   * behavior of the iOS and Android SDKs.
    * `duration_ns` is the computed nanosecond duration from process launch to now.
+   * `metric` selects between TTID and TTFD; `vital_name` is the corresponding
+   * human-readable name (e.g. `"time_to_initial_display"`).
    */
   void SendAppLaunchVitalEvent(
       const RumCommandParams& base,
       const RumViewScope* view,
       double duration_ns,
+      RumVitalAppLaunchMetric metric,
+      std::string_view vital_name,
       const CoreContext& context,
       const EventWriter& writer
   );

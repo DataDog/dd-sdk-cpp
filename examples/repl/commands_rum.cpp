@@ -562,3 +562,16 @@ CommandResult HandleReportAppDisplayInitialized(State& state, const CommandInput
   state.rum->ReportAppDisplayInitialized();
   return CommandResult::OK("Rum::ReportAppDisplayInitialized()");
 }
+
+CommandResult HandleReportAppFullyDisplayed(State& state, const CommandInput&) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  state.rum->ReportAppFullyDisplayed();
+  return CommandResult::OK("Rum::ReportAppFullyDisplayed()");
+}

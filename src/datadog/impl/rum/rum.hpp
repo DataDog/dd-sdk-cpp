@@ -165,6 +165,13 @@ class Rum final : public Feature {
    */
   void ReportAppDisplayInitialized();
 
+  /**
+   * Handles a ReportAppFullyDisplayed API call. Dispatches a command that causes
+   * the session scope to emit a TTFD app-launch vital event. Subsequent calls are
+   * silently dropped (with a warning) until the SDK is stopped and restarted.
+   */
+  void ReportAppFullyDisplayed();
+
  private:
   RumCommandParams GetBaseCommandParams(
       const Attribute& attributes = Attribute()
@@ -202,6 +209,9 @@ class Rum final : public Feature {
 
   // Guards against duplicate ReportAppDisplayInitialized() calls; cleared on Stop()
   std::atomic<bool> _ttid_reported{false};
+
+  // Guards against duplicate ReportAppFullyDisplayed() calls; cleared on Stop()
+  std::atomic<bool> _ttfd_reported{false};
 
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;

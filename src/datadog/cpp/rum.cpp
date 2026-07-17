@@ -330,6 +330,12 @@ void Rum::ReportAppDisplayInitialized() {
   }
 }
 
+void Rum::ReportAppFullyDisplayed() {
+  if (_impl) {
+    _impl->ReportAppFullyDisplayed();
+  }
+}
+
 void Rum::StartOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {
