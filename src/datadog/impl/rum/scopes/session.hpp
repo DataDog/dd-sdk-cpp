@@ -180,8 +180,9 @@ class RumSessionScope {
   );
 
   /**
-   * Handles the ReportAppDisplayInitialized command: validates that a view is active,
-   * computes the TTID duration, and emits the app-launch vital event.
+   * Handles the ReportAppDisplayInitialized command: computes the TTID duration,
+   * emits the TTID app-launch vital event, and - if a TTFD call arrived earlier -
+   * emits the deferred TTFD event immediately after.
    */
   void HandleReportAppDisplayInitialized(
       const RumCommand& command, const CoreContext& context, const EventWriter& writer
@@ -189,8 +190,10 @@ class RumSessionScope {
 
   /**
    * Handles the ReportAppFullyDisplayed command: computes the TTFD duration and
-   * emits the app-launch vital event. If no view is active, the event is emitted
-   * with `view.id` set to `UUID::Zero` and `view.url` set to `""`.
+   * either emits the TTFD vital event immediately (if TTID has already fired) or
+   * stores it for deferred emission when TTID fires. If no view is active at emit
+   * time, the event is emitted with `view.id` set to `UUID::Zero` and
+   * `view.url` set to `""`.
    */
   void HandleReportAppFullyDisplayed(
       const RumCommand& command, const CoreContext& context, const EventWriter& writer
@@ -254,6 +257,15 @@ class RumSessionScope {
   // Active operations tracking: set of composite keys (name + operationKey) for
   // developer warnings about duplicate starts or stop-without-start
   std::unordered_set<std::string> _active_operations;
+
+  // TTID/TTFD ordering state. Both live on the context thread; no locking needed.
+  //
+  // Set to true after a successful TTID emit. Consulted by
+  // HandleReportAppFullyDisplayed to decide whether to emit immediately or defer.
+  bool _ttid_has_fired{false};
+  // Raw TTFD duration (ns) stored when ReportAppFullyDisplayed fires before
+  // ReportAppDisplayInitialized. Consumed and cleared when TTID subsequently fires.
+  std::optional<double> _pending_ttfd_duration_ns;
 
   // Total number of foreground views explicitly opened in this session scope
   // TODO(RUM-12242): Ensure that ApplicationLaunch view doesn't count toward this
