@@ -43,7 +43,7 @@ typedef enum {
 typedef struct dd_logger_config {
   uint32_t version;
   float remote_sample_rate;
-  char service[DATADOG_MAX_SERVICE_NAME_LEN + 1];
+  char service[DATADOG_MAX_SERVICE_LEN + 1];
   char name[DATADOG_MAX_LOGGER_NAME_LEN + 1];
   dd_log_level_t remote_log_threshold;
   size_t initial_attribute_capacity;
@@ -69,8 +69,8 @@ DATADOG_API void dd_logger_config_set_remote_sample_rate(
  * logger will use the service name configured globally via dd_core_config_t.
  *
  * Config stores a copy of provided string value. If the given string value exceeds
- * DATADOG_MAX_SERVICE_NAME_LEN, it will be truncated to that length. Both NULL and ""
- * will be interepreted as no value, causing the logger to use the default service name.
+ * DATADOG_MAX_SERVICE_LEN, it will be truncated to that length. Both NULL and "" will
+ * be interepreted as no value, causing the logger to use the default service name.
  */
 DATADOG_API void dd_logger_config_set_service(
     dd_logger_config_t* config, const char* value
