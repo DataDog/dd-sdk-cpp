@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <optional>
 #include <shared_mutex>
 #include <string>
@@ -163,6 +164,13 @@ class Rum final : public Feature {
       const Attribute& attributes = Attribute()
   );
 
+  /**
+   * Handles a ReportAppDisplayInitialized API call. Dispatches a command that causes
+   * the session scope to emit a TTID app-launch vital event. Subsequent calls are
+   * silently dropped (with a warning) until the SDK is stopped and restarted.
+   */
+  void ReportAppDisplayInitialized();
+
  private:
   RumCommandParams GetBaseCommandParams(
       const Attribute& attributes = Attribute()
@@ -197,6 +205,9 @@ class Rum final : public Feature {
   // accessed on the context thread, so no additional locking is needed
   std::optional<RumSessionState> _last_broadcast_session_state;
   UUID _last_broadcast_view_id{UUID::Zero};
+
+  // Guards against duplicate ReportAppDisplayInitialized() calls; cleared on Stop()
+  std::atomic<bool> _ttid_reported{false};
 
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;

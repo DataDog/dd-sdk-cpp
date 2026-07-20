@@ -492,6 +492,13 @@ void dd_rum_stop_resource_with_error(
   rum->impl->StopResource(key, response, error, cpp_attributes);
 }
 
+void dd_rum_report_app_display_initialized(dd_rum_t* rum) {
+  if (!rum || !rum->impl) {
+    return;
+  }
+  rum->impl->ReportAppDisplayInitialized();
+}
+
 void dd_rum_start_operation(
     dd_rum_t* rum,
     const char* name,

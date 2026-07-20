@@ -206,6 +206,19 @@ class IFilesystem {
    */
   virtual FilesystemResult Close(PlatformFileHandle handle) = 0;
 
+  struct GetFileSizeResult {
+    FilesystemResult value;
+    size_t size;  // valid only when value == OK
+  };
+
+  /**
+   * Returns the size of the regular file at `path` in bytes.
+   *
+   * On success, returns {OK, size}. If no file exists at the path, returns
+   * {DoesNotExist, 0}. Any other error code represents a failure.
+   */
+  virtual GetFileSizeResult GetFileSize(const PlatformPath& path) = 0;
+
   /**
    * Deletes a regular file.
    *

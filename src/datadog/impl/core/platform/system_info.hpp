@@ -10,6 +10,8 @@
 #include <memory>
 #include <string>
 
+#include "datadog/timestamp.hpp"
+
 namespace datadog::impl {
 class DiagnosticLogger;
 }  // namespace datadog::impl
@@ -90,6 +92,19 @@ class ISystemInfo {
    * positive, nonzero) process ID.
    */
   virtual int64_t GetPid() const = 0;
+
+  /**
+   * Returns the wall-clock time at which the current process was launched, as
+   * nanoseconds since the Unix epoch — on the same time basis as IClock::Now(),
+   * and directly comparable to values returned by it.
+   *
+   * The result is computed at most once at initialization; subsequent calls return
+   * a cached value with no additional system call overhead.
+   *
+   * Returns a zero-valued Timestamp (Unix epoch) if the launch time cannot be
+   * determined.
+   */
+  virtual Timestamp GetProcessLaunchTime() const = 0;
 
   /**
    * Returns operating system information collected at initialization.

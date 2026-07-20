@@ -391,6 +391,20 @@ DATADOG_API void dd_rum_stop_resource_with_error(
     dd_attribute_t* attributes
 );
 
+// === RUM app-launch vitals ===
+
+/**
+ * Reports that the application's first interactive frame has been presented to the
+ * user. The SDK computes the duration from process launch to this call and emits a
+ * vital event with vital.type = "app_launch" and vital.app_launch_metric = "ttid"
+ * (time-to-initial-display).
+ *
+ * Should be called at most once, as early as the first interactive frame is presented.
+ * If called when no view is active, the event is still emitted with empty view context
+ * fields. If called more than once, subsequent calls are silently dropped.
+ */
+DATADOG_API void dd_rum_report_app_display_initialized(dd_rum_t* rum);
+
 // === RUM operations ===
 
 // A operation represents a user-facing workflow (e.g. login, checkout, upload)

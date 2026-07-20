@@ -282,6 +282,18 @@ struct RumAddLongTaskPayload {
 };
 
 /**
+ * On ReportAppDisplayInitialized, the application has called the
+ * ReportAppDisplayInitialized API function, signalling that its first interactive
+ * frame has been presented. The SDK will compute TTID from this event.
+ */
+struct RumReportAppDisplayInitializedPayload {
+  static constexpr const char* COMMAND_NAME = "ReportAppDisplayInitialized";
+  static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
+
+  RumReportAppDisplayInitializedPayload() = default;
+};
+
+/**
  * On StartOperation, the application has called the StartOperation API
  * function, recording the start of a user-facing operation (e.g. login, checkout).
  */
@@ -337,6 +349,7 @@ struct RumCommand {
       RumStopActionPayload,
       RumAddErrorPayload,
       RumAddLongTaskPayload,
+      RumReportAppDisplayInitializedPayload,
       RumStartOperationPayload,
       RumStopOperationPayload>;
 
@@ -430,6 +443,11 @@ struct RumCommand {
   /** Creates a new 'AddLongTask' command. */
   static RumCommand AddLongTask(RumCommandParams&& base, Duration duration) {
     return RumCommand(std::move(base), RumAddLongTaskPayload(duration));
+  }
+
+  /** Creates a new 'ReportAppDisplayInitialized' command. */
+  static RumCommand ReportAppDisplayInitialized(RumCommandParams&& base) {
+    return RumCommand(std::move(base), RumReportAppDisplayInitializedPayload());
   }
 
   /** Creates a new 'StartOperation' command. */

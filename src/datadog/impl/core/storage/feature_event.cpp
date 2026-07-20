@@ -91,16 +91,21 @@ bool FeatureEventStorage::Initialize(
 bool FeatureEventStorage::DeletePendingBatches() {
   // Thread-safety/synchronization considerations:
   //
-  // 1. We only delete from _pending_root, which the upload thread never reads from, so
-  //    we don't have to worry about contention with other threads
-  // 2. The storage thread performs deletion synchronously, i.e. there can be no file
+  // 1. The storage thread performs deletion synchronously, i.e. there can be no file
   //    writes happening concurrently during deletion
-  // 3. When the storage thread _does_ perform writes, it does so atomically and closes
+  // 2. When the storage thread _does_ perform writes, it does so atomically and closes
   //    the file, so there are no open handles to any of the files we're deleting
-  // 4. This function is called on the storage thread
+  // 3. This function is called on the storage thread
   //
-  // Therefore, we can safely assume that we have exclusive access to _pending_root
-  // during this function call.
+  // Race with upload-thread age-based eviction:
+  //
+  // The upload thread runs an eviction pass over _pending_root (deleting files older
+  // than 18h) independently of this deletion. If the upload thread deletes a file
+  // between our ListFiles call and our Delete call for that file, the Delete returns
+  // DoesNotExist. We treat that as "already gone; continue" rather than a fatal error:
+  // the file was expired anyway and would never have been uploaded. Aborting on
+  // DoesNotExist would strand all younger files that appear later in the sorted
+  // listing.
 
   // Use a FilesystemWrapper to handle path encoding transparently
   FilesystemWrapper fsw(_fs);
@@ -137,20 +142,31 @@ bool FeatureEventStorage::DeletePendingBatches() {
       return false;
     }
 
-    // Attempt to delete the batch file, aborting on failure
+    // Attempt to delete the batch file
     const FilesystemResult delete_res = fsw.Delete(file_path.CStr());
-    if (delete_res != FilesystemResult::OK) {
-      _logger.Error(
-          "Could not delete batch file on consent change",
-          {{"path", file_path.Get()}, {"error", FilesystemResultStr(delete_res)}}
+    if (delete_res == FilesystemResult::OK) {
+      _logger.Debug(
+          "Deleted batch file due to consent change", {{"path", file_path.Get()}}
       );
-      return false;
+      continue;
     }
 
-    // Batch file deleted successfully
-    _logger.Debug(
-        "Deleted batch file due to consent change", {{"path", file_path.Get()}}
+    // If the file is already gone, the upload thread's eviction pass beat us to it.
+    // The file was expired and would not have been uploaded; skip it and continue.
+    if (delete_res == FilesystemResult::DoesNotExist) {
+      _logger.Debug(
+          "Pending batch file already evicted before consent-revocation cleanup; "
+          "skipping",
+          {{"path", file_path.Get()}}
+      );
+      continue;
+    }
+
+    _logger.Error(
+        "Could not delete batch file on consent change",
+        {{"path", file_path.Get()}, {"error", FilesystemResultStr(delete_res)}}
     );
+    return false;
   }
 
   // Success: all batch files in pending directory deleted
@@ -169,6 +185,16 @@ bool FeatureEventStorage::MigratePendingBatchesToGranted() {
   //    (since they're subdirectories within an SDK-controlled directory), and therefore
   //    a file rename operation is atomic on both POSIX and Windows: the upload thread
   //    will never see a "partially-moved" file.
+  //
+  // Race with upload-thread age-based eviction:
+  //
+  // The upload thread runs an eviction pass over _pending_root (deleting files older
+  // than 18h) independently of this migration. If the upload thread deletes a file
+  // between our ListFiles call and our Rename call for that file, the Rename returns
+  // DoesNotExist. We treat that as "already gone; continue" rather than a fatal error:
+  // the file was expired anyway and would never have been uploaded. Aborting on
+  // DoesNotExist would strand all younger files that appear later in the sorted
+  // listing.
   //
   // Additional considerations re: filename conflicts:
   //
@@ -257,6 +283,17 @@ bool FeatureEventStorage::MigratePendingBatchesToGranted() {
       _logger.Warning(
           "Could not delete pending-directory copy of duplicate batch file",
           {{"path", src_file_path.Get()}, {"error", FilesystemResultStr(delete_res)}}
+      );
+      continue;
+    }
+
+    // If the rename failed because the source file no longer exists, the upload
+    // thread's age-based eviction has already removed it. The file was expired and
+    // would not have been uploaded; skip it and continue migrating the remaining files.
+    if (rename_res == FilesystemResult::DoesNotExist) {
+      _logger.Debug(
+          "Pending batch file already evicted before migration; skipping",
+          {{"path", src_file_path.Get()}}
       );
       continue;
     }

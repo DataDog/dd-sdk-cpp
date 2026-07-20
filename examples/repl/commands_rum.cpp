@@ -577,3 +577,16 @@ CommandResult HandleFailOperation(State& state, const CommandInput& args) {
   state.rum->FailOperation(name, reason, key);
   return CommandResult::OK("Rum::FailOperation()");
 }
+
+CommandResult HandleReportAppDisplayInitialized(State& state, const CommandInput&) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  state.rum->ReportAppDisplayInitialized();
+  return CommandResult::OK("Rum::ReportAppDisplayInitialized()");
+}

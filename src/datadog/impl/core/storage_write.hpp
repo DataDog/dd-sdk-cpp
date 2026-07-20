@@ -38,6 +38,18 @@ struct BatchWriterConfig {
    */
   size_t max_file_size{0x400000};  // 4 MB
   /**
+   * If the encoded size of a single event write (metadata + event, with TLV headers)
+   * exceeds this threshold, the event is dropped rather than written.
+   */
+  size_t max_event_size{512UL * 1024};  // 512 KB
+  /**
+   * Maximum total size (in bytes) of all batch files in a single consent-level
+   * directory (pending or granted) for one feature. When a new batch file is about to
+   * be created and the directory already exceeds this limit, the oldest files are
+   * deleted until the total is within the quota.
+   */
+  size_t max_directory_size{512ULL * 1024 * 1024};  // 512 MB
+  /**
    * Maximum number of events that we will write to a single file. A single write
    * operation may include both metadata and event blocks: i.e. if configured with a
    * maximum of 500 writes, a file will contain no more than 500 TLV Metadata blocks and
@@ -115,8 +127,9 @@ class BatchWriter {
 
   /**
    * Buffers the set of filenames retrieved in our last call to CacheKnownFilenames().
-   * Contains the names of all files present in the target directory for the current
-   * consent value. Reset when tracking consent changes.
+   * Contains the names of all SDK-written (numeric-named) batch files present in the
+   * target directory for the current consent value, sorted in ascending order. Reset
+   * when tracking consent changes.
    */
   mutable std::vector<std::string> _last_known_filenames;
 
@@ -240,19 +253,40 @@ class BatchWriter {
   ) const;
 
   /**
-   * Designates a name to use for a newly-created batch file in the given directory,
-   * returning both the integer millisecond count reflecting file creation time, as well
-   * as the string-formatted version of that same value.
+   * Designates a name for a newly-created batch file, returning both the integer
+   * millisecond count reflecting file creation time and the string-formatted value.
+   *
+   * Requires that `_last_known_filenames` has already been populated by
+   * `CacheKnownFilenames` before this function is called.
    */
   std::optional<std::pair<uint64_t, std::string>> GetFilenameForNextWrite(
-      const StoragePath& consent_dir_path, Timestamp current_time
+      Timestamp current_time
   ) const;
 
   /**
-   * Retrieves a list of all files in the current directory, caching that set of names
-   * in _last_known_filenames.
+   * Populates `_last_known_filenames` with a sorted listing of all numeric-named
+   * (SDK-written) regular files in `consent_dir_path`, excluding any foreign files
+   * whose names contain non-digit characters. Must be called in
+   * `PrepareFileForNextWrite` before invoking `PurgeDirectoryIfNeeded` or
+   * `GetFilenameForNextWrite`.
+   *
+   * Returns true on success, false if the directory listing fails.
    */
   bool CacheKnownFilenames(const StoragePath& consent_dir_path) const;
+
+  /**
+   * Enforces the per-directory size quota for `dir` by deleting the oldest batch files
+   * until the total size of remaining files falls within `_config.max_directory_size`.
+   *
+   * Reads and mutates `_last_known_filenames` (pre-populated and pre-filtered to
+   * numeric-named files by `CacheKnownFilenames`), removing deleted entries so that
+   * `GetFilenameForNextWrite` sees an accurate post-purge listing.
+   *
+   * Called only when a new batch file is about to be created, mirroring the iOS SDK's
+   * approach of deferring the quota check to file-creation time. The check is
+   * best-effort: errors from sizing individual files are tolerated.
+   */
+  void PurgeDirectoryIfNeeded(const StoragePath& dir);
 };
 
 }  // namespace datadog::impl

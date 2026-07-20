@@ -8,6 +8,7 @@ Utility code for running the dd-sdk-cpp repl process.
 """
 import os
 import sys
+import struct
 import asyncio
 import threading
 import subprocess
@@ -56,6 +57,66 @@ def check_repl_binary() -> str:
         print('Reconfigure with -DDD_BUILD_EXAMPLES=ON (or -DDD_DEVELOPMENT=ON) and run cmake --build build.')
         sys.exit(1)
     return repl_binary_path
+
+
+def repl_arch(repl_binary_path: str) -> str:
+    """
+    Returns the CPU architecture of the compiled repl binary as reported by the SDK
+    (i.e. matching DATADOG_BUILD_ARCH): 'x86', 'x64', or 'arm64'.
+
+    Reads the binary's file header directly so that the result reflects the actual
+    compiled target, not the host machine running the tests.
+    """
+    with open(repl_binary_path, 'rb') as f:
+        magic = f.read(4)
+
+    # ELF (Linux): magic = 0x7F 'E' 'L' 'F'
+    if magic == b'\x7fELF':
+        with open(repl_binary_path, 'rb') as f:
+            f.seek(18)  # e_machine field
+            e_machine = struct.unpack('<H', f.read(2))[0]
+        if e_machine == 0x0003:
+            return 'x86'
+        elif e_machine == 0x003E:
+            return 'x64'
+        elif e_machine == 0x00B7:
+            return 'arm64'
+        else:
+            raise ValueError(f'unrecognised ELF e_machine: 0x{e_machine:04X}')
+
+    # Mach-O (macOS): magic = 0xFEEDFACE (32-bit) or 0xFEEDFACF (64-bit), either endian
+    if magic in (b'\xce\xfa\xed\xfe', b'\xcf\xfa\xed\xfe',  # little-endian
+                 b'\xfe\xed\xfa\xce', b'\xfe\xed\xfa\xcf'):  # big-endian
+        little = magic[0] == 0xCE or magic[0] == 0xCF
+        fmt = '<I' if little else '>I'
+        with open(repl_binary_path, 'rb') as f:
+            f.seek(4)  # cputype field
+            cputype = struct.unpack(fmt, f.read(4))[0]
+        cputype &= ~0x01000000  # mask off ABI64 flag
+        if cputype == 0x07:
+            return 'x86' if (magic[0] in (0xCE, 0xFE) and magic != b'\xfe\xed\xfa\xcf') else 'x64'
+        elif cputype == 0x0C:
+            return 'arm64'
+        else:
+            raise ValueError(f'unrecognised Mach-O cputype: 0x{cputype:08X}')
+
+    # PE (Windows): magic = 'M' 'Z'
+    if magic[:2] == b'MZ':
+        with open(repl_binary_path, 'rb') as f:
+            f.seek(0x3C)  # offset of PE header offset
+            pe_offset = struct.unpack('<I', f.read(4))[0]
+            f.seek(pe_offset + 4)  # skip 'PE\0\0' signature
+            machine = struct.unpack('<H', f.read(2))[0]
+        if machine == 0x014C:
+            return 'x86'
+        elif machine == 0x8664:
+            return 'x64'
+        elif machine == 0xAA64:
+            return 'arm64'
+        else:
+            raise ValueError(f'unrecognised PE machine type: 0x{machine:04X}')
+
+    raise ValueError(f'unrecognised binary format (magic: {magic.hex()})')
 
 
 def _normalize_input(s: str) -> str:

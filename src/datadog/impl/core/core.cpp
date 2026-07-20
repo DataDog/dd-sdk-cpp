@@ -67,6 +67,7 @@ Core::Core(
           _config,
           subsystems.system_info->GetOsInfo(),
           subsystems.system_info->GetDeviceInfo(),
+          subsystems.system_info->GetProcessLaunchTime(),
           subsystems.http->GetName(),
           subsystems.http->GetVersion()
       ),

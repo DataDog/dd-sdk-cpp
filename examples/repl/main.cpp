@@ -146,6 +146,9 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "fail-operation") {
     return HandleFailOperation(state, input.Shift());
   }
+  if (input.Peek() == "report-app-display-initialized") {
+    return HandleReportAppDisplayInitialized(state, input.Shift());
+  }
 
   // datadog::CrashReporting
   if (input.Peek() == "register-crash-reporting") {

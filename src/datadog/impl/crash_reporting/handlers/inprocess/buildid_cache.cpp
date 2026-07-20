@@ -22,6 +22,7 @@
 #include <fcntl.h>
 #include <unistd.h>
 
+#include <cinttypes>
 #include <cstdio>
 #include <cstring>
 #endif
@@ -731,9 +732,10 @@ void PopulateBuildIdCache() {
     // Parse each line to extract: start address, end address, permissions, and
     // pathname. The format is: %lx-%lx %4s %*x %*x:%*x %*d %255s where %*x means "read
     // but discard" for offset, device, and inode fields we don't need.
+    // SCNxPTR is used instead of "lx" to correctly match uintptr_t on all platforms.
     if (sscanf(
             line,
-            "%lx-%lx %4s %*x %*x:%*x %*d %255s",
+            "%" SCNxPTR "-%" SCNxPTR " %4s %*x %*x:%*x %*d %255s",
             &start_addr,
             &end_addr,
             perms,

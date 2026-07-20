@@ -339,6 +339,12 @@ void Rum::AddLongTask(Duration duration, const Attribute& attributes) {
   }
 }
 
+void Rum::ReportAppDisplayInitialized() {
+  if (_impl) {
+    _impl->ReportAppDisplayInitialized();
+  }
+}
+
 void Rum::StartOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {

@@ -2500,4 +2500,237 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(vital)
 )
 
+// === Vital App Launch Event ===
+
+enum class RumVitalAppLaunchMetric : uint8_t { TTID, TTFD };
+DATADOG_STRING_ENUM(
+    StringRumVitalAppLaunchMetric,
+    RumVitalAppLaunchMetric,
+    DATADOG_ENUM_VALUE(RumVitalAppLaunchMetric::TTID, "ttid"),
+    DATADOG_ENUM_VALUE(RumVitalAppLaunchMetric::TTFD, "ttfd")
+)
+
+enum class RumVitalAppLaunchType : uint8_t { AppLaunch };
+DATADOG_STRING_ENUM(
+    StringRumVitalAppLaunchType,
+    RumVitalAppLaunchType,
+    DATADOG_ENUM_VALUE(RumVitalAppLaunchType::AppLaunch, "app_launch")
+)
+
+struct RumVitalAppLaunchEvent {
+  struct Application {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> current_locale;
+
+    explicit Application(const UUID& in_id) : id(in_id) {}
+  };
+  struct Session {
+    // From _common-schema.json
+    UUID id;
+    StringRumSessionType type;
+    OmitIfFalse<bool> has_replay{false};
+
+    explicit Session(const UUID& in_id, RumSessionType in_type)
+        : id(in_id), type(in_type) {}
+  };
+  struct View {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> referrer;
+    std::string url;
+    OmitIfEmpty<std::string> name;
+
+    explicit View(UUID in_id, std::string_view in_url) : id(in_id), url(in_url) {}
+  };
+  struct Display {
+    // From _common-schema.json
+    OmitIfNoValue<RumViewportProperties> viewport;
+
+    Display() {};
+  };
+  struct Vital {
+    // From _vital-common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> name;
+    // From vital-app-launch-schema.json
+    StringRumVitalAppLaunchType type;
+    StringRumVitalAppLaunchMetric app_launch_metric;
+    double duration;
+
+    explicit Vital(
+        const UUID& in_id,
+        std::string_view in_name,
+        RumVitalAppLaunchType in_type,
+        RumVitalAppLaunchMetric in_metric,
+        double in_duration
+    )
+        : id(in_id),
+          name(std::string(in_name)),
+          type(in_type),
+          app_launch_metric(in_metric),
+          duration(in_duration) {}
+  };
+  struct Internal {
+    struct Session {
+      // From _common-schema.json
+      OmitIfZero<uint8_t> plan{};
+      OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
+
+      Session() {};
+    };
+    struct Configuration {
+      // From _common-schema.json
+      float session_sample_rate;
+      OmitIfNoValue<float> session_replay_sample_rate;
+      OmitIfNoValue<float> profiling_sample_rate;
+
+      explicit Configuration(float in_session_sample_rate)
+          : session_sample_rate(in_session_sample_rate) {}
+    };
+    // From _common-schema.json
+    uint8_t format_version{2};
+    OmitIfNoValue<Session> session;
+    OmitIfNoValue<Configuration> configuration;
+    OmitIfEmpty<std::string> browser_sdk_version;
+
+    Internal() {}
+  };
+  // From _common-schema.json
+  MilliTimestamp date;
+  Application application;
+  OmitIfEmpty<std::string> service;
+  OmitIfEmpty<std::string> version;
+  OmitIfEmpty<std::string> build_version;
+  OmitIfEmpty<std::string> build_id;
+  OmitIfEmpty<std::string> ddtags;
+  Session session;
+  OmitIfNoValue<StringRumSource> source;
+  View view;
+  OmitIfNoValue<RumUserProperties> usr;
+  OmitIfNoValue<RumAccountProperties> account;
+  OmitIfNoValue<RumConnectivityProperties> connectivity;
+  OmitIfNoValue<Display> display;
+  OmitIfNoValue<RumSyntheticsProperties> synthetics;
+  OmitIfNoValue<RumCITestProperties> ci_test;
+  OmitIfNoValue<RumOSProperties> os;
+  OmitIfNoValue<RumDeviceProperties> device;
+  Internal _dd;
+  OmitIfZero<Attribute> context;
+  // NYI: stream
+
+  // From _vital-common-schema.json
+  std::string_view type{"vital"};
+  Vital vital;
+
+  explicit RumVitalAppLaunchEvent(
+      Timestamp in_date,
+      const UUID& in_application_id,
+      const UUID& in_session_id,
+      RumSessionType in_session_type,
+      const UUID& in_view_id,
+      std::string_view in_view_url,
+      const UUID& in_vital_id,
+      std::string_view in_vital_name,
+      RumVitalAppLaunchType in_vital_type,
+      RumVitalAppLaunchMetric in_vital_metric,
+      double in_duration
+  )
+      : date(in_date),
+        application(Application{in_application_id}),
+        session(Session{in_session_id, in_session_type}),
+        view(View{in_view_id, in_view_url}),
+        _dd(Internal{}),
+        vital(
+            Vital{
+                in_vital_id, in_vital_name, in_vital_type, in_vital_metric, in_duration
+            }
+        ) {}
+};
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent::Application,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(current_locale)
+)
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(has_replay)
+)
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent::View,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(referrer),
+    DATADOG_JSON_FIELD(url),
+    DATADOG_JSON_FIELD(name)
+)
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent::Display,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(viewport)
+)
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent::Vital,
+    // From _vital-common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(name),
+    // From vital-app-launch-schema.json
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(app_launch_metric),
+    DATADOG_JSON_FIELD(duration)
+)
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent::Internal::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(plan),
+    DATADOG_JSON_FIELD(session_precondition)
+)
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent::Internal::Configuration,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(session_sample_rate),
+    DATADOG_JSON_FIELD(session_replay_sample_rate),
+    DATADOG_JSON_FIELD(profiling_sample_rate)
+)
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent::Internal,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(format_version),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(configuration),
+    DATADOG_JSON_FIELD(browser_sdk_version)
+)
+DATADOG_JSON_STRUCT(
+    RumVitalAppLaunchEvent,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(date),
+    DATADOG_JSON_FIELD(application),
+    DATADOG_JSON_FIELD(service),
+    DATADOG_JSON_FIELD(version),
+    DATADOG_JSON_FIELD(build_version),
+    DATADOG_JSON_FIELD(build_id),
+    DATADOG_JSON_FIELD(ddtags),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(source),
+    DATADOG_JSON_FIELD(view),
+    DATADOG_JSON_FIELD(usr),
+    DATADOG_JSON_FIELD(account),
+    DATADOG_JSON_FIELD(connectivity),
+    DATADOG_JSON_FIELD(display),
+    DATADOG_JSON_FIELD(synthetics),
+    DATADOG_JSON_FIELD(ci_test),
+    DATADOG_JSON_FIELD(os),
+    DATADOG_JSON_FIELD(device),
+    DATADOG_JSON_FIELD(_dd),
+    DATADOG_JSON_FIELD(context),
+    // NYI: stream
+    // From _vital-common-schema.json
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(vital)
+)
+
 }  // namespace datadog::impl

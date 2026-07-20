@@ -11,6 +11,8 @@
 
 #include <string>
 
+#include "datadog/timestamp.hpp"
+
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 
@@ -208,6 +210,37 @@ std::string GetArchitecture(const impl::DiagnosticLogger& logger) {
 
 }  // namespace
 
+namespace {
+
+/**
+ * Retrieves the process launch time using sysctl KERN_PROC_PID.
+ *
+ * @param logger Diagnostic logger for warnings
+ * @return Wall-clock launch time as a Timestamp, or zero on failure
+ */
+Timestamp QueryProcessLaunchTime(const impl::DiagnosticLogger& logger) {
+  struct kinfo_proc kp{};
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PID, getpid()};
+  size_t size = sizeof(kp);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
+  if (sysctl(mib, 4, &kp, &size, nullptr, 0) != 0) {
+    int err = errno;
+    logger.Debug(
+        "Unable to resolve process launch time: sysctl KERN_PROC_PID failed",
+        {{"errno", static_cast<int64_t>(err)}}
+    );
+    return Timestamp{};
+  }
+
+  const struct timeval& tv = kp.kp_proc.p_starttime;
+  int64_t ns = (static_cast<int64_t>(tv.tv_sec) * 1'000'000'000LL) +
+               (static_cast<int64_t>(tv.tv_usec) * 1'000LL);
+  return Timestamp{Duration{ns}};
+}
+
+}  // namespace
+
 /**
  * macOS implementation of ISystemInfo.
  *
@@ -217,6 +250,7 @@ std::string GetArchitecture(const impl::DiagnosticLogger& logger) {
 class MacOSSystemInfo final : public ISystemInfo {
   OsInfo _os_info;
   DeviceInfo _device_info;
+  Timestamp _process_launch_time;
 
  public:
   explicit MacOSSystemInfo(const impl::DiagnosticLogger& logger) {
@@ -269,11 +303,15 @@ class MacOSSystemInfo final : public ISystemInfo {
 
     // Get timezone (e.g., "America/Halifax")
     _device_info.time_zone = GetSystemTimezone(logger);
+
+    // Get process launch time
+    _process_launch_time = QueryProcessLaunchTime(logger);
   }
 
   int64_t GetPid() const override { return static_cast<int64_t>(getpid()); }
   const OsInfo& GetOsInfo() const override { return _os_info; }
   const DeviceInfo& GetDeviceInfo() const override { return _device_info; }
+  Timestamp GetProcessLaunchTime() const override { return _process_launch_time; }
 };
 
 std::unique_ptr<ISystemInfo> SystemInfo::Init(const impl::DiagnosticLogger& logger) {

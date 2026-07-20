@@ -50,6 +50,10 @@
 #define DATADOG_BUILD_ARCH "x64"
 #elif defined(__aarch64__) || defined(_M_ARM64)
 #define DATADOG_BUILD_ARCH "arm64"
+#elif defined(__i386__) || defined(_M_IX86)
+#define DATADOG_BUILD_ARCH "x86"
+#elif defined(__arm__) || defined(_M_ARM)
+#define DATADOG_BUILD_ARCH "arm"
 #else
 #define DATADOG_BUILD_ARCH "unsupported-arch"
 #endif
