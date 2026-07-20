@@ -185,10 +185,13 @@ TEST_CASE("SystemInfo", "[unit][platform-system-info]") {
     // And the brand is "Apple"
     REQUIRE(device_info.brand == "Apple");
 
-    // And the model starts with "VirtualMac" (if not empty); CI runs in
-    // Apple Virtualization VMs, which report hw.model as "VirtualMac<N>,<M>".
+    // And the model starts with "Mac" or "VirtualMac" (if not empty); CI runs
+    // in Apple Virtualization VMs, which report hw.model as
+    // "VirtualMac<N>,<M>", while real hardware reports e.g. "MacBookPro18,3".
     if (!device_info.model.empty()) {
-      REQUIRE(device_info.model.find("VirtualMac") == 0);
+      bool valid_model_prefix = device_info.model.find("Mac") == 0 ||
+                                device_info.model.find("VirtualMac") == 0;
+      REQUIRE(valid_model_prefix);
     }
 
     // And the name is an alphabetical prefix of the model (if both are present)
