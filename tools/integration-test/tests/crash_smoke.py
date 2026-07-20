@@ -5,7 +5,7 @@
 # Copyright 2025-Present Datadog, Inc.
 import os
 import sys
-import platform
+from lib.repl import repl_arch
 import re
 import uuid
 
@@ -159,14 +159,9 @@ async def main(t: TestContext):
     # And the program is not identified as a system library
     assert repl_image['is_system'] == False
 
-    # And the program is described as having the same CPU architecture as this system
-    if platform.machine().lower() in ('x64', 'x86_64', 'amd64'):
-        want_arch = 'x64'
-    elif platform.machine().lower() in ('arm64', 'aarch64'):
-        want_arch = 'arm64'
-    else:
-        assert False, f'unsupported CPU arch {platform.machine()}'
-    assert repl_image['arch'] == want_arch
+    # And the program is described with the CPU architecture of the compiled binary
+    # (which may differ from the host when cross-compiling, e.g. 32-bit x86 on amd64)
+    assert repl_image['arch'] == repl_arch(t._repl_binary_path)
 
     # And the range of the crashing process's address space where the executable was
     # loaded is denoted, hex-formatted, with sensible values

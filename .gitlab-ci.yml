@@ -33,7 +33,7 @@ variables:
   # Our Linux toolchain images are tagged with this version, e.g.
   # 'ci/dd-sdk-cpp:clang15-v2': bump and trigger the job to rebuild
   TOOLCHAIN_IMAGE_PATH: ci/dd-sdk-cpp
-  LINUX_TOOLCHAIN_IMAGE_VERSION: v11
+  LINUX_TOOLCHAIN_IMAGE_VERSION: v12
 
   # The Windows (MSVC) toolchain image is built separately: since Windows images tend to
   # be large, they are also tagged '<toolchain>-latest' on push, and then the AMI build
@@ -61,7 +61,7 @@ build-toolchain-image-linux:
   image: ${BUILD_STABLE_REGISTRY}/${DIND_IMAGE}
   parallel:
     matrix:
-      - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20]
+      - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20, clang20-x86]
   script:
     - DIGEST_FILE=$(mktemp)
     - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}"
@@ -114,6 +114,35 @@ validate-event-types:
   script:
     - cmake -DDD_ENABLE_EVENT_VALIDATION=ON -S . -B build
     - cmake --build build --target validate-event-types
+
+test-linux-x86:
+  stage: build
+  dependencies: []
+  tags: [arch:amd64]
+  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:clang20-x86-${LINUX_TOOLCHAIN_IMAGE_VERSION}
+  script:
+    # Install Python deps so we can run integration tests (mitmproxy runs as 64-bit
+    # Python on the amd64 host; the repl binary it drives is the 32-bit cross-compiled
+    # SDK example)
+    - $DD_SYSTEM_PYTHON -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=Debug
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      -DDD_HTTP_USE_SYSTEM_LIBCURL=ON
+      -DDD_ENABLE_CLANG_TIDY=OFF
+      -DDD_ENABLE_GIT_REVISION_INFO=OFF
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
+    - .venv/bin/python tools/integration-test/main.py
+  artifacts:
+    when: always
+    expire_in: "30 days"
+    reports:
+      junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
 
 test-linux:
   stage: validate

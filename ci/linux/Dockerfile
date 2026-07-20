@@ -128,3 +128,27 @@ RUN wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | apt-key add - \
 ENV PATH="/usr/lib/llvm-20/bin:${PATH}"
 ENV CC=clang-20
 ENV CXX=clang++-20
+
+# Build `ci/dd-sdk-cpp/clang20-x86` with: --target clang20-x86
+# Extends clang20 with 32-bit cross-compilation support: gcc-multilib provides the
+# 32-bit glibc/libgcc stubs that Clang needs for -m32, and the :i386 library packages
+# provide 32-bit headers and link libraries for our build dependencies.
+FROM clang20 AS clang20-x86
+RUN dpkg --add-architecture i386 \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends \
+    -o Dpkg::Options::="--force-overwrite" \
+    g++-multilib \
+    libcurl4-openssl-dev:i386 \
+    libssl-dev:i386 \
+    zlib1g-dev:i386 \
+    uuid-dev:i386
+# -m32:                  compile and link as 32-bit x86
+# -D_FILE_OFFSET_BITS=64: redirect stat()/fopen()/etc. to their 64-bit equivalents
+#                         so that 32-bit code handles 64-bit inodes correctly on
+#                         Linux hosts with overlayfs (e.g. Kubernetes CI runners),
+#                         where inode numbers exceed 2^32 and 32-bit stat() returns
+#                         EOVERFLOW without this flag
+ENV CFLAGS="-m32 -D_FILE_OFFSET_BITS=64"
+ENV CXXFLAGS="-m32 -D_FILE_OFFSET_BITS=64"
+ENV LDFLAGS=-m32
