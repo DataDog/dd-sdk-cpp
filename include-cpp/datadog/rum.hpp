@@ -404,6 +404,19 @@ class Rum {
   );
 
   /**
+   * Reports that the application's first interactive frame has been presented to the
+   * user. The SDK computes the duration from process launch to this call and emits a
+   * vital event with `vital.type = "app_launch"` and
+   * `vital.app_launch_metric = "ttid"` (time-to-initial-display).
+   *
+   * This method should be called at most once, as early as the first interactive frame
+   * is presented. If called when no view is active, the event is still emitted with
+   * empty view context fields. If called more than once, subsequent calls are silently
+   * dropped.
+   */
+  DATADOG_API void ReportAppDisplayInitialized();
+
+  /**
    * Records the start of a operation (e.g. login, checkout, upload).
    *
    * Each call emits a vital operation step event with step_type "start". The backend

@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include "datadog/timestamp.hpp"
+
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 
@@ -29,7 +31,14 @@ static const datadog::CoreConfig MOCK_CONTEXT_CONFIG =
         .Internal_SetSdkVersion("1.2.3");
 
 static const datadog::impl::ImmutableContext MOCK_IMMUTABLE_CONTEXT{
-    MOCK_CONTEXT_CONFIG, MOCK_OS_INFO, MOCK_DEVICE_INFO, "mock", "0.0.0"
+    MOCK_CONTEXT_CONFIG,
+    MOCK_OS_INFO,
+    MOCK_DEVICE_INFO,
+    datadog::Timestamp{std::chrono::duration_cast<datadog::Duration>(
+        std::chrono::milliseconds{1700000000000}
+    )},
+    "mock",
+    "0.0.0"
 };
 
 static const datadog::impl::CoreContext MOCK_CONTEXT{

@@ -67,6 +67,7 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
       rum->StartOperation("checkout");
       rum->SucceedOperation("checkout");
       rum->FailOperation("upload", RumOperationFailureReason::Error);
+      rum->ReportAppDisplayInitialized();
     }
   }
 }
@@ -136,6 +137,7 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->StartOperation("checkout");
     rum->SucceedOperation("checkout");
     rum->FailOperation("upload", RumOperationFailureReason::Error);
+    rum->ReportAppDisplayInitialized();
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -164,6 +166,46 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
 
     // Then no crashes occur, and no RUM events are produced
     REQUIRE(test.client.requests.empty());
+  }
+}
+
+TEST_CASE("Rum::ReportAppDisplayInitialized once-only guard", "[unit][rum][cpp-api]") {
+  // Given an SDK with RUM initialized and an active view
+  RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  auto core = CoreTestHarness::WrapForCpp(test);
+  auto rum = Rum::Register(core, rum_config);
+  REQUIRE(rum);
+  REQUIRE(core->Start());
+
+  rum->StartView("home", "Home Screen");
+
+  SECTION("M be safe to call W called more than once") {
+    // When we call ReportAppDisplayInitialized twice, the SDK should not crash and
+    // both calls should complete safely (the second is silently dropped)
+    rum->ReportAppDisplayInitialized();
+    rum->ReportAppDisplayInitialized();
+
+    core->Stop();
+    // Then no errors were emitted (warnings are swallowed by the impl-level logger)
+    REQUIRE(test.diagnostics.error.empty());
+  }
+
+  SECTION("M be safe to call W SDK is stopped and restarted") {
+    // When we call ReportAppDisplayInitialized once, then stop and restart
+    rum->ReportAppDisplayInitialized();
+    core->Stop();
+    REQUIRE(core->Start());
+
+    // And start a new view in the fresh session
+    rum->StartView("home2", "Home Screen 2");
+
+    // Then calling again is safe (guard was reset on Stop)
+    rum->ReportAppDisplayInitialized();
+    core->Stop();
+
+    REQUIRE(test.diagnostics.error.empty());
   }
 }
 
