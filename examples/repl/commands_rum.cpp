@@ -491,7 +491,7 @@ CommandResult HandleAddLongTask(State& state, const CommandInput& args) {
     return CommandResult::Error("Duration must be a non-negative integer!");
   }
 
-  state.rum->AddLongTask(duration_ns);
+  state.rum->AddLongTask(datadog::Duration(duration_ns));
   return CommandResult::OK("Rum::AddLongTask()");
 }
 

@@ -7,7 +7,6 @@
 #include "datadog/rum.hpp"
 
 #include <cctype>
-#include <chrono>
 
 #include "datadog/core.hpp"
 
@@ -325,18 +324,18 @@ void Rum::AddError(
   }
 }
 
-void Rum::AddLongTask(uint64_t duration_ns, const Attribute& attributes) {
+void Rum::AddLongTask(Duration duration, const Attribute& attributes) {
   if (_impl) {
     // The schema for RUM long_task events requires a positive duration; reject it,
     // logging a warning
-    if (duration_ns == 0) {
+    if (duration <= Duration::zero()) {
       impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
           "Rum::AddLongTask call ignored: application must supply a positive duration"
       );
       return;
     }
 
-    _impl->AddLongTask(Duration(duration_ns), attributes);
+    _impl->AddLongTask(duration, attributes);
   }
 }
 

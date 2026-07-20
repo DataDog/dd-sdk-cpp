@@ -381,7 +381,7 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
        [&](RumConfig& config, std::shared_ptr<Core>& core) {
          with_rum(config, core, [](std::shared_ptr<Rum> rum) {
            rum->StartView("my-view", "My View");
-           rum->AddLongTask(0);
+           rum->AddLongTask(Duration::zero());
          });
        },
        {"Rum::AddLongTask call ignored: application must supply a positive duration"},
@@ -2411,7 +2411,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          // When we create a RUM view and then record a long task at T+5ms
          rum->StartView("my-view", "My View");
          clock.TickMilliseconds(5);
-         rum->AddLongTask(5000000);
+         rum->AddLongTask(Duration(5000000));
        },
        [](const nlohmann::json& events) {
          // Then we get a long_task event with the task's duration and, since it did not
@@ -2483,7 +2483,7 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          rum->StartView("my-view", "My View");
          rum->AddAction(RumActionType::Click, "button1");
          clock.TickMilliseconds(5);
-         rum->AddLongTask(800000000);
+         rum->AddLongTask(Duration(800000000));
        },
        [](const nlohmann::json& events) {
          // Then we get a long_task event marked as a frozen frame, correlated with the

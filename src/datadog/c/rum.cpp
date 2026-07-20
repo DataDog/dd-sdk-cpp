@@ -692,7 +692,7 @@ void dd_rum_add_error(
 }
 
 void dd_rum_add_long_task(
-    dd_rum_t* rum, uint64_t duration_ns, dd_attribute_t* attributes
+    dd_rum_t* rum, dd_duration_t duration, dd_attribute_t* attributes
 ) {
   // If the underlying feature is NULL, this call is a no-op
   if (!rum || !rum->impl) {
@@ -701,7 +701,7 @@ void dd_rum_add_long_task(
 
   // The schema for RUM long_task events requires a positive duration; reject it,
   // logging a warning
-  if (duration_ns == 0) {
+  if (duration <= 0) {
     rum->diagnostic_logger.Warning(
         "dd_rum_add_long_task call ignored: application must supply a positive duration"
     );
@@ -714,7 +714,7 @@ void dd_rum_add_long_task(
     cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
   }
 
-  rum->impl->AddLongTask(datadog::Duration(duration_ns), cpp_attributes);
+  rum->impl->AddLongTask(datadog::Duration(duration), cpp_attributes);
 }
 }
 

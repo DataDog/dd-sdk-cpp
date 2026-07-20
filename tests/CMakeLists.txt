@@ -7,6 +7,7 @@ add_executable(tests
     c/attribute_c_api_test.cpp
     c/core_c_api_test.cpp
     c/diagnostics_c_api_test.cpp
+    c/duration_c_api_test.cpp
     c/logging_c_api_test.cpp
     c/rum_c_api_test.cpp
     c/timestamp_c_api_test.cpp
