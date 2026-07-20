@@ -22,3 +22,18 @@ TEST_CASE("dd_timestamp", "[unit][timestamp][c-api]") {
     REQUIRE(got == 1761233207000000000);
   }
 }
+
+TEST_CASE("dd_duration", "[unit][duration][c-api]") {
+  SECTION("M be accurate nano count W initialized from dd_duration_ns") {
+    dd_duration_t got = dd_duration_ns(738419026);
+    REQUIRE(got == 738419026);
+  }
+  SECTION("M be accurate nano count W initialized from dd_duration_ms") {
+    dd_duration_t got = dd_duration_ms(6173);
+    REQUIRE(got == 6173000000);
+  }
+  SECTION("M be accurate nano count W initialized from dd_duration_seconds") {
+    dd_duration_t got = dd_duration_seconds(47);
+    REQUIRE(got == 47000000000);
+  }
+}

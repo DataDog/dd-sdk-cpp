@@ -23,4 +23,10 @@ dd_timestamp_t dd_timestamp_ms(int64_t milliseconds_since_epoch) {
 dd_timestamp_t dd_timestamp_seconds(int64_t seconds_since_epoch) {
   return seconds_since_epoch * 1000000000;
 }
+
+dd_duration_t dd_duration_ns(int64_t nanoseconds) { return nanoseconds; }
+
+dd_duration_t dd_duration_ms(int64_t milliseconds) { return milliseconds * 1000000; }
+
+dd_duration_t dd_duration_seconds(int64_t seconds) { return seconds * 1000000000; }
 }

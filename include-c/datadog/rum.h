@@ -14,7 +14,7 @@
 #include "datadog/api.h"
 #include "datadog/attribute.h"
 #include "datadog/core.h"
-#include "datadog/duration.h"
+#include "datadog/timestamp.h"
 #include "datadog/uuid.h"
 
 #ifdef __cplusplus
