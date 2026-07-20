@@ -160,9 +160,36 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
     // address points to the instruction to be executed after this function returns
     // (immediately following the call that created this frame). Symbolication tools
     // will adjust to resolve the actual call site.
+#ifdef __aarch64__
+    // Strip pointer authentication codes from the return address. On AArch64, the CPU
+    // encodes a PAC signature in the upper bits of return addresses stored on the
+    // stack. These bits must be cleared to recover the canonical virtual address before
+    // the address can be compared against module load ranges.
+    //
+    // xpaci strips exactly the PAC bits using the CPU's own key and VA-width
+    // configuration, so it is correct regardless of whether the kernel uses 48-bit or
+    // 52-bit user VAs (CONFIG_ARM64_VA_BITS_52). On pre-PAC hardware (ARMv8.0-8.2)
+    // xpaci falls in the HINT space and executes as a NOP, which is also correct
+    // because those CPUs never encode PAC bits in addresses. Clang's integrated
+    // assembler accepts the instruction regardless of -march, so no feature guard is
+    // needed.
+    uint64_t raw_ret = reinterpret_cast<uint64_t>(ret_addr);
+    // xpaci strips PAC bits from an instruction-pointer value. We pin the operand to
+    // x16 and emit the instruction via .inst so that the assembler does not require
+    // -march=armv8.3-a+pauth; the encoding is unambiguous and fixed for a given
+    // register. x16 (IP0) is a caller-saved scratch register and safe to use here.
+    // xpaci x16 = 0xDAC143F0
+    {
+      register uint64_t r asm("x16") = raw_ret;
+      asm(".inst 0xDAC143F0" : "+r"(r));
+      raw_ret = r;
+    }
+    WriteCrashReportStackFrame(fd, raw_ret);
+#else
     WriteCrashReportStackFrame(
         fd, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ret_addr))
     );
+#endif
 
     // Reading frame[0] into fp (effectively dereferencing fp) moves to the next frame
     fp = frame[0];
