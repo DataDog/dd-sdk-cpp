@@ -4,6 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <algorithm>
 #include <catch2/catch_test_macros.hpp>
 #include <string>
 #include <vector>

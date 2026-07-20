@@ -62,7 +62,6 @@ struct FeatureState {
 
     // Atomically reserve an array slot and write the value to it
     const size_t i = num_events.fetch_add(1, std::memory_order_relaxed);
-    REQUIRE(i >= 0);
     REQUIRE(i < MAX_EVENTS);
     events[i] = value;
     return true;
@@ -322,7 +321,6 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     // And the range of values should be [0..512]
     uint64_t sum = 0;
     for (uint64_t value : feature_a.events) {
-      REQUIRE(value >= 0);
       REQUIRE(value <= MAX_EVENTS);
       sum += value;
     }

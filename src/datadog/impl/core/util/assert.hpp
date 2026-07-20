@@ -9,7 +9,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-#if defined(__unix__) || defined(__APPLE__)
+#ifdef __GLIBC__
 #include <execinfo.h>
 #endif
 
@@ -24,7 +24,7 @@
 
 namespace datadog::impl {
 inline void print_stack_trace() {
-#if defined(__unix__) || defined(__APPLE__)
+#ifdef __GLIBC__
   // This POSIX API inevitably requires C-style array-as-pointer semantics
   // NOLINTBEGIN(cppcoreguidelines-*)
   // NOLINTBEGIN(bugprone-multi-level-implicit-pointer-conversion)
