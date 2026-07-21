@@ -14,6 +14,7 @@
 #include "datadog/api.h"
 #include "datadog/attribute.h"
 #include "datadog/core.h"
+#include "datadog/timestamp.h"
 #include "datadog/uuid.h"
 
 #ifdef __cplusplus
@@ -510,6 +511,20 @@ DATADOG_API void dd_rum_add_error(
     const char* type,
     const char* stack_trace,
     dd_attribute_t* attributes
+);
+
+// === RUM long tasks ===
+
+/**
+ * Records that the application encountered a long task (a period during which the main
+ * thread was blocked for an extended duration) in the context of the current view.
+ *
+ * @param duration - The duration of the long task. Must be positive.
+ * @param attributes - An optional set of custom attributes describing the long task,
+ *  provided as a dd_attribute_t value with DD_VALUE_TYPE_OBJECT.
+ */
+DATADOG_API void dd_rum_add_long_task(
+    dd_rum_t* rum, dd_duration_t duration, dd_attribute_t* attributes
 );
 
 #ifdef __cplusplus

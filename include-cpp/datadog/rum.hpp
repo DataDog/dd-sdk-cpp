@@ -14,6 +14,7 @@
 #include "datadog/api.hpp"
 #include "datadog/attribute.hpp"
 #include "datadog/core.hpp"
+#include "datadog/timestamp.hpp"
 #include "datadog/uuid.hpp"
 
 namespace datadog {
@@ -401,6 +402,19 @@ class Rum {
       std::string_view type = {},
       std::string_view stack_trace = {},
       const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Records that the application encountered a long task (a period during which the
+   * main thread was blocked for an extended duration) in the context of the current
+   * view.
+   *
+   * @param duration - The duration of the long task. Must be positive.
+   * @param attributes - An optional set of custom attributes describing the long task,
+   *  provided as an Attribute with ValueType::Object.
+   */
+  DATADOG_API void AddLongTask(
+      Duration duration, const Attribute& attributes = Attribute()
   );
 
   /**

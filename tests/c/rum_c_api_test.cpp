@@ -704,6 +704,19 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
         "supply a non-empty error message"},
        {}},
 
+      // === dd_rum_add_long_task() ===
+
+      {"M print warning W dd_rum_add_long_task is called with non-positive duration",
+       [&](dd_rum_config_t* config, dd_core_t* core) {
+         with_rum(config, core, [](dd_rum_t* rum) {
+           dd_rum_start_view(rum, "my-view", "My View", nullptr);
+           dd_rum_add_long_task(rum, 0, NULL);
+         });
+       },
+       {"dd_rum_add_long_task call ignored: application must supply a positive "
+        "duration"},
+       {}},
+
       // === dd_rum_start/succeed/fail_operation() ===
 
       {"M print error W dd_rum_start_operation is called with NULL name",
@@ -2889,6 +2902,146 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
               "format_version": 2
             }
           })"));
+       }},
+
+      // === dd_rum_add_long_task() ===
+
+      {"M send long_task event W dd_rum_add_long_task is called",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and then record a long task at T+5ms
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
+         clock.TickMilliseconds(5);
+         dd_rum_add_long_task(rum, 5000000, NULL);
+       },
+       [](const nlohmann::json& events) {
+         // Then we get a long_task event with the task's duration and, since it did not
+         // exceed the frozen-frame threshold, is_frozen_frame is false; its date is
+         // computed as the report time minus the task's duration
+         auto long_tasks = filter_events("long_task", events);
+         REQUIRE(long_tasks.size() == 1);
+         RequireEventMatch(long_tasks[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "long_task",
+            "date": 1700000000000,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "long_task": {
+              "id": "${__NONZERO_UUID__}",
+              "duration": 5000000,
+              "is_frozen_frame": false
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+
+         // And we also get a view event with an incremented long_task count and no
+         // frozen_frame count
+         auto views = filter_events("view", events);
+         REQUIRE(views.size() == 2);
+         REQUIRE(views[0]["view"]["id"] == long_tasks[0]["view"]["id"]);
+         REQUIRE(!views[0]["view"].contains("long_task"));
+         REQUIRE(!views[0]["view"].contains("frozen_frame"));
+         REQUIRE(views[1]["view"]["id"] == long_tasks[0]["view"]["id"]);
+         REQUIRE(views[1]["view"]["long_task"]["count"] == 1);
+         REQUIRE(!views[1]["view"].contains("frozen_frame"));
+       }},
+
+      {"M send frozen_frame long_task event with action.id W dd_rum_add_long_task "
+       "exceeds the frozen-frame threshold with an active action",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and a RUM action, and then record a long task that
+         // exceeds the 700ms frozen-frame threshold at T+5ms
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
+         dd_rum_add_action(rum, DD_RUM_ACTION_TYPE_CLICK, "button1", NULL);
+         clock.TickMilliseconds(5);
+         dd_rum_add_long_task(rum, 800000000, NULL);
+       },
+       [](const nlohmann::json& events) {
+         // Then we get a long_task event marked as a frozen frame, correlated with the
+         // active action
+         auto long_tasks = filter_events("long_task", events);
+         REQUIRE(long_tasks.size() == 1);
+         RequireEventMatch(long_tasks[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "long_task",
+            "date": 1699999999205,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "action": {
+              "id": "${__NONZERO_UUID__}"
+            },
+            "long_task": {
+              "id": "${__NONZERO_UUID__}",
+              "duration": 800000000,
+              "is_frozen_frame": true
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+
+         // And we get a view event with both long_task and frozen_frame counts of 1
+         auto views = filter_events("view", events);
+         REQUIRE(views.back()["view"]["id"] == long_tasks[0]["view"]["id"]);
+         REQUIRE(views.back()["view"]["long_task"]["count"] == 1);
+         REQUIRE(views.back()["view"]["frozen_frame"]["count"] == 1);
        }},
 
       // === Action lifetime vis-a-vis resources ===

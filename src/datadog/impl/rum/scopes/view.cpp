@@ -16,6 +16,10 @@
 
 namespace datadog::impl {
 
+// Matches the frozen-frame threshold used by other Datadog SDKs: a long task is
+// considered a "frozen frame" if its duration exceeds 700ms.
+static constexpr Duration FROZEN_FRAME_THRESHOLD = std::chrono::milliseconds(700);
+
 RumViewScope::RumViewScope(
     const RumScopeDependencies& deps,
     RumSessionScope& parent,
@@ -188,6 +192,14 @@ RumViewScope::ViewEventType RumViewScope::HandleCommand(
   if (command.Is<RumAddErrorPayload>()) {
     return HandleAddError(
         command.base, command.As<RumAddErrorPayload>(), context, writer
+    );
+  }
+
+  // On `AddLongTask`, we should immediately send a long_task event in the context of
+  // this view, updating our view state accordingly
+  if (command.Is<RumAddLongTaskPayload>()) {
+    return HandleAddLongTask(
+        command.base, command.As<RumAddLongTaskPayload>(), context, writer
     );
   }
 
@@ -384,6 +396,24 @@ RumViewScope::ViewEventType RumViewScope::HandleAddError(
   return ViewEventType::Full;
 }
 
+RumViewScope::ViewEventType RumViewScope::HandleAddLongTask(
+    const RumCommandParams& base,
+    const RumAddLongTaskPayload& payload,
+    const CoreContext& context,
+    const EventWriter& writer
+) {
+  // If the view is no longer active, it should report no long tasks
+  if (!_is_active) {
+    return ViewEventType::None;
+  }
+
+  // Immediately generate a RUM 'long_task' event describing the long task
+  SendLongTaskEvent(base, payload, context, writer);
+
+  // Our long task count has been incremented we must update the state of the view
+  return ViewEventType::Full;
+}
+
 void RumViewScope::BecomeInactive(
     const RumCommandParams& base, bool accept_command_attributes
 ) {
@@ -545,6 +575,13 @@ void RumViewScope::SendViewEvent(
     ev.view.name.value = _name;
   }
 
+  if (_num_long_tasks_reported > 0) {
+    ev.view.long_task.value.emplace(_num_long_tasks_reported);
+  }
+  if (_num_frozen_frames_reported > 0) {
+    ev.view.frozen_frame.value.emplace(_num_frozen_frames_reported);
+  }
+
   // Set 'context' to the full set of user-specified attributes that should be included
   // in this event. If the view is still active, we resolve the current set of global
   // attribute values carried with the command; if the view is inactive, we ignore those
@@ -643,6 +680,73 @@ void RumViewScope::SendErrorEvent(
   const bool bypass_tracking_consent = false;
   writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
   _num_errors_reported++;
+}
+
+void RumViewScope::SendLongTaskEvent(
+    const RumCommandParams& base,
+    const RumAddLongTaskPayload& payload,
+    const CoreContext& context,
+    const EventWriter& writer
+) {
+  DATADOG_ASSERT(_is_active, "SendLongTaskEvent called while view scope is inactive");
+
+  // Resolve references needed to populate required event data
+  const RumScopeDependencies& deps = _deps;
+  const RumSessionScope& session = _parent;
+
+  // The 'date' timestamp on a RUM 'long_task' event indicates the time at which the
+  // long task started, i.e. when it finished minus its duration; by the time we're
+  // notified of a long task, it has already completed
+  const Timestamp event_timestamp = base.issued_at - payload.duration;
+
+  const bool is_frozen_frame = payload.duration > FROZEN_FRAME_THRESHOLD;
+  const int64_t duration_ns = payload.duration.count();
+
+  // Construct an event value on the stack with the minimal set of required properties
+  RumLongTaskEvent ev(
+      event_timestamp,
+      deps.application_id,
+      session.GetSessionID(),
+      RumSessionType::User,
+      _view_id,
+      _key,
+      UUID::Random(),
+      duration_ns
+  );
+
+  // Set essential view properties
+  if (!_name.empty()) {
+    ev.view.name.value = _name;
+  }
+
+  // Correlate this event with the active action, if we have one
+  if (_active_action_scope) {
+    ev.action.value.emplace(_active_action_scope->GetActionID());
+  }
+
+  ev.long_task.is_frozen_frame.value = is_frozen_frame;
+
+  // Set 'context' to the full set of user-specified attributes that should be included
+  // in this event, merging: global <- view <- long task
+  Attribute merged_attributes = Attribute::Object();
+  AttributeMerge::AssembleObject(
+      merged_attributes,
+      {base.global_attributes, _view_attributes.attribute, base.attributes}
+  );
+  if (merged_attributes.GetObjectPropertyCount() > 0) {
+    ev.context.value = merged_attributes;
+  }
+
+  // Enrich event with OS and device properties from CoreContext
+  RumEventEnrichment::PopulateCommonProperties(context, ev);
+
+  std::string_view json = deps.EncodeEvent(ev);
+  const bool bypass_tracking_consent = false;
+  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  _num_long_tasks_reported++;
+  if (is_frozen_frame) {
+    _num_frozen_frames_reported++;
+  }
 }
 
 ScopeRef<const RumActionScope> RumViewScope::GetActiveAction() const {

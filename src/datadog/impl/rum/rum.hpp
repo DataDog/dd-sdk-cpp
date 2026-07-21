@@ -138,6 +138,12 @@ class Rum final : public Feature {
   );
 
   /**
+   * Handles an AddLongTask API call, causing a long_task to be reported in the context
+   * of the current view.
+   */
+  void AddLongTask(Duration duration, const Attribute& attributes = Attribute());
+
+  /**
    * Handles a StartOperation API call, recording the start of a user-facing
    * operation.
    */

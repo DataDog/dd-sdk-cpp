@@ -274,6 +274,10 @@ void Rum::AddError(
   DispatchAsync(RumCommand::AddError(GetBaseCommandParams(attributes), source, error));
 }
 
+void Rum::AddLongTask(Duration duration, const Attribute& attributes) {
+  DispatchAsync(RumCommand::AddLongTask(GetBaseCommandParams(attributes), duration));
+}
+
 void Rum::StartOperation(
     std::string_view name,
     std::optional<std::string_view> operation_key,

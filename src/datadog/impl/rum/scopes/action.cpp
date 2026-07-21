@@ -112,6 +112,12 @@ RumScopeResult RumActionScope::Process(
     _num_errors_recorded++;
   }
 
+  // On AddLongTask: increment the count of long tasks recorded while this action was
+  // active
+  if (command.Is<RumAddLongTaskPayload>()) {
+    _num_long_tasks_recorded++;
+  }
+
   // The action remains active
   return RumScopeResult::RemainOpen;
 }
@@ -165,6 +171,9 @@ void RumActionScope::SendActionEvent(
   }
   if (_num_errors_recorded > 0) {
     ev.action.error.value.emplace(_num_errors_recorded);
+  }
+  if (_num_long_tasks_recorded > 0) {
+    ev.action.long_task.value.emplace(_num_long_tasks_recorded);
   }
 
   // Prepare to merge the final set of custom attributes for our action event, in this
