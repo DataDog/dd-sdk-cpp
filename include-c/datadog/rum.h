@@ -405,6 +405,19 @@ DATADOG_API void dd_rum_stop_resource_with_error(
  */
 DATADOG_API void dd_rum_report_app_display_initialized(dd_rum_t* rum);
 
+/**
+ * Reports that the application is fully loaded and interactive. The SDK computes
+ * the duration from process launch to this call and emits a vital event with
+ * vital.type = "app_launch" and vital.app_launch_metric = "ttfd"
+ * (time-to-full-display).
+ *
+ * Should be called at most once, when the application is fully loaded and
+ * interactive. If called when no view is active, the event is still emitted with
+ * empty view context fields. If called more than once, subsequent calls are silently
+ * dropped.
+ */
+DATADOG_API void dd_rum_report_app_fully_displayed(dd_rum_t* rum);
+
 // === RUM operations ===
 
 // A operation represents a user-facing workflow (e.g. login, checkout, upload)

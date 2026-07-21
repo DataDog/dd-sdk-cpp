@@ -499,6 +499,13 @@ void dd_rum_report_app_display_initialized(dd_rum_t* rum) {
   rum->impl->ReportAppDisplayInitialized();
 }
 
+void dd_rum_report_app_fully_displayed(dd_rum_t* rum) {
+  if (!rum || !rum->impl) {
+    return;
+  }
+  rum->impl->ReportAppFullyDisplayed();
+}
+
 void dd_rum_start_operation(
     dd_rum_t* rum,
     const char* name,

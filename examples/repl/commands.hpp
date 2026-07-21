@@ -58,6 +58,7 @@ CommandResult HandleStartOperation(State& state, const CommandInput& args);
 CommandResult HandleSucceedOperation(State& state, const CommandInput& args);
 CommandResult HandleFailOperation(State& state, const CommandInput& args);
 CommandResult HandleReportAppDisplayInitialized(State& state, const CommandInput& args);
+CommandResult HandleReportAppFullyDisplayed(State& state, const CommandInput& args);
 
 // crash
 CommandResult HandleRegisterCrashReporting(State& state, const CommandInput& args);

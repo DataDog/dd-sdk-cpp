@@ -157,6 +157,13 @@ RumScopeResult RumSessionScope::Process(
     return RumScopeResult::RemainOpen;
   }
 
+  // -- Handle TTFD app-launch vital event (session-scoped, not delegated to views)
+
+  if (command.Is<RumReportAppFullyDisplayedPayload>()) {
+    HandleReportAppFullyDisplayed(command, context, writer);
+    return RumScopeResult::RemainOpen;
+  }
+
   // -- Handle operation vital events (session-scoped, not delegated to views)
 
   if (command.Is<RumStartOperationPayload>()) {
@@ -429,13 +436,56 @@ void RumSessionScope::HandleReportAppDisplayInitialized(
   // If no view is active, emit the event with zero/empty view fields — matching
   // the behaviour of the iOS and Android SDKs.
   const RumViewScope* view = view_opt ? &view_opt->get() : nullptr;
-  SendAppLaunchVitalEvent(command.base, view, duration_ns, context, writer);
+  SendAppLaunchVitalEvent(
+      command.base,
+      view,
+      duration_ns,
+      RumVitalAppLaunchMetric::TTID,
+      "time_to_initial_display",
+      context,
+      writer
+  );
+}
+
+void RumSessionScope::HandleReportAppFullyDisplayed(
+    const RumCommand& command, const CoreContext& context, const EventWriter& writer
+) {
+  const auto view_opt = GetActiveView();
+
+  // Compute TTFD duration: time from process launch to the moment of this call.
+  const Timestamp& now = command.base.issued_at;
+  const Timestamp& launch = context.process_launch_time;
+  const double duration_ns = static_cast<double>((now - launch).count());
+
+  static constexpr double kMaxTTFDNs = 90.0 * 1'000'000'000.0;
+  if (duration_ns <= 0.0 || duration_ns >= kMaxTTFDNs) {
+    _deps.get().diagnostic_logger.Warning(
+        "Ignoring TTFD; computed value falls outside expected range",
+        {{"ttfd_ns", duration_ns}}
+    );
+    return;
+  }
+
+  // If no view is active, emit the event with zero/empty view fields - matching
+  // the behavior of the iOS and Android SDKs.
+  const RumViewScope* view = view_opt ? &view_opt->get() : nullptr;
+  SendAppLaunchVitalEvent(
+      command.base,
+      view,
+      duration_ns,
+      RumVitalAppLaunchMetric::TTFD,
+      "time_to_full_display",
+      context,
+      writer
+  );
 }
 
 void RumSessionScope::SendAppLaunchVitalEvent(
     const RumCommandParams& base,
     const RumViewScope* view,
     double duration_ns,
+    RumVitalAppLaunchMetric metric,
+    std::string_view vital_name,
     const CoreContext& context,
     const EventWriter& writer
 ) {
@@ -450,9 +500,9 @@ void RumSessionScope::SendAppLaunchVitalEvent(
       view ? view->GetViewID() : UUID::Zero,
       view ? view->GetKey() : "",
       vital_id,
-      "time_to_initial_display",
+      vital_name,
       RumVitalAppLaunchType::AppLaunch,
-      RumVitalAppLaunchMetric::TTID,
+      metric,
       duration_ns
   );
 

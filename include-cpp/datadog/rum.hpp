@@ -431,6 +431,19 @@ class Rum {
   DATADOG_API void ReportAppDisplayInitialized();
 
   /**
+   * Reports that the application is fully loaded and interactive. The SDK computes
+   * the duration from process launch to this call and emits a vital event with
+   * `vital.type = "app_launch"` and `vital.app_launch_metric = "ttfd"`
+   * (time-to-full-display).
+   *
+   * This method should be called at most once, when the application is fully loaded
+   * and interactive. If called when no view is active, the event is still emitted with
+   * empty view context fields. If called more than once, subsequent calls are silently
+   * dropped.
+   */
+  DATADOG_API void ReportAppFullyDisplayed();
+
+  /**
    * Records the start of a operation (e.g. login, checkout, upload).
    *
    * Each call emits a vital operation step event with step_type "start". The backend

@@ -294,6 +294,18 @@ struct RumReportAppDisplayInitializedPayload {
 };
 
 /**
+ * On ReportAppFullyDisplayed, the application has called the
+ * ReportAppFullyDisplayed API function, signalling that the application is fully
+ * loaded and interactive. The SDK will compute TTFD from this event.
+ */
+struct RumReportAppFullyDisplayedPayload {
+  static constexpr const char* COMMAND_NAME = "ReportAppFullyDisplayed";
+  static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
+
+  RumReportAppFullyDisplayedPayload() = default;
+};
+
+/**
  * On StartOperation, the application has called the StartOperation API
  * function, recording the start of a user-facing operation (e.g. login, checkout).
  */
@@ -350,6 +362,7 @@ struct RumCommand {
       RumAddErrorPayload,
       RumAddLongTaskPayload,
       RumReportAppDisplayInitializedPayload,
+      RumReportAppFullyDisplayedPayload,
       RumStartOperationPayload,
       RumStopOperationPayload>;
 
@@ -448,6 +461,11 @@ struct RumCommand {
   /** Creates a new 'ReportAppDisplayInitialized' command. */
   static RumCommand ReportAppDisplayInitialized(RumCommandParams&& base) {
     return RumCommand(std::move(base), RumReportAppDisplayInitializedPayload());
+  }
+
+  /** Creates a new 'ReportAppFullyDisplayed' command. */
+  static RumCommand ReportAppFullyDisplayed(RumCommandParams&& base) {
+    return RumCommand(std::move(base), RumReportAppFullyDisplayedPayload());
   }
 
   /** Creates a new 'StartOperation' command. */

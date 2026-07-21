@@ -150,6 +150,10 @@ void Rum::Stop() {
   // is stopped and restarted (e.g. in tests).
   _ttid_reported.store(false, std::memory_order_relaxed);
 
+  // Reset the once-per-SDK-lifetime TTFD guard so that it fires correctly if the SDK
+  // is stopped and restarted (e.g. in tests).
+  _ttfd_reported.store(false, std::memory_order_relaxed);
+
   // Note: _application will be destroyed when Rum is destroyed (after Core joins
   // the context thread). In-flight lambdas can safely access _application as long as
   // weak_ptr.lock() succeeds. CoreContext is reset by Core::Start() at the top of each
@@ -326,6 +330,33 @@ void Rum::ReportAppDisplayInitialized() {
   }
 
   DispatchAsync(RumCommand::ReportAppDisplayInitialized(GetBaseCommandParams()));
+}
+
+void Rum::ReportAppFullyDisplayed() {
+  // If the SDK is not running, drop silently - the same behavior as every other
+  // DispatchAsync call when _scope is unset. Critically, do this check *before*
+  // consuming the one-shot _ttfd_reported guard so that a pre-Start() or
+  // post-Stop() call does not permanently burn the guard and cause a subsequent
+  // valid call (after Start()) to be rejected as a duplicate.
+  if (!_scope) {
+    return;
+  }
+
+  // Only emit once per SDK lifetime. Use test-and-set to guard against races between
+  // concurrent callers without holding any lock: the first caller wins, all others
+  // receive a warning and are dropped.
+  bool expected = false;
+  if (!_ttfd_reported.compare_exchange_strong(
+          expected, true, std::memory_order_acq_rel, std::memory_order_acquire
+      )) {
+    _deps.diagnostic_logger.Warning(
+        "Rum::ReportAppFullyDisplayed call ignored: already called once for this "
+        "SDK instance"
+    );
+    return;
+  }
+
+  DispatchAsync(RumCommand::ReportAppFullyDisplayed(GetBaseCommandParams()));
 }
 
 RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {

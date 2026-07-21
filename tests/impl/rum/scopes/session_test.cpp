@@ -664,6 +664,200 @@ TEST_CASE_METHOD(
   }
 }
 
+TEST_CASE_METHOD(
+    SessionEventFixture, "RumSessionScope ReportAppFullyDisplayed", "[unit][rum]"
+) {
+  SECTION("M emit TTFD vital event W called once with an active view") {
+    // Given an active session with a view, and a known process launch time
+    StartView();
+
+    // Build a context with a specific process launch time so the duration is
+    // deterministic: launch at t=0, current time at t=5s → 5e9 ns
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+    // clock is frozen at 1700000000000 ms, so duration = 5000ms = 5e9 ns
+
+    // When we process a ReportAppFullyDisplayed command
+    const auto result = scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then the session remains open
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // And a single vital event is emitted
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    const auto& ev = vitals[0];
+
+    // With the correct type fields
+    REQUIRE(ev["type"] == "vital");
+    REQUIRE(ev["vital"]["type"] == "app_launch");
+    REQUIRE(ev["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(ev["vital"]["name"] == "time_to_full_display");
+
+    // With the correct duration (5000 ms = 5e9 ns)
+    REQUIRE(ev["vital"]["duration"].get<double>() == 5000000000.0);
+
+    // With a valid, non-zero vital ID
+    const std::string vital_id_str = ev["vital"]["id"];
+    const auto vital_id = UUID::Parse(vital_id_str);
+    REQUIRE(vital_id.has_value());
+    REQUIRE(*vital_id != UUID::Zero);
+
+    // date is the process launch time (ms since epoch), not the time of the call
+    REQUIRE(ev["date"].get<int64_t>() == 1699999995000LL);
+
+    // With the view URL from the active view
+    REQUIRE(ev["view"]["url"] == "my-view-key");
+  }
+
+  SECTION(
+      "M emit TTFD vital event with zero view fields W called with no active view"
+  ) {
+    // Given an active session with NO active view
+
+    // When we process a ReportAppFullyDisplayed command
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    const auto result = scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then the session remains open
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // And a vital event is emitted (matching iOS/Android behavior)
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    const auto& ev = vitals[0];
+
+    REQUIRE(ev["type"] == "vital");
+    REQUIRE(ev["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(ev["vital"]["duration"].get<double>() == 5000000000.0);
+
+    // With zero view ID and empty URL
+    REQUIRE(ev["view"]["id"] == "00000000-0000-0000-0000-000000000000");
+    REQUIRE(ev["view"]["url"] == "");
+
+    // And no warning is emitted
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  SECTION(
+      "M emit no vital event and warn W duration is zero (launch time equals now)"
+  ) {
+    // Given an active session with a view, and process_launch_time == now
+    StartView();
+    CoreContext ctx = GetTestContext();
+    // Frozen clock is at 1700000000000 ms; setting launch == now → duration_ns == 0
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1700000000000})
+    };
+
+    // When we process a ReportAppFullyDisplayed command
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then no vital event is emitted
+    REQUIRE(event_capture.Vitals().empty());
+
+    // And a warning was emitted
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit no vital event and warn W clock skew produces negative duration") {
+    // Given an active session with a view, but clock skew makes now < launch
+    StartView();
+    // Set launch time to 10s after the frozen clock (1700000000000 ms)
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1700000010000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+
+    // When we process a ReportAppFullyDisplayed command
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then no vital event is emitted
+    REQUIRE(event_capture.Vitals().empty());
+
+    // And a warning was emitted
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit no vital event and warn W duration is at or above 90s") {
+    // Given an active session with a view, and a launch time exactly 90s before now
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999910000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+    // duration = 90000ms = 90e9 ns - exactly at the upper bound (exclusive)
+
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    REQUIRE(event_capture.Vitals().empty());
+
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit vital event W duration is just inside valid range (1 ms)") {
+    // Given a launch time 1ms before the frozen clock → duration = 1ms = 1e6 ns
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999999999})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 1000000.0);
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  SECTION("M emit vital event W duration is just below 90s upper bound") {
+    // Launch time 89999ms before frozen clock → duration = 89999ms = 89.999e9 ns
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999910001})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 89999000000.0);
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+}
+
 TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]") {
   SECTION("M emit start vital event W StartOperation is processed") {
     // Given an active session with a view
