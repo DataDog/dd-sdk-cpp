@@ -6,6 +6,7 @@
 
 #include "datadog/impl/rum/scopes/session.hpp"
 
+#include <algorithm>
 #include <string>
 
 #include "datadog/impl/core/attribute/merge.hpp"
@@ -422,36 +423,67 @@ void RumSessionScope::HandleReportAppDisplayInitialized(
   // Compute TTID duration: time from process launch to the moment of this call.
   const Timestamp& now = command.base.issued_at;
   const Timestamp& launch = context.process_launch_time;
-  const double duration_ns = static_cast<double>((now - launch).count());
+  const double ttid_duration_ns = static_cast<double>((now - launch).count());
 
   static constexpr double kMaxTTIDNs = 60.0 * 1'000'000'000.0;
-  if (duration_ns <= 0.0 || duration_ns >= kMaxTTIDNs) {
+  if (ttid_duration_ns <= 0.0 || ttid_duration_ns >= kMaxTTIDNs) {
     _deps.get().diagnostic_logger.Warning(
         "Ignoring TTID; computed value falls outside expected range",
-        {{"ttid_ns", duration_ns}}
+        {{"ttid_ns", ttid_duration_ns}}
     );
     return;
   }
 
-  // If no view is active, emit the event with zero/empty view fields — matching
-  // the behaviour of the iOS and Android SDKs.
+  // If no view is active, emit the event with zero/empty view fields - matching
+  // the behavior of the iOS and Android SDKs.
   const RumViewScope* view = view_opt ? &view_opt->get() : nullptr;
+
+  // These handlers assume exactly-once delivery, enforced by the atomic guards in
+  // Rum::ReportAppDisplayInitialized() and Rum::ReportAppFullyDisplayed(). Calling
+  // this handler a second time would re-set _ttid_has_fired and re-emit.
+  DATADOG_ASSERT(!_ttid_has_fired, "HandleReportAppDisplayInitialized called twice");
+
   SendAppLaunchVitalEvent(
       command.base,
       view,
-      duration_ns,
+      ttid_duration_ns,
       RumVitalAppLaunchMetric::TTID,
       "time_to_initial_display",
       context,
       writer
   );
+
+  // TTID has now been recorded successfully.
+  _ttid_has_fired = true;
+  _ttid_duration_ns = ttid_duration_ns;
+
+  // If ReportAppFullyDisplayed was called before this point, emit the deferred TTFD
+  // event now. Use max(ttfd_raw, ttid) to clamp cases where the developer called
+  // ReportAppFullyDisplayed before the first frame was drawn - matching iOS/Android
+  // behavior.
+  if (_pending_ttfd.has_value()) {
+    _deps.get().diagnostic_logger.Warning(
+        "ReportAppFullyDisplayed was called before ReportAppDisplayInitialized; "
+        "TTFD duration will be clamped to TTID duration if necessary"
+    );
+    const double ttfd_duration_ns =
+        std::max(_pending_ttfd->duration_ns, ttid_duration_ns);
+    SendAppLaunchVitalEvent(
+        _pending_ttfd->base,
+        view,
+        ttfd_duration_ns,
+        RumVitalAppLaunchMetric::TTFD,
+        "time_to_full_display",
+        context,
+        writer
+    );
+    _pending_ttfd.reset();
+  }
 }
 
 void RumSessionScope::HandleReportAppFullyDisplayed(
     const RumCommand& command, const CoreContext& context, const EventWriter& writer
 ) {
-  const auto view_opt = GetActiveView();
-
   // Compute TTFD duration: time from process launch to the moment of this call.
   const Timestamp& now = command.base.issued_at;
   const Timestamp& launch = context.process_launch_time;
@@ -466,13 +498,26 @@ void RumSessionScope::HandleReportAppFullyDisplayed(
     return;
   }
 
-  // If no view is active, emit the event with zero/empty view fields - matching
-  // the behavior of the iOS and Android SDKs.
+  if (!_ttid_has_fired) {
+    // TTID has not yet been recorded. Store the raw duration and command base
+    // (for the attribute snapshot) and defer emission until
+    // ReportAppDisplayInitialized fires, at which point both events will be
+    // written together with any necessary clamping applied.
+    _pending_ttfd = PendingTTFD{duration_ns, command.base};
+    return;
+  }
+
+  // TTID has already fired: emit immediately, clamping so TTFD >= TTID.
+  // This handles the timestamp-capture race: if TTFD's issued_at was sampled on
+  // the calling thread before TTID's but enqueued after it, the raw TTFD duration
+  // may be less than TTID. Apply max() to match iOS/Android behavior.
+  const double clamped_duration_ns = std::max(duration_ns, _ttid_duration_ns);
+  const auto view_opt = GetActiveView();
   const RumViewScope* view = view_opt ? &view_opt->get() : nullptr;
   SendAppLaunchVitalEvent(
       command.base,
       view,
-      duration_ns,
+      clamped_duration_ns,
       RumVitalAppLaunchMetric::TTFD,
       "time_to_full_display",
       context,
