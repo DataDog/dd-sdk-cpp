@@ -11,6 +11,7 @@
 #include <charconv>
 #include <chrono>
 #include <iostream>
+#include <optional>
 #include <queue>
 #include <string>
 #include <thread>
@@ -109,8 +110,13 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   const bool hold_advisory_lock = false;
   auto open_result = fsw.OpenForRead(file_path.CStr(), hold_advisory_lock);
   if (open_result.value != FilesystemResult::OK) {
-    // If we failed to open the file for any reason, leave it in place and continue to
-    // the next file
+    if (open_result.value == FilesystemResult::DoesNotExist) {
+      // The file was removed by another agent (quota purge or age eviction) between
+      // the directory listing and this open. Treat it as a consumed batch so the
+      // upload cycle continues rather than backing off.
+      return _process_and_upload_batch_result::bad_batch;
+    }
+    // For any other open failure, leave the file in place and retry later
     return _process_and_upload_batch_result::retryable_failure;
   }
 
@@ -165,6 +171,24 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   return _interpret_http_result(res);
 }
 
+// Parses a batch filename as a millisecond-precision Unix timestamp and returns its age
+// relative to `now`. Returns nullopt for non-numeric filenames (non-SDK files that
+// should be left alone). Guards against underflow if the timestamp is in the future by
+// clamping the result to zero.
+static std::optional<Duration> batch_file_age(
+    const std::string& filename, Timestamp now
+) {
+  uint64_t timestamp_ms{0};
+  const auto parse_result =
+      std::from_chars(filename.data(), filename.data() + filename.size(), timestamp_ms);
+  if (parse_result.ec != std::errc{} ||
+      parse_result.ptr != filename.data() + filename.size()) {
+    return std::nullopt;
+  }
+  const Timestamp file_time{std::chrono::milliseconds(timestamp_ms)};
+  return file_time < now ? now - file_time : Duration::zero();
+}
+
 static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
     DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
@@ -193,6 +217,52 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
   // Prepare a FilesystemWrapper that will handle path encoding transparently
   FilesystemWrapper fsw(fs);
 
+  const Timestamp now = clock.Now();
+
+  // Evict stale files from the pending-consent directory. These accumulate when consent
+  // is set to Pending and never resolved. The upload thread never reads from this
+  // directory, so its only clean-up mechanism is this age-based eviction pass.
+  //
+  // This runs before the granted-directory listing so that a transient failure listing
+  // the granted directory does not prevent eviction of stale pending files.
+  const StoragePath& pending_dir_path = feature.storage->GetPendingPath();
+  mut_filenames.clear();
+  const auto pending_list_res = fsw.ListFiles(pending_dir_path.CStr(), mut_filenames);
+  if (pending_list_res == FilesystemResult::OK) {
+    std::sort(mut_filenames.begin(), mut_filenames.end());
+    for (const std::string& pending_filename : mut_filenames) {
+      const auto file_age = batch_file_age(pending_filename, now);
+      if (!file_age) {
+        continue;
+      }
+      if (*file_age < config.max_file_age_for_read) {
+        // Files are sorted oldest-first; all subsequent files are also too young.
+        break;
+      }
+
+      StoragePath pending_file_path;
+      pending_file_path.MustSet(pending_dir_path);
+      if (!pending_file_path.Append(pending_filename)) {
+        continue;
+      }
+
+      const auto delete_res = fsw.Delete(pending_file_path.CStr());
+      if (delete_res == FilesystemResult::OK) {
+        diagnostic_logger.Debug(
+            "Deleted outdated pending batch file",
+            {{"feature", feature.name}, {"filename", pending_filename}}
+        );
+      } else {
+        diagnostic_logger.Warning(
+            "Failed to delete outdated pending batch file",
+            {{"feature", feature.name},
+             {"filename", pending_filename},
+             {"error", FilesystemResultStr(delete_res)}}
+        );
+      }
+    }
+  }
+
   // Retrieve a list of all filenames in the consent-granted event directory
   mut_filenames.clear();
   const StoragePath& granted_dir_path = feature.storage->GetGrantedPath();
@@ -212,31 +282,9 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
       _process_and_upload_batch_result::success
   };
   for (const std::string& filename : mut_filenames) {
-    // If a filename is all-integer, it's taken to be a Unix timestamp in milliseconds,
-    // corresponding to the system_clock value that the storage thread read when it
-    // created the file
-    uint64_t timestamp_ms{0};
-    const auto parse_result = std::from_chars(
-        filename.data(), filename.data() + filename.size(), timestamp_ms
-    );
-
-    // Skip any files whose names are not strictly numeric
-    const bool parse_ok = parse_result.ec == std::errc{};
-    const bool parsed_full_string =
-        parse_result.ptr == (filename.data() + filename.size());
-    if (!parse_ok || !parsed_full_string) {
+    const auto file_age = batch_file_age(filename, now);
+    if (!file_age) {
       continue;
-    }
-
-    // Read the system clock so we can determine the relative age of the file
-    const Timestamp file_time{std::chrono::milliseconds(timestamp_ms)};
-    const Timestamp now = clock.Now();
-
-    // Defensive: guard against integer underflow on file age calculation. If the file
-    // appears to be from the future, clamp its age to 0.
-    Duration file_age = Duration::zero();
-    if (file_time < now) {
-      file_age = now - file_time;
     }
 
     // Under normal circumstances, we have to respect a minimum file age threshold
@@ -244,7 +292,7 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // before they hit that age. If our threshold is 0, it means we're permitted to
     // bypass these checks and read from all files, as long as they're not too _old_ to
     // upload.
-    if (file_age < config.min_file_age_for_read) {
+    if (*file_age < config.min_file_age_for_read) {
       // If we've encountered our first file that's too new to process, we're done. We
       // process files in order, sorted lexically by timestamp, so every file that we'd
       // encounter hereafter would be even newer than this one.
@@ -262,7 +310,7 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     }
 
     // If this file is too old to process, delete it and continue
-    if (file_age >= config.max_file_age_for_read) {
+    if (*file_age >= config.max_file_age_for_read) {
       const auto delete_res = fsw.Delete(file_path.CStr());
       if (delete_res == FilesystemResult::OK) {
         diagnostic_logger.Debug(

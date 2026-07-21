@@ -492,6 +492,20 @@ void dd_rum_stop_resource_with_error(
   rum->impl->StopResource(key, response, error, cpp_attributes);
 }
 
+void dd_rum_report_app_display_initialized(dd_rum_t* rum) {
+  if (!rum || !rum->impl) {
+    return;
+  }
+  rum->impl->ReportAppDisplayInitialized();
+}
+
+void dd_rum_report_app_fully_displayed(dd_rum_t* rum) {
+  if (!rum || !rum->impl) {
+    return;
+  }
+  rum->impl->ReportAppFullyDisplayed();
+}
+
 void dd_rum_start_operation(
     dd_rum_t* rum,
     const char* name,
@@ -689,6 +703,32 @@ void dd_rum_add_error(
       message ? message : "", type ? type : "", stack_trace ? stack_trace : ""
   };
   rum->impl->AddError(datadog::RumErrorSource_FromC(source), error, cpp_attributes);
+}
+
+void dd_rum_add_long_task(
+    dd_rum_t* rum, dd_duration_t duration, dd_attribute_t* attributes
+) {
+  // If the underlying feature is NULL, this call is a no-op
+  if (!rum || !rum->impl) {
+    return;
+  }
+
+  // The schema for RUM long_task events requires a positive duration; reject it,
+  // logging a warning
+  if (duration <= 0) {
+    rum->diagnostic_logger.Warning(
+        "dd_rum_add_long_task call ignored: application must supply a positive duration"
+    );
+    return;
+  }
+
+  // If we've been given a valid object attribute, convert it to the equivalent C++ type
+  datadog::Attribute cpp_attributes;  // Default-initialized to Attribute::Null()
+  if (attributes && attributes->type == DD_VALUE_TYPE_OBJECT) {
+    cpp_attributes = datadog::impl::AttributeConversion::CopyFromC(*attributes);
+  }
+
+  rum->impl->AddLongTask(datadog::Duration(duration), cpp_attributes);
 }
 }
 

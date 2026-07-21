@@ -12,6 +12,7 @@
 
 #include "datadog/core.h"
 
+#include "datadog/c/config_string.hpp"
 #include "datadog/c/core_glue.hpp"
 #include "datadog/c/logging_glue.hpp"
 #include "datadog/impl/core/attribute/types.hpp"
@@ -56,23 +57,29 @@ void dd_logger_config_set_remote_sample_rate(dd_logger_config_t* config, float v
 }
 
 void dd_logger_config_set_service(dd_logger_config_t* config, const char* value) {
-  if (config) {
-    if (value) {
-      std::snprintf(config->service, sizeof(config->service), "%s", value);
-    } else {
-      config->service[0] = '\0';
-    }
+  if (!config) {
+    return;
   }
+  assign_string_truncate(
+      config->service,
+      sizeof(config->service),
+      value,
+      datadog::impl::DiagnosticLogger{},
+      nullptr
+  );
 }
 
 void dd_logger_config_set_name(dd_logger_config_t* config, const char* value) {
-  if (config) {
-    if (value) {
-      std::snprintf(config->name, sizeof(config->name), "%s", value);
-    } else {
-      config->name[0] = '\0';
-    }
+  if (!config) {
+    return;
   }
+  assign_string_truncate(
+      config->name,
+      sizeof(config->name),
+      value,
+      datadog::impl::DiagnosticLogger{},
+      nullptr
+  );
 }
 
 void dd_logger_config_set_remote_log_threshold(

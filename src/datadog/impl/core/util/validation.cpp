@@ -4,9 +4,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include <cctype>
+#include "datadog/impl/core/util/validation.hpp"
 
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include <cctype>
 
 namespace datadog::impl {
 

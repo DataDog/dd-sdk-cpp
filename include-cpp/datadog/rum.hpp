@@ -14,6 +14,7 @@
 #include "datadog/api.hpp"
 #include "datadog/attribute.hpp"
 #include "datadog/core.hpp"
+#include "datadog/timestamp.hpp"
 #include "datadog/uuid.hpp"
 
 namespace datadog {
@@ -402,6 +403,45 @@ class Rum {
       std::string_view stack_trace = {},
       const Attribute& attributes = Attribute()
   );
+
+  /**
+   * Records that the application encountered a long task (a period during which the
+   * main thread was blocked for an extended duration) in the context of the current
+   * view.
+   *
+   * @param duration - The duration of the long task. Must be positive.
+   * @param attributes - An optional set of custom attributes describing the long task,
+   *  provided as an Attribute with ValueType::Object.
+   */
+  DATADOG_API void AddLongTask(
+      Duration duration, const Attribute& attributes = Attribute()
+  );
+
+  /**
+   * Reports that the application's first interactive frame has been presented to the
+   * user. The SDK computes the duration from process launch to this call and emits a
+   * vital event with `vital.type = "app_launch"` and
+   * `vital.app_launch_metric = "ttid"` (time-to-initial-display).
+   *
+   * This method should be called at most once, as early as the first interactive frame
+   * is presented. If called when no view is active, the event is still emitted with
+   * empty view context fields. If called more than once, subsequent calls are silently
+   * dropped.
+   */
+  DATADOG_API void ReportAppDisplayInitialized();
+
+  /**
+   * Reports that the application is fully loaded and interactive. The SDK computes
+   * the duration from process launch to this call and emits a vital event with
+   * `vital.type = "app_launch"` and `vital.app_launch_metric = "ttfd"`
+   * (time-to-full-display).
+   *
+   * This method should be called at most once, when the application is fully loaded
+   * and interactive. If called when no view is active, the event is still emitted with
+   * empty view context fields. If called more than once, subsequent calls are silently
+   * dropped.
+   */
+  DATADOG_API void ReportAppFullyDisplayed();
 
   /**
    * Records the start of a operation (e.g. login, checkout, upload).

@@ -464,6 +464,752 @@ class SessionEventFixture {
   }
 };
 
+TEST_CASE_METHOD(
+    SessionEventFixture, "RumSessionScope ReportAppDisplayInitialized", "[unit][rum]"
+) {
+  SECTION("M emit TTID vital event W called once with an active view") {
+    // Given an active session with a view, and a known process launch time
+    StartView();
+
+    // Build a context with a specific process launch time so the duration is
+    // deterministic: launch at t=0, current time at t=5s → 5e9 ns
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+    // clock is frozen at 1700000000000 ms, so duration = 5000ms = 5e9 ns
+
+    // When we process a ReportAppDisplayInitialized command
+    const auto result = scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then the session remains open
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // And a single vital event is emitted
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    const auto& ev = vitals[0];
+
+    // With the correct type fields
+    REQUIRE(ev["type"] == "vital");
+    REQUIRE(ev["vital"]["type"] == "app_launch");
+    REQUIRE(ev["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(ev["vital"]["name"] == "time_to_initial_display");
+
+    // With the correct duration (5000 ms = 5e9 ns)
+    REQUIRE(ev["vital"]["duration"].get<double>() == 5000000000.0);
+
+    // With a valid, non-zero vital ID
+    const std::string vital_id_str = ev["vital"]["id"];
+    const auto vital_id = UUID::Parse(vital_id_str);
+    REQUIRE(vital_id.has_value());
+    REQUIRE(*vital_id != UUID::Zero);
+
+    // date is the process launch time (ms since epoch), not the time of the call
+    REQUIRE(ev["date"].get<int64_t>() == 1699999995000LL);
+
+    // With the view URL from the active view
+    REQUIRE(ev["view"]["url"] == "my-view-key");
+  }
+
+  SECTION(
+      "M emit TTID vital event with zero view fields W called with no active view"
+  ) {
+    // Given an active session with NO active view
+
+    // When we process a ReportAppDisplayInitialized command
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    const auto result = scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then the session remains open
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // And a vital event is emitted (matching iOS/Android behaviour)
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    const auto& ev = vitals[0];
+
+    REQUIRE(ev["type"] == "vital");
+    REQUIRE(ev["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(ev["vital"]["duration"].get<double>() == 5000000000.0);
+
+    // With zero view ID and empty URL (matching iOS NULL_UUID / Android
+    // EMPTY_RUM_SESSION_ID)
+    REQUIRE(ev["view"]["id"] == "00000000-0000-0000-0000-000000000000");
+    REQUIRE(ev["view"]["url"] == "");
+
+    // And no warning is emitted
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  SECTION(
+      "M emit no vital event and warn W duration is zero (launch time equals now)"
+  ) {
+    // Given an active session with a view, and process_launch_time == now
+    StartView();
+    CoreContext ctx = GetTestContext();
+    // Frozen clock is at 1700000000000 ms; setting launch == now → duration_ns == 0
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1700000000000})
+    };
+
+    // When we process a ReportAppDisplayInitialized command
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then no vital event is emitted
+    REQUIRE(event_capture.Vitals().empty());
+
+    // And a warning was emitted
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit no vital event and warn W clock skew produces negative duration") {
+    // Given an active session with a view, but clock skew makes now < launch
+    StartView();
+    // Set launch time to 10s after the frozen clock (1700000000000 ms)
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1700000010000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+
+    // When we process a ReportAppDisplayInitialized command
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then no vital event is emitted
+    REQUIRE(event_capture.Vitals().empty());
+
+    // And a warning was emitted
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit no vital event and warn W duration is at or above 60s") {
+    // Given an active session with a view, and a launch time exactly 60s before now
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999940000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+    // duration = 60000ms = 60e9 ns — exactly at the upper bound (exclusive)
+
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    REQUIRE(event_capture.Vitals().empty());
+
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit vital event W duration is just inside valid range (1 ns)") {
+    // Given a launch time 1 ns before now
+    // Frozen clock is at 1700000000000 ms = 1700000000000000000 ns.
+    // We need launch such that (now - launch) == 1 ns.
+    // Easiest: set launch to (now - 1ns). The frozen clock is in milliseconds,
+    // so use a launch time 1ms before now (1 ms = 1e6 ns, well inside range).
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999999999})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+    // duration = 1ms = 1e6 ns — inside (0, 60e9)
+
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 1000000.0);
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  SECTION("M emit vital event W duration is just below 60s upper bound") {
+    // Launch time 59999ms before frozen clock → duration = 59999ms = 59.999e9 ns
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999940001})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 59999000000.0);
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+}
+
+TEST_CASE_METHOD(
+    SessionEventFixture, "RumSessionScope ReportAppFullyDisplayed", "[unit][rum]"
+) {
+  SECTION("M emit TTFD vital event W called once with an active view") {
+    // Given an active session with a view, and a known process launch time
+    StartView();
+
+    // Build a context with a specific process launch time so the duration is
+    // deterministic: launch at t=0, current time at t=5s → 5e9 ns
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+    // clock is frozen at 1700000000000 ms, so duration = 5000ms = 5e9 ns
+
+    // TTID must fire before TTFD for the immediate-emit path
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // When we process a ReportAppFullyDisplayed command
+    const auto result = scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then the session remains open
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // And two vital events are emitted (TTID + TTFD)
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    const auto& ev = vitals[1];
+
+    // With the correct type fields
+    REQUIRE(ev["type"] == "vital");
+    REQUIRE(ev["vital"]["type"] == "app_launch");
+    REQUIRE(ev["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(ev["vital"]["name"] == "time_to_full_display");
+
+    // With the correct duration (5000 ms = 5e9 ns)
+    REQUIRE(ev["vital"]["duration"].get<double>() == 5000000000.0);
+
+    // With a valid, non-zero vital ID
+    const std::string vital_id_str = ev["vital"]["id"];
+    const auto vital_id = UUID::Parse(vital_id_str);
+    REQUIRE(vital_id.has_value());
+    REQUIRE(*vital_id != UUID::Zero);
+
+    // date is the process launch time (ms since epoch), not the time of the call
+    REQUIRE(ev["date"].get<int64_t>() == 1699999995000LL);
+
+    // With the view URL from the active view
+    REQUIRE(ev["view"]["url"] == "my-view-key");
+  }
+
+  SECTION(
+      "M emit TTFD vital event with zero view fields W called with no active view"
+  ) {
+    // Given an active session with NO active view
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+
+    // TTID must fire before TTFD for the immediate-emit path
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // When we process a ReportAppFullyDisplayed command
+    const auto result = scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then the session remains open
+    REQUIRE(result == RumScopeResult::RemainOpen);
+
+    // And two vital events are emitted: TTID + TTFD (matching iOS/Android behavior)
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    const auto& ev = vitals[1];
+
+    REQUIRE(ev["type"] == "vital");
+    REQUIRE(ev["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(ev["vital"]["duration"].get<double>() == 5000000000.0);
+
+    // With zero view ID and empty URL
+    REQUIRE(ev["view"]["id"] == "00000000-0000-0000-0000-000000000000");
+    REQUIRE(ev["view"]["url"] == "");
+
+    // And no warning is emitted
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  SECTION(
+      "M emit no vital event and warn W duration is zero (launch time equals now)"
+  ) {
+    // Given an active session with a view, and process_launch_time == now
+    StartView();
+    CoreContext ctx = GetTestContext();
+    // Frozen clock is at 1700000000000 ms; setting launch == now → duration_ns == 0
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1700000000000})
+    };
+
+    // When we process a ReportAppFullyDisplayed command
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then no vital event is emitted
+    REQUIRE(event_capture.Vitals().empty());
+
+    // And a warning was emitted
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit no vital event and warn W clock skew produces negative duration") {
+    // Given an active session with a view, but clock skew makes now < launch
+    StartView();
+    // Set launch time to 10s after the frozen clock (1700000000000 ms)
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1700000010000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+
+    // When we process a ReportAppFullyDisplayed command
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then no vital event is emitted
+    REQUIRE(event_capture.Vitals().empty());
+
+    // And a warning was emitted
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit no vital event and warn W duration is at or above 90s") {
+    // Given an active session with a view, and a launch time exactly 90s before now
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999910000})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+    // duration = 90000ms = 90e9 ns - exactly at the upper bound (exclusive)
+
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    REQUIRE(event_capture.Vitals().empty());
+
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+
+  SECTION("M emit vital event W duration is just inside valid range (1 ms)") {
+    // Given a launch time 1ms before the frozen clock → duration = 1ms = 1e6 ns
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999999999})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+
+    // TTID must fire before TTFD for the immediate-emit path
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    REQUIRE(vitals[1]["vital"]["duration"].get<double>() == 1000000.0);
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  SECTION("M emit vital event W duration is just below 90s upper bound") {
+    // Launch time 89999ms before frozen clock → duration = 89999ms = 89.999e9 ns
+    StartView();
+    const Timestamp launch_time{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999910001})
+    };
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = launch_time;
+
+    // TTID must fire before TTFD for the immediate-emit path.
+    // TTID duration here is 89999ms which is within TTID's 60s limit, so we
+    // use a separate ctx with a closer launch time for TTID.
+    CoreContext ttid_ctx = GetTestContext();
+    ttid_ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()),
+        ttid_ctx,
+        GetTestWriter()
+    );
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    REQUIRE(vitals[1]["vital"]["duration"].get<double>() == 89999000000.0);
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  // --- TTID/TTFD immediate-path clamp tests ---
+  // These sections exercise the case where TTID fires first and TTFD fires
+  // second but with a raw duration smaller than TTID (the timestamp-capture race).
+
+  SECTION(
+      "M clamp TTFD to TTID W TTID fires first and raw TTFD duration < TTID duration"
+  ) {
+    // TTID duration: 5s (5e9 ns). TTFD raw duration: 3s (3e9 ns).
+    // Expected: TTFD emitted with duration = max(3e9, 5e9) = 5e9 ns.
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999990000})
+    };
+    // clock frozen at 1700000000000 ms → duration from launch = 10s.
+    // Override issued_at for each command to get the desired durations.
+    const Timestamp ttid_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    RumCommandParams ttid_params(ttid_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(std::move(ttid_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    const Timestamp ttfd_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999993000})
+    };
+    RumCommandParams ttfd_params(ttfd_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(std::move(ttfd_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 5000000000.0);
+    REQUIRE(vitals[1]["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(vitals[1]["vital"]["duration"].get<double>() == 5000000000.0);
+    // No warning: TTFD after TTID is the normal in-order path
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  SECTION("M not clamp TTFD W TTID fires first and raw TTFD duration > TTID duration") {
+    // TTID duration: 5s (5e9 ns). TTFD raw duration: 8s (8e9 ns).
+    // Expected: TTFD emitted with duration = max(8e9, 5e9) = 8e9 ns (no clamp).
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999990000})
+    };
+    const Timestamp ttid_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    RumCommandParams ttid_params(ttid_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(std::move(ttid_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    const Timestamp ttfd_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999998000})
+    };
+    RumCommandParams ttfd_params(ttfd_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(std::move(ttfd_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 5000000000.0);
+    REQUIRE(vitals[1]["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(vitals[1]["vital"]["duration"].get<double>() == 8000000000.0);
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+  }
+
+  // --- TTID/TTFD ordering tests ---
+  // These sections exercise the deferred-emit path: TTFD called before TTID.
+
+  SECTION(
+      "M defer TTFD and emit both events W TTFD is called before TTID "
+      "(raw TTFD < TTID, duration clamped to TTID)"
+  ) {
+    // Given a view and a launch time of t=0 (1700000000000 ms - 10000 ms).
+    // TTFD raw duration: 3s (3e9 ns). TTID duration: 5s (5e9 ns).
+    // Expected: TTFD emitted with duration = max(3e9, 5e9) = 5e9 ns.
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999990000})
+    };
+    // clock is frozen at 1700000000000 ms, so duration from launch = 10s = 10e9 ns.
+    // We want TTFD raw = 3s: rewind the command's issued_at by overriding the params.
+    // Do this by temporarily advancing a separate params timestamp:
+    // Use a params with issued_at = launch + 3s.
+    const Timestamp ttfd_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999993000})
+    };
+    RumCommandParams ttfd_params(ttfd_issued_at, {}, {});
+
+    // When TTFD is processed first (before TTID)
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(std::move(ttfd_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    // Then no event is emitted yet
+    REQUIRE(event_capture.Vitals().empty());
+    // And no warning yet (the warning fires at TTID time)
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+
+    // When TTID is subsequently processed (issued_at = launch + 5s)
+    const Timestamp ttid_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    RumCommandParams ttid_params(ttid_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(std::move(ttid_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    // Then both events are emitted
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+
+    // First event is TTID
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 5000000000.0);
+
+    // Second event is TTFD, clamped to TTID duration
+    REQUIRE(vitals[1]["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(vitals[1]["vital"]["duration"].get<double>() == 5000000000.0);
+
+    // And a warning was emitted at TTID time
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(
+        warnings[0].find("ReportAppFullyDisplayed was called before") !=
+        std::string::npos
+    );
+  }
+
+  SECTION(
+      "M defer TTFD and emit both events W TTFD is called before TTID "
+      "(raw TTFD > TTID, duration kept as raw TTFD)"
+  ) {
+    // TTFD raw = 8s, TTID = 5s. Expected: TTFD duration = max(8e9, 5e9) = 8e9 ns.
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999990000})
+    };
+
+    const Timestamp ttfd_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999998000})
+    };
+    RumCommandParams ttfd_params(ttfd_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(std::move(ttfd_params)),
+        ctx,
+        GetTestWriter()
+    );
+    REQUIRE(event_capture.Vitals().empty());
+
+    const Timestamp ttid_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    RumCommandParams ttid_params(ttid_issued_at, {}, {});
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(std::move(ttid_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(vitals[0]["vital"]["duration"].get<double>() == 5000000000.0);
+    REQUIRE(vitals[1]["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(vitals[1]["vital"]["duration"].get<double>() == 8000000000.0);
+
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(
+        warnings[0].find("ReportAppFullyDisplayed was called before") !=
+        std::string::npos
+    );
+  }
+
+  SECTION(
+      "M use TTFD-call-time attribute snapshot W TTFD is deferred until TTID fires"
+  ) {
+    // Given a view and a known process launch time
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999990000})
+    };
+
+    // When ReportAppFullyDisplayed is called with a global attribute "env" = "prod"
+    Attribute ttfd_global = Attribute::Object();
+    ttfd_global.SetObjectProperty("env", Attribute::String("prod"));
+    const Timestamp ttfd_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999993000})
+    };
+    RumCommandParams ttfd_params(ttfd_issued_at, ttfd_global, {});
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(std::move(ttfd_params)),
+        ctx,
+        GetTestWriter()
+    );
+    REQUIRE(event_capture.Vitals().empty());
+
+    // And then ReportAppDisplayInitialized is called with a different global attribute
+    // "env" = "staging" (simulating a global attribute change between the two calls)
+    Attribute ttid_global = Attribute::Object();
+    ttid_global.SetObjectProperty("env", Attribute::String("staging"));
+    const Timestamp ttid_issued_at{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    RumCommandParams ttid_params(ttid_issued_at, ttid_global, {});
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(std::move(ttid_params)),
+        ctx,
+        GetTestWriter()
+    );
+
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+
+    // The TTID event carries the TTID-call-time attribute snapshot
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+    REQUIRE(vitals[0]["context"]["env"] == "staging");
+
+    // The deferred TTFD event carries the TTFD-call-time attribute snapshot,
+    // not the TTID-call-time snapshot
+    REQUIRE(vitals[1]["vital"]["app_launch_metric"] == "ttfd");
+    REQUIRE(vitals[1]["context"]["env"] == "prod");
+  }
+
+  SECTION(
+      "M drop TTFD and warn W raw TTFD duration is out of range before TTID fires"
+  ) {
+    // Given a launch time such that TTFD raw duration = 95s (exceeds 90s max).
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999905000})
+    };
+    // clock frozen at 1700000000000 ms → raw TTFD duration = 95s = 95e9 ns (out of
+    // range)
+
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then no event is emitted and no pending TTFD is stored
+    REQUIRE(event_capture.Vitals().empty());
+
+    // A range warning was emitted immediately
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+
+    // When TTID subsequently fires with a valid duration, only TTID is emitted
+    // (no deferred TTFD, since the TTFD was rejected by the range check above)
+    CoreContext ttid_ctx = GetTestContext();
+    ttid_ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()),
+        ttid_ctx,
+        GetTestWriter()
+    );
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 1);
+    REQUIRE(vitals[0]["vital"]["app_launch_metric"] == "ttid");
+  }
+
+  SECTION("M not emit TTFD W TTFD is pending but TTID subsequently fails range check") {
+    // Given a valid TTFD raw duration (5s) stored as pending,
+    // but TTID is called with a launch time that makes TTID duration out of range.
+    StartView();
+
+    // TTFD: valid 5s duration relative to a launch time 5s before frozen clock
+    CoreContext ttfd_ctx = GetTestContext();
+    ttfd_ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ttfd_ctx, GetTestWriter()
+    );
+    REQUIRE(event_capture.Vitals().empty());
+    REQUIRE(event_capture.Diagnostics().warning.empty());
+
+    // TTID: launch time equals now → duration = 0 (fails range check)
+    CoreContext ttid_ctx = GetTestContext();
+    ttid_ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1700000000000})
+    };
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()),
+        ttid_ctx,
+        GetTestWriter()
+    );
+
+    // Then no events at all: TTID was rejected and _ttid_has_fired was not set,
+    // so the pending TTFD is never consumed.
+    REQUIRE(event_capture.Vitals().empty());
+
+    // A warning about the out-of-range TTID was emitted, but no TTFD warning
+    auto& warnings = event_capture.Diagnostics().warning;
+    REQUIRE(warnings.size() == 1);
+    REQUIRE(warnings[0].find("outside expected range") != std::string::npos);
+  }
+}
+
 TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]") {
   SECTION("M emit start vital event W StartOperation is processed") {
     // Given an active session with a view

@@ -67,6 +67,8 @@ TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
       rum->StartOperation("checkout");
       rum->SucceedOperation("checkout");
       rum->FailOperation("upload", RumOperationFailureReason::Error);
+      rum->ReportAppDisplayInitialized();
+      rum->ReportAppFullyDisplayed();
     }
   }
 }
@@ -136,6 +138,8 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
     rum->StartOperation("checkout");
     rum->SucceedOperation("checkout");
     rum->FailOperation("upload", RumOperationFailureReason::Error);
+    rum->ReportAppDisplayInitialized();
+    rum->ReportAppFullyDisplayed();
   };
 
   SECTION("M be safe to call RUM API W SDK not yet started") {
@@ -164,6 +168,86 @@ TEST_CASE("Rum usage when SDK not running", "[unit][rum][cpp-api]") {
 
     // Then no crashes occur, and no RUM events are produced
     REQUIRE(test.client.requests.empty());
+  }
+}
+
+TEST_CASE("Rum::ReportAppDisplayInitialized once-only guard", "[unit][rum][cpp-api]") {
+  // Given an SDK with RUM initialized and an active view
+  RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  auto core = CoreTestHarness::WrapForCpp(test);
+  auto rum = Rum::Register(core, rum_config);
+  REQUIRE(rum);
+  REQUIRE(core->Start());
+
+  rum->StartView("home", "Home Screen");
+
+  SECTION("M be safe to call W called more than once") {
+    // When we call ReportAppDisplayInitialized twice, the SDK should not crash and
+    // both calls should complete safely (the second is silently dropped)
+    rum->ReportAppDisplayInitialized();
+    rum->ReportAppDisplayInitialized();
+
+    core->Stop();
+    // Then no errors were emitted (warnings are swallowed by the impl-level logger)
+    REQUIRE(test.diagnostics.error.empty());
+  }
+
+  SECTION("M be safe to call W SDK is stopped and restarted") {
+    // When we call ReportAppDisplayInitialized once, then stop and restart
+    rum->ReportAppDisplayInitialized();
+    core->Stop();
+    REQUIRE(core->Start());
+
+    // And start a new view in the fresh session
+    rum->StartView("home2", "Home Screen 2");
+
+    // Then calling again is safe (guard was reset on Stop)
+    rum->ReportAppDisplayInitialized();
+    core->Stop();
+
+    REQUIRE(test.diagnostics.error.empty());
+  }
+}
+
+TEST_CASE("Rum::ReportAppFullyDisplayed once-only guard", "[unit][rum][cpp-api]") {
+  // Given an SDK with RUM initialized and an active view
+  RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  auto core = CoreTestHarness::WrapForCpp(test);
+  auto rum = Rum::Register(core, rum_config);
+  REQUIRE(rum);
+  REQUIRE(core->Start());
+
+  rum->StartView("home", "Home Screen");
+
+  SECTION("M be safe to call W called more than once") {
+    // When we call ReportAppFullyDisplayed twice, the SDK should not crash and
+    // both calls should complete safely (the second is silently dropped)
+    rum->ReportAppFullyDisplayed();
+    rum->ReportAppFullyDisplayed();
+
+    core->Stop();
+    // Then no errors were emitted (warnings are swallowed by the impl-level logger)
+    REQUIRE(test.diagnostics.error.empty());
+  }
+
+  SECTION("M be safe to call W SDK is stopped and restarted") {
+    // When we call ReportAppFullyDisplayed once, then stop and restart
+    rum->ReportAppFullyDisplayed();
+    core->Stop();
+    REQUIRE(core->Start());
+
+    // And start a new view in the fresh session
+    rum->StartView("home2", "Home Screen 2");
+
+    // Then calling again is safe (guard was reset on Stop)
+    rum->ReportAppFullyDisplayed();
+    core->Stop();
+
+    REQUIRE(test.diagnostics.error.empty());
   }
 }
 
@@ -373,6 +457,18 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
        },
        {"Rum::AddError recording an error with no message: application should supply a "
         "non-empty error message"},
+       {}},
+
+      // === AddLongTask() ===
+
+      {"M print warning W AddLongTask is called with non-positive duration",
+       [&](RumConfig& config, std::shared_ptr<Core>& core) {
+         with_rum(config, core, [](std::shared_ptr<Rum> rum) {
+           rum->StartView("my-view", "My View");
+           rum->AddLongTask(Duration::zero());
+         });
+       },
+       {"Rum::AddLongTask call ignored: application must supply a positive duration"},
        {}},
 
       // === StartOperation() / SucceedOperation() /
@@ -2387,6 +2483,146 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
               "format_version": 2
             }
           })"));
+       }},
+
+      // === AddLongTask() ===
+
+      {"M send long_task event W AddLongTask is called",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and then record a long task at T+5ms
+         rum->StartView("my-view", "My View");
+         clock.TickMilliseconds(5);
+         rum->AddLongTask(Duration(5000000));
+       },
+       [](const nlohmann::json& events) {
+         // Then we get a long_task event with the task's duration and, since it did not
+         // exceed the frozen-frame threshold, is_frozen_frame is false; its date is
+         // computed as the report time minus the task's duration
+         auto long_tasks = filter_events("long_task", events);
+         REQUIRE(long_tasks.size() == 1);
+         RequireEventMatch(long_tasks[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "long_task",
+            "date": 1700000000000,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "long_task": {
+              "id": "${__NONZERO_UUID__}",
+              "duration": 5000000,
+              "is_frozen_frame": false
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+
+         // And we also get a view event with an incremented long_task count and no
+         // frozen_frame count
+         auto views = filter_events("view", events);
+         REQUIRE(views.size() == 2);
+         REQUIRE(views[0]["view"]["id"] == long_tasks[0]["view"]["id"]);
+         REQUIRE(!views[0]["view"].contains("long_task"));
+         REQUIRE(!views[0]["view"].contains("frozen_frame"));
+         REQUIRE(views[1]["view"]["id"] == long_tasks[0]["view"]["id"]);
+         REQUIRE(views[1]["view"]["long_task"]["count"] == 1);
+         REQUIRE(!views[1]["view"].contains("frozen_frame"));
+       }},
+
+      {"M send frozen_frame long_task event with action.id W AddLongTask exceeds the "
+       "frozen-frame threshold with an active action",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock& clock) {
+         // When we create a RUM view and a RUM action, and then record a long task that
+         // exceeds the 700ms frozen-frame threshold at T+5ms
+         rum->StartView("my-view", "My View");
+         rum->AddAction(RumActionType::Click, "button1");
+         clock.TickMilliseconds(5);
+         rum->AddLongTask(Duration(800000000));
+       },
+       [](const nlohmann::json& events) {
+         // Then we get a long_task event marked as a frozen frame, correlated with the
+         // active action
+         auto long_tasks = filter_events("long_task", events);
+         REQUIRE(long_tasks.size() == 1);
+         RequireEventMatch(long_tasks[0], DATADOG_RUM_EVENT_LITERAL(R"({
+            "type": "long_task",
+            "date": 1699999999205,
+            "ddtags": "service:mock-service,version:mock-application-version,env:mock-env,sdk_version:1.2.3",
+            "os": {
+              "name": "MockOS",
+              "version": "1.0.0",
+              "build": "12345",
+              "version_major": "1"
+            },
+            "device": {
+              "type": "desktop",
+              "name": "MockDevice",
+              "model": "MockModel",
+              "brand": "MockBrand",
+              "architecture": "x86_64",
+              "locale": "en-US",
+              "time_zone": "UTC"
+            },
+            "application": {
+              "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+            },
+            "session": {
+              "id": "${__NONZERO_UUID__}",
+              "type": "user"
+            },
+            "view": {
+              "id": "${__NONZERO_UUID__}",
+              "url": "my-view",
+              "name": "My View"
+            },
+            "action": {
+              "id": "${__NONZERO_UUID__}"
+            },
+            "long_task": {
+              "id": "${__NONZERO_UUID__}",
+              "duration": 800000000,
+              "is_frozen_frame": true
+            },
+            "_dd": {
+              "format_version": 2
+            }
+          })"));
+
+         // And we get a view event with both long_task and frozen_frame counts of 1
+         auto views = filter_events("view", events);
+         REQUIRE(views.back()["view"]["id"] == long_tasks[0]["view"]["id"]);
+         REQUIRE(views.back()["view"]["long_task"]["count"] == 1);
+         REQUIRE(views.back()["view"]["frozen_frame"]["count"] == 1);
        }},
 
       // === Action lifetime vis-a-vis resources ===

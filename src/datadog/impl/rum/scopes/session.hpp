@@ -180,6 +180,45 @@ class RumSessionScope {
   );
 
   /**
+   * Handles the ReportAppDisplayInitialized command: computes the TTID duration,
+   * emits the TTID app-launch vital event, and - if a TTFD call arrived earlier -
+   * emits the deferred TTFD event immediately after.
+   */
+  void HandleReportAppDisplayInitialized(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
+
+  /**
+   * Handles the ReportAppFullyDisplayed command: computes the TTFD duration and
+   * either emits the TTFD vital event immediately (if TTID has already fired) or
+   * stores it for deferred emission when TTID fires. If no view is active at emit
+   * time, the event is emitted with `view.id` set to `UUID::Zero` and
+   * `view.url` set to `""`.
+   */
+  void HandleReportAppFullyDisplayed(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
+
+  /**
+   * Constructs and emits an app-launch vital event (TTID or TTFD).
+   * `view` may be null when no view is active; in that case the event is emitted
+   * with `view.id` set to `UUID::Zero` and `view.url` set to `""`, matching the
+   * behavior of the iOS and Android SDKs.
+   * `duration_ns` is the computed nanosecond duration from process launch to now.
+   * `metric` selects between TTID and TTFD; `vital_name` is the corresponding
+   * human-readable name (e.g. `"time_to_initial_display"`).
+   */
+  void SendAppLaunchVitalEvent(
+      const RumCommandParams& base,
+      const RumViewScope* view,
+      double duration_ns,
+      RumVitalAppLaunchMetric metric,
+      std::string_view vital_name,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
+
+  /**
    * Constructs and emits a RUM vital event in the context of the current session.
    * If there is an active view, the event will include view context; otherwise,
    * view fields will be empty/zero.
@@ -218,6 +257,26 @@ class RumSessionScope {
   // Active operations tracking: set of composite keys (name + operationKey) for
   // developer warnings about duplicate starts or stop-without-start
   std::unordered_set<std::string> _active_operations;
+
+  // TTID/TTFD ordering state. Both live on the context thread; no locking needed.
+  //
+  // Set to true after a successful TTID emit. Consulted by
+  // HandleReportAppFullyDisplayed to decide whether to emit immediately or defer.
+  bool _ttid_has_fired{false};
+  // Duration (ns) of the successfully-emitted TTID vital. Written once by
+  // HandleReportAppDisplayInitialized immediately before _ttid_has_fired is set.
+  // Read by HandleReportAppFullyDisplayed to clamp TTFD when TTID has already fired.
+  double _ttid_duration_ns{0.0};
+  // State captured when ReportAppFullyDisplayed fires before
+  // ReportAppDisplayInitialized. Consumed and cleared when TTID subsequently fires.
+  // `base` preserves the attribute snapshot from TTFD-call time so the deferred
+  // TTFD event carries the correct `context` values. `base.issued_at` is captured
+  // but not used: the event timestamp is always set to process_launch_time.
+  struct PendingTTFD {
+    double duration_ns;
+    RumCommandParams base;
+  };
+  std::optional<PendingTTFD> _pending_ttfd;
 
   // Total number of foreground views explicitly opened in this session scope
   // TODO(RUM-12242): Ensure that ApplicationLaunch view doesn't count toward this

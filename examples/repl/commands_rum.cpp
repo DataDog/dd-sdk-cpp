@@ -4,6 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <charconv>
 #include <optional>
 
 #include "datadog.hpp"
@@ -467,6 +468,33 @@ CommandResult HandleAddError(State& state, const CommandInput& args) {
   return CommandResult::OK("Rum::AddError()");
 }
 
+CommandResult HandleAddLongTask(State& state, const CommandInput& args) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  // Positional args
+  auto pos = args.Positional();
+  auto duration_str = pos[0];
+  if (duration_str.empty()) {
+    return CommandResult::Error("No duration given!");
+  }
+  uint64_t duration_ns{0};
+  auto res = std::from_chars(
+      duration_str.data(), duration_str.data() + duration_str.size(), duration_ns
+  );
+  if (res.ec != std::errc{}) {
+    return CommandResult::Error("Duration must be a non-negative integer!");
+  }
+
+  state.rum->AddLongTask(datadog::Duration(duration_ns));
+  return CommandResult::OK("Rum::AddLongTask()");
+}
+
 CommandResult HandleStartOperation(State& state, const CommandInput& args) {
   // RUM must be registered and SDK must be running
   if (!state.rum) {
@@ -548,4 +576,30 @@ CommandResult HandleFailOperation(State& state, const CommandInput& args) {
 
   state.rum->FailOperation(name, reason, key);
   return CommandResult::OK("Rum::FailOperation()");
+}
+
+CommandResult HandleReportAppDisplayInitialized(State& state, const CommandInput&) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  state.rum->ReportAppDisplayInitialized();
+  return CommandResult::OK("Rum::ReportAppDisplayInitialized()");
+}
+
+CommandResult HandleReportAppFullyDisplayed(State& state, const CommandInput&) {
+  // RUM must be registered and SDK must be running
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+
+  state.rum->ReportAppFullyDisplayed();
+  return CommandResult::OK("Rum::ReportAppFullyDisplayed()");
 }

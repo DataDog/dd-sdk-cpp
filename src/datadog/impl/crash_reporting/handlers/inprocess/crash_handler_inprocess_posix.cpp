@@ -22,13 +22,7 @@
 #include <cinttypes>
 #include <cstring>
 #include <ctime>
-
-// We only officially support 64-bit architectures; this code may need to be revisited
-// if we add legacy 32-bit support
-static_assert(
-    sizeof(uint64_t) == sizeof(uintptr_t),
-    "Unexpected uintptr_t size; POSIX crash handler assumes LP64"
-);
+#include <limits>
 
 // macOS binaries use Mach-O format, and shared libraries are loaded via dyld: we use
 // _dyld_get_image_header(), mach_header, et al. in order to enumerate and inspect the
@@ -124,7 +118,9 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
   // The topmost (most-recently-pushed) frame in our callstack represents the function
   // in which the crash occurred: the value of the instruction pointer / program counter
   // at the time of the crash indicates exactly where the crash occurred
-  WriteCrashReportStackFrame(fd, reinterpret_cast<uint64_t>(instruction_pointer));
+  WriteCrashReportStackFrame(
+      fd, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(instruction_pointer))
+  );
 
   // Stop after 128 frames to bound execution time and prevent runaway traversal
   const int max_frames = 128;
@@ -134,8 +130,9 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
   // pointer value or signs of stack corruption
   void* fp = frame_pointer;
   for (int i = 0; i < max_frames && fp != nullptr; i++) {
-    // If the frame pointer value is not 8-byte aligned, it's not a valid frame pointer
-    if ((reinterpret_cast<uintptr_t>(fp) & 0x7) != 0) {
+    // If the frame pointer value is not pointer-size aligned, it's not a valid frame
+    // pointer
+    if ((reinterpret_cast<uintptr_t>(fp) & (sizeof(void*) - 1)) != 0) {
       break;
     }
 
@@ -163,7 +160,36 @@ static void write_stack_trace(int fd, void* instruction_pointer, void* frame_poi
     // address points to the instruction to be executed after this function returns
     // (immediately following the call that created this frame). Symbolication tools
     // will adjust to resolve the actual call site.
-    WriteCrashReportStackFrame(fd, reinterpret_cast<uint64_t>(ret_addr));
+#ifdef __aarch64__
+    // Strip pointer authentication codes from the return address. On AArch64, the CPU
+    // encodes a PAC signature in the upper bits of return addresses stored on the
+    // stack. These bits must be cleared to recover the canonical virtual address before
+    // the address can be compared against module load ranges.
+    //
+    // xpaci strips exactly the PAC bits using the CPU's own key and VA-width
+    // configuration, so it is correct regardless of whether the kernel uses 48-bit or
+    // 52-bit user VAs (CONFIG_ARM64_VA_BITS_52). On pre-PAC hardware (ARMv8.0-8.2)
+    // xpaci falls in the HINT space and executes as a NOP, which is also correct
+    // because those CPUs never encode PAC bits in addresses. Clang's integrated
+    // assembler accepts the instruction regardless of -march, so no feature guard is
+    // needed.
+    uint64_t raw_ret = reinterpret_cast<uint64_t>(ret_addr);
+    // xpaci strips PAC bits from an instruction-pointer value. We pin the operand to
+    // x16 and emit the instruction via .inst so that the assembler does not require
+    // -march=armv8.3-a+pauth; the encoding is unambiguous and fixed for a given
+    // register. x16 (IP0) is a caller-saved scratch register and safe to use here.
+    // xpaci x16 = 0xDAC143F0
+    {
+      register uint64_t r asm("x16") = raw_ret;
+      asm(".inst 0xDAC143F0" : "+r"(r));
+      raw_ret = r;
+    }
+    WriteCrashReportStackFrame(fd, raw_ret);
+#else
+    WriteCrashReportStackFrame(
+        fd, static_cast<uint64_t>(reinterpret_cast<uintptr_t>(ret_addr))
+    );
+#endif
 
     // Reading frame[0] into fp (effectively dereferencing fp) moves to the next frame
     fp = frame[0];
@@ -321,7 +347,7 @@ static void write_modules(int fd) {
     // process memory. For all such pages, we accumulate the lowest-seen vmaddr and the
     // highest-seen vmaddr_end (vmaddr + vmsize), giving us the range in virtual memory
     // where the module is mapped, prior to ASLR slide.
-    uintptr_t min_vmaddr = 0xFFFFFFFFFFFFFFFF;
+    uintptr_t min_vmaddr = std::numeric_limits<uintptr_t>::max();
     uintptr_t max_vmaddr_end = 0;
     for (uint32_t cmd_idx = 0; cmd_idx < ncmds; cmd_idx++) {
       // If the current load comand describes a valid segment other than __PAGEZERO,
@@ -390,8 +416,8 @@ static void write_modules(int fd) {
     // Write the relevant details of this module
     WriteCrashReportModule(
         fd,
-        static_cast<uint64_t>(actual_start),
-        static_cast<uint64_t>(actual_end),
+        static_cast<uint64_t>(static_cast<uintptr_t>(actual_start)),
+        static_cast<uint64_t>(static_cast<uintptr_t>(actual_end)),
         image_name,
         build_id
     );
@@ -646,12 +672,19 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   // writing to that file before chaining and/or exiting
   WriteCrashReportHeader(
       fd,
-      static_cast<uint64_t>(sig),                  // fault_code (signal number)
-      reinterpret_cast<uint64_t>(info->si_addr),   // fault_address
-      0,                                           // fault_flags (0 on POSIX)
-      static_cast<uint64_t>(getpid()),             // pid
-      reinterpret_cast<uint64_t>(pthread_self()),  // tid
-      crash_timestamp_ms                           // timestamp_ms
+      static_cast<uint64_t>(sig),  // fault_code (signal number)
+      static_cast<uint64_t>(
+          reinterpret_cast<uintptr_t>(info->si_addr)
+      ),                                // fault_address
+      0,                                // fault_flags (0 on POSIX)
+      static_cast<uint64_t>(getpid()),  // pid
+// pthread_t is a pointer on macOS but an integer type on Linux; cast accordingly
+#ifdef __APPLE__
+      static_cast<uint64_t>(reinterpret_cast<uintptr_t>(pthread_self())),  // tid
+#else
+      static_cast<uint64_t>(pthread_self()),  // tid
+#endif
+      crash_timestamp_ms  // timestamp_ms
   );
 
   // The provided ucontext value contains CPU register states saved at time of crash:
@@ -695,6 +728,23 @@ static void crash_signal_handler(int sig, siginfo_t* info, void* ucontext_raw) {
   // Linux arm64: pc/fp (ARM64's x29 register = FP)
   ip = reinterpret_cast<void*>(uc->uc_mcontext.pc);
   fp = reinterpret_cast<void*>(uc->uc_mcontext.regs[29]);
+#elif defined(__i386__)
+  // Linux x86: eip/ebp
+  ip = reinterpret_cast<void*>(uc->uc_mcontext.gregs[REG_EIP]);
+  fp = reinterpret_cast<void*>(uc->uc_mcontext.gregs[REG_EBP]);
+#elif defined(__arm__)
+  // Linux ARMv7: pc is always arm_pc. The frame pointer register depends on the
+  // instruction set state of the crashed thread at the time of the fault:
+  //   - ARM state:   r11 (arm_fp) is the frame pointer per AAPCS
+  //   - Thumb state: r7  (arm_r7) is the frame pointer per AAPCS Thumb convention
+  // The T-bit (bit 5) of the saved CPSR indicates which state was active.
+  ip = reinterpret_cast<void*>(uc->uc_mcontext.arm_pc);
+  {
+    const bool thumb_state = (uc->uc_mcontext.arm_cpsr & (1U << 5)) != 0;
+    fp = reinterpret_cast<void*>(
+        thumb_state ? uc->uc_mcontext.arm_r7 : uc->uc_mcontext.arm_fp
+    );
+  }
 #else
 #error "Unsupported architecture for in-process crash handler on Linux"
 #endif

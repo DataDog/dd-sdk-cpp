@@ -15,7 +15,8 @@ TEST_CASE("null JSON serialization", "[unit][json]") {
     // A literal nullptr_t value will be serialized as a JSON null
     RequireJsonLiteral(nullptr, "null");
 
-    // Note that C-style NULL is just 0 and will be serialized as a number
-    RequireJsonLiteral(NULL, "0");
+    // Note that an integer zero (such as NULL on most systems) will be serialized as a
+    // number, not as null
+    RequireJsonLiteral(static_cast<int>(0), "0");
   }
 }

@@ -24,7 +24,7 @@ cmake_minimum_required(VERSION 3.21)
 # - CMAKE_OSX_ARCHITECTURES (e.g. 'arm64;x86_64' for universal binaries): determines the
 #   target architecture(s) for the build.
 
-project(ddsdkcpp VERSION 0.5.0 LANGUAGES C CXX)
+project(ddsdkcpp VERSION 0.6.0 LANGUAGES C CXX)
 
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
@@ -54,7 +54,7 @@ option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
 option(DD_BUILD_TOOLS "Build optional utilities from C++ source within tools/" ${DD_DEVELOPMENT})
 option(DD_BUILD_INSTALL "Enable install targets" ${PROJECT_IS_TOP_LEVEL})
 option(DD_BUILD_PACKAGE "Enable package targets and build required tools" ${PROJECT_IS_TOP_LEVEL})
-option(DD_ENABLE_GIT_REVISION_INFO "Stamp the build with the git branch name, commit sha, and blob hash of src/ (incl. pending changes) computed at configure-time" ${DD_BUILD_INSTALL})
+option(DD_ENABLE_GIT_REVISION_INFO "Stamp the build with the git branch name, commit sha, and blob hash of src/ (incl. pending changes) computed at configure-time" OFF)
 option(DD_ENABLE_EVENT_VALIDATION "Include targets for validating JSON event payloads against rum-events-format schemas (requires Python)" ${DD_DEVELOPMENT})
 option(DD_ENABLE_INTEGRATION_TEST "Include targets for running integration tests (requires Python and DD_BUILD_EXAMPLES)" "${DD_DEVELOPMENT}")
 option(DD_ENABLE_CLANG_FORMAT "Enable clang-format for format validation and automatic formatting" ${DD_DEVELOPMENT})

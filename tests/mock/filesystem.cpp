@@ -485,6 +485,20 @@ FilesystemResult MockFilesystem::Close(PlatformFileHandle handle) {
   return FilesystemResult::OK;
 }
 
+IFilesystem::GetFileSizeResult MockFilesystem::GetFileSize(const PlatformPath& path) {
+  const std::string normalized_path = NormalizePath(path);
+  std::lock_guard lock(_mutex);
+
+  const auto found = _files.find(normalized_path);
+  if (found == _files.end()) {
+    return {FilesystemResult::DoesNotExist, 0};
+  }
+  if (auto status = HasSimulatedFailure(found->second, FailureFlags::Stat)) {
+    return {*status, 0};
+  }
+  return {FilesystemResult::OK, found->second.data.size()};
+}
+
 FilesystemResult MockFilesystem::Delete(const PlatformPath& path) {
   const std::string normalized_path = NormalizePath(path);
   std::lock_guard lock(_mutex);
@@ -931,7 +945,7 @@ bool MockFilesystem::IsFileLocked(std::string_view path) {
   if (file != _files.end()) {
     return file->second.advisory_lock_holder != INVALID_FILE_HANDLE;
   }
-  return "";
+  return false;
 }
 
 std::string MockFilesystem::Cat(std::string_view path) {

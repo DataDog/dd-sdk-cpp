@@ -25,7 +25,9 @@ TEST_CASE("HttpRequestBuilder", "[unit][core]") {
   config.Internal_UseCustomEndpoint("https://example.com/intake");
   config.Internal_SetSource("some-sdk");
   config.Internal_SetSdkVersion("4.5.6");
-  ImmutableContext imm(config, MOCK_OS_INFO, MOCK_DEVICE_INFO, "http-client", "1.1.2");
+  ImmutableContext imm(
+      config, MOCK_OS_INFO, MOCK_DEVICE_INFO, Timestamp{}, "http-client", "1.1.2"
+  );
   CoreContext ctx(imm, TrackingConsent::Pending);
 
   // And a HttpRequestBuilder initialized from that context

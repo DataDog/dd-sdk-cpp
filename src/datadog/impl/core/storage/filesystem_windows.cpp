@@ -352,6 +352,17 @@ class WindowsFilesystem final : public IFilesystem {
     return FilesystemResult::OK;
   }
 
+  GetFileSizeResult GetFileSize(const PlatformPath& path) override {
+    WIN32_FILE_ATTRIBUTE_DATA data;
+    if (GetFileAttributesExW(path.Get(), GetFileExInfoStandard, &data) == 0) {
+      return {map_error(GetLastError()), 0};
+    }
+    const size_t size = static_cast<size_t>(
+        (static_cast<uint64_t>(data.nFileSizeHigh) << 32) | data.nFileSizeLow
+    );
+    return {FilesystemResult::OK, size};
+  }
+
   FilesystemResult Delete(const PlatformPath& path) override {
     const BOOL result = DeleteFileW(path.Get());
     if (result == 0) {

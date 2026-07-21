@@ -324,6 +324,33 @@ void Rum::AddError(
   }
 }
 
+void Rum::AddLongTask(Duration duration, const Attribute& attributes) {
+  if (_impl) {
+    // The schema for RUM long_task events requires a positive duration; reject it,
+    // logging a warning
+    if (duration <= Duration::zero()) {
+      impl::DiagnosticLogger{_diagnostic_handler, _diagnostic_threshold}.Warning(
+          "Rum::AddLongTask call ignored: application must supply a positive duration"
+      );
+      return;
+    }
+
+    _impl->AddLongTask(duration, attributes);
+  }
+}
+
+void Rum::ReportAppDisplayInitialized() {
+  if (_impl) {
+    _impl->ReportAppDisplayInitialized();
+  }
+}
+
+void Rum::ReportAppFullyDisplayed() {
+  if (_impl) {
+    _impl->ReportAppFullyDisplayed();
+  }
+}
+
 void Rum::StartOperation(
     std::string_view name, std::string_view operation_key, const Attribute& attributes
 ) {

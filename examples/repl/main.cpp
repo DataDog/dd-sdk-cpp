@@ -134,6 +134,9 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "add-error") {
     return HandleAddError(state, input.Shift());
   }
+  if (input.Peek() == "add-long-task") {
+    return HandleAddLongTask(state, input.Shift());
+  }
   if (input.Peek() == "start-operation") {
     return HandleStartOperation(state, input.Shift());
   }
@@ -142,6 +145,12 @@ CommandResult Handle(State& state, const CommandInput& input) {
   }
   if (input.Peek() == "fail-operation") {
     return HandleFailOperation(state, input.Shift());
+  }
+  if (input.Peek() == "report-app-display-initialized") {
+    return HandleReportAppDisplayInitialized(state, input.Shift());
+  }
+  if (input.Peek() == "report-app-fully-displayed") {
+    return HandleReportAppFullyDisplayed(state, input.Shift());
   }
 
   // datadog::CrashReporting

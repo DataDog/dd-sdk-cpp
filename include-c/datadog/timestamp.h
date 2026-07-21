@@ -17,6 +17,11 @@
  */
 typedef int64_t dd_timestamp_t;
 
+/**
+ * A span of time, expressed as a signed int64 count of nanoseconds.
+ */
+typedef int64_t dd_duration_t;
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -24,6 +29,10 @@ extern "C" {
 DATADOG_API dd_timestamp_t dd_timestamp_ns(int64_t nanoseconds_since_epoch);
 DATADOG_API dd_timestamp_t dd_timestamp_ms(int64_t milliseconds_since_epoch);
 DATADOG_API dd_timestamp_t dd_timestamp_seconds(int64_t seconds_since_epoch);
+
+DATADOG_API dd_duration_t dd_duration_ns(int64_t nanoseconds);
+DATADOG_API dd_duration_t dd_duration_ms(int64_t milliseconds);
+DATADOG_API dd_duration_t dd_duration_seconds(int64_t seconds);
 
 #ifdef __cplusplus
 }

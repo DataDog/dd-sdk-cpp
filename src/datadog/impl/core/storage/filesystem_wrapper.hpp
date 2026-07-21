@@ -96,6 +96,7 @@ class FilesystemWrapper {
   );
   OpenFileResult OpenForWrite(const char* path, bool append, bool hold_advisory_lock);
   OpenFileResult OpenForRead(const char* path, bool hold_advisory_lock);
+  IFilesystem::GetFileSizeResult GetFileSize(const char* path);
   FilesystemResult Delete(const char* path);
   FilesystemResult DeleteDirectory(const char* path);
   FilesystemResult Rename(const char* src, const char* dst);

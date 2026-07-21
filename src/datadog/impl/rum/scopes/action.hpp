@@ -98,6 +98,7 @@ class RumActionScope {
   int32_t _num_active_resources{0};
   size_t _num_resources_recorded{0};
   size_t _num_errors_recorded{0};
+  size_t _num_long_tasks_recorded{0};
 
   bool _has_sent_action_event{false};
 
