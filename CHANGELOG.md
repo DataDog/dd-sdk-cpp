@@ -1,3 +1,23 @@
+## 0.6.0
+
+### Breaking Changes
+
+- In the C API, `dd_core_config_t` now stores string fields (such as `client_token`, `env`, `version`, and `service`) in fixed-size inline buffers instead of `char*` pointers.
+
+### Features
+
+- Time to Initial Display (TTID) can now be reported by calling `Rum::ReportAppDisplayInitialized()` when your app begins rendering its first frame.
+- Time to Full Display (TTFD) can now be reported by calling `Rum::ReportAppFullyDisplayed()` after reporting TTID, at a point where the first frame is displayed to the user in a complete form.
+- Hitches in main-thread performance can now be reported as RUM Long Tasks, by calling `Rum::AddLongTask()`.
+- The SDK now officially supports 32-bit CPU architectures (e.g., x86/i386 and ARM) on Linux.
+
+### Fixes
+
+- Stack frames in the POSIX crash handler now correctly resolve return addresses on ARM64 devices that use Pointer Authentication Codes (PAC), fixing cases where frames could not be mapped to their originating modules.
+- The pending-consent storage directory is now subject to the same 18-hour age-based eviction as the granted-consent directory, preventing unbounded disk growth when tracking consent is never granted.
+- Event storage directories are now subject to a 512 MB whole-directory size cap; when the limit is exceeded, the oldest batch files are deleted before new data is written.
+- Individual events larger than 512 kB are now rejected and dropped rather than being written to disk.
+
 ## 0.5.0
 
 ### Breaking Changes
