@@ -1,3 +1,24 @@
+## 0.6.0
+
+### Breaking Changes
+
+- The C API `dd_core_config_t` and `dd_internal_options_t` structs now store string fields (such as `client_token`, `env`, `version`, and `service`) in fixed-size inline buffers instead of `char*` pointers, and an associated public constant has been renamed; this is an ABI and API breaking change requiring recompilation and updates to any code referencing the old constant.
+
+### Features
+
+- Added `Rum::ReportAppDisplayInitialized()` (C: `dd_rum_report_app_display_initialized()`) to manually report Time to Initial Display (TTID), emitting a `"ttid"` app launch vital event the first time it is called within an SDK instance lifetime.
+- Added `Rum::ReportAppFullyDisplayed()` (C: `dd_rum_report_app_fully_displayed()`) to manually report Time to Full Display (TTFD), emitting a `"ttfd"` app launch vital event; if TTFD is reported before TTID, the event is held and emitted only after TTID is reported, with its duration clamped to be no less than TTID, matching iOS and Android SDK behavior.
+- Added a new API for manually reporting long tasks by providing a duration in nanoseconds; `View` and `Action` scopes now also track and report the count of long tasks in their lifetime.
+- The SDK now supports 32-bit CPU architectures (e.g., x86/i386 and ARM) on Linux, including correct register extraction, stack walking, crash handler operation, and build artifact stamping.
+- A new `GetProcessLaunchTime()` method on `ISystemInfo` returns the wall-clock time at which the current application process was started by the OS.
+
+### Fixes
+
+- Stack frames in the POSIX crash handler now correctly resolve return addresses on ARM64 devices that use Pointer Authentication Codes (PAC), fixing cases where frames could not be mapped to their originating modules.
+- The pending-consent storage directory is now subject to the same 18-hour age-based eviction as the granted-consent directory, preventing unbounded disk growth when tracking consent is never granted.
+- Event storage directories are now subject to a 512 MB whole-directory size cap; when the limit is exceeded, the oldest batch files are deleted before new data is written.
+- Individual events larger than 512 kB are now rejected and dropped rather than being written to disk.
+
 ## 0.5.0
 
 ### Breaking Changes

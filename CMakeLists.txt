@@ -24,7 +24,7 @@ cmake_minimum_required(VERSION 3.21)
 # - CMAKE_OSX_ARCHITECTURES (e.g. 'arm64;x86_64' for universal binaries): determines the
 #   target architecture(s) for the build.
 
-project(ddsdkcpp VERSION 0.5.0 LANGUAGES C CXX)
+project(ddsdkcpp VERSION 0.6.0 LANGUAGES C CXX)
 
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
