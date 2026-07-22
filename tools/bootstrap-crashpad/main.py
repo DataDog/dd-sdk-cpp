@@ -515,16 +515,15 @@ def test_main(args: argparse.Namespace):
 def patch_update_main(args: argparse.Namespace):
     local_clone = os.path.abspath(args.local_clone)
 
-    # 1. Current pinned revision
     base_hash = read_pinned_revision()
     print(f'Current pinned revision: {base_hash}')
 
-    # 2. Verify the local clone is a git repository
+    # Verify the local clone is a git repository
     if subprocess.run(['git', 'rev-parse', '--git-dir'], cwd=local_clone,
                       capture_output=True).returncode != 0:
         raise RuntimeError(f'{local_clone!r} is not a git repository')
 
-    # 3. Verify the datadog branch exists
+    # Verify the datadog branch exists
     if subprocess.run(['git', 'rev-parse', '--verify', __datadog_branch__],
                       cwd=local_clone, capture_output=True).returncode != 0:
         raise RuntimeError(
@@ -532,11 +531,11 @@ def patch_update_main(args: argparse.Namespace):
             'Create it with `dev init` first.'
         )
 
-    # 4. Find the fork point: the upstream commit that the datadog branch is directly based on.
-    #    We use merge-base(datadog, origin/main) rather than merge-base(datadog, base_hash),
-    #    because the latter always returns base_hash (it's always an ancestor of datadog), and
-    #    therefore can't detect that the developer has rebased onto a newer upstream commit.
-    #    origin/main must be up to date — remind the user to `git fetch` if it's stale.
+    # Find the fork point: the upstream commit that the datadog branch is directly based on.
+    # We use merge-base(datadog, origin/main) rather than merge-base(datadog, base_hash),
+    # because the latter always returns base_hash (it's always an ancestor of datadog), and
+    # therefore can't detect that the developer has rebased onto a newer upstream commit.
+    # origin/main must be up to date — remind the user to `git fetch` if it's stale.
     fork_point_result = subprocess.run(
         ['git', 'merge-base', __datadog_branch__, 'origin/main'],
         cwd=local_clone, capture_output=True, text=True
@@ -562,7 +561,7 @@ def patch_update_main(args: argparse.Namespace):
             f'{__datadog_branch__!r} branch is rebased onto a commit that descends from the pin.'
         )
 
-    # 5+6+7. Produce the diff and write datadog.patch
+    # Produce the diff and write datadog.patch
     diff_result = subprocess.run(
         ['git', 'diff', fork_point, __datadog_branch__],
         cwd=local_clone, capture_output=True, text=True, check=True
@@ -574,22 +573,21 @@ def patch_update_main(args: argparse.Namespace):
         f.write(diff_content)
     print(f'Wrote {__patch_file__}')
 
-    # 8. The new pin is the fork point: when the developer hasn't rebased, this equals
-    #    base_hash and the pin is unchanged. When they've rebased onto a newer upstream
-    #    commit, this is that newer commit and the pin advances accordingly.
+    # The new pin is the fork point: when the developer hasn't rebased, this equals
+    # base_hash and the pin is unchanged. When they've rebased onto a newer upstream
+    # commit, this is that newer commit and the pin advances accordingly.
     new_base_hash = fork_point
 
-    # 9. Update pin files if the base has advanced
+    # Update pin files if the base has advanced
     if new_base_hash != base_hash:
         write_pinned_revision(new_base_hash)
 
-    # 10. Summary
     line_count = len(diff_content.splitlines()) if diff_content else 0
     files_changed = len([l for l in diff_content.splitlines() if l.startswith('diff --git')])
     print(f'Patch summary: {line_count} lines, {files_changed} file(s) changed')
     print(f'Pin: {new_base_hash}')
 
-    # 11. Remind the user what to commit
+    # Remind the user what to commit
     print()
     print('Remember to commit the following files together:')
     print(f'  {__patch_file__}')
@@ -601,7 +599,7 @@ def patch_update_main(args: argparse.Namespace):
 def dev_init_main(args: argparse.Namespace):
     local_clone = os.path.abspath(args.local_clone)
 
-    # 1+2. Pre-validate local_clone before doing any network work
+    # Pre-validate local_clone before doing any network work
     if not os.path.isdir(local_clone) or not os.listdir(local_clone):
         raise RuntimeError(
             f'{local_clone!r} does not exist or is empty.\n'
@@ -618,14 +616,13 @@ def dev_init_main(args: argparse.Namespace):
             f'  origin URL: {remote_result.stdout.strip()!r}'
         )
 
-    # 3. Ensure depot_tools is available
+    # Ensure depot_tools is available
     clone_depot_tools()
 
-    # 4. Read the pinned revision
     base_hash = read_pinned_revision()
     print(f'Pinned revision: {base_hash}')
 
-    # 5. Ensure base_hash is present in the clone; fetch if not
+    # Ensure base_hash is present in the clone; fetch if not
     def _has_commit(hash_: str) -> bool:
         return subprocess.run(
             ['git', 'cat-file', '-e', f'{hash_}^{{commit}}'],
@@ -641,7 +638,7 @@ def dev_init_main(args: argparse.Namespace):
                 f'fetching. Check that this clone tracks the correct remote.'
             )
 
-    # 6. Create or validate the datadog branch
+    # Create or validate the datadog branch
     branch_exists = subprocess.run(
         ['git', 'rev-parse', '--verify', __datadog_branch__],
         cwd=local_clone, capture_output=True
@@ -669,7 +666,7 @@ def dev_init_main(args: argparse.Namespace):
                 f'rebase it onto {base_hash}, then re-run dev init.'
             )
 
-    # 7. Optionally run gclient sync to populate third_party/ and buildtools/
+    # Optionally run gclient sync to populate third_party/ and buildtools/
     if not args.no_sync:
         parent_dir = os.path.dirname(local_clone)
         gclient_path = os.path.join(parent_dir, '.gclient')
@@ -689,10 +686,9 @@ def dev_init_main(args: argparse.Namespace):
         print('Running gclient sync (this may take a few minutes on first run)...')
         _run_depot_tool(['gclient', 'sync'], parent_dir)
 
-    # 8. Apply the patch if non-empty
+    # Apply the patch if non-empty
     apply_patch(local_clone)
 
-    # 9. Summary
     print()
     print('dev init complete.')
     print(f'  Local clone : {local_clone}')
