@@ -50,6 +50,9 @@ endif()
 set(DD_CRASHPAD_LOCAL_CLONE "" CACHE PATH
     "Path to a local crashpad clone to build from instead of fetching via depot_tools")
 if(DD_CRASHPAD_LOCAL_CLONE)
+    get_filename_component(DD_CRASHPAD_LOCAL_CLONE "${DD_CRASHPAD_LOCAL_CLONE}" ABSOLUTE)
+endif()
+if(DD_CRASHPAD_LOCAL_CLONE)
     # Local-clone mode: the clone is managed by the developer via `dev init`; nothing to
     # fetch. Build using `dev build`, which sources from the local clone directly.
     set(CRASHPAD_SOURCE_DIR_ARG SOURCE_DIR ${DD_CRASHPAD_LOCAL_CLONE})
