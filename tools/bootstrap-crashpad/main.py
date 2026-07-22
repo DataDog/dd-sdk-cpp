@@ -77,6 +77,7 @@ __crashpad_test_binaries__ = [
     'crashpad_util_test',
 ]
 __default_crashpad_out_dir__ = os.path.join(__crashpad_repo_root__, 'out', 'Default')
+__sdk_crashpad_out_dir__ = os.path.join(__repo_root__, 'build', '_deps', 'crashpad-build')
 
 __patch_file__ = os.path.join(
     __repo_root__,
@@ -509,7 +510,14 @@ def build_main(args: argparse.Namespace):
 
 
 def test_main(args: argparse.Namespace):
-    run_crashpad_tests(args.out_dir)
+    local_clone = os.path.abspath(args.local_clone) if args.local_clone else None
+    if args.out_dir is not None:
+        out_dir = args.out_dir
+    elif local_clone is not None:
+        out_dir = __sdk_crashpad_out_dir__
+    else:
+        out_dir = __default_crashpad_out_dir__
+    run_crashpad_tests(out_dir, source_root=local_clone)
 
 
 def patch_update_main(args: argparse.Namespace):
@@ -757,7 +765,8 @@ if __name__ == '__main__':
     build_parser.set_defaults(func=build_main)
 
     test_parser = subparsers.add_parser('test')
-    test_parser.add_argument('--out-dir', '-o', default=__default_crashpad_out_dir__, help='Output directory where crashpad test binaries are located')
+    test_parser.add_argument('local_clone', nargs='?', default=None, help='Path to a local crashpad clone set up via dev init; when supplied, defaults --out-dir to the SDK build output')
+    test_parser.add_argument('--out-dir', '-o', default=None, help='Output directory where crashpad test binaries are located')
     test_parser.set_defaults(func=test_main)
 
     # patch <subcommand>
