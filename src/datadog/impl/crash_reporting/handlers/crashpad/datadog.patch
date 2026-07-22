@@ -1,3 +1,15 @@
+diff --git a/handler/BUILD.gn b/handler/BUILD.gn
+index 9061c2cb..76205e7c 100644
+--- a/handler/BUILD.gn
++++ b/handler/BUILD.gn
+@@ -167,6 +167,7 @@ if (!crashpad_is_ios) {
+   }
+ 
+   crashpad_executable("crashpad_handler") {
++    output_name = "datadog_crashpad_handler"
+     sources = [ "main.cc" ]
+ 
+     deps = [
 diff --git a/handler/handler_main.cc b/handler/handler_main.cc
 index 7a060799..c271bd03 100644
 --- a/handler/handler_main.cc

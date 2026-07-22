@@ -121,7 +121,7 @@ endfunction()
 # separate executable, launched via the Crashpad client, that receives IPC notifications
 # from the client when a crash is detected, and that handles processing and uploading
 # crash reports
-set_crashpad_exe_path(CRASHPAD_HANDLER_EXE_PATH crashpad_handler)
+set_crashpad_exe_path(CRASHPAD_HANDLER_EXE_PATH datadog_crashpad_handler)
 register_crashpad_artifact(crashpad_handler_exe_file ${CRASHPAD_HANDLER_EXE_PATH})
 
 # 'client' is the static lib that we'll link the SDK against in order to get
