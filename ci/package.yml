@@ -23,7 +23,7 @@ package-macos:
   stage: package
   dependencies: []
   tags: [macos:tart]
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
+  image: ${MACOS_TART_IMAGE}
   parallel:
     matrix:
       # macos-{arch}-clang-libc++-shared-release
