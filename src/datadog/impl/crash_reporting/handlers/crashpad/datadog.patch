@@ -1,0 +1,13 @@
+diff --git a/handler/handler_main.cc b/handler/handler_main.cc
+index 7a060799..c271bd03 100644
+--- a/handler/handler_main.cc
++++ b/handler/handler_main.cc
+@@ -102,7 +102,7 @@ void Usage(const base::FilePath& me) {
+   // clang-format off
+   fprintf(stderr,
+ "Usage: %" PRFilePath " [OPTION]...\n"
+-"Crashpad's exception handler server.\n"
++"Crashpad's exception handler server, with Datadog support.\n"
+ "\n"
+ "      --annotation=KEY=VALUE  set a process annotation in each crash report\n"
+   // clang-format on

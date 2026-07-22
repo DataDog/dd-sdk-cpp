@@ -44,16 +44,32 @@ else()
     set(CRASHPAD_NO_TEST_ARG "--no-test")
 endif()
 
+# When set, build Crashpad from this local clone (set up via `dev init`) instead of
+# fetching and building the pinned revision via depot_tools. Intended for SDK developers
+# who are iterating on Crashpad changes; see tools/bootstrap-crashpad/main.py for details.
+set(DD_CRASHPAD_LOCAL_CLONE "" CACHE PATH
+    "Path to a local crashpad clone to build from instead of fetching via depot_tools")
+if(DD_CRASHPAD_LOCAL_CLONE)
+    # Local-clone mode: the clone is managed by the developer via `dev init`; nothing to
+    # fetch. Build using `dev build`, which sources from the local clone directly.
+    set(CRASHPAD_DOWNLOAD_COMMAND "")
+    set(CRASHPAD_BUILD_SUBCOMMAND dev build ${DD_CRASHPAD_LOCAL_CLONE})
+else()
+    # Normal mode: fetch (or sync) the pinned crashpad revision via depot_tools, apply
+    # datadog.patch, then build.
+    set(CRASHPAD_DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py install)
+    set(CRASHPAD_BUILD_SUBCOMMAND build --no-install)
+endif()
+
 # Declare an ExternalProject target, which we can build in order to bootstrap the
 # crashpad repo with all required tools and then build the static library. Note that
 # crashpad_external only encapsulates the commands required to download and build
 # crashpad; it doesn't tell CMake anything about that build's artifacts or dependencies
 ExternalProject_Add(crashpad_external
-    DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py install
+    DOWNLOAD_COMMAND ${CRASHPAD_DOWNLOAD_COMMAND}
     CONFIGURE_COMMAND ""
-    BUILD_COMMAND ${Python3_EXECUTABLE} -u ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py build
+    BUILD_COMMAND ${Python3_EXECUTABLE} -u ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py ${CRASHPAD_BUILD_SUBCOMMAND}
         --out-dir ${CRASHPAD_BUILD_DIR}
-        --no-install
         ${CRASHPAD_NO_TEST_ARG}
         -c CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
         -c CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
@@ -161,9 +177,14 @@ set_target_properties(crashpad::handler PROPERTIES
 add_dependencies(crashpad::handler crashpad_handler_exe_file)
 
 # Update the `ddsdkcpp` target to link against the crashpad client
+if(DD_CRASHPAD_LOCAL_CLONE)
+    set(CRASHPAD_SOURCE_ROOT ${DD_CRASHPAD_LOCAL_CLONE})
+else()
+    set(CRASHPAD_SOURCE_ROOT ${DD_SDK_ROOT_DIR}/chromium/crashpad/crashpad)
+endif()
 target_include_directories(ddsdkcpp SYSTEM PRIVATE
-    ${DD_SDK_ROOT_DIR}/chromium/crashpad/crashpad
-    ${DD_SDK_ROOT_DIR}/chromium/crashpad/crashpad/third_party/mini_chromium/mini_chromium
+    ${CRASHPAD_SOURCE_ROOT}
+    ${CRASHPAD_SOURCE_ROOT}/third_party/mini_chromium/mini_chromium
 )
 target_link_libraries(ddsdkcpp PRIVATE crashpad::client)
 

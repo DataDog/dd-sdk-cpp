@@ -28,6 +28,14 @@ Commands:
     - add `--no-install` to skip the install steps
     - add `--no-test` to skip running Crashpad's test suite
 - `main.py test`: runs crashpad tests
+- `main.py patch update <path>`: generate a fresh datadog.patch from a local crashpad
+    clone; update the pinned revision in .gclient/.gclient_entries if the datadog branch
+    has been rebased onto a new upstream commit
+- `main.py dev init <path>`: bootstrap a local crashpad clone for development; creates/
+    validates the datadog branch and optionally runs gclient sync
+    - add `--no-sync` to skip gclient sync
+- `main.py dev build <path>`: build the SDK using the local clone instead of the fetched
+    chromium/crashpad/crashpad source tree
 
 When building, relevant CMake options can be specified with `-c`, e.g.:
 
@@ -51,6 +59,7 @@ import json
 import platform
 import subprocess
 import argparse
+import tempfile
 from dataclasses import dataclass, field
 from typing import Dict, List, Set
 
@@ -68,6 +77,14 @@ __crashpad_test_binaries__ = [
     'crashpad_util_test',
 ]
 __default_crashpad_out_dir__ = os.path.join(__crashpad_repo_root__, 'out', 'Default')
+
+__patch_file__ = os.path.join(
+    __repo_root__,
+    'src', 'datadog', 'impl', 'crash_reporting', 'handlers', 'crashpad', 'datadog.patch'
+)
+__gclient_file__         = os.path.join(__crashpad_build_root__, '.gclient')
+__gclient_entries_file__ = os.path.join(__crashpad_build_root__, '.gclient_entries')
+__datadog_branch__       = 'datadog'
 
 
 def _default_parallel_job_count() -> int:
@@ -254,6 +271,120 @@ def _run_depot_tool(args: List[str], cwd: str) -> int:
     return subprocess.check_call(args, env=_depot_tools_env(), cwd=cwd)
 
 
+def read_pinned_revision() -> str:
+    """Read the crashpad commit hash pinned in chromium/crashpad/.gclient_entries."""
+    if not os.path.isfile(__gclient_entries_file__):
+        raise RuntimeError(
+            f'.gclient_entries not found at {__gclient_entries_file__}. '
+            'Run `main.py install` first.'
+        )
+    with open(__gclient_entries_file__, 'r') as f:
+        content = f.read()
+    namespace: Dict[str, object] = {}
+    exec(content, namespace)  # noqa: S102 — trusted content from our own repo
+    entries = namespace.get('entries')
+    if not isinstance(entries, dict):
+        raise RuntimeError(
+            f'Could not parse entries dict from {__gclient_entries_file__}'
+        )
+    crashpad_url = entries.get('crashpad', '')
+    if '@' not in crashpad_url:
+        raise RuntimeError(
+            f'Unexpected crashpad entry in .gclient_entries (no @HASH): {crashpad_url!r}'
+        )
+    return crashpad_url.rsplit('@', 1)[1]
+
+
+def write_pinned_revision(new_hash: str) -> None:
+    """Atomically update the crashpad pin in both .gclient and .gclient_entries."""
+    old_hash = read_pinned_revision()
+    for path in (__gclient_file__, __gclient_entries_file__):
+        with open(path, 'r') as f:
+            content = f.read()
+        count = content.count(old_hash)
+        if count != 1:
+            raise RuntimeError(
+                f'Expected exactly one occurrence of {old_hash!r} in {path}, '
+                f'found {count}'
+            )
+        new_content = content.replace(old_hash, new_hash, 1)
+        # Write atomically: temp file alongside, then rename
+        dir_ = os.path.dirname(path)
+        fd, tmp_path = tempfile.mkstemp(dir=dir_)
+        try:
+            with os.fdopen(fd, 'w') as f:
+                f.write(new_content)
+            os.replace(tmp_path, path)
+        except Exception:
+            try:
+                os.unlink(tmp_path)
+            except OSError:
+                pass
+            raise
+    print(f'Updated pin: {old_hash} → {new_hash}')
+
+
+def apply_patch(repo_root: str) -> None:
+    """Idempotently apply datadog.patch to the git repo at repo_root."""
+    # If the patch file is absent or empty there is nothing to do
+    if not os.path.isfile(__patch_file__) or os.path.getsize(__patch_file__) == 0:
+        print('No patch to apply.')
+        return
+
+    # Check that the repo HEAD matches the pinned revision before attempting to apply.
+    # A mismatch means the source tree is out of date and the patch may not apply cleanly.
+    pinned = read_pinned_revision()
+    result = subprocess.run(
+        ['git', 'rev-parse', 'HEAD'],
+        cwd=repo_root, capture_output=True, text=True
+    )
+    if result.returncode == 0:
+        actual = result.stdout.strip()
+        if actual != pinned:
+            raise RuntimeError(
+                f'Source tree HEAD is {actual!r} but datadog.patch was generated '
+                f'against {pinned!r}. Run `gclient sync` to update the source tree '
+                f'before applying the patch.'
+            )
+
+    # Try to apply the patch cleanly
+    check_result = subprocess.run(
+        ['git', 'apply', '--check', __patch_file__],
+        cwd=repo_root, capture_output=True, text=True
+    )
+    if check_result.returncode == 0:
+        # Patch applies cleanly — go ahead and apply it
+        subprocess.check_call(['git', 'apply', __patch_file__], cwd=repo_root)
+        print('Patch applied successfully.')
+        return
+
+    # Forward apply failed. Check whether the patch is already applied by trying the
+    # reverse: this disambiguates "already applied" from other failures (corrupt patch,
+    # wrong base, etc.)
+    reverse_result = subprocess.run(
+        ['git', 'apply', '--check', '--reverse', __patch_file__],
+        cwd=repo_root, capture_output=True, text=True
+    )
+    if reverse_result.returncode == 0:
+        print('Patch already applied — skipping.')
+        return
+
+    # Neither forward nor reverse apply succeeded: the repo is in an unexpected state.
+    status_result = subprocess.run(
+        ['git', 'status'], cwd=repo_root, capture_output=True, text=True
+    )
+    diff_result = subprocess.run(
+        ['git', 'diff', '--stat', 'HEAD'], cwd=repo_root, capture_output=True, text=True
+    )
+    raise RuntimeError(
+        f'datadog.patch could not be applied to the repo at {repo_root!r} and does not '
+        f'appear to be already applied. The repo may be in an unexpected state.\n\n'
+        f'git apply --check stderr:\n{check_result.stderr}\n'
+        f'git status:\n{status_result.stdout}\n'
+        f'git diff --stat HEAD:\n{diff_result.stdout}'
+    )
+
+
 def clone_depot_tools():
     # If needed, clone into chromium/depot_tools so we can use 'fetch' and related tools
     # to pull down Chromium-project source repos
@@ -280,16 +411,19 @@ def fetch_crashpad():
     print(f'Crashpad is present at: {__crashpad_repo_root__}')
 
 
-def build_crashpad(out_dir: str, gn_args: GnArgs, num_parallel_jobs: int):
-    # depot-tools and crashpad must be present within chromium/
+def build_crashpad(out_dir: str, gn_args: GnArgs, num_parallel_jobs: int, source_root: str = None):
+    if source_root is None:
+        source_root = __crashpad_repo_root__
+
+    # depot_tools and the crashpad source must be present
     assert os.path.isdir(__depot_tools_root__)
-    assert os.path.isdir(__crashpad_repo_root__)
+    assert os.path.isdir(source_root)
 
     # Use gn gen to create Ninja build files
     print('Invoking GN to generate Ninja build files for crashpad...')
-    _run_depot_tool(['gn', 'gen', out_dir, f'--args={str(gn_args)}'], __crashpad_repo_root__)
+    _run_depot_tool(['gn', 'gen', out_dir, f'--args={str(gn_args)}'], source_root)
     print('Invoking Ninja to build crashpad...')
-    _run_depot_tool(['ninja', '-C', out_dir, '-j', str(num_parallel_jobs)], __crashpad_repo_root__)
+    _run_depot_tool(['ninja', '-C', out_dir, '-j', str(num_parallel_jobs)], source_root)
 
 
 def run_crashpad_tests(out_dir: str):
@@ -361,6 +495,9 @@ def build_main(args: argparse.Namespace):
     if cmake_vars:
         gn_args = GnArgs.from_cmake(cmake_vars)
 
+    # Apply our patch to the checked-out crashpad source (idempotent)
+    apply_patch(__crashpad_repo_root__)
+
     # Use gn and ninja to produce a build of crashpad
     build_crashpad(args.out_dir, gn_args, args.parallel)
 
@@ -371,6 +508,209 @@ def build_main(args: argparse.Namespace):
 
 def test_main(args: argparse.Namespace):
     run_crashpad_tests(args.out_dir)
+
+
+def patch_update_main(args: argparse.Namespace):
+    local_clone = os.path.abspath(args.local_clone)
+
+    # 1. Current pinned revision
+    base_hash = read_pinned_revision()
+    print(f'Current pinned revision: {base_hash}')
+
+    # 2. Verify the local clone is a git repository
+    if subprocess.run(['git', 'rev-parse', '--git-dir'], cwd=local_clone,
+                      capture_output=True).returncode != 0:
+        raise RuntimeError(f'{local_clone!r} is not a git repository')
+
+    # 3. Verify the datadog branch exists
+    if subprocess.run(['git', 'rev-parse', '--verify', __datadog_branch__],
+                      cwd=local_clone, capture_output=True).returncode != 0:
+        raise RuntimeError(
+            f'Branch {__datadog_branch__!r} does not exist in {local_clone!r}. '
+            'Create it with `dev init` first.'
+        )
+
+    # 4. Determine merge-base of datadog and base_hash; require datadog is rebased onto it
+    merge_base_result = subprocess.run(
+        ['git', 'merge-base', __datadog_branch__, base_hash],
+        cwd=local_clone, capture_output=True, text=True
+    )
+    if merge_base_result.returncode != 0:
+        raise RuntimeError(
+            f'Could not determine merge-base of {__datadog_branch__!r} and {base_hash!r} '
+            f'in {local_clone!r}. Ensure both commits are present (try `git fetch origin`).'
+        )
+    merge_base = merge_base_result.stdout.strip()
+    if merge_base != base_hash:
+        raise RuntimeError(
+            f'The {__datadog_branch__!r} branch is not rebased onto the pinned revision.\n'
+            f'  Pinned revision : {base_hash}\n'
+            f'  Merge-base found: {merge_base}\n'
+            f'Rebase the {__datadog_branch__!r} branch onto {base_hash} and re-run.'
+        )
+
+    # 5+6+7. Produce the diff and write datadog.patch
+    diff_result = subprocess.run(
+        ['git', 'diff', base_hash, __datadog_branch__],
+        cwd=local_clone, capture_output=True, text=True, check=True
+    )
+    diff_content = diff_result.stdout
+    if not diff_content:
+        print('Warning: no differences between base and datadog branch — writing empty patch.')
+    with open(__patch_file__, 'w') as f:
+        f.write(diff_content)
+    print(f'Wrote {__patch_file__}')
+
+    # 8. New pin is the merge-base (which equals base_hash when datadog is rebased onto it;
+    #    it will differ when the caller has rebased datadog onto a newer upstream commit,
+    #    in which case merge_base will be that newer commit and base_hash the old pin).
+    new_base_hash = merge_base
+
+    # 9. Update pin files if the base has advanced
+    if new_base_hash != base_hash:
+        write_pinned_revision(new_base_hash)
+
+    # 10. Summary
+    line_count = len(diff_content.splitlines()) if diff_content else 0
+    files_changed = len([l for l in diff_content.splitlines() if l.startswith('diff --git')])
+    print(f'Patch summary: {line_count} lines, {files_changed} file(s) changed')
+    print(f'Pin: {new_base_hash}')
+
+    # 11. Remind the user what to commit
+    print()
+    print('Remember to commit the following files together:')
+    print(f'  {__patch_file__}')
+    if new_base_hash != base_hash:
+        print(f'  {__gclient_file__}')
+        print(f'  {__gclient_entries_file__}')
+
+
+def dev_init_main(args: argparse.Namespace):
+    local_clone = os.path.abspath(args.local_clone)
+
+    # 1+2. Pre-validate local_clone before doing any network work
+    if not os.path.isdir(local_clone) or not os.listdir(local_clone):
+        raise RuntimeError(
+            f'{local_clone!r} does not exist or is empty.\n'
+            'Please clone chromium/crashpad there first:\n'
+            f'  git clone git@github.com:chromium/crashpad.git {local_clone}'
+        )
+    remote_result = subprocess.run(
+        ['git', 'remote', 'get-url', 'origin'],
+        cwd=local_clone, capture_output=True, text=True
+    )
+    if remote_result.returncode != 0 or 'chromium/crashpad' not in remote_result.stdout:
+        raise RuntimeError(
+            f'{local_clone!r} does not appear to be a clone of chromium/crashpad.\n'
+            f'  origin URL: {remote_result.stdout.strip()!r}'
+        )
+
+    # 3. Ensure depot_tools is available
+    clone_depot_tools()
+
+    # 4. Read the pinned revision
+    base_hash = read_pinned_revision()
+    print(f'Pinned revision: {base_hash}')
+
+    # 5. Ensure base_hash is present in the clone; fetch if not
+    def _has_commit(hash_: str) -> bool:
+        return subprocess.run(
+            ['git', 'cat-file', '-e', f'{hash_}^{{commit}}'],
+            cwd=local_clone, capture_output=True
+        ).returncode == 0
+
+    if not _has_commit(base_hash):
+        print(f'{base_hash} not found locally — fetching origin...')
+        subprocess.check_call(['git', 'fetch', 'origin'], cwd=local_clone)
+        if not _has_commit(base_hash):
+            raise RuntimeError(
+                f'Commit {base_hash} is not present in {local_clone!r} even after '
+                f'fetching. Check that this clone tracks the correct remote.'
+            )
+
+    # 6. Create or validate the datadog branch
+    branch_exists = subprocess.run(
+        ['git', 'rev-parse', '--verify', __datadog_branch__],
+        cwd=local_clone, capture_output=True
+    ).returncode == 0
+
+    if not branch_exists:
+        print(f'Creating branch {__datadog_branch__!r} at {base_hash}...')
+        subprocess.check_call(
+            ['git', 'checkout', '-b', __datadog_branch__, base_hash],
+            cwd=local_clone
+        )
+    else:
+        branch_tip = subprocess.run(
+            ['git', 'rev-parse', __datadog_branch__],
+            cwd=local_clone, capture_output=True, text=True, check=True
+        ).stdout.strip()
+        if branch_tip == base_hash:
+            print(f'Branch {__datadog_branch__!r} already at correct base — checking out.')
+            subprocess.check_call(['git', 'checkout', __datadog_branch__], cwd=local_clone)
+        else:
+            raise RuntimeError(
+                f'Branch {__datadog_branch__!r} exists but points to {branch_tip!r}, '
+                f'not the pinned revision {base_hash!r}.\n'
+                f'Either delete the branch (`git branch -D {__datadog_branch__}`) or '
+                f'rebase it onto {base_hash}, then re-run dev init.'
+            )
+
+    # 7. Optionally run gclient sync to populate third_party/ and buildtools/
+    if not args.no_sync:
+        parent_dir = os.path.dirname(local_clone)
+        gclient_path = os.path.join(parent_dir, '.gclient')
+        abs_clone = os.path.abspath(local_clone)
+        gclient_content = (
+            'solutions = [\n'
+            '  {\n'
+            f'    "name": "{os.path.basename(local_clone)}",\n'
+            f'    "url": "file://{abs_clone}@{base_hash}",\n'
+            '    "managed": False,\n'
+            '  },\n'
+            ']\n'
+        )
+        with open(gclient_path, 'w') as f:
+            f.write(gclient_content)
+        print(f'Wrote {gclient_path}')
+        print('Running gclient sync (this may take a few minutes on first run)...')
+        _run_depot_tool(['gclient', 'sync'], parent_dir)
+
+    # 8. Apply the patch if non-empty
+    apply_patch(local_clone)
+
+    # 9. Summary
+    print()
+    print('dev init complete.')
+    print(f'  Local clone : {local_clone}')
+    print(f'  Branch      : {__datadog_branch__}')
+    print(f'  Base commit : {base_hash}')
+
+
+def dev_build_main(args: argparse.Namespace):
+    local_clone = os.path.abspath(args.local_clone)
+
+    # depot_tools is required for gn/ninja regardless of source origin
+    clone_depot_tools()
+
+    # Parse '-c FOO=ON -c BAR=bar' into {'FOO': 'ON', 'BAR': 'bar'}
+    cmake_vars: Dict[str, str] = {}
+    for s in args.cmake_vars:
+        if '=' not in s:
+            raise ValueError(f"Unexpected format for CMake var: '{s}'")
+        k, v = s.split('=', 1)
+        cmake_vars[k] = v
+
+    gn_args = GnArgs()
+    if cmake_vars:
+        gn_args = GnArgs.from_cmake(cmake_vars)
+
+    # Build from the local clone; the datadog branch already carries the changes,
+    # so there is no need to apply the patch here
+    build_crashpad(args.out_dir, gn_args, args.parallel, source_root=local_clone)
+
+    if not args.no_test:
+        run_crashpad_tests(args.out_dir)
 
 
 if __name__ == '__main__':
@@ -397,6 +737,31 @@ if __name__ == '__main__':
     test_parser = subparsers.add_parser('test')
     test_parser.add_argument('--out-dir', '-o', default=__default_crashpad_out_dir__, help='Output directory where crashpad test binaries are located')
     test_parser.set_defaults(func=test_main)
+
+    # patch <subcommand>
+    patch_parser = subparsers.add_parser('patch')
+    patch_subparsers = patch_parser.add_subparsers(dest='patch_command', required=True)
+
+    patch_update_parser = patch_subparsers.add_parser('update')
+    patch_update_parser.add_argument('local_clone', help='Path to a local chromium/crashpad git clone')
+    patch_update_parser.set_defaults(func=patch_update_main)
+
+    # dev <subcommand>
+    dev_parser = subparsers.add_parser('dev')
+    dev_subparsers = dev_parser.add_subparsers(dest='dev_command', required=True)
+
+    dev_init_parser = dev_subparsers.add_parser('init')
+    dev_init_parser.add_argument('local_clone', help='Path to an existing local chromium/crashpad git clone')
+    dev_init_parser.add_argument('--no-sync', action='store_true', help='Skip gclient sync')
+    dev_init_parser.set_defaults(func=dev_init_main)
+
+    dev_build_parser = dev_subparsers.add_parser('build')
+    dev_build_parser.add_argument('local_clone', help='Path to a local chromium/crashpad git clone set up via dev init')
+    dev_build_parser.add_argument('--out-dir', '-o', default=__default_crashpad_out_dir__, help='Output directory for crashpad build files and artifacts')
+    dev_build_parser.add_argument('--no-test', '-T', action='store_true', help='If set, skip running crashpad tests post-build')
+    dev_build_parser.add_argument('--cmake-var', '-c', action='append', dest='cmake_vars', default=[], help='CMake var in KEY=VALUE format; used to configure GN build')
+    dev_build_parser.add_argument('--parallel', '-j', type=int, default=_default_parallel_job_count(), help='Number of parallel build jobs to use when invoking ninja')
+    dev_build_parser.set_defaults(func=dev_build_main)
 
     args = parser.parse_args()
     args.func(args)
