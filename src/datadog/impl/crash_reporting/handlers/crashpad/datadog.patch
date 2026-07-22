@@ -1,5 +1,40 @@
+diff --git a/client/crashpad_client_linux_test.cc b/client/crashpad_client_linux_test.cc
+index c0bba403..e314c40e 100644
+--- a/client/crashpad_client_linux_test.cc
++++ b/client/crashpad_client_linux_test.cc
+@@ -396,7 +396,7 @@ CRASHPAD_CHILD_TEST_MAIN(StartHandlerForSelfTestChild) {
+   }
+ 
+   base::FilePath handler_path = TestPaths::Executable().DirName().Append(
+-      FILE_PATH_LITERAL("crashpad_handler"));
++      FILE_PATH_LITERAL("datadog_crashpad_handler"));
+ 
+   crashpad::AnnotationList::Register();
+ 
+@@ -624,7 +624,7 @@ class StartHandlerForClientTest {
+     }
+ 
+     base::FilePath handler_path = TestPaths::Executable().DirName().Append(
+-        FILE_PATH_LITERAL("crashpad_handler"));
++        FILE_PATH_LITERAL("datadog_crashpad_handler"));
+ 
+     CrashpadClient client;
+     if (!client.StartHandlerForClient(handler_path,
+diff --git a/client/crashpad_client_win_test.cc b/client/crashpad_client_win_test.cc
+index 901cf81f..0917890b 100644
+--- a/client/crashpad_client_win_test.cc
++++ b/client/crashpad_client_win_test.cc
+@@ -31,7 +31,7 @@ namespace {
+ 
+ void StartAndUseHandler(const base::FilePath& temp_dir) {
+   base::FilePath handler_path = TestPaths::Executable().DirName().Append(
+-      FILE_PATH_LITERAL("crashpad_handler.com"));
++      FILE_PATH_LITERAL("datadog_crashpad_handler.com"));
+ 
+   CrashpadClient client;
+   ASSERT_TRUE(client.StartHandler(handler_path,
 diff --git a/handler/BUILD.gn b/handler/BUILD.gn
-index 9061c2cb..76205e7c 100644
+index 9061c2cb..1360f2ba 100644
 --- a/handler/BUILD.gn
 +++ b/handler/BUILD.gn
 @@ -167,6 +167,7 @@ if (!crashpad_is_ios) {
@@ -10,6 +45,25 @@ index 9061c2cb..76205e7c 100644
      sources = [ "main.cc" ]
  
      deps = [
+@@ -266,6 +267,7 @@ if (crashpad_is_win) {
+     # having this target produce crashpad_handler_com.com. Don’t use this target
+     # directly. Instead, use crashpad_handler_console.
+     output_extension = "com"
++    output_name = "datadog_crashpad_handler_com"
+ 
+     deps = [
+       ":handler",
+@@ -278,8 +280,8 @@ if (crashpad_is_win) {
+ 
+   copy("crashpad_handler_console") {
+     deps = [ ":crashpad_handler_com" ]
+-    sources = [ "$root_out_dir/crashpad_handler_com.com" ]
+-    outputs = [ "$root_out_dir/crashpad_handler.com" ]
++    sources = [ "$root_out_dir/datadog_crashpad_handler_com.com" ]
++    outputs = [ "$root_out_dir/datadog_crashpad_handler.com" ]
+   }
+ 
+   crashpad_executable("crash_other_program") {
 diff --git a/handler/handler_main.cc b/handler/handler_main.cc
 index 7a060799..c271bd03 100644
 --- a/handler/handler_main.cc
