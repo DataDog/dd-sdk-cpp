@@ -52,12 +52,15 @@ set(DD_CRASHPAD_LOCAL_CLONE "" CACHE PATH
 if(DD_CRASHPAD_LOCAL_CLONE)
     # Local-clone mode: the clone is managed by the developer via `dev init`; nothing to
     # fetch. Build using `dev build`, which sources from the local clone directly.
-    set(CRASHPAD_DOWNLOAD_COMMAND "")
+    set(CRASHPAD_SOURCE_DIR_ARG SOURCE_DIR ${DD_CRASHPAD_LOCAL_CLONE})
+    set(CRASHPAD_DOWNLOAD_COMMAND_ARG "")
     set(CRASHPAD_BUILD_SUBCOMMAND dev build ${DD_CRASHPAD_LOCAL_CLONE})
 else()
     # Normal mode: fetch (or sync) the pinned crashpad revision via depot_tools, apply
     # datadog.patch, then build.
-    set(CRASHPAD_DOWNLOAD_COMMAND ${Python3_EXECUTABLE} ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py install)
+    set(CRASHPAD_SOURCE_DIR_ARG "")
+    set(CRASHPAD_DOWNLOAD_COMMAND_ARG DOWNLOAD_COMMAND
+        ${Python3_EXECUTABLE} ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py install)
     set(CRASHPAD_BUILD_SUBCOMMAND build --no-install)
 endif()
 
@@ -66,7 +69,8 @@ endif()
 # crashpad_external only encapsulates the commands required to download and build
 # crashpad; it doesn't tell CMake anything about that build's artifacts or dependencies
 ExternalProject_Add(crashpad_external
-    DOWNLOAD_COMMAND ${CRASHPAD_DOWNLOAD_COMMAND}
+    ${CRASHPAD_SOURCE_DIR_ARG}
+    ${CRASHPAD_DOWNLOAD_COMMAND_ARG}
     CONFIGURE_COMMAND ""
     BUILD_COMMAND ${Python3_EXECUTABLE} -u ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py ${CRASHPAD_BUILD_SUBCOMMAND}
         --out-dir ${CRASHPAD_BUILD_DIR}
