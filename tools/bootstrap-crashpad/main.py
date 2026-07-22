@@ -610,7 +610,8 @@ def dev_init_main(args: argparse.Namespace):
         ['git', 'remote', 'get-url', 'origin'],
         cwd=local_clone, capture_output=True, text=True
     )
-    if remote_result.returncode != 0 or 'chromium/crashpad' not in remote_result.stdout:
+    _valid_remotes = ('chromium/crashpad', 'chromium.googlesource.com/crashpad/crashpad')
+    if remote_result.returncode != 0 or not any(r in remote_result.stdout for r in _valid_remotes):
         raise RuntimeError(
             f'{local_clone!r} does not appear to be a clone of chromium/crashpad.\n'
             f'  origin URL: {remote_result.stdout.strip()!r}'
