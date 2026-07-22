@@ -1,4 +1,10 @@
 test-linux:
+  # - COMPILE: Build with Clang 20 on Linux arm64
+  # - CONFIG:  Validate both Debug and Release builds
+  # - CRASH:   Use the default crash handling implementation
+  # - EXTRAS:  Build test binaries and examples
+  # - LINTING: Run clang-tidy checks during the build
+  # - RUNTIME: Run unit tests and integration tests
   stage: test
   dependencies: []
   tags: [arch:amd64]
@@ -7,9 +13,7 @@ test-linux:
     matrix:
       - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
   script:
-    # Install Python deps so we can run integration tests
     - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
-    # Build the SDK with unit test suite and repl binaries included
     - >
       cmake
       -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
@@ -19,20 +23,19 @@ test-linux:
       -DDD_BUILD_TESTING=ON
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    # Run the full Catch2 unit test suite
     - ctest --test-dir build --output-on-failure
-    # Run integration tests defined in tools/integration-test/
     - .venv/bin/python tools/integration-test/main.py
 
 test-linux-x86:
+  # - COMPILE: Build with Clang 20 on Linux arm64, cross-compiling to x86
+  # - CRASH:   Use the default crash handling implementation
+  # - EXTRAS:  Build test binaries and examples
+  # - RUNTIME: Run unit tests and integration tests
   stage: test
   dependencies: []
   tags: [arch:amd64]
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:clang20-x86-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
-    # Install Python deps so we can run integration tests (mitmproxy runs as 64-bit
-    # Python on the amd64 host; the repl binary it drives is the 32-bit cross-compiled
-    # SDK example)
     - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
     - >
       cmake
@@ -46,16 +49,23 @@ test-linux-x86:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - ctest --test-dir build --output-on-failure
+    # mitmproxy runs as 64-bit Python on the amd64 host; the repl binary it drives is
+    # the 32-bit cross-compiled SDK example
     - .venv/bin/python tools/integration-test/main.py
 
-build-linux:
+compat-linux:
+  # - COMPILE: Build with GCC and the oldest supported version of Clang
+  # - CONFIG:  Validate both Debug and Release builds across both compilers
+  # - CRASH:   Use the default crash handling implementation
+  # - HTTP:    Build both with system libcurl and with static, vendored libcurl build
+  # - EXTRAS:  Build test binaries
+  # - RUNTIME: Run unit tests
   stage: test
   dependencies: []
   tags: [arch:amd64]
   parallel:
     # To avoid ballooning our build matrix, test multiple variations (compiler version,
-    # static vs. shared, release vs. debug, etc.) in each job. clang20 builds all
-    # targets in the unit-test job, so we don't need to exercise it here.
+    # static vs. shared, release vs. debug, etc.) in each job
     matrix:
       # gcc11: shared-debug, w/ runtime dependency on libcurl.so
       - TOOLCHAIN_TARGET: gcc11
@@ -94,5 +104,7 @@ build-linux:
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
       -DDD_CRASH_MODE=${DD_CRASH_MODE}
       -DDD_RUN_CRASHPAD_TESTS=$([[ "${DD_CRASH_MODE}" == "crashpad" ]] && echo "ON" || echo "OFF")
+      -DDD_BUILD_TESTING=ON
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure
