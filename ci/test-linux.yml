@@ -107,4 +107,4 @@ compat-linux:
       -DDD_BUILD_TESTING=$([[ "${BUILD_SHARED_LIBS}" == "OFF" ]] && echo "ON" || echo "OFF")
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - '[[ "${BUILD_SHARED_LIBS}" == "OFF" ]] && ctest --test-dir build --output-on-failure || true'
+    - 'if [[ "${BUILD_SHARED_LIBS}" == "OFF" ]]; then ctest --test-dir build --output-on-failure; fi'
