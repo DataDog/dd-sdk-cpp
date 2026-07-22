@@ -78,6 +78,10 @@ variables:
   GOLDEN_LINUX_TOOLCHAIN_TARGET: clang20
   GOLDEN_LINUX_IMAGE: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${GOLDEN_LINUX_TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
 
+  # macOS runners use a tart VM image in lieu of Docker: this image has CMake, Ninja,
+  # and Apple's clang toolchain pre-installed
+  MACOS_TART_IMAGE: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
+
 include:
   - local: ci/build-toolchain-images.yml
   - local: ci/check.yml
