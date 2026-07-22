@@ -57,6 +57,7 @@ import os
 import sys
 import json
 import platform
+import pathlib
 import subprocess
 import argparse
 import tempfile
@@ -680,11 +681,12 @@ def dev_init_main(args: argparse.Namespace):
         parent_dir = os.path.dirname(local_clone)
         gclient_path = os.path.join(parent_dir, '.gclient')
         abs_clone = os.path.abspath(local_clone)
+        clone_uri = pathlib.Path(abs_clone).as_uri()
         gclient_content = (
             'solutions = [\n'
             '  {\n'
             f'    "name": "{os.path.basename(local_clone)}",\n'
-            f'    "url": "file://{abs_clone}@{base_hash}",\n'
+            f'    "url": "{clone_uri}@{base_hash}",\n'
             '    "managed": False,\n'
             '  },\n'
             ']\n'
