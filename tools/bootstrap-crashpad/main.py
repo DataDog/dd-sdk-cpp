@@ -426,16 +426,18 @@ def build_crashpad(out_dir: str, gn_args: GnArgs, num_parallel_jobs: int, source
     _run_depot_tool(['ninja', '-C', out_dir, '-j', str(num_parallel_jobs)], source_root)
 
 
-def run_crashpad_tests(out_dir: str):
+def run_crashpad_tests(out_dir: str, source_root: str = None):
+    if source_root is None:
+        source_root = __crashpad_repo_root__
     env = os.environ.copy()
-    
+
     # Some Crashpad tests need to resolve files from crashpad/test/ (within the source
     # tree): by default, these tests assume they've been built to `out/{Debug,Release}`
     # and search in `../..` to resolve the root crashpad source directory. Since we may
     # build Crashpad in a different directory altogether (out_dir), we need to
     # explicitly point the tests to the crashpad source dir so they can locate the
     # necessary test data files.
-    env['CRASHPAD_TEST_DATA_ROOT'] = __crashpad_repo_root__
+    env['CRASHPAD_TEST_DATA_ROOT'] = source_root
 
     # We run the Crashpad test suite in CI as a best-effort to ensure that we've
     # produced a working build, but we need to skip a handful of problematic tests
@@ -721,7 +723,7 @@ def dev_build_main(args: argparse.Namespace):
     build_crashpad(args.out_dir, gn_args, args.parallel, source_root=local_clone)
 
     if not args.no_test:
-        run_crashpad_tests(args.out_dir)
+        run_crashpad_tests(args.out_dir, source_root=local_clone)
 
 
 if __name__ == '__main__':
