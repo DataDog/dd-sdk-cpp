@@ -73,15 +73,15 @@ static std::filesystem::path get_current_executable_path() {
 }
 
 /**
- * Returns the path to the crashpad_handler executable. By convention, the handler
- * executable is deployed to the same directory as the application binary.
+ * Returns the path to the datadog_crashpad_handler executable. By convention, the
+ * handler executable is deployed to the same directory as the application binary.
  */
 static std::filesystem::path get_crashpad_handler_path() {
   auto current_exe_path = get_current_executable_path();
 #ifdef _WIN32
-  return current_exe_path.parent_path() / "crashpad_handler.exe";
+  return current_exe_path.parent_path() / "datadog_crashpad_handler.exe";
 #else
-  return current_exe_path.parent_path() / "crashpad_handler";
+  return current_exe_path.parent_path() / "datadog_crashpad_handler";
 #endif
 }
 
