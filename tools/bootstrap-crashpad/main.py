@@ -680,9 +680,21 @@ def dev_init_main(args: argparse.Namespace):
             '  },\n'
             ']\n'
         )
-        with open(gclient_path, 'w') as f:
-            f.write(gclient_content)
-        print(f'Wrote {gclient_path}')
+        if os.path.exists(gclient_path):
+            with open(gclient_path) as f:
+                existing = f.read()
+            if existing == gclient_content:
+                print(f'{gclient_path} already up to date.')
+            else:
+                raise RuntimeError(
+                    f'{gclient_path} already exists with different content.\n'
+                    f'Remove it or move it aside, then re-run dev init.\n'
+                    f'Expected:\n{gclient_content}'
+                )
+        else:
+            with open(gclient_path, 'w') as f:
+                f.write(gclient_content)
+            print(f'Wrote {gclient_path}')
         print('Running gclient sync (this may take a few minutes on first run)...')
         _run_depot_tool(['gclient', 'sync'], parent_dir)
 
