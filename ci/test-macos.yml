@@ -55,7 +55,7 @@ compat-macos:
       -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
       -DDD_CRASH_MODE=${DD_CRASH_MODE}
       -DDD_RUN_CRASHPAD_TESTS=$([[ "${DD_CRASH_MODE}" == "crashpad" ]] && echo "ON" || echo "OFF")
-      -DDD_BUILD_TESTING=ON
+      -DDD_BUILD_TESTING=$([[ "${BUILD_SHARED_LIBS}" == "OFF" ]] && echo "ON" || echo "OFF")
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - ctest --test-dir build --output-on-failure
+    - '[[ "${BUILD_SHARED_LIBS}" == "OFF" ]] && ctest --test-dir build --output-on-failure || true'

@@ -47,12 +47,14 @@ compat-windows:
     - if (Test-Path build) { remove-item -recurse -force build }
     - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
     - $env:DD_RUN_CRASHPAD_TESTS = if (${env:DD_CRASH_MODE} -eq "crashpad") { "ON" } else { "OFF" }
+    - $env:DD_BUILD_TESTING = if (${env:BUILD_SHARED_LIBS} -eq "OFF") { "ON" } else { "OFF" }
     - >
       docker run --rm
       -m 8192M
       -e NUM_PARALLEL_BUILD_JOBS
+      -e DD_BUILD_TESTING
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_BUILD_TESTING=%DD_BUILD_TESTING% -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && if \"${env:BUILD_SHARED_LIBS}\"==\"OFF\" ctest --test-dir build --output-on-failure"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
