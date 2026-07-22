@@ -530,41 +530,52 @@ def patch_update_main(args: argparse.Namespace):
             'Create it with `dev init` first.'
         )
 
-    # 4. Determine merge-base of datadog and base_hash; require datadog is rebased onto it
-    merge_base_result = subprocess.run(
-        ['git', 'merge-base', __datadog_branch__, base_hash],
+    # 4. Find the fork point: the upstream commit that the datadog branch is directly based on.
+    #    We use merge-base(datadog, origin/main) rather than merge-base(datadog, base_hash),
+    #    because the latter always returns base_hash (it's always an ancestor of datadog), and
+    #    therefore can't detect that the developer has rebased onto a newer upstream commit.
+    #    origin/main must be up to date — remind the user to `git fetch` if it's stale.
+    fork_point_result = subprocess.run(
+        ['git', 'merge-base', __datadog_branch__, 'origin/main'],
         cwd=local_clone, capture_output=True, text=True
     )
-    if merge_base_result.returncode != 0:
+    if fork_point_result.returncode != 0:
         raise RuntimeError(
-            f'Could not determine merge-base of {__datadog_branch__!r} and {base_hash!r} '
-            f'in {local_clone!r}. Ensure both commits are present (try `git fetch origin`).'
+            f'Could not determine fork point of {__datadog_branch__!r} and origin/main '
+            f'in {local_clone!r}. Ensure origin/main is up to date (run `git fetch origin`).'
         )
-    merge_base = merge_base_result.stdout.strip()
-    if merge_base != base_hash:
+    fork_point = fork_point_result.stdout.strip()
+
+    # Sanity check: the fork point must be a descendant-or-equal of the current pin.
+    # If it isn't, the datadog branch has been rebased onto something that doesn't descend
+    # from our known-good base — most likely origin/main is stale or the clone is wrong.
+    if subprocess.run(
+        ['git', 'merge-base', '--is-ancestor', base_hash, fork_point],
+        cwd=local_clone, capture_output=True
+    ).returncode != 0:
         raise RuntimeError(
-            f'The {__datadog_branch__!r} branch is not rebased onto the pinned revision.\n'
-            f'  Pinned revision : {base_hash}\n'
-            f'  Merge-base found: {merge_base}\n'
-            f'Rebase the {__datadog_branch__!r} branch onto {base_hash} and re-run.'
+            f'The fork point of {__datadog_branch__!r} and origin/main ({fork_point}) is not '
+            f'a descendant of the current pin ({base_hash}).\n'
+            f'Ensure origin/main is up to date (`git fetch origin`) and that the '
+            f'{__datadog_branch__!r} branch is rebased onto a commit that descends from the pin.'
         )
 
     # 5+6+7. Produce the diff and write datadog.patch
     diff_result = subprocess.run(
-        ['git', 'diff', base_hash, __datadog_branch__],
+        ['git', 'diff', fork_point, __datadog_branch__],
         cwd=local_clone, capture_output=True, text=True, check=True
     )
     diff_content = diff_result.stdout
     if not diff_content:
-        print('Warning: no differences between base and datadog branch — writing empty patch.')
+        print('Warning: no differences between fork point and datadog branch — writing empty patch.')
     with open(__patch_file__, 'w') as f:
         f.write(diff_content)
     print(f'Wrote {__patch_file__}')
 
-    # 8. New pin is the merge-base (which equals base_hash when datadog is rebased onto it;
-    #    it will differ when the caller has rebased datadog onto a newer upstream commit,
-    #    in which case merge_base will be that newer commit and base_hash the old pin).
-    new_base_hash = merge_base
+    # 8. The new pin is the fork point: when the developer hasn't rebased, this equals
+    #    base_hash and the pin is unchanged. When they've rebased onto a newer upstream
+    #    commit, this is that newer commit and the pin advances accordingly.
+    new_base_hash = fork_point
 
     # 9. Update pin files if the base has advanced
     if new_base_hash != base_hash:
