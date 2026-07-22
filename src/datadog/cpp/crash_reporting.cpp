@@ -75,7 +75,8 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
       impl::DiagnosticLogger{core->_diagnostic_handler, core->_diagnostic_threshold},
       core->_impl->GetFilesystem(),
       storage->GetPath(),
-      config.handler_exe_path
+      config.handler_exe_path,
+      core->_impl->GetIntakeOrigin()
   );
 
   // If handler initialization failed, or if crash reporting is being enabled for an SDK

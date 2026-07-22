@@ -42,7 +42,8 @@ ICrashHandler* InitializeOnce(
     DiagnosticLogger logger,
     IFilesystem& fs,
     const StoragePath& crash_storage_dir_path,
-    std::string_view helper_exe_path
+    std::string_view helper_exe_path,
+    std::string_view upload_origin
 );
 
 }  // namespace CrashHandler

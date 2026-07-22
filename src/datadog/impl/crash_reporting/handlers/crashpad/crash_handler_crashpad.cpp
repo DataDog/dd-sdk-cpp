@@ -93,17 +93,12 @@ namespace datadog::impl {
  * the client library on Initialize().
  *
  * When a crash occurs, the Crashpad client's signal handlers detect the crash, collect
- * register state, and send an IPC notification to the handler proces. The handler
+ * register state, and send an IPC notification to the handler process. The handler
  * process then captures a Breakpad-format minidump from the crashing application
- * process.
+ * process and uploads it to the configured intake URL.
  *
  * NOTE: COMPILING WITH DD_CRASH_MODE=crashpad IS NOT YET SUPPORTED. This is a prototype
- * implementation that does not yet report crashes to Datadog intake. It will initialize
- * the Crashpad client and handler, crashes will be handled, and minidumps will be
- * written to `.crashpad/pending/`, but nothing will be uploaded.
- *
- * TODO(RUM-14025): Revisit Initialize() and Shutdown() when work on Crashpad support
- *  resumes.
+ * implementation that does not yet report crashes to Datadog intake.
  */
 class CrashpadCrashHandler final : public ICrashHandler {
  public:
@@ -113,12 +108,10 @@ class CrashpadCrashHandler final : public ICrashHandler {
       DiagnosticLogger logger,
       IFilesystem& fs,
       const StoragePath& crash_storage_dir_path,
-      std::string_view helper_exe_path
+      std::string_view helper_exe_path,
+      std::string_view upload_origin
   ) override {
     (void)fs;
-
-    // TODO(RUM-14025): Re-enable uploads when work on Crashpad support resumes
-    const bool enable_crashpad_uploads = false;
 
     // Prepare Crashpad client options
     std::filesystem::path crashpad_handler_path = helper_exe_path;
@@ -126,15 +119,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
       crashpad_handler_path = get_crashpad_handler_path();
     }
     std::filesystem::path crashpad_database_path = crash_storage_dir_path.Get();
-    // TODO(RUM-14025): To report crashes to the Datadog backend, we'd need to configure
-    //  the crashpad handler to upload crash reports to an HTTP endpoint that could
-    //  accept Breakpad-format minidumps, along with all relevant context in the form of
-    //  annotations, and produce RUM Errors with valid (though not necessarily
-    //  symbolicated) callstacks. Configuring this hardcoded upload URL is intended to
-    //  facilitate interception of requests (see examples/repl/mitm_dump.py) when using
-    //  the repl with mitmproxy enabled (./repl.sh), so that we can inspect Crashpad
-    //  requests for debugging purposes.
-    const std::string url = enable_crashpad_uploads ? "http://127.0.0.1:8080" : "";
+    const std::string url =
+        std::string(upload_origin) + "/crashpad-ingest-placeholder-path";
     std::map<std::string, std::string> annotations;
     std::vector<std::string> arguments;
     const bool restartable = false;
@@ -174,7 +160,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
       // Explicitly enable uploads so that new crashes will be POSTed to our upload URL
       // if not rate-limited
       if (auto* settings = db->GetSettings(); settings) {
-        settings->SetUploadsEnabled(enable_crashpad_uploads);
+        settings->SetUploadsEnabled(true);
       }
     }
 

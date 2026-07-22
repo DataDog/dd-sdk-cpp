@@ -815,10 +815,12 @@ class InProcessCrashHandler final : public ICrashHandler {
       DiagnosticLogger logger,
       IFilesystem& fs,
       const StoragePath& crash_storage_dir_path,
-      std::string_view helper_exe_path
+      std::string_view helper_exe_path,
+      std::string_view upload_origin
   ) override {
     // The in-process handler doesn't use a helper executable
     (void)helper_exe_path;
+    (void)upload_origin;
 
     // Set up the crash handler in stages, cleaning up on failure at each step
     DATADOG_ASSERT(!_initialized, "InProcessCrashHandler::Initialize called twice");
