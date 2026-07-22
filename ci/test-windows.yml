@@ -20,7 +20,7 @@ test-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py"
+      cmd /S /C "python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --build-config Debug --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (test) returned $LASTEXITCODE" }
 
 compat-windows:
@@ -54,5 +54,5 @@ compat-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --build-config ${env:BUILD_CONFIGURATION} --output-on-failure"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
