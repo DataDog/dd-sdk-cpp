@@ -1,0 +1,49 @@
+build-macos:
+  stage: test
+  dependencies: []
+  tags: [macos:tart]
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
+  parallel:
+    # Ensure that all targets build on macOS
+    matrix:
+      # clang15 (Apple): shared-debug, w/ runtime dependency on libcurl.so
+      - BUILD_CONFIGURATION: Debug
+        BUILD_SHARED_LIBS: "ON"
+        USE_SYSTEM_LIBCURL: "ON"
+        DD_CRASH_MODE: "inprocess"
+
+      # clang15 (Apple): static-release, w/ bundled libcurl
+      - BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        USE_SYSTEM_LIBCURL: "OFF"
+        DD_CRASH_MODE: "inprocess"
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
+      -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
+      -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
+      -DDD_CRASH_MODE=${DD_CRASH_MODE}
+      -DDD_RUN_CRASHPAD_TESTS=$([[ "${DD_CRASH_MODE}" == "crashpad" ]] && echo "ON" || echo "OFF")
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+
+test-macos:
+  stage: test
+  dependencies: []
+  tags: [macos:tart]
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
+  script:
+    - export PYENV_ROOT="$HOME/.pyenv"
+    - export PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
+    - python -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=Debug
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure
+    - .venv/bin/python tools/integration-test/main.py
