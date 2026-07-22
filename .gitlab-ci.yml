@@ -229,7 +229,8 @@ build-linux:
 build-macos:
   stage: build
   dependencies: []
-  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ Xcode 15.3.0, AppleClang 15
+  tags: [macos:tart]
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
   parallel:
     # Ensure that all targets build on macOS
     matrix:
@@ -258,8 +259,11 @@ build-macos:
 test-macos:
   stage: build
   dependencies: []
-  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma
+  tags: [macos:tart]
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
   script:
+    - export PYENV_ROOT="$HOME/.pyenv"
+    - export PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
     - python -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
     - >
       cmake
@@ -350,7 +354,8 @@ package-linux:
 package-macos:
   stage: package
   dependencies: []
-  tags: [macos:sonoma, specific:true] # Use AMI dd-sdk-cpp-sonoma, w/ Xcode 15.3.0, AppleClang 15
+  tags: [macos:tart]
+  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
   parallel:
     matrix:
       # macos-{arch}-clang-libc++-shared-release
