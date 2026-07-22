@@ -36,7 +36,8 @@ extern "C" {
 // - DD_CRASH_MODE=crashpad
 //   - This option is NOT YET SUPPORTED.
 //   - Includes Crashpad in the SDK build; requires targeting C++20 and distributing a
-//     crashpad_handler with your application; does not yet upload reports to Datadog.
+//     datadog_crashpad_handler with your application; does not yet upload reports to
+//     Datadog.
 
 /**
  * Crash reporting configuration struct: initialize with
@@ -56,9 +57,9 @@ DATADOG_API void dd_crash_reporting_config_init(dd_crash_reporting_config_t* con
  * Sets the path to the crash handler executable, overriding the default path.
  *
  * If using DD_CRASH_MODE=crashpad (not yet supported), you may supply the full path to
- * the crashpad_handler executable to be launched alongside your application. By
- * default, the SDK will look for a file named 'crashpad_handler' (POSIX) or
- * 'crashpad_handler.exe' (Windows) in the same directory as your application's
+ * the datadog_crashpad_handler executable to be launched alongside your application. By
+ * default, the SDK will look for a file named 'datadog_crashpad_handler' (POSIX) or
+ * 'datadog_crashpad_handler.exe' (Windows) in the same directory as your application's
  * executable.
  *
  * If using DD_CRASH_MODE=noop or DD_CRASH_MODE=inprocess, this value is ignored.

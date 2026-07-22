@@ -6,9 +6,10 @@
 #
 # - Adds the Datadog SDK as a linker dependency for `my-app`, allowing you to call SDK
 #   functions.
-# - (if Crashpad support is enabled): copies the crashpad_handler executable alongside
-#   the binary for `my-app` as a post-build step, ensuring that crash reporting works
-#   without explicitly configuring a handler path in development builds of `my-app`.
+# - (if Crashpad support is enabled): copies the datadog_crashpad_handler executable
+#   alongside the binary for `my-app` as a post-build step, ensuring that crash
+#   reporting works without explicitly configuring a handler path in development builds
+#   of `my-app`.
 #
 # Call this function after including the SDK via FetchContent or find_package(Datadog).
 # If you need finer-grained control, link against `Datadog::sdk` directly instead.
@@ -27,8 +28,9 @@ function(datadog_enable target)
     # b.) link against all required libs in the SDK's lib/ dir
     target_link_libraries(${target} PRIVATE Datadog::sdk)
 
-    # If the SDK was built with crashpad support, ensure that the crashpad_handler
-    # executable is present alongside the application binary post-build
+    # If the SDK was built with crashpad support, ensure that the
+    # datadog_crashpad_handler executable is present alongside the application binary
+    # post-build
     if((DD_CRASH_MODE STREQUAL "crashpad") OR (DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad"))
         if (TARGET crashpad::handler)
             add_custom_command(TARGET ${target} POST_BUILD
@@ -36,7 +38,7 @@ function(datadog_enable target)
                         "$<TARGET_FILE:crashpad::handler>"
                         "$<TARGET_FILE_DIR:${target}>"
                 VERBATIM
-                COMMENT "Copying crashpad_handler executable to $<TARGET_FILE_DIR:${target}>"
+                COMMENT "Copying datadog_crashpad_handler executable to $<TARGET_FILE_DIR:${target}>"
             )
         else()
             message(FATAL_ERROR "datadog_enable(): target crashpad::handler does not exist")
@@ -53,7 +55,8 @@ endfunction()
 # - (if the SDK is built as a shared library): installs the SDK shared library to
 #   LIBRARY_DESTINATION and, on POSIX systems, stamps INSTALL_RPATH on the target so
 #   the installed executable can locate the shared library at runtime.
-# - (if Crashpad support is enabled): installs crashpad_handler to RUNTIME_DESTINATION.
+# - (if Crashpad support is enabled): installs datadog_crashpad_handler to
+#   RUNTIME_DESTINATION.
 #
 # RUNTIME_DESTINATION: directory for executables and, on Windows, DLLs. Defaults to
 # CMAKE_INSTALL_BINDIR if defined (e.g. via GNUInstallDirs), otherwise "bin".
@@ -149,7 +152,7 @@ function(datadog_install target)
         endif()
     endif()
 
-    # If the SDK was built with Crashpad support, install the crashpad_handler
+    # If the SDK was built with Crashpad support, install the datadog_crashpad_handler
     # executable to RUNTIME_DESTINATION
     if((DD_CRASH_MODE STREQUAL "crashpad") OR (DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad"))
         if(TARGET crashpad::handler)

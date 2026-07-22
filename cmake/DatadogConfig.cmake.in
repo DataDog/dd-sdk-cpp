@@ -13,8 +13,8 @@
 #    dependency for that target, ensuring that its source can include datadog headers
 #    (from either the C or C++ API) and call functions from those headers. If the SDK
 #    build includes crash reporting support via Crashpad, also adds a post-build step to
-#    copy the `crashpad_handler` executable to the directory where the `app` binary is
-#    built.
+#    copy the `datadog_crashpad_handler` executable to the directory where the `app`
+#    binary is built.
 
 @PACKAGE_INIT@
 
