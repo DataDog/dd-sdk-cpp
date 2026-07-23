@@ -36,6 +36,12 @@ test-windows-crashpad:
   variables:
     OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
     TOOLCHAIN_TARGET: vs2022
+  cache:
+    - key:
+        prefix: crashpad-source-windows-v1
+        files: [chromium/crashpad/.gclient_entries]
+      paths: [chromium/]
+      when: always
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
