@@ -85,7 +85,7 @@ def _assert_one_completed_minidump_windows(crashes_dir: Path):
     Binary format (little-endian) defined in crash_report_database_win.cc:
 
       MetadataFileHeader (16 bytes):
-        uint32  magic       (must equal 'CPAD' = 0x44415043)
+        uint32  magic       (must equal 'CPAD' = 0x43504144, MSVC multichar literal)
         uint32  version     (must equal 1)
         uint32  num_records
         uint32  padding
@@ -113,7 +113,7 @@ def _assert_one_completed_minidump_windows(crashes_dir: Path):
 
     # Parse the header
     HEADER_SIZE = 16
-    METADATA_MAGIC = 0x44415043  # 'CPAD' little-endian
+    METADATA_MAGIC = 0x43504144  # 'CPAD' as MSVC multichar literal: 'C'<<24|'P'<<16|'A'<<8|'D'
     METADATA_VERSION = 1
     K_COMPLETED = 2
     K_ATTRIBUTE_UPLOADED = 1 << 0
