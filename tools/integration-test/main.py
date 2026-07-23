@@ -164,7 +164,7 @@ if __name__ == "__main__":
         passed, skipped, stdout, stderr, exc = result
 
         if skipped:
-            print(f'=== ⏭ {test.name} [skipped: requires crash-mode={test.required_crash_mode}] ===')
+            print(f'=== ⏭️ {test.name} [skipped: requires crash-mode={test.required_crash_mode}] ===')
             num_tests_skipped += 1
             continue
 
