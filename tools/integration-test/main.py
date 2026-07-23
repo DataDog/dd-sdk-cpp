@@ -106,7 +106,7 @@ if __name__ == "__main__":
             return
         with tempfile.TemporaryDirectory() as tmpdir:
             storage = StorageDirectory(path=tmpdir)
-            ctx = TestContext(storage, repl_binary_path, proxy, proxy_url)
+            ctx = TestContext(storage, repl_binary_path, proxy, proxy_url, args.crash_mode)
             try:
                 asyncio.run(test.func(ctx))
                 stdout, stderr = _gather_repl_output(ctx)

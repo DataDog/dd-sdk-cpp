@@ -43,11 +43,12 @@ class TestContext:
     test run and allows spawning repl processes configured to use that storage and the
     proxy.
     """
-    def __init__(self, storage: StorageDirectory, repl_binary_path: str, proxy: ProxyServer, proxy_url: str):
+    def __init__(self, storage: StorageDirectory, repl_binary_path: str, proxy: ProxyServer, proxy_url: str, crash_mode: str):
         self.storage = storage
         self._repl_binary_path = repl_binary_path
         self._proxy = proxy
         self._proxy_url = proxy_url
+        self._crash_mode = crash_mode
         self._repls: List[ReplProcess] = []
 
     def spawn_repl(self) -> ReplProcess:
@@ -63,6 +64,14 @@ class TestContext:
             f'--custom-endpoint-url={self._proxy_url}/sdk-{sdk_id}',
             f'--application-storage-path={self.storage.path}',
         ]
+        env = dict(os.environ)
+        if self._crash_mode == 'crashpad':
+            # Crashpad is not ASan-instrumented, so mixing it with an ASan-instrumented
+            # repl triggers a container-overflow false positive in StartHandler().
+            # Suppress it so the handler launches successfully.
+            existing = env.get('ASAN_OPTIONS', '')
+            env['ASAN_OPTIONS'] = (existing + ',detect_container_overflow=0').lstrip(',')
+
         proc = subprocess.Popen(
             args,
             cwd=__repo_root__,
@@ -70,6 +79,7 @@ class TestContext:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
         repl = ReplProcess(proc, sdk_id, self.storage.path, self._proxy)
         self._repls.append(repl)
