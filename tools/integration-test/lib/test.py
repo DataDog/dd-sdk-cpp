@@ -12,7 +12,7 @@ import inspect
 import importlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Dict
+from typing import Callable, List, Dict, Optional
 
 from lib.proxy import ProxyServer
 from lib.repl import ReplProcess, __repo_root__, _next_sdk_id
