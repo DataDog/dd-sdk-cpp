@@ -41,6 +41,7 @@ test-macos-crashpad:
     - >
       cmake
       -DCMAKE_BUILD_TYPE=Debug
+      -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0
       -DDD_ENABLE_ASSERTS=ON
       -DDD_BUILD_EXAMPLES=ON
       -DDD_BUILD_TESTING=ON
