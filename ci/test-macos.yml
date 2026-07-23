@@ -1,5 +1,5 @@
 test-macos:
-  # - COMPILE: Build with AppleClang 15 on macOS, universal binaries
+  # - COMPILE: Build with AppleClang 15 on macOS (host arch)
   # - CRASH:   Use the default crash handling implementation
   # - EXTRAS:  Build test binaries and examples
   # - RUNTIME: Run unit tests and integration tests
@@ -22,8 +22,37 @@ test-macos:
     - ctest --test-dir build --output-on-failure
     - .venv/bin/python tools/integration-test/main.py
 
+test-macos-crashpad:
+  # - COMPILE: Build with AppleClang 15 on macOS (host arch only; universal builds
+  #            require bootstrap-crashpad/main.py to support mac_universal target_cpu)
+  # - CONFIG:  Debug build
+  # - CRASH:   Use the Crashpad crash handling implementation
+  # - EXTRAS:  Build test binaries and examples
+  # - RUNTIME: Run Crashpad tests and SDK unit tests
+  #            (integration tests temporarily disabled pending crash_smoke.py support)
+  stage: test
+  dependencies: []
+  tags: [macos:tart]
+  image: ${MACOS_TART_IMAGE}
+  script:
+    - export PYENV_ROOT="$HOME/.pyenv"
+    - export PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
+    - python -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=Debug
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      -DDD_CRASH_MODE=crashpad
+      -DDD_RUN_CRASHPAD_TESTS=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure
+    # - .venv/bin/python tools/integration-test/main.py --crash-mode crashpad
+
 compat-macos:
-  # - COMPILE: Build with AppleClang 15 on macOS, universal binaries
+  # - COMPILE: Build with AppleClang 15 on macOS (host arch)
   # - CONFIG:  Validate both Debug and Release builds
   # - CRASH:   Use the default crash handling implementation
   # - HTTP:    Build both with system libcurl and with static, vendored libcurl build
