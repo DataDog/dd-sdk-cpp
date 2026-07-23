@@ -66,11 +66,16 @@ class TestContext:
         ]
         env = dict(os.environ)
         if self._crash_mode == 'crashpad':
-            # Crashpad is not ASan-instrumented, so mixing it with an ASan-instrumented
-            # repl triggers a container-overflow false positive in StartHandler().
-            # Suppress it so the handler launches successfully.
+            # Two ASan suppressions are required when running a Crashpad build:
+            # - detect_container_overflow=0: Crashpad is not ASan-instrumented, so
+            #   mixing it with an ASan-instrumented repl triggers a false positive in
+            #   StartHandler(). Suppress it so the handler launches successfully.
+            # - handle_segv=0: ASan installs its own fatal signal handler that intercepts
+            #   SIGSEGV before Crashpad's Mach exception handler, preventing crash
+            #   capture. Suppress it so Crashpad handles the signal instead.
             existing = env.get('ASAN_OPTIONS', '')
-            env['ASAN_OPTIONS'] = (existing + ',detect_container_overflow=0').lstrip(',')
+            extra = 'detect_container_overflow=0,handle_segv=0'
+            env['ASAN_OPTIONS'] = (existing + ',' + extra).lstrip(',')
 
         proc = subprocess.Popen(
             args,
