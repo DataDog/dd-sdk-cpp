@@ -96,4 +96,4 @@ signal-success:
   tags: [arch:amd64]
   image: ${GOLDEN_LINUX_IMAGE}
   script:
-    - echo "All CI jobs were successful!!"
+    - echo "All CI jobs were successful!"

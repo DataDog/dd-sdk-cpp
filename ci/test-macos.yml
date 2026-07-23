@@ -34,12 +34,6 @@ test-macos-crashpad:
   dependencies: []
   tags: [macos:tart]
   image: ${MACOS_TART_IMAGE}
-  cache:
-    - key:
-        prefix: crashpad-source-macos-v1
-        files: [chromium/crashpad/.gclient_entries]
-      paths: [chromium/]
-      when: always
   script:
     - export PYENV_ROOT="$HOME/.pyenv"
     - export PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
