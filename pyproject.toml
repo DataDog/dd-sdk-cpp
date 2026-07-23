@@ -23,8 +23,8 @@ bootstrap-crashpad = []
 generate-windows-timezone-mapping = []
 
 # tools/integration-test: runner for repl-based integration tests; requires mitmproxy to
-# intercept HTTP requests, psutil to inspect child processes
-integration-test = ["mitmproxy", "psutil"]
+# intercept HTTP requests
+integration-test = ["mitmproxy"]
 
 # tools/repl-profile: runner for repl-based profiling benchmarks; requires
 # datadog-api-client to submit metrics to the relevant internal Datadog org, requires

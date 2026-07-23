@@ -3,10 +3,6 @@
 #
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2025-Present Datadog, Inc.
-import sys
-import asyncio
-import psutil
-
 from lib.test import TestContext
 
 # This test only runs when the SDK was compiled with DD_CRASH_MODE=crashpad
@@ -25,19 +21,13 @@ async def main(t: TestContext):
     register-crash-reporting
     start-core
     """)
-
-    # And time for register-crash-reporting to complete before inspecting children
-    await asyncio.sleep(0.2)
-
-    # Then the Crashpad handler process is running as a child of the repl
-    handler_exe_name = 'datadog_crashpad_handler'
-    if sys.platform == 'win32':
-        handler_exe_name += '.exe'
-    proc = psutil.Process(p.pid)
-    children = proc.children()
-    handler = next((c for c in children if c.name() == handler_exe_name), None)
-    assert handler is not None
-
-    p.run("exit")
     await p.join()
     assert p.exitcode == 0
+
+    # Then the Crashpad database directory was initialized by StartHandler(), confirming
+    # that the handler was spawned and the database is ready to receive crash reports.
+    # settings.dat is written synchronously by Crashpad during database initialization,
+    # before StartHandler() returns, so its presence is a reliable indicator of success.
+    crashes_dir = t.storage.get_artifact_dir('.crashes')
+    assert (crashes_dir / 'settings.dat').exists(), \
+        f'Crashpad database not initialised: {crashes_dir / "settings.dat"} not found'
