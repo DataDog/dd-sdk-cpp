@@ -28,8 +28,7 @@ test-windows-crashpad:
   # - CONFIG:  Debug build
   # - CRASH:   Use the Crashpad crash handling implementation
   # - EXTRAS:  Build test binaries and examples
-  # - RUNTIME: Run Crashpad tests and SDK unit tests
-  #            (integration tests temporarily disabled pending crash_smoke.py support)
+  # - RUNTIME: Run Crashpad tests, SDK unit tests, and integration tests
   stage: test
   dependencies: []
   tags: [windows-v2:2022]
