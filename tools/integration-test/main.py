@@ -33,7 +33,7 @@ from typing import List, Optional
 
 from lib.proxy import ProxyServer
 from lib.repl import check_repl_binary
-from lib.test import collect_tests, StorageDirectory, TestContext
+from lib.test import collect_tests, StorageDirectory, TestContext, VALID_CRASH_MODES
 
 
 def _gather_repl_output(ctx: TestContext):
@@ -60,6 +60,7 @@ if __name__ == "__main__":
     parser.add_argument('--only', type=str, help='the name of a single test to run; omit to run all tests')
     parser.add_argument('--verbose', '-v', action='store_true', help='If true, print full output for all tests, even if successful')
     parser.add_argument('--jobs', '-j', type=int, default=max(1, multiprocessing.cpu_count() - 2), help='maximum number of tests to run in parallel')
+    parser.add_argument('--crash-mode', type=str, default='inprocess', choices=VALID_CRASH_MODES, help='crash handler implementation the repl was compiled with (default: inprocess)')
     args = parser.parse_args()
 
     # repl must already be built (in build/): the CI job should take care of this before
@@ -67,7 +68,7 @@ if __name__ == "__main__":
     repl_binary_path = check_repl_binary()
 
     # Load all integration tests defined in tools/integration-test/tests/
-    tests = collect_tests()
+    tests = collect_tests(args.crash_mode)
     if not tests:
         print('ERROR: No tests found')
         sys.exit(1)
@@ -94,21 +95,25 @@ if __name__ == "__main__":
     if args.jobs > 1:
         num_test_threads = min(len(tests), args.jobs)
 
-    # Each test result is a tuple of (passed: bool, stdout: str, stderr: str, exc: str|None)
+    # Each test result is a tuple of (passed: bool, skipped: bool, stdout: str, stderr: str, exc: str|None)
     test_results: List[Optional[tuple]] = [None] * len(tests)
 
     def run_test(test_index: int):
         test = tests[test_index]
+        # Skip tests that require a crash mode that doesn't match the active mode
+        if test.required_crash_mode is not None and test.required_crash_mode != args.crash_mode:
+            test_results[test_index] = (True, True, '', '', None)
+            return
         with tempfile.TemporaryDirectory() as tmpdir:
             storage = StorageDirectory(path=tmpdir)
             ctx = TestContext(storage, repl_binary_path, proxy, proxy_url)
             try:
                 asyncio.run(test.func(ctx))
                 stdout, stderr = _gather_repl_output(ctx)
-                test_results[test_index] = (True, stdout, stderr, None)
+                test_results[test_index] = (True, False, stdout, stderr, None)
             except Exception:
                 stdout, stderr = _gather_repl_output(ctx)
-                test_results[test_index] = (False, stdout, stderr, traceback.format_exc())
+                test_results[test_index] = (False, False, stdout, stderr, traceback.format_exc())
             finally:
                 unjoined = [p for p in ctx._repls if p.exitcode == -1]
                 for p in unjoined:
@@ -118,7 +123,7 @@ if __name__ == "__main__":
                     pids = ', '.join(str(p.pid) for p in unjoined)
                     stdout, stderr = _gather_repl_output(ctx)
                     test_results[test_index] = (
-                        False, stdout, stderr,
+                        False, False, stdout, stderr,
                         'Test exited without joining repl process(es) (pid(s): %s)' % pids
                     )
 
@@ -150,12 +155,18 @@ if __name__ == "__main__":
     # Print results
     print('')
     num_tests_passed = 0
+    num_tests_skipped = 0
     for i, test in enumerate(tests):
         result = test_results[i]
         if not result:
             raise RuntimeError(f'No result recorded for test {i}')
 
-        passed, stdout, stderr, exc = result
+        passed, skipped, stdout, stderr, exc = result
+
+        if skipped:
+            print(f'=== ⏭ {test.name} [skipped: requires crash-mode={test.required_crash_mode}] ===')
+            num_tests_skipped += 1
+            continue
 
         if not passed:
             print(f'=== ❌ {test.name} ===')
@@ -172,8 +183,9 @@ if __name__ == "__main__":
         num_tests_passed += 1
 
     # Print a final summary and exit
+    num_tests_run = len(tests) - num_tests_skipped
     print('')
-    if num_tests_passed != len(tests):
-        print(f'Ran {len(tests)} tests; {num_tests_passed} passed.')
+    if num_tests_passed != num_tests_run:
+        print(f'Ran {num_tests_run} tests ({num_tests_skipped} skipped); {num_tests_passed} passed.')
         sys.exit(1)
-    print(f'Ran {num_tests_passed} tests; all passed.')
+    print(f'Ran {num_tests_run} tests ({num_tests_skipped} skipped); all passed.')

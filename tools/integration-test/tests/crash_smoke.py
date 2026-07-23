@@ -11,6 +11,9 @@ import uuid
 
 from lib.test import TestContext
 
+# This test only runs when the SDK was compiled with DD_CRASH_MODE=inprocess
+CRASH_MODE = 'inprocess'
+
 
 async def main(t: TestContext):
     """

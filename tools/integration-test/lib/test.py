@@ -17,6 +17,8 @@ from typing import Callable, List, Dict
 from lib.proxy import ProxyServer
 from lib.repl import ReplProcess, __repo_root__, _next_sdk_id
 
+VALID_CRASH_MODES = ('inprocess', 'crashpad')
+
 
 @dataclass
 class StorageDirectory:
@@ -81,9 +83,10 @@ AsyncTestFunc = Callable[[TestContext], None]
 class Test:
     name: str
     func: AsyncTestFunc
+    required_crash_mode: Optional[str]  # None means runs under all crash modes
 
 
-def collect_tests() -> List[Test]:
+def collect_tests(crash_mode: str) -> List[Test]:
     tests: List[Test] = []
     filenames_by_test_name: Dict[str, str] = {}
 
@@ -125,6 +128,11 @@ def collect_tests() -> List[Test]:
             raise ValueError('duplicate test name "%s" used in both tests/%s and tests/%s' % (name, other_filename, filename))
         filenames_by_test_name[name] = filename
 
-        tests.append(Test(name, test_main))
+        # Read the optional CRASH_MODE module attribute
+        required_crash_mode = getattr(module, 'CRASH_MODE', None)
+        if required_crash_mode is not None and required_crash_mode not in VALID_CRASH_MODES:
+            raise ValueError('CRASH_MODE in tests/%s is %r; expected one of %s' % (filename, required_crash_mode, VALID_CRASH_MODES))
+
+        tests.append(Test(name, test_main, required_crash_mode))
 
     return tests
