@@ -24,7 +24,7 @@ test-linux:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - ctest --test-dir build --output-on-failure
-    - .venv/bin/python tools/integration-test/main.py
+    - .venv/bin/python tools/integration-test/main.py --crash-mode inprocess
 
 test-linux-x86:
   # - COMPILE: Build with Clang 20 on Linux arm64, cross-compiling to x86
@@ -51,7 +51,7 @@ test-linux-x86:
     - ctest --test-dir build --output-on-failure
     # mitmproxy runs as 64-bit Python on the amd64 host; the repl binary it drives is
     # the 32-bit cross-compiled SDK example
-    - .venv/bin/python tools/integration-test/main.py
+    - .venv/bin/python tools/integration-test/main.py --crash-mode inprocess
 
 test-linux-crashpad:
   # - COMPILE: Build with Clang 20 on Linux amd64
@@ -79,7 +79,7 @@ test-linux-crashpad:
       -S . -B build
     - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
     - ctest --test-dir build --output-on-failure
-    # - .venv/bin/python tools/integration-test/main.py --crash-mode crashpad
+    - .venv/bin/python tools/integration-test/main.py --crash-mode crashpad
 
 compat-linux:
   # - COMPILE: Build with GCC and the oldest supported version of Clang
