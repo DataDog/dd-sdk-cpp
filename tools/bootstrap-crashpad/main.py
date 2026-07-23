@@ -197,6 +197,13 @@ class GnArgs:
             if opt.startswith('/W') or opt.startswith('/external:'):
                 continue
 
+            # /MP tells MSBuild to compile multiple source files in parallel within a
+            # single cl.exe invocation. It has no meaning in a GN/ninja build, where
+            # parallelism is managed by ninja -j. clang-cl (used by Crashpad's depot_tools
+            # compiler) treats it as an unused argument and fails with -Werror, so drop it.
+            if opt == '/MP':
+                continue
+
             # The depot_tools compiler supports sanitizers, but it's not guaranteed to
             # use the same ABI version of ASan, TSan, etc.: strip these flags to ensure
             # that our crashpad build doesn't reference sanitizer symbols that are
