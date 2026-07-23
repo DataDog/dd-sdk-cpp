@@ -459,6 +459,10 @@ def run_crashpad_tests(out_dir: str, source_root: str = None):
         # These tests pass, but as a side effect they print output containing the
         # substring 'error:', which MSBuild interprets as build failure
         excluded_tests.append('WinMultiprocessChildFails.*')
+
+        # Cross-process thread introspection via NtSuspendProcess is unreliable
+        # inside a Windows Docker container and causes this test to fail
+        excluded_tests.append('ProcessReaderWin.ChildThreadSuspendCounts')
     if excluded_tests:
         env['GTEST_FILTER'] = '-' + ':'.join(excluded_tests)
 
