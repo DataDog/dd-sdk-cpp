@@ -2,6 +2,7 @@
 # stamped into the library build
 add_executable(version ${DD_SDK_ROOT_DIR}/src/version/main.cpp)
 target_enable_strict_warnings(version)
+target_enable_parallel_compilation(version)
 target_enable_coverage(version)
 target_enable_sanitizers(version)
 target_link_libraries(version PRIVATE ddsdkcpp)

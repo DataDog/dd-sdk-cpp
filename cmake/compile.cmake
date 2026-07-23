@@ -1,3 +1,12 @@
+# Enable parallel compilation within a single MSVC target (/MP). Scoped per-target
+# rather than via add_compile_options so it does not leak into parent projects that
+# consume this SDK via FetchContent or add_subdirectory.
+function(target_enable_parallel_compilation target_name)
+    if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC" AND DD_ENABLE_MSVC_PARALLEL_BUILD)
+        target_compile_options(${target_name} PRIVATE /MP)
+    endif()
+endfunction()
+
 # Explicitly enable strict warnings on a per-target basis
 function(target_enable_strict_warnings target_name)
     if(CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
