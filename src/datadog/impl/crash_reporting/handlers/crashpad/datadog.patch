@@ -20,7 +20,7 @@ index 1db2920e..918bd4a5 100644
  
   * [Project status](doc/status.md)
 diff --git a/handler/BUILD.gn b/handler/BUILD.gn
-index 20a8cd6a..cc6dc8a3 100644
+index 9061c2cb..d0ab013f 100644
 --- a/handler/BUILD.gn
 +++ b/handler/BUILD.gn
 @@ -1,4 +1,6 @@
@@ -51,9 +51,9 @@ index 20a8cd6a..cc6dc8a3 100644
 +    defines = [ "WITH_DATADOG_UPLOAD_EXTENSIONS=1" ]
 +
      if (crashpad_is_win) {
-       cflags =
-           [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
-@@ -131,6 +142,7 @@ if (!crashpad_is_ios) {
+       cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
+     }
+@@ -130,6 +141,7 @@ if (!crashpad_is_ios) {
  
      sources = [
        "crash_report_upload_rate_limit_test.cc",
@@ -61,7 +61,7 @@ index 20a8cd6a..cc6dc8a3 100644
        "minidump_to_upload_parameters_test.cc",
      ]
  
-@@ -142,6 +154,10 @@ if (!crashpad_is_ios) {
+@@ -141,6 +153,10 @@ if (!crashpad_is_ios) {
        sources += [ "crashpad_handler_test.cc" ]
      }
  
