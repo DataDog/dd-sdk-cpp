@@ -73,7 +73,7 @@ index 9061c2cb..d0ab013f 100644
        ":handler",
        "../client",
 diff --git a/handler/crash_report_upload_thread.cc b/handler/crash_report_upload_thread.cc
-index bec87142..3f29d0d4 100644
+index bec87142..d5145b18 100644
 --- a/handler/crash_report_upload_thread.cc
 +++ b/handler/crash_report_upload_thread.cc
 @@ -1,4 +1,6 @@
@@ -102,13 +102,15 @@ index bec87142..3f29d0d4 100644
        url_(url),
        // When watching for pending reports, check every 15 minutes, even in the
        // absence of a signal from the handler thread. This allows for failed
-@@ -299,6 +309,12 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
+@@ -299,6 +309,14 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
          BreakpadHTTPFormParametersFromMinidump(&minidump_process_snapshot);
    }
  
 +#if WITH_DATADOG_UPLOAD_EXTENSIONS
 +  if (pre_upload_callback_) {
-+    pre_upload_callback_(parameters);
++    if (!pre_upload_callback_(parameters)) {
++      return UploadResult::kPermanentFailure;
++    }
 +  }
 +#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
 +
@@ -116,7 +118,7 @@ index bec87142..3f29d0d4 100644
      return UploadResult::kPermanentFailure;
    }
 diff --git a/handler/crash_report_upload_thread.h b/handler/crash_report_upload_thread.h
-index 22bb26e3..6b514a34 100644
+index 22bb26e3..085ada04 100644
 --- a/handler/crash_report_upload_thread.h
 +++ b/handler/crash_report_upload_thread.h
 @@ -1,4 +1,6 @@
@@ -134,7 +136,7 @@ index 22bb26e3..6b514a34 100644
  #include <memory>
  #include <string>
  #include <unordered_map>
-@@ -75,6 +78,20 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -75,6 +78,22 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
    //! synchronize appropriately.
    using ProcessPendingReportsObservationCallback = std::function<void()>;
  
@@ -146,16 +148,18 @@ index 22bb26e3..6b514a34 100644
 +  //! BreakpadHTTPFormParametersFromMinidump(). The callback is invoked on the
 +  //! upload thread. If empty, it is not called.
 +  //!
++  //! Returns `true` to proceed with the upload, or `false` to suppress it.
 +  //! If minidump parsing fails the callback is still invoked with an empty
-+  //! map, consistent with the existing fallback behavior in UploadReport().
++  //! map; whether to suppress the upload in that case is the callback's
++  //! decision.
 +  using PreUploadCallback =
-+      std::function<void(const std::map<std::string, std::string>&)>;
++      std::function<bool(const std::map<std::string, std::string>&)>;
 +#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
 +
    //! \brief Constructs a new object.
    //!
    //! \param[in] database The database to upload crash reports from.
-@@ -84,10 +101,16 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -84,10 +103,16 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
    //!     on a background thread each time the this object finishes
    //!     processing and attempting to upload on-disk crash reports.
    //!     If this callback is empty, it is not invoked.
@@ -176,7 +180,7 @@ index 22bb26e3..6b514a34 100644
  
    CrashReportUploadThread(const CrashReportUploadThread&) = delete;
    CrashReportUploadThread& operator=(const CrashReportUploadThread&) = delete;
-@@ -225,6 +248,9 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -225,6 +250,9 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
  
    const Options options_;
    const ProcessPendingReportsObservationCallback callback_;
@@ -188,10 +192,10 @@ index 22bb26e3..6b514a34 100644
    ThreadSafeVector<UUID> known_pending_report_uuids_;
 diff --git a/handler/crash_report_upload_thread_test.cc b/handler/crash_report_upload_thread_test.cc
 new file mode 100644
-index 00000000..9a9d7fb2
+index 00000000..8993dc7a
 --- /dev/null
 +++ b/handler/crash_report_upload_thread_test.cc
-@@ -0,0 +1,180 @@
+@@ -0,0 +1,229 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -208,6 +212,7 @@ index 00000000..9a9d7fb2
 +
 +#include "handler/crash_report_upload_thread.h"
 +
++#include <algorithm>
 +#include <map>
 +#include <memory>
 +#include <string>
@@ -304,9 +309,10 @@ index 00000000..9a9d7fb2
 +      TestOptions(),
 +      /*callback=*/[&]() { cycle_done.Signal(); },
 +      /*pre_upload_callback=*/
-+      [&](const std::map<std::string, std::string>& parameters) {
++      [&](const std::map<std::string, std::string>& parameters) -> bool {
 +        received_parameters = parameters;
 +        callback_fired.Signal();
++        return true;
 +      });
 +
 +  thread.Start();
@@ -366,6 +372,53 @@ index 00000000..9a9d7fb2
 +  std::vector<CrashReportDatabase::Report> pending;
 +  EXPECT_EQ(db->GetPendingReports(&pending), CrashReportDatabase::kNoError);
 +  EXPECT_TRUE(pending.empty());
++}
++
++// Verifies that when a pre-upload callback returns false, we suppress the
++// upload and move the report to the completed (skipped) state.
++TEST(CrashReportUploadThreadTest, UploadSuppressedWhenCallbackReturnsFalse) {
++  test::ScopedTempDir temp_dir;
++  auto db = CrashReportDatabase::Initialize(temp_dir.path());
++  ASSERT_TRUE(db);
++  ASSERT_TRUE(db->GetSettings()->SetUploadsEnabled(true));
++
++  UUID uuid;
++  ASSERT_TRUE(
++      WriteMinidumpReport(db.get(), "irrelevant_key", "irrelevant_value", &uuid));
++
++  // Suppression happens entirely inside UploadReport() before any HTTP
++  // attempt, so the cycle completes quickly regardless of platform. The
++  // cycle_done semaphore therefore provides both the "callback was invoked"
++  // assertion and the happens-before edge for the completed-list check.
++  Semaphore cycle_done(0);
++
++  CrashReportUploadThread thread(
++      db.get(),
++      "http://localhost/",
++      TestOptions(),
++      /*callback=*/[&]() { cycle_done.Signal(); },
++      /*pre_upload_callback=*/
++      [&](const std::map<std::string, std::string>&) -> bool {
++        return false;
++      });
++
++  thread.Start();
++  thread.ReportPending(uuid);
++
++  EXPECT_TRUE(cycle_done.TimedWait(5.0));
++
++  thread.Stop();
++
++  // The report must appear in the completed list and must not be marked as
++  // uploaded -- it was suppressed, not successfully sent.
++  std::vector<CrashReportDatabase::Report> completed;
++  ASSERT_EQ(db->GetCompletedReports(&completed), CrashReportDatabase::kNoError);
++  auto it = std::find_if(completed.begin(), completed.end(),
++                         [&](const CrashReportDatabase::Report& r) {
++                           return r.uuid == uuid;
++                         });
++  ASSERT_NE(it, completed.end());
++  EXPECT_FALSE(it->uploaded);
 +}
 +
 +#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
