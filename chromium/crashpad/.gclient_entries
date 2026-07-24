@@ -1,5 +1,5 @@
 entries = {
-  'crashpad': 'https://chromium.googlesource.com/crashpad/crashpad.git@28ef661295a5c38524de904077880d7c6d372dc0',
+  'crashpad': 'https://chromium.googlesource.com/crashpad/crashpad.git@efdc820b087c20eec9e32cb5e5b1a63dcf73a724',
   'buildtools': 'https://chromium.googlesource.com/chromium/src/buildtools.git@efa920ce144e4dc1c1841e73179cd7e23b9f0d5e',
   'buildtools/clang_format/script': 'https://chromium.googlesource.com/external/github.com/llvm/llvm-project/clang/tools/clang-format.git@c912837e0d82b5ca4b6e790b573b3956d3744c1c',
   'buildtools/mac:gn/gn/mac-${arch}': 'https://chrome-infra-packages.appspot.com/gn/gn/mac-${arch}@git_revision:5e19d2fb166fbd4f6f32147fbb2f497091a54ad8',
