@@ -188,10 +188,10 @@ index 22bb26e3..6b514a34 100644
    ThreadSafeVector<UUID> known_pending_report_uuids_;
 diff --git a/handler/crash_report_upload_thread_test.cc b/handler/crash_report_upload_thread_test.cc
 new file mode 100644
-index 00000000..58e6e5a9
+index 00000000..9a9d7fb2
 --- /dev/null
 +++ b/handler/crash_report_upload_thread_test.cc
-@@ -0,0 +1,179 @@
+@@ -0,0 +1,180 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -222,7 +222,6 @@ index 00000000..58e6e5a9
 +#include "snapshot/test/test_process_snapshot.h"
 +#include "snapshot/test/test_system_snapshot.h"
 +#include "test/scoped_temp_dir.h"
-+#include "util/misc/clock.h"
 +#include "util/misc/uuid.h"
 +#include "util/synchronization/semaphore.h"
 +
@@ -288,18 +287,22 @@ index 00000000..58e6e5a9
 +  UUID uuid;
 +  ASSERT_TRUE(WriteMinidumpReport(db.get(), kKey, kValue, &uuid));
 +
-+  // Semaphore used to block the test thread until the callback fires on the
-+  // upload thread.
++  // Signalled by pre_upload_callback when it fires on the upload thread.
 +  Semaphore callback_fired(0);
 +  std::map<std::string, std::string> received_parameters;
 +
++  // Signalled by the ProcessPendingReportsObservationCallback when the upload
++  // thread finishes processing the cycle containing our report. Waiting on
++  // this before Stop() ensures received_parameters has been written and the
++  // report has left the pending state, without depending on how quickly the
++  // HTTP transport fails.
++  Semaphore cycle_done(0);
++
 +  CrashReportUploadThread thread(
 +      db.get(),
-+      // Use a port-0 URL so the TCP connect fails immediately without
-+      // blocking.
-+      "http://127.0.0.1:0/",
++      "http://localhost/",
 +      TestOptions(),
-+      /*callback=*/{},
++      /*callback=*/[&]() { cycle_done.Signal(); },
 +      /*pre_upload_callback=*/
 +      [&](const std::map<std::string, std::string>& parameters) {
 +        received_parameters = parameters;
@@ -309,14 +312,17 @@ index 00000000..58e6e5a9
 +  thread.Start();
 +  thread.ReportPending(uuid);
 +
-+  // Wait up to 5 seconds for the callback to fire. The callback fires before
-+  // the HTTP attempt, so this is a generous bound.
++  // The pre-upload callback fires before the HTTP attempt, so it should arrive
++  // well within 5 seconds.
 +  EXPECT_TRUE(callback_fired.TimedWait(5.0));
++
++  // Wait for the full cycle to complete before stopping the thread. This
++  // provides the happens-before edge for reading received_parameters and
++  // avoids Stop() racing the in-flight upload attempt.
++  EXPECT_TRUE(cycle_done.TimedWait(65.0));
 +
 +  thread.Stop();
 +
-+  // received_parameters is read after thread.Stop(), which provides the
-+  // necessary happens-before edge.
 +  ASSERT_TRUE(received_parameters.count(kKey));
 +  EXPECT_EQ(received_parameters.at(kKey), kValue);
 +}
@@ -333,35 +339,30 @@ index 00000000..58e6e5a9
 +  ASSERT_TRUE(
 +      WriteMinidumpReport(db.get(), "irrelevant_key", "irrelevant_value", &uuid));
 +
++  // Signalled when the upload thread finishes the cycle containing our report.
++  // Using the ProcessPendingReportsObservationCallback as the synchronization
++  // point avoids any dependency on how quickly (or slowly) the HTTP transport
++  // fails on a given platform.
++  Semaphore cycle_done(0);
++
 +  // Construct without a pre_upload_callback -- the default-constructed empty
 +  // std::function should not be called.
-+  CrashReportUploadThread thread(db.get(),
-+                                 "http://127.0.0.1:0/",
-+                                 TestOptions(),
-+                                 /*callback=*/{});
++  CrashReportUploadThread thread(
++      db.get(),
++      "http://localhost/",
++      TestOptions(),
++      /*callback=*/[&]() { cycle_done.Signal(); });
 +
 +  thread.Start();
 +  thread.ReportPending(uuid);
 +
-+  // Poll until the report leaves the pending state or we time out.
-+  constexpr uint64_t kPollIntervalNs = 10 * 1000000ULL;  // 10 ms
-+  constexpr int kMaxPolls = 500;                          // 5 s total
-+  bool became_empty = false;
-+  for (int i = 0; i < kMaxPolls; ++i) {
-+    std::vector<CrashReportDatabase::Report> pending;
-+    if (db->GetPendingReports(&pending) == CrashReportDatabase::kNoError &&
-+        pending.empty()) {
-+      became_empty = true;
-+      break;
-+    }
-+    SleepNanoseconds(kPollIntervalNs);
-+  }
-+  EXPECT_TRUE(became_empty);
++  // Wait for the cycle to complete (generous bound to accommodate the HTTP
++  // transport timeout on slow or loaded machines).
++  EXPECT_TRUE(cycle_done.TimedWait(65.0));
 +
-+  // Stop must not crash or hang.
 +  thread.Stop();
 +
-+  // Final assertion: report has been moved out of the pending state.
++  // The report must have been moved out of the pending state.
 +  std::vector<CrashReportDatabase::Report> pending;
 +  EXPECT_EQ(db->GetPendingReports(&pending), CrashReportDatabase::kNoError);
 +  EXPECT_TRUE(pending.empty());
