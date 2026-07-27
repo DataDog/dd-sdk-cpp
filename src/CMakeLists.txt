@@ -152,6 +152,7 @@ target_include_external_deps(ddsdkcpp)
 
 # Use strict compiler warnings, warnings-as-errors, when building the SDK
 target_enable_strict_warnings(ddsdkcpp)
+target_enable_parallel_compilation(ddsdkcpp)
 
 # Conditionally define WITH_DATADOG_ASSERTS based on build config
 target_enable_datadog_assert(ddsdkcpp)

@@ -3,6 +3,7 @@ add_executable(c_example
     c/main.c
 )
 target_enable_strict_warnings(c_example)
+target_enable_parallel_compilation(c_example)
 target_enable_coverage(c_example)
 target_enable_sanitizers(c_example)
 datadog_enable(c_example)
@@ -12,6 +13,7 @@ add_executable(cpp_example
     cpp/main.cpp
 )
 target_enable_strict_warnings(cpp_example)
+target_enable_parallel_compilation(cpp_example)
 target_enable_coverage(cpp_example)
 target_enable_sanitizers(cpp_example)
 datadog_enable(cpp_example)
@@ -33,6 +35,7 @@ add_executable(repl
 )
 target_compile_definitions(repl PRIVATE WITH_DATADOG_ALLOCATION_TRACKING=1)
 target_enable_strict_warnings(repl)
+target_enable_parallel_compilation(repl)
 target_enable_clang_tidy(repl)
 target_enable_coverage(repl)
 target_enable_sanitizers(repl)

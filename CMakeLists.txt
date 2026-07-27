@@ -65,6 +65,7 @@ if(DD_DEVELOPMENT AND NOT DEFINED DD_ENABLE_SANITIZERS)
 endif()
 set(DD_ENABLE_SANITIZERS "${DD_ENABLE_SANITIZERS}" CACHE STRING "Comma-separated list of sanitizers to enable, e.g. 'ASan,UBSan', 'MSan,UBSan', 'TSan'")
 option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_DEVELOPMENT})
+option(DD_ENABLE_MSVC_PARALLEL_BUILD "Enable parallel compilation within each MSVC target (/MP)" ON)
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
 
 # C API targets C99; C++ API targets C++17
