@@ -9,10 +9,10 @@
 #     generated `DatadogTargets.cmake` file implicitly establishes the dependency
 #     between `sdk` and `crashpad::client`.
 #     
-# - `crashpad::handler`: The crashpad_handler executable built from crashpad, which must
-#     be distributed alongside the final application. Using `datadog_enable(executable)`
-#     ensures that this file will be copied to the output directory for any target
-#     `executable` when that target is built.
+# - `crashpad::handler`: The datadog_crashpad_handler executable built from crashpad,
+#     which must be distributed alongside the final application. Using
+#     `datadog_enable(executable)` ensures that this file will be copied to the output
+#     directory for any target `executable` when that target is built.
 
 @PACKAGE_INIT@
 
@@ -60,11 +60,11 @@ endif()
 add_executable(crashpad::handler IMPORTED)
 if(WIN32)
     set_target_properties(crashpad::handler PROPERTIES
-        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/bin/crashpad_handler.exe"
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/bin/datadog_crashpad_handler.exe"
     )
 else()
     set_target_properties(crashpad::handler PROPERTIES
-        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/bin/crashpad_handler"
+        IMPORTED_LOCATION "${CRASHPAD_INSTALL_PREFIX}/bin/datadog_crashpad_handler"
     )
 endif()
 

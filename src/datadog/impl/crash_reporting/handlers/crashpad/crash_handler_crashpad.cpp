@@ -73,15 +73,15 @@ static std::filesystem::path get_current_executable_path() {
 }
 
 /**
- * Returns the path to the crashpad_handler executable. By convention, the handler
- * executable is deployed to the same directory as the application binary.
+ * Returns the path to the datadog_crashpad_handler executable. By convention, the
+ * handler executable is deployed to the same directory as the application binary.
  */
 static std::filesystem::path get_crashpad_handler_path() {
   auto current_exe_path = get_current_executable_path();
 #ifdef _WIN32
-  return current_exe_path.parent_path() / "crashpad_handler.exe";
+  return current_exe_path.parent_path() / "datadog_crashpad_handler.exe";
 #else
-  return current_exe_path.parent_path() / "crashpad_handler";
+  return current_exe_path.parent_path() / "datadog_crashpad_handler";
 #endif
 }
 
@@ -89,8 +89,8 @@ namespace datadog::impl {
 
 /**
  * Crash handler implementation that uses the Crashpad client library, in conjunction
- * with an external, out-of-process crashpad_handler executable that will be spawned by
- * the client library on Initialize().
+ * with an external, out-of-process datadog_crashpad_handler executable that will be
+ * spawned by the client library on Initialize().
  *
  * When a crash occurs, the Crashpad client's signal handlers detect the crash, collect
  * register state, and send an IPC notification to the handler process. The handler
@@ -204,7 +204,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
 
   void SetCrashContext(IFilesystem& fs, const CrashContext& ctx) override {
     // We don't need to persist context to disk: we just set crashpad annotation values,
-    // which the crashpad_handler executable will capture from process memory on crash
+    // which the datadog_crashpad_handler executable will capture from process memory on
+    // crash
     (void)fs;
 
     // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
