@@ -5,6 +5,8 @@
 # Copyright 2025-Present Datadog, Inc.
 import sys
 import struct
+import email
+import email.policy
 from pathlib import Path
 from lib.test import TestContext
 
@@ -23,6 +25,7 @@ async def main(t: TestContext):
     create-core tracking-consent:granted
     register-crash-reporting
     start-core
+    sleep 10
     crash raise
     """)
 
@@ -50,10 +53,51 @@ async def main(t: TestContext):
     assert content_type.startswith('multipart/form-data'), \
         f'Expected multipart/form-data, got: {content_type!r}'
 
+    # And the upload contains dd.handled=true (injected by the pre-upload callback)
+    # and does NOT contain dd.tracking_consent (stripped by the same callback)
+    form_fields = _parse_multipart_form_fields(upload_request.body, content_type)
+    assert form_fields.get('dd.handled') == 'true', \
+        f'Expected dd.handled=true in upload, got: {form_fields.get("dd.handled")!r}'
+    assert 'dd.tracking_consent' not in form_fields, \
+        f'dd.tracking_consent must not appear in upload, got: {form_fields.get("dd.tracking_consent")!r}'
+
     # And the Crashpad database contains exactly one minidump reflecting a completed
     # upload. Since the HTTP upload has completed by this point, the handler has
     # finished all its work and the database is in its final state.
     _assert_one_completed_minidump(crashes_dir)
+
+
+def _parse_multipart_form_fields(body: bytes, content_type: str) -> dict:
+    """
+    Parses a multipart/form-data body and returns a dict mapping each form
+    field name to its text value. Parts that carry a filename (i.e. file
+    attachments such as the minidump) are skipped.
+
+    Uses Python's stdlib `email` package to handle boundary extraction and
+    MIME part parsing.
+    """
+    # Reconstruct a MIME message that the email parser can handle: prepend
+    # the Content-Type header so the parser sees the boundary parameter.
+    mime_bytes = (f'Content-Type: {content_type}\r\n\r\n').encode() + body
+    msg = email.message_from_bytes(mime_bytes, policy=email.policy.compat32)
+
+    fields = {}
+    for part in msg.get_payload():
+        disposition = part.get('Content-Disposition', '')
+        # Skip file-attachment parts (those with a filename parameter)
+        if 'filename' in disposition:
+            continue
+        # Extract the field name from Content-Disposition
+        _, params = email.header.decode_header(disposition)[0][0], {}
+        # Use get_param for reliable parameter extraction
+        name = part.get_param('name', header='Content-Disposition')
+        if name is None:
+            continue
+        payload = part.get_payload(decode=False)
+        if isinstance(payload, bytes):
+            payload = payload.decode('utf-8', errors='replace')
+        fields[name] = payload.strip() if payload else ''
+    return fields
 
 
 def _assert_one_completed_minidump(crashes_dir: Path):

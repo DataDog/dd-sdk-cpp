@@ -514,10 +514,10 @@ index 6c17a1d1..d6656340 100644
  }  // extern "C"
 diff --git a/handler/datadog_pre_upload_callback.cc b/handler/datadog_pre_upload_callback.cc
 new file mode 100644
-index 00000000..301cb0bb
+index 00000000..f80dc3e7
 --- /dev/null
 +++ b/handler/datadog_pre_upload_callback.cc
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,35 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -538,8 +538,17 @@ index 00000000..301cb0bb
 +
 +namespace crashpad {
 +
-+bool DatadogPreUploadCallback(std::map<std::string, std::string>&) {
++bool DatadogPreUploadCallback(std::map<std::string, std::string>& parameters) {
 +  DLOG(INFO) << "DatadogPreUploadCallback called";
++
++  auto it = parameters.find("dd.tracking_consent");
++  const bool granted = it != parameters.end() && it->second == "granted";
++  if (!granted) {
++    return false;
++  }
++  parameters.erase(it);
++  parameters["dd.handled"] = "true";
++
 +  return true;
 +}
 +
@@ -589,10 +598,10 @@ index 00000000..6a67c13a
 +#endif  // CRASHPAD_HANDLER_DATADOG_PRE_UPLOAD_CALLBACK_H_
 diff --git a/handler/datadog_pre_upload_callback_test.cc b/handler/datadog_pre_upload_callback_test.cc
 new file mode 100644
-index 00000000..6b4ed3cf
+index 00000000..44143c6c
 --- /dev/null
 +++ b/handler/datadog_pre_upload_callback_test.cc
-@@ -0,0 +1,26 @@
+@@ -0,0 +1,60 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -616,6 +625,40 @@ index 00000000..6b4ed3cf
 +
 +namespace crashpad::test {
 +namespace {
++
++// When tracking consent is granted, the callback should return true, strip
++// dd.tracking_consent, add dd.handled=true, and leave other fields untouched.
++TEST(DatadogPreUploadCallbackTest, TrackingConsentGranted) {
++  std::map<std::string, std::string> params = {
++      {"dd.tracking_consent", "granted"}, {"other", "value"}};
++  EXPECT_TRUE(DatadogPreUploadCallback(params));
++  EXPECT_EQ(params.count("dd.tracking_consent"), 0u);
++  EXPECT_EQ(params.at("dd.handled"), "true");
++  EXPECT_EQ(params.at("other"), "value");
++}
++
++// When tracking consent is explicitly not-granted, suppress the upload.
++TEST(DatadogPreUploadCallbackTest, TrackingConsentNotGranted) {
++  std::map<std::string, std::string> params = {
++      {"dd.tracking_consent", "not-granted"}};
++  EXPECT_FALSE(DatadogPreUploadCallback(params));
++}
++
++// When tracking consent is pending, suppress the upload.
++TEST(DatadogPreUploadCallbackTest, TrackingConsentPending) {
++  std::map<std::string, std::string> params = {
++      {"dd.tracking_consent", "pending"}};
++  EXPECT_FALSE(DatadogPreUploadCallback(params));
++}
++
++// When dd.tracking_consent is absent entirely, assume not-granted and suppress.
++TEST(DatadogPreUploadCallbackTest, TrackingConsentMissing) {
++  std::map<std::string, std::string> params = {{"some_other_key", "value"}};
++  EXPECT_FALSE(DatadogPreUploadCallback(params));
++  // Map should be unmodified.
++  EXPECT_EQ(params.size(), 1u);
++  EXPECT_EQ(params.at("some_other_key"), "value");
++}
 +
 +}  // namespace
 +}  // namespace crashpad::test
