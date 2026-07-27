@@ -56,7 +56,7 @@ struct FeatureState {
     REQUIRE(!bypass_tracking_consent);
 
     // Parse the event payload as a non-null-terminated ASCII-encoded int
-    uint64_t value;
+    uint64_t value{};
     auto result = std::from_chars(event.data(), event.data() + event.size(), value);
     REQUIRE(result.ec == std::errc{});
 

@@ -1,10 +1,41 @@
 stages:
+  # Stage 'build-toolchain-images' is triggered manually whenever we need to build new
+  # Docker images for use in later stages of the pipeline to run Linux and Windows
+  # builds. A Linux toolchain image has CMake, Ninja, and a specific version of GCC or
+  # Clang. A Windows toolchain image has CMake and a specific version of Visual Studio +
+  # MSVC. macOS runners use a specific tart VM image in lieu of Docker.
   - build-toolchain-images
-  - validate
-  - build
+
+  # Stage 'check' runs CI jobs that do quick up-front sanity checks, like clang-format
+  # linting, before we commit resources to the full set of build jobs
+  - check
+
+  # Stage 'test' builds the SDK in various configurations, running the Catch2 unit test
+  # suite for each configuration. Jobs named 'test-*' are the primary exhaustive quality
+  # gate for any given platform/configuration, running both unit and integration tests.
+  # Jobs named 'compat-*' only run unit tests and are intended to validate compatibility
+  # across compilers and with different build options.
+  - test
+
+  # Stage 'package' generates release artifacts for the toolchains/configurations that
+  # we support with precompiled binaries
   - package
+
+  # Stage 'publish-release' runs only in `main`: it detects when the SDK version has
+  # been updated and will create GitHub release (and tag) X.Y.Z with all the release
+  # artifacts produced in this pipeline run. This is Phase 2 of a two-phase release
+  # process: for Phase 1, see the 'prepare-release' stage below.
   - publish-release  # (main only)
+
+  # Stage 'signal-success' is a no-op that runs after all other CI jobs have passed. The
+  # 'dd-protected-branches' ruleset (see https://github.com/DataDog/dd-sdk-cpp/rules)
+  # explicitly requires this job to pass before it will allow a PR to be merged.
   - signal-success
+  
+  # Stage 'prepare-release' runs only in `develop`: it can be manually triggered to create
+  # a branch release/X.Y.Z from develop and prepare a PR for merge into main. This is
+  # Phase 1 of the release process; Phase 2 (publish-release) will begin automatically
+  # once the release PR is merged to main.
   - prepare-release  # (develop only, manual)
 
 variables:
@@ -47,423 +78,18 @@ variables:
   GOLDEN_LINUX_TOOLCHAIN_TARGET: clang20
   GOLDEN_LINUX_IMAGE: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${GOLDEN_LINUX_TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
 
-# Stage 'build-toolchain-images' is triggered manually whenever we need to build new
-# Docker images for use in later stages of the pipeline to run Linux and Windows builds.
-# A Linux toolchain image has CMake, Ninja, and a specific version of GCC or Clang.
-# A Windows toolchain image has CMake and a specific version of Visual Studio + MSVC.
-# macOS runners use a specific dd-sdk-cpp-sonoma AMI in lieu of Docker.
+  # macOS runners use a tart VM image in lieu of Docker: this image has CMake, Ninja,
+  # and Apple's clang toolchain pre-installed
+  MACOS_TART_IMAGE: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
 
-build-toolchain-image-linux:
-  stage: build-toolchain-images
-  when: manual
-  except: [tags, schedules]
-  tags: [arch:amd64]
-  image: ${BUILD_STABLE_REGISTRY}/${DIND_IMAGE}
-  parallel:
-    matrix:
-      - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20, clang20-x86]
-  script:
-    - DIGEST_FILE=$(mktemp)
-    - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}"
-    - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build --push --metadata-file ${DIGEST_FILE} ./ci/linux
-    - ddsign sign ${TOOLCHAIN_IMAGE} --docker-metadata-file ${DIGEST_FILE}
-
-build-toolchain-image-windows:
-  stage: build-toolchain-images
-  when: manual
-  except: [tags, schedules]
-  tags: [windows-v2:2022]
-  id_tokens:
-    CI_IDENTITY_GITLAB_JWT:
-      aud: https://vault.us1.ddbuild.io  # Required for docker push
-  variables:
-    CI_IDENTITY_ROLE_NAME_OVERRIDE: windows-ci-tmp-gitlab-id-token-dd-sdk-cpp-all-refs  # Required for docker push
-    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-    TOOLCHAIN_TARGET: vs2022  # Visual Studio 2022 17.14; MSVC v143
-  # Build a Docker image, then tag it as both (e.g.) 'vs2022-v1' and 'vs2022-latest':
-  # the latter tag is used to cache the latest image locally when building Windows
-  # runner AMIs (see `pre-pull-docker-images.ps1` in ci-platform-machine-images)
-  script:
-    - $ErrorActionPreference = "Stop"
-    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-    - $env:TOOLCHAIN_IMAGE_LATEST = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-latest"
-    - docker build --tag ${env:TOOLCHAIN_IMAGE} --label target=build ./ci/windows
-    - If ($LASTEXITCODE -ne "0") { throw "docker build returned $LASTEXITCODE" }
-    - docker tag ${env:TOOLCHAIN_IMAGE} ${env:TOOLCHAIN_IMAGE_LATEST}
-    - If ($LASTEXITCODE -ne "0") { throw "docker tag returned $LASTEXITCODE" }
-    - docker push ${env:TOOLCHAIN_IMAGE}
-    - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
-    - docker push ${env:TOOLCHAIN_IMAGE_LATEST}
-    - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
-
-# Stage 'validate' performs quick up-front validation, using clang-20 with full support
-# for clang-format and clang-tidy
-
-check-format:
-  stage: validate
-  tags: [arch:amd64]
-  image: ${GOLDEN_LINUX_IMAGE}
-  script:
-    - cmake -DDD_ENABLE_CLANG_FORMAT=ON -S . -B build
-    - cmake --build build --target check-format
-
-validate-event-types:
-  stage: validate
-  tags: [arch:amd64]
-  image: ${GOLDEN_LINUX_IMAGE}
-  script:
-    - cmake -DDD_ENABLE_EVENT_VALIDATION=ON -S . -B build
-    - cmake --build build --target validate-event-types
-
-test-linux-x86:
-  stage: build
-  dependencies: []
-  tags: [arch:amd64]
-  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:clang20-x86-${LINUX_TOOLCHAIN_IMAGE_VERSION}
-  script:
-    # Install Python deps so we can run integration tests (mitmproxy runs as 64-bit
-    # Python on the amd64 host; the repl binary it drives is the 32-bit cross-compiled
-    # SDK example)
-    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
-    - >
-      cmake
-      -DCMAKE_BUILD_TYPE=Debug
-      -DDD_ENABLE_ASSERTS=ON
-      -DDD_BUILD_EXAMPLES=ON
-      -DDD_BUILD_TESTING=ON
-      -DDD_HTTP_USE_SYSTEM_LIBCURL=ON
-      -DDD_ENABLE_CLANG_TIDY=OFF
-      -DDD_ENABLE_GIT_REVISION_INFO=OFF
-      -S . -B build
-    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
-    - .venv/bin/python tools/integration-test/main.py
-  artifacts:
-    when: always
-    expire_in: "30 days"
-    reports:
-      junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
-
-test-linux:
-  stage: validate
-  tags: [arch:amd64]
-  image: ${GOLDEN_LINUX_IMAGE}
-  parallel:
-    matrix:
-      - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
-  script:
-    # Install Python deps so we can run integration tests
-    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
-    # Build the SDK with unit test suite and repl binaries included
-    - >
-      cmake
-      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
-      -DDD_ENABLE_ASSERTS=ON
-      -DDD_ENABLE_CLANG_TIDY=ON
-      -DDD_BUILD_EXAMPLES=ON
-      -DDD_BUILD_TESTING=ON
-      -S . -B build
-    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    # Run the full Catch2 unit test suite
-    - ctest --test-dir build --output-on-failure --output-junit test-results/test-results.xml
-    # Run integration tests defined in tools/integration-test/
-    - .venv/bin/python tools/integration-test/main.py
-  artifacts:
-    when: always
-    expire_in: "30 days"
-    reports:
-      junit: ${CI_PROJECT_DIR}/build/test-results/*.xml
-
-# Stage 'build' performs a more exhaustive set of library builds to validate that our
-# library builds successfully on all supported compilers in all configurations.
-
-build-linux:
-  stage: build
-  dependencies: []
-  tags: [arch:amd64]
-  parallel:
-    # To avoid ballooning our build matrix, test multiple variations (compiler version,
-    # static vs. shared, release vs. debug, etc.) in each job. clang20 builds all
-    # targets in the unit-test job, so we don't need to exercise it here.
-    matrix:
-      # gcc11: shared-debug, w/ runtime dependency on libcurl.so
-      - TOOLCHAIN_TARGET: gcc11
-        BUILD_CONFIGURATION: Debug
-        BUILD_SHARED_LIBS: "ON"
-        USE_SYSTEM_LIBCURL: "ON"
-        DD_CRASH_MODE: "inprocess"
-
-      # gcc13: static-release, w/ bundled libcurl
-      - TOOLCHAIN_TARGET: gcc13
-        BUILD_CONFIGURATION: Release
-        BUILD_SHARED_LIBS: "OFF"
-        USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "inprocess"
-
-      # clang15: static-release, w/ runtime dependency on libcurl.so
-      - TOOLCHAIN_TARGET: clang15
-        BUILD_CONFIGURATION: Release
-        BUILD_SHARED_LIBS: "OFF"
-        USE_SYSTEM_LIBCURL: "ON"
-        DD_CRASH_MODE: "inprocess"
-
-      # clang15: shared-debug, w/ bundled libcurl
-      - TOOLCHAIN_TARGET: clang15
-        BUILD_CONFIGURATION: Debug
-        BUILD_SHARED_LIBS: "ON"
-        USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "inprocess"
-
-  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
-  script:
-    - >
-      cmake
-      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
-      -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
-      -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
-      -DDD_CRASH_MODE=${DD_CRASH_MODE}
-      -DDD_RUN_CRASHPAD_TESTS=$([[ "${DD_CRASH_MODE}" == "crashpad" ]] && echo "ON" || echo "OFF")
-      -S . -B build
-    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-
-build-macos:
-  stage: build
-  dependencies: []
-  tags: [macos:tart]
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
-  parallel:
-    # Ensure that all targets build on macOS
-    matrix:
-      # clang15 (Apple): shared-debug, w/ runtime dependency on libcurl.so
-      - BUILD_CONFIGURATION: Debug
-        BUILD_SHARED_LIBS: "ON"
-        USE_SYSTEM_LIBCURL: "ON"
-        DD_CRASH_MODE: "inprocess"
-
-      # clang15 (Apple): static-release, w/ bundled libcurl
-      - BUILD_CONFIGURATION: Release
-        BUILD_SHARED_LIBS: "OFF"
-        USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "inprocess"
-  script:
-    - >
-      cmake
-      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
-      -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
-      -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
-      -DDD_CRASH_MODE=${DD_CRASH_MODE}
-      -DDD_RUN_CRASHPAD_TESTS=$([[ "${DD_CRASH_MODE}" == "crashpad" ]] && echo "ON" || echo "OFF")
-      -S . -B build
-    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-
-test-macos:
-  stage: build
-  dependencies: []
-  tags: [macos:tart]
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
-  script:
-    - export PYENV_ROOT="$HOME/.pyenv"
-    - export PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
-    - python -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
-    - >
-      cmake
-      -DCMAKE_BUILD_TYPE=Debug
-      -DDD_ENABLE_ASSERTS=ON
-      -DDD_BUILD_EXAMPLES=ON
-      -DDD_BUILD_TESTING=ON
-      -S . -B build
-    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - ctest --test-dir build --output-on-failure
-    - .venv/bin/python tools/integration-test/main.py
-
-build-windows:
-  stage: build
-  dependencies: []
-  tags: [windows-v2:2022]
-  variables:
-    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-    TOOLCHAIN_TARGET: vs2022
-  parallel:
-    matrix:
-      # Visual Studio 2022 (17.14, vc143): md-static-release, w/ bundled libcurl
-      - BUILD_CONFIGURATION: Release
-        BUILD_SHARED_LIBS: "OFF"
-        USE_SYSTEM_LIBCURL: "OFF"
-        DD_CRASH_MODE: "inprocess"
-        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
-  script:
-    - $ErrorActionPreference = "Stop"
-    - if (Test-Path build) { remove-item -recurse -force build }
-    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-    - $env:DD_RUN_CRASHPAD_TESTS = if (${env:DD_CRASH_MODE} -eq "crashpad") { "ON" } else { "OFF" }
-    - >
-      docker run --rm
-      -m 8192M
-      -e NUM_PARALLEL_BUILD_JOBS
-      -v "$(Get-Location):C:\mnt"
-      -w C:\mnt
-      ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
-    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
-
-test-windows:
-  stage: build
-  dependencies: []
-  tags: [windows-v2:2022]
-  variables:
-    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-    TOOLCHAIN_TARGET: vs2022
-  script:
-    - $ErrorActionPreference = "Stop"
-    - if (Test-Path build) { remove-item -recurse -force build }
-    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-    - >
-      docker run --rm
-      -m 8192M
-      -e NUM_PARALLEL_BUILD_JOBS
-      -v "$(Get-Location):C:\mnt"
-      -w C:\mnt
-      ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DDD_HTTP_USE_SYSTEM_LIBCURL=OFF -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py"
-    - If ($LASTEXITCODE -ne "0") { throw "docker run (test) returned $LASTEXITCODE" }
-
-# Stage 'package' generates release artifacts for the toolchains/configurations that we
-# support with precompiled binaries
-
-package-linux:
-  stage: package
-  dependencies: []
-  tags: [arch:amd64]
-  parallel:
-    matrix:
-      # linux-{arch}-clang-libstdc++-shared-release
-      - TOOLCHAIN_TARGET: clang20
-        BUILD_CONFIGURATION: RelWithDebInfo
-        BUILD_SHARED_LIBS: "ON"
-  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
-  script:
-    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
-    - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - stat build/artifact_name.txt
-    - stat "build/$(cat build/artifact_name.txt).tar.gz"
-  artifacts:
-    expire_in: "1 week"
-    paths:
-      - build/ddsdkcpp-*.tar.gz
-
-package-macos:
-  stage: package
-  dependencies: []
-  tags: [macos:tart]
-  image: "486234852809.dkr.ecr.us-east-1.amazonaws.com/ci/ci-platform-machine-images/tart-vm:dd-sdk-cpp-sonoma-latest"
-  parallel:
-    matrix:
-      # macos-{arch}-clang-libc++-shared-release
-      - BUILD_CONFIGURATION: RelWithDebInfo
-        BUILD_SHARED_LIBS: "ON"
-        CMAKE_OSX_DEPLOYMENT_TARGET: "14.0"
-        CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
-  script:
-    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET} -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
-    - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - stat build/artifact_name.txt
-    - stat "build/$(cat build/artifact_name.txt).tar.gz"
-  artifacts:
-    expire_in: "1 week"
-    paths:
-      - build/ddsdkcpp-*.tar.gz
-
-package-windows:
-  stage: package
-  dependencies: []
-  tags: [windows-v2:2022]
-  variables:
-    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
-    TOOLCHAIN_TARGET: vs2022
-  parallel:
-    matrix:
-      # windows-x64-msvc143-md-shared-release
-      - BUILD_CONFIGURATION: RelWithDebInfo
-        BUILD_SHARED_LIBS: "ON"
-        USE_SYSTEM_LIBCURL: "OFF"  # Build static libcurl from source
-        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
-  script:
-    - $ErrorActionPreference = "Stop"
-    - if (Test-Path build) { remove-item -recurse -force build }
-    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
-    - >
-      docker run --rm
-      -m 8192M
-      -v "$(Get-Location):C:\mnt"
-      -w C:\mnt
-      ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
-    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
-  artifacts:
-    expire_in: 1 week
-    paths:
-      - build/ddsdkcpp-*.zip
-
-# Stage 'publish-release' runs only in `main`: it detects when the SDK version has been
-# updated and will create GitHub release (and tag) X.Y.Z with all the release artifacts
-# produced in this pipeline run. This is Phase 2 of a two-phase release process: for
-# Phase 1, see the 'prepare-release' job below.
-
-publish-release:
-  stage: publish-release
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-  dependencies:
-    - package-linux
-    - package-macos
-    - package-windows
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  tags: [arch:amd64]
-  image: ${GOLDEN_LINUX_IMAGE}
-  allow_failure:
-    # Exit code 2 is used to signal that there's already a release for the current
-    # version: in that case, turn the job orange (rather than green or red) and allow
-    # the pipeline to continue, so that a green circle for this job is always a
-    # definitive signal that a new release was published
-    exit_codes: [2]
-  before_script:
-    # We need to push tags and create releases: use dd-octo-sts to obtain a GitHub token
-    # with the trust policy defined at .github/chainguard/self.publish-release.sts.yaml
-    - dd-octo-sts --disable-tracing debug --scope DataDog/dd-sdk-cpp --policy self.publish-release
-    - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.publish-release > /tmp/gh-token.txt
-  script:
-    # Upstream 'package' jobs should have produced archives containing prebuilt binaries
-    # to be used in this release: these '*.tar.gz'/'*.zip' files are tagged as artifacts
-    # in those CI jobs, meaning they should be automatically copied into our `build`
-    # directory
-    - |
-      mapfile -d '' ARCHIVE_FILES < <(
-        find build -maxdepth 1 -type f \
-          \( -name 'ddsdkcpp-*.tar.gz' -o -name 'ddsdkcpp-*.zip' \) \
-          -print0
-      )
-      if [ "${#ARCHIVE_FILES[@]}" -eq 0 ]; then
-        echo "ERROR: No archive files found in previous jobs' artifacts" >&2
-        exit 1
-      fi
-    # Configure token for git and GitHub commands used in our script
-    - export GITHUB_TOKEN=$(cat /tmp/gh-token.txt)
-    - git config user.name "dd-octo-sts[bot]"
-    - git config user.email "200755185+dd-octo-sts[bot]@users.noreply.github.com"
-    - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
-    # Use tools/publish-release to push a tag and create a GitHub release that includes
-    # our archives with prebuilt binaries
-    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[publish-release]'
-    - .venv/bin/python tools/publish-release/main.py "${ARCHIVE_FILES[@]}"
-  after_script:
-    # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
-    - dd-octo-sts --disable-tracing revoke --token "$(cat /tmp/gh-token.txt)"
-
-# Stage 'signal-success' is a no-op that runs after all other CI jobs have passed. The
-# 'dd-protected-branches' ruleset (see https://github.com/DataDog/dd-sdk-cpp/rules)
-# explicitly requires this job to pass before it will allow a PR to be merged.
+include:
+  - local: ci/build-toolchain-images.yml
+  - local: ci/check.yml
+  - local: ci/test-linux.yml
+  - local: ci/test-macos.yml
+  - local: ci/test-windows.yml
+  - local: ci/package.yml
+  - local: ci/release.yml
 
 signal-success:
   stage: signal-success
@@ -471,54 +97,3 @@ signal-success:
   image: ${GOLDEN_LINUX_IMAGE}
   script:
     - echo "All CI jobs were successful!"
-
-# Jobs below this point are manually-triggered release tasks that run only in `develop`
-# and that should not block approval of PRs in other branches.
-
-# Stage 'prepare-release' runs only in `develop`: it can be manually triggered to create
-# a branch release/X.Y.Z from develop and prepare a PR for merge into main. This is
-# Phase 1 of the release process; Phase 2 (publish-release) will begin automatically
-# once the release PR is merged to main.
-
-prepare-release:
-  stage: prepare-release
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "develop"'
-      when: manual
-  variables:
-    # Custom values can be provided when manually triggering the job in the GitLab UI
-    BUMP_TYPE: ""   # Set BUMP_TYPE=minor etc. to override conventional commits
-    GIT_DEPTH: "0"  # Run a full clone so `git log <tag>..HEAD` finds all merged PRs
-  id_tokens:
-    DDOCTOSTS_ID_TOKEN:
-      aud: dd-octo-sts
-  tags: [arch:amd64]
-  image: ${GOLDEN_LINUX_IMAGE}
-  before_script:
-    # We need a short-lived GitHub token to push changes and open PRs; see:
-    # - .github/chainguard/self.prepare-release.sts.yaml
-    - dd-octo-sts --disable-tracing debug --scope DataDog/dd-sdk-cpp --policy self.prepare-release
-    - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.prepare-release > /tmp/gh-token.txt
-  script:
-    # The `gh` CLI picks up `GITHUB_TOKEN` automatically; for `git` we need to point the
-    # remote at GitHub using the token for HTTPS auth, and we also need to configure
-    # dd-octo-sts-specific username and email
-    - export GITHUB_TOKEN=$(cat /tmp/gh-token.txt)
-    - git config user.name "dd-octo-sts[bot]"
-    - git config user.email "200755185+dd-octo-sts[bot]@users.noreply.github.com"
-    - git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@github.com/DataDog/dd-sdk-cpp.git"
-    # Since we'll push commits that need to be merged to main, we also need to use
-    # commit-headless so those commits will be signed: verify that it's installed
-    - commit-headless version
-    # We also need a Datadog-issued token with an audience of 'rapid-ai-platform' in
-    # order to make requests to the AI Gateway for LLM calls: we use authanywhere to
-    # obtain this token
-    - export AI_GATEWAY_TOKEN=$(authanywhere --audience rapid-ai-platform --raw --dc us1.ddbuild.io)
-    # Use tools/prepare-release to bump the version number, update the version in
-    # CMakeLists.txt, update CHANGELOG.md based on contents of PRs included in this
-    # release, push a release/X.Y.Z branch, and open a PR into main
-    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[prepare-release]'
-    - .venv/bin/python tools/prepare-release/main.py ${BUMP_TYPE:+--bump $BUMP_TYPE}
-  after_script:
-    # Revoke our dd-octo-sts-provided GITHUB_TOKEN unconditionally once finished
-    - dd-octo-sts --disable-tracing revoke --token "$(cat /tmp/gh-token.txt)"
