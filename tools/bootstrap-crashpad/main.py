@@ -197,6 +197,13 @@ class GnArgs:
             if opt.startswith('/W') or opt.startswith('/external:'):
                 continue
 
+            # /MP tells MSBuild to compile multiple source files in parallel within a
+            # single cl.exe invocation. It has no meaning in a GN/ninja build, where
+            # parallelism is managed by ninja -j. clang-cl (used by Crashpad's depot_tools
+            # compiler) treats it as an unused argument and fails with -Werror, so drop it.
+            if opt == '/MP':
+                continue
+
             # The depot_tools compiler supports sanitizers, but it's not guaranteed to
             # use the same ABI version of ASan, TSan, etc.: strip these flags to ensure
             # that our crashpad build doesn't reference sanitizer symbols that are
@@ -349,14 +356,16 @@ def apply_patch(repo_root: str) -> None:
                 f'before applying the patch.'
             )
 
-    # Try to apply the patch cleanly
+    # Try to apply the patch cleanly. --ignore-whitespace ensures that line-ending
+    # differences (e.g. LF patch applied to a CRLF checkout on Windows) don't cause
+    # spurious context mismatches.
     check_result = subprocess.run(
-        ['git', 'apply', '--check', __patch_file__],
+        ['git', 'apply', '--ignore-whitespace', '--check', __patch_file__],
         cwd=repo_root, capture_output=True, text=True
     )
     if check_result.returncode == 0:
         # Patch applies cleanly — go ahead and apply it
-        subprocess.check_call(['git', 'apply', __patch_file__], cwd=repo_root)
+        subprocess.check_call(['git', 'apply', '--ignore-whitespace', __patch_file__], cwd=repo_root)
         print('Patch applied successfully.')
         return
 
@@ -364,7 +373,7 @@ def apply_patch(repo_root: str) -> None:
     # reverse: this disambiguates "already applied" from other failures (corrupt patch,
     # wrong base, etc.)
     reverse_result = subprocess.run(
-        ['git', 'apply', '--check', '--reverse', __patch_file__],
+        ['git', 'apply', '--ignore-whitespace', '--check', '--reverse', __patch_file__],
         cwd=repo_root, capture_output=True, text=True
     )
     if reverse_result.returncode == 0:
@@ -457,6 +466,10 @@ def run_crashpad_tests(out_dir: str, source_root: str = None):
         # These tests pass, but as a side effect they print output containing the
         # substring 'error:', which MSBuild interprets as build failure
         excluded_tests.append('WinMultiprocessChildFails.*')
+
+        # Cross-process thread introspection via NtSuspendProcess is unreliable
+        # inside a Windows Docker container and causes this test to fail
+        excluded_tests.append('ProcessReaderWin.ChildThreadSuspendCounts')
     if excluded_tests:
         env['GTEST_FILTER'] = '-' + ':'.join(excluded_tests)
 

@@ -20,7 +20,33 @@ test-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --build-config Debug --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py"
+      cmd /S /C "python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --build-config Debug --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py --crash-mode inprocess"
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (test) returned $LASTEXITCODE" }
+
+test-windows-crashpad:
+  # - COMPILE: Build with MSVC 17.14 on Windows x64
+  # - CONFIG:  Debug build
+  # - CRASH:   Use the Crashpad crash handling implementation
+  # - EXTRAS:  Build test binaries and examples
+  # - RUNTIME: Run Crashpad tests, SDK unit tests, and integration tests
+  stage: test
+  dependencies: []
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path build) { remove-item -recurse -force build }
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - >
+      docker run --rm
+      -m 8192M
+      -e NUM_PARALLEL_BUILD_JOBS
+      -v "$(Get-Location):C:\mnt"
+      -w C:\mnt
+      ${env:TOOLCHAIN_IMAGE}
+      cmd /S /C "python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DMSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -DDD_CRASH_MODE=crashpad -DDD_RUN_CRASHPAD_TESTS=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --build-config Debug --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py --crash-mode crashpad"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (test) returned $LASTEXITCODE" }
 
 compat-windows:
