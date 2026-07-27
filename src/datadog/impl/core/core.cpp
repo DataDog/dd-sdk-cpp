@@ -679,4 +679,8 @@ IFilesystem& Core::GetFilesystem() const {
   return *_subsystems.fs;
 }
 
+std::string_view Core::GetIntakeOrigin() const {
+  return _immutable_context.intake_origin;
+}
+
 }  // namespace datadog::impl

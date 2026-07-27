@@ -453,6 +453,7 @@ class Core {
   // implementation when they're constructed
   const platform::IClock& GetClock() const;
   IFilesystem& GetFilesystem() const;
+  std::string_view GetIntakeOrigin() const;
 };
 
 }  // namespace datadog::impl
