@@ -144,8 +144,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
       return false;
     }
 
-    // Clear annotation values, if any were set previously
-    s_dd_tracking_consent.Set("");
+    // Initialize annotation values to their defaults
+    s_dd_tracking_consent.Set("pending");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
