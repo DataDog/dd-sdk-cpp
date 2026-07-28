@@ -20,7 +20,7 @@ index 1db2920e..918bd4a5 100644
  
   * [Project status](doc/status.md)
 diff --git a/handler/BUILD.gn b/handler/BUILD.gn
-index 9061c2cb..d0ab013f 100644
+index 9061c2cb..229724fc 100644
 --- a/handler/BUILD.gn
 +++ b/handler/BUILD.gn
 @@ -1,4 +1,6 @@
@@ -30,7 +30,16 @@ index 9061c2cb..d0ab013f 100644
  #
  # Licensed under the Apache License, Version 2.0 (the "License");
  # you may not use this file except in compliance with the License.
-@@ -43,6 +45,11 @@ static_library("common") {
+@@ -20,6 +22,8 @@ static_library("common") {
+     "crash_report_upload_rate_limit.h",
+     "crash_report_upload_thread.cc",
+     "crash_report_upload_thread.h",
++    "datadog_pre_upload_callback.cc",
++    "datadog_pre_upload_callback.h",
+     "minidump_to_upload_parameters.cc",
+     "minidump_to_upload_parameters.h",
+     "user_stream_data_source.cc",
+@@ -43,6 +47,11 @@ static_library("common") {
      "../util",
      "../util:net",
    ]
@@ -42,36 +51,75 @@ index 9061c2cb..d0ab013f 100644
    if (crashpad_is_win) {
      cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
    }
-@@ -110,6 +117,10 @@ if (!crashpad_is_ios) {
+@@ -110,6 +119,9 @@ if (!crashpad_is_ios) {
        "../tools:tool_support",
      ]
  
-+    # Inherit the Datadog upload extensions define so handler_main.cc sees the
-+    # same guarded declarations as the common library it links against.
++    # Enable Datadog extensions when compiling the handler lib
 +    defines = [ "WITH_DATADOG_UPLOAD_EXTENSIONS=1" ]
 +
      if (crashpad_is_win) {
        cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
      }
-@@ -130,6 +141,7 @@ if (!crashpad_is_ios) {
+@@ -122,6 +134,9 @@ if (!crashpad_is_ios) {
+       sources = [ "crashpad_handler_main.cc" ]
+ 
+       deps = [ ":handler" ]
++
++      # Enable Datadog extensions in the embedded handler entry point
++      defines = [ "WITH_DATADOG_UPLOAD_EXTENSIONS=1" ]
+     }
+   }
+ 
+@@ -130,6 +145,8 @@ if (!crashpad_is_ios) {
  
      sources = [
        "crash_report_upload_rate_limit_test.cc",
 +      "crash_report_upload_thread_test.cc",
++      "datadog_pre_upload_callback_test.cc",
        "minidump_to_upload_parameters_test.cc",
      ]
  
-@@ -141,6 +153,10 @@ if (!crashpad_is_ios) {
+@@ -141,6 +158,9 @@ if (!crashpad_is_ios) {
        sources += [ "crashpad_handler_test.cc" ]
      }
  
-+    # Inherit the Datadog upload extensions define so test code sees the same
-+    # guarded declarations as the library under test.
++    # Enable Datadog extensions in the tests that exercise the handler
 +    defines = [ "WITH_DATADOG_UPLOAD_EXTENSIONS=1" ]
 +
      deps = [
        ":handler",
        "../client",
+@@ -177,6 +197,9 @@ if (!crashpad_is_ios) {
+       "../tools:tool_support",
+     ]
+ 
++    # Enable Datadog extensions in the handler binary
++    defines = [ "WITH_DATADOG_UPLOAD_EXTENSIONS=1" ]
++
+     if (crashpad_is_win) {
+       if (crashpad_is_in_chromium || crashpad_is_in_dart) {
+         remove_configs = [ "//build/config/win:console" ]
+@@ -255,6 +278,9 @@ if (!crashpad_is_ios) {
+       "../third_party/mini_chromium:base",
+       "../tools:tool_support",
+     ]
++
++    # Enable Datadog extensions in the extended handler test binary
++    defines = [ "WITH_DATADOG_UPLOAD_EXTENSIONS=1" ]
+   }
+ }
+ 
+@@ -262,6 +288,9 @@ if (crashpad_is_win) {
+   crashpad_executable("crashpad_handler_com") {
+     sources = [ "main.cc" ]
+ 
++    # Enable Datadog extensions in the COM handler binary
++    defines = [ "WITH_DATADOG_UPLOAD_EXTENSIONS=1" ]
++
+     # Avoid .exp, .ilk, and .lib file collisions with crashpad_handler.exe by
+     # having this target produce crashpad_handler_com.com. Don’t use this target
+     # directly. Instead, use crashpad_handler_console.
 diff --git a/handler/crash_report_upload_thread.cc b/handler/crash_report_upload_thread.cc
 index bec87142..d5145b18 100644
 --- a/handler/crash_report_upload_thread.cc
@@ -427,3 +475,272 @@ index 00000000..1fde4937
 +
 +}  // namespace
 +}  // namespace crashpad::test
+diff --git a/handler/crashpad_handler_main.cc b/handler/crashpad_handler_main.cc
+index 6c17a1d1..d6656340 100644
+--- a/handler/crashpad_handler_main.cc
++++ b/handler/crashpad_handler_main.cc
+@@ -1,4 +1,6 @@
+ // Copyright 2019 The Crashpad Authors
++// Modifications Copyright 2026 Datadog, Inc.
++// Modified by Datadog, Inc.
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+ // you may not use this file except in compliance with the License.
+@@ -14,6 +16,10 @@
+ 
+ #include "handler/handler_main.h"
+ 
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++#include "handler/datadog_pre_upload_callback.h"
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++
+ namespace crashpad {
+ 
+ extern "C" {
+@@ -21,7 +27,12 @@ extern "C" {
+ __attribute__((visibility("default"), used)) int CrashpadHandlerMain(
+     int argc,
+     char* argv[]) {
+-  return HandlerMain(argc, argv, nullptr);
++  return HandlerMain(argc, argv, nullptr
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++                    ,
++                    &DatadogPreUploadCallback
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++  );
+ }
+ 
+ }  // extern "C"
+diff --git a/handler/datadog_pre_upload_callback.cc b/handler/datadog_pre_upload_callback.cc
+new file mode 100644
+index 00000000..301cb0bb
+--- /dev/null
++++ b/handler/datadog_pre_upload_callback.cc
+@@ -0,0 +1,26 @@
++// Copyright 2026 Datadog, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++#include "handler/datadog_pre_upload_callback.h"
++
++#include "base/logging.h"
++
++namespace crashpad {
++
++bool DatadogPreUploadCallback(std::map<std::string, std::string>&) {
++  DLOG(INFO) << "DatadogPreUploadCallback called";
++  return true;
++}
++
++}  // namespace crashpad
+diff --git a/handler/datadog_pre_upload_callback.h b/handler/datadog_pre_upload_callback.h
+new file mode 100644
+index 00000000..6a67c13a
+--- /dev/null
++++ b/handler/datadog_pre_upload_callback.h
+@@ -0,0 +1,37 @@
++// Copyright 2026 Datadog, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++#ifndef CRASHPAD_HANDLER_DATADOG_PRE_UPLOAD_CALLBACK_H_
++#define CRASHPAD_HANDLER_DATADOG_PRE_UPLOAD_CALLBACK_H_
++
++#include <map>
++#include <string>
++
++namespace crashpad {
++
++//! \brief Pre-upload callback implementing Datadog-specific crash handling.
++//!
++//! This function is intended to be passed as the `pre_upload_callback`
++//! argument to `CrashReportUploadThread`. It is invoked on the upload thread
++//! for each crash report before the HTTP request is assembled.
++//!
++//! \param[in,out] parameters The annotation-derived form-field map for the
++//!     crash report. The callback may read, modify, or erase entries.
++//!
++//! \return `true` to proceed with the upload, `false` to suppress it.
++bool DatadogPreUploadCallback(std::map<std::string, std::string>& parameters);
++
++}  // namespace crashpad
++
++#endif  // CRASHPAD_HANDLER_DATADOG_PRE_UPLOAD_CALLBACK_H_
+diff --git a/handler/datadog_pre_upload_callback_test.cc b/handler/datadog_pre_upload_callback_test.cc
+new file mode 100644
+index 00000000..6b4ed3cf
+--- /dev/null
++++ b/handler/datadog_pre_upload_callback_test.cc
+@@ -0,0 +1,26 @@
++// Copyright 2026 Datadog, Inc.
++//
++// Licensed under the Apache License, Version 2.0 (the "License");
++// you may not use this file except in compliance with the License.
++// You may obtain a copy of the License at
++//
++//     http://www.apache.org/licenses/LICENSE-2.0
++//
++// Unless required by applicable law or agreed to in writing, software
++// distributed under the License is distributed on an "AS IS" BASIS,
++// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
++// See the License for the specific language governing permissions and
++// limitations under the License.
++
++#include "handler/datadog_pre_upload_callback.h"
++
++#include <map>
++#include <string>
++
++#include "gtest/gtest.h"
++
++namespace crashpad::test {
++namespace {
++
++}  // namespace
++}  // namespace crashpad::test
+diff --git a/handler/handler_main.cc b/handler/handler_main.cc
+index 7a060799..074ad604 100644
+--- a/handler/handler_main.cc
++++ b/handler/handler_main.cc
+@@ -1,4 +1,6 @@
+ // Copyright 2014 The Crashpad Authors
++// Modifications Copyright 2026 Datadog, Inc.
++// Modified by Datadog, Inc.
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+ // you may not use this file except in compliance with the License.
+@@ -566,7 +568,12 @@ void InitCrashpadLogging() {
+ 
+ int HandlerMain(int argc,
+                 char* argv[],
+-                const UserStreamDataSources* user_stream_sources) {
++                const UserStreamDataSources* user_stream_sources
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++                ,
++                CrashReportUploadThread::PreUploadCallback pre_upload_callback
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++) {
+   InitCrashpadLogging();
+ 
+   InstallCrashHandler();
+@@ -1030,7 +1037,12 @@ int HandlerMain(int argc,
+         database.get(),
+         options.url,
+         upload_thread_options,
+-        CrashReportUploadThread::ProcessPendingReportsObservationCallback()));
++        CrashReportUploadThread::ProcessPendingReportsObservationCallback()
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++        ,
++        std::move(pre_upload_callback)
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++        ));
+     upload_thread.Get()->Start();
+   }
+ 
+diff --git a/handler/handler_main.h b/handler/handler_main.h
+index 35fa4e60..783f7654 100644
+--- a/handler/handler_main.h
++++ b/handler/handler_main.h
+@@ -1,4 +1,6 @@
+ // Copyright 2015 The Crashpad Authors
++// Modifications Copyright 2026 Datadog, Inc.
++// Modified by Datadog, Inc.
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+ // you may not use this file except in compliance with the License.
+@@ -18,6 +20,10 @@
+ #include "build/build_config.h"
+ #include "handler/user_stream_data_source.h"
+ 
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++#include "handler/crash_report_upload_thread.h"
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++
+ namespace crashpad {
+ 
+ //! \brief The `main()` of the `crashpad_handler` binary.
+@@ -33,7 +39,13 @@ namespace crashpad {
+ //!     to the minidump.
+ int HandlerMain(int argc,
+                 char* argv[],
+-                const UserStreamDataSources* user_stream_sources);
++                const UserStreamDataSources* user_stream_sources
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++                ,
++                CrashReportUploadThread::PreUploadCallback
++                    pre_upload_callback = {}
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++);
+ 
+ #if BUILDFLAG(IS_ANDROID)
+ //! \brief The `main()` entry point for Android libraries.
+diff --git a/handler/main.cc b/handler/main.cc
+index 90e0d8d7..d36c8d25 100644
+--- a/handler/main.cc
++++ b/handler/main.cc
+@@ -1,4 +1,6 @@
+ // Copyright 2015 The Crashpad Authors
++// Modifications Copyright 2026 Datadog, Inc.
++// Modified by Datadog, Inc.
+ //
+ // Licensed under the Apache License, Version 2.0 (the "License");
+ // you may not use this file except in compliance with the License.
+@@ -17,6 +19,10 @@
+ #include "build/build_config.h"
+ #include "tools/tool_support.h"
+ 
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++#include "handler/datadog_pre_upload_callback.h"
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++
+ #if BUILDFLAG(IS_WIN)
+ #include <stdlib.h>
+ #include <windows.h>
+@@ -25,7 +31,12 @@
+ #if BUILDFLAG(IS_POSIX)
+ 
+ int main(int argc, char* argv[]) {
+-  return crashpad::HandlerMain(argc, argv, nullptr);
++  return crashpad::HandlerMain(argc, argv, nullptr
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++                               ,
++                               &crashpad::DatadogPreUploadCallback
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++  );
+ }
+ 
+ #elif BUILDFLAG(IS_WIN)
+@@ -33,7 +44,12 @@ int main(int argc, char* argv[]) {
+ namespace {
+ 
+ int HandlerMainAdaptor(int argc, char* argv[]) {
+-  return crashpad::HandlerMain(argc, argv, nullptr);
++  return crashpad::HandlerMain(argc, argv, nullptr
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++                               ,
++                               &crashpad::DatadogPreUploadCallback
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
++  );
+ }
+ 
+ }  // namespace
