@@ -29,8 +29,10 @@ Commands:
     - add `--no-test` to skip running Crashpad's test suite
 - `main.py test`: runs crashpad tests
 - `main.py patch update <path>`: generate a fresh datadog.patch from a local crashpad
-    clone; update the pinned revision in .gclient/.gclient_entries if the datadog branch
-    has been rebased onto a new upstream commit
+    clone; update the pinned revision in .gclient/.gclient_entries if the branch has been
+    rebased onto a new upstream commit. Defaults to the currently checked-out branch;
+    pass `--branch <name>` to use a specific branch. Fails if the working tree has any
+    uncommitted changes (staged, unstaged, or untracked-but-added).
 - `main.py dev init <path>`: bootstrap a local crashpad clone for development; creates/
     validates the datadog branch and optionally runs gclient sync
     - add `--no-sync` to skip gclient sync
@@ -537,60 +539,88 @@ def test_main(args: argparse.Namespace):
 def patch_update_main(args: argparse.Namespace):
     local_clone = os.path.abspath(args.local_clone)
 
-    base_hash = read_pinned_revision()
-    print(f'Current pinned revision: {base_hash}')
-
     # Verify the local clone is a git repository
     if subprocess.run(['git', 'rev-parse', '--git-dir'], cwd=local_clone,
                       capture_output=True).returncode != 0:
         raise RuntimeError(f'{local_clone!r} is not a git repository')
 
-    # Verify the datadog branch exists
-    if subprocess.run(['git', 'rev-parse', '--verify', __datadog_branch__],
-                      cwd=local_clone, capture_output=True).returncode != 0:
+    # Resolve the branch to diff: explicit --branch flag, or the currently checked-out branch.
+    if args.branch:
+        branch = args.branch
+    else:
+        head_result = subprocess.run(
+            ['git', 'symbolic-ref', '--short', 'HEAD'],
+            cwd=local_clone, capture_output=True, text=True
+        )
+        if head_result.returncode != 0:
+            raise RuntimeError(
+                f'{local_clone!r} is in a detached HEAD state. '
+                'Check out the branch you want to diff, or pass --branch explicitly.'
+            )
+        branch = head_result.stdout.strip()
+    print(f'Generating patch from branch: {branch!r}')
+
+    # Fail if the working tree has any uncommitted changes (staged, unstaged, or
+    # untracked-but-added). Uncommitted changes won't be included in the patch, so
+    # allowing them would produce a patch that doesn't match the working tree.
+    status_result = subprocess.run(
+        ['git', 'status', '--porcelain'],
+        cwd=local_clone, capture_output=True, text=True, check=True
+    )
+    if status_result.stdout.strip():
         raise RuntimeError(
-            f'Branch {__datadog_branch__!r} does not exist in {local_clone!r}. '
-            'Create it with `dev init` first.'
+            f'{local_clone!r} has uncommitted changes. Commit or stash them before '
+            f'regenerating the patch:\n\n{status_result.stdout}'
         )
 
-    # Find the fork point: the upstream commit that the datadog branch is directly based on.
-    # We use merge-base(datadog, origin/main) rather than merge-base(datadog, base_hash),
-    # because the latter always returns base_hash (it's always an ancestor of datadog), and
-    # therefore can't detect that the developer has rebased onto a newer upstream commit.
+    # Verify the branch exists
+    if subprocess.run(['git', 'rev-parse', '--verify', branch],
+                      cwd=local_clone, capture_output=True).returncode != 0:
+        raise RuntimeError(
+            f'Branch {branch!r} does not exist in {local_clone!r}.'
+        )
+
+    base_hash = read_pinned_revision()
+    print(f'Current pinned revision: {base_hash}')
+
+    # Find the fork point: the upstream commit that the branch is directly based on.
+    # We use merge-base(branch, origin/main) rather than merge-base(branch, base_hash),
+    # because the latter always returns base_hash (it's always an ancestor of the branch),
+    # and therefore can't detect that the developer has rebased onto a newer upstream commit.
     # origin/main must be up to date — remind the user to `git fetch` if it's stale.
     fork_point_result = subprocess.run(
-        ['git', 'merge-base', __datadog_branch__, 'origin/main'],
+        ['git', 'merge-base', branch, 'origin/main'],
         cwd=local_clone, capture_output=True, text=True
     )
     if fork_point_result.returncode != 0:
         raise RuntimeError(
-            f'Could not determine fork point of {__datadog_branch__!r} and origin/main '
+            f'Could not determine fork point of {branch!r} and origin/main '
             f'in {local_clone!r}. Ensure origin/main is up to date (run `git fetch origin`).'
         )
     fork_point = fork_point_result.stdout.strip()
 
     # Sanity check: the fork point must be a descendant-or-equal of the current pin.
-    # If it isn't, the datadog branch has been rebased onto something that doesn't descend
+    # If it isn't, the branch has been rebased onto something that doesn't descend
     # from our known-good base — most likely origin/main is stale or the clone is wrong.
     if subprocess.run(
         ['git', 'merge-base', '--is-ancestor', base_hash, fork_point],
         cwd=local_clone, capture_output=True
     ).returncode != 0:
         raise RuntimeError(
-            f'The fork point of {__datadog_branch__!r} and origin/main ({fork_point}) is not '
+            f'The fork point of {branch!r} and origin/main ({fork_point}) is not '
             f'a descendant of the current pin ({base_hash}).\n'
             f'Ensure origin/main is up to date (`git fetch origin`) and that the '
-            f'{__datadog_branch__!r} branch is rebased onto a commit that descends from the pin.'
+            f'{branch!r} branch is rebased onto a commit that descends from the pin.'
         )
 
     # Produce the diff and write datadog.patch
     diff_result = subprocess.run(
-        ['git', 'diff', fork_point, __datadog_branch__],
+        ['git', 'diff', fork_point, branch],
         cwd=local_clone, capture_output=True, text=True, check=True
     )
     diff_content = diff_result.stdout
     if not diff_content:
-        print('Warning: no differences between fork point and datadog branch — writing empty patch.')
+        print(f'Warning: no differences between fork point and {branch!r} — writing empty patch.')
     with open(__patch_file__, 'w') as f:
         f.write(diff_content)
     print(f'Wrote {__patch_file__}')
@@ -790,6 +820,7 @@ if __name__ == '__main__':
 
     patch_update_parser = patch_subparsers.add_parser('update')
     patch_update_parser.add_argument('local_clone', help='Path to a local chromium/crashpad git clone')
+    patch_update_parser.add_argument('--branch', '-b', default=None, help='Branch to diff against origin/main; defaults to the currently checked-out branch')
     patch_update_parser.set_defaults(func=patch_update_main)
 
     # dev <subcommand>
