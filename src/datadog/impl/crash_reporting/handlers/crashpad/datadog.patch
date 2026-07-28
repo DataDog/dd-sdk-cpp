@@ -166,7 +166,7 @@ index bec87142..d5145b18 100644
      return UploadResult::kPermanentFailure;
    }
 diff --git a/handler/crash_report_upload_thread.h b/handler/crash_report_upload_thread.h
-index 22bb26e3..58d0c0f6 100644
+index 22bb26e3..cb551a89 100644
 --- a/handler/crash_report_upload_thread.h
 +++ b/handler/crash_report_upload_thread.h
 @@ -1,4 +1,6 @@
@@ -184,13 +184,14 @@ index 22bb26e3..58d0c0f6 100644
  #include <memory>
  #include <string>
  #include <unordered_map>
-@@ -75,6 +78,24 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -75,6 +78,25 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
    //! synchronize appropriately.
    using ProcessPendingReportsObservationCallback = std::function<void()>;
  
 +#if WITH_DATADOG_UPLOAD_EXTENSIONS
-+  //! \brief Callback invoked once per report, just before upload, with the
-+  //!     HTTP form parameters derived from the minidump's annotations.
++  //! \brief Callback invoked once per upload attempt, just before upload,
++  //!     with the HTTP form parameters derived from the minidump's
++  //!     annotations.
 +  //!
 +  //! Receives a mutable reference to the map produced by
 +  //! BreakpadHTTPFormParametersFromMinidump(). The callback may inject new
@@ -209,7 +210,7 @@ index 22bb26e3..58d0c0f6 100644
    //! \brief Constructs a new object.
    //!
    //! \param[in] database The database to upload crash reports from.
-@@ -84,10 +105,16 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -84,10 +106,16 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
    //!     on a background thread each time the this object finishes
    //!     processing and attempting to upload on-disk crash reports.
    //!     If this callback is empty, it is not invoked.
@@ -230,7 +231,7 @@ index 22bb26e3..58d0c0f6 100644
  
    CrashReportUploadThread(const CrashReportUploadThread&) = delete;
    CrashReportUploadThread& operator=(const CrashReportUploadThread&) = delete;
-@@ -225,6 +252,9 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -225,6 +253,9 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
  
    const Options options_;
    const ProcessPendingReportsObservationCallback callback_;
