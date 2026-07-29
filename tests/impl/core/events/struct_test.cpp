@@ -150,5 +150,151 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
       // it conflicts with a field name that's declared with DATADOG_JSON_RESERVED_FIELD
       RequireJsonLiteral(ev, R"({"id":"foo","name":"bar","y":200})");
     }
+
+    SECTION("{TryEncodeJson} {DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES}") {
+      SECTION("M succeed with base-only output W no extra attributes and buffer fits") {
+        // Given: no extra attributes
+        // When: TryEncodeJson with a buffer exactly as large as the base output
+        const std::string want = R"({"id":"foo","name":"bar"})";
+        std::vector<char> buf(want.size(), '\0');
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns byte count, output matches EncodeJson
+        REQUIRE(result.has_value());
+        REQUIRE(*result == want.size());
+        REQUIRE(std::string_view(buf.data(), buf.size()) == want);
+      }
+
+      SECTION("M return false W no extra attributes and buffer is too small") {
+        // Given: no extra attributes, buffer one byte smaller than the base output
+        const std::string want = R"({"id":"foo","name":"bar"})";
+        REQUIRE(want.size() > 0);
+        std::vector<char> buf(want.size() - 1, 'X');
+        const std::vector<char> original = buf;
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns nullopt, buffer unchanged
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(buf == original);
+      }
+
+      SECTION("M succeed with all extras W all extra attributes fit in buffer") {
+        // Given: two extra attributes, buffer sized to fit the full output
+        ev.extra.InitObject(2);
+        ev.extra.SetObjectProperty("x", Attribute::Int(100));
+        ev.extra.SetObjectProperty("y", Attribute::Int(200));
+        const std::string want = R"({"id":"foo","name":"bar","x":100,"y":200})";
+        std::vector<char> buf(want.size(), '\0');
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns byte count, output includes both extras
+        REQUIRE(result.has_value());
+        REQUIRE(*result == want.size());
+        REQUIRE(std::string_view(buf.data(), buf.size()) == want);
+      }
+
+      SECTION("M drop last extra W only first extra fits in buffer") {
+        // Given: two extra attributes of different sizes. "x" encodes to 6 bytes
+        // (,"x":1) and fits alongside the base in a 31-byte buffer; "y" encodes to
+        // 34 bytes (,"y":"this-is-a-long-string-value") and does not fit there.
+        ev.extra.InitObject(2);
+        ev.extra.SetObjectProperty("x", Attribute::Int(1));
+        ev.extra.SetObjectProperty(
+            "y", Attribute::String("this-is-a-long-string-value")
+        );
+        const std::string want = R"({"id":"foo","name":"bar","x":1})";
+        std::vector<char> buf(want.size(), '\0');
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns byte count with only the first (smaller) extra included
+        REQUIRE(result.has_value());
+        REQUIRE(*result == want.size());
+        REQUIRE(std::string_view(buf.data(), buf.size()) == want);
+      }
+
+      SECTION("M succeed with base-only output W all extras overflow") {
+        // Given: two extra attributes. The buffer is sized for the base output only,
+        // so neither extra can fit.
+        ev.extra.InitObject(2);
+        ev.extra.SetObjectProperty("x", Attribute::Int(100));
+        ev.extra.SetObjectProperty("y", Attribute::Int(200));
+        const std::string want = R"({"id":"foo","name":"bar"})";
+        std::vector<char> buf(want.size(), '\0');
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns byte count with base-only output (all extras dropped)
+        REQUIRE(result.has_value());
+        REQUIRE(*result == want.size());
+        REQUIRE(std::string_view(buf.data(), buf.size()) == want);
+      }
+
+      SECTION("M return false W base doesn't fit even without extras") {
+        // Given: extra attributes present but buffer smaller than the base output
+        ev.extra.InitObject(1);
+        ev.extra.SetObjectProperty("x", Attribute::Int(1));
+        const std::string base = R"({"id":"foo","name":"bar"})";
+        std::vector<char> buf(base.size() - 1, 'X');
+        const std::vector<char> original = buf;
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns nullopt, buffer unchanged
+        REQUIRE_FALSE(result.has_value());
+        REQUIRE(buf == original);
+      }
+
+      SECTION(
+          "M succeed with base-only output W all extra properties have reserved names"
+      ) {
+        // Given: extra attributes whose names all conflict with struct fields or
+        // reserved field names, so all are filtered by is_safe_name
+        ev.extra.InitObject(2);
+        ev.extra.SetObjectProperty("id", Attribute::Int(999));
+        ev.extra.SetObjectProperty("future", Attribute::Int(999));
+        const std::string want = R"({"id":"foo","name":"bar"})";
+        std::vector<char> buf(want.size(), '\0');
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns byte count, output is base-only (all extras filtered out)
+        REQUIRE(result.has_value());
+        REQUIRE(*result == want.size());
+        REQUIRE(std::string_view(buf.data(), buf.size()) == want);
+      }
+
+      SECTION("M include safe extra W unsafe extra precedes it in index order") {
+        // Given: extra[0]="id" (blocked by is_safe_name) and extra[1]="z" (safe).
+        // This exercises the stateful-counter lambda: with k=2, the lambda is called
+        // with idx=0 ("id", filtered) then idx=1 ("z", included). If the counter were
+        // coupled incorrectly to the safe-name check — e.g. only incrementing on
+        // allowed properties — index 1 would be excluded when k drops, producing wrong
+        // output or including fewer properties than the buffer permits.
+        ev.extra.InitObject(2);
+        ev.extra.SetObjectProperty("id", Attribute::Int(999));
+        ev.extra.SetObjectProperty("z", Attribute::Int(42));
+        const std::string want = R"({"id":"foo","name":"bar","z":42})";
+        std::vector<char> buf(want.size(), '\0');
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns byte count, only the safe extra ("z") is included
+        REQUIRE(result.has_value());
+        REQUIRE(*result == want.size());
+        REQUIRE(std::string_view(buf.data(), buf.size()) == want);
+      }
+
+      SECTION("M succeed with base-only output W extra is a non-object type") {
+        // Given: extra attribute is an array (non-object), so GetObjectPropertyCount
+        // returns 0
+        ev.extra.InitArray(2);
+        ev.extra.ArrayPush(Attribute::Int(1));
+        ev.extra.ArrayPush(Attribute::Int(2));
+        const std::string want = R"({"id":"foo","name":"bar"})";
+        std::vector<char> buf(want.size(), '\0');
+        const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+        // Then: returns byte count, output is base-only
+        REQUIRE(result.has_value());
+        REQUIRE(*result == want.size());
+        REQUIRE(std::string_view(buf.data(), buf.size()) == want);
+      }
+    }
   }
 }

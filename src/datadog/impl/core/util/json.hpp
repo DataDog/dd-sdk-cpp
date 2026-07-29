@@ -75,6 +75,22 @@ bool HasJsonValue(const T&) {
 }
 
 /**
+ * Given a value of type T, attempts to serialize it to the given fixed-size buffer
+ * in JSON format. Returns the number of bytes written on success, or std::nullopt
+ * without modifying `dst` if GetJsonSize(value) exceeds `n`.
+ */
+template <typename T>
+std::optional<size_t> TryEncodeJson(char* dst, size_t n, const T& value) {
+  const size_t required = GetJsonSize(value);
+  if (required > n) {
+    return std::nullopt;
+  }
+  const size_t written = WriteJson(dst, n, value);
+  DATADOG_ASSERT(written <= n, "unexpected overflow of JSON buffer in TryEncodeJson");
+  return written;
+}
+
+/**
  * Given a value of type T, serializes it to the given buffer in JSON format.
  */
 template <typename T>
