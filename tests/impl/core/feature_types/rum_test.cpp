@@ -296,7 +296,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "rum-cpp",
+      "source": "cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",
@@ -639,7 +639,7 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "rum-cpp",
+      "source": "cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",
@@ -909,7 +909,7 @@ TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "rum-cpp",
+      "source": "cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",
@@ -1238,7 +1238,7 @@ Last 8 instructions at CS:EIP:
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "rum-cpp",
+      "source": "cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",
@@ -1484,7 +1484,7 @@ TEST_CASE("RumLongTaskEvent", "[unit][feature_types][rum]") {
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "rum-cpp",
+      "source": "cpp",
       "application": {
         "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
         "current_locale": "en-US"
@@ -1700,7 +1700,7 @@ TEST_CASE("RumVitalAppLaunchEvent", "[unit][feature_types][rum]") {
       "build_version": "my-build-version",
       "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
       "ddtags": "service:my-service,env:test,foo:bar",
-      "source": "rum-cpp",
+      "source": "cpp",
       "usr": {
         "id": "390cfcd41",
         "name": "John Q. Public",

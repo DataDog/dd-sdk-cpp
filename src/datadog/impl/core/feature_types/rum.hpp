@@ -314,7 +314,7 @@ DATADOG_STRING_ENUM(
     DATADOG_ENUM_VALUE(RumSource::Roku, "roku"),
     DATADOG_ENUM_VALUE(RumSource::Unity, "unity"),
     DATADOG_ENUM_VALUE(RumSource::KotlinMultiplatform, "kotlin-multiplatform"),
-    DATADOG_ENUM_VALUE(RumSource::RumCpp, "rum-cpp")
+    DATADOG_ENUM_VALUE(RumSource::RumCpp, "cpp")
 )
 
 struct RumUserProperties {
