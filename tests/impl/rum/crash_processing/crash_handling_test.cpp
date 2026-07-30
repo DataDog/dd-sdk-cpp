@@ -109,7 +109,7 @@ static CrashReport make_crash_report(
           "my-env",                  // env
           "1.0.0",                   // application_version
           "Shipping",                // variant
-          "rum-cpp",                 // source
+          "cpp",                     // source
           "2.0.2",                   // sdk_version
           TrackingConsent::Granted,  // tracking_consent
           "CoolOS",                  // os_name

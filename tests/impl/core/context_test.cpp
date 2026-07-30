@@ -59,7 +59,7 @@ TEST_CASE("CoreContext", "[unit]") {
   REQUIRE(ctx.service == "service");
   REQUIRE(ctx.env == "env");
   REQUIRE(ctx.application_version == "3.0.0");
-  REQUIRE(ctx.source == "rum-cpp");
+  REQUIRE(ctx.source == "cpp");
   REQUIRE(ctx.sdk_version == SDK_VERSION);
   REQUIRE(ctx.intake_origin == "https://browser-intake-datadoghq.com");
   REQUIRE(ctx.user_agent == "service/3.0.0 reporter/1.2.3 (test-device; TestOS/1.2.3)");
@@ -108,7 +108,7 @@ TEST_CASE("CoreContext", "[unit]") {
     REQUIRE(snapshot_b.service == "service");
     REQUIRE(snapshot_b.env == "env");
     REQUIRE(snapshot_b.application_version == "3.0.0");
-    REQUIRE(snapshot_b.source == "rum-cpp");
+    REQUIRE(snapshot_b.source == "cpp");
     REQUIRE(snapshot_b.sdk_version == SDK_VERSION);
     REQUIRE(snapshot_b.intake_origin == "https://browser-intake-datadoghq.com");
     REQUIRE(

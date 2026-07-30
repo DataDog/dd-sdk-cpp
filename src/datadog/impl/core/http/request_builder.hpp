@@ -56,7 +56,7 @@ class HttpRequestBuilder {
 
   /**
    * Calls AddQueryParam("ddsource", <source>), where `source` is the source value
-   * configured for this SDK instance (e.g. "rum-cpp", "unity", etc.)
+   * configured for this SDK instance (e.g. "cpp", "unity", etc.)
    */
   HttpRequestBuilder& AddQueryParam_ddsource();
 
