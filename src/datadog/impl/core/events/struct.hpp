@@ -405,8 +405,8 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
       if (!is_safe_name(prop_name)) {
         continue;
       }
-      // Each safe property contributes: 1 comma + 2 quotes + name + 1 colon + value
-      extra_bytes += 1 + 2 + prop_name.size() + 1 +
+      // Each safe property contributes: 1 comma + encoded name + 1 colon + value
+      extra_bytes += 1 + GetJsonSize(prop_name) + 1 +
                      GetJsonSize(extra.GetObjectPropertyValueAt(static_cast<int>(i)));
       ++num_safe;
     }

@@ -295,6 +295,85 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         REQUIRE(*result == want.size());
         REQUIRE(std::string_view(buf.data(), buf.size()) == want);
       }
+
+      SECTION(
+          "M drop extra W key escaping makes it not fit, include W buffer is exact size"
+      ) {
+        // The extra property key `k"ey` contains a double-quote, so the JSON-encoded
+        // key is `"k\"ey"` (7 bytes) rather than the 4 raw bytes of the name.
+        //
+        // Full output: {"id":"foo","name":"bar","k\"ey":1} = 35 bytes
+        // Extra contribution (correct): , + "k\"ey" + : + 1 = 1+7+1+1 = 10 bytes
+        //
+        // At a 34-byte buffer (one byte short of the full output): the bug computes
+        // the extra contribution as 1+2+4+1+1 = 9 (raw name length), concludes
+        // 25+9=34 fits, and then writes 35 bytes — overflowing the buffer. The fix
+        // uses GetJsonSize(prop_name) = 7 for the encoded key, computes 25+10=35>34,
+        // and correctly drops the attribute, writing only the 25-byte base struct.
+        ev.extra.InitObject(1);
+        ev.extra.SetObjectProperty("k\"ey", Attribute::Int(1));
+
+        const std::string base = R"({"id":"foo","name":"bar"})";
+        const std::string full = R"({"id":"foo","name":"bar","k\"ey":1})";
+        REQUIRE(full.size() == 35);
+        REQUIRE(base.size() == 25);
+
+        // At full.size() - 1 bytes: attribute must be dropped
+        {
+          std::vector<char> buf(full.size() - 1, '\0');
+          const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+          REQUIRE(result.has_value());
+          REQUIRE(*result == base.size());
+          REQUIRE(std::string_view(buf.data(), *result) == base);
+        }
+
+        // At full.size() bytes: attribute must be included
+        {
+          std::vector<char> buf(full.size(), '\0');
+          const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+          REQUIRE(result.has_value());
+          REQUIRE(*result == full.size());
+          REQUIRE(std::string_view(buf.data(), buf.size()) == full);
+        }
+      }
+
+      SECTION(
+          "M drop extra W value escaping makes it not fit, include W buffer is exact "
+          "size"
+      ) {
+        // The extra property value `a"b` contains a double-quote, so the JSON-encoded
+        // value is `"a\"b"` (6 bytes) rather than the 3 raw bytes. Value size is
+        // already computed via GetJsonSize(value), which handles escaping correctly;
+        // this test confirms that the value path is and remains correct.
+        //
+        // Full output: {"id":"foo","name":"bar","z":"a\"b"} = 36 bytes
+        // Extra contribution: , + "z" + : + "a\"b" = 1+3+1+6 = 11 bytes
+        ev.extra.InitObject(1);
+        ev.extra.SetObjectProperty("z", Attribute::String("a\"b"));
+
+        const std::string base = R"({"id":"foo","name":"bar"})";
+        const std::string full = R"({"id":"foo","name":"bar","z":"a\"b"})";
+        REQUIRE(full.size() == 36);
+        REQUIRE(base.size() == 25);
+
+        // At full.size() - 1 bytes: attribute must be dropped
+        {
+          std::vector<char> buf(full.size() - 1, '\0');
+          const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+          REQUIRE(result.has_value());
+          REQUIRE(*result == base.size());
+          REQUIRE(std::string_view(buf.data(), *result) == base);
+        }
+
+        // At full.size() bytes: attribute must be included
+        {
+          std::vector<char> buf(full.size(), '\0');
+          const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+          REQUIRE(result.has_value());
+          REQUIRE(*result == full.size());
+          REQUIRE(std::string_view(buf.data(), buf.size()) == full);
+        }
+      }
     }
   }
 }
