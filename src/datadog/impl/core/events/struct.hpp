@@ -386,10 +386,16 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
     return written;
   }
 
-  // Determine the largest prefix k (0 <= k <= num_extra) such that base_size plus all
-  // safe extra properties at indices [0, k) fits within n bytes. We start with the full
-  // set and shrink by one each iteration. This is O(P^2) in the number of extra
-  // properties, which is acceptable given the small sizes expected in practice.
+  // Needed by both the size loop below and the write path: determines whether the base
+  // struct contributes any fields to the output. When false, extras are emitted as a
+  // standalone object (WriteFilteredJsonObject only), so k safe extras require only
+  // k-1 inter-property commas rather than k leading commas.
+  const bool has_base_fields = ((HasJsonValue(fields.second)) || ...);
+
+  // Determine the largest prefix k (0 <= k <= num_extra) such that the combined output
+  // fits within n bytes. We start with the full set and shrink by one each iteration.
+  // This is O(P^2) in the number of extra properties, which is acceptable given the
+  // small sizes expected in practice.
   //
   // num_safe_at_k tracks how many of the k properties at the chosen k value pass the
   // safe-name filter. If zero safe properties remain, we skip the extra-attributes
@@ -397,7 +403,10 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
   size_t k = num_extra;
   size_t num_safe_at_k = 0;
   while (true) {
-    // Compute the size contributed by the k extra properties at the front
+    // Compute the size contributed by the k extra properties at the front.
+    // Each safe property is charged: 1 comma + encoded name + 1 colon + value.
+    // When has_base_fields is false the extras form a standalone object, so the
+    // first safe property has no leading comma; we deduct one comma at the end.
     size_t extra_bytes = 0;
     size_t num_safe = 0;
     for (size_t i = 0; i < k; ++i) {
@@ -405,10 +414,13 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
       if (!is_safe_name(prop_name)) {
         continue;
       }
-      // Each safe property contributes: 1 comma + encoded name + 1 colon + value
       extra_bytes += 1 + GetJsonSize(prop_name) + 1 +
                      GetJsonSize(extra.GetObjectPropertyValueAt(static_cast<int>(i)));
       ++num_safe;
+    }
+    if (!has_base_fields && num_safe > 0) {
+      // k safe entries in a standalone object need k-1 commas, not k
+      --extra_bytes;
     }
 
     // If no safe properties are included, the total size is just the base size
@@ -455,7 +467,6 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
     return (static_cast<size_t>(idx) < k) && is_safe_name(name);
   };
 
-  const bool has_base_fields = ((HasJsonValue(fields.second)) || ...);
   if (!has_base_fields) {
     const size_t written = WriteFilteredJsonObject(dst, n, extra, truncated_filter);
     DATADOG_ASSERT(

@@ -15,6 +15,8 @@
 #include "datadog/timestamp.hpp"
 #include "datadog/uuid.hpp"
 
+#include "datadog/impl/core/events/omissible.hpp"
+
 #include "support/json_serialization.hpp"
 
 using namespace datadog;
@@ -58,6 +60,18 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     DATADOG_JSON_FIELD(id),
     DATADOG_JSON_FIELD(name),
     DATADOG_JSON_RESERVED_FIELD(future)
+)
+
+// All fields are Omissible: a default-constructed instance produces no base fields,
+// so TryEncodeJson takes the !has_base_fields path and emits extras as a standalone
+// object.
+struct MyExtraOnlyProperties {
+  OmitIfEmpty<std::string> id;
+  Attribute extra;
+};
+
+DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
+    MyExtraOnlyProperties, extra, DATADOG_JSON_FIELD(id)
 )
 
 TEST_CASE("struct JSON serialization", "[unit][events]") {
@@ -264,8 +278,8 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         // Given: extra[0]="id" (blocked by is_safe_name) and extra[1]="z" (safe).
         // This exercises the stateful-counter lambda: with k=2, the lambda is called
         // with idx=0 ("id", filtered) then idx=1 ("z", included). If the counter were
-        // coupled incorrectly to the safe-name check — e.g. only incrementing on
-        // allowed properties — index 1 would be excluded when k drops, producing wrong
+        // coupled incorrectly to the safe-name check (e.g. only incrementing on
+        // allowed properties), index 1 would be excluded when k drops, producing wrong
         // output or including fewer properties than the buffer permits.
         ev.extra.InitObject(2);
         ev.extra.SetObjectProperty("id", Attribute::Int(999));
@@ -307,7 +321,7 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         //
         // At a 34-byte buffer (one byte short of the full output): the bug computes
         // the extra contribution as 1+2+4+1+1 = 9 (raw name length), concludes
-        // 25+9=34 fits, and then writes 35 bytes — overflowing the buffer. The fix
+        // 25+9=34 fits, and then writes 35 bytes past the buffer end. The fix
         // uses GetJsonSize(prop_name) = 7 for the encoded key, computes 25+10=35>34,
         // and correctly drops the attribute, writing only the 25-byte base struct.
         ev.extra.InitObject(1);
@@ -374,6 +388,50 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
           REQUIRE(std::string_view(buf.data(), buf.size()) == full);
         }
       }
+    }
+  }
+
+  SECTION(
+      "{TryEncodeJson} {DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES} no-base-fields"
+  ) {
+    // MyExtraOnlyProperties has one Omissible field ('id'). When 'id' is empty,
+    // HasJsonValue returns false for it, so has_base_fields is false and
+    // TryEncodeJson takes the !has_base_fields branch: it emits extras as a
+    // standalone object with no base content.
+    //
+    // In that branch the output is WriteFilteredJsonObject(extra), which produces
+    // {"x":1,"y":2} (13 bytes for two single-char int entries). The actual comma
+    // count between k entries is k-1, not k. The size loop, however, charges one
+    // leading comma per safe entry regardless. For k=2 safe entries it computes:
+    //   base_size(2) + 2*(comma(1)+GetJsonSize("x")(3)+colon(1)+value(1)) = 2+12 = 14
+    // The actual output is 13 bytes, so the loop over-estimates by 1 and incorrectly
+    // drops the second entry when the buffer is exactly 13 bytes.
+    MyExtraOnlyProperties ev{};
+    ev.extra.InitObject(2);
+    ev.extra.SetObjectProperty("x", Attribute::Int(1));
+    ev.extra.SetObjectProperty("y", Attribute::Int(2));
+
+    const std::string full = R"({"x":1,"y":2})";
+    const std::string one = R"({"x":1})";
+    REQUIRE(full.size() == 13);
+    REQUIRE(one.size() == 7);
+
+    SECTION("M include both extras W buffer is exactly the right size") {
+      // At 13 bytes both entries fit; the bug drops the second one.
+      std::vector<char> buf(full.size(), '\0');
+      const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+      REQUIRE(result.has_value());
+      REQUIRE(*result == full.size());
+      REQUIRE(std::string_view(buf.data(), buf.size()) == full);
+    }
+
+    SECTION("M drop second extra W buffer is one byte short") {
+      // At 12 bytes only the first entry fits.
+      std::vector<char> buf(full.size() - 1, '\0');
+      const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+      REQUIRE(result.has_value());
+      REQUIRE(*result == one.size());
+      REQUIRE(std::string_view(buf.data(), *result) == one);
     }
   }
 }
