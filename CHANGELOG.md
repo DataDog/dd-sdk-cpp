@@ -1,3 +1,13 @@
+## 1.0.0
+
+### Breaking Changes
+
+- The `source` identifier reported by the SDK has changed to `cpp`.
+
+### Features
+
+- The Crashpad crash handler now respects tracking consent: crashes are only uploaded when consent is `granted`, and crashes recorded while consent is `pending` or `not-granted` are dropped.
+
 ## 0.6.0
 
 ### Breaking Changes
