@@ -1,0 +1,42 @@
+build-toolchain-image-linux:
+  stage: build-toolchain-images
+  when: manual
+  except: [tags, schedules]
+  tags: [arch:amd64]
+  image: ${BUILD_STABLE_REGISTRY}/${DIND_IMAGE}
+  parallel:
+    matrix:
+      - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20, clang20-x86]
+  script:
+    - DIGEST_FILE=$(mktemp)
+    - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}"
+    - docker buildx build --target ${TOOLCHAIN_TARGET} --tag ${TOOLCHAIN_IMAGE} --label target=build --push --metadata-file ${DIGEST_FILE} ./ci/linux
+    - ddsign sign ${TOOLCHAIN_IMAGE} --docker-metadata-file ${DIGEST_FILE}
+
+build-toolchain-image-windows:
+  stage: build-toolchain-images
+  when: manual
+  except: [tags, schedules]
+  tags: [windows-v2:2022]
+  id_tokens:
+    CI_IDENTITY_GITLAB_JWT:
+      aud: https://vault.us1.ddbuild.io  # Required for docker push
+  variables:
+    CI_IDENTITY_ROLE_NAME_OVERRIDE: windows-ci-tmp-gitlab-id-token-dd-sdk-cpp-all-refs  # Required for docker push
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022  # Visual Studio 2022 17.14; MSVC v143
+  # Build a Docker image, then tag it as both (e.g.) 'vs2022-v1' and 'vs2022-latest':
+  # the latter tag is used to cache the latest image locally when building Windows
+  # runner AMIs (see `pre-pull-docker-images.ps1` in ci-platform-machine-images)
+  script:
+    - $ErrorActionPreference = "Stop"
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - $env:TOOLCHAIN_IMAGE_LATEST = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-latest"
+    - docker build --tag ${env:TOOLCHAIN_IMAGE} --label target=build ./ci/windows
+    - If ($LASTEXITCODE -ne "0") { throw "docker build returned $LASTEXITCODE" }
+    - docker tag ${env:TOOLCHAIN_IMAGE} ${env:TOOLCHAIN_IMAGE_LATEST}
+    - If ($LASTEXITCODE -ne "0") { throw "docker tag returned $LASTEXITCODE" }
+    - docker push ${env:TOOLCHAIN_IMAGE}
+    - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }
+    - docker push ${env:TOOLCHAIN_IMAGE_LATEST}
+    - If ($LASTEXITCODE -ne "0") { throw "docker push returned $LASTEXITCODE" }

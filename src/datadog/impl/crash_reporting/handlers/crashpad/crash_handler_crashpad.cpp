@@ -37,8 +37,7 @@
 // them safe to read during a crash. The Crashpad handler will automatically resolve
 // these values and include them as annotations when the crash dump is uploaded.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
-// TODO(RUM-16000): Declare annotations for all required data
-static crashpad::StringAnnotation<37> s_rum_session_id("rum.session_id");
+static crashpad::StringAnnotation<16> s_dd_tracking_consent("dd.tracking_consent");
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
@@ -93,17 +92,12 @@ namespace datadog::impl {
  * the client library on Initialize().
  *
  * When a crash occurs, the Crashpad client's signal handlers detect the crash, collect
- * register state, and send an IPC notification to the handler proces. The handler
+ * register state, and send an IPC notification to the handler process. The handler
  * process then captures a Breakpad-format minidump from the crashing application
- * process.
+ * process and uploads it to the configured intake URL.
  *
  * NOTE: COMPILING WITH DD_CRASH_MODE=crashpad IS NOT YET SUPPORTED. This is a prototype
- * implementation that does not yet report crashes to Datadog intake. It will initialize
- * the Crashpad client and handler, crashes will be handled, and minidumps will be
- * written to `.crashpad/pending/`, but nothing will be uploaded.
- *
- * TODO(RUM-14025): Revisit Initialize() and Shutdown() when work on Crashpad support
- *  resumes.
+ * implementation that does not yet report crashes to Datadog intake.
  */
 class CrashpadCrashHandler final : public ICrashHandler {
  public:
@@ -113,12 +107,10 @@ class CrashpadCrashHandler final : public ICrashHandler {
       DiagnosticLogger logger,
       IFilesystem& fs,
       const StoragePath& crash_storage_dir_path,
-      std::string_view helper_exe_path
+      std::string_view helper_exe_path,
+      std::string_view upload_origin
   ) override {
     (void)fs;
-
-    // TODO(RUM-14025): Re-enable uploads when work on Crashpad support resumes
-    const bool enable_crashpad_uploads = false;
 
     // Prepare Crashpad client options
     std::filesystem::path crashpad_handler_path = helper_exe_path;
@@ -126,15 +118,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
       crashpad_handler_path = get_crashpad_handler_path();
     }
     std::filesystem::path crashpad_database_path = crash_storage_dir_path.Get();
-    // TODO(RUM-14025): To report crashes to the Datadog backend, we'd need to configure
-    //  the crashpad handler to upload crash reports to an HTTP endpoint that could
-    //  accept Breakpad-format minidumps, along with all relevant context in the form of
-    //  annotations, and produce RUM Errors with valid (though not necessarily
-    //  symbolicated) callstacks. Configuring this hardcoded upload URL is intended to
-    //  facilitate interception of requests (see examples/repl/mitm_dump.py) when using
-    //  the repl with mitmproxy enabled (./repl.sh), so that we can inspect Crashpad
-    //  requests for debugging purposes.
-    const std::string url = enable_crashpad_uploads ? "http://127.0.0.1:8080" : "";
+    const std::string url =
+        std::string(upload_origin) + "/crashpad-ingest-placeholder-path";
     std::map<std::string, std::string> annotations;
     std::vector<std::string> arguments;
     const bool restartable = false;
@@ -159,9 +144,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
       return false;
     }
 
-    // Clear annotation values, if any were set previously
-    // TODO(RUM-16000): Clear all annotation values
-    s_rum_session_id.Set("");
+    // Initialize annotation values to their defaults
+    s_dd_tracking_consent.Set("pending");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
@@ -174,15 +158,15 @@ class CrashpadCrashHandler final : public ICrashHandler {
       // Explicitly enable uploads so that new crashes will be POSTed to our upload URL
       // if not rate-limited
       if (auto* settings = db->GetSettings(); settings) {
-        settings->SetUploadsEnabled(enable_crashpad_uploads);
+        settings->SetUploadsEnabled(true);
       }
     }
 
     // Example upload behavior: if Crashpad produces a minidump with GUID
     // 617ab41b-84d0-472f-b261-bae41acb901a, and it's configured with an upload URL of
-    // https://example.com/dumps/upload, along with a single annotation for the RUM
-    // session ID (see s_rum_session_id above), then the handler will initiate an HTTP
-    // POST request equivalent to:
+    // https://example.com/dumps/upload, along with the dd.tracking_consent annotation
+    // (see s_dd_tracking_consent above), then the handler will initiate an HTTP POST
+    // request equivalent to:
     //
     // clang-format off
     // ================================================================================
@@ -202,9 +186,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
     //
     // 617ab41b-84d0-472f-b261-bae41acb901a
     // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
-    // Content-Disposition: form-data; name="rum.session_id"
+    // Content-Disposition: form-data; name="dd.tracking_consent"
     //
-    // f3800ecb-75a3-4e41-84f9-d6128ab19706
+    // granted
     // ---MultipartBoundary-8kqZEVmthMNNvtlBr6K4bPibxe2jX64I---
     // Content-Disposition: form-data; name="upload_file_minidump"; filename="6af03cf2-c984-4257-a2a3-304033a95b0b.dmp"
     // Content-Type: application/octet-stream
@@ -221,31 +205,26 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // which the crashpad_handler executable will capture from process memory on crash
     (void)fs;
 
-    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-    char buf[37] = {0};
-
-    // Format session_id as a string and store it in a crashpad annotation (using empty
-    // string if not set), so that Crashpad uploads carry some session context
-    // TODO(RUM-16000): This is a placeholder so we have an annotation to test with; we
-    // still need to decide what values the Crashpad handler will need to convey to the
-    // backend once we have a suitable endpoint for minidump ingest
-    const UUID& session_id = ctx.rum_session_state.session_id;
-    if (session_id != _rum_session_id) {
-      _rum_session_id = session_id;
-      if (_rum_session_id == UUID::Zero) {
-        s_rum_session_id.Set("");
-      } else {
-        _rum_session_id.ToBytes(buf, std::size(buf));
-        s_rum_session_id.Set(buf);
+    const TrackingConsent consent = ctx.tracking_consent;
+    if (consent != _tracking_consent) {
+      _tracking_consent = consent;
+      switch (consent) {
+        case TrackingConsent::Pending:
+          s_dd_tracking_consent.Set("pending");
+          break;
+        case TrackingConsent::Granted:
+          s_dd_tracking_consent.Set("granted");
+          break;
+        case TrackingConsent::NotGranted:
+          s_dd_tracking_consent.Set("not-granted");
+          break;
       }
     }
-
-    // NOLINTEND(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
   };
 
  private:
-  // Session ID cached on last call to SetCrashContext
-  UUID _rum_session_id;
+  // Tracking consent cached on last call to SetCrashContext
+  TrackingConsent _tracking_consent{TrackingConsent::Pending};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {

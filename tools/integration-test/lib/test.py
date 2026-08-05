@@ -12,10 +12,12 @@ import inspect
 import importlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Dict
+from typing import Callable, List, Dict, Optional
 
 from lib.proxy import ProxyServer
 from lib.repl import ReplProcess, __repo_root__, _next_sdk_id
+
+VALID_CRASH_MODES = ('inprocess', 'crashpad')
 
 
 @dataclass
@@ -41,11 +43,12 @@ class TestContext:
     test run and allows spawning repl processes configured to use that storage and the
     proxy.
     """
-    def __init__(self, storage: StorageDirectory, repl_binary_path: str, proxy: ProxyServer, proxy_url: str):
+    def __init__(self, storage: StorageDirectory, repl_binary_path: str, proxy: ProxyServer, proxy_url: str, crash_mode: str):
         self.storage = storage
         self._repl_binary_path = repl_binary_path
         self._proxy = proxy
         self._proxy_url = proxy_url
+        self._crash_mode = crash_mode
         self._repls: List[ReplProcess] = []
 
     def spawn_repl(self) -> ReplProcess:
@@ -61,6 +64,19 @@ class TestContext:
             f'--custom-endpoint-url={self._proxy_url}/sdk-{sdk_id}',
             f'--application-storage-path={self.storage.path}',
         ]
+        env = dict(os.environ)
+        if self._crash_mode == 'crashpad':
+            # Two ASan suppressions are required when running a Crashpad build:
+            # - detect_container_overflow=0: Crashpad is not ASan-instrumented, so
+            #   mixing it with an ASan-instrumented repl triggers a false positive in
+            #   StartHandler(). Suppress it so the handler launches successfully.
+            # - handle_segv=0: ASan installs its own fatal signal handler that intercepts
+            #   SIGSEGV before Crashpad's Mach exception handler, preventing crash
+            #   capture. Suppress it so Crashpad handles the signal instead.
+            existing = env.get('ASAN_OPTIONS', '')
+            extra = 'detect_container_overflow=0,handle_segv=0'
+            env['ASAN_OPTIONS'] = (existing + ',' + extra).lstrip(',')
+
         proc = subprocess.Popen(
             args,
             cwd=__repo_root__,
@@ -68,6 +84,7 @@ class TestContext:
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
+            env=env,
         )
         repl = ReplProcess(proc, sdk_id, self.storage.path, self._proxy)
         self._repls.append(repl)
@@ -81,9 +98,10 @@ AsyncTestFunc = Callable[[TestContext], None]
 class Test:
     name: str
     func: AsyncTestFunc
+    required_crash_mode: Optional[str]  # None means runs under all crash modes
 
 
-def collect_tests() -> List[Test]:
+def collect_tests(crash_mode: str) -> List[Test]:
     tests: List[Test] = []
     filenames_by_test_name: Dict[str, str] = {}
 
@@ -125,6 +143,11 @@ def collect_tests() -> List[Test]:
             raise ValueError('duplicate test name "%s" used in both tests/%s and tests/%s' % (name, other_filename, filename))
         filenames_by_test_name[name] = filename
 
-        tests.append(Test(name, test_main))
+        # Read the optional CRASH_MODE module attribute
+        required_crash_mode = getattr(module, 'CRASH_MODE', None)
+        if required_crash_mode is not None and required_crash_mode not in VALID_CRASH_MODES:
+            raise ValueError('CRASH_MODE in tests/%s is %r; expected one of %s' % (filename, required_crash_mode, VALID_CRASH_MODES))
+
+        tests.append(Test(name, test_main, required_crash_mode))
 
     return tests

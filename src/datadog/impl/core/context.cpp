@@ -44,7 +44,7 @@ ImmutableContext::ImmutableContext(
       env(config.env),
       application_version(config.application_version),
       variant(config.variant),
-      source(_override_or(config.internal_options.source, "rum-cpp")),
+      source(_override_or(config.internal_options.source, "cpp")),
       sdk_version(_override_or(config.internal_options.sdk_version, SDK_VERSION)),
       intake_origin(
           GetIntakeOrigin(config.site, config.internal_options.custom_endpoint_url)

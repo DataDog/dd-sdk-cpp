@@ -24,7 +24,7 @@ cmake_minimum_required(VERSION 3.21)
 # - CMAKE_OSX_ARCHITECTURES (e.g. 'arm64;x86_64' for universal binaries): determines the
 #   target architecture(s) for the build.
 
-project(ddsdkcpp VERSION 0.6.0 LANGUAGES C CXX)
+project(ddsdkcpp VERSION 0.7.0 LANGUAGES C CXX)
 
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
@@ -65,6 +65,7 @@ if(DD_DEVELOPMENT AND NOT DEFINED DD_ENABLE_SANITIZERS)
 endif()
 set(DD_ENABLE_SANITIZERS "${DD_ENABLE_SANITIZERS}" CACHE STRING "Comma-separated list of sanitizers to enable, e.g. 'ASan,UBSan', 'MSan,UBSan', 'TSan'")
 option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_DEVELOPMENT})
+option(DD_ENABLE_MSVC_PARALLEL_BUILD "Enable parallel compilation within each MSVC target (/MP)" ON)
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
 
 # C API targets C99; C++ API targets C++17

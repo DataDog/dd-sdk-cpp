@@ -8,6 +8,7 @@ set_target_properties(system_info PROPERTIES
 
 # Compile with the same build settings as the main SDK library, for linker compatibility
 target_enable_strict_warnings(system_info)
+target_enable_parallel_compilation(system_info)
 target_enable_coverage(system_info)
 target_enable_sanitizers(system_info)
 

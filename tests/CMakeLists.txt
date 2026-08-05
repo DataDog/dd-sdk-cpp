@@ -132,6 +132,7 @@ endif()
 
 target_include_external_deps(tests)
 target_enable_strict_warnings(tests)
+target_enable_parallel_compilation(tests)
 
 # Catch2's std::unreachable polyfill uses __assume(false) before std::terminate()
 # in NDEBUG builds, which makes MSVC flag the terminate() call as unreachable code

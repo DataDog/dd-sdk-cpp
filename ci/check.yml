@@ -1,0 +1,15 @@
+check-format:
+  stage: check
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  script:
+    - cmake -DDD_ENABLE_CLANG_FORMAT=ON -S . -B build
+    - cmake --build build --target check-format
+
+validate-event-types:
+  stage: check
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  script:
+    - cmake -DDD_ENABLE_EVENT_VALIDATION=ON -S . -B build
+    - cmake --build build --target validate-event-types

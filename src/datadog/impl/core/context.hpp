@@ -87,7 +87,7 @@ struct ImmutableContext {
   std::string_view application_version;  // Optional member of Core-owned CoreConfig
   std::string_view variant;              // Optional member of Core-owned CoreConfig
 
-  std::string source;         // Internal cross-platform-SDK override, or "rum-cpp"
+  std::string source;         // Internal cross-platform-SDK override, or "cpp"
   std::string sdk_version;    // Internal cross-platform-SDK override, or SDK_VERSION
   std::string intake_origin;  // Derived from configured site or custom endpoint URL
   std::string user_agent;     // Built from config + HTTP client + DeviceInfo + OsInfo
@@ -176,14 +176,14 @@ struct CoreContext {
 
   /**
    * Internal value identifying the Datadog SDK responsible for instrumenting this
-   * application: defaults to 'rum-cpp' for natively-instrumented apps, but may be
+   * application: defaults to 'cpp' for natively-instrumented apps, but may be
    * overridden by cross-platform SDKs.
    */
   std::string_view source;
 
   /**
    * String indicating the version of the Datadog SDK in use: equivalent to SDK_VERSION
-   * if source is 'rum-cpp', but may be overridden along with source.
+   * if source is 'cpp', but may be overridden along with source.
    */
   std::string_view sdk_version;
 

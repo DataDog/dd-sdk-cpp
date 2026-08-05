@@ -340,7 +340,7 @@ struct CoreConfig {
    * without notice. Do not use in production code.
    *
    * Overrides the source identifier sent in HTTP requests (e.g. `ddsource=` URL
-   * parameter and `DD-EVP-ORIGIN` header). Defaults to `"rum-cpp"`.
+   * parameter and `DD-EVP-ORIGIN` header). Defaults to `"cpp"`.
    */
   DATADOG_API CoreConfig& Internal_SetSource(std::string_view value);
 

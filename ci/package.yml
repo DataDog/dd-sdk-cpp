@@ -1,0 +1,73 @@
+package-linux:
+  stage: package
+  dependencies: []
+  tags: [arch:amd64]
+  parallel:
+    matrix:
+      # linux-{arch}-clang-libstdc++-shared-release
+      - TOOLCHAIN_TARGET: clang20
+        BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "ON"
+  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
+  script:
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
+    - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - stat build/artifact_name.txt
+    - stat "build/$(cat build/artifact_name.txt).tar.gz"
+  artifacts:
+    expire_in: "1 week"
+    paths:
+      - build/ddsdkcpp-*.tar.gz
+
+package-macos:
+  stage: package
+  dependencies: []
+  tags: [macos:tart]
+  image: ${MACOS_TART_IMAGE}
+  parallel:
+    matrix:
+      # macos-{arch}-clang-libc++-shared-release
+      - BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "ON"
+        CMAKE_OSX_DEPLOYMENT_TARGET: "14.0"
+        CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
+  script:
+    - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET} -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
+    - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - stat build/artifact_name.txt
+    - stat "build/$(cat build/artifact_name.txt).tar.gz"
+  artifacts:
+    expire_in: "1 week"
+    paths:
+      - build/ddsdkcpp-*.tar.gz
+
+package-windows:
+  stage: package
+  dependencies: []
+  tags: [windows-v2:2022]
+  variables:
+    OVERRIDE_GIT_STRATEGY: clone  # Required for Windows runners
+    TOOLCHAIN_TARGET: vs2022
+  parallel:
+    matrix:
+      # windows-x64-msvc143-md-shared-release
+      - BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "ON"
+        USE_SYSTEM_LIBCURL: "OFF"  # Build static libcurl from source
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
+  script:
+    - $ErrorActionPreference = "Stop"
+    - if (Test-Path build) { remove-item -recurse -force build }
+    - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
+    - >
+      docker run --rm
+      -m 8192M
+      -v "$(Get-Location):C:\mnt"
+      -w C:\mnt
+      ${env:TOOLCHAIN_IMAGE}
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_HTTP_USE_SYSTEM_LIBCURL=${env:USE_SYSTEM_LIBCURL} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+    - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - build/ddsdkcpp-*.zip

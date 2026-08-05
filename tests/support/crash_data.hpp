@@ -61,7 +61,7 @@ static MockBinaryFile MOCK_CRASH_CONTEXT_V1 =
         .String("mock-env")           // env
         .String("1.2.3")              // application_version
         .String("Debug")              // variant
-        .String("rum-cpp")            // source
+        .String("cpp")                // source
         .String("2.0.0")              // sdk_version
         .UInt8(2)                     // tracking_consent (2: Pending)
         .String("mock-os")            // os_name

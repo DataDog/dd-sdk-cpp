@@ -25,12 +25,14 @@ class MockCrashHandler : public impl::ICrashHandler {
       impl::DiagnosticLogger logger,
       impl::IFilesystem& fs,
       const impl::StoragePath& crash_storage_dir_path,
-      std::string_view helper_exe_path
+      std::string_view helper_exe_path,
+      std::string_view upload_origin
   ) override {
     (void)logger;
     (void)fs;
     (void)crash_storage_dir_path;
     (void)helper_exe_path;
+    (void)upload_origin;
     return true;
   }
 

@@ -1,0 +1,137 @@
+test-linux:
+  # - COMPILE: Build with Clang 20 on Linux arm64
+  # - CONFIG:  Validate both Debug and Release builds
+  # - CRASH:   Use the default crash handling implementation
+  # - EXTRAS:  Build test binaries and examples
+  # - LINTING: Run clang-tidy checks during the build
+  # - RUNTIME: Run unit tests and integration tests
+  stage: test
+  dependencies: []
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  parallel:
+    matrix:
+      - BUILD_CONFIGURATION: [Debug, RelWithDebInfo]
+  script:
+    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_ENABLE_CLANG_TIDY=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure
+    - .venv/bin/python tools/integration-test/main.py --crash-mode inprocess
+
+test-linux-x86:
+  # - COMPILE: Build with Clang 20 on Linux arm64, cross-compiling to x86
+  # - CRASH:   Use the default crash handling implementation
+  # - EXTRAS:  Build test binaries and examples
+  # - RUNTIME: Run unit tests and integration tests
+  stage: test
+  dependencies: []
+  tags: [arch:amd64]
+  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:clang20-x86-${LINUX_TOOLCHAIN_IMAGE_VERSION}
+  script:
+    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=Debug
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      -DDD_HTTP_USE_SYSTEM_LIBCURL=ON
+      -DDD_ENABLE_CLANG_TIDY=OFF
+      -DDD_ENABLE_GIT_REVISION_INFO=OFF
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure
+    # mitmproxy runs as 64-bit Python on the amd64 host; the repl binary it drives is
+    # the 32-bit cross-compiled SDK example
+    - .venv/bin/python tools/integration-test/main.py --crash-mode inprocess
+
+test-linux-crashpad:
+  # - COMPILE: Build with Clang 20 on Linux amd64
+  # - CONFIG:  Debug build
+  # - CRASH:   Use the Crashpad crash handling implementation
+  # - EXTRAS:  Build test binaries and examples
+  # - LINTING: Run clang-tidy checks during the build
+  # - RUNTIME: Run Crashpad tests, SDK unit tests, and integration tests
+  stage: test
+  dependencies: []
+  tags: [arch:amd64]
+  image: ${GOLDEN_LINUX_IMAGE}
+  script:
+    - python3 -m venv .venv && .venv/bin/python -m pip install -e '.[integration-test]'
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=Debug
+      -DDD_ENABLE_ASSERTS=ON
+      -DDD_ENABLE_CLANG_TIDY=ON
+      -DDD_BUILD_EXAMPLES=ON
+      -DDD_BUILD_TESTING=ON
+      -DDD_CRASH_MODE=crashpad
+      -DDD_RUN_CRASHPAD_TESTS=ON
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - ctest --test-dir build --output-on-failure
+    - .venv/bin/python tools/integration-test/main.py --crash-mode crashpad
+
+compat-linux:
+  # - COMPILE: Build with GCC and the oldest supported version of Clang
+  # - CONFIG:  Validate both Debug and Release builds across both compilers
+  # - CRASH:   Use the default crash handling implementation
+  # - HTTP:    Build both with system libcurl and with static, vendored libcurl build
+  # - EXTRAS:  Build test binaries
+  # - RUNTIME: Run unit tests
+  stage: test
+  dependencies: []
+  tags: [arch:amd64]
+  parallel:
+    # To avoid ballooning our build matrix, test multiple variations (compiler version,
+    # static vs. shared, release vs. debug, etc.) in each job
+    matrix:
+      # gcc11: shared-debug, w/ runtime dependency on libcurl.so
+      - TOOLCHAIN_TARGET: gcc11
+        BUILD_CONFIGURATION: Debug
+        BUILD_SHARED_LIBS: "ON"
+        USE_SYSTEM_LIBCURL: "ON"
+        DD_CRASH_MODE: "inprocess"
+
+      # gcc13: static-release, w/ bundled libcurl
+      - TOOLCHAIN_TARGET: gcc13
+        BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        USE_SYSTEM_LIBCURL: "OFF"
+        DD_CRASH_MODE: "inprocess"
+
+      # clang15: static-release, w/ runtime dependency on libcurl.so
+      - TOOLCHAIN_TARGET: clang15
+        BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        USE_SYSTEM_LIBCURL: "ON"
+        DD_CRASH_MODE: "inprocess"
+
+      # clang15: shared-debug, w/ bundled libcurl
+      - TOOLCHAIN_TARGET: clang15
+        BUILD_CONFIGURATION: Debug
+        BUILD_SHARED_LIBS: "ON"
+        USE_SYSTEM_LIBCURL: "OFF"
+        DD_CRASH_MODE: "inprocess"
+
+  image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
+  script:
+    - >
+      cmake
+      -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION}
+      -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS}
+      -DDD_HTTP_USE_SYSTEM_LIBCURL=${USE_SYSTEM_LIBCURL}
+      -DDD_CRASH_MODE=${DD_CRASH_MODE}
+      -DDD_RUN_CRASHPAD_TESTS=$([[ "${DD_CRASH_MODE}" == "crashpad" ]] && echo "ON" || echo "OFF")
+      -DDD_BUILD_TESTING=$([[ "${BUILD_SHARED_LIBS}" == "OFF" ]] && echo "ON" || echo "OFF")
+      -S . -B build
+    - cmake --build build --parallel ${NUM_PARALLEL_BUILD_JOBS}
+    - 'if [[ "${BUILD_SHARED_LIBS}" == "OFF" ]]; then ctest --test-dir build --output-on-failure; fi'
