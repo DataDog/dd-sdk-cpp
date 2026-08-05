@@ -1,3 +1,9 @@
+## 0.7.0
+
+### Breaking Changes
+
+- The `source` value reported by the SDK has changed to `cpp`. This requires no changes to application code, but upgrading to this version is mandatory to ensure continued compatibility. The Datadog backend will no longer accept data produced by older releases of the SDK.
+
 ## 0.6.0
 
 ### Breaking Changes
