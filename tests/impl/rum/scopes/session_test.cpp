@@ -152,13 +152,17 @@ TEST_CASE_METHOD(SessionFixture, "RumSessionScope::Process", "[unit][rum]") {
   }
 
   SECTION("M close with Stopped W StopSession is processed") {
+    // Given a session scope that is active before StopSession is processed
+    REQUIRE(scope.IsActive());
+
     // When we process StopSession
     const auto result =
         scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
 
-    // Then the scope is explicitly closed
+    // Then the scope is explicitly closed and no longer reports itself as active
     REQUIRE(result == RumScopeResult::Close);
     REQUIRE(scope.GetEndReason() == RumSessionScope::EndReason::Stopped);
+    REQUIRE_FALSE(scope.IsActive());
   }
 
   SECTION(
