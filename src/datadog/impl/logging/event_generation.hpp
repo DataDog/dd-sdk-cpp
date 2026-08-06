@@ -41,7 +41,8 @@ void ContextThread_GenerateLogEvent(
     const CoreContext& ctx,
     const EventWriter& event_writer,
     std::vector<uint8_t>& encode_buf,
-    const MessagePublisher& publisher
+    const MessagePublisher& publisher,
+    const DiagnosticLogger& diagnostic_logger
 );
 
 }  // namespace datadog::impl

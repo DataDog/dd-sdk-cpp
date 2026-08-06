@@ -3277,6 +3277,67 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          );
        }},
 
+      {"M set error.source_type and exclude it from context W a recognized "
+       "_dd.error.source_type is provided on AddError",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add an error carrying a recognized
+         // _dd.error.source_type attribute
+         rum->StartView("my-view", "My View");
+         Attribute add_error_obj = Attribute::Object(2);
+         add_error_obj.SetObjectProperty(
+             "_dd.error.source_type", Attribute::String("flutter")
+         );
+         add_error_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             add_error_obj
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has error.source_type set, and
+         // the attribute is excluded from context
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["error"]["source_type"] == "flutter");
+         REQUIRE(errors[0]["context"] == nlohmann::json{{"alpha", 1}});
+       }},
+
+      {"M omit error.source_type and exclude key from context W an unrecognized "
+       "_dd.error.source_type is provided on AddError",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add an error carrying an unrecognized
+         // _dd.error.source_type attribute
+         rum->StartView("my-view", "My View");
+         Attribute add_error_obj = Attribute::Object(1);
+         add_error_obj.SetObjectProperty(
+             "_dd.error.source_type", Attribute::String("some-unknown-platform")
+         );
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             add_error_obj
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has no error.source_type field,
+         // and no context (the only attribute provided was consumed regardless)
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(!errors[0]["error"].contains("source_type"));
+         REQUIRE(!errors[0].contains("context"));
+       }},
+
       // === Operations ===
 
       {"M emit start and end vital events W operation succeeds",
