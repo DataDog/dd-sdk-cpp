@@ -571,6 +571,10 @@ void RumViewScope::SendViewEvent(
   // completion, even if we've set _is_active to false in our scope
   ev.view.is_active.value = _is_active || _resource_scopes.Size() > 0;
 
+  // The 'session.is_active' property reflects whether the session was explicitly
+  // stopped via StopSession by the time this view event was sent
+  ev.session.is_active.value = session.IsActive();
+
   if (!_name.empty()) {
     ev.view.name.value = _name;
   }
