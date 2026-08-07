@@ -1,3 +1,9 @@
+## 0.7.1
+
+### Features
+
+- RUM View events now include an `is_active` field indicating whether the view is still active (e.g., `false` when a session is stopped via `stopSession`).
+
 ## 0.7.0
 
 ### Breaking Changes
