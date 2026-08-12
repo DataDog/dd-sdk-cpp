@@ -123,6 +123,13 @@ void Rum::Start() {
   // the scope tree, creating a copy since _scope is reset on Stop()
   _deps.diagnostic_logger = _scope->diagnostic_logger;
 
+  // Expose (or hide) CoreContext::anonymous_id on RUM/Log events, per our config's
+  // trackAnonymousUser setting. The value itself was already resolved by Core::Init();
+  // we're just flipping the gate that both RUM's and Logging's event enrichment check.
+  _scope->UpdateContext([enabled = _deps.track_anonymous_user](CoreContext& ctx) {
+    ctx.anonymous_id_enabled = enabled;
+  });
+
   // Fully reinitialize RUM application state to clear all sessions/views/etc. from
   // previous runs
   _application = RumApplicationScope(_deps);

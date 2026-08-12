@@ -142,7 +142,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
     ev.usr.value->id = "390cfcd41";
     ev.usr.value->name = "John Q. Public";
     ev.usr.value->email = "jqpublic@example.com";
-    ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+    ev.usr.value->anonymous_id = *UUID::Parse("a52beca3-34c1-4e35-9c26-d8a2daa212e6");
 
     // RumAccountProperties
     ev.account.value.emplace("708876d3e663c2eb");
@@ -547,7 +547,7 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
     ev.usr.value->id = "390cfcd41";
     ev.usr.value->name = "John Q. Public";
     ev.usr.value->email = "jqpublic@example.com";
-    ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+    ev.usr.value->anonymous_id = *UUID::Parse("a52beca3-34c1-4e35-9c26-d8a2daa212e6");
     ev.usr.value->extra = Attribute::Object(2);
     ev.usr.value->extra.SetObjectProperty("foo", Attribute::Int(100));
     ev.usr.value->extra.SetObjectProperty("bar", Attribute::Int(200));
@@ -796,7 +796,7 @@ TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
     ev.usr.value->id = "390cfcd41";
     ev.usr.value->name = "John Q. Public";
     ev.usr.value->email = "jqpublic@example.com";
-    ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+    ev.usr.value->anonymous_id = *UUID::Parse("a52beca3-34c1-4e35-9c26-d8a2daa212e6");
 
     // RumAccountProperties
     ev.account.value.emplace("708876d3e663c2eb");
@@ -1084,7 +1084,7 @@ TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
     ev.usr.value->id = "390cfcd41";
     ev.usr.value->name = "John Q. Public";
     ev.usr.value->email = "jqpublic@example.com";
-    ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+    ev.usr.value->anonymous_id = *UUID::Parse("a52beca3-34c1-4e35-9c26-d8a2daa212e6");
 
     // RumAccountProperties
     ev.account.value.emplace("708876d3e663c2eb");
@@ -1625,7 +1625,7 @@ TEST_CASE("RumVitalAppLaunchEvent", "[unit][feature_types][rum]") {
     ev.usr.value->id = "390cfcd41";
     ev.usr.value->name = "John Q. Public";
     ev.usr.value->email = "jqpublic@example.com";
-    ev.usr.value->anonymous_id = "a52beca3-34c1-4e35-9c26-d8a2daa212e6";
+    ev.usr.value->anonymous_id = *UUID::Parse("a52beca3-34c1-4e35-9c26-d8a2daa212e6");
 
     // RumAccountProperties
     ev.account.value.emplace("708876d3e663c2eb");

@@ -35,6 +35,7 @@ typedef struct dd_rum_config {
   uint32_t version;
   dd_uuid_t application_id;
   float session_sample_rate;
+  bool track_anonymous_user;
 } dd_rum_config_t;
 
 /**
@@ -60,6 +61,16 @@ DATADOG_API void dd_rum_config_set_application_id(
  */
 DATADOG_API void dd_rum_config_set_session_sample_rate(
     dd_rum_config_t* config, float value
+);
+
+/**
+ * Sets whether an anonymous user id should be generated and tracked for the current
+ * device, persisted across app launches. If true (the default), a randomly-generated
+ * id is written to a file in the SDK's configured storage directory and is included as
+ * `usr.anonymous_id` on RUM and Log events.
+ */
+DATADOG_API void dd_rum_config_set_track_anonymous_user(
+    dd_rum_config_t* config, bool value
 );
 
 // === RUM feature interface ===

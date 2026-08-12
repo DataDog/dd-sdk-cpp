@@ -36,6 +36,7 @@ struct RumConfig {
  private:
   UUID application_id;  // UUID::Zero if uninitialized or invalid
   float session_sample_rate{100.0f};
+  bool track_anonymous_user{true};
 
  public:
   /**
@@ -69,6 +70,14 @@ struct RumConfig {
    * intake; at 0.0, no RUM events are generated. Default is 100.0.
    */
   DATADOG_API RumConfig& SetSessionSampleRate(float value);
+
+  /**
+   * Sets whether an anonymous user id should be generated and tracked for the current
+   * device, persisted across app launches. If true (the default), a randomly-generated
+   * id is written to a file in the SDK's configured storage directory and is included
+   * as `usr.anonymous_id` on RUM and Log events.
+   */
+  DATADOG_API RumConfig& SetTrackAnonymousUser(bool value);
 };
 
 enum class RumActionType : uint8_t { Tap, Click, Scroll, Swipe, Custom };

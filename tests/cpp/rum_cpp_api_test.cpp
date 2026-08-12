@@ -3702,11 +3702,49 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          REQUIRE(vitals[0].count("context") == 0);
          REQUIRE(vitals[1].count("context") == 0);
        }},
+
+      // === anonymous_id (RUM-17731) ===
+
+      {"M include usr.anonymous_id W trackAnonymousUser is set to true",
+       [](RumConfig& config) {
+         // Other test cases in this suite default to trackAnonymousUser=false (see
+         // below) to avoid usr.anonymous_id noise in unrelated assertions; opt back in
+         // here to test the (separately-defaulted-true) behavior directly
+         config.SetTrackAnonymousUser(true);
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+       },
+       [](const nlohmann::json& events) {
+         auto views = filter_events("view", events);
+         REQUIRE(!views.empty());
+         REQUIRE(views[0].contains("usr"));
+         REQUIRE(views[0]["usr"].contains("anonymous_id"));
+         std::string id = views[0]["usr"]["anonymous_id"].get<std::string>();
+         REQUIRE(UUID::Parse(id).has_value());
+       }},
+
+      {"M omit usr.anonymous_id W trackAnonymousUser is set to false",
+       [](RumConfig& config) { config.SetTrackAnonymousUser(false); },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+       },
+       [](const nlohmann::json& events) {
+         auto views = filter_events("view", events);
+         REQUIRE(!views.empty());
+         // With no user info and trackAnonymousUser disabled, 'usr' isn't populated at
+         // all
+         REQUIRE(!views[0].contains("usr"));
+       }},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
-      // Given a RUM config modified as our test case demands
+      // Given a RUM config modified as our test case demands. Default
+      // trackAnonymousUser to false here so that unrelated test cases' event
+      // assertions aren't disrupted by a usr.anonymous_id value they don't expect;
+      // specific test cases re-enable it to test that behavior directly.
       RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+      config.SetTrackAnonymousUser(false);
       tt.config_func(config);
 
       // And a started SDK with RUM initialized from that config

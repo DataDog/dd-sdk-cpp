@@ -43,6 +43,7 @@ struct RumScopeDependencies {
   UUID application_id;
   DiagnosticLogger diagnostic_logger;
   const platform::IClock& clock;
+  bool track_anonymous_user;  // From RumConfig::track_anonymous_user
 
  private:
   float _sampling_rate;  // [0.0f..100.f], from RumConfig::session_sample_rate

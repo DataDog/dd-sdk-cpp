@@ -226,6 +226,24 @@ struct CoreContext {
    */
   AccountInfo account_info;
 
+  /**
+   * Anonymous user id resolved once by Core::Init() from a file persisted in the
+   * '.core' artifact storage directory. UUID::Zero if resolution failed (e.g.
+   * filesystem error) or hasn't happened yet. Effectively immutable after Init()
+   * completes, but lives here (rather than ImmutableContext) because
+   * SdkStorage/ArtifactStorage, which resolution depends on, aren't available until
+   * Init() runs, after CoreContext already exists.
+   */
+  UUID anonymous_id;
+
+  /**
+   * Whether `anonymous_id` should be exposed as `usr.anonymous_id` on RUM and Log
+   * events. False until RUM registers and starts with `trackAnonymousUser` set to
+   * true; unaffected by CoreContext::Reset(), so it stays true across Stop()/Start()
+   * cycles once set.
+   */
+  bool anonymous_id_enabled{false};
+
   // === Feature-specific context values that may change during SDK operation ===
 
   /**

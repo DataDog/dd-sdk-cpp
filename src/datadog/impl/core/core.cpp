@@ -10,18 +10,98 @@
 #include <iostream>
 #include <sstream>
 
+#include "datadog/uuid.hpp"
+
 #include "datadog/impl/core/attribute/merge.hpp"
 #include "datadog/impl/core/context_thread.hpp"
 #include "datadog/impl/core/http/client.hpp"
 #include "datadog/impl/core/messaging_thread.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
+#include "datadog/impl/core/storage/filesystem_wrapper.hpp"
+#include "datadog/impl/core/storage/util.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
 
 namespace datadog::impl {
+
+// Length, in bytes, of a UUID's standard text form; used as the fixed size of the
+// persisted anonymous_id file
+static const size_t ANONYMOUS_ID_FILE_SIZE = 36;
+
+static UUID _read_existing_anonymous_id(FilesystemWrapper& fsw, const char* path) {
+  const bool hold_advisory_lock = true;
+  auto [open_result, file] = fsw.OpenForRead(path, hold_advisory_lock);
+  if (open_result != FilesystemResult::OK) {
+    return UUID::Zero;
+  }
+
+  char buf[ANONYMOUS_ID_FILE_SIZE];
+  auto read_result = file.Read(buf, sizeof(buf));
+  if (read_result.value != FilesystemResult::OK ||
+      read_result.bytes_read != sizeof(buf)) {
+    return UUID::Zero;
+  }
+
+  return UUID::Parse(std::string_view(buf, sizeof(buf))).value_or(UUID::Zero);
+}
+
+static UUID _create_and_persist_anonymous_id(FilesystemWrapper& fsw, const char* path) {
+  const UUID id = UUID::Random();
+
+  // Write the UUID's text form directly into a stack buffer; no heap allocation needed
+  char buf[ANONYMOUS_ID_FILE_SIZE];
+  id.ToBytes(buf, sizeof(buf));
+
+  const bool append = false;
+  const bool hold_advisory_lock = true;
+  auto [open_result, file] = fsw.OpenForWrite(path, append, hold_advisory_lock);
+  if (open_result != FilesystemResult::OK) {
+    return UUID::Zero;
+  }
+
+  auto write_result = file.Write(buf, sizeof(buf));
+  if (write_result.value != FilesystemResult::OK) {
+    return UUID::Zero;
+  }
+  return id;
+}
+
+/**
+ * Reads a persisted anonymous user id from `<artifact_dir>/id`, or generates and
+ * persists a new one (as a standard UUID text form) if no valid id is currently
+ * present.
+ *
+ * Returns the resolved id, or UUID::Zero if any filesystem operation fails (e.g. the
+ * directory or file couldn't be read/written): callers should treat UUID::Zero as
+ * "anonymous id unavailable for this process" rather than falling back to a
+ * non-persisted value.
+ */
+static UUID _resolve_or_create_anonymous_id(
+    IFilesystem& fs, const StoragePath& artifact_dir, const DiagnosticLogger& logger
+) {
+  StoragePath file_path;
+  if (!JoinPaths(
+          file_path,
+          artifact_dir.Get(),
+          "id",
+          logger,
+          "could not resolve anonymous_id file path"
+      )) {
+    return UUID::Zero;
+  }
+
+  FilesystemWrapper fsw(fs);
+
+  if (UUID existing = _read_existing_anonymous_id(fsw, file_path.CStr());
+      existing != UUID::Zero) {
+    return existing;
+  }
+
+  return _create_and_persist_anonymous_id(fsw, file_path.CStr());
+}
 
 std::optional<CoreSubsystems> CoreSubsystems::Init(const DiagnosticLogger& logger) {
   // Prepare a wrapper object that can read from the system clock
@@ -234,6 +314,22 @@ bool Core::Init() {
         "Core initialization failed: could not initialize SDK storage"
     );
     return false;
+  }
+
+  // Resolve (or generate and persist) an anonymous user id, shared across all SDK
+  // instances/features. This is best-effort: any failure here just leaves
+  // CoreContext::anonymous_id as UUID::Zero, and does not fail Core initialization
+  // overall. Whether the resolved id is actually exposed on events is decided later, by
+  // whichever feature (e.g. RUM) is configured to do so.
+  if (auto artifact_storage = InitializeArtifactStorage(".core")) {
+    const UUID anonymous_id = _resolve_or_create_anonymous_id(
+        *_subsystems.fs, artifact_storage->GetPath(), _diagnostic_logger
+    );
+    if (anonymous_id != UUID::Zero) {
+      UpdateContext([anonymous_id](CoreContext& ctx) {
+        ctx.anonymous_id = anonymous_id;
+      });
+    }
   }
 
   // Core is initialized; ready to register features and start

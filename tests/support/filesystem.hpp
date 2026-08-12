@@ -90,7 +90,8 @@ inline std::string GetPidString() {
  * Fails if:
  *
  * - .datadog/ does not exist
- * - .datadog/ contains anything other than main/
+ * - .datadog/ contains anything other than main/ and .core/ (the latter holding the
+ *   persisted anonymous_id file, created unconditionally by Core::Init())
  * - main/ does not contain <pid>.lock or <pid>/
  * - <pid>/ contains any regular files, recursively
  *
@@ -109,13 +110,16 @@ inline void PruneDotDatadogDir() {
   const auto datadog_root = application_root / ".datadog";
   REQUIRE(std::filesystem::is_directory(datadog_root));
 
-  // There should only be one item ('main') in the root .datadog/ directory
+  // There should only be two items in the root .datadog/ directory: 'main' (the
+  // instance-level event storage dir) and '.core' (the artifact dir holding the
+  // persisted anonymous_id file, created unconditionally by Core::Init())
   size_t num_entries_in_datadog_root{0};
   for (const auto& entry : std::filesystem::directory_iterator(datadog_root)) {
-    REQUIRE(entry.path().filename() == "main");
+    const std::string name = entry.path().filename().string();
+    REQUIRE((name == "main" || name == ".core"));
     num_entries_in_datadog_root++;
   }
-  REQUIRE(num_entries_in_datadog_root == 1);
+  REQUIRE(num_entries_in_datadog_root == 2);
 
   // There should only be two items (<pid>/ and <pid>.lock) in the main/ directory
   const auto instance_root_iter =
