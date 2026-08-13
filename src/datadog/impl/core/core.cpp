@@ -39,21 +39,22 @@ static UUID _read_existing_anonymous_id(FilesystemWrapper& fsw, const char* path
   }
 
   char buf[ANONYMOUS_ID_FILE_SIZE];
-  auto read_result = file.Read(buf, sizeof(buf));
+  auto read_result = file.Read(static_cast<char*>(buf), sizeof(buf));
   if (read_result.value != FilesystemResult::OK ||
       read_result.bytes_read != sizeof(buf)) {
     return UUID::Zero;
   }
 
-  return UUID::Parse(std::string_view(buf, sizeof(buf))).value_or(UUID::Zero);
+  return UUID::Parse(std::string_view(static_cast<const char*>(buf), sizeof(buf)))
+      .value_or(UUID::Zero);
 }
 
 static UUID _create_and_persist_anonymous_id(FilesystemWrapper& fsw, const char* path) {
-  const UUID id = UUID::Random();
+  UUID id = UUID::Random();
 
   // Write the UUID's text form directly into a stack buffer; no heap allocation needed
   char buf[ANONYMOUS_ID_FILE_SIZE];
-  id.ToBytes(buf, sizeof(buf));
+  id.ToBytes(static_cast<char*>(buf), sizeof(buf));
 
   const bool append = false;
   const bool hold_advisory_lock = true;
@@ -62,7 +63,7 @@ static UUID _create_and_persist_anonymous_id(FilesystemWrapper& fsw, const char*
     return UUID::Zero;
   }
 
-  auto write_result = file.Write(buf, sizeof(buf));
+  auto write_result = file.Write(static_cast<const char*>(buf), sizeof(buf));
   if (write_result.value != FilesystemResult::OK) {
     return UUID::Zero;
   }
