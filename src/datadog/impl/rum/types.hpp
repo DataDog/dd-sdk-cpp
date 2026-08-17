@@ -19,7 +19,9 @@ inline RumConfig RumConfig_FromC(const dd_rum_config_t& config) {
   const UUID application_id(bytes);
 
   // Initialize a C++ config struct from our input values
-  return RumConfig(application_id).SetSessionSampleRate(config.session_sample_rate);
+  return RumConfig(application_id)
+      .SetSessionSampleRate(config.session_sample_rate)
+      .SetTrackAnonymousUser(config.track_anonymous_user);
 }
 
 inline RumActionType RumActionType_FromC(dd_rum_action_type_t value) {

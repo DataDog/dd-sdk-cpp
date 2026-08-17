@@ -25,6 +25,7 @@ struct LogUserInfo {
   OmitIfEmpty<std::string> id;
   OmitIfEmpty<std::string> name;
   OmitIfEmpty<std::string> email;
+  OmitIfZero<UUID> anonymous_id;
   Attribute extra;
 };
 DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
@@ -32,7 +33,8 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     extra,
     DATADOG_JSON_FIELD(id),
     DATADOG_JSON_FIELD(name),
-    DATADOG_JSON_FIELD(email)
+    DATADOG_JSON_FIELD(email),
+    DATADOG_JSON_FIELD(anonymous_id)
 )
 
 /**

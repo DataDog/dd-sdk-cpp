@@ -11,6 +11,7 @@
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
 #include "datadog/rum.hpp"
+#include "datadog/uuid.hpp"
 
 #include "support/catch.hpp"
 #include "support/core.hpp"
@@ -42,8 +43,11 @@ TEST_CASE("Core user info", "[unit][core]" FEATURE_TAGS "[cpp-api]") {
   auto logging = Logging::Register(core);
   auto logger = logging->CreateLogger();
 
-  // And an active RUM API
-  auto rum = Rum::Register(core, RumConfig("a991ca10-4004-4004-4004-beefbeefbeef"));
+  // And an active RUM API. Disable anonymous id tracking: these tests are specifically
+  // about UserInfo and don't expect a usr.anonymous_id value to show up alongside it.
+  RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
+  rum_config.SetTrackAnonymousUser(false);
+  auto rum = Rum::Register(core, rum_config);
 
   // And a helper function that will cause each feature to produce a one or more event
   // payloads, then resolve those event payloads, parse the value assigned to "usr" (or
@@ -387,4 +391,97 @@ TEST_CASE("Core user info", "[unit][core]" FEATURE_TAGS "[cpp-api]") {
     // Then all features revert to producing events with no "usr" data whatsoever
     REQUIRE(user_values.require_identical().is_null());
   }
+}
+
+TEST_CASE(
+    "Core anonymous_id in user info events", "[unit][core]" FEATURE_TAGS "[cpp-api]"
+) {
+  // Given a started core, with active Logging and RUM APIs
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  auto core = CoreTestHarness::WrapForCpp(test);
+
+  auto logging = Logging::Register(core);
+  auto logger = logging->CreateLogger();
+
+  auto track_anonymous_user = GENERATE(true, false);
+  RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
+  rum_config.SetTrackAnonymousUser(track_anonymous_user);
+  auto rum = Rum::Register(core, rum_config);
+  REQUIRE(core->Start());
+
+  // When we produce a log event and a RUM event, then stop the core to flush everything
+  logger->Info("hello");
+  rum->StartView("view");
+  core->Stop();
+
+  auto log_events = MergeJsonArrays(test.client.requests, "/api/v2/logs");
+  auto rum_events = MergeJsonArrays(test.client.requests, "/api/v2/rum");
+  REQUIRE(log_events.size() == 1);
+  REQUIRE(!rum_events.empty());
+
+  auto log_usr = log_events[0].value("usr", nlohmann::json{});
+  auto rum_usr = rum_events[0].value("usr", nlohmann::json{});
+
+  if (track_anonymous_user) {
+    // Then both Logging and RUM events carry the same, valid anonymous_id
+    REQUIRE(log_usr.contains("anonymous_id"));
+    REQUIRE(rum_usr.contains("anonymous_id"));
+    std::string log_id = log_usr["anonymous_id"].get<std::string>();
+    std::string rum_id = rum_usr["anonymous_id"].get<std::string>();
+    REQUIRE(UUID::Parse(log_id).has_value());
+    REQUIRE(log_id == rum_id);
+  } else {
+    // Then, with no other user info supplied and trackAnonymousUser disabled, neither
+    // feature populates 'usr' at all
+    REQUIRE(log_usr.is_null());
+    REQUIRE(rum_usr.is_null());
+  }
+}
+
+TEST_CASE(
+    "Core anonymous_id is never exposed W trackAnonymousUser is false",
+    "[unit][core]" FEATURE_TAGS "[cpp-api]"
+) {
+  // Given a started core, with active Logging and RUM APIs, RUM configured with
+  // trackAnonymousUser explicitly disabled
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  auto core = CoreTestHarness::WrapForCpp(test);
+
+  auto logging = Logging::Register(core);
+  auto logger = logging->CreateLogger();
+
+  RumConfig rum_config("a991ca10-4004-4004-4004-beefbeefbeef");
+  rum_config.SetTrackAnonymousUser(false);
+  auto rum = Rum::Register(core, rum_config);
+  REQUIRE(core->Start());
+
+  // And real UserInfo supplied, so that 'usr' *is* populated on events for another
+  // reason entirely, giving anonymous_id somewhere to leak into if the gating logic
+  // were wrong
+  core->SetUserInfo("user-123", "Jane Doe", "jane@example.com");
+
+  // When we produce a log event and a RUM event, then stop the core to flush everything
+  logger->Info("hello");
+  rum->StartView("view");
+  core->Stop();
+
+  // Then Core::Init() still resolved and persisted an anonymous_id to disk: the
+  // underlying value exists, it's simply never exposed
+  REQUIRE(test.fs.IsFile("app/.datadog/.core/id"));
+
+  // And both Logging and RUM events carry 'usr' (from the real UserInfo we set), but
+  // neither one includes an 'anonymous_id' property
+  auto log_events = MergeJsonArrays(test.client.requests, "/api/v2/logs");
+  auto rum_events = MergeJsonArrays(test.client.requests, "/api/v2/rum");
+  REQUIRE(log_events.size() == 1);
+  REQUIRE(!rum_events.empty());
+
+  auto log_usr = log_events[0].value("usr", nlohmann::json{});
+  auto rum_usr = rum_events[0].value("usr", nlohmann::json{});
+  REQUIRE(log_usr.contains("id"));
+  REQUIRE(rum_usr.contains("id"));
+  REQUIRE_FALSE(log_usr.contains("anonymous_id"));
+  REQUIRE_FALSE(rum_usr.contains("anonymous_id"));
 }

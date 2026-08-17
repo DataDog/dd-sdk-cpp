@@ -77,13 +77,17 @@ void ContextThread_GenerateLogEvent(
     ev.rum_action_id = ctx.rum->action_id;
   }
 
-  // If the SDK has been given valid user info, add it to 'usr'
-  if (!ctx.user_info.IsEmpty()) {
+  // If the SDK has been given valid user info, or has an anonymous id to expose, add
+  // 'usr'
+  if (!ctx.user_info.IsEmpty() || ctx.anonymous_id_enabled) {
     LogUserInfo& usr = ev.usr.value.emplace();
     usr.id = ctx.user_info.id;
     usr.name = ctx.user_info.name;
     usr.email = ctx.user_info.email;
     usr.extra = ctx.user_info.extra;
+    if (ctx.anonymous_id_enabled) {
+      usr.anonymous_id = ctx.anonymous_id;
+    }
   }
 
   // If the SDK has been given valid account info, add it to 'account'

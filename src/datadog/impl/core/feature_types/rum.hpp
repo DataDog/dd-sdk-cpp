@@ -323,7 +323,7 @@ struct RumUserProperties {
   OmitIfEmpty<std::string> id;
   OmitIfEmpty<std::string> name;
   OmitIfEmpty<std::string> email;
-  OmitIfEmpty<std::string> anonymous_id;
+  OmitIfZero<UUID> anonymous_id;
   // Extra user attributes merged inline as additional JSON properties
   Attribute extra;
 

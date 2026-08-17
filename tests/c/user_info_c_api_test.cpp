@@ -11,6 +11,7 @@
 #include "datadog/core.h"
 #include "datadog/logging.h"
 #include "datadog/rum.h"
+#include "datadog/uuid.hpp"
 
 #include "support/catch.hpp"
 #include "support/core.hpp"
@@ -43,6 +44,9 @@ TEST_CASE("dd_core user info", "[unit][core]" FEATURE_TAGS "[c-api]") {
   // And an active RUM API
   dd_rum_config_t rum_config;
   dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
+  // Disable anonymous id tracking: these tests are specifically about UserInfo and
+  // don't expect a usr.anonymous_id value to show up alongside it.
+  rum_config.track_anonymous_user = false;
   dd_rum_t* rum = dd_rum_init(core, &rum_config);
 
   // And a helper function that will cause each feature to produce a one or more event
@@ -454,6 +458,113 @@ TEST_CASE("dd_core user info", "[unit][core]" FEATURE_TAGS "[c-api]") {
     // Then all features revert to producing events with no "usr" data whatsoever
     REQUIRE(user_values.require_identical().is_null());
   }
+
+  // Cleanup
+  dd_rum_destroy(rum);
+  dd_logger_destroy(logger);
+  dd_logging_destroy(logging);
+  dd_core_destroy(core);
+}
+
+TEST_CASE(
+    "dd_core anonymous_id in user info events", "[unit][core]" FEATURE_TAGS "[c-api]"
+) {
+  // Given a started core, with active Logging and RUM APIs
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  dd_core_t* core = CoreTestHarness::WrapForC(test);
+
+  dd_logging_t* logging = dd_logging_init(core);
+  dd_logger_t* logger = dd_logger_create(logging, nullptr);
+
+  auto track_anonymous_user = GENERATE(true, false);
+  dd_rum_config_t rum_config;
+  dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
+  rum_config.track_anonymous_user = track_anonymous_user;
+  dd_rum_t* rum = dd_rum_init(core, &rum_config);
+  REQUIRE(dd_core_start(core));
+
+  // When we produce a log event and a RUM event, then stop the core to flush everything
+  dd_logger_info(logger, "hello", nullptr, nullptr);
+  dd_rum_start_view(rum, "view", nullptr, nullptr);
+  dd_core_stop(core);
+
+  auto log_events = MergeJsonArrays(test.client.requests, "/api/v2/logs");
+  auto rum_events = MergeJsonArrays(test.client.requests, "/api/v2/rum");
+  REQUIRE(log_events.size() == 1);
+  REQUIRE(!rum_events.empty());
+
+  auto log_usr = log_events[0].value("usr", nlohmann::json{});
+  auto rum_usr = rum_events[0].value("usr", nlohmann::json{});
+
+  if (track_anonymous_user) {
+    // Then both Logging and RUM events carry the same, valid anonymous_id
+    REQUIRE(log_usr.contains("anonymous_id"));
+    REQUIRE(rum_usr.contains("anonymous_id"));
+    std::string log_id = log_usr["anonymous_id"].get<std::string>();
+    std::string rum_id = rum_usr["anonymous_id"].get<std::string>();
+    REQUIRE(datadog::UUID::Parse(log_id).has_value());
+    REQUIRE(log_id == rum_id);
+  } else {
+    // Then, with no other user info supplied and track_anonymous_user disabled, neither
+    // feature populates 'usr' at all
+    REQUIRE(log_usr.is_null());
+    REQUIRE(rum_usr.is_null());
+  }
+
+  // Cleanup
+  dd_rum_destroy(rum);
+  dd_logger_destroy(logger);
+  dd_logging_destroy(logging);
+  dd_core_destroy(core);
+}
+
+TEST_CASE(
+    "dd_core anonymous_id is never exposed W track_anonymous_user is false",
+    "[unit][core]" FEATURE_TAGS "[c-api]"
+) {
+  // Given a started core, with active Logging and RUM APIs, RUM configured with
+  // track_anonymous_user explicitly disabled
+  auto test = CoreTestHarness::Init();
+  test.clock.FreezeAtMilliseconds(1700000000000);
+  dd_core_t* core = CoreTestHarness::WrapForC(test);
+
+  dd_logging_t* logging = dd_logging_init(core);
+  dd_logger_t* logger = dd_logger_create(logging, nullptr);
+
+  dd_rum_config_t rum_config;
+  dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
+  rum_config.track_anonymous_user = false;
+  dd_rum_t* rum = dd_rum_init(core, &rum_config);
+  REQUIRE(dd_core_start(core));
+
+  // And real UserInfo supplied, so that 'usr' *is* populated on events for another
+  // reason entirely, giving anonymous_id somewhere to leak into if the gating logic
+  // were wrong
+  dd_core_set_user_info(core, "user-123", "Jane Doe", "jane@example.com", nullptr);
+
+  // When we produce a log event and a RUM event, then stop the core to flush everything
+  dd_logger_info(logger, "hello", nullptr, nullptr);
+  dd_rum_start_view(rum, "view", nullptr, nullptr);
+  dd_core_stop(core);
+
+  // Then Core::Init() still resolved and persisted an anonymous_id to disk: the
+  // underlying value exists, it's simply never exposed
+  REQUIRE(test.fs.IsFile("app/.datadog/.core/id"));
+
+  // And both Logging and RUM events carry 'usr' (from the real UserInfo we set), but
+  // neither one includes an 'anonymous_id' property
+  auto log_events = MergeJsonArrays(test.client.requests, "/api/v2/logs");
+  auto rum_events = MergeJsonArrays(test.client.requests, "/api/v2/rum");
+  REQUIRE(log_events.size() == 1);
+  REQUIRE(!rum_events.empty());
+
+  auto log_usr = log_events[0].value("usr", nlohmann::json{});
+  auto rum_usr = rum_events[0].value("usr", nlohmann::json{});
+  REQUIRE(log_usr.contains("id"));
+  REQUIRE(rum_usr.contains("id"));
+  REQUIRE_FALSE(log_usr.contains("anonymous_id"));
+  REQUIRE_FALSE(rum_usr.contains("anonymous_id"));
 
   // Cleanup
   dd_rum_destroy(rum);

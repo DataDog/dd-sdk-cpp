@@ -4365,9 +4365,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
-      // Given a RUM config modified as our test case demands
+      // Given a RUM config modified as our test case demands. Default
+      // track_anonymous_user to false here so that unrelated test cases' event
+      // assertions aren't disrupted by a usr.anonymous_id value they don't expect.
       dd_rum_config config;
       dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+      config.track_anonymous_user = false;
       tt.config_func(&config);
 
       // And a started SDK with RUM initialized from that config

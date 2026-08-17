@@ -47,6 +47,11 @@ RumConfig& RumConfig::SetSessionSampleRate(float value) {
   return *this;
 }
 
+RumConfig& RumConfig::SetTrackAnonymousUser(bool value) {
+  track_anonymous_user = value;
+  return *this;
+}
+
 Rum::Rum(Rum::PrivateCtorTag)
     : _impl(nullptr),
       _diagnostic_handler(nullptr),
