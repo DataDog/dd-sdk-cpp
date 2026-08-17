@@ -673,6 +673,13 @@ void RumViewScope::SendErrorEvent(
       merged_error_attributes,
       {base.global_attributes, _view_attributes.attribute, base.attributes}
   );
+
+  // Extract a `_dd.error.source_type` override, if supplied alongside this error, and
+  // strip it from the attributes that end up in the event's 'context' field
+  ev.error.source_type = ExtractErrorSourceType(
+      {base.attributes}, merged_error_attributes, deps.diagnostic_logger
+  );
+
   if (merged_error_attributes.GetObjectPropertyCount() > 0) {
     ev.context.value = merged_error_attributes;
   }

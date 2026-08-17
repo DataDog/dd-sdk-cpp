@@ -130,20 +130,27 @@ void Logger::Log(
 
     // Capture logger and log call details, as well as the encode buffer reference, and
     // enqueue `ContextThread_GenerateLogEvent` to be called on the context thread
-    scope.ExecuteOnContextThread(
-        [logger = std::move(logger_details), call = std::move(log_call), &encode_buf](
-            const CoreContext& ctx,
-            const EventWriter& event_writer,
-            const MessagePublisher& publisher
-        ) mutable {
-          // Use a mutable lambda and std::move the LogCallDetails so we can pass
-          // ownership of our std::string copy of the message, rather than creating
-          // another copy
-          ContextThread_GenerateLogEvent(
-              *logger, std::move(call), ctx, event_writer, encode_buf, publisher
-          );
-        }
-    );
+    scope.ExecuteOnContextThread([logger = std::move(logger_details),
+                                  call = std::move(log_call),
+                                  &encode_buf,
+                                  diagnostic_logger = scope.diagnostic_logger](
+                                     const CoreContext& ctx,
+                                     const EventWriter& event_writer,
+                                     const MessagePublisher& publisher
+                                 ) mutable {
+      // Use a mutable lambda and std::move the LogCallDetails so we can pass
+      // ownership of our std::string copy of the message, rather than creating
+      // another copy
+      ContextThread_GenerateLogEvent(
+          *logger,
+          std::move(call),
+          ctx,
+          event_writer,
+          encode_buf,
+          publisher,
+          diagnostic_logger
+      );
+    });
   }
 }
 

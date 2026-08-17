@@ -280,6 +280,13 @@ void RumResourceScope::SendErrorEvent(
   // sets so they land on ev._dd rather than in context.
   Attribute context = MergeAttributesForEventContext(base);
   extract_resource_trace_attributes(_attributes, base.attributes, context, ev._dd);
+
+  // Extract a `_dd.error.source_type` override, if supplied alongside StartResource or
+  // StopResourceWithError, and strip it from the attributes that end up in 'context'
+  ev.error.source_type = ExtractErrorSourceType(
+      {_attributes, base.attributes}, context, deps.diagnostic_logger
+  );
+
   if (context.GetObjectPropertyCount() > 0) {
     ev.context.value = context;
   }

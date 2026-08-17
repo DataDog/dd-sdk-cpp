@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -1701,6 +1702,22 @@ DATADOG_STRING_ENUM(
     DATADOG_ENUM_VALUE(RumErrorSourceType::MacOS, "macos"),
     DATADOG_ENUM_VALUE(RumErrorSourceType::Linux, "linux")
 )
+
+/**
+ * Resolves the `RumErrorSourceType` value associated with the given string name (as
+ * produced by `StringRumErrorSourceType`), or returns nullopt if the name does not
+ * match any known value.
+ */
+inline std::optional<RumErrorSourceType> ParseRumErrorSourceType(
+    std::string_view name
+) {
+  for (const StringEnumValue& entry : RumErrorSourceTypeValues) {
+    if (entry.name == name) {
+      return static_cast<RumErrorSourceType>(entry.i);
+    }
+  }
+  return std::nullopt;
+}
 
 struct RumErrorEvent {
   struct Application {

@@ -71,6 +71,7 @@ struct LogEvent {
   OmitIfEmpty<std::string> error_message;
   OmitIfEmpty<std::string> error_kind;
   OmitIfEmpty<std::string> error_stack;
+  OmitIfEmpty<std::string> error_source_type;
 
   std::string ddtags;
 
@@ -124,6 +125,7 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     DATADOG_JSON_FIELD_NAME(error_message, "error.message"),
     DATADOG_JSON_FIELD_NAME(error_kind, "error.kind"),
     DATADOG_JSON_FIELD_NAME(error_stack, "error.stack"),
+    DATADOG_JSON_FIELD_NAME(error_source_type, "error.source_type"),
 
     DATADOG_JSON_FIELD(ddtags),
 
