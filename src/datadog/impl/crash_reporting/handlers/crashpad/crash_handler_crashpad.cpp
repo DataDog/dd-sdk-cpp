@@ -242,7 +242,7 @@ void TrySetAnnotationWithExtras(
     annotation.Set(std::string_view(buf.data(), result->bytes_written));
     if (result->truncated && !out_logged_truncation_warning) {
       out_logged_truncation_warning = true;
-      logger.Warn(
+      logger.Warning(
           "Crashpad annotation truncated: extra attributes dropped to fit buffer",
           {{"annotation", annotation.name()}}
       );
