@@ -158,14 +158,25 @@ DATADOG_JSON_STRUCT(
 
 /**
  * Serializes `value` as JSON into a stack-allocated buffer and sets the given Crashpad
- * string annotation to the result. If the JSON-encoded size of `value` exceeds the
- * annotation's buffer capacity, the annotation is left unchanged.
+ * string annotation to the result. If encoding fails because the value is too large to
+ * fit in the buffer, logs an error once (guarded by `logged_error`).
  */
 template <uint32_t N, typename T>
-void TrySetAnnotation(crashpad::StringAnnotation<N>& annotation, const T& value) {
+void TrySetAnnotation(
+    crashpad::StringAnnotation<N>& annotation,
+    const T& value,
+    const DiagnosticLogger& logger,
+    bool& out_logged_error
+) {
   std::array<char, N> buf{};
   if (auto written = TryEncodeJson(buf.data(), N, value)) {
     annotation.Set(std::string_view(buf.data(), *written));
+  } else if (!out_logged_error) {
+    out_logged_error = true;
+    logger.Error(
+        "Failed to encode Crashpad annotation: value too large for buffer",
+        {{"annotation", annotation.name()}}
+    );
   }
 }
 
@@ -226,6 +237,11 @@ class CrashpadCrashHandler final : public ICrashHandler {
       logger.Error("Failed to start Crashpad handler");
       return false;
     }
+
+    // Store the DiagnosticLogger so we can use it to log diagnostic messages if we
+    // receive data in SetCrashContext that can't be fully serialized to Crashpad
+    // annotations
+    _logger = logger;
 
     // Initialize annotation values to their defaults
     s_dd_tracking_consent.Set("pending");
@@ -316,7 +332,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
             ctx.variant,
             ctx.source,
             ctx.sdk_version,
-        }
+        },
+        _logger,
+        _logged_config_error
     );
     TrySetAnnotation(
         s_dd_os,
@@ -325,7 +343,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
             ctx.os_version,
             ctx.os_build,
             ctx.os_version_major,
-        }
+        },
+        _logger,
+        _logged_os_error
     );
     TrySetAnnotation(
         s_dd_device,
@@ -337,13 +357,22 @@ class CrashpadCrashHandler final : public ICrashHandler {
             ctx.device_architecture,
             ctx.device_locale,
             ctx.device_time_zone,
-        }
+        },
+        _logger,
+        _logged_device_error
     );
   };
 
  private:
+  DiagnosticLogger _logger;
+
   // Tracking consent cached on last call to SetCrashContext
   TrackingConsent _tracking_consent{TrackingConsent::Pending};
+
+  // Once-per-process flags preventing repeated logging of the same encode failure
+  bool _logged_config_error{false};
+  bool _logged_os_error{false};
+  bool _logged_device_error{false};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {
