@@ -1017,7 +1017,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
             },
             "session": {
               "id": "${__NONZERO_UUID__}",
-              "type": "user"
+              "type": "user",
+              "is_active": true
             },
             "view": {
               "id": "${__NONZERO_UUID__}",
@@ -1074,7 +1075,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
             },
             "session": {
               "id": "${__NONZERO_UUID__}",
-              "type": "user"
+              "type": "user",
+              "is_active": true
             },
             "view": {
               "id": "${__NONZERO_UUID__}",
@@ -1118,7 +1120,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
             },
             "session": {
               "id": "${__NONZERO_UUID__}",
-              "type": "user"
+              "type": "user",
+              "is_active": true
             },
             "view": {
               "id": "${__NONZERO_UUID__}",
@@ -1138,6 +1141,28 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          // And the session and view IDs are identical between those two events
          REQUIRE(events[0]["session"]["id"] == events[1]["session"]["id"]);
          REQUIRE(events[0]["view"]["id"] == events[1]["view"]["id"]);
+       }},
+
+      {"M send final view event with session.is_active false W session is stopped",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and then later stop the session
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
+         clock.Tick(std::chrono::seconds(15));
+         dd_rum_stop_session(rum);
+       },
+       [](const nlohmann::json& events) {
+         // Then RUM produces two view events
+         REQUIRE(events.size() == 2);
+
+         // The first reflects the still-active session
+         REQUIRE(events[0]["session"]["is_active"] == true);
+
+         // And the second, final view event reflects that the session was stopped
+         REQUIRE(events[1]["session"]["is_active"] == false);
+         REQUIRE(events[0]["session"]["id"] == events[1]["session"]["id"]);
        }},
 
       {"M send final + initial event W new view replaces previous view",

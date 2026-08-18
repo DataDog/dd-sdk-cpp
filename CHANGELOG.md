@@ -1,3 +1,9 @@
+## 0.7.1
+
+### Fixes
+
+- RUM View events now include a `session.is_active` field.
+
 ## 0.7.0
 
 ### Breaking Changes

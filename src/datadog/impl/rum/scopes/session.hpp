@@ -292,6 +292,7 @@ class RumSessionScope {
   UUID GetSessionID() const { return _session_id; }
   RumSessionPrecondition GetStartReason() const { return _precondition; }
   std::optional<EndReason> GetEndReason() const { return _end_reason; }
+  bool IsActive() const { return !_end_reason.has_value(); }
   size_t GetNumViewsOpened() const { return _num_views_opened; }
 
   std::optional<ViewDetails> GetActiveViewOnClose() const {
