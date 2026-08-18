@@ -51,6 +51,7 @@ DATADOG_JSON_STRUCT(
 struct MyPropertiesWithExtra {
   std::string id;
   std::string name;
+  OmitIfEmpty<std::string> optional;
   Attribute extra;
 };
 
@@ -59,6 +60,7 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
     extra,
     DATADOG_JSON_FIELD(id),
     DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(optional),
     DATADOG_JSON_RESERVED_FIELD(future)
 )
 
@@ -102,7 +104,7 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
     // Given a struct value that should serialize to {"id":"foo","name":"bar"}, but
     // whose 'extra' member permits an arbitrary set of user-specified attributes to be
     // merged into that object
-    MyPropertiesWithExtra ev{"foo", "bar", {}};
+    MyPropertiesWithExtra ev{"foo", "bar", {}, {}};
 
     SECTION("M render struct as JSON object W no custom attributes are present") {
       // When we serialize the value with extra at the default of Attribute::Null()

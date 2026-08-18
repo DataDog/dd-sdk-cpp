@@ -134,18 +134,28 @@ size_t GetJsonSize(const Fields&&... fields) {
     return 2;
   }
 
-  // 2 bytes for braces, N-1 bytes for commas, N bytes for colons
-  size_t size = 2;                // {}
-  size += sizeof...(Fields) - 1;  // commas
-  size += sizeof...(Fields);      // colons
+  // 2 bytes for braces
+  size_t size = 2;  // {}
+  size_t num_properties_included = 0;
 
   // For each field (std::pair<std::string_view, T>), accumulate the size of the name
   // with enclosing quotes, and the size of the value when JSON-encoded, unless the
   // field's current value indicates that it should be entirely omitted
-  ((size += HasJsonValue(fields.second)
-                ? (fields.first.size() + 2 + GetJsonSize(fields.second))
-                : 0),
-   ...);
+  ((([&] {
+      if (HasJsonValue(fields.second)) {
+        // Account for quoted name + colon + size of value (field names are assumed
+        // to be plain ASCII and are not escaped; see file-level doc comment)
+        size += 1 + fields.first.size() + 2 + GetJsonSize(fields.second);
+        // Increment number of properties so we can account for commas when finished
+        ++num_properties_included;
+      }
+    }()),
+    ...));
+
+  // Include commas between properties, if more than one property is present
+  if (num_properties_included > 0) {
+    size += num_properties_included - 1;
+  }
   return size;
 }
 
@@ -351,23 +361,7 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
     return !((name == std::forward<const Fields>(fields).first) || ...);
   };
 
-  // Compute the exact base size (struct fields only, no extra attributes). We cannot
-  // use GetJsonSize(fields...) here because it overcounts: it pre-adds comma and colon
-  // overhead for every field regardless of HasJsonValue, whereas WriteJson skips fields
-  // for which HasJsonValue returns false. An overestimated base_size would cause us to
-  // return false even when the actual output would fit.
-  size_t base_size = 2;  // opening '{' and closing '}'
-  size_t num_base_included = 0;
-  ((([&] {
-      if (HasJsonValue(fields.second)) {
-        base_size += 2 + fields.first.size() + 1 + GetJsonSize(fields.second);
-        ++num_base_included;
-      }
-    }()),
-    ...));
-  if (num_base_included > 0) {
-    base_size += num_base_included - 1;  // commas between included fields
-  }
+  const size_t base_size = GetJsonSize(std::forward<const Fields>(fields)...);
 
   if (base_size > n) {
     // The base struct itself doesn't fit; nothing we can do
