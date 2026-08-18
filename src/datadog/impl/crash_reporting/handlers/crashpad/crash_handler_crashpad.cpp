@@ -44,6 +44,8 @@ static crashpad::StringAnnotation<16> s_dd_tracking_consent("dd.tracking_consent
 static crashpad::StringAnnotation<512> s_dd_config("dd.config");
 static crashpad::StringAnnotation<256> s_dd_os("dd.os");
 static crashpad::StringAnnotation<512> s_dd_device("dd.device");
+static crashpad::StringAnnotation<2048> s_dd_usr("dd.usr");
+static crashpad::StringAnnotation<2048> s_dd_account("dd.account");
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
@@ -94,6 +96,37 @@ namespace datadog::impl {
 
 // Lightweight structs used to serialize CrashContext fields into Crashpad string
 // annotations, as JSON values
+
+/**
+ * A value encoded in `dd.usr`.
+ */
+struct UsrAnnotation {
+  std::string_view id;
+  std::string_view name;
+  std::string_view email;
+  OmitIfZero<UUID> anonymous_id;
+  const Attribute& extra;
+};
+DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
+    UsrAnnotation,
+    extra,
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(email),
+    DATADOG_JSON_FIELD(anonymous_id)
+)
+
+/**
+ * A value encoded in `dd.account`.
+ */
+struct AccountAnnotation {
+  std::string_view id;
+  std::string_view name;
+  const Attribute& extra;
+};
+DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
+    AccountAnnotation, extra, DATADOG_JSON_FIELD(id), DATADOG_JSON_FIELD(name)
+)
 
 /**
  * A value encoded in `dd.config`.
@@ -181,6 +214,43 @@ void TrySetAnnotation(
 }
 
 /**
+ * Serializes `value` (a struct with extra attributes) as JSON into a stack-allocated
+ * buffer and sets the given Crashpad string annotation to the result. If encoding fails
+ * because the base struct is too large to fit, logs an error once (guarded by
+ * `out_logged_error`). If extra attributes were dropped to fit the buffer, logs a
+ * warning once (guarded by `out_logged_truncation_warning`).
+ */
+template <uint32_t N, typename T>
+void TrySetAnnotationWithExtras(
+    crashpad::StringAnnotation<N>& annotation,
+    const T& value,
+    const DiagnosticLogger& logger,
+    bool& out_logged_error,
+    bool& out_logged_truncation_warning
+) {
+  std::array<char, N> buf{};
+  const auto result = TryEncodeJson(buf.data(), N, value);
+  if (!result) {
+    if (!out_logged_error) {
+      out_logged_error = true;
+      logger.Error(
+          "Failed to encode Crashpad annotation: value too large for buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  } else {
+    annotation.Set(std::string_view(buf.data(), result->bytes_written));
+    if (result->truncated && !out_logged_truncation_warning) {
+      out_logged_truncation_warning = true;
+      logger.Warn(
+          "Crashpad annotation truncated: extra attributes dropped to fit buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  }
+}
+
+/**
  * Crash handler implementation that uses the Crashpad client library, in conjunction
  * with an external, out-of-process crashpad_handler executable that will be spawned by
  * the client library on Initialize().
@@ -248,6 +318,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
     s_dd_config.Set("{}");
     s_dd_os.Set("{}");
     s_dd_device.Set("{}");
+    s_dd_usr.Set("{}");
+    s_dd_account.Set("{}");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
@@ -361,6 +433,30 @@ class CrashpadCrashHandler final : public ICrashHandler {
         _logger,
         _logged_device_error
     );
+    TrySetAnnotationWithExtras(
+        s_dd_usr,
+        UsrAnnotation{
+            ctx.user_id,
+            ctx.user_name,
+            ctx.user_email,
+            ctx.user_anonymous_id,
+            ctx.user_extra,
+        },
+        _logger,
+        _logged_usr_error,
+        _logged_usr_truncation_warning
+    );
+    TrySetAnnotationWithExtras(
+        s_dd_account,
+        AccountAnnotation{
+            ctx.account_id,
+            ctx.account_name,
+            ctx.account_extra,
+        },
+        _logger,
+        _logged_account_error,
+        _logged_account_truncation_warning
+    );
   };
 
  private:
@@ -373,6 +469,10 @@ class CrashpadCrashHandler final : public ICrashHandler {
   bool _logged_config_error{false};
   bool _logged_os_error{false};
   bool _logged_device_error{false};
+  bool _logged_usr_error{false};
+  bool _logged_usr_truncation_warning{false};
+  bool _logged_account_error{false};
+  bool _logged_account_truncation_warning{false};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {
