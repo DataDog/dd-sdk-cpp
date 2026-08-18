@@ -24,8 +24,10 @@ async def main(t: TestContext):
     p = t.spawn_repl()
     p.run("""
     set-config client-token fake-client-token
+    set-config rum-application-id a991ca10-4004-4004-4004-beefbeefbeef
     create-core tracking-consent:granted
     register-crash-reporting
+    register-rum
     start-core
     set-user-info usr-123 name:"Alice" email:"alice@example.com"
     set-account-info acct-456 name:"Acme"
