@@ -5,6 +5,7 @@
 # Copyright 2025-Present Datadog, Inc.
 import sys
 import struct
+import json
 import email
 import email.policy
 from pathlib import Path
@@ -61,10 +62,60 @@ async def main(t: TestContext):
     assert 'dd.tracking_consent' not in form_fields, \
         f'dd.tracking_consent must not appear in upload, got: {form_fields.get("dd.tracking_consent")!r}'
 
+    # And the upload contains well-formed dd.config, dd.os, and dd.device form fields,
+    # each a JSON object with the expected keys. OS and device fields are populated
+    # automatically by the SDK; config fields reflect what was set in the repl script
+    # above.
+    _assert_json_form_field(
+        form_fields, 'dd.config',
+        required_keys=['service', 'env', 'version', 'variant', 'source', 'sdk_version'],
+        non_empty_keys=['source', 'sdk_version'],
+    )
+    _assert_json_form_field(
+        form_fields, 'dd.os',
+        required_keys=['name', 'version', 'build', 'version_major'],
+        non_empty_keys=['name', 'version', 'version_major'],
+    )
+    _assert_json_form_field(
+        form_fields, 'dd.device',
+        required_keys=['type', 'name', 'model', 'brand', 'architecture', 'locale', 'time_zone'],
+        non_empty_keys=['architecture'],
+    )
+
     # And the Crashpad database contains exactly one minidump reflecting a completed
     # upload. Since the HTTP upload has completed by this point, the handler has
     # finished all its work and the database is in its final state.
     _assert_one_completed_minidump(crashes_dir)
+
+
+def _assert_json_form_field(
+    form_fields: dict,
+    field_name: str,
+    required_keys: list,
+    non_empty_keys: list,
+):
+    """
+    Asserts that `field_name` is present in the multipart/form-data upload, parses as
+    a JSON object, contains all `required_keys`, and that each key in `non_empty_keys`
+    has a non-empty string value.
+    """
+    raw = form_fields.get(field_name)
+    assert raw is not None, \
+        f'Expected {field_name!r} field in upload, but it was not present'
+    try:
+        obj = json.loads(raw)
+    except json.JSONDecodeError as e:
+        raise AssertionError(
+            f'{field_name!r} field is not valid JSON: {e}\n  raw value: {raw!r}'
+        ) from e
+    assert isinstance(obj, dict), \
+        f'{field_name!r} field is not a JSON object; got: {raw!r}'
+    for key in required_keys:
+        assert key in obj, \
+            f'{field_name!r} field missing key {key!r}; got: {raw!r}'
+    for key in non_empty_keys:
+        assert obj.get(key), \
+            f'{field_name!r} field has empty value for {key!r}; got: {raw!r}'
 
 
 def _parse_multipart_form_fields(body: bytes, content_type: str) -> dict:

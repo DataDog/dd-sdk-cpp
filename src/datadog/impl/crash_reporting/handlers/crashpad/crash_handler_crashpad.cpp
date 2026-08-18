@@ -4,6 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <array>
 #include <filesystem>
 #include <map>
 #include <string>
@@ -20,8 +21,10 @@
 #include "client/crashpad_client.h"
 #include "client/settings.h"
 
+#include "datadog/impl/core/events/struct.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
 
 #ifdef _WIN32
@@ -38,6 +41,9 @@
 // these values and include them as annotations when the crash dump is uploaded.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
 static crashpad::StringAnnotation<16> s_dd_tracking_consent("dd.tracking_consent");
+static crashpad::StringAnnotation<512> s_dd_config("dd.config");
+static crashpad::StringAnnotation<256> s_dd_os("dd.os");
+static crashpad::StringAnnotation<512> s_dd_device("dd.device");
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
@@ -85,6 +91,83 @@ static std::filesystem::path get_crashpad_handler_path() {
 }
 
 namespace datadog::impl {
+
+// Lightweight structs used to serialize CrashContext fields into Crashpad string
+// annotations, as JSON values
+
+/**
+ * A value encoded in `dd.config`.
+ */
+struct ConfigAnnotation {
+  std::string_view service;
+  std::string_view env;
+  std::string_view version;
+  std::string_view variant;
+  std::string_view source;
+  std::string_view sdk_version;
+};
+DATADOG_JSON_STRUCT(
+    ConfigAnnotation,
+    DATADOG_JSON_FIELD(service),
+    DATADOG_JSON_FIELD(env),
+    DATADOG_JSON_FIELD(version),
+    DATADOG_JSON_FIELD(variant),
+    DATADOG_JSON_FIELD(source),
+    DATADOG_JSON_FIELD(sdk_version)
+)
+
+/**
+ * A value encoded in `dd.os`.
+ */
+struct OsAnnotation {
+  std::string_view name;
+  std::string_view version;
+  std::string_view build;
+  std::string_view version_major;
+};
+DATADOG_JSON_STRUCT(
+    OsAnnotation,
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(version),
+    DATADOG_JSON_FIELD(build),
+    DATADOG_JSON_FIELD(version_major)
+)
+
+/**
+ * A value encoded in `dd.device`.
+ */
+struct DeviceAnnotation {
+  std::string_view type;
+  std::string_view name;
+  std::string_view model;
+  std::string_view brand;
+  std::string_view architecture;
+  std::string_view locale;
+  std::string_view time_zone;
+};
+DATADOG_JSON_STRUCT(
+    DeviceAnnotation,
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(model),
+    DATADOG_JSON_FIELD(brand),
+    DATADOG_JSON_FIELD(architecture),
+    DATADOG_JSON_FIELD(locale),
+    DATADOG_JSON_FIELD(time_zone)
+)
+
+/**
+ * Serializes `value` as JSON into a stack-allocated buffer and sets the given Crashpad
+ * string annotation to the result. If the JSON-encoded size of `value` exceeds the
+ * annotation's buffer capacity, the annotation is left unchanged.
+ */
+template <uint32_t N, typename T>
+void TrySetAnnotation(crashpad::StringAnnotation<N>& annotation, const T& value) {
+  std::array<char, N> buf{};
+  if (auto written = TryEncodeJson(buf.data(), N, value)) {
+    annotation.Set(std::string_view(buf.data(), *written));
+  }
+}
 
 /**
  * Crash handler implementation that uses the Crashpad client library, in conjunction
@@ -146,6 +229,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
 
     // Initialize annotation values to their defaults
     s_dd_tracking_consent.Set("pending");
+    s_dd_config.Set("{}");
+    s_dd_os.Set("{}");
+    s_dd_device.Set("{}");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
@@ -220,6 +306,39 @@ class CrashpadCrashHandler final : public ICrashHandler {
           break;
       }
     }
+
+    TrySetAnnotation(
+        s_dd_config,
+        ConfigAnnotation{
+            ctx.service,
+            ctx.env,
+            ctx.application_version,
+            ctx.variant,
+            ctx.source,
+            ctx.sdk_version,
+        }
+    );
+    TrySetAnnotation(
+        s_dd_os,
+        OsAnnotation{
+            ctx.os_name,
+            ctx.os_version,
+            ctx.os_build,
+            ctx.os_version_major,
+        }
+    );
+    TrySetAnnotation(
+        s_dd_device,
+        DeviceAnnotation{
+            ctx.device_type,
+            ctx.device_name,
+            ctx.device_model,
+            ctx.device_brand,
+            ctx.device_architecture,
+            ctx.device_locale,
+            ctx.device_time_zone,
+        }
+    );
   };
 
  private:
