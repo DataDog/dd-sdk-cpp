@@ -175,9 +175,10 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         std::vector<char> buf(want.size(), '\0');
         const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
 
-        // Then: returns byte count, output matches EncodeJson
+        // Then: returns byte count, output matches EncodeJson, not truncated
         REQUIRE(result.has_value());
-        REQUIRE(*result == want.size());
+        REQUIRE(result->bytes_written == want.size());
+        REQUIRE_FALSE(result->truncated);
         REQUIRE(std::string_view(buf.data(), buf.size()) == want);
       }
 
@@ -203,9 +204,10 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         std::vector<char> buf(want.size(), '\0');
         const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
 
-        // Then: returns byte count, output includes both extras
+        // Then: returns byte count, output includes both extras, not truncated
         REQUIRE(result.has_value());
-        REQUIRE(*result == want.size());
+        REQUIRE(result->bytes_written == want.size());
+        REQUIRE_FALSE(result->truncated);
         REQUIRE(std::string_view(buf.data(), buf.size()) == want);
       }
 
@@ -222,9 +224,11 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         std::vector<char> buf(want.size(), '\0');
         const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
 
-        // Then: returns byte count with only the first (smaller) extra included
+        // Then: returns byte count with only the first (smaller) extra included;
+        // truncated because the second (safe) extra was dropped
         REQUIRE(result.has_value());
-        REQUIRE(*result == want.size());
+        REQUIRE(result->bytes_written == want.size());
+        REQUIRE(result->truncated);
         REQUIRE(std::string_view(buf.data(), buf.size()) == want);
       }
 
@@ -238,9 +242,11 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         std::vector<char> buf(want.size(), '\0');
         const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
 
-        // Then: returns byte count with base-only output (all extras dropped)
+        // Then: returns byte count with base-only output (all extras dropped);
+        // truncated because safe extras were dropped due to overflow
         REQUIRE(result.has_value());
-        REQUIRE(*result == want.size());
+        REQUIRE(result->bytes_written == want.size());
+        REQUIRE(result->truncated);
         REQUIRE(std::string_view(buf.data(), buf.size()) == want);
       }
 
@@ -270,9 +276,11 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         std::vector<char> buf(want.size(), '\0');
         const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
 
-        // Then: returns byte count, output is base-only (all extras filtered out)
+        // Then: returns byte count, output is base-only (all extras filtered out);
+        // not truncated because all extras had reserved/conflicting names
         REQUIRE(result.has_value());
-        REQUIRE(*result == want.size());
+        REQUIRE(result->bytes_written == want.size());
+        REQUIRE_FALSE(result->truncated);
         REQUIRE(std::string_view(buf.data(), buf.size()) == want);
       }
 
@@ -290,9 +298,11 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         std::vector<char> buf(want.size(), '\0');
         const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
 
-        // Then: returns byte count, only the safe extra ("z") is included
+        // Then: returns byte count, only the safe extra ("z") is included;
+        // not truncated because the only dropped extra had a reserved name
         REQUIRE(result.has_value());
-        REQUIRE(*result == want.size());
+        REQUIRE(result->bytes_written == want.size());
+        REQUIRE_FALSE(result->truncated);
         REQUIRE(std::string_view(buf.data(), buf.size()) == want);
       }
 
@@ -306,9 +316,10 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         std::vector<char> buf(want.size(), '\0');
         const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
 
-        // Then: returns byte count, output is base-only
+        // Then: returns byte count, output is base-only, not truncated
         REQUIRE(result.has_value());
-        REQUIRE(*result == want.size());
+        REQUIRE(result->bytes_written == want.size());
+        REQUIRE_FALSE(result->truncated);
         REQUIRE(std::string_view(buf.data(), buf.size()) == want);
       }
 
@@ -334,21 +345,23 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         REQUIRE(full.size() == 35);
         REQUIRE(base.size() == 25);
 
-        // At full.size() - 1 bytes: attribute must be dropped
+        // At full.size() - 1 bytes: attribute must be dropped (truncated)
         {
           std::vector<char> buf(full.size() - 1, '\0');
           const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
           REQUIRE(result.has_value());
-          REQUIRE(*result == base.size());
-          REQUIRE(std::string_view(buf.data(), *result) == base);
+          REQUIRE(result->bytes_written == base.size());
+          REQUIRE(result->truncated);
+          REQUIRE(std::string_view(buf.data(), result->bytes_written) == base);
         }
 
-        // At full.size() bytes: attribute must be included
+        // At full.size() bytes: attribute must be included (not truncated)
         {
           std::vector<char> buf(full.size(), '\0');
           const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
           REQUIRE(result.has_value());
-          REQUIRE(*result == full.size());
+          REQUIRE(result->bytes_written == full.size());
+          REQUIRE_FALSE(result->truncated);
           REQUIRE(std::string_view(buf.data(), buf.size()) == full);
         }
       }
@@ -372,21 +385,23 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
         REQUIRE(full.size() == 36);
         REQUIRE(base.size() == 25);
 
-        // At full.size() - 1 bytes: attribute must be dropped
+        // At full.size() - 1 bytes: attribute must be dropped (truncated)
         {
           std::vector<char> buf(full.size() - 1, '\0');
           const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
           REQUIRE(result.has_value());
-          REQUIRE(*result == base.size());
-          REQUIRE(std::string_view(buf.data(), *result) == base);
+          REQUIRE(result->bytes_written == base.size());
+          REQUIRE(result->truncated);
+          REQUIRE(std::string_view(buf.data(), result->bytes_written) == base);
         }
 
-        // At full.size() bytes: attribute must be included
+        // At full.size() bytes: attribute must be included (not truncated)
         {
           std::vector<char> buf(full.size(), '\0');
           const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
           REQUIRE(result.has_value());
-          REQUIRE(*result == full.size());
+          REQUIRE(result->bytes_written == full.size());
+          REQUIRE_FALSE(result->truncated);
           REQUIRE(std::string_view(buf.data(), buf.size()) == full);
         }
       }
@@ -423,7 +438,8 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
       std::vector<char> buf(full.size(), '\0');
       const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
       REQUIRE(result.has_value());
-      REQUIRE(*result == full.size());
+      REQUIRE(result->bytes_written == full.size());
+      REQUIRE_FALSE(result->truncated);
       REQUIRE(std::string_view(buf.data(), buf.size()) == full);
     }
 
@@ -432,8 +448,9 @@ TEST_CASE("struct JSON serialization", "[unit][events]") {
       std::vector<char> buf(full.size() - 1, '\0');
       const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
       REQUIRE(result.has_value());
-      REQUIRE(*result == one.size());
-      REQUIRE(std::string_view(buf.data(), *result) == one);
+      REQUIRE(result->bytes_written == one.size());
+      REQUIRE(result->truncated);
+      REQUIRE(std::string_view(buf.data(), result->bytes_written) == one);
     }
   }
 }
