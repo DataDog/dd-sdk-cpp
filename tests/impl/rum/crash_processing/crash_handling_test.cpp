@@ -105,32 +105,32 @@ static CrashReport make_crash_report(
       1699999990000,  // timestamp (ms)
       // context:
       CrashContext{
-          "my-service",              // service
-          "my-env",                  // env
-          "1.0.0",                   // application_version
-          "Shipping",                // variant
-          "cpp",                     // source
-          "2.0.2",                   // sdk_version
-          TrackingConsent::Granted,  // tracking_consent
-          "CoolOS",                  // os_name
-          "3.3.3",                   // os_version
-          "bbbbc001",                // os_build
-          "3",                       // os_version_major
-          "desktop",                 // device_type
-          "Elektronika BK-84M",      // device_name
-          "БК-84М Спектр",           // device_model
-          "NPO Elektronika",         // device_brand
-          "PDP-11",                  // device_architecture
-          "tk-TM",                   // device_locale
-          "Asia/Ashgabat",           // device_time_zone
-          "u-13043904",              // user_id
-          "Important User",          // user_name
-          "person@example.com",      // user_email
-          UUID::Zero,                // user_anonymous_id
-          user_extra,                // user_extra
-          "fujda9i8z83457",          // account_id
-          "Important Account",       // account_name
-          account_extra,             // account_extra
+          "my-service",                                          // service
+          "my-env",                                              // env
+          "1.0.0",                                               // application_version
+          "Shipping",                                            // variant
+          "cpp",                                                 // source
+          "2.0.2",                                               // sdk_version
+          TrackingConsent::Granted,                              // tracking_consent
+          "CoolOS",                                              // os_name
+          "3.3.3",                                               // os_version
+          "bbbbc001",                                            // os_build
+          "3",                                                   // os_version_major
+          "desktop",                                             // device_type
+          "Elektronika BK-84M",                                  // device_name
+          "БК-84М Спектр",                                       // device_model
+          "NPO Elektronika",                                     // device_brand
+          "PDP-11",                                              // device_architecture
+          "tk-TM",                                               // device_locale
+          "Asia/Ashgabat",                                       // device_time_zone
+          "u-13043904",                                          // user_id
+          "Important User",                                      // user_name
+          "person@example.com",                                  // user_email
+          *UUID::Parse("b0b0cafe-1234-5678-abcd-b0b0cafeb0b0"),  // user_anonymous_id
+          user_extra,                                            // user_extra
+          "fujda9i8z83457",                                      // account_id
+          "Important Account",                                   // account_name
+          account_extra,                                         // account_extra
           // rum_sesion_state:
           {
               *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef"),  // application_id
@@ -347,6 +347,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
         "id": "u-13043904",
         "name": "Important User",
         "email": "person@example.com",
+        "anonymous_id": "b0b0cafe-1234-5678-abcd-b0b0cafeb0b0",
         "middle_initial": "Q"
       },
       "account": {
@@ -413,6 +414,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
         "id": "u-13043904",
         "name": "Important User",
         "email": "person@example.com",
+        "anonymous_id": "b0b0cafe-1234-5678-abcd-b0b0cafeb0b0",
         "middle_initial": "Q"
       },
       "account": {
@@ -562,6 +564,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
         "id": "u-13043904",
         "name": "Important User",
         "email": "person@example.com",
+        "anonymous_id": "b0b0cafe-1234-5678-abcd-b0b0cafeb0b0",
         "middle_initial": "Q"
       },
       "account": {
@@ -628,6 +631,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
         "id": "u-13043904",
         "name": "Important User",
         "email": "person@example.com",
+        "anonymous_id": "b0b0cafe-1234-5678-abcd-b0b0cafeb0b0",
         "middle_initial": "Q"
       },
       "account": {
@@ -838,6 +842,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
         "id": "u-13043904",
         "name": "Important User",
         "email": "person@example.com",
+        "anonymous_id": "b0b0cafe-1234-5678-abcd-b0b0cafeb0b0",
         "middle_initial": "Q"
       },
       "account": {
@@ -958,6 +963,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
         "id": "u-13043904",
         "name": "Important User",
         "email": "person@example.com",
+        "anonymous_id": "b0b0cafe-1234-5678-abcd-b0b0cafeb0b0",
         "middle_initial": "Q"
       },
       "account": {
@@ -1025,5 +1031,40 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     // And no warnings or errors are logged
     REQUIRE(diagnostics.error.size() == 0);
     REQUIRE(diagnostics.warning.size() == 0);
+  }
+
+  SECTION(
+      "M emit 'usr' with only anonymous_id W user_anonymous_id is set but all other "
+      "user fields are empty"
+  ) {
+    // Given a crash where no user info was set, but anonymous_id was enabled
+    auto crash = make_crash_report();
+    crash.context->user_id.clear();
+    crash.context->user_name.clear();
+    crash.context->user_email.clear();
+    crash.context->user_extra = Attribute::Object();
+    // Force the no-prior-session path so we get both a view and an error event
+    crash.context->rum_session_state.session_id = UUID::Zero;
+
+    // When we process that crash
+    auto deps = make_deps();
+    ContextThread_HandleCrashReport(deps, crash, event_writer);
+
+    // Then both the view and error events include a 'usr' object containing only
+    // anonymous_id: all the empty string fields are omitted by OmitIfEmpty, and the
+    // anonymous_id alone was sufficient to trigger 'usr' emission
+    REQUIRE(new_view_event.is_object());
+    REQUIRE(new_error_event.is_object());
+    const std::string expected_anonymous_id = "b0b0cafe-1234-5678-abcd-b0b0cafeb0b0";
+    REQUIRE(new_view_event.contains("usr"));
+    REQUIRE(new_view_event["usr"]["anonymous_id"] == expected_anonymous_id);
+    REQUIRE(!new_view_event["usr"].contains("id"));
+    REQUIRE(!new_view_event["usr"].contains("name"));
+    REQUIRE(!new_view_event["usr"].contains("email"));
+    REQUIRE(new_error_event.contains("usr"));
+    REQUIRE(new_error_event["usr"]["anonymous_id"] == expected_anonymous_id);
+    REQUIRE(!new_error_event["usr"].contains("id"));
+    REQUIRE(!new_error_event["usr"].contains("name"));
+    REQUIRE(!new_error_event["usr"].contains("email"));
   }
 }
