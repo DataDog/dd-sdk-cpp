@@ -33,6 +33,9 @@ static const dd_rum_config_t DEFAULT_RUM_CONFIG = {
 
 extern "C" {
 
+const char* const DD_RUM_ERROR_CUSTOM_FINGERPRINT_ATTRIBUTE_KEY =
+    "_dd.error.fingerprint";
+
 void dd_rum_config_init(dd_rum_config_t* config, const char* application_id) {
   // Require a valid config struct and valid string
   if (!config || !application_id) {

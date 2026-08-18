@@ -125,6 +125,13 @@ DATADOG_API void dd_logger_config_set_enrich_with_rum_context(
 typedef struct dd_logger dd_logger_t;
 
 /**
+ * Attribute key that, when included in the `attributes` passed to
+ * dd_logger_error() or dd_logger_critical(), sets a custom Error Tracking grouping
+ * fingerprint on the resulting log event.
+ */
+DATADOG_API extern const char* const DD_LOG_ERROR_FINGERPRINT_ATTRIBUTE_KEY;
+
+/**
  * Interface to the Datadog SDK's logging feature. Use dd_logging_init() to register the
  * logging feature with the core. You MUST call dd_logging_destroy() when done.
  */

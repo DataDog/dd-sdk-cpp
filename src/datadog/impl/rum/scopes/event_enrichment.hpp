@@ -74,6 +74,55 @@ inline std::optional<RumErrorSourceType> ExtractErrorSourceType(
 }
 
 /**
+ * Attribute key users set to attach a custom Error Tracking grouping fingerprint to a
+ * RUM `AddError` call or a log error. See
+ * `RumAttributes::ErrorCustomFingerprintAttributeKey` and
+ * `LogAttributes::ErrorFingerprintAttributeKey`.
+ */
+inline constexpr std::string_view kErrorFingerprintAttributeKey =
+    "_dd.error.fingerprint";
+
+/**
+ * Extracts the `_dd.error.fingerprint` attribute out of the merged event `context`,
+ * removing the key so it doesn't leak into the event's serialized `context`/custom
+ * attributes, and returns its string value, if any.
+ *
+ * Extraction only occurs if the attribute is present in one of `call_attribute_sets`
+ * (the per-call attribute sets supplied directly alongside this specific error
+ * report), not merely inherited from global or view-level attributes that happen to
+ * share the same key. If the attribute is present but isn't a string, it is dropped and
+ * a diagnostic warning is emitted.
+ */
+inline std::optional<std::string> ExtractErrorFingerprint(
+    std::initializer_list<Attribute> call_attribute_sets,
+    Attribute& context,
+    const DiagnosticLogger& diagnostic_logger
+) {
+  const bool present = std::any_of(
+      call_attribute_sets.begin(),
+      call_attribute_sets.end(),
+      [](const Attribute& attrs) {
+        return attrs.FindObjectProperty(kErrorFingerprintAttributeKey) >= 0;
+      }
+  );
+  if (!present) {
+    return std::nullopt;
+  }
+
+  const Attribute val = context.GetObjectProperty(kErrorFingerprintAttributeKey);
+  std::optional<std::string> result;
+  if (val.GetType() == ValueType::String) {
+    result = std::string(val.GetStringValue());
+  } else {
+    diagnostic_logger.Warning(
+        "Ignoring _dd.error.fingerprint attribute: expected a string value"
+    );
+  }
+  context.DeleteObjectProperty(kErrorFingerprintAttributeKey);
+  return result;
+}
+
+/**
  * Utilities for enriching RUM event payloads with context from CoreContext.
  */
 struct RumEventEnrichment {

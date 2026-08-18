@@ -151,6 +151,14 @@ void ContextThread_GenerateLogEvent(
     ev.error_source_type = std::string(StringRumErrorSourceType(*source_type).Name());
   }
 
+  // Extract a `_dd.error.fingerprint` override, if supplied alongside this log call,
+  // and strip it from the attributes that end up as this event's custom attributes.
+  if (std::optional<std::string> fingerprint = ExtractErrorFingerprint(
+          {ev.user_attributes}, ev.user_attributes, diagnostic_logger
+      )) {
+    ev.error_fingerprint = std::move(*fingerprint);
+  }
+
   // Encode to the shared buffer (accessed only on context thread)
   EncodeJson(encode_buf, ev);
   std::string_view data{

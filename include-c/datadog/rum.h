@@ -85,6 +85,13 @@ DATADOG_API void dd_rum_config_set_track_anonymous_user(
 typedef struct dd_rum dd_rum_t;
 
 /**
+ * Attribute key that, when included in the `attributes` passed to
+ * dd_rum_add_error(), sets a custom Error Tracking grouping fingerprint on the
+ * resulting RUM error event.
+ */
+DATADOG_API extern const char* const DD_RUM_ERROR_CUSTOM_FINGERPRINT_ATTRIBUTE_KEY;
+
+/**
  * Registers the RUM feature with the core of the Datadog SDK. MUST be matched with
  * a call to dd_rum_destroy().
  */

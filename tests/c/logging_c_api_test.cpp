@@ -1541,6 +1541,30 @@ TEST_CASE("dd_logger error details", "[unit][logging][c-api]") {
     REQUIRE(!events[0].contains("error.stack"));
   }
 
+  SECTION(
+      "M set error.fingerprint W dd_logger_error is called with the fingerprint "
+      "attribute key"
+  ) {
+    // When dd_logger_error is called with the DD_LOG_ERROR_FINGERPRINT_ATTRIBUTE_KEY
+    // attribute
+    dd_attribute_t obj = dd_attribute_object(1);
+    dd_attribute_t fingerprint_val = dd_attribute_string("my-fingerprint");
+    dd_attribute_object_property_set(
+        &obj, DD_LOG_ERROR_FINGERPRINT_ATTRIBUTE_KEY, &fingerprint_val
+    );
+    dd_logger_error(logger, "msg", nullptr, &obj);
+    dd_attribute_free(&obj);
+    dd_core_stop(core);
+
+    // Then the resulting event has error.fingerprint set, and the attribute is
+    // stripped from custom attributes
+    REQUIRE(test.client.requests.size() == 1);
+    auto events = MergeJsonArrays(test.client.requests);
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.fingerprint"] == "my-fingerprint");
+    REQUIRE(!events[0].contains(DD_LOG_ERROR_FINGERPRINT_ATTRIBUTE_KEY));
+  }
+
   // Cleanup
   dd_logger_destroy(logger);
   dd_logging_destroy(logging);
