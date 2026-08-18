@@ -62,6 +62,84 @@ TEST_CASE("EncodeJson", "[unit][json]") {
   }
 }
 
+TEST_CASE("TryEncodeJson", "[unit][json]") {
+  SECTION("M write value to buffer W buffer is exactly GetJsonSize bytes") {
+    // Given a simple integer value and a buffer exactly sized to fit it
+    const uint64_t value = 12345;
+    const size_t required = GetJsonSize(value);
+    std::vector<char> buf(required, '\0');
+
+    // When we call TryEncodeJson
+    const auto result = TryEncodeJson(buf.data(), buf.size(), value);
+
+    // Then it returns the byte count and the buffer contains the expected JSON
+    REQUIRE(result.has_value());
+    REQUIRE(*result == buf.size());
+    REQUIRE(std::string_view(buf.data(), buf.size()) == "12345");
+  }
+
+  SECTION("M return false W buffer is one byte smaller than required") {
+    // Given a simple integer value and a buffer one byte too small
+    const uint64_t value = 12345;
+    const size_t required = GetJsonSize(value);
+    REQUIRE(required > 0);
+    std::vector<char> buf(required - 1, 'X');
+    const std::vector<char> original = buf;
+
+    // When we call TryEncodeJson
+    const auto result = TryEncodeJson(buf.data(), buf.size(), value);
+
+    // Then it returns nullopt and the buffer is not modified
+    REQUIRE_FALSE(result.has_value());
+    REQUIRE(buf == original);
+  }
+
+  SECTION("M return false W buffer size is zero") {
+    // Given any value and a zero-size buffer (no value encodes to zero bytes)
+    const uint64_t value = 12345;
+    char c = 'X';
+    const auto result = TryEncodeJson(&c, 0, value);
+
+    // Then it returns nullopt and the byte at the pointer is not modified
+    REQUIRE_FALSE(result.has_value());
+    REQUIRE(c == 'X');
+  }
+
+  SECTION("M write struct value to buffer W buffer is exactly GetJsonSize bytes") {
+    // Given a struct value
+    JsonTestEvent ev{*UUID::Parse("56c031d0-24e3-4fb3-bba5-8ac53b4041d1"), 42, "hi"};
+    const size_t required = GetJsonSize(ev);
+    std::vector<char> buf(required, '\0');
+
+    // When we call TryEncodeJson
+    const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+    // Then it returns the byte count and produces the expected JSON
+    REQUIRE(result.has_value());
+    REQUIRE(*result == buf.size());
+    REQUIRE(
+        std::string_view(buf.data(), buf.size()) ==
+        R"({"id":"56c031d0-24e3-4fb3-bba5-8ac53b4041d1","foo":42,"bar":"hi"})"
+    );
+  }
+
+  SECTION("M return false for struct W buffer is one byte smaller than required") {
+    // Given a struct value and a buffer one byte too small
+    JsonTestEvent ev{*UUID::Parse("56c031d0-24e3-4fb3-bba5-8ac53b4041d1"), 42, "hi"};
+    const size_t required = GetJsonSize(ev);
+    REQUIRE(required > 0);
+    std::vector<char> buf(required - 1, 'X');
+    const std::vector<char> original = buf;
+
+    // When we call TryEncodeJson
+    const auto result = TryEncodeJson(buf.data(), buf.size(), ev);
+
+    // Then it returns nullopt and the buffer is not modified
+    REQUIRE_FALSE(result.has_value());
+    REQUIRE(buf == original);
+  }
+}
+
 TEST_CASE("WriteJson {std::vector}", "[unit][json]") {
   JsonBuffer buf;
 
