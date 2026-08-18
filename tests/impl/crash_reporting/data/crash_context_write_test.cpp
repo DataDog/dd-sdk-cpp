@@ -34,7 +34,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
   SECTION("M produce .ctx file with expected binary contents for latest format") {
     // Given the binary contents of the crash context file we expect to produce at the
     // current version
-    std::string_view data = MOCK_CRASH_CONTEXT_V1.Get();
+    std::string_view data = MOCK_CRASH_CONTEXT_V2.Get();
 
     // And the canonical context values that were used to come up with that binary data
     CrashContext ctx{};
@@ -59,6 +59,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     ctx.user_id = "usr-123";
     ctx.user_name = "Alice";
     ctx.user_email = "alice@example.com";
+    ctx.user_anonymous_id = *UUID::Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479");
     ctx.user_extra = Attribute::Object();
     ctx.account_id = "acct-456";
     ctx.account_name = "Acme Corp";

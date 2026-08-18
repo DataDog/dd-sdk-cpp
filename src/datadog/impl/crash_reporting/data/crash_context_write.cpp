@@ -40,7 +40,7 @@ bool WriteCrashContext(
       (8 + ctx.device_model.size()) + (8 + ctx.device_brand.size()) +
       (8 + ctx.device_architecture.size()) + (8 + ctx.device_locale.size()) +
       (8 + ctx.device_time_zone.size()) + (8 + ctx.user_id.size()) +
-      (8 + ctx.user_name.size()) + (8 + ctx.user_email.size());
+      (8 + ctx.user_name.size()) + (8 + ctx.user_email.size()) + 16;
   const size_t second_chunk_size =
       (8 + ctx.account_id.size()) + (8 + ctx.account_name.size());
   const size_t third_chunk_size =
@@ -131,6 +131,7 @@ bool WriteCrashContext(
   encode_string(ctx.user_id);
   encode_string(ctx.user_name);
   encode_string(ctx.user_email);
+  encode_uuid(ctx.user_anonymous_id);
   // (end of first chunk: flush all data buffered so far, then write user attributes)
   if (write_encoded_data() != FilesystemResult::OK) {
     return false;

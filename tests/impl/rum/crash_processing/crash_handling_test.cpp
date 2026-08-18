@@ -126,6 +126,7 @@ static CrashReport make_crash_report(
           "u-13043904",              // user_id
           "Important User",          // user_name
           "person@example.com",      // user_email
+          UUID::Zero,                // user_anonymous_id
           user_extra,                // user_extra
           "fujda9i8z83457",          // account_id
           "Important Account",       // account_name

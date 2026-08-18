@@ -88,6 +88,7 @@ CrashReporting::MakeMessageHandler() {
       cc.user_name = ctx.user_info.name;
       cc.user_email = ctx.user_info.email;
       cc.user_extra = ctx.user_info.extra;
+      cc.user_anonymous_id = ctx.anonymous_id_enabled ? ctx.anonymous_id : UUID::Zero;
       cc.account_id = ctx.account_info.id;
       cc.account_name = ctx.account_info.name;
       cc.account_extra = ctx.account_info.extra;

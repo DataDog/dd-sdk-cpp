@@ -23,8 +23,8 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
   // Given a mock filesystem
   MockFilesystem fs;
 
-  // And the binary contents of an example crash context file
-  const std::string_view data = MOCK_CRASH_CONTEXT_V1.Get();
+  // And the binary contents of an example crash context file (latest version)
+  const std::string_view data = MOCK_CRASH_CONTEXT_V2.Get();
 
   SECTION("M parse crash context file and return expected field values") {
     // Given a file that contains our golden crash context data
@@ -66,6 +66,9 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(got.user_id == "usr-123");
     REQUIRE(got.user_name == "Alice");
     REQUIRE(got.user_email == "alice@example.com");
+    REQUIRE(
+        got.user_anonymous_id == *UUID::Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479")
+    );
     REQUIRE(got.user_extra.GetType() == datadog::ValueType::Object);
     REQUIRE(got.user_extra.GetObjectPropertyCount() == 0);
     REQUIRE(got.account_id == "acct-456");
@@ -91,6 +94,31 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
     REQUIRE(
         got.global_rum_attributes.GetObjectProperty("plan").GetStringValue() == "gold"
     );
+  }
+
+  SECTION("M parse V1 crash context file and default user_anonymous_id to UUID::Zero") {
+    // Given a file that contains V1 crash context data (no user_anonymous_id field)
+    const std::string_view v1_data = MOCK_CRASH_CONTEXT_V1.Get();
+    fs.Touch("crash.ctx", v1_data);
+
+    // And an open handle to that file
+    const bool hold_advisory_lock = false;
+    auto open_res = fs.Wrapper().OpenForRead("crash.ctx", hold_advisory_lock);
+    REQUIRE(open_res.value == FilesystemResult::OK);
+
+    // When we parse that file as crash context
+    auto result = ReadCrashContext(open_res.file);
+
+    // Then we get a valid result
+    REQUIRE(result.GetStatus() == ReadCrashContextResult::Status::OK);
+    REQUIRE(result.data.has_value());
+
+    // And user_anonymous_id defaults to UUID::Zero since it was absent in V1
+    REQUIRE(result.data->user_anonymous_id == UUID::Zero);
+
+    // And all other fields that exist in V1 are populated correctly
+    REQUIRE(result.data->user_email == "alice@example.com");
+    REQUIRE(result.data->service == "mock-service");
   }
 
   SECTION("M return no value W file has invalid header magic") {
