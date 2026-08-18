@@ -1553,6 +1553,7 @@ TEST_CASE("dd_logger error details", "[unit][logging][c-api]") {
         &obj, DD_LOG_ERROR_FINGERPRINT_ATTRIBUTE_KEY, &fingerprint_val
     );
     dd_logger_error(logger, "msg", nullptr, &obj);
+    dd_attribute_free(&fingerprint_val);
     dd_attribute_free(&obj);
     dd_core_stop(core);
 

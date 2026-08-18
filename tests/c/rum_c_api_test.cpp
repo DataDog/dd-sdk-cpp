@@ -2931,6 +2931,8 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
              "",
              &error_attributes
          );
+         dd_attribute_free(&fingerprint_val);
+         dd_attribute_free(&error_attributes);
        },
        [](const nlohmann::json& events) {
          // Then the error event has error.fingerprint set, and the attribute is

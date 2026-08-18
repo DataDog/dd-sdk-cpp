@@ -125,9 +125,8 @@ DATADOG_API void dd_logger_config_set_enrich_with_rum_context(
 typedef struct dd_logger dd_logger_t;
 
 /**
- * Attribute key that, when included in the `attributes` passed to
- * dd_logger_error() or dd_logger_critical(), sets a custom Error Tracking grouping
- * fingerprint on the resulting log event.
+ * Attribute key that, when included in the `attributes` passed to a log call, sets
+ * a custom Error Tracking grouping fingerprint on the resulting log event.
  */
 DATADOG_API extern const char* const DD_LOG_ERROR_FINGERPRINT_ATTRIBUTE_KEY;
 

@@ -111,9 +111,8 @@ struct LogError {
  */
 namespace LogAttributes {
 /**
- * Attribute key that, when included in the `attributes` passed to Error() or
- * Critical(), sets a custom Error Tracking grouping fingerprint on the resulting log
- * event.
+ * Attribute key that, when included in the `attributes` passed to a log call, sets a
+ * custom Error Tracking grouping fingerprint on the resulting log event.
  */
 inline constexpr std::string_view ErrorFingerprintAttributeKey =
     "_dd.error.fingerprint";
