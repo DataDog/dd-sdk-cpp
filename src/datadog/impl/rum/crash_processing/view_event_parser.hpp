@@ -13,7 +13,7 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/rum/crash_processing/json_scanner.hpp"
+#include "datadog/impl/core/json/json_scanner.hpp"
 
 namespace datadog::impl {
 
