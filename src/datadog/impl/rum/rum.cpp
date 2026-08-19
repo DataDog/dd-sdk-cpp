@@ -143,9 +143,12 @@ void Rum::Start() {
     snapshot = _global_attributes.attribute;
   }
   _scope->ExecuteOnContextThread(
-      [snapshot = std::move(snapshot)](
+      [snapshot = std::move(snapshot), sample_rate = _deps.GetSessionSampleRate()](
           const CoreContext&, const EventWriter&, const MessagePublisher& pub
-      ) mutable { pub(RumGlobalAttributesChangedMessage{std::move(snapshot)}); }
+      ) mutable {
+        pub(RumInitializedMessage{sample_rate});
+        pub(RumGlobalAttributesChangedMessage{std::move(snapshot)});
+      }
   );
 
   // Dispatch SDKInit to start first session

@@ -146,6 +146,7 @@ static MockBinaryFile MOCK_CRASH_CONTEXT_V2 =
         .UInt8(static_cast<uint8_t>(datadog::ValueType::Object))
         .UInt64(0)
         .UUID("a991ca10-4004-4004-4004-beefbeefbeef")  // rum_application_id
+        .Float(55.5f)                                  // rum_session_sample_rate
         .UUID("5e551017-4114-4114-4114-beeeefbeeeef")  // rum_session_id
         .UInt8(1)                                      // rum_session_is_sampled
         .UInt8(1)                                      // rum_session_is_active

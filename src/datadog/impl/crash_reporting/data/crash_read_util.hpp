@@ -77,6 +77,13 @@ inline CrashFileReadResult ReadUInt8(File& file, uint8_t& out) {
   return ReadBytes(file, dst, 1);
 }
 
+inline CrashFileReadResult ReadFloat(File& file, float& out) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  char* dst = reinterpret_cast<char*>(&out);
+  static_assert(sizeof(out) == 4, "Unexpected float size");
+  return ReadBytes(file, dst, 4);
+}
+
 inline CrashFileReadResult ReadBool(File& file, bool& out) {
   char c;
   auto res = ReadBytes(file, &c, 1);

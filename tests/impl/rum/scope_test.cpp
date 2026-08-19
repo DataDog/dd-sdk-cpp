@@ -100,4 +100,24 @@ TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
       REQUIRE(deps.ShouldSampleSession(id) == true);
     }
   }
+
+  SECTION("M use explicit rate W explicit rate overrides configured rate") {
+    // Given deps configured with a rate that would NOT sample session_id
+    config.SetSessionSampleRate(50.0f);
+    // When no explicit rate is provided, Then the configured rate is used
+    REQUIRE(make_deps().ShouldSampleSession(session_id) == false);
+    // When an explicit rate above the threshold is provided,
+    // Then it overrides the configured rate
+    REQUIRE(make_deps().ShouldSampleSession(session_id, 60.0f) == true);
+  }
+
+  SECTION("M use explicit rate W explicit rate overrides configured rate (inverse)") {
+    // Given deps configured with a rate that would sample session_id
+    config.SetSessionSampleRate(100.0f);
+    // When no explicit rate is provided, Then the configured rate is used
+    REQUIRE(make_deps().ShouldSampleSession(session_id) == true);
+    // When an explicit rate below the threshold is provided,
+    // Then it overrides the configured rate
+    REQUIRE(make_deps().ShouldSampleSession(session_id, 50.0f) == false);
+  }
 }

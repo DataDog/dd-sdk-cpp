@@ -301,7 +301,7 @@ static void handle_crash_that_preceded_initial_session(
   // There was no session active at the time of the crash, and a RUM Error must be
   // recorded in a session: generate a session_id and make a sampling decision
   const UUID new_session_id = UUID::Random();
-  if (!deps.ShouldSampleSession(new_session_id)) {
+  if (!deps.ShouldSampleSession(new_session_id, ctx.rum_session_sample_rate)) {
     deps.diagnostic_logger.Status(
         "Ignoring prior-process crash report: newly-created session was excluded from "
         "sampling"

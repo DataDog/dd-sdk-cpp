@@ -131,6 +131,7 @@ static CrashReport make_crash_report(
           "fujda9i8z83457",                                      // account_id
           "Important Account",                                   // account_name
           account_extra,                                         // account_extra
+          100.0f,  // rum_session_sample_rate
           // rum_sesion_state:
           {
               *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef"),  // application_id
@@ -494,13 +495,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
   SECTION(
       "M disregard crash W no session was active and sampling decision is negative"
   ) {
-    // Given a crash in a process where no session has ever existed
+    // Given a crash in a process where no session has ever existed,
+    // and where the configured RUM session sample rate was 0%
     auto crash = make_crash_report();
     crash.context->rum_session_state.session_id = UUID::Zero;
+    crash.context->rum_session_sample_rate = 0.0f;
 
-    // When we process that crash in an SDK instance that has a configured RUM session
-    // sample rate of 0%
-    auto deps = make_deps(0.0f);
+    // When we process that crash
+    auto deps = make_deps();
     ContextThread_HandleCrashReport(deps, crash, event_writer);
 
     // Then no events are generated
