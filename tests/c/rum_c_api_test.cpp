@@ -2906,6 +2906,43 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          REQUIRE(views[1]["view"]["error"]["count"] == 1);
        }},
 
+      {"M set error.fingerprint W AddError is called with the fingerprint attribute "
+       "key",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and record an error carrying the
+         // DD_RUM_ERROR_CUSTOM_FINGERPRINT_ATTRIBUTE_KEY attribute
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
+         clock.TickMilliseconds(5);
+         dd_attribute_t error_attributes = dd_attribute_object(1);
+         dd_attribute_t fingerprint_val = dd_attribute_string("my-fingerprint");
+         dd_attribute_object_property_set(
+             &error_attributes,
+             DD_RUM_ERROR_CUSTOM_FINGERPRINT_ATTRIBUTE_KEY,
+             &fingerprint_val
+         );
+         dd_rum_add_error(
+             rum,
+             DD_RUM_ERROR_SOURCE_SOURCE,
+             "Something went wrong",
+             "AssertionError",
+             "",
+             &error_attributes
+         );
+         dd_attribute_free(&fingerprint_val);
+         dd_attribute_free(&error_attributes);
+       },
+       [](const nlohmann::json& events) {
+         // Then the error event has error.fingerprint set, and the attribute is
+         // excluded from context
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["error"]["fingerprint"] == "my-fingerprint");
+         REQUIRE(!errors[0].contains("context"));
+       }},
+
       {"M send error event with action.id W AddError is called with active action",
        [](dd_rum_config_t*) {
          // Given an ordinary RUM config

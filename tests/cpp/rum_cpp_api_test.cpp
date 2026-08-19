@@ -3363,6 +3363,37 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          REQUIRE(!errors[0].contains("context"));
        }},
 
+      {"M set error.fingerprint and exclude it from context W "
+       "RumAttributes::ErrorCustomFingerprintAttributeKey is provided on AddError",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add an error carrying a custom fingerprint
+         rum->StartView("my-view", "My View");
+         Attribute add_error_obj = Attribute::Object(2);
+         add_error_obj.SetObjectProperty(
+             RumAttributes::ErrorCustomFingerprintAttributeKey,
+             Attribute::String("my-fingerprint")
+         );
+         add_error_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             add_error_obj
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has error.fingerprint set, and
+         // the attribute is excluded from context
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["error"]["fingerprint"] == "my-fingerprint");
+         REQUIRE(errors[0]["context"] == nlohmann::json{{"alpha", 1}});
+       }},
+
       // === Operations ===
 
       {"M emit start and end vital events W operation succeeds",

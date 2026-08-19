@@ -544,6 +544,50 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   }
 
   SECTION(
+      "M populate error.fingerprint and exclude it from user attributes W "
+      "_dd.error.fingerprint is provided"
+  ) {
+    // When the log call carries a _dd.error.fingerprint attribute alongside a regular
+    // attribute
+    call.merged_attributes.InitObject(2);
+    call.merged_attributes.SetObjectProperty(
+        "_dd.error.fingerprint", Attribute::String("my-fingerprint")
+    );
+    call.merged_attributes.SetObjectProperty("foo", Attribute::Int(42));
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher, diagnostic_logger
+    );
+
+    // Then the resulting event has 'error.fingerprint' set, and the attribute is
+    // excluded from the top-level custom attributes
+    REQUIRE(events.size() == 1);
+    REQUIRE(events[0]["error.fingerprint"] == "my-fingerprint");
+    REQUIRE(events[0]["foo"] == 42);
+    REQUIRE(!events[0].contains("_dd.error.fingerprint"));
+  }
+
+  SECTION(
+      "M omit error.fingerprint and exclude key from user attributes W a non-string "
+      "_dd.error.fingerprint is provided"
+  ) {
+    // When the log call carries a non-string _dd.error.fingerprint attribute
+    call.merged_attributes.InitObject(1);
+    call.merged_attributes.SetObjectProperty(
+        "_dd.error.fingerprint", Attribute::Int(42)
+    );
+    ContextThread_GenerateLogEvent(
+        logger, call, ctx, event_writer, buf, noop_publisher, diagnostic_logger
+    );
+
+    // Then the resulting event has no 'error.fingerprint' field, the key is not present
+    // as a custom attribute either, and a diagnostic warning was emitted
+    REQUIRE(events.size() == 1);
+    REQUIRE(!events[0].contains("error.fingerprint"));
+    REQUIRE(!events[0].contains("_dd.error.fingerprint"));
+    REQUIRE(!diagnostics.warning.empty());
+  }
+
+  SECTION(
       "M forward the unstripped _dd.error.source_type attribute to "
       "LogErrorGeneratedMessage W level is error or critical"
   ) {

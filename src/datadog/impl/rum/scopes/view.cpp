@@ -680,6 +680,13 @@ void RumViewScope::SendErrorEvent(
       {base.attributes}, merged_error_attributes, deps.diagnostic_logger
   );
 
+  // Extract a `_dd.error.fingerprint` override, if supplied alongside this error, and
+  // strip it from the attributes that end up in the event's 'context' field
+  if (auto fingerprint =
+          ExtractErrorFingerprint(merged_error_attributes, deps.diagnostic_logger)) {
+    ev.error.fingerprint = std::move(*fingerprint);
+  }
+
   if (merged_error_attributes.GetObjectPropertyCount() > 0) {
     ev.context.value = merged_error_attributes;
   }

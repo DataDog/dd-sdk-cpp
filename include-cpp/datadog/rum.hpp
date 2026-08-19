@@ -144,6 +144,18 @@ enum class RumErrorSource : uint8_t {
 };
 
 /**
+ * Special attribute keys recognized by the RUM feature.
+ */
+namespace RumAttributes {
+/**
+ * Attribute key that, when included in the `attributes` passed to AddError(), sets a
+ * custom Error Tracking grouping fingerprint on the resulting RUM error event.
+ */
+inline constexpr std::string_view ErrorCustomFingerprintAttributeKey =
+    "_dd.error.fingerprint";
+}  // namespace RumAttributes
+
+/**
  * Interface to the Datadog SDK's RUM feature.
  */
 class Rum {
