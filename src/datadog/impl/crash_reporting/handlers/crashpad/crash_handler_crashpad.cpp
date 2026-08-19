@@ -193,7 +193,8 @@ DATADOG_JSON_STRUCT(
 /**
  * Serializes `value` as JSON into a stack-allocated buffer and sets the given Crashpad
  * string annotation to the result. If encoding fails because the value is too large to
- * fit in the buffer, logs an error once (guarded by `logged_error`).
+ * fit in the buffer, resets the annotation to `{}` (clearing any previously-set value)
+ * and logs an error once (guarded by `out_logged_error`).
  */
 template <uint32_t N, typename T>
 void TrySetAnnotation(
@@ -205,21 +206,25 @@ void TrySetAnnotation(
   std::array<char, N> buf{};
   if (auto written = TryEncodeJson(buf.data(), N, value)) {
     annotation.Set(std::string_view(buf.data(), *written));
-  } else if (!out_logged_error) {
-    out_logged_error = true;
-    logger.Error(
-        "Failed to encode Crashpad annotation: value too large for buffer",
-        {{"annotation", annotation.name()}}
-    );
+  } else {
+    annotation.Set("{}");
+    if (!out_logged_error) {
+      out_logged_error = true;
+      logger.Error(
+          "Failed to encode Crashpad annotation: value too large for buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
   }
 }
 
 /**
  * Serializes `value` (a struct with extra attributes) as JSON into a stack-allocated
  * buffer and sets the given Crashpad string annotation to the result. If encoding fails
- * because the base struct is too large to fit, logs an error once (guarded by
- * `out_logged_error`). If extra attributes were dropped to fit the buffer, logs a
- * warning once (guarded by `out_logged_truncation_warning`).
+ * because the base struct is too large to fit, resets the annotation to `{}` (clearing
+ * any previously-set value) and logs an error once (guarded by `out_logged_error`). If
+ * extra attributes were dropped to fit the buffer, logs a warning once (guarded by
+ * `out_logged_truncation_warning`).
  */
 template <uint32_t N, typename T>
 void TrySetAnnotationWithExtras(
@@ -232,6 +237,7 @@ void TrySetAnnotationWithExtras(
   std::array<char, N> buf{};
   const auto result = TryEncodeJson(buf.data(), N, value);
   if (!result) {
+    annotation.Set("{}");
     if (!out_logged_error) {
       out_logged_error = true;
       logger.Error(
