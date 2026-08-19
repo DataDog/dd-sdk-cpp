@@ -21,6 +21,7 @@
 #include "client/crashpad_client.h"
 #include "client/settings.h"
 
+#include "datadog/impl/core/events/omissible.hpp"
 #include "datadog/impl/core/events/struct.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
@@ -101,9 +102,9 @@ namespace datadog::impl {
  * A value encoded in `dd.usr`.
  */
 struct UsrAnnotation {
-  std::string_view id;
-  std::string_view name;
-  std::string_view email;
+  OmitIfEmpty<std::string_view> id;
+  OmitIfEmpty<std::string_view> name;
+  OmitIfEmpty<std::string_view> email;
   OmitIfZero<UUID> anonymous_id;
   const Attribute& extra;
 };
@@ -120,8 +121,8 @@ DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
  * A value encoded in `dd.account`.
  */
 struct AccountAnnotation {
-  std::string_view id;
-  std::string_view name;
+  OmitIfEmpty<std::string_view> id;
+  OmitIfEmpty<std::string_view> name;
   const Attribute& extra;
 };
 DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
