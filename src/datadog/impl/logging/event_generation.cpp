@@ -153,9 +153,8 @@ void ContextThread_GenerateLogEvent(
 
   // Extract a `_dd.error.fingerprint` override, if supplied alongside this log call,
   // and strip it from the attributes that end up as this event's custom attributes.
-  if (std::optional<std::string> fingerprint = ExtractErrorFingerprint(
-          {ev.user_attributes}, ev.user_attributes, diagnostic_logger
-      )) {
+  if (std::optional<std::string> fingerprint =
+          ExtractErrorFingerprint(ev.user_attributes, diagnostic_logger)) {
     ev.error_fingerprint = std::move(*fingerprint);
   }
 
