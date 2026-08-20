@@ -9,6 +9,8 @@
 #include <iostream>
 #include <thread>
 
+#include "datadog.hpp"
+
 #include "repl/buffer.hpp"
 #include "repl/commands.hpp"
 #include "repl/state.hpp"
