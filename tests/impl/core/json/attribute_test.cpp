@@ -371,7 +371,7 @@ TEST_CASE("Attribute TryEncodeJson", "[unit][json]") {
     // Given buffers one byte too small, encoding returns nullopt without writing
     SECTION("{INT_JSON}") {
       std::vector<char> buf(INT_JSON.size() - 1, 'X');
-      const std::vector<char> original = buf;
+      const std::vector<char> original(INT_JSON.size() - 1, 'X');
       auto result = TryEncodeJson(buf.data(), buf.size(), Attribute::Int(42));
       REQUIRE_FALSE(result.has_value());
       REQUIRE(buf == original);
@@ -402,21 +402,21 @@ TEST_CASE("Attribute TryEncodeJson", "[unit][json]") {
     // size, and all object forms need at least 2 bytes for the enclosing braces
     SECTION("{integer}") {
       std::vector<char> buf(1, 'X');
-      const std::vector<char> original = buf;
+      const std::vector<char> original(1, 'X');
       auto result = TryEncodeJson(buf.data(), buf.size(), Attribute::Int(42));
       REQUIRE_FALSE(result.has_value());
       REQUIRE(buf == original);
     }
     SECTION("{empty object}") {
       std::vector<char> buf(1, 'X');
-      const std::vector<char> original = buf;
+      const std::vector<char> original(1, 'X');
       auto result = TryEncodeJson(buf.data(), buf.size(), Attribute::Object());
       REQUIRE_FALSE(result.has_value());
       REQUIRE(buf == original);
     }
     SECTION("{non-empty object}") {
       std::vector<char> buf(1, 'X');
-      const std::vector<char> original = buf;
+      const std::vector<char> original(1, 'X');
       Attribute value = Attribute::Object(1);
       value.SetObjectProperty("a", Attribute::Int(1));
       auto result = TryEncodeJson(buf.data(), buf.size(), value);
