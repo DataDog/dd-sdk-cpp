@@ -142,12 +142,12 @@ ReadCrashContextResult ReadCrashContext(File& file) {
   }
 
   // RUM config and session state
-  if (auto r = ReadUUID(file, ctx.rum_session_state.application_id); !r.OK()) {
+  if (auto r = ReadUUID(file, ctx.rum_initial_config.application_id); !r.OK()) {
     return {std::nullopt, r.value};
   }
-  // rum_session_sample_rate was added in file format v2
+  // rum_initial_config.session_sample_rate was added in file format v2
   if (version >= 2) {
-    if (auto r = ReadFloat(file, ctx.rum_session_sample_rate); !r.OK()) {
+    if (auto r = ReadFloat(file, ctx.rum_initial_config.session_sample_rate); !r.OK()) {
       return {std::nullopt, r.value};
     }
   }

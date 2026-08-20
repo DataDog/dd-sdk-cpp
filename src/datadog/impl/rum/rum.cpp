@@ -143,10 +143,11 @@ void Rum::Start() {
     snapshot = _global_attributes.attribute;
   }
   _scope->ExecuteOnContextThread(
-      [snapshot = std::move(snapshot), sample_rate = _deps.GetSessionSampleRate()](
-          const CoreContext&, const EventWriter&, const MessagePublisher& pub
-      ) mutable {
-        pub(RumInitializedMessage{sample_rate});
+      [snapshot = std::move(snapshot),
+       initial_config = RumInitialConfig{
+           _deps.application_id, _deps.GetSessionSampleRate()
+       }](const CoreContext&, const EventWriter&, const MessagePublisher& pub) mutable {
+        pub(RumInitializedMessage{initial_config});
         pub(RumGlobalAttributesChangedMessage{std::move(snapshot)});
       }
   );

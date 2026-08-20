@@ -34,6 +34,16 @@ struct ContextChangedMessage {
 };
 
 /**
+ * Emitted by `Rum` once during `Start()`, carrying fixed RUM configuration values that
+ * other features need to persist. This fires before any session is created, ensuring
+ * that downstream consumers (e.g. `CrashReporting`) have configuration state even if
+ * the app crashes before the first session is established.
+ */
+struct RumInitializedMessage {
+  RumInitialConfig initial_config;
+};
+
+/**
  * Emitted by `Rum` whenever essential session state changes, such as when a new session
  * is created, the active session is stopped, or the `has_tracked_any_view` flag changes
  * state in response to a new view being recorded.
@@ -78,16 +88,6 @@ struct RumActiveViewUpdatedMessage {
  * longer has an active view.
  */
 struct RumActiveViewLostMessage {};
-
-/**
- * Emitted by `Rum` once during `Start()`, carrying fixed RUM configuration values that
- * other features need to persist. This fires before any session is created, ensuring
- * that downstream consumers (e.g. `CrashReporting`) have configuration state even if
- * the app crashes before the first session is established.
- */
-struct RumInitializedMessage {
-  float session_sample_rate;  // [0.0, 100.0], from RumConfig::session_sample_rate
-};
 
 /**
  * Emitted by `Rum` whenever the set of global RUM attributes changes.
