@@ -12,6 +12,10 @@ import email.policy
 from pathlib import Path
 from lib.test import TestContext
 
+_UUID_RE = re.compile(
+    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+)
+
 # This test only runs when the SDK was compiled with DD_CRASH_MODE=crashpad
 CRASH_MODE = 'crashpad'
 
@@ -33,6 +37,8 @@ async def main(t: TestContext):
     add-user-extra-info attr:plan:premium
     set-account-info acct-456 name:"Acme"
     add-account-extra-info attr:tier:gold
+    add-rum-attribute attr:foo:hello
+    start-view crash-view name:"Crash View"
     sleep 10
     crash raise
     """)
@@ -103,7 +109,7 @@ async def main(t: TestContext):
         f'dd.usr name mismatch: expected "Alice", got {usr["name"]!r}'
     assert usr['email'] == 'alice@example.com', \
         f'dd.usr email mismatch: expected "alice@example.com", got {usr["email"]!r}'
-    assert re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', usr['anonymous_id']), \
+    assert _UUID_RE.match(usr['anonymous_id']), \
         f'dd.usr anonymous_id is not a valid UUID: {usr["anonymous_id"]!r}'
     assert usr['plan'] == 'premium', \
         f'dd.usr plan mismatch: expected "premium", got {usr["plan"]!r}'
@@ -120,6 +126,68 @@ async def main(t: TestContext):
         f'dd.account name mismatch: expected "Acme", got {account["name"]!r}'
     assert account['tier'] == 'gold', \
         f'dd.account tier mismatch: expected "gold", got {account["tier"]!r}'
+
+    # And the upload contains a well-formed dd.rum.config field reflecting the RUM
+    # application ID and session sample rate set at SDK initialization.
+    _assert_json_form_field(
+        form_fields, 'dd.rum.config',
+        required_keys=['application_id', 'session_sample_rate'],
+        non_empty_keys=['application_id'],
+    )
+    rum_config = json.loads(form_fields['dd.rum.config'])
+    assert rum_config['application_id'] == 'a991ca10-4004-4004-4004-beefbeefbeef', \
+        f'dd.rum.config application_id mismatch: expected "a991ca10-4004-4004-4004-beefbeefbeef", got {rum_config["application_id"]!r}'
+    assert isinstance(rum_config['session_sample_rate'], (int, float)), \
+        f'dd.rum.config session_sample_rate is not a number: {rum_config["session_sample_rate"]!r}'
+
+    # And the upload contains a well-formed dd.rum.session field with all expected
+    # boolean flags and a valid session UUID. Since start-view was called before the
+    # crash, has_tracked_any_view must be true.
+    _assert_json_form_field(
+        form_fields, 'dd.rum.session',
+        required_keys=['id', 'is_sampled', 'is_active', 'is_initial',
+                       'has_tracked_any_view', 'did_start_with_replay'],
+        non_empty_keys=[],
+    )
+    rum_session = json.loads(form_fields['dd.rum.session'])
+    assert _UUID_RE.match(rum_session['id']), \
+        f'dd.rum.session id is not a valid UUID: {rum_session["id"]!r}'
+    assert isinstance(rum_session['is_sampled'], bool), \
+        f'dd.rum.session is_sampled is not a bool: {rum_session["is_sampled"]!r}'
+    assert isinstance(rum_session['is_active'], bool), \
+        f'dd.rum.session is_active is not a bool: {rum_session["is_active"]!r}'
+    assert isinstance(rum_session['is_initial'], bool), \
+        f'dd.rum.session is_initial is not a bool: {rum_session["is_initial"]!r}'
+    assert isinstance(rum_session['has_tracked_any_view'], bool), \
+        f'dd.rum.session has_tracked_any_view is not a bool: {rum_session["has_tracked_any_view"]!r}'
+    assert isinstance(rum_session['did_start_with_replay'], bool), \
+        f'dd.rum.session did_start_with_replay is not a bool: {rum_session["did_start_with_replay"]!r}'
+    assert rum_session['has_tracked_any_view'] == True, \
+        f'dd.rum.session has_tracked_any_view expected True after start-view, got {rum_session["has_tracked_any_view"]!r}'
+
+    # And the upload contains a well-formed dd.rum.attributes field containing the
+    # global RUM attribute set via add-rum-attribute in the repl script above.
+    _assert_json_form_field(
+        form_fields, 'dd.rum.attributes',
+        required_keys=['foo'],
+        non_empty_keys=['foo'],
+    )
+    rum_attrs = json.loads(form_fields['dd.rum.attributes'])
+    assert rum_attrs['foo'] == 'hello', \
+        f'dd.rum.attributes foo mismatch: expected "hello", got {rum_attrs["foo"]!r}'
+
+    # And the upload contains a well-formed dd.rum.last_view field reflecting the view
+    # that was active at the time of the crash (started via start-view above).
+    _assert_json_form_field(
+        form_fields, 'dd.rum.last_view',
+        required_keys=['type', 'view'],
+        non_empty_keys=['type'],
+    )
+    rum_last_view = json.loads(form_fields['dd.rum.last_view'])
+    assert rum_last_view['type'] == 'view', \
+        f'dd.rum.last_view type mismatch: expected "view", got {rum_last_view["type"]!r}'
+    assert rum_last_view['view']['name'] == 'Crash View', \
+        f'dd.rum.last_view view.name mismatch: expected "Crash View", got {rum_last_view["view"]["name"]!r}'
 
     # And the Crashpad database contains exactly one minidump reflecting a completed
     # upload. Since the HTTP upload has completed by this point, the handler has
