@@ -21,6 +21,7 @@
 #include "client/crashpad_client.h"
 #include "client/settings.h"
 
+#include "datadog/impl/core/events/omissible.hpp"
 #include "datadog/impl/core/events/struct.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
@@ -44,6 +45,8 @@ static crashpad::StringAnnotation<16> s_dd_tracking_consent("dd.tracking_consent
 static crashpad::StringAnnotation<512> s_dd_config("dd.config");
 static crashpad::StringAnnotation<256> s_dd_os("dd.os");
 static crashpad::StringAnnotation<512> s_dd_device("dd.device");
+static crashpad::StringAnnotation<2048> s_dd_usr("dd.usr");
+static crashpad::StringAnnotation<2048> s_dd_account("dd.account");
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
@@ -94,6 +97,37 @@ namespace datadog::impl {
 
 // Lightweight structs used to serialize CrashContext fields into Crashpad string
 // annotations, as JSON values
+
+/**
+ * A value encoded in `dd.usr`.
+ */
+struct UsrAnnotation {
+  OmitIfEmpty<std::string_view> id;
+  OmitIfEmpty<std::string_view> name;
+  OmitIfEmpty<std::string_view> email;
+  OmitIfZero<UUID> anonymous_id;
+  const Attribute& extra;
+};
+DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
+    UsrAnnotation,
+    extra,
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(email),
+    DATADOG_JSON_FIELD(anonymous_id)
+)
+
+/**
+ * A value encoded in `dd.account`.
+ */
+struct AccountAnnotation {
+  OmitIfEmpty<std::string_view> id;
+  OmitIfEmpty<std::string_view> name;
+  const Attribute& extra;
+};
+DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(
+    AccountAnnotation, extra, DATADOG_JSON_FIELD(id), DATADOG_JSON_FIELD(name)
+)
 
 /**
  * A value encoded in `dd.config`.
@@ -158,14 +192,68 @@ DATADOG_JSON_STRUCT(
 
 /**
  * Serializes `value` as JSON into a stack-allocated buffer and sets the given Crashpad
- * string annotation to the result. If the JSON-encoded size of `value` exceeds the
- * annotation's buffer capacity, the annotation is left unchanged.
+ * string annotation to the result. If encoding fails because the value is too large to
+ * fit in the buffer, resets the annotation to `{}` (clearing any previously-set value)
+ * and logs an error once (guarded by `out_logged_error`).
  */
 template <uint32_t N, typename T>
-void TrySetAnnotation(crashpad::StringAnnotation<N>& annotation, const T& value) {
+void TrySetAnnotation(
+    crashpad::StringAnnotation<N>& annotation,
+    const T& value,
+    const DiagnosticLogger& logger,
+    bool& out_logged_error
+) {
   std::array<char, N> buf{};
   if (auto written = TryEncodeJson(buf.data(), N, value)) {
     annotation.Set(std::string_view(buf.data(), *written));
+  } else {
+    annotation.Set("{}");
+    if (!out_logged_error) {
+      out_logged_error = true;
+      logger.Error(
+          "Failed to encode Crashpad annotation: value too large for buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  }
+}
+
+/**
+ * Serializes `value` (a struct with extra attributes) as JSON into a stack-allocated
+ * buffer and sets the given Crashpad string annotation to the result. If encoding fails
+ * because the base struct is too large to fit, resets the annotation to `{}` (clearing
+ * any previously-set value) and logs an error once (guarded by `out_logged_error`). If
+ * extra attributes were dropped to fit the buffer, logs a warning once (guarded by
+ * `out_logged_truncation_warning`).
+ */
+template <uint32_t N, typename T>
+void TrySetAnnotationWithExtras(
+    crashpad::StringAnnotation<N>& annotation,
+    const T& value,
+    const DiagnosticLogger& logger,
+    bool& out_logged_error,
+    bool& out_logged_truncation_warning
+) {
+  std::array<char, N> buf{};
+  const auto result = TryEncodeJson(buf.data(), N, value);
+  if (!result) {
+    annotation.Set("{}");
+    if (!out_logged_error) {
+      out_logged_error = true;
+      logger.Error(
+          "Failed to encode Crashpad annotation: value too large for buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  } else {
+    annotation.Set(std::string_view(buf.data(), result->bytes_written));
+    if (result->truncated && !out_logged_truncation_warning) {
+      out_logged_truncation_warning = true;
+      logger.Warning(
+          "Crashpad annotation truncated: extra attributes dropped to fit buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
   }
 }
 
@@ -227,11 +315,18 @@ class CrashpadCrashHandler final : public ICrashHandler {
       return false;
     }
 
+    // Store the DiagnosticLogger so we can use it to log diagnostic messages if we
+    // receive data in SetCrashContext that can't be fully serialized to Crashpad
+    // annotations
+    _logger = logger;
+
     // Initialize annotation values to their defaults
     s_dd_tracking_consent.Set("pending");
     s_dd_config.Set("{}");
     s_dd_os.Set("{}");
     s_dd_device.Set("{}");
+    s_dd_usr.Set("{}");
+    s_dd_account.Set("{}");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
@@ -316,7 +411,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
             ctx.variant,
             ctx.source,
             ctx.sdk_version,
-        }
+        },
+        _logger,
+        _logged_config_error
     );
     TrySetAnnotation(
         s_dd_os,
@@ -325,7 +422,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
             ctx.os_version,
             ctx.os_build,
             ctx.os_version_major,
-        }
+        },
+        _logger,
+        _logged_os_error
     );
     TrySetAnnotation(
         s_dd_device,
@@ -337,13 +436,50 @@ class CrashpadCrashHandler final : public ICrashHandler {
             ctx.device_architecture,
             ctx.device_locale,
             ctx.device_time_zone,
-        }
+        },
+        _logger,
+        _logged_device_error
+    );
+    TrySetAnnotationWithExtras(
+        s_dd_usr,
+        UsrAnnotation{
+            ctx.user_id,
+            ctx.user_name,
+            ctx.user_email,
+            ctx.user_anonymous_id,
+            ctx.user_extra,
+        },
+        _logger,
+        _logged_usr_error,
+        _logged_usr_truncation_warning
+    );
+    TrySetAnnotationWithExtras(
+        s_dd_account,
+        AccountAnnotation{
+            ctx.account_id,
+            ctx.account_name,
+            ctx.account_extra,
+        },
+        _logger,
+        _logged_account_error,
+        _logged_account_truncation_warning
     );
   };
 
  private:
+  DiagnosticLogger _logger;
+
   // Tracking consent cached on last call to SetCrashContext
   TrackingConsent _tracking_consent{TrackingConsent::Pending};
+
+  // Once-per-process flags preventing repeated logging of the same encode failure
+  bool _logged_config_error{false};
+  bool _logged_os_error{false};
+  bool _logged_device_error{false};
+  bool _logged_usr_error{false};
+  bool _logged_usr_truncation_warning{false};
+  bool _logged_account_error{false};
+  bool _logged_account_truncation_warning{false};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {

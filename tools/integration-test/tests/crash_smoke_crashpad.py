@@ -3,6 +3,7 @@
 #
 # This product includes software developed at Datadog (https://www.datadoghq.com/).
 # Copyright 2025-Present Datadog, Inc.
+import re
 import sys
 import struct
 import json
@@ -23,9 +24,13 @@ async def main(t: TestContext):
     p = t.spawn_repl()
     p.run("""
     set-config client-token fake-client-token
+    set-config rum-application-id a991ca10-4004-4004-4004-beefbeefbeef
     create-core tracking-consent:granted
     register-crash-reporting
+    register-rum
     start-core
+    set-user-info usr-123 name:"Alice" email:"alice@example.com"
+    set-account-info acct-456 name:"Acme"
     sleep 10
     crash raise
     """)
@@ -81,6 +86,34 @@ async def main(t: TestContext):
         required_keys=['type', 'name', 'model', 'brand', 'architecture', 'locale', 'time_zone'],
         non_empty_keys=['architecture'],
     )
+
+    # And the upload contains well-formed dd.usr and dd.account form fields reflecting
+    # the user and account info set in the repl script above.
+    _assert_json_form_field(
+        form_fields, 'dd.usr',
+        required_keys=['id', 'name', 'email', 'anonymous_id'],
+        non_empty_keys=['id', 'name', 'email', 'anonymous_id'],
+    )
+    usr = json.loads(form_fields['dd.usr'])
+    assert usr['id'] == 'usr-123', \
+        f'dd.usr id mismatch: expected "usr-123", got {usr["id"]!r}'
+    assert usr['name'] == 'Alice', \
+        f'dd.usr name mismatch: expected "Alice", got {usr["name"]!r}'
+    assert usr['email'] == 'alice@example.com', \
+        f'dd.usr email mismatch: expected "alice@example.com", got {usr["email"]!r}'
+    assert re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', usr['anonymous_id']), \
+        f'dd.usr anonymous_id is not a valid UUID: {usr["anonymous_id"]!r}'
+
+    _assert_json_form_field(
+        form_fields, 'dd.account',
+        required_keys=['id', 'name'],
+        non_empty_keys=['id', 'name'],
+    )
+    account = json.loads(form_fields['dd.account'])
+    assert account['id'] == 'acct-456', \
+        f'dd.account id mismatch: expected "acct-456", got {account["id"]!r}'
+    assert account['name'] == 'Acme', \
+        f'dd.account name mismatch: expected "Acme", got {account["name"]!r}'
 
     # And the Crashpad database contains exactly one minidump reflecting a completed
     # upload. Since the HTTP upload has completed by this point, the handler has

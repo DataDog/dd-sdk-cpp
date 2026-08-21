@@ -102,11 +102,13 @@ static void populate_event_from_crash_context(const CrashContext& ctx, T& mut_ev
 
   // If CrashContext includes any valid user details, populate 'usr'
   if (!ctx.user_id.empty() || !ctx.user_name.empty() || !ctx.user_email.empty() ||
+      ctx.user_anonymous_id != UUID::Zero ||
       ctx.user_extra.GetObjectPropertyCount() > 0) {
     mut_ev.usr.value.emplace();
     mut_ev.usr.value->id = ctx.user_id;
     mut_ev.usr.value->name = ctx.user_name;
     mut_ev.usr.value->email = ctx.user_email;
+    mut_ev.usr.value->anonymous_id = ctx.user_anonymous_id;
     if (ctx.user_extra.GetObjectPropertyCount() > 0) {
       mut_ev.usr.value->extra = ctx.user_extra;
     }
