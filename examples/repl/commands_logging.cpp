@@ -121,8 +121,11 @@ CommandResult HandleAddLoggerTag(State& state, const CommandInput& args) {
     tag.append(name);
     tag += ':';
     tag.append(value);
+  // Also handle positional args with no ":" as valueless tags
+  auto pos = args.Positional();
+  for (size_t i = 0; i < pos.n; i++) {
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
-    state.loggers[logger_index]->AddTag(tag);
+    state.loggers[logger_index]->AddTag(Unquote(pos[i]));
   }
   return CommandResult::OK("Logger::AddTag()");
 }
