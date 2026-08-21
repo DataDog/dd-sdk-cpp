@@ -20,6 +20,20 @@
 
 namespace datadog::impl {
 
+/**
+ * Result returned by TryEncodeJson for types annotated with
+ * DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES.
+ *
+ * `bytes_written` is the number of bytes written to the output buffer.
+ * `truncated` is true if one or more extra attributes were dropped because they did
+ * not fit within the buffer. Attributes dropped solely because their name conflicted
+ * with a reserved struct field name do not count as truncation.
+ */
+struct StructEncodeResult {
+  size_t bytes_written;
+  bool truncated;
+};
+
 // Type trait to detect pair-like types (types with .first and .second members)
 template <typename T, typename = void>
 struct is_pair_like : std::false_type {};
@@ -134,18 +148,28 @@ size_t GetJsonSize(const Fields&&... fields) {
     return 2;
   }
 
-  // 2 bytes for braces, N-1 bytes for commas, N bytes for colons
-  size_t size = 2;                // {}
-  size += sizeof...(Fields) - 1;  // commas
-  size += sizeof...(Fields);      // colons
+  // 2 bytes for braces
+  size_t size = 2;  // {}
+  size_t num_properties_included = 0;
 
   // For each field (std::pair<std::string_view, T>), accumulate the size of the name
   // with enclosing quotes, and the size of the value when JSON-encoded, unless the
   // field's current value indicates that it should be entirely omitted
-  ((size += HasJsonValue(fields.second)
-                ? (fields.first.size() + 2 + GetJsonSize(fields.second))
-                : 0),
-   ...);
+  ((([&] {
+      if (HasJsonValue(fields.second)) {
+        // Account for quoted name + colon + size of value (field names are assumed
+        // to be plain ASCII and are not escaped; see file-level doc comment)
+        size += 1 + fields.first.size() + 2 + GetJsonSize(fields.second);
+        // Increment number of properties so we can account for commas when finished
+        ++num_properties_included;
+      }
+    }()),
+    ...));
+
+  // Include commas between properties, if more than one property is present
+  if (num_properties_included > 0) {
+    size += num_properties_included - 1;
+  }
   return size;
 }
 
@@ -213,15 +237,17 @@ size_t WriteJson(char* dst, size_t n, const Fields&&... fields) {
  * declarations; it should instead be provided as `Extra`, without being wrapped in any
  * macro.
  */
-#define DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(Type, Extra, ...)                  \
-  inline size_t GetJsonSize(const Type& obj) {                                       \
-    return GetJsonSizeWithExtraAttributes(obj.Extra, __VA_ARGS__);                   \
-  }                                                                                  \
-  inline size_t WriteJson(char* dst, size_t n, const Type& obj) {                    \
-    return WriteJsonWithExtraAttributes(obj.Extra, dst, n, __VA_ARGS__);             \
-  }                                                                                  \
-  inline std::optional<size_t> TryEncodeJson(char* dst, size_t n, const Type& obj) { \
-    return TryEncodeJsonWithExtraAttributes(obj.Extra, dst, n, __VA_ARGS__);         \
+#define DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(Type, Extra, ...)          \
+  inline size_t GetJsonSize(const Type& obj) {                               \
+    return GetJsonSizeWithExtraAttributes(obj.Extra, __VA_ARGS__);           \
+  }                                                                          \
+  inline size_t WriteJson(char* dst, size_t n, const Type& obj) {            \
+    return WriteJsonWithExtraAttributes(obj.Extra, dst, n, __VA_ARGS__);     \
+  }                                                                          \
+  inline std::optional<StructEncodeResult> TryEncodeJson(                    \
+      char* dst, size_t n, const Type& obj                                   \
+  ) {                                                                        \
+    return TryEncodeJsonWithExtraAttributes(obj.Extra, dst, n, __VA_ARGS__); \
   }
 
 /**
@@ -327,14 +353,18 @@ size_t WriteJsonWithExtraAttributes(
 
 /**
  * Attempts to serialize the given set of struct fields and any safe extra attributes
- * into the fixed-size buffer `dst` (capacity `n`), returning the number of bytes
- * written on success, or std::nullopt on failure.
+ * into the fixed-size buffer `dst` (capacity `n`), returning a StructEncodeResult on
+ * success, or std::nullopt on failure.
  *
  * If the base struct fields alone do not fit in `n` bytes, returns std::nullopt
  * immediately without modifying `dst`. Otherwise, includes as many extra attributes as
  * fit, dropping from the back (highest index first) until the value fits. Extra
  * attribute properties with names that conflict with struct field names are always
  * filtered out, consistent with WriteJsonWithExtraAttributes.
+ *
+ * The `truncated` field of the returned StructEncodeResult is true if one or more extra
+ * attributes that would have been safe to include (i.e. whose names did not conflict
+ * with any struct field) were dropped because they did not fit within `n` bytes.
  *
  * Assumption: WriteFilteredJsonObject iterates properties in strictly ascending index
  * order (0, 1, 2, …). The stateful lambda used below relies on this invariant to
@@ -343,7 +373,7 @@ size_t WriteJsonWithExtraAttributes(
 template <
     typename... Fields,
     typename = std::enable_if_t<(is_pair_like_v<Fields> && ...)>>
-std::optional<size_t> TryEncodeJsonWithExtraAttributes(
+std::optional<StructEncodeResult> TryEncodeJsonWithExtraAttributes(
     const Attribute& extra, char* dst, size_t n, const Fields&&... fields
 ) {
   // Build the is_safe_name predicate shared by size-computation and writing paths
@@ -351,23 +381,7 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
     return !((name == std::forward<const Fields>(fields).first) || ...);
   };
 
-  // Compute the exact base size (struct fields only, no extra attributes). We cannot
-  // use GetJsonSize(fields...) here because it overcounts: it pre-adds comma and colon
-  // overhead for every field regardless of HasJsonValue, whereas WriteJson skips fields
-  // for which HasJsonValue returns false. An overestimated base_size would cause us to
-  // return false even when the actual output would fit.
-  size_t base_size = 2;  // opening '{' and closing '}'
-  size_t num_base_included = 0;
-  ((([&] {
-      if (HasJsonValue(fields.second)) {
-        base_size += 2 + fields.first.size() + 1 + GetJsonSize(fields.second);
-        ++num_base_included;
-      }
-    }()),
-    ...));
-  if (num_base_included > 0) {
-    base_size += num_base_included - 1;  // commas between included fields
-  }
+  const size_t base_size = GetJsonSize(std::forward<const Fields>(fields)...);
 
   if (base_size > n) {
     // The base struct itself doesn't fit; nothing we can do
@@ -383,7 +397,7 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
         written <= n,
         "unexpected overflow of JSON buffer in TryEncodeJsonWithExtraAttributes"
     );
-    return written;
+    return StructEncodeResult{written, false};
   }
 
   // Needed by both the size loop below and the write path: determines whether the base
@@ -439,6 +453,16 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
     --k;
   }
 
+  // Determine whether any safe extras were dropped: there are safe extras beyond the
+  // chosen prefix k if any property in [k, num_extra) passes is_safe_name.
+  bool truncated = false;
+  for (size_t i = k; i < num_extra; ++i) {
+    if (is_safe_name(extra.GetObjectPropertyNameAt(static_cast<int>(i)))) {
+      truncated = true;
+      break;
+    }
+  }
+
   // Write: use a stateful lambda to limit WriteFilteredJsonObject to the first k
   // properties, while also applying the safe-name filter. The lambda is called once
   // per property in strictly ascending index order by WriteFilteredJsonObject.
@@ -451,7 +475,7 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
         written <= n,
         "unexpected overflow of JSON buffer in TryEncodeJsonWithExtraAttributes"
     );
-    return written;
+    return StructEncodeResult{written, truncated};
   }
 
   // Mirror the merge logic from WriteJsonWithExtraAttributes, using a prefix-limited
@@ -473,7 +497,7 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
         written <= n,
         "unexpected overflow of JSON buffer in TryEncodeJsonWithExtraAttributes"
     );
-    return written;
+    return StructEncodeResult{written, truncated};
   }
 
   const size_t base_written = WriteJson(dst, n, std::forward<const Fields>(fields)...);
@@ -496,7 +520,7 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
     // All k extra properties were filtered out by the safe-name check; revert to the
     // base struct output
     *extra_start = '}';
-    return base_written;
+    return StructEncodeResult{base_written, truncated};
   }
 
   *extra_start = ',';
@@ -504,7 +528,7 @@ std::optional<size_t> TryEncodeJsonWithExtraAttributes(
       base_written + extra_written - 1 <= n,
       "unexpected overflow of JSON buffer in TryEncodeJsonWithExtraAttributes"
   );
-  return base_written + extra_written - 1;
+  return StructEncodeResult{base_written + extra_written - 1, truncated};
 }
 
 }  // namespace datadog::impl

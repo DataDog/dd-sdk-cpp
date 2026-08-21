@@ -66,6 +66,7 @@ struct CrashContext {
   std::string user_id;
   std::string user_name;
   std::string user_email;
+  UUID user_anonymous_id;  // UUID::Zero if anonymous_id not enabled or not set
   Attribute user_extra;
 
   // Account details from SetAccountInfo()
