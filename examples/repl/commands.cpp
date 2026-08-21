@@ -35,7 +35,7 @@ std::optional<datadog::Attribute> CollectAttributes(const NamedValueList& named)
     std::string_view attr_key = kv.substr(0, colon);
     std::string_view attr_val =
         colon != std::string_view::npos ? kv.substr(colon + 1) : std::string_view{};
-    result.SetObjectProperty(attr_key, datadog::Attribute::String(attr_val));
+    result.SetObjectProperty(attr_key, datadog::Attribute::String(Unquote(attr_val)));
   }
   return result;
 }
