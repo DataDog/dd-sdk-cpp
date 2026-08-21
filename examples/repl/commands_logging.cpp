@@ -108,19 +108,15 @@ CommandResult HandleAddLoggerTag(State& state, const CommandInput& args) {
     return CommandResult::Error("No logger at specified index!");
   }
   for (size_t i = 0; i < named.n; i++) {
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
     std::string_view name = named.values[i].name;
-    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     std::string_view value = named.values[i].value;
     if (name == "logger") {
       continue;
     }
-    // Reconstruct the tag token as "name:value" (e.g. "platform:mobile")
-    std::string tag;
-    tag.reserve(name.size() + 1 + value.size());
-    tag.append(name);
-    tag += ':';
-    tag.append(value);
+    state.loggers[logger_index]->AddTag(name, Unquote(value));
+    // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
+  }
   // Also handle positional args with no ":" as valueless tags
   auto pos = args.Positional();
   for (size_t i = 0; i < pos.n; i++) {
