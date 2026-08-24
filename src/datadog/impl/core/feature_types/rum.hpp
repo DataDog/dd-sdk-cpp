@@ -15,10 +15,10 @@
 #include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/events/enum.hpp"
-#include "datadog/impl/core/events/omissible.hpp"
-#include "datadog/impl/core/events/struct.hpp"
-#include "datadog/impl/core/events/timestamp.hpp"
+#include "datadog/impl/types/events/enum.hpp"
+#include "datadog/impl/types/events/omissible.hpp"
+#include "datadog/impl/types/events/struct.hpp"
+#include "datadog/impl/types/events/timestamp.hpp"
 
 /* ===================== INSTRUCTIONS FOR VALIDATING THIS FILE ========================
 

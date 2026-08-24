@@ -33,15 +33,15 @@ add_executable(tests
     impl/types/json/primitives/uuid_test.cpp
     impl/types/json/attribute_test.cpp
     impl/types/json/optional_test.cpp
+    impl/types/events/enum_test.cpp
+    impl/types/events/omissible_test.cpp
+    impl/types/events/struct_test.cpp
+    impl/types/events/timestamp_test.cpp
     impl/core/attribute/binary_test.cpp
     impl/core/attribute/cow_test.cpp
     impl/core/attribute/memory_test.cpp
     impl/core/attribute/merge_test.cpp
     impl/core/attribute/refcount_test.cpp
-    impl/core/events/enum_test.cpp
-    impl/core/events/omissible_test.cpp
-    impl/core/events/struct_test.cpp
-    impl/core/events/timestamp_test.cpp
     impl/core/feature_types/rum_test.cpp
     impl/core/http/body_writer_string_test.cpp
     impl/core/http/body_writer_tlv_test.cpp

@@ -13,8 +13,8 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/events/omissible.hpp"
-#include "datadog/impl/core/events/struct.hpp"
+#include "datadog/impl/types/events/omissible.hpp"
+#include "datadog/impl/types/events/struct.hpp"
 
 namespace datadog::impl {
 struct JsonTestEvent {

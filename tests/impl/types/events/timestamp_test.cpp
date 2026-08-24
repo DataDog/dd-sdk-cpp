@@ -4,11 +4,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/events/timestamp.hpp"
+#include "datadog/impl/types/events/timestamp.hpp"
 
 #include <cinttypes>
 
-#include "datadog/impl/core/events/enum.hpp"
+#include "datadog/impl/types/events/enum.hpp"
 
 #include "support/catch.hpp"
 #include "support/json_serialization.hpp"
