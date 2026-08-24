@@ -18,7 +18,7 @@
 
 namespace datadog::impl {
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
-    : _global_attributes(8),
+    : _global_attributes(Attribute::Object(8)),
       _deps(config, clock),
       _application(_deps),
       _application_snapshot() {}
@@ -140,7 +140,7 @@ void Rum::Start() {
   Attribute snapshot;
   {
     std::shared_lock lock(_global_attributes_mutex);
-    snapshot = _global_attributes.attribute;
+    snapshot = _global_attributes;
   }
   _scope->ExecuteOnContextThread(
       [snapshot = std::move(snapshot),
@@ -177,8 +177,8 @@ void Rum::AddAttribute(std::string_view name, const Attribute& value) {
   Attribute snapshot;
   {
     std::unique_lock lock(_global_attributes_mutex);
-    _global_attributes.attribute.SetObjectProperty(name, value);
-    snapshot = _global_attributes.attribute;
+    _global_attributes.SetObjectProperty(name, value);
+    snapshot = _global_attributes;
   }
 
   // If we have no valid FeatureScope, the SDK is not yet running
@@ -203,8 +203,8 @@ void Rum::RemoveAttribute(std::string_view name) {
   Attribute snapshot;
   {
     std::unique_lock lock(_global_attributes_mutex);
-    _global_attributes.attribute.DeleteObjectProperty(name);
-    snapshot = _global_attributes.attribute;
+    _global_attributes.DeleteObjectProperty(name);
+    snapshot = _global_attributes;
   }
 
   // If we have no valid FeatureScope, the SDK is not yet running
@@ -373,7 +373,7 @@ void Rum::ReportAppFullyDisplayed() {
 RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {
   // Create a shallow copy of the global attributes
   std::shared_lock read_only_lock(_global_attributes_mutex);
-  Attribute global_attributes = _global_attributes.attribute;
+  Attribute global_attributes = _global_attributes;
   read_only_lock.unlock();
 
   // Read the system clock for our issued_at timestamp

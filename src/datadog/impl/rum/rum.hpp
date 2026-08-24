@@ -15,7 +15,6 @@
 #include "datadog/attribute.hpp"
 #include "datadog/rum.hpp"
 
-#include "datadog/impl/core/attribute/typed_attribute.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
@@ -196,7 +195,7 @@ class Rum final : public Feature {
 
  private:
   // Global attributes applied to all RUM events
-  ObjectAttribute _global_attributes;
+  Attribute _global_attributes;
   mutable std::shared_mutex _global_attributes_mutex;
 
   // Input dependencies passed to all child scopes by reference

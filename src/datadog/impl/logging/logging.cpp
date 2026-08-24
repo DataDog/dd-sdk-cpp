@@ -13,7 +13,7 @@
 namespace datadog::impl {
 
 Logging::Logging(const platform::IClock& clock)
-    : _clock(clock), _global_attributes(8) {}
+    : _clock(clock), _global_attributes(Attribute::Object(8)) {}
 
 std::optional<Report> Logging::UploadThread_PrepareReport(
     BatchReader& reader, HttpRequestBuilder& builder
@@ -30,12 +30,12 @@ std::optional<Report> Logging::UploadThread_PrepareReport(
 
 void Logging::AddAttribute(std::string_view name, const Attribute& value) {
   std::unique_lock exclusive_write_lock(_global_attributes_mutex);
-  _global_attributes.attribute.SetObjectProperty(name, value);
+  _global_attributes.SetObjectProperty(name, value);
 }
 
 void Logging::RemoveAttribute(std::string_view name) {
   std::unique_lock exclusive_write_lock(_global_attributes_mutex);
-  _global_attributes.attribute.DeleteObjectProperty(name);
+  _global_attributes.DeleteObjectProperty(name);
 }
 
 std::unique_ptr<Logger> Logging::CreateLogger(const LoggerConfig& config) {
@@ -45,7 +45,7 @@ std::unique_ptr<Logger> Logging::CreateLogger(const LoggerConfig& config) {
 
 Attribute Logging::SnapshotGlobalAttributes() const {
   std::shared_lock read_lock(_global_attributes_mutex);
-  return _global_attributes.attribute;
+  return _global_attributes;
 }
 
 }  // namespace datadog::impl

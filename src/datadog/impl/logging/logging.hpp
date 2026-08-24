@@ -12,7 +12,6 @@
 #include <string_view>
 #include <vector>
 
-#include "datadog/impl/core/attribute/typed_attribute.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/logging/types.hpp"
@@ -59,7 +58,7 @@ class Logging final : public Feature {
   const platform::IClock& _clock;
 
   // Global attributes applied to all log events
-  ObjectAttribute _global_attributes;
+  Attribute _global_attributes;
   mutable std::shared_mutex _global_attributes_mutex;
 
   // Reusable buffer for encoding events; accessed only on the context thread
