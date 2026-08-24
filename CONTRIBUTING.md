@@ -126,10 +126,11 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 - [`src/datadog/c/`][src-c] implements the C API.
 - [`src/datadog/cpp/`][src-cpp] implements the C++ API.
 - [`src/datadog/impl/`][src-impl] implements the core business logic of the library, split into:
+    - [`types/`][impl-types] implements essential data types and related routines used across modules, including:
+        - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
     - [`core/`][impl-core] implements the primary business logic of the SDK, including:
         - [`util/`][core-util]: Internal utility code for commonly-used functionality like asserts, diagnostic logging, etc.
         - [`attribute/`][core-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
-        - [`json/`][core-json]: Minimal JSON serialization routines for encoding event data and attribute values
         - [`events/`][core-events]: Utilities used to build JSON-serializable struct types for event payloads
         - [`feature_types/`][core-feature-types]: Feature-specific data types used across module boundaries, including event payload types and shared context types
         - [`storage/`][core-storage]: Code used to access the filesystem, prepare the SDK's `.datadog/` storage directory, and write and migrate event data
@@ -154,10 +155,11 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [src-c]: ./src/datadog/c/
 [src-cpp]: ./src/datadog/cpp/
 [src-impl]: ./src/datadog/impl/
+[impl-types]: ./src/datadog/impl/types/
+[types-json]: ./src/datadog/impl/types/json/
 [impl-core]: ./src/datadog/impl/core/
 [core-util]: ./src/datadog/impl/core/util/
 [core-attribute]: ./src/datadog/impl/core/attribute/
-[core-json]: ./src/datadog/impl/core/json/
 [core-events]: ./src/datadog/impl/core/events/
 [core-feature-types]: ./src/datadog/impl/core/feature_types/
 [core-storage]: ./src/datadog/impl/core/storage/

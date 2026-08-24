@@ -16,18 +16,18 @@
 #include "datadog/impl/core/util/assert.hpp"
 
 // clang-format off
-#include "datadog/impl/core/json/primitives/monostate.hpp"
-#include "datadog/impl/core/json/primitives/bool.hpp"
-#include "datadog/impl/core/json/primitives/float.hpp"
-#include "datadog/impl/core/json/primitives/integer.hpp"
-#include "datadog/impl/core/json/primitives/null.hpp"
-#include "datadog/impl/core/json/primitives/string.hpp"
-#include "datadog/impl/core/json/primitives/timestamp.hpp"
-#include "datadog/impl/core/json/primitives/uuid.hpp"
-#include "datadog/impl/core/json/attribute.hpp"
-#include "datadog/impl/core/json/diagnostic_attribute.hpp"
-#include "datadog/impl/core/json/vector.hpp"
-#include "datadog/impl/core/json/optional.hpp"
+#include "datadog/impl/types/json/primitives/monostate.hpp"
+#include "datadog/impl/types/json/primitives/bool.hpp"
+#include "datadog/impl/types/json/primitives/float.hpp"
+#include "datadog/impl/types/json/primitives/integer.hpp"
+#include "datadog/impl/types/json/primitives/null.hpp"
+#include "datadog/impl/types/json/primitives/string.hpp"
+#include "datadog/impl/types/json/primitives/timestamp.hpp"
+#include "datadog/impl/types/json/primitives/uuid.hpp"
+#include "datadog/impl/types/json/attribute.hpp"
+#include "datadog/impl/types/json/diagnostic_attribute.hpp"
+#include "datadog/impl/types/json/vector.hpp"
+#include "datadog/impl/types/json/optional.hpp"
 // clang-format on
 
 namespace datadog::impl {

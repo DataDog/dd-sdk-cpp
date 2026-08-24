@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/json/json_scanner.hpp"
+#include "datadog/impl/types/json/json_scanner.hpp"
 
 #include "support/catch.hpp"
 

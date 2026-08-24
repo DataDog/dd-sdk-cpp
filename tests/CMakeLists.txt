@@ -24,6 +24,15 @@ add_executable(tests
     cpp/user_info_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     cpp/version_cpp_api_test.cpp
+    impl/types/json/primitives/bool_test.cpp
+    impl/types/json/primitives/float_test.cpp
+    impl/types/json/primitives/integer_test.cpp
+    impl/types/json/primitives/null_test.cpp
+    impl/types/json/primitives/string_test.cpp
+    impl/types/json/primitives/timestamp_test.cpp
+    impl/types/json/primitives/uuid_test.cpp
+    impl/types/json/attribute_test.cpp
+    impl/types/json/optional_test.cpp
     impl/core/attribute/binary_test.cpp
     impl/core/attribute/cow_test.cpp
     impl/core/attribute/memory_test.cpp
@@ -38,15 +47,6 @@ add_executable(tests
     impl/core/http/body_writer_tlv_test.cpp
     impl/core/http/client_test.cpp
     impl/core/http/request_builder_test.cpp
-    impl/core/json/primitives/bool_test.cpp
-    impl/core/json/primitives/float_test.cpp
-    impl/core/json/primitives/integer_test.cpp
-    impl/core/json/primitives/null_test.cpp
-    impl/core/json/primitives/string_test.cpp
-    impl/core/json/primitives/timestamp_test.cpp
-    impl/core/json/primitives/uuid_test.cpp
-    impl/core/json/attribute_test.cpp
-    impl/core/json/optional_test.cpp
     impl/core/platform/clock_test.cpp
     impl/core/platform/system_info_test.cpp
     impl/core/storage/artifact_test.cpp
@@ -87,7 +87,7 @@ add_executable(tests
     impl/rum/containers/view_array_test.cpp
     impl/rum/crash_processing/crash_formatting_test.cpp
     impl/rum/crash_processing/crash_handling_test.cpp
-    impl/core/json/json_scanner_test.cpp
+    impl/types/json/json_scanner_test.cpp
     impl/rum/crash_processing/view_event_mutation_test.cpp
     impl/rum/crash_processing/view_event_parser_test.cpp
     impl/rum/scopes/action_test.cpp
