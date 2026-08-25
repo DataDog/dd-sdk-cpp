@@ -130,6 +130,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
         - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
         - [`events/`][types-events]: Utilities used to build JSON-serializable struct types for event payloads
         - [`diagnostics.hpp][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
+        - [`logging.hpp`][types-logging]: Logging-related data structures used across module boundaries
         - [`rum.hpp`][types-rum]: RUM-related data structures, including RUM events adhering to [rum-events-format](https://github.com/DataDog/rum-events-format/), used across modules
     - [`core/`][impl-core] implements the primary business logic of the SDK, including:
         - [`util/`][core-util]: Internal utility code for commonly-used functionality
@@ -160,6 +161,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [types-json]: ./src/datadog/impl/types/json/
 [types-events]: ./src/datadog/impl/types/events/
 [types-diagnostics]: ./src/datadog/impl/types/diagnostics.hpp
+[types-logging]: ./src/datadog/impl/types/logging.hpp
 [types-rum]: ./src/datadog/impl/types/rum.hpp
 [impl-core]: ./src/datadog/impl/core/
 [core-util]: ./src/datadog/impl/core/util/
