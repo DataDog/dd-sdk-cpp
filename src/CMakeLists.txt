@@ -22,6 +22,8 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/cpp/rum.cpp
     datadog/cpp/uuid.cpp
     datadog/cpp/version.cpp
+    datadog/impl/types/attribute/cow.cpp
+    datadog/impl/types/attribute/merge.cpp
     datadog/impl/types/json/primitives/bool.cpp
     datadog/impl/types/json/primitives/float.cpp
     datadog/impl/types/json/primitives/integer.cpp
@@ -34,8 +36,6 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/json/json_scanner.cpp
     datadog/impl/types/diagnostics.cpp
     datadog/impl/core/attribute/binary.cpp
-    datadog/impl/core/attribute/cow.cpp
-    datadog/impl/core/attribute/merge.cpp
     datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp
     datadog/impl/core/context.cpp

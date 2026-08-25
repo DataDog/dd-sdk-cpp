@@ -4,10 +4,10 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/attribute/merge.hpp"
+#include "datadog/impl/types/attribute/merge.hpp"
 
-#include "datadog/impl/core/attribute/cow.hpp"
 #include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/attribute/cow.hpp"
 
 namespace datadog::impl {
 

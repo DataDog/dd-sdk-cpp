@@ -127,6 +127,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 - [`src/datadog/cpp/`][src-cpp] implements the C++ API.
 - [`src/datadog/impl/`][src-impl] implements the core business logic of the library, split into:
     - [`types/`][impl-types] implements essential data types and related routines used across modules, including:
+        - [`attribute/`][types-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
         - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
         - [`events/`][types-events]: Utilities used to build JSON-serializable struct types for event payloads
         - [`diagnostics.hpp][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
@@ -135,7 +136,6 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
         - [`crash_reporting.hpp`][types-crash-reporting]: CrashReporting-related data structures used across modules
     - [`core/`][impl-core] implements the primary business logic of the SDK, including:
         - [`util/`][core-util]: Internal utility code for commonly-used functionality
-        - [`attribute/`][core-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
         - [`storage/`][core-storage]: Code used to access the filesystem, prepare the SDK's `.datadog/` storage directory, and write and migrate event data
         - [`platform/`][core-platform]: Implementations of platform-specific functionality like system info, HTTP client, and access to the system clock
         - [`core.hpp`][core-hpp]: Internal core of the SDK, which handles initialization, feature registration, and which runs the storage and upload threads.
@@ -159,6 +159,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [src-cpp]: ./src/datadog/cpp/
 [src-impl]: ./src/datadog/impl/
 [impl-types]: ./src/datadog/impl/types/
+[types-attribute]: ./src/datadog/impl/types/attribute/
 [types-json]: ./src/datadog/impl/types/json/
 [types-events]: ./src/datadog/impl/types/events/
 [types-diagnostics]: ./src/datadog/impl/types/diagnostics.hpp
@@ -167,7 +168,6 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [types-crash-reporting]: ./src/datadog/impl/types/crash_reporting.hpp
 [impl-core]: ./src/datadog/impl/core/
 [core-util]: ./src/datadog/impl/core/util/
-[core-attribute]: ./src/datadog/impl/core/attribute/
 [core-feature-types]: ./src/datadog/impl/core/feature_types/
 [core-storage]: ./src/datadog/impl/core/storage/
 [core-platform]: ./src/datadog/impl/core/platform/

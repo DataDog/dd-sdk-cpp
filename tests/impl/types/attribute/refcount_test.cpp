@@ -10,7 +10,7 @@
 
 #include "datadog/attribute.hpp"
 
-#include "impl/core/attribute/reference.hpp"
+#include "impl/types/attribute/reference.hpp"
 #include "support/attribute_debug.hpp"
 
 using namespace datadog;

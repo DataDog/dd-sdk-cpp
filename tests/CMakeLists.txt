@@ -24,6 +24,10 @@ add_executable(tests
     cpp/user_info_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     cpp/version_cpp_api_test.cpp
+    impl/types/attribute/cow_test.cpp
+    impl/types/attribute/memory_test.cpp
+    impl/types/attribute/merge_test.cpp
+    impl/types/attribute/refcount_test.cpp
     impl/types/json/primitives/bool_test.cpp
     impl/types/json/primitives/float_test.cpp
     impl/types/json/primitives/integer_test.cpp
@@ -38,13 +42,10 @@ add_executable(tests
     impl/types/events/struct_test.cpp
     impl/types/events/timestamp_test.cpp
     impl/types/diagnostics_test.cpp
+    impl/types/json/json_scanner_test.cpp
     impl/types/json_test.cpp
     impl/types/rum_test.cpp
     impl/core/attribute/binary_test.cpp
-    impl/core/attribute/cow_test.cpp
-    impl/core/attribute/memory_test.cpp
-    impl/core/attribute/merge_test.cpp
-    impl/core/attribute/refcount_test.cpp
     impl/core/http/body_writer_string_test.cpp
     impl/core/http/body_writer_tlv_test.cpp
     impl/core/http/client_test.cpp
@@ -87,7 +88,6 @@ add_executable(tests
     impl/rum/containers/view_array_test.cpp
     impl/rum/crash_processing/crash_formatting_test.cpp
     impl/rum/crash_processing/crash_handling_test.cpp
-    impl/types/json/json_scanner_test.cpp
     impl/rum/crash_processing/view_event_mutation_test.cpp
     impl/rum/crash_processing/view_event_parser_test.cpp
     impl/rum/scopes/action_test.cpp

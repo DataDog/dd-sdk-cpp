@@ -6,11 +6,11 @@
 
 #include "datadog/impl/logging/logger.hpp"
 
-#include "datadog/impl/core/attribute/merge.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/logging/event_generation.hpp"
 #include "datadog/impl/logging/logging.hpp"
 #include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/attribute/merge.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 #include "datadog/impl/types/logging.hpp"
 

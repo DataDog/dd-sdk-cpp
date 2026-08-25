@@ -6,11 +6,11 @@
 
 #include "datadog/impl/rum/scopes/action.hpp"
 
-#include "datadog/impl/core/attribute/merge.hpp"
 #include "datadog/impl/rum/context.hpp"
 #include "datadog/impl/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/rum/scopes/session.hpp"
 #include "datadog/impl/rum/scopes/view.hpp"
+#include "datadog/impl/types/attribute/merge.hpp"
 
 namespace datadog::impl {
 

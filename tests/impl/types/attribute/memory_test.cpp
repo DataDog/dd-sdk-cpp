@@ -12,9 +12,9 @@
 
 #include "datadog/attribute.hpp"
 
-#include "datadog/impl/core/attribute/cow.hpp"
+#include "datadog/impl/types/attribute/cow.hpp"
 
-#include "impl/core/attribute/reference.hpp"
+#include "impl/types/attribute/reference.hpp"
 #include "support/allocation_tracker.hpp"
 #include "support/attribute_debug.hpp"
 #include "support/memory_checks.hpp"
