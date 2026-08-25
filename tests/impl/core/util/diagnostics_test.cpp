@@ -14,6 +14,8 @@
 #include "datadog/core.h"
 #include "datadog/core.hpp"
 
+#include "datadog/impl/core/types.hpp"
+
 #include "support/catch.hpp"
 
 using namespace datadog;
@@ -76,7 +78,7 @@ TEST_CASE("DiagnosticLogger", "[unit][diagnostics]") {
   SECTION("M invoke handler callback W message emitted {FromC}") {
     // When we initialize an identical logger in the C API layer and log the same
     // message
-    DiagnosticLogger::FromC(my_c_handler, &messages, DD_DIAGNOSTIC_LEVEL_WARNING)
+    DiagnosticLogger_FromC(my_c_handler, &messages, DD_DIAGNOSTIC_LEVEL_WARNING)
         .Error("oh no");
 
     // Then our handler function is invoked for that message, just the same
@@ -111,7 +113,7 @@ TEST_CASE("DiagnosticLogger", "[unit][diagnostics]") {
       cpp_logger.Warning("warning");
       cpp_logger.Error("error");
 
-      auto c_logger = DiagnosticLogger::FromC(my_c_handler, &messages, c_level);
+      auto c_logger = DiagnosticLogger_FromC(my_c_handler, &messages, c_level);
       c_logger.Debug("debug");
       c_logger.Status("status");
       c_logger.Warning("warning");

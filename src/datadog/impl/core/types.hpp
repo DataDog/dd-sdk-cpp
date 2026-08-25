@@ -12,6 +12,7 @@
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/core/util/diagnostics.hpp"
 
 namespace datadog {
 
@@ -263,5 +264,18 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
 
   return cpp_config;
 }
+
+namespace impl {
+/**
+ * Initializes a new diagnostic-logger interface from a C-style callback. The C API
+ * accepts a raw function pointer, with an additional `void* userdata` parameter to
+ * provide a means of accessing persistent state.
+ */
+DiagnosticLogger DiagnosticLogger_FromC(
+    dd_diagnostic_handler_t c_handler,
+    void* c_handler_userdata,
+    dd_diagnostic_level_t c_threshold
+);
+}  // namespace impl
 
 }  // namespace datadog

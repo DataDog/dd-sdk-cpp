@@ -50,6 +50,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/core/storage_thread.cpp
     datadog/impl/core/storage_write.cpp
     datadog/impl/core/tlv.cpp
+    datadog/impl/core/types.cpp
     datadog/impl/core/upload_scheduler.cpp
     datadog/impl/core/upload_thread.cpp
     datadog/impl/core/upload_util.cpp
