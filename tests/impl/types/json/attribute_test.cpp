@@ -14,7 +14,7 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/util/json.hpp"
+#include "datadog/impl/types/json.hpp"
 
 #include "support/catch.hpp"
 

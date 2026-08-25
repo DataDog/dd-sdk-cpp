@@ -7,7 +7,7 @@
 #include "datadog/impl/types/diagnostics.hpp"
 
 #include "datadog/impl/core/util/assert.hpp"
-#include "datadog/impl/core/util/json.hpp"
+#include "datadog/impl/types/json.hpp"
 
 namespace datadog::impl {
 

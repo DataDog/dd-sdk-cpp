@@ -39,8 +39,9 @@ namespace datadog::impl {
  *
  * To encode a value of any JSON-serializable type, use `EncodeJson`.
  *
- * The files within in `src/datadog/impl/json/` define JSON serialization functions for
- * all supported types. For each type, those definitions consists of three functions:
+ * The files within in `src/datadog/impl/types/json/` define JSON serialization
+ * functions for all supported types. For each type, those definitions consists of three
+ * functions:
  *
  * size_t datadog::impl::GetJsonSize(const T& value):
  *   Given a value of type T, returns the number of bytes required to store the

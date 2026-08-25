@@ -13,8 +13,8 @@
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/rum/scope.hpp"
+#include "datadog/impl/types/json.hpp"
 
 #include "mock/clock.hpp"
 #include "support/catch.hpp"

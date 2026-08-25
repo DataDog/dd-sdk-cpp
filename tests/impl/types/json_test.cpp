@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/util/json.hpp"
+#include "datadog/impl/types/json.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <cinttypes>

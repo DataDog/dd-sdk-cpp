@@ -21,7 +21,7 @@
 #include <string_view>
 #include <vector>
 
-#include "datadog/impl/core/util/json.hpp"
+#include "datadog/impl/types/json.hpp"
 
 #include "support/catch.hpp"
 
