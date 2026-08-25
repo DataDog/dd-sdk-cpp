@@ -13,7 +13,7 @@
 #include <string>
 #include <string_view>
 
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json.hpp"
 
 namespace datadog::impl {

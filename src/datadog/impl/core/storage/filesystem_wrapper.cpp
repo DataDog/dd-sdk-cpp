@@ -8,7 +8,7 @@
 
 #include <utility>
 
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 

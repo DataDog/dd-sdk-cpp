@@ -9,7 +9,7 @@
 #include <cstring>
 #include <optional>
 
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json/json_scanner.hpp"
 
 namespace datadog::impl {

@@ -19,7 +19,7 @@
 
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/platform/windows_timezone_mapping.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
 #pragma comment(lib, "wbemuuid.lib")

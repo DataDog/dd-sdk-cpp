@@ -17,7 +17,7 @@
 
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 using namespace datadog;
 

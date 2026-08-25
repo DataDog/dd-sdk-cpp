@@ -11,8 +11,8 @@
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/crash_reporting/crash_processing.hpp"
+#include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json.hpp"
 
 namespace datadog::impl {

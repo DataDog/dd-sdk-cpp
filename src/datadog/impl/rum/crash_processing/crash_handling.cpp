@@ -11,12 +11,12 @@
 
 #include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/upload_util.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
 #include "datadog/impl/rum/crash_processing/crash_formatting.hpp"
 #include "datadog/impl/rum/crash_processing/view_event_mutation.hpp"
 #include "datadog/impl/rum/crash_processing/view_event_parser.hpp"
 #include "datadog/impl/rum/rum.hpp"
+#include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json.hpp"
 
 namespace datadog::impl {

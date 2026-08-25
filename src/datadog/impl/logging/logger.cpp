@@ -9,9 +9,9 @@
 #include "datadog/impl/core/attribute/merge.hpp"
 #include "datadog/impl/core/feature_types/logging.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/logging/event_generation.hpp"
 #include "datadog/impl/logging/logging.hpp"
+#include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {

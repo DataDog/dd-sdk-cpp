@@ -13,7 +13,7 @@
 #include "datadog/attribute.hpp"
 
 #include "datadog/impl/core/attribute/merge.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 // clang-format off
 #include "datadog/impl/types/json/primitives/monostate.hpp"

@@ -23,7 +23,7 @@
 #include "datadog/impl/core/storage_queue.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 // Global version number applied to all event data stored persistently; may be bumped in
 // the event of breaking changes in order to abandon previously-written events on disk.

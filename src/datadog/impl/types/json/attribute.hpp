@@ -11,7 +11,7 @@
 
 #include "datadog/attribute.hpp"
 
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json/primitives/string.hpp"
 
 namespace datadog::impl {

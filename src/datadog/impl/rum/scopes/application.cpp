@@ -12,8 +12,8 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/context.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 

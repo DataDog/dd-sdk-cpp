@@ -11,7 +11,7 @@
 
 #include "datadog/impl/core/attribute/cow.hpp"
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
-#include "datadog/impl/core/util/unreachable.hpp"
+#include "datadog/impl/types/unreachable.hpp"
 
 namespace datadog::impl {
 

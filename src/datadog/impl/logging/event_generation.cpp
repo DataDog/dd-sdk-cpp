@@ -12,9 +12,9 @@
 #include "datadog/impl/core/feature_types/logging.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/upload_util.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/logging/data.hpp"
 #include "datadog/impl/rum/scopes/event_enrichment.hpp"
+#include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json.hpp"
 
 namespace datadog::impl {

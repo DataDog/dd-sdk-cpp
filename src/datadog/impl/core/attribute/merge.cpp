@@ -7,7 +7,7 @@
 #include "datadog/impl/core/attribute/merge.hpp"
 
 #include "datadog/impl/core/attribute/cow.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 

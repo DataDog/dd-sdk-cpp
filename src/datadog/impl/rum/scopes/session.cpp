@@ -11,10 +11,10 @@
 
 #include "datadog/impl/core/attribute/merge.hpp"
 #include "datadog/impl/core/context.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/rum/context.hpp"
 #include "datadog/impl/rum/scopes/application.hpp"
 #include "datadog/impl/rum/scopes/event_enrichment.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 
