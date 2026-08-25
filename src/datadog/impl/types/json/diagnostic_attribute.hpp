@@ -8,7 +8,7 @@
 
 #include <cstddef>
 
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 

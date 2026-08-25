@@ -11,7 +11,7 @@
 #include "datadog/logging.h"
 #include "datadog/logging.hpp"
 
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 class Logger;

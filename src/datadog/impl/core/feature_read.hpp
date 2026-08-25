@@ -12,7 +12,7 @@
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/core/util/assert.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 

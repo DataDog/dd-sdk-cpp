@@ -12,9 +12,9 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/core/util/validation.hpp"
 #include "datadog/impl/rum/rum.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog {
 

@@ -37,6 +37,7 @@ add_executable(tests
     impl/types/events/omissible_test.cpp
     impl/types/events/struct_test.cpp
     impl/types/events/timestamp_test.cpp
+    impl/types/diagnostics_test.cpp
     impl/core/attribute/binary_test.cpp
     impl/core/attribute/cow_test.cpp
     impl/core/attribute/memory_test.cpp
@@ -55,7 +56,6 @@ add_executable(tests
     impl/core/storage/filesystem_wrapper_test.cpp
     impl/core/storage/path_test.cpp
     impl/core/storage/sdk_test.cpp
-    impl/core/util/diagnostics_test.cpp
     impl/core/util/json_test.cpp
     impl/core/util/validation_test.cpp
     impl/core/block_test.cpp

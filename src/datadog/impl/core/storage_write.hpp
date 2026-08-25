@@ -20,7 +20,7 @@
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/util/assert.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 

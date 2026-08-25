@@ -129,8 +129,9 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
     - [`types/`][impl-types] implements essential data types and related routines used across modules, including:
         - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
         - [`events/`][types-events]: Utilities used to build JSON-serializable struct types for event payloads
+        - [`diagnostics.hpp][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
     - [`core/`][impl-core] implements the primary business logic of the SDK, including:
-        - [`util/`][core-util]: Internal utility code for commonly-used functionality like asserts, diagnostic logging, etc.
+        - [`util/`][core-util]: Internal utility code for commonly-used functionality
         - [`attribute/`][core-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
         - [`feature_types/`][core-feature-types]: Feature-specific data types used across module boundaries, including event payload types and shared context types
         - [`storage/`][core-storage]: Code used to access the filesystem, prepare the SDK's `.datadog/` storage directory, and write and migrate event data
@@ -158,6 +159,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [impl-types]: ./src/datadog/impl/types/
 [types-json]: ./src/datadog/impl/types/json/
 [types-events]: ./src/datadog/impl/types/events/
+[types-diagnostics]: ./src/datadog/impl/types/diagnostics.hpp
 [impl-core]: ./src/datadog/impl/core/
 [core-util]: ./src/datadog/impl/core/util/
 [core-attribute]: ./src/datadog/impl/core/attribute/

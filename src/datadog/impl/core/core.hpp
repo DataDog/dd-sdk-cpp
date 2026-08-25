@@ -28,7 +28,7 @@
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/upload_scheduler.hpp"
 #include "datadog/impl/core/upload_thread.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 // Forward declarations
 namespace datadog::platform {

@@ -15,10 +15,10 @@
 #include "datadog/c/core_glue.hpp"
 #include "datadog/c/crash_reporting_glue.hpp"
 #include "datadog/impl/core/core.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
 #include "datadog/impl/crash_reporting/crash_handler_init.hpp"
 #include "datadog/impl/crash_reporting/crash_reporting.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 static const uint32_t CRASH_REPORTING_CONFIG_VERSION = 1;
 

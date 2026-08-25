@@ -8,7 +8,7 @@
 
 #include "datadog/impl/core/http/body_writer.hpp"
 #include "datadog/impl/core/http/result.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 
