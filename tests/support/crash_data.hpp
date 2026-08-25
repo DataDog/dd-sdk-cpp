@@ -11,9 +11,9 @@
 #include "datadog/core.hpp"
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context.hpp"
 #include "datadog/impl/crash_reporting/data/crash_report.hpp"
+#include "datadog/impl/types/crash_reporting.hpp"
 
 #include "mock/binary.hpp"
 

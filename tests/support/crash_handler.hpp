@@ -9,8 +9,8 @@
 #include <optional>
 #include <string_view>
 
-#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
+#include "datadog/impl/types/crash_reporting.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
 using namespace datadog;
