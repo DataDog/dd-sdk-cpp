@@ -9,7 +9,7 @@
 #include <cstdint>
 #include <string_view>
 
-#include "datadog/impl/rum/crash_processing/view_event_parser.hpp"
+#include "datadog/impl/crash_processing/view_event_parser.hpp"
 
 namespace datadog::impl {
 

@@ -45,6 +45,10 @@ add_executable(tests
     impl/types/json/json_scanner_test.cpp
     impl/types/json_test.cpp
     impl/types/rum_test.cpp
+    impl/crash_processing/crash_formatting_test.cpp
+    impl/crash_processing/crash_handling_test.cpp
+    impl/crash_processing/view_event_mutation_test.cpp
+    impl/crash_processing/view_event_parser_test.cpp
     impl/core/attribute/binary_test.cpp
     impl/core/http/body_writer_string_test.cpp
     impl/core/http/body_writer_tlv_test.cpp
@@ -86,10 +90,6 @@ add_executable(tests
     impl/logging/tags_test.cpp
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp
-    impl/rum/crash_processing/crash_formatting_test.cpp
-    impl/rum/crash_processing/crash_handling_test.cpp
-    impl/rum/crash_processing/view_event_mutation_test.cpp
-    impl/rum/crash_processing/view_event_parser_test.cpp
     impl/rum/scopes/action_test.cpp
     impl/rum/scopes/application_test.cpp
     impl/rum/scopes/resource_test.cpp

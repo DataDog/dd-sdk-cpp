@@ -4,16 +4,16 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/rum/crash_processing/crash_handling.hpp"
+#include "datadog/impl/crash_processing/crash_handling.hpp"
 
 #include <charconv>
 #include <chrono>
 
 #include "datadog/impl/core/upload_util.hpp"
 #include "datadog/impl/core/version.hpp"
-#include "datadog/impl/rum/crash_processing/crash_formatting.hpp"
-#include "datadog/impl/rum/crash_processing/view_event_mutation.hpp"
-#include "datadog/impl/rum/crash_processing/view_event_parser.hpp"
+#include "datadog/impl/crash_processing/crash_formatting.hpp"
+#include "datadog/impl/crash_processing/view_event_mutation.hpp"
+#include "datadog/impl/crash_processing/view_event_parser.hpp"
 #include "datadog/impl/rum/rum.hpp"
 #include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/crash_reporting.hpp"

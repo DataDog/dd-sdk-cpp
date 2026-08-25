@@ -246,6 +246,16 @@ else()
     endif()
 endif()
 
+# Common crash processing logic used by RUM as well as the Crashpad handler process:
+# depends only on impl/types/, not impl/core/
+
+target_sources(ddsdkcpp PRIVATE
+    datadog/impl/crash_processing/crash_formatting.cpp
+    datadog/impl/crash_processing/crash_handling.cpp
+    datadog/impl/crash_processing/view_event_mutation.cpp
+    datadog/impl/crash_processing/view_event_parser.cpp
+)
+
 # === logging ===
 
 target_sources(ddsdkcpp PRIVATE
@@ -260,10 +270,6 @@ target_sources(ddsdkcpp PRIVATE
 target_sources(ddsdkcpp PRIVATE
     datadog/impl/rum/containers/resource_map.cpp
     datadog/impl/rum/containers/view_array.cpp
-    datadog/impl/rum/crash_processing/crash_formatting.cpp
-    datadog/impl/rum/crash_processing/crash_handling.cpp
-    datadog/impl/rum/crash_processing/view_event_mutation.cpp
-    datadog/impl/rum/crash_processing/view_event_parser.cpp
     datadog/impl/rum/scopes/action.cpp
     datadog/impl/rum/scopes/application.cpp
     datadog/impl/rum/scopes/resource.cpp
