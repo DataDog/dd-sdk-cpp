@@ -45,6 +45,7 @@ add_executable(tests
     impl/types/json/json_scanner_test.cpp
     impl/types/json_test.cpp
     impl/types/rum_test.cpp
+    impl/types/sampling_test.cpp
     impl/crash_processing/crash_formatting_test.cpp
     impl/crash_processing/crash_handling_test.cpp
     impl/crash_processing/view_event_mutation_test.cpp
