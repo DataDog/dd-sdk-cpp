@@ -32,7 +32,6 @@
 #include <mach-o/loader.h>
 #endif
 
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/storage/util.hpp"
@@ -42,6 +41,7 @@
 #include "datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.hpp"
 #include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 namespace datadog::impl {
 

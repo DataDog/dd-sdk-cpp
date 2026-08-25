@@ -9,8 +9,8 @@
 #include <array>
 #include <charconv>
 
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 namespace datadog::impl {
 

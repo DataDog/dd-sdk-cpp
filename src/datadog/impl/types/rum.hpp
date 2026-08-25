@@ -79,7 +79,7 @@ To validate the definitions in this file, follow these steps:
 4. Identify every top-level event type. A top-level event type is a struct type whose
    name takes the form `Rum<Foo>Event`. For every such event:
 
-  a. Read `tests/impl/core/feature_types/rum_test.cpp` and verify that there is a
+  a. Read `tests/impl/types/rum_test.cpp` and verify that there is a
      top-level `TEST_CASE` declaration matching the name of that type.
   b. Verify that within that `TEST_CASE`, there is a single `SECTION` asserting that a
      `Rum<Foo>Event` serializes to a valid JSON event when all supported values are set.

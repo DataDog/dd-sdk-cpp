@@ -21,7 +21,6 @@
 #include "client/crashpad_client.h"
 #include "client/settings.h"
 
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
 #include "datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.hpp"
@@ -30,6 +29,7 @@
 #include "datadog/impl/types/events/struct.hpp"
 #include "datadog/impl/types/json.hpp"
 #include "datadog/impl/types/json/attribute.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 #ifdef _WIN32
 #include <windows.h>  // GetModuleFileName

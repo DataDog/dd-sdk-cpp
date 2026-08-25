@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 #include <nlohmann/json.hpp>
 #include <string_view>

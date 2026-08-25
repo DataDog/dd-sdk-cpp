@@ -39,12 +39,12 @@ add_executable(tests
     impl/types/events/timestamp_test.cpp
     impl/types/diagnostics_test.cpp
     impl/types/json_test.cpp
+    impl/types/rum_test.cpp
     impl/core/attribute/binary_test.cpp
     impl/core/attribute/cow_test.cpp
     impl/core/attribute/memory_test.cpp
     impl/core/attribute/merge_test.cpp
     impl/core/attribute/refcount_test.cpp
-    impl/core/feature_types/rum_test.cpp
     impl/core/http/body_writer_string_test.cpp
     impl/core/http/body_writer_tlv_test.cpp
     impl/core/http/client_test.cpp

@@ -130,10 +130,10 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
         - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
         - [`events/`][types-events]: Utilities used to build JSON-serializable struct types for event payloads
         - [`diagnostics.hpp][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
+        - [`rum.hpp`][types-rum]: RUM-related data structures, including RUM events adhering to [rum-events-format](https://github.com/DataDog/rum-events-format/), used across modules
     - [`core/`][impl-core] implements the primary business logic of the SDK, including:
         - [`util/`][core-util]: Internal utility code for commonly-used functionality
         - [`attribute/`][core-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
-        - [`feature_types/`][core-feature-types]: Feature-specific data types used across module boundaries, including event payload types and shared context types
         - [`storage/`][core-storage]: Code used to access the filesystem, prepare the SDK's `.datadog/` storage directory, and write and migrate event data
         - [`platform/`][core-platform]: Implementations of platform-specific functionality like system info, HTTP client, and access to the system clock
         - [`core.hpp`][core-hpp]: Internal core of the SDK, which handles initialization, feature registration, and which runs the storage and upload threads.
@@ -160,6 +160,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [types-json]: ./src/datadog/impl/types/json/
 [types-events]: ./src/datadog/impl/types/events/
 [types-diagnostics]: ./src/datadog/impl/types/diagnostics.hpp
+[types-rum]: ./src/datadog/impl/types/rum.hpp
 [impl-core]: ./src/datadog/impl/core/
 [core-util]: ./src/datadog/impl/core/util/
 [core-attribute]: ./src/datadog/impl/core/attribute/
