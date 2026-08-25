@@ -62,6 +62,12 @@ struct RumScopeDependencies {
   float GetSessionSampleRate() const { return _sampling_rate; }
 
   /**
+   * Returns a mutable reference to the reusable buffer where RUM event payloads are
+   * encoded. May only be called from the context thread.
+   */
+  std::vector<uint8_t>& GetEncodeBuffer() const { return _encode_buffer; }
+
+  /**
    * Encodes a RUM event to JSON without writing it. The caller uses the returned
    * string_view with the EventWriter callback to actually write the event.
    *

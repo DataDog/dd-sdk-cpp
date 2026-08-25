@@ -14,7 +14,6 @@
 #include "datadog/impl/crash_processing/crash_formatting.hpp"
 #include "datadog/impl/crash_processing/view_event_mutation.hpp"
 #include "datadog/impl/crash_processing/view_event_parser.hpp"
-#include "datadog/impl/rum/rum.hpp"
 #include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/crash_reporting.hpp"
 #include "datadog/impl/types/json.hpp"
@@ -22,23 +21,16 @@
 
 namespace datadog::impl {
 
-/**
- * Helper used to generate pre-JSON-encoded RUM events in response to crash reports,
- * bypassing all tracking consent checks in the current SDK instance.
- */
-static bool produce_event_for_crash(
-    const CrashContext& ctx,
-    const EventWriter& event_writer,
-    std::string_view event_data
+template <typename T>
+static std::string_view encode_event(
+    const T& event, std::vector<uint8_t>& encode_buffer
 ) {
-  // Sanity-check: because we bypass tracking consent, we should have already rejected
-  // any crashes that occurred when the SDK did not have explicit tracking consent
-  const bool bypass_tracking_consent = true;
-  DATADOG_ASSERT(
-      ctx.tracking_consent == TrackingConsent::Granted,
-      "attempted to produce an event for a crash without tracking consent"
+  EncodeJson(encode_buffer, event);
+  return std::string_view(
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      reinterpret_cast<const char*>(encode_buffer.data()),
+      encode_buffer.size()
   );
-  return event_writer(event_data, {}, bypass_tracking_consent);
 }
 
 /**
@@ -290,10 +282,10 @@ static RumViewEvent create_application_launch_view_for_crash(
 static void handle_crash_that_preceded_initial_session(
     const UUID& fallback_application_id,
     const DiagnosticLogger& diagnostic_logger,
-    RumScopeDependencies& deps,
     const CrashReport& crash,
     const CrashContext& ctx,
-    const EventWriter& event_writer
+    std::vector<uint8_t>& encode_buffer,
+    const CrashEventSink& sink
 ) {
   // This function is only called for a specific subset of crashes
   DATADOG_ASSERT(
@@ -331,7 +323,7 @@ static void handle_crash_that_preceded_initial_session(
   RumViewEvent view_ev = create_application_launch_view_for_crash(
       application_id, new_session_id, session_type, session_has_replay, crash, ctx
   );
-  produce_event_for_crash(ctx, event_writer, deps.EncodeEvent(view_ev));
+  sink(CrashEventType::View, encode_event(view_ev, encode_buffer));
 
   // Generate a RUM Error event that reflects the details of our synthetic view
   RumErrorEvent ev(
@@ -348,7 +340,7 @@ static void handle_crash_that_preceded_initial_session(
   ev.session.has_replay = session_has_replay;
   ev.view.name = view_ev.view.name;
   populate_error_event_for_crash(crash, ctx, ev);
-  produce_event_for_crash(ctx, event_writer, deps.EncodeEvent(ev));
+  sink(CrashEventType::Error, encode_event(ev, encode_buffer));
 
   // Log a status message to indicate that we successfully produced RUM events in
   // response to a crash report
@@ -369,10 +361,10 @@ static void handle_crash_that_preceded_initial_session(
 static void handle_crash_that_preceded_initial_view_in_initial_session(
     const UUID& fallback_application_id,
     const DiagnosticLogger& diagnostic_logger,
-    RumScopeDependencies& deps,
     const CrashReport& crash,
     const CrashContext& ctx,
-    const EventWriter& event_writer
+    std::vector<uint8_t>& encode_buffer,
+    const CrashEventSink& sink
 ) {
   // This function is only called for a specific subset of crashes
   DATADOG_ASSERT(
@@ -422,7 +414,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
       crash,
       ctx
   );
-  produce_event_for_crash(ctx, event_writer, deps.EncodeEvent(view_ev));
+  sink(CrashEventType::View, encode_event(view_ev, encode_buffer));
 
   // Generate a RUM Error event that reflects the details of our synthetic view
   RumErrorEvent ev(
@@ -439,7 +431,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
   ev.session.has_replay = session_has_replay;
   ev.view.name = view_ev.view.name;
   populate_error_event_for_crash(crash, ctx, ev);
-  produce_event_for_crash(ctx, event_writer, deps.EncodeEvent(ev));
+  sink(CrashEventType::Error, encode_event(ev, encode_buffer));
 
   // Log a status message to indicate that we successfully produced RUM events in
   // response to a crash report
@@ -460,10 +452,10 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
 static void handle_crash_that_had_active_view(
     const DiagnosticLogger& diagnostic_logger,
     Timestamp current_time,
-    RumScopeDependencies& deps,
     const CrashReport& crash,
     const CrashContext& ctx,
-    const EventWriter& event_writer
+    std::vector<uint8_t>& encode_buffer,
+    const CrashEventSink& sink
 ) {
   // This function is only called for a specific subset of crashes
   DATADOG_ASSERT(
@@ -521,7 +513,7 @@ static void handle_crash_that_had_active_view(
     DATADOG_ASSERT(
         !new_view_event.empty(), "MutateViewEventForCrash returned an empty result"
     );
-    produce_event_for_crash(ctx, event_writer, new_view_event);
+    sink(CrashEventType::View, new_view_event);
   } else {
     // View is too old to be updated: log timing details for diagnostics
     diagnostic_logger.Debug(
@@ -567,7 +559,7 @@ static void handle_crash_that_had_active_view(
 
   // Serialize our RumErrorEvent as JSON and enqueue it for storage alongside all other
   // RUM view events generated by this SDK instance, bypassing tracking consent
-  produce_event_for_crash(ctx, event_writer, deps.EncodeEvent(ev));
+  sink(CrashEventType::Error, encode_event(ev, encode_buffer));
 
   // Log a status message to indicate that we successfully produced RUM events in
   // response to a crash report
@@ -585,10 +577,14 @@ void ContextThread_HandleCrashReport(
     const UUID& fallback_application_id,
     const DiagnosticLogger& diagnostic_logger,
     Timestamp current_time,
-    RumScopeDependencies& deps,
     const CrashReport& crash,
-    const EventWriter& event_writer
+    std::vector<uint8_t>& encode_buffer,
+    const CrashEventSink& sink
 ) {
+  DATADOG_ASSERT(
+      sink != nullptr, "sink function must be provided when processing a crash"
+  );
+
   // If the crash report does not have an intact CrashContext describing the RUM state,
   // tracking consent, etc. at the time of the crash, we're unable to handle this crash
   if (!crash.context.has_value()) {
@@ -670,7 +666,7 @@ void ContextThread_HandleCrashReport(
   //       Error is recorded in the context of that View.
   if (!ctx.last_view_event_json.empty()) {
     handle_crash_that_had_active_view(
-        diagnostic_logger, current_time, deps, crash, ctx, event_writer
+        diagnostic_logger, current_time, crash, ctx, encode_buffer, sink
     );
     return;
   }
@@ -686,7 +682,7 @@ void ContextThread_HandleCrashReport(
         !ctx.rum_session_state.has_tracked_any_view;
     if (can_create_application_launch_view) {
       handle_crash_that_preceded_initial_view_in_initial_session(
-          fallback_application_id, diagnostic_logger, deps, crash, ctx, event_writer
+          fallback_application_id, diagnostic_logger, crash, ctx, encode_buffer, sink
       );
       return;
     }
@@ -710,7 +706,7 @@ void ContextThread_HandleCrashReport(
   //     b.) Synthesize an `ApplicationLaunch` view for the new session, then generate
   //         both a RUM View event and a RUM Error event
   handle_crash_that_preceded_initial_session(
-      fallback_application_id, diagnostic_logger, deps, crash, ctx, event_writer
+      fallback_application_id, diagnostic_logger, crash, ctx, encode_buffer, sink
   );
 }
 

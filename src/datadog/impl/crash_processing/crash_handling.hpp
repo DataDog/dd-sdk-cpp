@@ -6,10 +6,13 @@
 
 #pragma once
 
+#include <cinttypes>
+#include <vector>
+
 #include "datadog/timestamp.hpp"
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/feature_scope.hpp"
+#include "datadog/impl/crash_processing/crash_events.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
@@ -41,9 +44,9 @@ void ContextThread_HandleCrashReport(
     const UUID& fallback_application_id,
     const DiagnosticLogger& diagnostic_logger,
     Timestamp current_time,
-    RumScopeDependencies& deps,
     const CrashReport& crash,
-    const EventWriter& event_writer
+    std::vector<uint8_t>& encode_buffer,
+    const CrashEventSink& sink
 );
 
 }  // namespace datadog::impl
