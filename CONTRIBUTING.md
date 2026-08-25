@@ -130,7 +130,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
         - [`attribute/`][types-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
         - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
         - [`events/`][types-events]: Utilities used to build JSON-serializable struct types for event payloads
-        - [`diagnostics.hpp][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
+        - [`diagnostics.hpp`][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
         - [`logging.hpp`][types-logging]: Logging-related data structures used across module boundaries
         - [`rum.hpp`][types-rum]: RUM-related data structures, including RUM events adhering to [rum-events-format]
         - [`crash_reporting.hpp`][types-crash-reporting]: CrashReporting-related data structures used across modules
@@ -168,7 +168,6 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [types-crash-reporting]: ./src/datadog/impl/types/crash_reporting.hpp
 [impl-core]: ./src/datadog/impl/core/
 [core-util]: ./src/datadog/impl/core/util/
-[core-feature-types]: ./src/datadog/impl/core/feature_types/
 [core-storage]: ./src/datadog/impl/core/storage/
 [core-platform]: ./src/datadog/impl/core/platform/
 [core-hpp]: ./src/datadog/impl/core/core.hpp

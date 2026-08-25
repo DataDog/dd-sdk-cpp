@@ -15,7 +15,7 @@
 using namespace datadog;
 using namespace datadog::impl;
 
-TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
+TEST_CASE("RumViewEvent", "[unit][rum]") {
   // Given a RumViewEvent initialized with the minimum set of required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
   const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
@@ -483,7 +483,7 @@ TEST_CASE("RumViewEvent", "[unit][feature_types][rum]") {
   }
 }
 
-TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
+TEST_CASE("RumActionEvent", "[unit][rum]") {
   // Given a RumActionEvent initialized with the minimum set of required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
   const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
@@ -732,7 +732,7 @@ TEST_CASE("RumActionEvent", "[unit][feature_types][rum]") {
   }
 }
 
-TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
+TEST_CASE("RumResourceEvent", "[unit][rum]") {
   // Given a RumResourceEvent initialized with the minimum set of required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
   const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
@@ -1023,7 +1023,7 @@ TEST_CASE("RumResourceEvent", "[unit][feature_types][rum]") {
   }
 }
 
-TEST_CASE("RumErrorEvent", "[unit][feature_types][rum]") {
+TEST_CASE("RumErrorEvent", "[unit][rum]") {
   // Given a RumErrorEvent initialized with the minimum set of required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
   const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
@@ -1379,7 +1379,7 @@ Last 8 instructions at CS:EIP:
   }
 }
 
-TEST_CASE("RumLongTaskEvent", "[unit][feature_types][rum]") {
+TEST_CASE("RumLongTaskEvent", "[unit][rum]") {
   // Given a RumLongTaskEvent initialized with the minimum set of required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
   const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
@@ -1528,7 +1528,7 @@ TEST_CASE("RumLongTaskEvent", "[unit][feature_types][rum]") {
   }
 }
 
-TEST_CASE("RumVitalAppLaunchEvent", "[unit][feature_types][rum]") {
+TEST_CASE("RumVitalAppLaunchEvent", "[unit][rum]") {
   // Given a RumVitalAppLaunchEvent initialized with the required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
   const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
@@ -1826,7 +1826,7 @@ TEST_CASE("RumVitalAppLaunchEvent", "[unit][feature_types][rum]") {
   }
 }
 
-TEST_CASE("RumVitalEvent", "[unit][feature_types][rum]") {
+TEST_CASE("RumVitalEvent", "[unit][rum]") {
   // Given a RumVitalEvent initialized with the minimum set of required properties
   const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
   const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
