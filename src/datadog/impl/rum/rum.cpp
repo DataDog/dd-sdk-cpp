@@ -78,7 +78,14 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
         if (!self) {
           return;
         }
-        ContextThread_HandleCrashReport(self->_deps, crash, event_writer);
+        ContextThread_HandleCrashReport(
+            self->_deps.application_id,
+            self->_deps.diagnostic_logger,
+            self->_deps.clock.Now(),
+            self->_deps,
+            crash,
+            event_writer
+        );
       });
     } else if (const auto* m = std::get_if<LogErrorGeneratedMessage>(&msg)) {
       // Abort if our weak_ptr is no longer valid

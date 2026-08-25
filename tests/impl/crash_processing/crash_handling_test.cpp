@@ -226,7 +226,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then no events are produced
     REQUIRE(new_view_event.is_null());
@@ -256,7 +263,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then no events are produced
     REQUIRE(new_view_event.is_null());
@@ -283,7 +297,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then no events are produced
     REQUIRE(new_view_event.is_null());
@@ -312,7 +333,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then we produce a RUM View event that describes a synthetic 'ApplicationLaunch'
     // view created to contain the Error, where:
@@ -503,7 +531,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then no events are generated
     REQUIRE(new_view_event.is_null());
@@ -534,7 +569,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then we produce a RUM View event that describes a synthetic 'ApplicationLaunch'
     // view created to contain the Error, where all details are the same as the
@@ -737,7 +779,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // And a warning is logged to signal that we don't handle crashes that occurred
     // while no RUM View was active (except in the case of ApplicationLaunch)
@@ -779,7 +828,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash shortly after it's reported
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then we produce a schema-compliant RUM View event that describes the original
     // view, updated to reflect that the crash occurred
@@ -932,7 +988,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     // (crash happened at 1699999990000ms; initial MockClock time was 1700000000000ms)
     clock.Tick(std::chrono::hours(4));
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then we produce no view event
     REQUIRE(new_view_event.is_null());
@@ -1050,7 +1113,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
 
     // When we process that crash
     auto deps = make_deps();
-    ContextThread_HandleCrashReport(deps, crash, event_writer);
+    ContextThread_HandleCrashReport(
+        deps.application_id,
+        deps.diagnostic_logger,
+        deps.clock.Now(),
+        deps,
+        crash,
+        event_writer
+    );
 
     // Then both the view and error events include a 'usr' object containing only
     // anonymous_id: all the empty string fields are omitted by OmitIfEmpty, and the

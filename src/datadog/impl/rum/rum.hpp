@@ -221,15 +221,6 @@ class Rum final : public Feature {
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;
   std::string _request_headers;
-
-  // Rum is primarily responsible for servicing RUM API calls and maintaining the state
-  // tree that models the state of the active application. It also handles processing of
-  // crash reports from previous processes, but this process doesn't depend on or modify
-  // the active state tree in any way, so this code lives in `crash_processing/` rather
-  // than in `Rum` itself.
-  friend void ContextThread_HandleCrashReport(
-      RumScopeDependencies&, const CrashReport&, const EventWriter&
-  );
 };
 
 }  // namespace datadog::impl

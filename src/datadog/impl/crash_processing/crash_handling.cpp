@@ -288,6 +288,8 @@ static RumViewEvent create_application_launch_view_for_crash(
  * Handles a crash that occurred before the SDK established any RUM session whatsoever.
  */
 static void handle_crash_that_preceded_initial_session(
+    const UUID& fallback_application_id,
+    const DiagnosticLogger& diagnostic_logger,
     RumScopeDependencies& deps,
     const CrashReport& crash,
     const CrashContext& ctx,
@@ -306,7 +308,7 @@ static void handle_crash_that_preceded_initial_session(
   if (!ShouldSample_Deterministic(
           new_session_seed, ctx.rum_initial_config.session_sample_rate
       )) {
-    deps.diagnostic_logger.Status(
+    diagnostic_logger.Status(
         "Ignoring prior-process crash report: newly-created session was excluded from "
         "sampling"
     );
@@ -324,7 +326,7 @@ static void handle_crash_that_preceded_initial_session(
   // Generate an event describing a new ApplicationLaunch view to contain our crash
   UUID application_id = ctx.rum_initial_config.application_id;
   if (application_id == UUID::Zero) {
-    application_id = deps.application_id;
+    application_id = fallback_application_id;
   }
   RumViewEvent view_ev = create_application_launch_view_for_crash(
       application_id, new_session_id, session_type, session_has_replay, crash, ctx
@@ -350,7 +352,7 @@ static void handle_crash_that_preceded_initial_session(
 
   // Log a status message to indicate that we successfully produced RUM events in
   // response to a crash report
-  deps.diagnostic_logger.Status(
+  diagnostic_logger.Status(
       "Handled crash report: created new session, created ApplicationLaunch view, and "
       "recorded RUM Error",
       {{"session_id", new_session_id},
@@ -365,6 +367,8 @@ static void handle_crash_that_preceded_initial_session(
  * but before any RUM views had been created in that session.
  */
 static void handle_crash_that_preceded_initial_view_in_initial_session(
+    const UUID& fallback_application_id,
+    const DiagnosticLogger& diagnostic_logger,
     RumScopeDependencies& deps,
     const CrashReport& crash,
     const CrashContext& ctx,
@@ -408,7 +412,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
   // Generate an event describing a new ApplicationLaunch view to contain our crash
   UUID application_id = ctx.rum_initial_config.application_id;
   if (application_id == UUID::Zero) {
-    application_id = deps.application_id;
+    application_id = fallback_application_id;
   }
   RumViewEvent view_ev = create_application_launch_view_for_crash(
       application_id,
@@ -439,7 +443,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
 
   // Log a status message to indicate that we successfully produced RUM events in
   // response to a crash report
-  deps.diagnostic_logger.Status(
+  diagnostic_logger.Status(
       "Handled crash report: created ApplicationLaunch view and recorded RUM Error in "
       "prior-process session",
       {{"session_id", ctx.rum_session_state.session_id},
@@ -454,6 +458,8 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
  * active.
  */
 static void handle_crash_that_had_active_view(
+    const DiagnosticLogger& diagnostic_logger,
+    Timestamp current_time,
     RumScopeDependencies& deps,
     const CrashReport& crash,
     const CrashContext& ctx,
@@ -470,7 +476,7 @@ static void handle_crash_that_had_active_view(
   if (!parser.Parse(ctx.last_view_event_json)) {
     // Failure to parse indicates that the prior run of the SDK may have written a
     // malformed RUM view event in the serialized CrashContext
-    deps.diagnostic_logger.Warning(
+    diagnostic_logger.Warning(
         "Failed to handle prior-process crash: last view event could not be parsed"
     );
     return;
@@ -480,7 +486,6 @@ static void handle_crash_that_had_active_view(
   // assume that the backend will not accept newly-arrived view events for such an old
   // view; but for a view that's still able to be updated we want to send a RUM View
   // event that updates the state of the view to reflect the crash
-  const Timestamp current_time = deps.clock.Now();
   const Timestamp view_update_cutoff = current_time - std::chrono::hours(4);
   const uint64_t crash_timestamp_ms = crash.timestamp_ms;
   auto crash_timestamp = Timestamp{std::chrono::milliseconds(crash_timestamp_ms)};
@@ -519,7 +524,7 @@ static void handle_crash_that_had_active_view(
     produce_event_for_crash(ctx, event_writer, new_view_event);
   } else {
     // View is too old to be updated: log timing details for diagnostics
-    deps.diagnostic_logger.Debug(
+    diagnostic_logger.Debug(
         "Sending no view update for prior-process crash that had active view: cutoff "
         "time has passed",
         {{"current_time", current_time},
@@ -566,7 +571,7 @@ static void handle_crash_that_had_active_view(
 
   // Log a status message to indicate that we successfully produced RUM events in
   // response to a crash report
-  deps.diagnostic_logger.Status(
+  diagnostic_logger.Status(
       "Handled crash report: recorded RUM Error in prior-process view",
       {{"session_id", ctx.rum_session_state.session_id},
        {"view_id", parser.values.view_id},
@@ -577,6 +582,9 @@ static void handle_crash_that_had_active_view(
 }
 
 void ContextThread_HandleCrashReport(
+    const UUID& fallback_application_id,
+    const DiagnosticLogger& diagnostic_logger,
+    Timestamp current_time,
     RumScopeDependencies& deps,
     const CrashReport& crash,
     const EventWriter& event_writer
@@ -594,7 +602,7 @@ void ContextThread_HandleCrashReport(
     //   - A crash that occurred very early in the process, before the SDK started or
     //     before CrashReporting had a chance to handle the initial
     //     `ContextChangedMessage` by flushing an initial context file
-    deps.diagnostic_logger.Warning(
+    diagnostic_logger.Warning(
         "Ignoring prior-process crash report due to missing context"
     );
     return;
@@ -609,7 +617,7 @@ void ContextThread_HandleCrashReport(
   if (ctx.tracking_consent != TrackingConsent::Granted) {
     // Note that we drop the crash report even if tracking consent was pending: this is
     // consistent with the behavior of the iOS SDK
-    deps.diagnostic_logger.Status(
+    diagnostic_logger.Status(
         "Ignoring prior-process crash report due to lack of tracking consent at time "
         "of crash",
         {{"previous_consent",
@@ -625,7 +633,7 @@ void ContextThread_HandleCrashReport(
     // If a session was active, but was excluded from sampling due to a <100% session
     // sampling rate, we've already committed to never sending events for that session
     if (!ctx.rum_session_state.is_sampled) {
-      deps.diagnostic_logger.Status(
+      diagnostic_logger.Status(
           "Ignoring prior-process crash report: crash occurred during a session that "
           "was not sampled",
           {{"session_id", ctx.rum_session_state.session_id}}
@@ -661,7 +669,9 @@ void ContextThread_HandleCrashReport(
   //       carrying over the requisite fields from the last view event such that the
   //       Error is recorded in the context of that View.
   if (!ctx.last_view_event_json.empty()) {
-    handle_crash_that_had_active_view(deps, crash, ctx, event_writer);
+    handle_crash_that_had_active_view(
+        diagnostic_logger, current_time, deps, crash, ctx, event_writer
+    );
     return;
   }
 
@@ -676,7 +686,7 @@ void ContextThread_HandleCrashReport(
         !ctx.rum_session_state.has_tracked_any_view;
     if (can_create_application_launch_view) {
       handle_crash_that_preceded_initial_view_in_initial_session(
-          deps, crash, ctx, event_writer
+          fallback_application_id, diagnostic_logger, deps, crash, ctx, event_writer
       );
       return;
     }
@@ -685,7 +695,7 @@ void ContextThread_HandleCrashReport(
     //     we don't currently handle.
     // TODO(RUM-12247): Create a synthetic `Background` view to track the crash, and
     // generate a RUM View event and RUM Error event
-    deps.diagnostic_logger.Warning(
+    diagnostic_logger.Warning(
         "Ignoring prior-process crash report: crash occurred while no RUM View was "
         "active"
     );
@@ -699,7 +709,9 @@ void ContextThread_HandleCrashReport(
   //     a.) Ignore the crash (when the new session is not sampled), or
   //     b.) Synthesize an `ApplicationLaunch` view for the new session, then generate
   //         both a RUM View event and a RUM Error event
-  handle_crash_that_preceded_initial_session(deps, crash, ctx, event_writer);
+  handle_crash_that_preceded_initial_session(
+      fallback_application_id, diagnostic_logger, deps, crash, ctx, event_writer
+  );
 }
 
 }  // namespace datadog::impl
