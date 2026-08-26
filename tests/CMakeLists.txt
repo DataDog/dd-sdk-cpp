@@ -46,6 +46,7 @@ add_executable(tests
     impl/types/json_test.cpp
     impl/types/rum_test.cpp
     impl/types/sampling_test.cpp
+    impl/types/upload_util_test.cpp
     impl/crash_processing/crash_formatting_test.cpp
     impl/crash_processing/crash_handling_test.cpp
     impl/crash_processing/view_event_mutation_test.cpp
@@ -81,7 +82,6 @@ add_executable(tests
     impl/core/tlv_test.cpp
     impl/core/upload_scheduler_test.cpp
     impl/core/upload_thread_test.cpp
-    impl/core/upload_util_test.cpp
     impl/crash_reporting/data/crash_context_read_test.cpp
     impl/crash_reporting/data/crash_report_read_test.cpp
     impl/crash_reporting/crash_processing_test.cpp
