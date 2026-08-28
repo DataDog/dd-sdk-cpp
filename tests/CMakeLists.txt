@@ -87,7 +87,7 @@ add_executable(tests
     impl/rum/containers/view_array_test.cpp
     impl/rum/crash_processing/crash_formatting_test.cpp
     impl/rum/crash_processing/crash_handling_test.cpp
-    impl/rum/crash_processing/json_scanner_test.cpp
+    impl/core/json/json_scanner_test.cpp
     impl/rum/crash_processing/view_event_mutation_test.cpp
     impl/rum/crash_processing/view_event_parser_test.cpp
     impl/rum/scopes/action_test.cpp
@@ -120,8 +120,13 @@ if("${_crash_src_dir}/crash_report_write.cpp" IN_LIST _sdk_sources)
         impl/crash_reporting/data/crash_report_write_test.cpp
     )
 endif()
-unset(_sdk_sources)
 unset(_crash_src_dir)
+if("datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.cpp" IN_LIST _sdk_sources)
+    target_sources(tests PRIVATE
+        impl/crash_reporting/view_event_fit_test.cpp
+    )
+endif()
+unset(_sdk_sources)
 
 # Add Windows-specific tests
 if(WIN32)

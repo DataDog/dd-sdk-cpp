@@ -35,6 +35,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/core/json/primitives/uuid.cpp
     datadog/impl/core/json/attribute.cpp
     datadog/impl/core/json/diagnostic_attribute.cpp
+    datadog/impl/core/json/json_scanner.cpp
     datadog/impl/core/util/diagnostics.cpp
     datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp
@@ -261,7 +262,6 @@ target_sources(ddsdkcpp PRIVATE
     datadog/impl/rum/containers/view_array.cpp
     datadog/impl/rum/crash_processing/crash_formatting.cpp
     datadog/impl/rum/crash_processing/crash_handling.cpp
-    datadog/impl/rum/crash_processing/json_scanner.cpp
     datadog/impl/rum/crash_processing/view_event_mutation.cpp
     datadog/impl/rum/crash_processing/view_event_parser.cpp
     datadog/impl/rum/scopes/action.cpp
@@ -323,6 +323,7 @@ elseif(DD_CRASH_MODE STREQUAL "crashpad")
     include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
     target_sources(ddsdkcpp PRIVATE
         datadog/impl/crash_reporting/handlers/crashpad/crash_handler_crashpad.cpp
+        datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.cpp
     )
 else()
     message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
