@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstddef>
+#include <optional>
 
 #include "datadog/attribute.hpp"
 
@@ -14,6 +15,18 @@
 #include "datadog/impl/core/util/assert.hpp"
 
 namespace datadog::impl {
+
+/**
+ * Result returned by TryEncodeJson for Attribute values.
+ *
+ * `bytes_written` is the number of bytes written to the output buffer.
+ * `truncated` is true if one or more top-level object properties were dropped
+ * because they did not fit within the buffer.
+ */
+struct AttributeEncodeResult {
+  size_t bytes_written;
+  bool truncated;
+};
 
 /**
  * Returns the number of bytes required to encode the given Attribute value in JSON
@@ -25,6 +38,24 @@ size_t GetJsonSize(const Attribute& value);
  * Encodes the given Attribute value in JSON format.
  */
 size_t WriteJson(char* dst, size_t n, const Attribute& value);
+
+/**
+ * Attempts to serialize the given Attribute value into the fixed-size buffer `dst`
+ * (capacity `n` bytes), returning an AttributeEncodeResult on success, or std::nullopt
+ * if the value cannot fit even in its most-reduced form.
+ *
+ * For non-object types and empty objects, the value is written as-is if it fits;
+ * otherwise std::nullopt is returned. `truncated` is always false in these cases.
+ *
+ * For object types with one or more properties, writes the largest prefix of top-level
+ * properties (in order) that fits within `n` bytes. If all properties fit, `truncated`
+ * is false. If one or more properties had to be dropped from the back, `truncated` is
+ * true. If no individual property fits alongside the enclosing braces (i.e. the result
+ * is `{}`), `truncated` is true. Returns std::nullopt only if `n < 2`.
+ */
+std::optional<AttributeEncodeResult> TryEncodeJson(
+    char* dst, size_t n, const Attribute& value
+);
 
 /**
  * Special-case function for use in JSON struct serialization routines: encodes the

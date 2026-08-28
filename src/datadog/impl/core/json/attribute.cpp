@@ -120,6 +120,80 @@ size_t GetJsonSize(const Attribute& value) {
   return 0;
 }
 
+std::optional<AttributeEncodeResult> TryEncodeJson(
+    char* dst, size_t n, const Attribute& value
+) {
+  // If this value is an empty object or has a type other than object, serialize it
+  // as-is if it fits, without attempting any kind of truncation
+  const size_t num_object_properties = value.GetObjectPropertyCount();
+  if (num_object_properties <= 0) {
+    const size_t num_bytes_required = GetJsonSize(value);
+    if (num_bytes_required > n) {
+      return std::nullopt;
+    }
+    return AttributeEncodeResult{WriteJson(dst, n, value), false};
+  }
+
+  // We now know that we're dealing with a non-empty object value: verify that we can
+  // fit at least an empty object, returning without writing anything if too small
+  if (n < 2) {
+    return std::nullopt;
+  }
+
+  // In a single forward pass, iterate through all top-level object properties,
+  // iteratively writing `<json-encoded-name>:<json-encoded-value>[,]` (leaving space
+  // for the enclosing braces) until we reach a property whose name and value can't fit
+  // in the remaining buffer space. As with other TryEncodeJson implementations, we drop
+  // top-level properties from the back: we don't recurse into nested subobjects.
+  char* ptr = dst;
+  char* const dst_end = dst + n;
+
+  // Write an opening brace
+  *ptr++ = '{';
+
+  // Iterate over properties, stopping when we hit one that can't fit
+  size_t props_written = 0;
+  for (size_t i = 0; i < num_object_properties; ++i) {
+    // Get the name and value of the top-level property at this position
+    const int index = static_cast<int>(i);
+    const std::string_view name = value.GetObjectPropertyNameAt(index);
+    const Attribute& val = value.GetObjectPropertyValueAt(index);
+
+    // Determine how many bytes would be occupied by this property if we appended it
+    const size_t num_comma_bytes = props_written > 0 ? 1 : 0;
+    const size_t num_bytes_to_append =
+        num_comma_bytes + GetJsonSize(name) + 1 + GetJsonSize(val);
+
+    // We need to reserve an extra byte to ensure there's space for the closing '}'; if
+    // we can't append this property _and_ close the object, we're done
+    const size_t num_bytes_needed = num_bytes_to_append + 1;
+    if (static_cast<size_t>(dst_end - ptr) < num_bytes_needed) {
+      break;
+    }
+
+    // Prepend a comma if needed, then the property name and value (names may contain
+    // characters that need escaping, hence the use of GetJsonSize/WriteJson for the
+    // name as well as the value)
+    if (props_written > 0) {
+      *ptr++ = ',';
+    }
+    ptr += WriteJson(ptr, dst_end - ptr, name);
+    *ptr++ = ':';
+    ptr += WriteJson(ptr, dst_end - ptr, val);
+    ++props_written;
+  }
+
+  // Write the closing brace: our num_bytes_needed check ensures that we have space
+  DATADOG_ASSERT(ptr < dst_end, "attempting to write closing brace past dst_end");
+  *ptr++ = '}';
+
+  // Return a result that indicates how much data we wrote and whether we had to drop
+  // any attributes
+  const size_t num_bytes_written = static_cast<size_t>(ptr - dst);
+  const bool truncated = props_written < num_object_properties;
+  return AttributeEncodeResult{num_bytes_written, truncated};
+}
+
 size_t WriteJson(char* dst, size_t n, const Attribute& value) {
   switch (value.GetType()) {
     case ValueType::Null:

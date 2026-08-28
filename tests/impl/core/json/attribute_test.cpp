@@ -6,7 +6,6 @@
 
 #include "datadog/attribute.hpp"
 
-#include <catch2/catch_test_macros.hpp>
 #include <cinttypes>
 #include <cmath>
 #include <iostream>
@@ -16,6 +15,8 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/util/json.hpp"
+
+#include "support/catch.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -336,6 +337,169 @@ TEST_CASE("Attribute JSON serialization", "[unit][json]") {
       // Then our resulting bytes are an exact match for the expected JSON result
       std::string_view got_json{reinterpret_cast<char*>(buffer.data()), buffer.size()};
       REQUIRE(got_json == tt.want_json);
+    }
+  }
+}
+
+TEST_CASE("Attribute TryEncodeJson", "[unit][json]") {
+  // Non-object values (no truncation possible; written as-is or not at all)
+  static constexpr std::string_view INT_JSON = "42";       // Attribute::Int(42)
+  static constexpr std::string_view ARRAY_JSON = "[1,2]";  // Array of Int(1), Int(2)
+
+  SECTION("M encode OK W non-object type fits in buffer exactly") {
+    // Given exactly-sized buffers for each non-object type, encoding succeeds
+    SECTION("{INT_JSON}") {
+      std::vector<char> buf(INT_JSON.size(), '\0');
+      auto result = TryEncodeJson(buf.data(), buf.size(), Attribute::Int(42));
+      REQUIRE(result.has_value());
+      REQUIRE_FALSE(result->truncated);
+      REQUIRE(std::string_view(buf.data(), result->bytes_written) == INT_JSON);
+    }
+    SECTION("{ARRAY_JSON}") {
+      Attribute value = Attribute::Array(2);
+      value.ArrayPush(Attribute::Int(1));
+      value.ArrayPush(Attribute::Int(2));
+      std::vector<char> buf(ARRAY_JSON.size(), '\0');
+      auto result = TryEncodeJson(buf.data(), buf.size(), value);
+      REQUIRE(result.has_value());
+      REQUIRE_FALSE(result->truncated);
+      REQUIRE(std::string_view(buf.data(), result->bytes_written) == ARRAY_JSON);
+    }
+  }
+
+  SECTION("M return nullopt W non-object type does not fit in buffer") {
+    // Given buffers one byte too small, encoding returns nullopt without writing
+    SECTION("{INT_JSON}") {
+      std::vector<char> buf(INT_JSON.size() - 1, 'X');
+      const std::vector<char> original(INT_JSON.size() - 1, 'X');
+      auto result = TryEncodeJson(buf.data(), buf.size(), Attribute::Int(42));
+      REQUIRE_FALSE(result.has_value());
+      REQUIRE(buf == original);
+    }
+    SECTION("{ARRAY_JSON}") {
+      Attribute value = Attribute::Array(2);
+      value.ArrayPush(Attribute::Int(1));
+      value.ArrayPush(Attribute::Int(2));
+      std::vector<char> buf(ARRAY_JSON.size() - 1, 'X');
+      const std::vector<char> original = buf;
+      auto result = TryEncodeJson(buf.data(), buf.size(), value);
+      REQUIRE_FALSE(result.has_value());
+      REQUIRE(buf == original);
+    }
+  }
+
+  SECTION("M encode OK W empty object") {
+    // An empty object encodes as "{}" (2 bytes); no truncation is possible
+    std::vector<char> buf(2, '\0');
+    auto result = TryEncodeJson(buf.data(), buf.size(), Attribute::Object());
+    REQUIRE(result.has_value());
+    REQUIRE_FALSE(result->truncated);
+    REQUIRE(std::string_view(buf.data(), result->bytes_written) == "{}");
+  }
+
+  SECTION("M return nullopt W value does not fit in buffer at all") {
+    // A 1-byte buffer cannot fit anything: scalars need at least their own encoded
+    // size, and all object forms need at least 2 bytes for the enclosing braces
+    SECTION("{integer}") {
+      std::vector<char> buf(1, 'X');
+      const std::vector<char> original(1, 'X');
+      auto result = TryEncodeJson(buf.data(), buf.size(), Attribute::Int(42));
+      REQUIRE_FALSE(result.has_value());
+      REQUIRE(buf == original);
+    }
+    SECTION("{empty object}") {
+      std::vector<char> buf(1, 'X');
+      const std::vector<char> original(1, 'X');
+      auto result = TryEncodeJson(buf.data(), buf.size(), Attribute::Object());
+      REQUIRE_FALSE(result.has_value());
+      REQUIRE(buf == original);
+    }
+    SECTION("{non-empty object}") {
+      std::vector<char> buf(1, 'X');
+      const std::vector<char> original(1, 'X');
+      Attribute value = Attribute::Object(1);
+      value.SetObjectProperty("a", Attribute::Int(1));
+      auto result = TryEncodeJson(buf.data(), buf.size(), value);
+      REQUIRE_FALSE(result.has_value());
+      REQUIRE(buf == original);
+    }
+  }
+
+  SECTION(
+      "M progressively truncate properties from back W buffer will not fit all "
+      "properties"
+  ) {
+    // Given the object
+    // {"first":"aaaaaaaaaa","second":"bbbbbbbbbb","third":"cccccccccc"} (ALL_THREE = 65
+    // bytes), progressively smaller buffers drop properties from the back
+    Attribute value = Attribute::Object(3);
+    value.SetObjectProperty("first", Attribute::String("aaaaaaaaaa"));
+    value.SetObjectProperty("second", Attribute::String("bbbbbbbbbb"));
+    value.SetObjectProperty("third", Attribute::String("cccccccccc"));
+
+    static constexpr std::string_view ALL_THREE =
+        R"({"first":"aaaaaaaaaa","second":"bbbbbbbbbb","third":"cccccccccc"})";
+    static constexpr std::string_view FIRST_TWO =
+        R"({"first":"aaaaaaaaaa","second":"bbbbbbbbbb"})";
+    static constexpr std::string_view FIRST_ONE = R"({"first":"aaaaaaaaaa"})";
+    REQUIRE(ALL_THREE.size() == 65);
+    REQUIRE(FIRST_TWO.size() == 44);
+    REQUIRE(FIRST_ONE.size() == 22);
+
+    SECTION("{dropping third}") {
+      // A buffer one byte smaller than ALL_THREE drops "third", leaving first and
+      // second
+      std::vector<char> buf(ALL_THREE.size() - 1, '\0');
+      auto result = TryEncodeJson(buf.data(), buf.size(), value);
+      REQUIRE(result.has_value());
+      REQUIRE(result->truncated);
+      REQUIRE(std::string_view(buf.data(), result->bytes_written) == FIRST_TWO);
+    }
+
+    SECTION("{dropping third and second}") {
+      // A buffer one byte smaller than FIRST_TWO drops second as well, leaving only
+      // first
+      std::vector<char> buf(FIRST_TWO.size() - 1, '\0');
+      auto result = TryEncodeJson(buf.data(), buf.size(), value);
+      REQUIRE(result.has_value());
+      REQUIRE(result->truncated);
+      REQUIRE(std::string_view(buf.data(), result->bytes_written) == FIRST_ONE);
+    }
+
+    SECTION("{dropping all properties}") {
+      // A buffer one byte smaller than FIRST_ONE cannot fit any property; result is
+      // "{}"
+      std::vector<char> buf(FIRST_ONE.size() - 1, '\0');
+      auto result = TryEncodeJson(buf.data(), buf.size(), value);
+      REQUIRE(result.has_value());
+      REQUIRE(result->truncated);
+      REQUIRE(std::string_view(buf.data(), result->bytes_written) == "{}");
+    }
+  }
+
+  SECTION("M account for key escaping when computing fit") {
+    // The key k"ey encodes as "k\"ey" (7 bytes including quotes), not 4 raw bytes;
+    // a buffer one byte short must drop the property entirely
+    Attribute value = Attribute::Object(1);
+    value.SetObjectProperty("k\"ey", Attribute::Int(1));
+
+    static constexpr std::string_view ESCAPED_KEY_JSON = R"({"k\"ey":1})";
+    REQUIRE(ESCAPED_KEY_JSON.size() == 11);
+
+    SECTION("{one byte short: property dropped}") {
+      std::vector<char> buf(ESCAPED_KEY_JSON.size() - 1, '\0');
+      auto result = TryEncodeJson(buf.data(), buf.size(), value);
+      REQUIRE(result.has_value());
+      REQUIRE(result->truncated);
+      REQUIRE(std::string_view(buf.data(), result->bytes_written) == "{}");
+    }
+
+    SECTION("{exact size: property included}") {
+      std::vector<char> buf(ESCAPED_KEY_JSON.size(), '\0');
+      auto result = TryEncodeJson(buf.data(), buf.size(), value);
+      REQUIRE(result.has_value());
+      REQUIRE_FALSE(result->truncated);
+      REQUIRE(std::string_view(buf.data(), result->bytes_written) == ESCAPED_KEY_JSON);
     }
   }
 }
