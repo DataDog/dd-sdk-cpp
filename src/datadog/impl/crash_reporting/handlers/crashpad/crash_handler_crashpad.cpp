@@ -23,10 +23,13 @@
 
 #include "datadog/impl/core/events/omissible.hpp"
 #include "datadog/impl/core/events/struct.hpp"
+#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/core/json/attribute.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
+#include "datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.hpp"
 
 #ifdef _WIN32
 #include <windows.h>  // GetModuleFileName
@@ -47,6 +50,10 @@ static crashpad::StringAnnotation<256> s_dd_os("dd.os");
 static crashpad::StringAnnotation<512> s_dd_device("dd.device");
 static crashpad::StringAnnotation<2048> s_dd_usr("dd.usr");
 static crashpad::StringAnnotation<2048> s_dd_account("dd.account");
+static crashpad::StringAnnotation<128> s_dd_rum_config("dd.rum.config");
+static crashpad::StringAnnotation<192> s_dd_rum_session("dd.rum.session");
+static crashpad::StringAnnotation<4096> s_dd_rum_attributes("dd.rum.attributes");
+static crashpad::StringAnnotation<8192> s_dd_rum_last_view("dd.rum.last_view");
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
@@ -97,6 +104,40 @@ namespace datadog::impl {
 
 // Lightweight structs used to serialize CrashContext fields into Crashpad string
 // annotations, as JSON values
+
+/**
+ * A value encoded in `dd.rum.config`.
+ */
+struct RumConfigAnnotation {
+  OmitIfZero<UUID> application_id;
+  float session_sample_rate;
+};
+DATADOG_JSON_STRUCT(
+    RumConfigAnnotation,
+    DATADOG_JSON_FIELD(application_id),
+    DATADOG_JSON_FIELD(session_sample_rate)
+)
+
+/**
+ * A value encoded in `dd.rum.session`.
+ */
+struct RumSessionAnnotation {
+  OmitIfZero<UUID> id;
+  bool is_sampled;
+  bool is_active;
+  bool is_initial;
+  bool has_tracked_any_view;
+  bool did_start_with_replay;
+};
+DATADOG_JSON_STRUCT(
+    RumSessionAnnotation,
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(is_sampled),
+    DATADOG_JSON_FIELD(is_active),
+    DATADOG_JSON_FIELD(is_initial),
+    DATADOG_JSON_FIELD(has_tracked_any_view),
+    DATADOG_JSON_FIELD(did_start_with_replay)
+)
 
 /**
  * A value encoded in `dd.usr`.
@@ -258,6 +299,49 @@ void TrySetAnnotationWithExtras(
 }
 
 /**
+ * Fits the given RUM View event JSON into the given Crashpad string annotation,
+ * dropping context attributes as needed. If the input is empty, sets the annotation
+ * to `{}`. If the event is too large to fit even after truncation, resets the
+ * annotation to `{}` and logs an error once. If context was dropped to fit, logs a
+ * truncation warning once.
+ */
+template <uint32_t N>
+void TrySetLastViewAnnotation(
+    crashpad::StringAnnotation<N>& annotation,
+    std::string_view last_view_event_json,
+    const DiagnosticLogger& logger,
+    bool& out_logged_error,
+    bool& out_logged_truncation_warning
+) {
+  if (last_view_event_json.empty()) {
+    annotation.Set("{}");
+    return;
+  }
+  std::array<char, N> buf{};
+  const auto result = FitViewEventToBuffer(last_view_event_json, buf);
+  annotation.Set(result.value);
+  if (result.status == FitViewEventResult::Status::Dropped) {
+    if (!out_logged_error) {
+      out_logged_error = true;
+      logger.Error(
+          "Failed to encode Crashpad annotation: last view event too large for "
+          "buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  } else if (result.status == FitViewEventResult::Status::Truncated) {
+    if (!out_logged_truncation_warning) {
+      out_logged_truncation_warning = true;
+      logger.Warning(
+          "Crashpad annotation truncated: last view event context dropped to fit "
+          "buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  }
+}
+
+/**
  * Crash handler implementation that uses the Crashpad client library, in conjunction
  * with an external, out-of-process crashpad_handler executable that will be spawned by
  * the client library on Initialize().
@@ -327,6 +411,10 @@ class CrashpadCrashHandler final : public ICrashHandler {
     s_dd_device.Set("{}");
     s_dd_usr.Set("{}");
     s_dd_account.Set("{}");
+    s_dd_rum_config.Set("{}");
+    s_dd_rum_session.Set("{}");
+    s_dd_rum_attributes.Set("{}");
+    s_dd_rum_last_view.Set("{}");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
@@ -386,6 +474,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // which the crashpad_handler executable will capture from process memory on crash
     (void)fs;
 
+    // Set dd.tracking_consent, so the handler's processing/upload of the crash can be
+    // conditioned upon user tracking consent
     const TrackingConsent consent = ctx.tracking_consent;
     if (consent != _tracking_consent) {
       _tracking_consent = consent;
@@ -402,6 +492,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
       }
     }
 
+    // Set dd.config, so the handler has the essential details of SDK config needed to
+    // generate new RUM events and/or construct upload URLs with appropriate params
     TrySetAnnotation(
         s_dd_config,
         ConfigAnnotation{
@@ -415,6 +507,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
         _logger,
         _logged_config_error
     );
+
+    // Set dd.os, so the handler can populate the 'os' property on RUM events if it
+    // needs to create them from scratch
     TrySetAnnotation(
         s_dd_os,
         OsAnnotation{
@@ -426,6 +521,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
         _logger,
         _logged_os_error
     );
+
+    // Set dd.device, so the handler can populate RUM events' 'device' property
     TrySetAnnotation(
         s_dd_device,
         DeviceAnnotation{
@@ -440,6 +537,10 @@ class CrashpadCrashHandler final : public ICrashHandler {
         _logger,
         _logged_device_error
     );
+
+    // Set dd.usr, so the handler can populate 'usr': if the application has provided
+    // more extra user attributes than will fit in our Crashpad annotation buffer, extra
+    // annotations will be dropped from the back
     TrySetAnnotationWithExtras(
         s_dd_usr,
         UsrAnnotation{
@@ -453,6 +554,9 @@ class CrashpadCrashHandler final : public ICrashHandler {
         _logged_usr_error,
         _logged_usr_truncation_warning
     );
+
+    // Set dd.account, for 'account' on RUM events: extra attributes will be truncated
+    // from the back as needed to fit
     TrySetAnnotationWithExtras(
         s_dd_account,
         AccountAnnotation{
@@ -463,6 +567,62 @@ class CrashpadCrashHandler final : public ICrashHandler {
         _logger,
         _logged_account_error,
         _logged_account_truncation_warning
+    );
+
+    // Set dd.rum.config: this ensures that if the handler needs to synthesize a new RUM
+    // session, it can make the same sampling decision that the app would have made
+    TrySetAnnotation(
+        s_dd_rum_config,
+        RumConfigAnnotation{
+            ctx.rum_initial_config.application_id,
+            ctx.rum_initial_config.session_sample_rate,
+        },
+        _logger,
+        _logged_rum_config_error
+    );
+
+    // Set dd.rum.session, telling the handler whether the app had an active RUM session
+    // when it crashed, and if so, what state that session was in: this allows the
+    // handler to make decisions about how to create and/or modify RUM view events as
+    // needed to record the crash as an error
+    TrySetAnnotation(
+        s_dd_rum_session,
+        RumSessionAnnotation{
+            ctx.rum_session_state.session_id,
+            ctx.rum_session_state.is_sampled,
+            ctx.rum_session_state.is_active,
+            ctx.rum_session_state.is_initial_session,
+            ctx.rum_session_state.has_tracked_any_view,
+            ctx.rum_session_state.did_start_with_replay,
+        },
+        _logger,
+        _logged_rum_session_error
+    );
+
+    // Set dd.rum.attributes, recording the last-known set of global RUM attributes so
+    // that the handler can include an up-to-date set of attributes with the crash. If
+    // encoding the full set of attributes as a JSON object would exceed the buffer
+    // size, top-level properties will be dropped until it fits.
+    TrySetAnnotationWithExtras(
+        s_dd_rum_attributes,
+        ctx.global_rum_attributes,
+        _logger,
+        _logged_rum_attributes_error,
+        _logged_rum_attributes_truncation_warning
+    );
+
+    // Set dd.rum.last_view, recording the full RUM View event that was most recently
+    // produced (or an empty object if no view is active), so that the handler can pull
+    // attributes from that view event as needed to construct an accurate Error event,
+    // and so it can produce a new event to update the state of the view to reflect the
+    // crash. If the event doesn't fit, we'll drop top-level properties from the custom
+    // attributes stored in `context`.
+    TrySetLastViewAnnotation(
+        s_dd_rum_last_view,
+        ctx.last_view_event_json,
+        _logger,
+        _logged_rum_last_view_error,
+        _logged_rum_last_view_truncation_warning
     );
   };
 
@@ -480,6 +640,12 @@ class CrashpadCrashHandler final : public ICrashHandler {
   bool _logged_usr_truncation_warning{false};
   bool _logged_account_error{false};
   bool _logged_account_truncation_warning{false};
+  bool _logged_rum_config_error{false};
+  bool _logged_rum_session_error{false};
+  bool _logged_rum_attributes_error{false};
+  bool _logged_rum_attributes_truncation_warning{false};
+  bool _logged_rum_last_view_error{false};
+  bool _logged_rum_last_view_truncation_warning{false};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {
