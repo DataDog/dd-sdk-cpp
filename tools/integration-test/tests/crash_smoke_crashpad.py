@@ -30,7 +30,9 @@ async def main(t: TestContext):
     register-rum
     start-core
     set-user-info usr-123 name:"Alice" email:"alice@example.com"
+    add-user-extra-info attr:plan:premium
     set-account-info acct-456 name:"Acme"
+    add-account-extra-info attr:tier:gold
     sleep 10
     crash raise
     """)
@@ -91,7 +93,7 @@ async def main(t: TestContext):
     # the user and account info set in the repl script above.
     _assert_json_form_field(
         form_fields, 'dd.usr',
-        required_keys=['id', 'name', 'email', 'anonymous_id'],
+        required_keys=['id', 'name', 'email', 'anonymous_id', 'plan'],
         non_empty_keys=['id', 'name', 'email', 'anonymous_id'],
     )
     usr = json.loads(form_fields['dd.usr'])
@@ -103,10 +105,12 @@ async def main(t: TestContext):
         f'dd.usr email mismatch: expected "alice@example.com", got {usr["email"]!r}'
     assert re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', usr['anonymous_id']), \
         f'dd.usr anonymous_id is not a valid UUID: {usr["anonymous_id"]!r}'
+    assert usr['plan'] == 'premium', \
+        f'dd.usr plan mismatch: expected "premium", got {usr["plan"]!r}'
 
     _assert_json_form_field(
         form_fields, 'dd.account',
-        required_keys=['id', 'name'],
+        required_keys=['id', 'name', 'tier'],
         non_empty_keys=['id', 'name'],
     )
     account = json.loads(form_fields['dd.account'])
@@ -114,6 +118,8 @@ async def main(t: TestContext):
         f'dd.account id mismatch: expected "acct-456", got {account["id"]!r}'
     assert account['name'] == 'Acme', \
         f'dd.account name mismatch: expected "Acme", got {account["name"]!r}'
+    assert account['tier'] == 'gold', \
+        f'dd.account tier mismatch: expected "gold", got {account["tier"]!r}'
 
     # And the Crashpad database contains exactly one minidump reflecting a completed
     # upload. Since the HTTP upload has completed by this point, the handler has

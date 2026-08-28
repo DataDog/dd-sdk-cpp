@@ -6,9 +6,17 @@
 
 #pragma once
 
+#include <optional>
+
+#include "datadog.hpp"
+
 #include "repl/command.hpp"
 
 struct State;
+
+// Collects all attr:key:value tokens from `named` into an Attribute::Object.
+// Returns nullopt when no attr: tokens are present.
+std::optional<datadog::Attribute> CollectAttributes(const NamedValueList& named);
 
 // util
 CommandResult HandleSource(State& state, const CommandInput& args);
@@ -39,10 +47,15 @@ CommandResult HandleStopCore(State& state, const CommandInput& args);
 // logging
 CommandResult HandleRegisterLogging(State& state, const CommandInput& args);
 CommandResult HandleCreateLogger(State& state, const CommandInput& args);
+CommandResult HandleAddLoggingAttribute(State& state, const CommandInput& args);
+CommandResult HandleAddLoggerAttribute(State& state, const CommandInput& args);
+CommandResult HandleAddLoggerTag(State& state, const CommandInput& args);
 CommandResult HandleLog(State& state, const CommandInput& args);
 
 // rum
 CommandResult HandleRegisterRum(State& state, const CommandInput& args);
+CommandResult HandleAddRumAttribute(State& state, const CommandInput& args);
+CommandResult HandleAddViewAttribute(State& state, const CommandInput& args);
 CommandResult HandleStopSession(State& state, const CommandInput& args);
 CommandResult HandleStartView(State& state, const CommandInput& args);
 CommandResult HandleStopView(State& state, const CommandInput& args);

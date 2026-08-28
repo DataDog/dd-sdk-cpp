@@ -5,6 +5,7 @@
 // Copyright 2025-Present Datadog, Inc.
 
 #include <charconv>
+#include <optional>
 
 #include "datadog.hpp"
 
@@ -38,6 +39,91 @@ CommandResult HandleCreateLogger(State& state, const CommandInput&) {
   }
   state.loggers[state.num_loggers++] = std::move(logger);  // NOLINT
   return CommandResult::OK("Logging::CreateLogger()");
+}
+
+CommandResult HandleAddLoggingAttribute(State& state, const CommandInput& args) {
+  if (!state.logging) {
+    return CommandResult::Error("Logging is not registered!");
+  }
+  auto named = args.Named();
+  auto attrs = CollectAttributes(named);
+  if (attrs) {
+    for (size_t i = 0; i < attrs->GetObjectPropertyCount(); i++) {
+      state.logging->AddAttribute(
+          attrs->GetObjectPropertyNameAt(static_cast<int>(i)),
+          attrs->GetObjectPropertyValueAt(static_cast<int>(i))
+      );
+    }
+  }
+  return CommandResult::OK("Logging::AddAttribute()");
+}
+
+CommandResult HandleAddLoggerAttribute(State& state, const CommandInput& args) {
+  if (!state.logging) {
+    return CommandResult::Error("Logging is not registered!");
+  }
+  auto named = args.Named();
+  size_t logger_index = 0;
+  std::string_view logger_str = named.Get("logger");
+  if (!logger_str.empty()) {
+    auto res = std::from_chars(
+        logger_str.data(), logger_str.data() + logger_str.size(), logger_index
+    );
+    if (res.ec != std::errc{}) {
+      return CommandResult::Error("Value for 'logger' must specify logger index!");
+    }
+  }
+  if (logger_index >= state.num_loggers) {
+    return CommandResult::Error("No logger at specified index!");
+  }
+  auto attrs = CollectAttributes(named);
+  if (attrs) {
+    for (size_t i = 0; i < attrs->GetObjectPropertyCount(); i++) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+      state.loggers[logger_index]->AddAttribute(
+          attrs->GetObjectPropertyNameAt(static_cast<int>(i)),
+          attrs->GetObjectPropertyValueAt(static_cast<int>(i))
+      );
+    }
+  }
+  return CommandResult::OK("Logger::AddAttribute()");
+}
+
+CommandResult HandleAddLoggerTag(State& state, const CommandInput& args) {
+  if (!state.logging) {
+    return CommandResult::Error("Logging is not registered!");
+  }
+  auto named = args.Named();
+  size_t logger_index = 0;
+  std::string_view logger_str = named.Get("logger");
+  if (!logger_str.empty()) {
+    auto res = std::from_chars(
+        logger_str.data(), logger_str.data() + logger_str.size(), logger_index
+    );
+    if (res.ec != std::errc{}) {
+      return CommandResult::Error("Value for 'logger' must specify logger index!");
+    }
+  }
+  if (logger_index >= state.num_loggers) {
+    return CommandResult::Error("No logger at specified index!");
+  }
+  for (size_t i = 0; i < named.n; i++) {
+    // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
+    std::string_view name = named.values[i].name;
+    std::string_view value = named.values[i].value;
+    if (name == "logger") {
+      continue;
+    }
+    state.loggers[logger_index]->AddTag(name, Unquote(value));
+    // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
+  }
+  // Also handle positional args with no ":" as valueless tags
+  auto pos = args.Positional();
+  for (size_t i = 0; i < pos.n; i++) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+    state.loggers[logger_index]->AddTag(Unquote(pos[i]));
+  }
+  return CommandResult::OK("Logger::AddTag()");
 }
 
 CommandResult HandleLog(State& state, const CommandInput& args) {
@@ -88,6 +174,10 @@ CommandResult HandleLog(State& state, const CommandInput& args) {
     }
   }
 
-  state.loggers[0]->Log(level, message);
+  auto attrs = CollectAttributes(named);
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
+  state.loggers[logger_index]->Log(
+      level, message, {}, attrs.value_or(datadog::Attribute{})
+  );
   return CommandResult::OK("Logger::Log()");
 }

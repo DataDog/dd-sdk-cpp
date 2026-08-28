@@ -94,7 +94,10 @@ CommandResult HandleSetUserInfo(State& state, const CommandInput& args) {
   auto name = Unquote(named.Get("name"));
   auto email = Unquote(named.Get("email"));
 
-  state.core->SetUserInfo(id, name, email);
+  auto attrs = CollectAttributes(named);
+  state.core->SetUserInfo(
+      id, name, email, attrs.value_or(datadog::Attribute::Object(0))
+  );
   return CommandResult::OK("Core::SetUserInfo()");
 }
 
@@ -103,23 +106,13 @@ CommandResult HandleAddUserExtraInfo(State& state, const CommandInput& args) {
     return CommandResult::Error("Core does not exist!");
   }
 
-  // Named args: arbitrary key-value pairs added as string attributes
   auto named = args.Named();
-  if (named.n == 0) {
-    return CommandResult::Error("No key-value pairs given!");
+  auto attrs = CollectAttributes(named);
+  if (!attrs) {
+    return CommandResult::Error("No attr: key-value pairs given!");
   }
 
-  datadog::Attribute extra = datadog::Attribute::Object(named.n);
-  for (size_t i = 0; i < named.n; i++) {
-    extra.SetObjectProperty(
-        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
-        named.values[i].name,
-        datadog::Attribute::String(named.values[i].value)
-        // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
-    );
-  }
-
-  state.core->AddUserExtraInfo(extra);
+  state.core->AddUserExtraInfo(*attrs);
   return CommandResult::OK("Core::AddUserExtraInfo()");
 }
 
@@ -147,7 +140,8 @@ CommandResult HandleSetAccountInfo(State& state, const CommandInput& args) {
   auto named = args.Named();
   auto name = Unquote(named.Get("name"));
 
-  state.core->SetAccountInfo(id, name);
+  auto attrs = CollectAttributes(named);
+  state.core->SetAccountInfo(id, name, attrs.value_or(datadog::Attribute::Object(0)));
   return CommandResult::OK("Core::SetAccountInfo()");
 }
 
@@ -156,23 +150,13 @@ CommandResult HandleAddAccountExtraInfo(State& state, const CommandInput& args) 
     return CommandResult::Error("Core does not exist!");
   }
 
-  // Named args: arbitrary key-value pairs added as string attributes
   auto named = args.Named();
-  if (named.n == 0) {
-    return CommandResult::Error("No key-value pairs given!");
+  auto attrs = CollectAttributes(named);
+  if (!attrs) {
+    return CommandResult::Error("No attr: key-value pairs given!");
   }
 
-  datadog::Attribute extra = datadog::Attribute::Object(named.n);
-  for (size_t i = 0; i < named.n; i++) {
-    extra.SetObjectProperty(
-        // NOLINTBEGIN(cppcoreguidelines-pro-bounds-constant-array-index)
-        named.values[i].name,
-        datadog::Attribute::String(named.values[i].value)
-        // NOLINTEND(cppcoreguidelines-pro-bounds-constant-array-index)
-    );
-  }
-
-  state.core->AddAccountExtraInfo(extra);
+  state.core->AddAccountExtraInfo(*attrs);
   return CommandResult::OK("Core::AddAccountExtraInfo()");
 }
 
