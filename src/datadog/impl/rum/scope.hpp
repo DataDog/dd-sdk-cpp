@@ -65,7 +65,12 @@ struct RumScopeDependencies {
    * RUM events to be sent to intake. If false, the session is not sampled, meaning the
    * session scope ignores most commands and generate no events.
    */
-  bool ShouldSampleSession(const UUID& session_id) const;
+  bool ShouldSampleSession(
+      const UUID& session_id, std::optional<float> sample_rate = std::nullopt
+  ) const;
+
+  /** Returns the configured session sample rate in [0.0, 100.0]. */
+  float GetSessionSampleRate() const { return _sampling_rate; }
 
   /**
    * Encodes a RUM event to JSON without writing it. The caller uses the returned

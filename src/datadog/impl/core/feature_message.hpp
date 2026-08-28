@@ -80,6 +80,16 @@ struct RumActiveViewUpdatedMessage {
 struct RumActiveViewLostMessage {};
 
 /**
+ * Emitted by `Rum` once during `Start()`, carrying fixed RUM configuration values that
+ * other features need to persist. This fires before any session is created, ensuring
+ * that downstream consumers (e.g. `CrashReporting`) have configuration state even if
+ * the app crashes before the first session is established.
+ */
+struct RumInitializedMessage {
+  float session_sample_rate;  // [0.0, 100.0], from RumConfig::session_sample_rate
+};
+
+/**
  * Emitted by `Rum` whenever the set of global RUM attributes changes.
  *
  * Used by `CrashReporting` to persist the latest set of global RUM attributes alongside
@@ -116,6 +126,7 @@ struct LogErrorGeneratedMessage {
  */
 using FeatureMessage = std::variant<
     ContextChangedMessage,
+    RumInitializedMessage,
     RumSessionStateChangedMessage,
     RumActiveViewUpdatedMessage,
     RumActiveViewLostMessage,

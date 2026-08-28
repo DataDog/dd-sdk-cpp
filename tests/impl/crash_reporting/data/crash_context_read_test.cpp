@@ -79,6 +79,7 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
         got.rum_session_state.application_id ==
         *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef")
     );
+    REQUIRE(got.rum_session_sample_rate == 55.5f);
     REQUIRE(
         got.rum_session_state.session_id ==
         *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef")
@@ -115,6 +116,9 @@ TEST_CASE("ReadCrashContext", "[unit][crash_reporting]") {
 
     // And user_anonymous_id defaults to UUID::Zero since it was absent in V1
     REQUIRE(result.data->user_anonymous_id == UUID::Zero);
+
+    // And rum_session_sample_rate defaults to 0.0f since it was absent in V1
+    REQUIRE(result.data->rum_session_sample_rate == 0.0f);
 
     // And all other fields that exist in V1 are populated correctly
     REQUIRE(result.data->user_email == "alice@example.com");

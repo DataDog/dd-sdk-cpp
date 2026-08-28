@@ -141,9 +141,15 @@ ReadCrashContextResult ReadCrashContext(File& file) {
     return {std::nullopt, r.fs_result};
   }
 
-  // RUM session state
+  // RUM config and session state
   if (auto r = ReadUUID(file, ctx.rum_session_state.application_id); !r.OK()) {
     return {std::nullopt, r.value};
+  }
+  // rum_session_sample_rate was added in file format v2
+  if (version >= 2) {
+    if (auto r = ReadFloat(file, ctx.rum_session_sample_rate); !r.OK()) {
+      return {std::nullopt, r.value};
+    }
   }
   if (auto r = ReadUUID(file, ctx.rum_session_state.session_id); !r.OK()) {
     return {std::nullopt, r.value};

@@ -74,6 +74,9 @@ struct CrashContext {
   std::string account_name;
   Attribute account_extra;
 
+  // Configured RUM session sample rate (0.0–100.0); 0.0 if RUM was not configured
+  float rum_session_sample_rate{0.0f};
+
   // State of the latest RUM session prior to the crash. If no RUM session was ever
   // created, session_id will be UUID::Zero.
   RumSessionState rum_session_state{};

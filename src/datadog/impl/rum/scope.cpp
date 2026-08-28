@@ -71,12 +71,14 @@ RumScopeDependencies::RumScopeDependencies(
   _encode_buffer.reserve(8192);
 }
 
-bool RumScopeDependencies::ShouldSampleSession(const UUID& session_id) const {
+bool RumScopeDependencies::ShouldSampleSession(
+    const UUID& session_id, std::optional<float> sample_rate
+) const {
   // Extract the lower 48 bits from the UUID as the input value for our
   // Knuth-multiplicative-hashing algorithm, then compare the resulting hash value
   // against a threshold derived from our configured sampling rate
   const uint64_t seed = extract_seed(session_id.bytes);
-  return ShouldSampleSessionFromSeed(seed, _sampling_rate);
+  return ShouldSampleSessionFromSeed(seed, sample_rate.value_or(_sampling_rate));
 }
 
 }  // namespace datadog::impl
