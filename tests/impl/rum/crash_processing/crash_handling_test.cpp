@@ -131,10 +131,10 @@ static CrashReport make_crash_report(
           "fujda9i8z83457",                                      // account_id
           "Important Account",                                   // account_name
           account_extra,                                         // account_extra
-          100.0f,  // rum_session_sample_rate
-          // rum_sesion_state:
+          // rum_initial_config:
+          {*UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef"), 100.0f},
+          // rum_session_state:
           {
-              *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef"),  // application_id
               *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef"),  // session_id
               true,                                                  // is_sampled
               true,                                                  // is_active
@@ -499,7 +499,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     // and where the configured RUM session sample rate was 0%
     auto crash = make_crash_report();
     crash.context->rum_session_state.session_id = UUID::Zero;
-    crash.context->rum_session_sample_rate = 0.0f;
+    crash.context->rum_initial_config.session_sample_rate = 0.0f;
 
     // When we process that crash
     auto deps = make_deps();

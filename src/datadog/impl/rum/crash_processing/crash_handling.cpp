@@ -301,7 +301,9 @@ static void handle_crash_that_preceded_initial_session(
   // There was no session active at the time of the crash, and a RUM Error must be
   // recorded in a session: generate a session_id and make a sampling decision
   const UUID new_session_id = UUID::Random();
-  if (!deps.ShouldSampleSession(new_session_id, ctx.rum_session_sample_rate)) {
+  if (!deps.ShouldSampleSession(
+          new_session_id, ctx.rum_initial_config.session_sample_rate
+      )) {
     deps.diagnostic_logger.Status(
         "Ignoring prior-process crash report: newly-created session was excluded from "
         "sampling"
@@ -318,7 +320,7 @@ static void handle_crash_that_preceded_initial_session(
   const bool session_has_replay = false;
 
   // Generate an event describing a new ApplicationLaunch view to contain our crash
-  UUID application_id = ctx.rum_session_state.application_id;
+  UUID application_id = ctx.rum_initial_config.application_id;
   if (application_id == UUID::Zero) {
     application_id = deps.application_id;
   }
@@ -402,7 +404,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
   const bool session_has_replay = ctx.rum_session_state.did_start_with_replay;
 
   // Generate an event describing a new ApplicationLaunch view to contain our crash
-  UUID application_id = ctx.rum_session_state.application_id;
+  UUID application_id = ctx.rum_initial_config.application_id;
   if (application_id == UUID::Zero) {
     application_id = deps.application_id;
   }

@@ -93,7 +93,7 @@ CrashReporting::MakeMessageHandler() {
       cc.account_name = ctx.account_info.name;
       cc.account_extra = ctx.account_info.extra;
     } else if (const auto* m = std::get_if<RumInitializedMessage>(&msg)) {
-      cc.rum_session_sample_rate = m->session_sample_rate;
+      cc.rum_initial_config = m->initial_config;
     } else if (const auto* m = std::get_if<RumSessionStateChangedMessage>(&msg)) {
       cc.rum_session_state = m->session_state;
     } else if (const auto* m = std::get_if<RumActiveViewUpdatedMessage>(&msg)) {
