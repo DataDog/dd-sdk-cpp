@@ -59,6 +59,72 @@ bool ParseJsonDouble(std::string_view json_literal, double& out) {
   // std::to_chars on the encoding side always writes 'C'-locale decimal (.), so
   // strtod_l with an explicit 'C' locale is a safe and interchangeable substitute,
   // regardless of the process LC_NUMERIC setting.
+  // Validate that the literal is a well-formed JSON number before handing off to
+  // strtod_l, which accepts a broader set of inputs (leading whitespace, hex floats,
+  // nan, inf, empty string) that are not valid JSON.
+  //
+  // JSON number grammar (RFC 8259):
+  //   number = [ '-' ] ( '0' | [1-9] *DIGIT ) [ '.' 1*DIGIT ]
+  //            [ ('e'|'E') ['+'/'-'] 1*DIGIT ]
+  {
+    const char* p = json_literal.data();
+    const char* const end = p + json_literal.size();
+
+    // Must be non-empty
+    if (p == end) {
+      return false;
+    }
+
+    // Optional leading minus
+    if (*p == '-') {
+      ++p;
+      if (p == end) {
+        return false;
+      }
+    }
+
+    // Integer part: '0' standing alone, or [1-9] followed by any digits
+    if (*p == '0') {
+      ++p;
+    } else if (*p >= '1' && *p <= '9') {
+      while (p != end && *p >= '0' && *p <= '9') {
+        ++p;
+      }
+    } else {
+      return false;
+    }
+
+    // Optional fractional part
+    if (p != end && *p == '.') {
+      ++p;
+      if (p == end || *p < '0' || *p > '9') {
+        return false;
+      }
+      while (p != end && *p >= '0' && *p <= '9') {
+        ++p;
+      }
+    }
+
+    // Optional exponent part
+    if (p != end && (*p == 'e' || *p == 'E')) {
+      ++p;
+      if (p != end && (*p == '+' || *p == '-')) {
+        ++p;
+      }
+      if (p == end || *p < '0' || *p > '9') {
+        return false;
+      }
+      while (p != end && *p >= '0' && *p <= '9') {
+        ++p;
+      }
+    }
+
+    // Any remaining characters mean the literal is not a valid JSON number
+    if (p != end) {
+      return false;
+    }
+  }
+
   static const locale_t kCLocale = newlocale(LC_NUMERIC_MASK, "C", nullptr);
   const std::string tmp(json_literal);
   char* end_ptr = nullptr;
