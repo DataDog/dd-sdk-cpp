@@ -115,7 +115,16 @@ static bool ParseJsonObject(std::string_view json_value, Attribute& out) {
     }
     result.SetObjectProperty(key, val);
 
-    obj.SkipObjectPropertySeparator();
+    // After each property, the next character must be ',' or '}'; anything else
+    // (including a missing comma between properties) is invalid JSON
+    if (obj.Peek() == ',') {
+      obj.Advance();
+      if (obj.Peek() == '}') {
+        return false;  // trailing comma
+      }
+    } else if (obj.Peek() != '}') {
+      return false;  // missing delimiter between properties
+    }
   }
   if (!obj.OK() || obj.Peek() != '}') {
     return false;

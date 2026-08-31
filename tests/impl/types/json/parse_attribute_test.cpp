@@ -214,6 +214,10 @@ TEST_CASE("ParseJsonAttribute", "[unit][json][parse_attribute]") {
     SECTION("M reject unclosed object") {
       REQUIRE_FALSE(ParseJsonAttribute(R"({"a":1)", out));
     }
+    SECTION("M reject trailing comma in object") {
+      REQUIRE_FALSE(ParseJsonAttribute(R"({"a":1,})", out));
+      REQUIRE_FALSE(ParseJsonAttribute(R"({"a":1,"b":2,})", out));
+    }
     SECTION("M reject malformed object - bad value") {
       REQUIRE_FALSE(ParseJsonAttribute(R"({"a":bad})", out));
     }
