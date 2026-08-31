@@ -216,10 +216,6 @@ struct RumViewEventParser {
   void ScanInternalObject(JsonScanner& scanner);
 
   // Helper functions for parsing those JSON literals into `values`
-  static bool ParseUUID(std::string_view json_literal, UUID& out_value);
-  static bool ParseString(std::string_view json_literal, std::string& out_value);
-  static bool ParseUInt64(std::string_view json_literal, uint64_t& out_value);
-  static bool ParseBool(std::string_view json_literal, bool& out_value);
   static bool ParseRumSessionType(
       std::string_view json_literal, RumSessionType& out_value
   );

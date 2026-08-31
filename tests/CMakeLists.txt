@@ -37,6 +37,7 @@ add_executable(tests
     impl/types/json/primitives/uuid_test.cpp
     impl/types/json/attribute_test.cpp
     impl/types/json/optional_test.cpp
+    impl/types/json/parse_primitives_test.cpp
     impl/types/events/enum_test.cpp
     impl/types/events/omissible_test.cpp
     impl/types/events/struct_test.cpp
