@@ -21,7 +21,7 @@
 namespace datadog::impl {
 
 /**
- * Flags describing the intrinsic traits of each type of RumCommandPayload that can be
+ * Flags describing the intrinsic traits of each type of RumCommandPayload that may be
  * processed by RUM scopes.
  */
 enum class RumCommandFlags : uint8_t {
