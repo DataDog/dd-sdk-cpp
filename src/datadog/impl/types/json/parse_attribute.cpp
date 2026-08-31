@@ -60,14 +60,23 @@ static bool ParseJsonArray(std::string_view json_value, Attribute& out) {
     }
     result.ArrayPush(item);
 
+    // After each element, the next character must be ',' or ']'; anything else
+    // (including an adjacent value with no comma) is invalid JSON
     if (arr.Peek() == ',') {
       arr.Advance();
       if (arr.Peek() == ']') {
         return false;  // trailing comma
       }
+    } else if (arr.Peek() != ']') {
+      return false;  // missing delimiter between elements
     }
   }
   if (!arr.OK() || arr.Peek() != ']') {
+    return false;
+  }
+  arr.Advance();  // skip ']'
+  // Reject any trailing bytes after the closing bracket
+  if (arr.pos != json_value.size()) {
     return false;
   }
   out = result;
@@ -111,6 +120,11 @@ static bool ParseJsonObject(std::string_view json_value, Attribute& out) {
   if (!obj.OK() || obj.Peek() != '}') {
     return false;
   }
+  obj.Advance();  // skip '}'
+  // Reject any trailing bytes after the closing brace
+  if (obj.pos != json_value.size()) {
+    return false;
+  }
   out = result;
   return true;
 }
@@ -121,7 +135,7 @@ bool ParseJsonAttribute(std::string_view json_value, Attribute& out) {
 
   if (c == 'n') {
     auto span = scanner.SkipNameLiteral("null");
-    if (!scanner.OK() || !span.OK()) {
+    if (!scanner.OK() || !span.OK() || scanner.pos != json_value.size()) {
       return false;
     }
     out = Attribute::Null();
@@ -130,7 +144,7 @@ bool ParseJsonAttribute(std::string_view json_value, Attribute& out) {
 
   if (c == 't' || c == 'f') {
     auto span = scanner.SkipBoolLiteral();
-    if (!scanner.OK() || !span.OK()) {
+    if (!scanner.OK() || !span.OK() || scanner.pos != json_value.size()) {
       return false;
     }
     bool val{};
@@ -143,7 +157,7 @@ bool ParseJsonAttribute(std::string_view json_value, Attribute& out) {
 
   if (c == '-' || (c >= '0' && c <= '9')) {
     auto span = scanner.SkipNumberLiteral();
-    if (!scanner.OK() || !span.OK()) {
+    if (!scanner.OK() || !span.OK() || scanner.pos != json_value.size()) {
       return false;
     }
     return ParseJsonNumber(json_value.substr(span.i, span.len), out);
@@ -151,7 +165,7 @@ bool ParseJsonAttribute(std::string_view json_value, Attribute& out) {
 
   if (c == '"') {
     auto span = scanner.SkipStringLiteral();
-    if (!scanner.OK() || !span.OK()) {
+    if (!scanner.OK() || !span.OK() || scanner.pos != json_value.size()) {
       return false;
     }
     std::string val;

@@ -216,6 +216,17 @@ TEST_CASE("JsonScanner", "[unit][rum]") {
       REQUIRE(!scanner.OK());
       REQUIRE(!span.OK());
     }
+
+    SECTION("M fail W array elements are not separated by a comma") {
+      // [1true] and [{}[]] are syntactically invalid: a comma is required between
+      // consecutive array elements
+      auto s = GENERATE(as<std::string_view>(), "[1true]", "[{}[]]", "[\"a\"\"b\"]");
+      INFO("input value: " << s);
+      JsonScanner scanner{s};
+      auto span = scanner.SkipArrayLiteral();
+      REQUIRE(!scanner.OK());
+      REQUIRE(!span.OK());
+    }
   }
 
   SECTION("SkipObjectLiteral") {

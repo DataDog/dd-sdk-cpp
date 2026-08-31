@@ -184,6 +184,12 @@ TEST_CASE("ParseJsonAttribute", "[unit][json][parse_attribute]") {
     SECTION("M reject trailing comma in array") {
       REQUIRE_FALSE(ParseJsonAttribute("[1,]", out));
     }
+    SECTION("M reject adjacent elements without a comma") {
+      // [1true] and [{}[]] have no comma between adjacent values and are not valid JSON
+      REQUIRE_FALSE(ParseJsonAttribute("[1true]", out));
+      REQUIRE_FALSE(ParseJsonAttribute("[{}[]]", out));
+      REQUIRE_FALSE(ParseJsonAttribute("[1 2]", out));
+    }
   }
 
   SECTION("{object}") {
@@ -210,6 +216,35 @@ TEST_CASE("ParseJsonAttribute", "[unit][json][parse_attribute]") {
     }
     SECTION("M reject malformed object - bad value") {
       REQUIRE_FALSE(ParseJsonAttribute(R"({"a":bad})", out));
+    }
+  }
+
+  SECTION("{trailing tokens}") {
+    // Any suffix after a complete, valid JSON value must be rejected; the function
+    // contracts to parse the entire input string as a single JSON value
+    SECTION("M reject trailing tokens after null") {
+      REQUIRE_FALSE(ParseJsonAttribute("nullgarbage", out));
+      REQUIRE_FALSE(ParseJsonAttribute("null,null", out));
+    }
+    SECTION("M reject trailing tokens after bool") {
+      REQUIRE_FALSE(ParseJsonAttribute("true,false", out));
+      REQUIRE_FALSE(ParseJsonAttribute("trueX", out));
+    }
+    SECTION("M reject trailing tokens after number") {
+      REQUIRE_FALSE(ParseJsonAttribute("42junk", out));
+      REQUIRE_FALSE(ParseJsonAttribute("3.14abc", out));
+    }
+    SECTION("M reject trailing tokens after string") {
+      REQUIRE_FALSE(ParseJsonAttribute(R"("hello"world)", out));
+      REQUIRE_FALSE(ParseJsonAttribute(R"("x","y")", out));
+    }
+    SECTION("M reject trailing tokens after array") {
+      REQUIRE_FALSE(ParseJsonAttribute("[1]junk", out));
+      REQUIRE_FALSE(ParseJsonAttribute("[]null", out));
+    }
+    SECTION("M reject trailing tokens after object") {
+      REQUIRE_FALSE(ParseJsonAttribute(R"({}null)", out));
+      REQUIRE_FALSE(ParseJsonAttribute(R"({"a":1}X)", out));
     }
   }
 }

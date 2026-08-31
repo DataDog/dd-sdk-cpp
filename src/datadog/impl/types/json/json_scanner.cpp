@@ -202,14 +202,18 @@ JsonScanner::Span JsonScanner::SkipArrayLiteral() {
     // Skip the next item
     SkipValue();
 
-    // If the value is followed by a comma, skip it; a trailing comma (i.e. comma
-    // immediately before ']') is not valid JSON
+    // After each element, the next character must be a valid delimiter (',' or ']')
     if (Peek() == ',') {
       Advance();
+      // A comma immediately before ']' is a trailing comma: not valid JSON
       if (Peek() == ']') {
         Fail();
         return Span{};
       }
+    } else if (Peek() != ']') {
+      // Neither comma nor closing bracket: missing delimiter
+      Fail();
+      return Span{};
     }
   }
 

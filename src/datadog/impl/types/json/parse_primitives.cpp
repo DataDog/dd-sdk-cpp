@@ -161,6 +161,10 @@ bool ParseJsonString(std::string_view json_literal, std::string& out) {
         return false;
       }
     } else {
+      // Characters in the range U+0000–U+001F must be escaped
+      if (static_cast<unsigned char>(c) < 0x20) {
+        return false;
+      }
       out += c;
       ++i;
     }

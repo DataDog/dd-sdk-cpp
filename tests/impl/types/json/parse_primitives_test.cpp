@@ -83,6 +83,17 @@ TEST_CASE("ParseJsonString", "[unit][json][parse_primitives]") {
     REQUIRE(ParseJsonString("\"хорошо\"", out));
     REQUIRE(out == "хорошо");
   }
+
+  SECTION("M reject unescaped control bytes (0x00-0x1f)") {
+    // JSON requires control characters to be escaped; a raw byte below 0x20 inside a
+    // string literal is not valid JSON and must be rejected
+    REQUIRE_FALSE(ParseJsonString("\"\x01\"", out));  // SOH
+    REQUIRE_FALSE(ParseJsonString("\"\x09\"", out));  // HT (raw tab, not \t)
+    REQUIRE_FALSE(ParseJsonString("\"\x0a\"", out));  // LF (raw newline, not \n)
+    REQUIRE_FALSE(ParseJsonString("\"\x0d\"", out));  // CR
+    REQUIRE_FALSE(ParseJsonString("\"\x1f\"", out));  // US
+    REQUIRE_FALSE(ParseJsonString("\"first\x0asecond\"", out));  // embedded LF
+  }
 }
 
 TEST_CASE("ParseJsonUUID", "[unit][json][parse_primitives]") {
