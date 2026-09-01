@@ -14,6 +14,7 @@
 
 #include "datadog/c/core_glue.hpp"
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/core/types.hpp"
 
 #include "mock/clock.hpp"
 #include "mock/filesystem.hpp"
@@ -129,7 +130,7 @@ struct CoreTestHarness {
     // interface
     return new dd_core_t(
         std::move(test._core),
-        impl::DiagnosticLogger::FromC(on_c_diagnostic, &test, DD_DIAGNOSTIC_LEVEL_DEBUG)
+        impl::DiagnosticLogger_FromC(on_c_diagnostic, &test, DD_DIAGNOSTIC_LEVEL_DEBUG)
     );
   }
 

@@ -63,7 +63,7 @@ void dd_core_config_init(
     return;
   }
   *config = DEFAULT_CORE_CONFIG;
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -129,7 +129,7 @@ void dd_core_config_set_application_storage_path(
   if (!config || !value) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -157,7 +157,7 @@ void dd_core_config_set_client_token(dd_core_config_t* config, const char* value
   if (!config) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -177,7 +177,7 @@ void dd_core_config_set_service(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -197,7 +197,7 @@ void dd_core_config_set_env(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -217,7 +217,7 @@ void dd_core_config_set_version(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -237,7 +237,7 @@ void dd_core_config_set_variant(dd_core_config_t* config, const char* value) {
   if (!config) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -291,7 +291,7 @@ void dd_core_config_internal_set_custom_endpoint_url(
   if (!config) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -312,7 +312,7 @@ void dd_core_config_internal_set_source(dd_core_config_t* config, const char* va
   if (!config) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -334,7 +334,7 @@ void dd_core_config_internal_set_sdk_version(
   if (!config) {
     return;
   }
-  auto logger = datadog::impl::DiagnosticLogger::FromC(
+  auto logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
@@ -367,7 +367,7 @@ dd_core_t* dd_core_create(
 
   // Prepare a diagnostic logging interface that we can use to emit messages to be
   // handled by the application (or written to stderr by default)
-  auto diagnostic_logger = datadog::impl::DiagnosticLogger::FromC(
+  auto diagnostic_logger = datadog::impl::DiagnosticLogger_FromC(
       config->diagnostic_handler,
       config->diagnostic_handler_userdata,
       config->diagnostic_threshold
