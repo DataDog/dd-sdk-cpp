@@ -8,7 +8,7 @@
 
 #include <algorithm>
 
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 #ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN

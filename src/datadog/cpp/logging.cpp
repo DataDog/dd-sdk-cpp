@@ -10,9 +10,9 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/logging/logger.hpp"
 #include "datadog/impl/logging/logging.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog {
 

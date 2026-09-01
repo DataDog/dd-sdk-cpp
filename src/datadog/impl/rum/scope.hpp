@@ -15,8 +15,8 @@
 
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/rum/command.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog {
 struct RumConfig;

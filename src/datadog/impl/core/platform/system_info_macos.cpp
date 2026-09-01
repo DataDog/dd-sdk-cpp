@@ -14,7 +14,7 @@
 #include "datadog/timestamp.hpp"
 
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::platform {
 

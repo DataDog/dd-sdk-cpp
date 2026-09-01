@@ -11,7 +11,7 @@
 #include <regex>
 #include <string>
 
-#include "datadog/impl/core/feature_types/crash_reporting.hpp"
+#include "datadog/impl/types/crash_reporting.hpp"
 
 #include "support/catch.hpp"
 

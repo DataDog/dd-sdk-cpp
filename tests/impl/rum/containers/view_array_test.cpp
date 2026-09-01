@@ -8,11 +8,11 @@
 
 #include "datadog/rum.hpp"
 
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/rum/command.hpp"
 #include "datadog/impl/rum/scopes/application.hpp"
 #include "datadog/impl/rum/scopes/session.hpp"
 #include "datadog/impl/rum/scopes/view.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 #include "mock/clock.hpp"
 #include "support/catch.hpp"

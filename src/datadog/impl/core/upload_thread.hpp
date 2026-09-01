@@ -18,7 +18,7 @@
 #include "datadog/impl/core/http/request_builder.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 

@@ -9,9 +9,9 @@
 #include <array>
 #include <optional>
 
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/rum/command.hpp"
 #include "datadog/impl/rum/scopes/view.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 

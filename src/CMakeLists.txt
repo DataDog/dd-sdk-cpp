@@ -22,21 +22,20 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/cpp/rum.cpp
     datadog/cpp/uuid.cpp
     datadog/cpp/version.cpp
-    datadog/impl/core/
+    datadog/impl/types/attribute/cow.cpp
+    datadog/impl/types/attribute/merge.cpp
+    datadog/impl/types/json/primitives/bool.cpp
+    datadog/impl/types/json/primitives/float.cpp
+    datadog/impl/types/json/primitives/integer.cpp
+    datadog/impl/types/json/primitives/null.cpp
+    datadog/impl/types/json/primitives/string.cpp
+    datadog/impl/types/json/primitives/timestamp.cpp
+    datadog/impl/types/json/primitives/uuid.cpp
+    datadog/impl/types/json/attribute.cpp
+    datadog/impl/types/json/diagnostic_attribute.cpp
+    datadog/impl/types/json/json_scanner.cpp
+    datadog/impl/types/diagnostics.cpp
     datadog/impl/core/attribute/binary.cpp
-    datadog/impl/core/attribute/cow.cpp
-    datadog/impl/core/attribute/merge.cpp
-    datadog/impl/core/json/primitives/bool.cpp
-    datadog/impl/core/json/primitives/float.cpp
-    datadog/impl/core/json/primitives/integer.cpp
-    datadog/impl/core/json/primitives/null.cpp
-    datadog/impl/core/json/primitives/string.cpp
-    datadog/impl/core/json/primitives/timestamp.cpp
-    datadog/impl/core/json/primitives/uuid.cpp
-    datadog/impl/core/json/attribute.cpp
-    datadog/impl/core/json/diagnostic_attribute.cpp
-    datadog/impl/core/json/json_scanner.cpp
-    datadog/impl/core/util/diagnostics.cpp
     datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp
     datadog/impl/core/context.cpp

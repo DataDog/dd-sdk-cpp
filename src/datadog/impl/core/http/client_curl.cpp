@@ -5,7 +5,7 @@
 // Copyright 2025-Present Datadog, Inc.
 
 #include "datadog/impl/core/http/client.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 #include "curl/curl.h"
 

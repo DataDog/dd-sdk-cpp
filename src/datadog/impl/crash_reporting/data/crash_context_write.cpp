@@ -10,10 +10,10 @@
 
 #include "datadog/impl/core/attribute/binary.hpp"
 #include "datadog/impl/core/block.hpp"
-#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context.hpp"
+#include "datadog/impl/types/crash_reporting.hpp"
 
 namespace datadog::impl {
 

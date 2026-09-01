@@ -12,7 +12,7 @@
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog {
 

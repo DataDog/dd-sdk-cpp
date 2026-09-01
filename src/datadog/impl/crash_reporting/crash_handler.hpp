@@ -9,8 +9,8 @@
 #include <memory>
 #include <string_view>
 
-#include "datadog/impl/core/feature_types/crash_reporting.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/crash_reporting.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 

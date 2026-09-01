@@ -15,7 +15,7 @@
 #include "datadog/timestamp.hpp"
 
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 using namespace datadog;
 

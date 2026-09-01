@@ -12,7 +12,6 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/attribute/merge.hpp"
 #include "datadog/impl/core/context_thread.hpp"
 #include "datadog/impl/core/http/client.hpp"
 #include "datadog/impl/core/messaging_thread.hpp"
@@ -22,8 +21,9 @@
 #include "datadog/impl/core/storage/util.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/core/version.hpp"
+#include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/attribute/merge.hpp"
 
 namespace datadog::impl {
 

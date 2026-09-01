@@ -17,8 +17,8 @@
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/context_thread.hpp"
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 #include "support/catch.hpp"
 #include "support/context.hpp"

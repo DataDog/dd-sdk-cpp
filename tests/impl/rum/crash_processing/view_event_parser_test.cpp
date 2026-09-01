@@ -13,8 +13,8 @@
 #include "datadog/timestamp.hpp"
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/feature_types/rum.hpp"
-#include "datadog/impl/core/util/json.hpp"
+#include "datadog/impl/types/json.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 #include "support/catch.hpp"
 

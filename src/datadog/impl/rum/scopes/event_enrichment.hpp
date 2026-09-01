@@ -12,9 +12,9 @@
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 namespace datadog::impl {
 

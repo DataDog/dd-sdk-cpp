@@ -24,29 +24,32 @@ add_executable(tests
     cpp/user_info_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     cpp/version_cpp_api_test.cpp
+    impl/types/attribute/cow_test.cpp
+    impl/types/attribute/memory_test.cpp
+    impl/types/attribute/merge_test.cpp
+    impl/types/attribute/refcount_test.cpp
+    impl/types/json/primitives/bool_test.cpp
+    impl/types/json/primitives/float_test.cpp
+    impl/types/json/primitives/integer_test.cpp
+    impl/types/json/primitives/null_test.cpp
+    impl/types/json/primitives/string_test.cpp
+    impl/types/json/primitives/timestamp_test.cpp
+    impl/types/json/primitives/uuid_test.cpp
+    impl/types/json/attribute_test.cpp
+    impl/types/json/optional_test.cpp
+    impl/types/events/enum_test.cpp
+    impl/types/events/omissible_test.cpp
+    impl/types/events/struct_test.cpp
+    impl/types/events/timestamp_test.cpp
+    impl/types/diagnostics_test.cpp
+    impl/types/json/json_scanner_test.cpp
+    impl/types/json_test.cpp
+    impl/types/rum_test.cpp
     impl/core/attribute/binary_test.cpp
-    impl/core/attribute/cow_test.cpp
-    impl/core/attribute/memory_test.cpp
-    impl/core/attribute/merge_test.cpp
-    impl/core/attribute/refcount_test.cpp
-    impl/core/events/enum_test.cpp
-    impl/core/events/omissible_test.cpp
-    impl/core/events/struct_test.cpp
-    impl/core/events/timestamp_test.cpp
-    impl/core/feature_types/rum_test.cpp
     impl/core/http/body_writer_string_test.cpp
     impl/core/http/body_writer_tlv_test.cpp
     impl/core/http/client_test.cpp
     impl/core/http/request_builder_test.cpp
-    impl/core/json/primitives/bool_test.cpp
-    impl/core/json/primitives/float_test.cpp
-    impl/core/json/primitives/integer_test.cpp
-    impl/core/json/primitives/null_test.cpp
-    impl/core/json/primitives/string_test.cpp
-    impl/core/json/primitives/timestamp_test.cpp
-    impl/core/json/primitives/uuid_test.cpp
-    impl/core/json/attribute_test.cpp
-    impl/core/json/optional_test.cpp
     impl/core/platform/clock_test.cpp
     impl/core/platform/system_info_test.cpp
     impl/core/storage/artifact_test.cpp
@@ -55,8 +58,6 @@ add_executable(tests
     impl/core/storage/filesystem_wrapper_test.cpp
     impl/core/storage/path_test.cpp
     impl/core/storage/sdk_test.cpp
-    impl/core/util/diagnostics_test.cpp
-    impl/core/util/json_test.cpp
     impl/core/util/validation_test.cpp
     impl/core/block_test.cpp
     impl/core/context_test.cpp
@@ -87,7 +88,6 @@ add_executable(tests
     impl/rum/containers/view_array_test.cpp
     impl/rum/crash_processing/crash_formatting_test.cpp
     impl/rum/crash_processing/crash_handling_test.cpp
-    impl/core/json/json_scanner_test.cpp
     impl/rum/crash_processing/view_event_mutation_test.cpp
     impl/rum/crash_processing/view_event_parser_test.cpp
     impl/rum/scopes/action_test.cpp

@@ -9,9 +9,9 @@
 #include <string>
 #include <unordered_map>
 
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/rum/command.hpp"
 #include "datadog/impl/rum/scopes/resource.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 

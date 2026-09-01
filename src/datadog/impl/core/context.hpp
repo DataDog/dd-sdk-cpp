@@ -17,7 +17,7 @@
 #include "datadog/core.hpp"
 #include "datadog/timestamp.hpp"
 
-#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 namespace datadog::platform {
 struct OsInfo;
