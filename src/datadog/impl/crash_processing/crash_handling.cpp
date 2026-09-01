@@ -9,7 +9,6 @@
 #include <charconv>
 #include <chrono>
 
-#include "datadog/impl/core/upload_util.hpp"
 #include "datadog/impl/core/version.hpp"
 #include "datadog/impl/crash_processing/crash_formatting.hpp"
 #include "datadog/impl/crash_processing/view_event_mutation.hpp"
@@ -18,6 +17,7 @@
 #include "datadog/impl/types/crash_reporting.hpp"
 #include "datadog/impl/types/json.hpp"
 #include "datadog/impl/types/sampling.hpp"
+#include "datadog/impl/types/upload_util.hpp"
 
 namespace datadog::impl {
 

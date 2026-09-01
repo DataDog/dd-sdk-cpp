@@ -13,9 +13,9 @@
 
 #include "datadog/impl/core/message_bus.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/core/upload_util.hpp"
 #include "datadog/impl/core/version.hpp"
 #include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/upload_util.hpp"
 
 namespace datadog::impl {
 

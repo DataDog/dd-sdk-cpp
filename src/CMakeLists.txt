@@ -36,6 +36,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/json/json_scanner.cpp
     datadog/impl/types/diagnostics.cpp
     datadog/impl/types/sampling.cpp
+    datadog/impl/types/upload_util.cpp
     datadog/impl/core/attribute/binary.cpp
     datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp
@@ -53,7 +54,6 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/core/types.cpp
     datadog/impl/core/upload_scheduler.cpp
     datadog/impl/core/upload_thread.cpp
-    datadog/impl/core/upload_util.cpp
 )
 
 # core/storage, with IFilesystem implementation determined per-platform
