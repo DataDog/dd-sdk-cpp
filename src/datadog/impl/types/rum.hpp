@@ -497,7 +497,7 @@ struct RumDeviceProperties {
   OmitIfNoValue<bool> power_saving_mode;
   OmitIfNoValue<float> brightness_level;
 
-  RumDeviceProperties() {};
+  RumDeviceProperties() {}
 };
 DATADOG_JSON_STRUCT(
     RumDeviceProperties,
@@ -645,7 +645,7 @@ struct RumViewEvent {
       OmitIfNoValue<LCP> lcp;
       OmitIfNoValue<FBC> fbc;
 
-      Performance() {};
+      Performance() {}
     };
     struct Accessibility {
       // From _view-accessibility-schema.json
@@ -672,7 +672,7 @@ struct RumViewEvent {
       OmitIfFalse<bool> speak_selection_enabled{false};
       OmitIfFalse<bool> rtl_enabled{false};
 
-      Accessibility() {};
+      Accessibility() {}
     };
     // From _common-schema.json
     UUID id;
@@ -737,7 +737,7 @@ struct RumViewEvent {
     // From view-schema.json
     // NYI(web): scroll
 
-    Display() {};
+    Display() {}
   };
   struct Internal {
     struct Session {
@@ -745,7 +745,7 @@ struct RumViewEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session() {}
     };
     struct Configuration {
       // From _common-schema.json
@@ -1084,7 +1084,7 @@ struct RumActionEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display() {}
   };
   struct Action {
     struct Target {
@@ -1120,7 +1120,7 @@ struct RumActionEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session() {}
     };
     struct Configuration {
       // From _common-schema.json
@@ -1372,7 +1372,7 @@ struct RumResourceEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display() {}
   };
   struct Action {
     // From _action-child-schema.json
@@ -1430,7 +1430,7 @@ struct RumResourceEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session() {}
     };
     struct Configuration {
       // From _common-schema.json
@@ -1759,7 +1759,7 @@ struct RumErrorEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display() {}
   };
   struct Action {
     // From _action-child-schema.json
@@ -1790,13 +1790,13 @@ struct RumErrorEvent {
       OmitIfEmpty<std::string> exception_codes;
       OmitIfEmpty<std::string> path;
 
-      Meta() {};
+      Meta() {}
     };
     struct Csp {
       // From error-schema.json
       OmitIfNoValue<StringRumCspDisposition> disposition;
 
-      Csp() {};
+      Csp() {}
     };
     struct BinaryImage {
       // From error-schema.json
@@ -1844,7 +1844,7 @@ struct RumErrorEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session() {}
     };
     struct Configuration {
       // From _common-schema.json
@@ -2104,7 +2104,7 @@ struct RumLongTaskEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display() {}
   };
   struct Action {
     // From _action-child-schema.json
@@ -2129,7 +2129,7 @@ struct RumLongTaskEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session() {}
     };
     struct Configuration {
       // From _common-schema.json
@@ -2347,7 +2347,7 @@ struct RumVitalEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display() {}
   };
   struct Vital {
     // From _vital-common-schema.json
@@ -2373,7 +2373,7 @@ struct RumVitalEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session() {}
     };
     struct Configuration {
       // From _common-schema.json
@@ -2572,7 +2572,7 @@ struct RumVitalAppLaunchEvent {
     // From _common-schema.json
     OmitIfNoValue<RumViewportProperties> viewport;
 
-    Display() {};
+    Display() {}
   };
   struct Vital {
     // From _vital-common-schema.json
@@ -2602,7 +2602,7 @@ struct RumVitalAppLaunchEvent {
       OmitIfZero<uint8_t> plan{};
       OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
 
-      Session() {};
+      Session() {}
     };
     struct Configuration {
       // From _common-schema.json
