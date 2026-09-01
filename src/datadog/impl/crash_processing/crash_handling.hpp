@@ -6,7 +6,11 @@
 
 #pragma once
 
+#include "datadog/timestamp.hpp"
+#include "datadog/uuid.hpp"
+
 #include "datadog/impl/core/feature_scope.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 
@@ -26,8 +30,17 @@ struct CrashReport;
  * that crashed: handling a crash report has no effect whatsoever on the current
  * process's RUM application state as reflected in the scope tree, and therefore does
  * not involve dispatching or processing RumCommands.
+ *
+ * @param fallback_application_id Currently-configured RUM Application ID for this SDK
+ *  instance; used as a fallback in case no application ID is present in CrashContext.
+ * @param diagnostic_logger Logger used for debug/warning messages
+ * @param current_time Current system time in nanoseconds. This value is only used for
+ *  view age threshold checks; it does not require precise synchronization.
  */
 void ContextThread_HandleCrashReport(
+    const UUID& fallback_application_id,
+    const DiagnosticLogger& diagnostic_logger,
+    Timestamp current_time,
     RumScopeDependencies& deps,
     const CrashReport& crash,
     const EventWriter& event_writer
