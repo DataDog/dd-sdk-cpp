@@ -6,6 +6,7 @@
 
 #include "datadog/impl/crash_processing/crash_handling.hpp"
 
+#include <chrono>
 #include <nlohmann/json.hpp>
 #include <optional>
 #include <string>
@@ -164,56 +165,39 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
   DiagnosticMessageBuffer diagnostics;
   DiagnosticLogger logger = diagnostics.CreateTestLogger();
 
-  // And a mock system clock
-  MockClock clock;
-  clock.FreezeAtMilliseconds(1700000000000);
+  // And some basic values for input state, optionally modifiable by each test case
+  UUID rum_application_id = *UUID::Parse("99999999-4994-4994-4994-999999999999");
+  Timestamp current_time{std::chrono::milliseconds(1700000000000)};
 
-  // And a mock EventWriter function that will capture any RUM events produced by our
-  // crash-processing routine, allowing up to 1 view event and 1 error event to be
-  // captured (failing the test if any other value is produced, or if more than 1 view
-  // or error is produced)
+  // And a reusable buffer where we can encode event payloads to JSON
+  std::vector<uint8_t> encode_buffer;
+
+  // And a sink function that will receive any JSON-encoded events that result from
+  // processing a crash
   nlohmann::json new_view_event;
   nlohmann::json new_error_event;
-  EventWriter event_writer =
-      [&](Block event_data, Block event_metadata, bool bypass_tracking_consent) {
-        // When we process crash reports, we bypass the normal tracking consent
-        // handling and instead generate events if consent was granted at the time of
-        // the crash: if RUM generates any events in response to crashes, it must do
-        // so with bypass_tracking_consent enabled
-        REQUIRE(bypass_tracking_consent);
+  CrashEventSink sink = [&](CrashEventType event_type, std::string_view event_data) {
+    // RUM events are valid JSON objects
+    auto obj = nlohmann::json::parse(event_data);
+    REQUIRE(obj.is_object());
 
-        // RUM events are produced without metadata
-        REQUIRE(event_metadata.size() == 0);
-
-        // RUM events are valid JSON objects
-        auto obj = nlohmann::json::parse(event_data);
-        REQUIRE(obj.is_object());
-
-        // RUM's crash-processing routine may only produce events with type 'view' or
-        // 'error', and no more than one of each
-        REQUIRE(obj.contains("type"));
-        auto type = obj["type"].get_ref<const std::string&>();
-        if (type == "view") {
-          REQUIRE(new_view_event.is_null());
-          new_view_event = obj;
-        } else {
-          REQUIRE(type == "error");
-          REQUIRE(new_error_event.is_null());
-          new_error_event = obj;
-        }
+    // RUM's crash-processing routine may only produce events with type 'view' or
+    // 'error', and no more than one of each
+    REQUIRE(obj.contains("type"));
+    auto type_str = obj["type"].get_ref<const std::string&>();
+    switch (event_type) {
+      case CrashEventType::View:
+        REQUIRE(type_str == "view");
+        REQUIRE(new_view_event.is_null());
+        new_view_event = obj;
         return true;
-      };
-
-  // And a set of RumScopeDependencies
-  auto make_deps = [&](float session_sample_rate = 100.0f) {
-    // Use a different application_id to simulate the case where the application has
-    // been reconfigured between launches, ensuring that the events generated for the
-    // crash carry the originally-configured ID as contained in CrashContext
-    RumConfig rum_config("99999999-4994-4994-4994-999999999999");
-    rum_config.SetSessionSampleRate(session_sample_rate);
-    RumScopeDependencies deps(rum_config, clock);
-    deps.diagnostic_logger = logger;
-    return deps;
+      case CrashEventType::Error:
+        REQUIRE(type_str == "error");
+        REQUIRE(new_error_event.is_null());
+        new_error_event = obj;
+        return true;
+    }
+    return false;
   };
 
   // Given various CrashReport values, our HandleCrashReport routine produces the
@@ -225,14 +209,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context.reset();
 
     // When we process that crash
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then no events are produced
@@ -262,14 +240,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->tracking_consent = consent;
 
     // When we process that crash
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then no events are produced
@@ -296,14 +268,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_session_state.is_sampled = false;
 
     // When we process that crash
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then no events are produced
@@ -332,14 +298,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_session_state.session_id = UUID::Zero;
 
     // When we process that crash
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then we produce a RUM View event that describes a synthetic 'ApplicationLaunch'
@@ -530,14 +490,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_initial_config.session_sample_rate = 0.0f;
 
     // When we process that crash
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then no events are generated
@@ -568,14 +522,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_session_state.has_tracked_any_view = false;
 
     // When we process that crash
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then we produce a RUM View event that describes a synthetic 'ApplicationLaunch'
@@ -778,14 +726,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     }
 
     // When we process that crash
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // And a warning is logged to signal that we don't handle crashes that occurred
@@ -827,14 +769,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     }
 
     // When we process that crash shortly after it's reported
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then we produce a schema-compliant RUM View event that describes the original
@@ -985,16 +921,10 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     }
 
     // When we process that crash after more than 4 hours have elapsed since the crash
-    // (crash happened at 1699999990000ms; initial MockClock time was 1700000000000ms)
-    clock.Tick(std::chrono::hours(4));
-    auto deps = make_deps();
+    // (crash happened at 1699999990000ms; initial time was 1700000000000ms)
+    current_time += std::chrono::hours(4);
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then we produce no view event
@@ -1112,14 +1042,8 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_session_state.session_id = UUID::Zero;
 
     // When we process that crash
-    auto deps = make_deps();
     ContextThread_HandleCrashReport(
-        deps.application_id,
-        deps.diagnostic_logger,
-        deps.clock.Now(),
-        deps,
-        crash,
-        event_writer
+        rum_application_id, logger, current_time, crash, encode_buffer, sink
     );
 
     // Then both the view and error events include a 'usr' object containing only

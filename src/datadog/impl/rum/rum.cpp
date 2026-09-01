@@ -82,9 +82,18 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
             self->_deps.application_id,
             self->_deps.diagnostic_logger,
             self->_deps.clock.Now(),
-            self->_deps,
             crash,
-            event_writer
+            self->_deps.GetEncodeBuffer(),
+            [&event_writer](CrashEventType, std::string_view event_data) {
+              // Any RUM events produced in response to a crash are written to storage
+              // as ordinary RUM event data to be uploaded on the next cycle. Crash
+              // processing respects the tracking consent set at the time of the crash,
+              // not the currently-configured value- if we've ended up with events here,
+              // it means consent _was_ granted when this crash occurred, so we write
+              // these events to the consent-granted directory unconditionally.
+              const bool bypass_consent = true;
+              return event_writer(event_data, {}, bypass_consent);
+            }
         );
       });
     } else if (const auto* m = std::get_if<LogErrorGeneratedMessage>(&msg)) {
