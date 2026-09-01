@@ -13,6 +13,8 @@
 #include <string>
 #include <vector>
 
+#include "datadog/uuid.hpp"
+
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/rum/command.hpp"
@@ -23,16 +25,6 @@ struct RumConfig;
 }
 
 namespace datadog::impl {
-
-/**
- * Given a raw 64-bit `seed` and a `sample_rate` in [0, 100]: applies Knuth
- * multiplicative hashing and compares the result against a threshold scaled from
- * `sample_rate`. Returns true if the session should be sampled in.
- *
- * Exposed for direct testing with seed values used in other SDKs' test suites.
- * Production code goes through `RumScopeDependencies::ShouldSampleSession`.
- */
-bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate);
 
 /**
  * Immutable set of input values used during RumScope processing.
@@ -64,9 +56,7 @@ struct RumScopeDependencies {
    * RUM events to be sent to intake. If false, the session is not sampled, meaning the
    * session scope ignores most commands and generate no events.
    */
-  bool ShouldSampleSession(
-      const UUID& session_id, std::optional<float> sample_rate = std::nullopt
-  ) const;
+  bool ShouldSampleSession(const UUID& session_id) const;
 
   /** Returns the configured session sample rate in [0.0, 100.0]. */
   float GetSessionSampleRate() const { return _sampling_rate; }

@@ -35,6 +35,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/json/diagnostic_attribute.cpp
     datadog/impl/types/json/json_scanner.cpp
     datadog/impl/types/diagnostics.cpp
+    datadog/impl/types/sampling.cpp
     datadog/impl/core/attribute/binary.cpp
     datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp

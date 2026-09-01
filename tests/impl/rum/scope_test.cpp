@@ -6,9 +6,6 @@
 
 #include "datadog/impl/rum/scope.hpp"
 
-#include <cstdint>
-#include <limits>
-
 #include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
 
@@ -17,48 +14,6 @@
 
 using namespace datadog;
 using namespace datadog::impl;
-
-TEST_CASE("ShouldSampleSessionFromSeed", "[unit][rum]") {
-  SECTION("M produce true W given known test values that should be sampled") {
-    // These values are replicated from DeterministicSamplerTests.swift, originally
-    // derived from dd-trace-go via browser SDK sampler.spec.ts
-    REQUIRE(ShouldSampleSessionFromSeed(5577006791947779410ull, 94.0509f) == true);
-    REQUIRE(ShouldSampleSessionFromSeed(15352856648520921629ull, 43.7714f) == true);
-    REQUIRE(ShouldSampleSessionFromSeed(3916589616287113937ull, 68.6823f) == true);
-    REQUIRE(ShouldSampleSessionFromSeed(894385949183117216ull, 30.0912f) == true);
-    REQUIRE(ShouldSampleSessionFromSeed(12156940908066221323ull, 46.889f) == true);
-  }
-
-  SECTION("M produce false W given known test values that should not be sampled") {
-    REQUIRE(ShouldSampleSessionFromSeed(9828766684487745566ull, 15.6519f) == false);
-    REQUIRE(ShouldSampleSessionFromSeed(4751997750760398084ull, 81.364f) == false);
-    REQUIRE(ShouldSampleSessionFromSeed(11199607447739267382ull, 38.0657f) == false);
-    REQUIRE(ShouldSampleSessionFromSeed(6263450610539110790ull, 21.8553f) == false);
-    REQUIRE(ShouldSampleSessionFromSeed(1874068156324778273ull, 36.0871f) == false);
-  }
-
-  SECTION("M unconditionally return true W sample rate is 100%") {
-    REQUIRE(ShouldSampleSessionFromSeed(0, 100.0f) == true);
-    REQUIRE(
-        ShouldSampleSessionFromSeed(std::numeric_limits<uint64_t>::max(), 100.0f) ==
-        true
-    );
-  }
-
-  SECTION("M unconditionally return false W sample rate is 0%") {
-    REQUIRE(ShouldSampleSessionFromSeed(0, 0.0f) == false);
-    REQUIRE(
-        ShouldSampleSessionFromSeed(std::numeric_limits<uint64_t>::max(), 0.0f) == false
-    );
-  }
-
-  SECTION("M sample in (fail-open) W seed is zero and rate > 0") {
-    // A zero seed hashes to zero, which is below every positive threshold.
-    REQUIRE(ShouldSampleSessionFromSeed(0, 1.0f) == true);
-    REQUIRE(ShouldSampleSessionFromSeed(0, 50.0f) == true);
-    REQUIRE(ShouldSampleSessionFromSeed(0, 99.9f) == true);
-  }
-}
 
 TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
   // Given UUID from the iOS integration test suite, whose seed (0xa522131ec48a) hashes
@@ -99,25 +54,5 @@ TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
       const UUID id = UUID::Random();
       REQUIRE(deps.ShouldSampleSession(id) == true);
     }
-  }
-
-  SECTION("M use explicit rate W explicit rate overrides configured rate") {
-    // Given deps configured with a rate that would NOT sample session_id
-    config.SetSessionSampleRate(50.0f);
-    // When no explicit rate is provided, Then the configured rate is used
-    REQUIRE(make_deps().ShouldSampleSession(session_id) == false);
-    // When an explicit rate above the threshold is provided,
-    // Then it overrides the configured rate
-    REQUIRE(make_deps().ShouldSampleSession(session_id, 60.0f) == true);
-  }
-
-  SECTION("M use explicit rate W explicit rate overrides configured rate (inverse)") {
-    // Given deps configured with a rate that would sample session_id
-    config.SetSessionSampleRate(100.0f);
-    // When no explicit rate is provided, Then the configured rate is used
-    REQUIRE(make_deps().ShouldSampleSession(session_id) == true);
-    // When an explicit rate below the threshold is provided,
-    // Then it overrides the configured rate
-    REQUIRE(make_deps().ShouldSampleSession(session_id, 50.0f) == false);
   }
 }
