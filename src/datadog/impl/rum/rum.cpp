@@ -13,7 +13,7 @@
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/http/body_writer_tlv.hpp"
 #include "datadog/impl/core/http/request_builder.hpp"
-#include "datadog/impl/rum/crash_processing/crash_handling.hpp"
+#include "datadog/impl/crash_processing/crash_handling.hpp"
 #include "datadog/impl/rum/resource_types.hpp"
 
 namespace datadog::impl {

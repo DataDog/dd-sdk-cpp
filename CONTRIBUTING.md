@@ -134,6 +134,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
         - [`logging.hpp`][types-logging]: Logging-related data structures used across module boundaries
         - [`rum.hpp`][types-rum]: RUM-related data structures, including RUM events adhering to [rum-events-format]
         - [`crash_reporting.hpp`][types-crash-reporting]: CrashReporting-related data structures used across modules
+    - [`crash_processing/`][impl-crash-processing] defines common logic used to produce new and/or updated RUM events in response to a crash that's been detected by the SDK: this code is used within the [`rum/`][impl-rum] feature, but it's also shared with the modified Crashpad handler process when built with `DD_CRASH_MODE=crashpad`
     - [`core/`][impl-core] implements the primary business logic of the SDK, including:
         - [`util/`][core-util]: Internal utility code for commonly-used functionality
         - [`storage/`][core-storage]: Code used to access the filesystem, prepare the SDK's `.datadog/` storage directory, and write and migrate event data
@@ -166,6 +167,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [types-logging]: ./src/datadog/impl/types/logging.hpp
 [types-rum]: ./src/datadog/impl/types/rum.hpp
 [types-crash-reporting]: ./src/datadog/impl/types/crash_reporting.hpp
+[impl-crash-processing]: ./src/datadog/impl/crash_processing/
 [impl-core]: ./src/datadog/impl/core/
 [core-util]: ./src/datadog/impl/core/util/
 [core-storage]: ./src/datadog/impl/core/storage/

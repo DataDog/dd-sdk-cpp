@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/rum/crash_processing/crash_formatting.hpp"
+#include "datadog/impl/crash_processing/crash_formatting.hpp"
 
 #include <algorithm>
 #include <csignal>
