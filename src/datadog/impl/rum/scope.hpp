@@ -13,7 +13,6 @@
 #include <string>
 #include <vector>
 
-#include "datadog/impl/core/attribute/typed_attribute.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/util/diagnostics.hpp"

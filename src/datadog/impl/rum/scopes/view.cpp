@@ -36,8 +36,8 @@ RumViewScope::RumViewScope(
       _key(key),
       _name(name),
       _started_at(start_time),
-      _view_attributes(16),
-      _global_and_view_attributes(32),
+      _view_attributes(Attribute::Object(16)),
+      _global_and_view_attributes(Attribute::Object(32)),
       _resource_scopes(deps.diagnostic_logger) {}
 
 void RumViewScope::PopulateContext(struct RumContext& out_context) const {
@@ -236,7 +236,7 @@ RumViewScope::ViewEventType RumViewScope::HandleStartView(
     // If the StartView command has a set of attributes associated with it, adopt those
     // values as our initial view-level attributes
     if (base.attributes.GetType() == ValueType::Object) {
-      _view_attributes.attribute = base.attributes;
+      _view_attributes = base.attributes;
       // _global_and_view_attributes can be left as-is in this case; it'll be populated
       // from the latest command when we send our first event
     }
@@ -288,7 +288,7 @@ RumViewScope::ViewEventType RumViewScope::HandleAddViewAttribute(
   // Mutate view-level attributes: there's no need to pre-merge into
   // _global_and_view_attributes here, since while the view is active we will perform
   // that merge immediately before generating events
-  _view_attributes.attribute.SetObjectProperty(payload.name, payload.value);
+  _view_attributes.SetObjectProperty(payload.name, payload.value);
   return ViewEventType::None;
 }
 
@@ -301,7 +301,7 @@ RumViewScope::ViewEventType RumViewScope::HandleRemoveViewAttribute(
   }
 
   // Mutate view-level attributes: as with HandleAddViewAttribute, no need to merge
-  _view_attributes.attribute.DeleteObjectProperty(payload.name);
+  _view_attributes.DeleteObjectProperty(payload.name);
   return ViewEventType::None;
 }
 
@@ -433,10 +433,9 @@ void RumViewScope::BecomeInactive(
   // final set of merged attributes as of view-stop-time, optionally including the
   // command attributes in the case of StopView.
   const Attribute& global_attributes = base.global_attributes;
-  const Attribute& view_attributes = _view_attributes.attribute;
   const Attribute& extra = accept_command_attributes ? base.attributes : Attribute();
   AttributeMerge::AssembleObject(
-      _global_and_view_attributes.attribute, {global_attributes, view_attributes, extra}
+      _global_and_view_attributes, {global_attributes, _view_attributes, extra}
   );
 }
 
@@ -593,12 +592,11 @@ void RumViewScope::SendViewEvent(
   // became inactive.
   if (_is_active) {
     AttributeMerge::AssembleObject(
-        _global_and_view_attributes.attribute,
-        {command.base.global_attributes, _view_attributes.attribute}
+        _global_and_view_attributes, {command.base.global_attributes, _view_attributes}
     );
   }
-  if (_global_and_view_attributes.attribute.GetObjectPropertyCount() > 0) {
-    ev.context.value = _global_and_view_attributes.attribute;
+  if (_global_and_view_attributes.GetObjectPropertyCount() > 0) {
+    ev.context.value = _global_and_view_attributes;
   }
 
   // Enrich event with OS and device properties from CoreContext
@@ -671,7 +669,7 @@ void RumViewScope::SendErrorEvent(
   Attribute merged_error_attributes = Attribute::Object();
   AttributeMerge::AssembleObject(
       merged_error_attributes,
-      {base.global_attributes, _view_attributes.attribute, base.attributes}
+      {base.global_attributes, _view_attributes, base.attributes}
   );
 
   // Extract a `_dd.error.source_type` override, if supplied alongside this error, and
@@ -748,8 +746,7 @@ void RumViewScope::SendLongTaskEvent(
   // in this event, merging: global <- view <- long task
   Attribute merged_attributes = Attribute::Object();
   AttributeMerge::AssembleObject(
-      merged_attributes,
-      {base.global_attributes, _view_attributes.attribute, base.attributes}
+      merged_attributes, {base.global_attributes, _view_attributes, base.attributes}
   );
   if (merged_attributes.GetObjectPropertyCount() > 0) {
     ev.context.value = merged_attributes;
