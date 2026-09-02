@@ -253,6 +253,7 @@ endif()
 # depends only on impl/types/, not impl/core/
 
 target_sources(ddsdkcpp PRIVATE
+    datadog/impl/crash_processing/crash_context_annotations.cpp
     datadog/impl/crash_processing/crash_formatting.cpp
     datadog/impl/crash_processing/crash_handling.cpp
     datadog/impl/crash_processing/view_event_mutation.cpp
