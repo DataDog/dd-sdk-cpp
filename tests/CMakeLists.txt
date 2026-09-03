@@ -49,6 +49,7 @@ add_executable(tests
     impl/types/rum_test.cpp
     impl/types/sampling_test.cpp
     impl/types/upload_util_test.cpp
+    impl/crash_processing/crash_context_annotations_test.cpp
     impl/crash_processing/crash_formatting_test.cpp
     impl/crash_processing/crash_handling_test.cpp
     impl/crash_processing/view_event_mutation_test.cpp
