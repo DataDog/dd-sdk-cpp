@@ -6,7 +6,7 @@
 
 #include "datadog/impl/crash_processing/view_event_parser.hpp"
 
-#include <charconv>
+#include "datadog/impl/types/json/parse_primitives.hpp"
 
 namespace datadog::impl {
 
@@ -62,22 +62,22 @@ bool RumViewEventParser::Parse(std::string_view view_event_json) {
   // If build_version and/or build_id are set, parse them so we can set the same values
   // in any RumErrorEvent that we produce
   if (spans.build_version.OK()) {
-    if (!ParseString(extract(spans.build_version), values.build_version)) {
+    if (!ParseJsonString(extract(spans.build_version), values.build_version)) {
       return false;
     }
   }
   if (spans.build_id.OK()) {
-    if (!ParseString(extract(spans.build_id), values.build_id)) {
+    if (!ParseJsonString(extract(spans.build_id), values.build_id)) {
       return false;
     }
   }
 
   // Any valid View event must have a nonzero UUID set for application.id and session.id
-  if (!ParseUUID(extract(spans.application_id), values.application_id) ||
+  if (!ParseJsonUUID(extract(spans.application_id), values.application_id) ||
       values.application_id == UUID::Zero) {
     return false;
   }
-  if (!ParseUUID(extract(spans.session_id), values.session_id) ||
+  if (!ParseJsonUUID(extract(spans.session_id), values.session_id) ||
       values.session_id == UUID::Zero) {
     return false;
   }
@@ -89,22 +89,22 @@ bool RumViewEventParser::Parse(std::string_view view_event_json) {
     return false;
   }
   if (spans.session_has_replay.OK()) {
-    if (!ParseBool(extract(spans.session_has_replay), values.session_has_replay)) {
+    if (!ParseJsonBool(extract(spans.session_has_replay), values.session_has_replay)) {
       return false;
     }
   }
 
   // Extract the basic details of the view: these same values (view.id, view.url, and
   // view.name if present) must be encoded in RumErrorEvent::View
-  if (!ParseUUID(extract(spans.view_id), values.view_id) ||
+  if (!ParseJsonUUID(extract(spans.view_id), values.view_id) ||
       values.view_id == UUID::Zero) {
     return false;
   }
-  if (!ParseString(extract(spans.view_url), values.view_url)) {
+  if (!ParseJsonString(extract(spans.view_url), values.view_url)) {
     return false;
   }
   if (spans.view_name.OK()) {
-    if (!ParseString(extract(spans.view_name), values.view_name)) {
+    if (!ParseJsonString(extract(spans.view_name), values.view_name)) {
       return false;
     }
   }
@@ -112,7 +112,7 @@ bool RumViewEventParser::Parse(std::string_view view_event_json) {
   // If we end up producing a new event for this view, we'll need to increment
   // view.error.count by one, so we need its current value (and we'll also need to
   // insert view.crash.count with a value of 1 right after it)
-  if (!ParseUInt64(extract(spans.view_error_count), values.view_error_count)) {
+  if (!ParseJsonUInt64(extract(spans.view_error_count), values.view_error_count)) {
     return false;
   }
 
@@ -120,7 +120,7 @@ bool RumViewEventParser::Parse(std::string_view view_event_json) {
   // RumViewEvent::Internal), and this SDK has never supported values of any other
   // version. If _dd.format_version is ever incremented, this code will need to be
   // updated as well.
-  if (!ParseUInt64(extract(spans.dd_format_version), values.dd_format_version)) {
+  if (!ParseJsonUInt64(extract(spans.dd_format_version), values.dd_format_version)) {
     return false;
   }
   if (values.dd_format_version != 2) {
@@ -129,7 +129,9 @@ bool RumViewEventParser::Parse(std::string_view view_event_json) {
 
   // _dd.document_version is a monotonic counter incremented with each new event
   // describing the same view: we'll need to increment it if we produce a new view event
-  if (!ParseUInt64(extract(spans.dd_document_version), values.dd_document_version)) {
+  if (!ParseJsonUInt64(
+          extract(spans.dd_document_version), values.dd_document_version
+      )) {
     return false;
   }
 
@@ -328,143 +330,6 @@ void RumViewEventParser::ScanInternalObject(JsonScanner& scanner) {
       scanner.Advance();
     }
   }
-}
-
-bool RumViewEventParser::ParseUUID(std::string_view json_literal, UUID& out_value) {
-  // A UUID should be encoded as a JSON string exactly 36 bytes in length
-  if (json_literal.size() != 38 || json_literal[0] != '"' || json_literal[37] != '"') {
-    return false;
-  }
-
-  // Use UUID::Parse to decode the value enclosed by quotes, returning success
-  auto uuid_opt = UUID::Parse(json_literal.substr(1, 36));
-  if (!uuid_opt.has_value()) {
-    return false;
-  }
-  out_value = *uuid_opt;
-  return true;
-}
-
-bool RumViewEventParser::ParseString(
-    std::string_view json_literal, std::string& out_value
-) {
-  // A string literal value should begin and end with double quotes; take `inner` as the
-  // substring enclosed by those quotes
-  if (json_literal.size() < 2 || json_literal.front() != '"' ||
-      json_literal.back() != '"') {
-    return false;
-  }
-  const std::string_view inner = json_literal.substr(1, json_literal.size() - 2);
-
-  // In the typical case, our output string will need to hold `inner` exactly; if there
-  // are any escape sequences, the final size will be slightly less than that
-  out_value.clear();
-  out_value.reserve(inner.size());
-
-  // Begin iterating over `inner` using index `i`, which we'll advance
-  // character-by-character, skipping over escape sequences as we decode them
-  size_t i = 0;
-
-  // Use a helper function to encapsulate the escape-sequence-parsing logic
-  // clang-format off
-  auto hex_nibble = [](char c) -> int {
-    // Given [0..f] in hex, return an integer [0..15], or -1 if not valid hex
-    if (c >= '0' && c <= '9') { return c - '0'; }
-    if (c >= 'a' && c <= 'f') { return c - 'a' + 10; }
-    if (c >= 'A' && c <= 'F') { return c - 'A' + 10; }
-    return -1;
-  };
-  auto consume_escape_sequence = [&i, &inner, &hex_nibble](std::string& out) -> bool {
-    // i is an offset into `inner`, currently positioned at a backslash, which
-    // unambiguously begins an escape sequence within a JSON string literal: we need at
-    // least one more byte after the slash, or this is a truncated escape
-    if (i + 1 >= inner.size()) {
-      return false;
-    }
-
-    // The escape sequence that follows the slash has at least one byte: advance to that
-    // first byte and examine it
-    ++i;
-    switch(inner[i]) {
-      // Single-character escape sequences are trivial: just add the escaped value to
-      // the output string and increment `i` to move past it
-      case '"': out += '"'; ++i; return true;
-      case '\\': out += '\\'; ++i; return true;
-      case 'b': out += '\b'; ++i; return true;
-      case 'f': out += '\f'; ++i; return true;
-      case 'n': out += '\n'; ++i; return true;
-      case 'r': out += '\r'; ++i; return true;
-      case 't': out += '\t'; ++i; return true;
-      case '/': out += '/'; ++i; return true;
-      // Hex-encoded '\uXXXX' escape sequences require parsing the encoded hex value,
-      // but JSON produced by the SDK only writes '\u00XX' to handle unprintable ASCII
-      // code points, since multi-byte UTF-8 data is preserved as-is
-      case 'u': {
-        // Verify that we have at least 4 bytes after '\u' and that the first two hex
-        // digits are both 0
-        if (i + 4 >= inner.size() || inner[i + 1] != '0' || inner[i + 2] != '0') {
-          return false;
-        }
-
-        // Verify that the last two characters are both valid hex digits, get their
-        // integer values, and combine them to form the 8-byte character value
-        const int hi = hex_nibble(inner[i + 3]);
-        const int lo = hex_nibble(inner[i + 4]);
-        if (hi < 0 || lo < 0) {
-          return false;
-        }
-        const char c = static_cast<char>((hi << 4) | lo);
-
-        // Add that character to the output string, then advance past all 5 bytes of
-        // 'uXXXX'
-        out += c;
-        i += 5;
-        return true;
-      }
-      // Any other character appearing after '\' is an invalid escape sequence
-      default: return false;
-    }
-  };
-  // clang-format on
-
-  // Iterate through the JSON value (sans enclosing quotes) and consume each character,
-  // decoding and advancing past escape characters as we encounter them
-  while (i < inner.size()) {
-    const char c = inner[i];
-    if (c == '\\') {
-      if (!consume_escape_sequence(out_value)) {
-        return false;
-      }
-    } else {
-      out_value += c;
-      ++i;
-    }
-  }
-  return true;
-}
-
-bool RumViewEventParser::ParseUInt64(
-    std::string_view json_literal, uint64_t& out_value
-) {
-  // Use <charconv>, checking that `ptr` ends up at the end of the literal to ensure
-  // that we correctly reject non-integer values
-  const char* begin = json_literal.data();
-  const char* end = begin + json_literal.size();
-  auto [ptr, ec] = std::from_chars(begin, end, out_value);
-  return ec == std::errc{} && ptr == end;
-}
-
-bool RumViewEventParser::ParseBool(std::string_view json_literal, bool& out_value) {
-  // Sanity-check: if no value, fail parsing
-  if (json_literal.empty()) {
-    return false;
-  }
-
-  // JsonScanner::SkipBoolLiteral already validates that the literal value associated
-  // with this property is either `true` or `false`, so we can just peek at the first
-  // character: if 't', we assume true; anything else is assumed false
-  out_value = json_literal[0] == 't';
-  return true;
 }
 
 bool RumViewEventParser::ParseRumSessionType(
