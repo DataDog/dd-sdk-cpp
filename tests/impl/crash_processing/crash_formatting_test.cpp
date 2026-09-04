@@ -19,40 +19,40 @@ using namespace datadog;
 using namespace datadog::impl;
 
 TEST_CASE("FormatCrashReportErrorMessage", "[unit][rum]") {
-  CrashReport crash{};
+  CrashDump crash_dump{};
 
 #ifdef _WIN32
   SECTION("M include structured exception code and name W exception type is known") {
-    crash.fault_code = 0xc0000005;
-    const auto message = FormatCrashReportErrorMessage(crash);
+    crash_dump.fault_code = 0xc0000005;
+    const auto message = FormatCrashReportErrorMessage(crash_dump);
     REQUIRE(message == "Application crash: EXCEPTION_ACCESS_VIOLATION (0xC0000005)");
   }
 
   SECTION("M include raw code W exception type is unknown") {
-    crash.fault_code = 0xdeadbeef;
-    const auto message = FormatCrashReportErrorMessage(crash);
+    crash_dump.fault_code = 0xdeadbeef;
+    const auto message = FormatCrashReportErrorMessage(crash_dump);
     REQUIRE(message == "Application crash: 0xDEADBEEF");
   }
 #else
   SECTION("M include signal name and description W signal is known") {
-    crash.fault_code = static_cast<uint64_t>(SIGSEGV);
-    const auto message = FormatCrashReportErrorMessage(crash);
+    crash_dump.fault_code = static_cast<uint64_t>(SIGSEGV);
+    const auto message = FormatCrashReportErrorMessage(crash_dump);
     REQUIRE(message == "Application crash: SIGSEGV (Segmentation fault)");
   }
 
   SECTION("M include raw signal number W signal is unknown") {
-    crash.fault_code = 0xdeadbeef;
-    const auto message = FormatCrashReportErrorMessage(crash);
+    crash_dump.fault_code = 0xdeadbeef;
+    const auto message = FormatCrashReportErrorMessage(crash_dump);
     REQUIRE(message == "Application crash: signal 3735928559");
   }
 #endif
 }
 
 TEST_CASE("FormatCrashReportStack", "[unit][rum]") {
-  CrashReport crash{};
+  CrashDump crash_dump{};
 
   SECTION("M return empty string W crash report has no stack") {
-    const auto stack = FormatCrashReportStack(crash);
+    const auto stack = FormatCrashReportStack(crash_dump);
     REQUIRE(stack == "");
   }
 
@@ -61,21 +61,21 @@ TEST_CASE("FormatCrashReportStack", "[unit][rum]") {
       "modules"
   ) {
     // Given a set of module information
-    crash.modules.push_back({"MyApp", "abc123", "arm64", false, 0x1000, 0x5000});
-    crash.modules.push_back(
+    crash_dump.modules.push_back({"MyApp", "abc123", "arm64", false, 0x1000, 0x5000});
+    crash_dump.modules.push_back(
         {"libsystem_c.dylib", "def456", "arm64", true, 0x100000, 0x200000}
     );
 
     // And a main-thread stack trace with multiple frames, some of which refer to those
     // modules and some of which are unresolved
-    crash.stack.push_back({0x1388, 0, 0x388});    // resolved to MyApp
-    crash.stack.push_back({0x1400, 0, 0x400});    // resolved to MyApp
-    crash.stack.push_back({0xdeadbeef, -1, 0});   // unresolved
-    crash.stack.push_back({0x100abc, 1, 0xabc});  // resolved to libsystem_c.dylib
-    crash.stack.push_back({0xeee, 55, 55});       // erroneous out-of-range module_index
+    crash_dump.stack.push_back({0x1388, 0, 0x388});    // resolved to MyApp
+    crash_dump.stack.push_back({0x1400, 0, 0x400});    // resolved to MyApp
+    crash_dump.stack.push_back({0xdeadbeef, -1, 0});   // unresolved
+    crash_dump.stack.push_back({0x100abc, 1, 0xabc});  // resolved to libsystem_c.dylib
+    crash_dump.stack.push_back({0xeee, 55, 55});  // erroneous out-of-range module_index
 
     // When we produce a formatted stack trace string from the crash report
-    const auto stack = FormatCrashReportStack(crash);
+    const auto stack = FormatCrashReportStack(crash_dump);
 
     // Then it matches the expected format exactly
     const std::string want =
@@ -108,11 +108,11 @@ TEST_CASE("FormatCrashReportStack", "[unit][rum]") {
   SECTION("M limit result to 512 frames W crash report stack exceeds 512 frames") {
     // Given a crash report with 1024 stack frames
     for (size_t i = 0; i < 1024; i++) {
-      crash.stack.push_back({0xffffffffffffffff, -1, 0});
+      crash_dump.stack.push_back({0xffffffffffffffff, -1, 0});
     }
 
     // When we produce a formatted stack trace string from the crash report
-    const auto stack = FormatCrashReportStack(crash);
+    const auto stack = FormatCrashReportStack(crash_dump);
 
     // Then it only contains 512 total frames, and frame indices are appropriately
     // padded

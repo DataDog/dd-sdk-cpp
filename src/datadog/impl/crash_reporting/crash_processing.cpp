@@ -265,12 +265,12 @@ CrashReport BuildCrashReport(
 ) {
   // Initialize a result struct and copy over the basic details of the crash
   CrashReport crash{};
-  crash.fault_code = crf.fault_code;
-  crash.fault_address = crf.fault_address;
-  crash.fault_flags = crf.fault_flags;
-  crash.pid = crf.pid;
-  crash.tid = crf.tid;
-  crash.timestamp_ms = crf.timestamp_ms;
+  crash.dump.fault_code = crf.fault_code;
+  crash.dump.fault_address = crf.fault_address;
+  crash.dump.fault_flags = crf.fault_flags;
+  crash.dump.pid = crf.pid;
+  crash.dump.tid = crf.tid;
+  crash.dump.timestamp_ms = crf.timestamp_ms;
   crash.context = ccf;
 
   // The CrashReportFile contains the data written during the signal-safe path of the
@@ -285,12 +285,13 @@ CrashReport BuildCrashReport(
   // of full module paths, only modules that are actually implicated in the crash, etc.
 
   // Allocate a CrashReport::Frame for each of our original stack addresses
-  crash.stack.reserve(crf.stack_addresses.size());
+  crash.dump.stack.reserve(crf.stack_addresses.size());
 
   // For each raw stack address, resolve the following:
   // - module_index: Index into crf.modules denoting which loaded module contained the
   //    code that was being executed at that stack frame, or -1 if no module can be
-  //    resolved. These values will later be remapped from crf.modules to crash.modules.
+  //    resolved. These values will later be remapped from crf.modules to
+  //    crash.dump.modules.
   // - offset: Offset from that module's load address corresponding to raw_address.
   for (uint64_t raw_address : crf.stack_addresses) {
     // We allow for the possibility of modules with overlapping address ranges: e.g. on
@@ -320,19 +321,20 @@ CrashReport BuildCrashReport(
 
     // Record a CrashReport::Frame value that encodes the original address along with
     // any resolved module information
-    crash.stack.push_back({raw_address, best_idx, offset});
+    crash.dump.stack.push_back({raw_address, best_idx, offset});
   }
 
   // Now that we've identified all modules that are references in the call stack, we
-  // need to populate crash.modules with _only_ that subset of relevant modules, while
-  // also condensing each module's path to a plain filename. Along the way, we'll build
-  // a lookup table that maps from original crf.modules index to the corresponding index
-  // in our crash.modules vector, so we can fix up the indices in crash.stack.
+  // need to populate crash.dump.modules with _only_ that subset of relevant modules,
+  // while also condensing each module's path to a plain filename. Along the way, we'll
+  // build a lookup table that maps from original crf.modules index to the corresponding
+  // index in our crash.dump.modules vector, so we can fix up the indices in
+  // crash.dump.stack.
   std::vector<int64_t> remap(crf.modules.size(), -1);
 
-  // Walk crash.stack to collect the set of referenced module indices, and push a new
-  // CrashReport::Module value into crash.modules for each module
-  for (const auto& frame : crash.stack) {
+  // Walk crash.dump.stack to collect the set of referenced module indices, and push a
+  // new CrashReport::Module value into crash.dump.modules for each module
+  for (const auto& frame : crash.dump.stack) {
     // If we didn't resolve a module reference for this frame, skip it
     if (frame.module_index == -1) {
       continue;
@@ -370,8 +372,8 @@ CrashReport BuildCrashReport(
 
     // Update our result value with an entry for this module, while writing the index of
     // that new value into our module_index remap table
-    remap[i] = static_cast<int64_t>(crash.modules.size());
-    crash.modules.push_back(
+    remap[i] = static_cast<int64_t>(crash.dump.modules.size());
+    crash.dump.modules.push_back(
         {std::string(name),
          mod.build_id,
          arch,
@@ -382,7 +384,7 @@ CrashReport BuildCrashReport(
   }
 
   // Use the remap table to fix up all module_index values in our stack frame entries
-  for (auto& frame : crash.stack) {
+  for (auto& frame : crash.dump.stack) {
     if (frame.module_index != -1) {
       frame.module_index = remap[static_cast<size_t>(frame.module_index)];
     }
