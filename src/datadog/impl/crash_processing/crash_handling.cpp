@@ -139,7 +139,7 @@ static void populate_error_event_for_crash(
   // The caller initializes the required property error.message to an empty string;
   // we're responsible for filling it in based on the details of the crash
   DATADOG_ASSERT(mut_ev.error.message.empty(), "RumErrorEvent has non-empty message");
-  mut_ev.error.message = FormatCrashReportErrorMessage(crash);
+  mut_ev.error.message = FormatCrashReportErrorMessage(crash.dump);
 
   // Set error.source_type based on the platform for which the SDK is compiled:
   // in-process crash reports are handled on the same machine that wrote them
@@ -156,7 +156,7 @@ static void populate_error_event_for_crash(
   // Build a multi-line string that encodes our stack trace, and store it in
   // error.stack: the expected format varies based on error.stack_trace, but all three
   // supported desktop platforms use the same "native" format
-  mut_ev.error.stack = FormatCrashReportStack(crash);
+  mut_ev.error.stack = FormatCrashReportStack(crash.dump);
 
   // Choose an appropriate CPU architecture value. The JSON schema implies that each
   // entry in error.binary_images[] specifies its own CPU arch (allowing multi-arch
@@ -185,8 +185,8 @@ static void populate_error_event_for_crash(
 
   // Convey the list of loaded modules (a.k.a. binary images), which has already
   // been filtered down to to those that appear in the stack trace
-  mut_ev.error.binary_images.value.reserve(crash.modules.size());
-  for (const auto& module : crash.modules) {
+  mut_ev.error.binary_images.value.reserve(crash.dump.modules.size());
+  for (const auto& module : crash.dump.modules) {
     // Construct an error.binary_images[] entry with basic info
     auto& binary_image = mut_ev.error.binary_images.value.emplace_back(
         module.build_id, module.name, module.is_system
@@ -226,7 +226,7 @@ static RumViewEvent create_application_launch_view_for_crash(
   // this view, and it will receive no further updates. Therefore:
   // - The view event's timestamp reflects the time of the crash
   // - We set an arbitrary view duration of 1ns
-  const Timestamp date{std::chrono::milliseconds(crash.timestamp_ms)};
+  const Timestamp date{std::chrono::milliseconds(crash.dump.timestamp_ms)};
   const uint64_t view_time_spent_ns = 1;
 
   // Generate a random UUID to identify this view, and use a key that identifies it as
@@ -327,7 +327,7 @@ static void handle_crash_that_preceded_initial_session(
 
   // Generate a RUM Error event that reflects the details of our synthetic view
   RumErrorEvent ev(
-      Timestamp{std::chrono::milliseconds(crash.timestamp_ms)},
+      Timestamp{std::chrono::milliseconds(crash.dump.timestamp_ms)},
       application_id,
       new_session_id,
       session_type,
@@ -418,7 +418,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
 
   // Generate a RUM Error event that reflects the details of our synthetic view
   RumErrorEvent ev(
-      Timestamp{std::chrono::milliseconds(crash.timestamp_ms)},
+      Timestamp{std::chrono::milliseconds(crash.dump.timestamp_ms)},
       application_id,
       ctx.rum_session_state.session_id,
       session_type,
@@ -479,7 +479,7 @@ static void handle_crash_that_had_active_view(
   // view; but for a view that's still able to be updated we want to send a RUM View
   // event that updates the state of the view to reflect the crash
   const Timestamp view_update_cutoff = current_time - std::chrono::hours(4);
-  const uint64_t crash_timestamp_ms = crash.timestamp_ms;
+  const uint64_t crash_timestamp_ms = crash.dump.timestamp_ms;
   auto crash_timestamp = Timestamp{std::chrono::milliseconds(crash_timestamp_ms)};
   const bool send_updated_view_event = crash_timestamp >= view_update_cutoff;
   if (send_updated_view_event) {

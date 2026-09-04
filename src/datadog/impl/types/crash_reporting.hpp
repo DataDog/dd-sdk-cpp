@@ -19,7 +19,55 @@
 namespace datadog::impl {
 
 /**
- * Essential SDK state persisted to disk alongside each crash report.
+ * Basic details captured by the in-process handler when a crash occurs. This data is
+ * serialized to disk in a `crash_<timestamp>_<pid>` file.
+ */
+struct CrashDump {
+  uint64_t fault_code;     // Signal number or exception code
+  uint64_t fault_address;  // Address that triggered signal or exception
+  uint64_t fault_flags;    // Exception flags on Windows; 0 otherwise
+  uint64_t pid;            // PID of crashing process
+  uint64_t tid;            // Thread ID of crashing thread
+  uint64_t timestamp_ms;   // Unix timestamp in ms, read from system clock at crash time
+
+  /**
+   * Details of a loaded binary module that appears in the stack trace, ultimately used
+   * to populate the `binary_images` array in a RUM Error event.
+   *
+   * Note that the exact values used for `arch` vary based on platform. The exact
+   * semantics of the `arch` value are determined by whichever backend deobfuscation
+   * implementation handles symbolication for the crash. These details are opaque to the
+   * SDK.
+   *
+   * On macOS, for example, `arch` may be "arm64" or "x86_64" to indicate which slice of
+   * a universal binary was loaded in the address space of the crashing process. On
+   * other platforms, the field may use a different set of values or may be unused.
+   */
+  struct Module {
+    std::string name;        // Filename of the executable or library
+    std::string build_id;    // Unique ID of this module's binary, for deobfuscation
+    std::string arch;        // Deobfuscation-backend-specific identifier for CPU arch
+    bool is_system;          // Whether the file was loaded from a system-library path
+    uint64_t start_address;  // Base address at which this module was loaded
+    uint64_t end_address;    // End of module's address range (exclusive)
+  };
+  std::vector<Module> modules;
+
+  /**
+   * Details of a single entry in the stack trace for a crash, ultimately used to format
+   * the `stack` string for a RUM Error event.
+   */
+  struct Frame {
+    uint64_t address;      // Raw instruction address for this frame
+    int64_t module_index;  // Index into modules array, or -1 if no module resolved
+    uint64_t offset;       // Offset into that module corresponding to raw address
+  };
+  std::vector<Frame> stack;
+};
+
+/**
+ * Essential SDK state persisted to disk alongside each crash report. This data is
+ * serialized to disk in a `crash_<timestamp>_<pid>.ctx` file.
  *
  * `CrashReporting` holds a single `CrashContext` value. Whenever `CrashContext`
  * receives a message indicating that SDK state has changed in a way that affects these
@@ -99,48 +147,8 @@ struct CrashContext {
  * the wider SDK.
  */
 struct CrashReport {
-  uint64_t fault_code;     // Signal number or exception code
-  uint64_t fault_address;  // Address that triggered signal or exception
-  uint64_t fault_flags;    // Exception flags on Windows; 0 otherwise
-  uint64_t pid;            // PID of crashing process
-  uint64_t tid;            // Thread ID of crashing thread
-  uint64_t timestamp_ms;   // Unix timestamp in ms, read from system clock at crash time
-
+  CrashDump dump;
   std::optional<CrashContext> context;
-
-  /**
-   * Details of a loaded binary module that appears in the stack trace, ultimately used
-   * to populate the `binary_images` array in a RUM Error event.
-   *
-   * Note that the exact values used for `arch` vary based on platform. The exact
-   * semantics of the `arch` value are determined by whichever backend deobfuscation
-   * implementation handles symbolication for the crash. These details are opaque to the
-   * SDK.
-   *
-   * On macOS, for example, `arch` may be "arm64" or "x86_64" to indicate which slice of
-   * a universal binary was loaded in the address space of the crashing process. On
-   * other platforms, the field may use a different set of values or may be unused.
-   */
-  struct Module {
-    std::string name;        // Filename of the executable or library
-    std::string build_id;    // Unique ID of this module's binary, for deobfuscation
-    std::string arch;        // Deobfuscation-backend-specific identifier for CPU arch
-    bool is_system;          // Whether the file was loaded from a system-library path
-    uint64_t start_address;  // Base address at which this module was loaded
-    uint64_t end_address;    // End of module's address range (exclusive)
-  };
-  std::vector<Module> modules;
-
-  /**
-   * Details of a single entry in the stack trace for a crash, ultimately used to format
-   * the `stack` string for a RUM Error event.
-   */
-  struct Frame {
-    uint64_t address;      // Raw instruction address for this frame
-    int64_t module_index;  // Index into modules array, or -1 if no module resolved
-    uint64_t offset;       // Offset into that module corresponding to raw address
-  };
-  std::vector<Frame> stack;
 };
 
 }  // namespace datadog::impl

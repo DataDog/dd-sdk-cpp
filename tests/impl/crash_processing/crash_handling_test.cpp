@@ -98,12 +98,27 @@ static CrashReport make_crash_report(
 
   // Return a kitchen-sink CrashReport
   return CrashReport{
-      0xfd,           // fault_code
-      0x4000400f,     // fault_address
-      0,              // fault_flags
-      1234,           // pid
-      111,            // tid
-      1699999990000,  // timestamp (ms)
+      CrashDump{
+          0xfd,           // fault_code
+          0x4000400f,     // fault_address
+          0,              // fault_flags
+          1234,           // pid
+          111,            // tid
+          1699999990000,  // timestamp (ms)
+
+          // modules:
+          {{"my-cool-program", "build-id-1", "x64", false, 0x10000000, 0x1000a000},
+           {"some-system-library", "build-id-2", "x64", true, 0x1000a000, 0x1000b000},
+           {"some-other-library", "build-id-3", "x64", false, 0x1000c000, 0x1000d000}},
+
+          // stack:
+          {{0x1000c100, 2, 0x100},
+           {0x1000c50f, 2, 0x50f},
+           {0x10004000, 0, 0x4000},
+           {0x10001000, 0, 0x1000},
+           {0x1000bbbb, -1, 0},
+           {0x1000aaaa, 1, 0xaaa}},
+      },
       // context:
       CrashContext{
           "my-service",                                          // service
@@ -145,18 +160,7 @@ static CrashReport make_crash_report(
           },
           last_view_event_json,
           global_rum_attributes
-      },
-      // modules:
-      {{"my-cool-program", "build-id-1", "x64", false, 0x10000000, 0x1000a000},
-       {"some-system-library", "build-id-2", "x64", true, 0x1000a000, 0x1000b000},
-       {"some-other-library", "build-id-3", "x64", false, 0x1000c000, 0x1000d000}},
-      // stack:
-      {{0x1000c100, 2, 0x100},
-       {0x1000c50f, 2, 0x50f},
-       {0x10004000, 0, 0x4000},
-       {0x10001000, 0, 0x1000},
-       {0x1000bbbb, -1, 0},
-       {0x1000aaaa, 1, 0xaaa}}
+      }
   };
 }
 

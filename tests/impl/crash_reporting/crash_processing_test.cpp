@@ -36,12 +36,12 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
     const CrashReport crash = BuildCrashReport(crf, std::nullopt);
 
     // The then result includes the essential data
-    REQUIRE(crash.fault_code == 0xbeef);
-    REQUIRE(crash.fault_address == 0x10001000);
-    REQUIRE(crash.fault_flags == 0xcf);
-    REQUIRE(crash.pid == 12345);
-    REQUIRE(crash.tid == 6789);
-    REQUIRE(crash.timestamp_ms == 1710000000000);
+    REQUIRE(crash.dump.fault_code == 0xbeef);
+    REQUIRE(crash.dump.fault_address == 0x10001000);
+    REQUIRE(crash.dump.fault_flags == 0xcf);
+    REQUIRE(crash.dump.pid == 12345);
+    REQUIRE(crash.dump.tid == 6789);
+    REQUIRE(crash.dump.timestamp_ms == 1710000000000);
   }
 
   SECTION("M convey module details") {
@@ -52,17 +52,17 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
     const CrashReport crash = BuildCrashReport(crf, std::nullopt);
 
     // Then the resulting crash report contains the essential data describing the module
-    REQUIRE(crash.modules.size() == 1);
-    REQUIRE(crash.modules[0].name == "something.lib");
-    REQUIRE(crash.modules[0].build_id == "my-build-id");
-    REQUIRE(crash.modules[0].start_address == 0x100000);
-    REQUIRE(crash.modules[0].end_address == 0x200000);
+    REQUIRE(crash.dump.modules.size() == 1);
+    REQUIRE(crash.dump.modules[0].name == "something.lib");
+    REQUIRE(crash.dump.modules[0].build_id == "my-build-id");
+    REQUIRE(crash.dump.modules[0].start_address == 0x100000);
+    REQUIRE(crash.dump.modules[0].end_address == 0x200000);
 
     // TODO: arch is currently unused on all platforms
-    REQUIRE(crash.modules[0].arch == "");
+    REQUIRE(crash.dump.modules[0].arch == "");
 
     // TODO: is_system is currently unused on all platforms
-    REQUIRE(crash.modules[0].is_system == false);
+    REQUIRE(crash.dump.modules[0].is_system == false);
   }
 
   SECTION("M strip module path down to filename-only name") {
@@ -73,8 +73,8 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
       const CrashReport crash = BuildCrashReport(crf, std::nullopt);
 
       // Then the resulting module entry is just the filename, on all platforms
-      REQUIRE(crash.modules.size() == 1);
-      REQUIRE(crash.modules[0].name == "libbar.so");
+      REQUIRE(crash.dump.modules.size() == 1);
+      REQUIRE(crash.dump.modules[0].name == "libbar.so");
     }
     SECTION("{backslash is Windows-only}") {
       // Given a single module with a backslash-delimited path
@@ -84,11 +84,11 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
 
       // Then on Windows only, the resulting module entry is just the filename, while on
       // all other platforms the backslashes are treated as any other character
-      REQUIRE(crash.modules.size() == 1);
+      REQUIRE(crash.dump.modules.size() == 1);
 #ifdef _WIN32
-      REQUIRE(crash.modules[0].name == "bar.lib");
+      REQUIRE(crash.dump.modules[0].name == "bar.lib");
 #else
-      REQUIRE(crash.modules[0].name == "C:\\foo\\bar.lib");
+      REQUIRE(crash.dump.modules[0].name == "C:\\foo\\bar.lib");
 #endif
     }
   }
@@ -102,12 +102,12 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
 
     // Then the resulting stack frame is associated with the relevant module, with an
     // offset that corresponds to its raw address
-    REQUIRE(crash.stack.size() == 1);
-    REQUIRE(crash.stack[0].address == 0x10c000);
-    REQUIRE(crash.stack[0].module_index == 0);
-    REQUIRE(crash.stack[0].offset == 0xc000);
-    REQUIRE(crash.modules.size() == 1);
-    REQUIRE(crash.modules[0].name == "something.lib");
+    REQUIRE(crash.dump.stack.size() == 1);
+    REQUIRE(crash.dump.stack[0].address == 0x10c000);
+    REQUIRE(crash.dump.stack[0].module_index == 0);
+    REQUIRE(crash.dump.stack[0].offset == 0xc000);
+    REQUIRE(crash.dump.modules.size() == 1);
+    REQUIRE(crash.dump.modules[0].name == "something.lib");
   }
 
   SECTION("M resolve module with highest start_address W address ranges overlap") {
@@ -121,16 +121,16 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
 
     // Then the module resolved for each frame is the best match, not simply the first
     // valid match found
-    REQUIRE(crash.modules.size() == 2);
-    REQUIRE(crash.modules[0].name == "libone");
-    REQUIRE(crash.modules[1].name == "libtwo");
-    REQUIRE(crash.stack.size() == 2);
-    REQUIRE(crash.stack[0].address == 0x10c000);
-    REQUIRE(crash.stack[0].module_index == 0);
-    REQUIRE(crash.stack[0].offset == 0xc000);
-    REQUIRE(crash.stack[1].address == 0x20ffc0);
-    REQUIRE(crash.stack[1].module_index == 1);
-    REQUIRE(crash.stack[1].offset == 0xffc0);
+    REQUIRE(crash.dump.modules.size() == 2);
+    REQUIRE(crash.dump.modules[0].name == "libone");
+    REQUIRE(crash.dump.modules[1].name == "libtwo");
+    REQUIRE(crash.dump.stack.size() == 2);
+    REQUIRE(crash.dump.stack[0].address == 0x10c000);
+    REQUIRE(crash.dump.stack[0].module_index == 0);
+    REQUIRE(crash.dump.stack[0].offset == 0xc000);
+    REQUIRE(crash.dump.stack[1].address == 0x20ffc0);
+    REQUIRE(crash.dump.stack[1].module_index == 1);
+    REQUIRE(crash.dump.stack[1].offset == 0xffc0);
   }
 
   SECTION("M set module_index = -1, offset = 0 W stack frame has unknown module") {
@@ -141,11 +141,11 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
 
     // Then the resulting stack frame is conveys the correct raw address, but
     // module_index and offset are set to sentinel values
-    REQUIRE(crash.stack.size() == 1);
-    REQUIRE(crash.stack[0].address == 0x10c000);
-    REQUIRE(crash.stack[0].module_index == -1);
-    REQUIRE(crash.stack[0].offset == 0);
-    REQUIRE(crash.modules.size() == 0);
+    REQUIRE(crash.dump.stack.size() == 1);
+    REQUIRE(crash.dump.stack[0].address == 0x10c000);
+    REQUIRE(crash.dump.stack[0].module_index == -1);
+    REQUIRE(crash.dump.stack[0].offset == 0);
+    REQUIRE(crash.dump.modules.size() == 0);
   }
 
   SECTION("M filter modules to exclude libraries not present in stack") {
@@ -161,30 +161,30 @@ TEST_CASE("BuildCrashReport", "[unit][crash_reporting]") {
 
     // Then the resulting list of modules only includes the two that are referenced by
     // stack frames
-    REQUIRE(crash.modules.size() == 2);
-    REQUIRE(crash.modules[0].name == "libone");
-    REQUIRE(crash.modules[0].start_address == 0x100000);
-    REQUIRE(crash.modules[0].end_address == 0x200000);
-    REQUIRE(crash.modules[1].name == "libtri");
-    REQUIRE(crash.modules[1].start_address == 0x300000);
-    REQUIRE(crash.modules[1].end_address == 0x400000);
+    REQUIRE(crash.dump.modules.size() == 2);
+    REQUIRE(crash.dump.modules[0].name == "libone");
+    REQUIRE(crash.dump.modules[0].start_address == 0x100000);
+    REQUIRE(crash.dump.modules[0].end_address == 0x200000);
+    REQUIRE(crash.dump.modules[1].name == "libtri");
+    REQUIRE(crash.dump.modules[1].start_address == 0x300000);
+    REQUIRE(crash.dump.modules[1].end_address == 0x400000);
 
     // And the resulting stack has its module references resolved as expected, with
     // module_index mapped to the actual result vector, not the position in the original
     // CrashReportFile vector
-    REQUIRE(crash.stack.size() == 4);
-    REQUIRE(crash.stack[0].address == 0x10c000);
-    REQUIRE(crash.stack[0].module_index == 0);
-    REQUIRE(crash.stack[0].offset == 0xc000);
-    REQUIRE(crash.stack[1].address == 0x30c000);
-    REQUIRE(crash.stack[1].module_index == 1);
-    REQUIRE(crash.stack[1].offset == 0xc000);
-    REQUIRE(crash.stack[2].address == 0x10cf60);
-    REQUIRE(crash.stack[2].module_index == 0);
-    REQUIRE(crash.stack[2].offset == 0xcf60);
-    REQUIRE(crash.stack[3].address == 0x400000);
-    REQUIRE(crash.stack[3].module_index == -1);
-    REQUIRE(crash.stack[3].offset == 0);
+    REQUIRE(crash.dump.stack.size() == 4);
+    REQUIRE(crash.dump.stack[0].address == 0x10c000);
+    REQUIRE(crash.dump.stack[0].module_index == 0);
+    REQUIRE(crash.dump.stack[0].offset == 0xc000);
+    REQUIRE(crash.dump.stack[1].address == 0x30c000);
+    REQUIRE(crash.dump.stack[1].module_index == 1);
+    REQUIRE(crash.dump.stack[1].offset == 0xc000);
+    REQUIRE(crash.dump.stack[2].address == 0x10cf60);
+    REQUIRE(crash.dump.stack[2].module_index == 0);
+    REQUIRE(crash.dump.stack[2].offset == 0xcf60);
+    REQUIRE(crash.dump.stack[3].address == 0x400000);
+    REQUIRE(crash.dump.stack[3].module_index == -1);
+    REQUIRE(crash.dump.stack[3].offset == 0);
   }
 
   SECTION("M include crash context W context is provided") {
@@ -352,14 +352,14 @@ TEST_CASE("ProcessCrashReports", "[unit][crash_reporting]") {
     // Then one crash report is generated, and it reflects our mock crash data
     REQUIRE(crashes.size() == 1);
     const CrashReport& crash = crashes.front();
-    REQUIRE(crash.fault_code == 11);
-    REQUIRE(crash.fault_address == 0);
-    REQUIRE(crash.fault_flags == 0);
-    REQUIRE(crash.pid == 100);
-    REQUIRE(crash.tid == 101);
-    REQUIRE(crash.timestamp_ms == 1700000000000);
-    REQUIRE(crash.modules.size() == 1);
-    REQUIRE(crash.stack.size() == 4);
+    REQUIRE(crash.dump.fault_code == 11);
+    REQUIRE(crash.dump.fault_address == 0);
+    REQUIRE(crash.dump.fault_flags == 0);
+    REQUIRE(crash.dump.pid == 100);
+    REQUIRE(crash.dump.tid == 101);
+    REQUIRE(crash.dump.timestamp_ms == 1700000000000);
+    REQUIRE(crash.dump.modules.size() == 1);
+    REQUIRE(crash.dump.stack.size() == 4);
 
     // And the report has no context (no .ctx file was present)
     REQUIRE(!crash.context.has_value());
@@ -391,14 +391,14 @@ TEST_CASE("ProcessCrashReports", "[unit][crash_reporting]") {
     // Then one crash report is generated, and it reflects our mock crash data
     REQUIRE(crashes.size() == 1);
     const CrashReport& crash = crashes.front();
-    REQUIRE(crash.fault_code == 11);
-    REQUIRE(crash.fault_address == 0);
-    REQUIRE(crash.fault_flags == 0);
-    REQUIRE(crash.pid == 100);
-    REQUIRE(crash.tid == 101);
-    REQUIRE(crash.timestamp_ms == 1700000000000);
-    REQUIRE(crash.modules.size() == 1);
-    REQUIRE(crash.stack.size() == 4);
+    REQUIRE(crash.dump.fault_code == 11);
+    REQUIRE(crash.dump.fault_address == 0);
+    REQUIRE(crash.dump.fault_flags == 0);
+    REQUIRE(crash.dump.pid == 100);
+    REQUIRE(crash.dump.tid == 101);
+    REQUIRE(crash.dump.timestamp_ms == 1700000000000);
+    REQUIRE(crash.dump.modules.size() == 1);
+    REQUIRE(crash.dump.stack.size() == 4);
 
     // And the report includes the context data parsed from the .ctx file
     REQUIRE(crash.context.has_value());
