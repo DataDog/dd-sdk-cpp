@@ -157,9 +157,9 @@ static std::string format_error_message_posix(uint64_t fault_code) {
  * corresponding `error.source_type` values used in `source-code-query`, which reflect
  * the binary format: `macho`, `elf`, or `pe`.
  */
-static std::string format_stack_error_tracking(const CrashReport& crash) {
+static std::string format_stack_error_tracking(const CrashDump& crash_dump) {
   // If the stack has no frames, return an empty string
-  if (crash.stack.empty()) {
+  if (crash_dump.stack.empty()) {
     return "";
   }
 
@@ -167,15 +167,15 @@ static std::string format_stack_error_tracking(const CrashReport& crash) {
   // 128 frames, and we'll refuse to load a crash report with more than 512 frames, so
   // this places a reasonable upper bound on the size of the string
   const size_t max_frames = 512;
-  const size_t num_frames = std::min(crash.stack.size(), max_frames);
+  const size_t num_frames = std::min(crash_dump.stack.size(), max_frames);
 
   // Preemptively determine the longest module name length that will appear in the stack
   size_t max_module_name_len = 3;  // Length of unknown-module sentinel "???"
   for (size_t frame_index = 0; frame_index < num_frames; frame_index++) {
-    const auto& frame = crash.stack[frame_index];
+    const auto& frame = crash_dump.stack[frame_index];
     if (frame.module_index >= 0 &&
-        static_cast<size_t>(frame.module_index) < crash.modules.size()) {
-      const size_t module_name_len = crash.modules[frame.module_index].name.size();
+        static_cast<size_t>(frame.module_index) < crash_dump.modules.size()) {
+      const size_t module_name_len = crash_dump.modules[frame.module_index].name.size();
       max_module_name_len = std::max(max_module_name_len, module_name_len);
     }
   }
@@ -254,11 +254,11 @@ static std::string format_stack_error_tracking(const CrashReport& crash) {
   // frame and module information and appending an appropriately-formatted line to our
   // result value
   for (size_t frame_index = 0; frame_index < num_frames; frame_index++) {
-    const auto& frame = crash.stack[frame_index];
+    const auto& frame = crash_dump.stack[frame_index];
     if (frame.module_index >= 0 &&
-        static_cast<size_t>(frame.module_index) < crash.modules.size()) {
+        static_cast<size_t>(frame.module_index) < crash_dump.modules.size()) {
       // "12  somelibrary.lib\t0x0123456789abcdef 0x100eeffbb + 123456\n"
-      const auto& module = crash.modules[frame.module_index];
+      const auto& module = crash_dump.modules[frame.module_index];
       append_frame(
           frame_index, module.name, frame.address, module.start_address, frame.offset
       );
@@ -273,16 +273,16 @@ static std::string format_stack_error_tracking(const CrashReport& crash) {
   return result;
 }
 
-std::string FormatCrashReportErrorMessage(const CrashReport& crash) {
+std::string FormatCrashReportErrorMessage(const CrashDump& crash_dump) {
 #ifdef _WIN32
-  return format_error_message_win32(crash.fault_code);
+  return format_error_message_win32(crash_dump.fault_code);
 #else
-  return format_error_message_posix(crash.fault_code);
+  return format_error_message_posix(crash_dump.fault_code);
 #endif
 }
 
-std::string FormatCrashReportStack(const CrashReport& crash) {
-  return format_stack_error_tracking(crash);
+std::string FormatCrashReportStack(const CrashDump& crash_dump) {
+  return format_stack_error_tracking(crash_dump);
 }
 
 }  // namespace datadog::impl
