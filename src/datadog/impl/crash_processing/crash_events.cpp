@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/crash_processing/crash_handling.hpp"
+#include "datadog/impl/crash_processing/crash_events.hpp"
 
 #include <charconv>
 #include <chrono>
@@ -14,7 +14,6 @@
 #include "datadog/impl/crash_processing/view_event_mutation.hpp"
 #include "datadog/impl/crash_processing/view_event_parser.hpp"
 #include "datadog/impl/types/assert.hpp"
-#include "datadog/impl/types/crash_reporting.hpp"
 #include "datadog/impl/types/json.hpp"
 #include "datadog/impl/types/sampling.hpp"
 #include "datadog/impl/types/upload_util.hpp"
@@ -128,10 +127,10 @@ static void populate_event_from_crash_context(const CrashContext& ctx, T& mut_ev
 
 /**
  * Given a RumErrorEvent that's been populated with a basic set of required fields,
- * populates additional fields to describe the provided CrashReport.
+ * populates additional fields to describe the provided crash report.
  */
 static void populate_error_event_for_crash(
-    const CrashReport& crash, const CrashContext& ctx, RumErrorEvent& mut_ev
+    const CrashDump& dump, const CrashContext& ctx, RumErrorEvent& mut_ev
 ) {
   // Set basic properties that describe all crashes
   mut_ev.error.is_crash = true;
@@ -139,7 +138,7 @@ static void populate_error_event_for_crash(
   // The caller initializes the required property error.message to an empty string;
   // we're responsible for filling it in based on the details of the crash
   DATADOG_ASSERT(mut_ev.error.message.empty(), "RumErrorEvent has non-empty message");
-  mut_ev.error.message = FormatCrashReportErrorMessage(crash.dump);
+  mut_ev.error.message = FormatCrashReportErrorMessage(dump);
 
   // Set error.source_type based on the platform for which the SDK is compiled:
   // in-process crash reports are handled on the same machine that wrote them
@@ -156,7 +155,7 @@ static void populate_error_event_for_crash(
   // Build a multi-line string that encodes our stack trace, and store it in
   // error.stack: the expected format varies based on error.stack_trace, but all three
   // supported desktop platforms use the same "native" format
-  mut_ev.error.stack = FormatCrashReportStack(crash.dump);
+  mut_ev.error.stack = FormatCrashReportStack(dump);
 
   // Choose an appropriate CPU architecture value. The JSON schema implies that each
   // entry in error.binary_images[] specifies its own CPU arch (allowing multi-arch
@@ -185,8 +184,8 @@ static void populate_error_event_for_crash(
 
   // Convey the list of loaded modules (a.k.a. binary images), which has already
   // been filtered down to to those that appear in the stack trace
-  mut_ev.error.binary_images.value.reserve(crash.dump.modules.size());
-  for (const auto& module : crash.dump.modules) {
+  mut_ev.error.binary_images.value.reserve(dump.modules.size());
+  for (const auto& module : dump.modules) {
     // Construct an error.binary_images[] entry with basic info
     auto& binary_image = mut_ev.error.binary_images.value.emplace_back(
         module.build_id, module.name, module.is_system
@@ -219,14 +218,14 @@ static RumViewEvent create_application_launch_view_for_crash(
     const UUID& session_id,
     RumSessionType session_type,
     bool session_has_replay,
-    const CrashReport& crash,
+    const CrashDump& dump,
     const CrashContext& ctx
 ) {
   // We're creating a RUM View to record a crash: there is no user activity captured in
   // this view, and it will receive no further updates. Therefore:
   // - The view event's timestamp reflects the time of the crash
   // - We set an arbitrary view duration of 1ns
-  const Timestamp date{std::chrono::milliseconds(crash.dump.timestamp_ms)};
+  const Timestamp date{std::chrono::milliseconds(dump.timestamp_ms)};
   const uint64_t view_time_spent_ns = 1;
 
   // Generate a random UUID to identify this view, and use a key that identifies it as
@@ -279,10 +278,10 @@ static RumViewEvent create_application_launch_view_for_crash(
 /**
  * Handles a crash that occurred before the SDK established any RUM session whatsoever.
  */
-static void handle_crash_that_preceded_initial_session(
+static bool handle_crash_that_preceded_initial_session(
     const UUID& fallback_application_id,
     const DiagnosticLogger& diagnostic_logger,
-    const CrashReport& crash,
+    const CrashDump& dump,
     const CrashContext& ctx,
     std::vector<uint8_t>& encode_buffer,
     const CrashEventSink& sink
@@ -304,7 +303,7 @@ static void handle_crash_that_preceded_initial_session(
         "Ignoring prior-process crash report: newly-created session was excluded from "
         "sampling"
     );
-    return;
+    return false;
   }
 
   // We always assume this is an ordinary user session, as we don't yet support ci-test
@@ -321,13 +320,13 @@ static void handle_crash_that_preceded_initial_session(
     application_id = fallback_application_id;
   }
   RumViewEvent view_ev = create_application_launch_view_for_crash(
-      application_id, new_session_id, session_type, session_has_replay, crash, ctx
+      application_id, new_session_id, session_type, session_has_replay, dump, ctx
   );
   sink(CrashEventType::View, encode_event(view_ev, encode_buffer));
 
   // Generate a RUM Error event that reflects the details of our synthetic view
   RumErrorEvent ev(
-      Timestamp{std::chrono::milliseconds(crash.dump.timestamp_ms)},
+      Timestamp{std::chrono::milliseconds(dump.timestamp_ms)},
       application_id,
       new_session_id,
       session_type,
@@ -339,7 +338,7 @@ static void handle_crash_that_preceded_initial_session(
   ev.error.id = UUID::Random();
   ev.session.has_replay = session_has_replay;
   ev.view.name = view_ev.view.name;
-  populate_error_event_for_crash(crash, ctx, ev);
+  populate_error_event_for_crash(dump, ctx, ev);
   sink(CrashEventType::Error, encode_event(ev, encode_buffer));
 
   // Log a status message to indicate that we successfully produced RUM events in
@@ -352,6 +351,7 @@ static void handle_crash_that_preceded_initial_session(
        {"error_id", ev.error.id.value},
        {"error_message", ev.error.message}}
   );
+  return true;
 }
 
 /**
@@ -361,7 +361,7 @@ static void handle_crash_that_preceded_initial_session(
 static void handle_crash_that_preceded_initial_view_in_initial_session(
     const UUID& fallback_application_id,
     const DiagnosticLogger& diagnostic_logger,
-    const CrashReport& crash,
+    const CrashDump& dump,
     const CrashContext& ctx,
     std::vector<uint8_t>& encode_buffer,
     const CrashEventSink& sink
@@ -411,14 +411,14 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
       ctx.rum_session_state.session_id,
       session_type,
       session_has_replay,
-      crash,
+      dump,
       ctx
   );
   sink(CrashEventType::View, encode_event(view_ev, encode_buffer));
 
   // Generate a RUM Error event that reflects the details of our synthetic view
   RumErrorEvent ev(
-      Timestamp{std::chrono::milliseconds(crash.dump.timestamp_ms)},
+      Timestamp{std::chrono::milliseconds(dump.timestamp_ms)},
       application_id,
       ctx.rum_session_state.session_id,
       session_type,
@@ -430,7 +430,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
   ev.error.id = UUID::Random();
   ev.session.has_replay = session_has_replay;
   ev.view.name = view_ev.view.name;
-  populate_error_event_for_crash(crash, ctx, ev);
+  populate_error_event_for_crash(dump, ctx, ev);
   sink(CrashEventType::Error, encode_event(ev, encode_buffer));
 
   // Log a status message to indicate that we successfully produced RUM events in
@@ -449,10 +449,10 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
  * Handles a crash that occurred during an active RUM session while a RUM view was
  * active.
  */
-static void handle_crash_that_had_active_view(
+static bool handle_crash_that_had_active_view(
     const DiagnosticLogger& diagnostic_logger,
     Timestamp current_time,
-    const CrashReport& crash,
+    const CrashDump& dump,
     const CrashContext& ctx,
     std::vector<uint8_t>& encode_buffer,
     const CrashEventSink& sink
@@ -471,7 +471,7 @@ static void handle_crash_that_had_active_view(
     diagnostic_logger.Warning(
         "Failed to handle prior-process crash: last view event could not be parsed"
     );
-    return;
+    return false;
   }
 
   // Determine whether the crash took place within the past 4 hours: if it's older, we
@@ -479,7 +479,7 @@ static void handle_crash_that_had_active_view(
   // view; but for a view that's still able to be updated we want to send a RUM View
   // event that updates the state of the view to reflect the crash
   const Timestamp view_update_cutoff = current_time - std::chrono::hours(4);
-  const uint64_t crash_timestamp_ms = crash.dump.timestamp_ms;
+  const uint64_t crash_timestamp_ms = dump.timestamp_ms;
   auto crash_timestamp = Timestamp{std::chrono::milliseconds(crash_timestamp_ms)};
   const bool send_updated_view_event = crash_timestamp >= view_update_cutoff;
   if (send_updated_view_event) {
@@ -555,7 +555,7 @@ static void handle_crash_that_had_active_view(
   // Further populate the RumErrorEvent with all the necessary data to describe our
   // crash, including the stack trace and loaded modules from the crash, as well as all
   // the relevant data from CrashContext
-  populate_error_event_for_crash(crash, ctx, ev);
+  populate_error_event_for_crash(dump, ctx, ev);
 
   // Serialize our RumErrorEvent as JSON and enqueue it for storage alongside all other
   // RUM view events generated by this SDK instance, bypassing tracking consent
@@ -571,13 +571,15 @@ static void handle_crash_that_had_active_view(
        {"error_id", ev.error.id.value},
        {"error_message", ev.error.message}}
   );
+  return true;
 }
 
-void ContextThread_HandleCrashReport(
-    const UUID& fallback_application_id,
+bool ProduceRumEventsForCrash(
+    const CrashDump& crash_dump,
+    const std::optional<CrashContext>& crash_context,
     const DiagnosticLogger& diagnostic_logger,
     Timestamp current_time,
-    const CrashReport& crash,
+    const UUID& fallback_application_id,
     std::vector<uint8_t>& encode_buffer,
     const CrashEventSink& sink
 ) {
@@ -587,7 +589,7 @@ void ContextThread_HandleCrashReport(
 
   // If the crash report does not have an intact CrashContext describing the RUM state,
   // tracking consent, etc. at the time of the crash, we're unable to handle this crash
-  if (!crash.context.has_value()) {
+  if (!crash_context.has_value()) {
     // This could indicate that a context file was missing or unreadable due to:
     //   - Filesystem errors beyond our control
     //   - External tampering beyond our control
@@ -601,9 +603,9 @@ void ContextThread_HandleCrashReport(
     diagnostic_logger.Warning(
         "Ignoring prior-process crash report due to missing context"
     );
-    return;
+    return false;
   }
-  const CrashContext& ctx = *crash.context;
+  const CrashContext& ctx = *crash_context;
 
   // RUM's crash-processing logic bypasses the ordinary mechanism for handling tracking
   // consent on event writes: instead, we generate events for a crash iff tracking
@@ -620,7 +622,7 @@ void ContextThread_HandleCrashReport(
           ctx.tracking_consent == TrackingConsent::NotGranted ? "not-granted"
                                                               : "pending"}}
     );
-    return;
+    return false;
   }
 
   // If the crash occurred while a RUM session had already been established, check the
@@ -634,7 +636,7 @@ void ContextThread_HandleCrashReport(
           "was not sampled",
           {{"session_id", ctx.rum_session_state.session_id}}
       );
-      return;
+      return false;
     }
 
     // If ctx.rum_session_state.is_active is false, the application called StopSession
@@ -665,10 +667,9 @@ void ContextThread_HandleCrashReport(
   //       carrying over the requisite fields from the last view event such that the
   //       Error is recorded in the context of that View.
   if (!ctx.last_view_event_json.empty()) {
-    handle_crash_that_had_active_view(
-        diagnostic_logger, current_time, crash, ctx, encode_buffer, sink
+    return handle_crash_that_had_active_view(
+        diagnostic_logger, current_time, crash_dump, ctx, encode_buffer, sink
     );
-    return;
   }
 
   // 2. If the crash occurred with an active session but no active view, we branch based
@@ -682,9 +683,14 @@ void ContextThread_HandleCrashReport(
         !ctx.rum_session_state.has_tracked_any_view;
     if (can_create_application_launch_view) {
       handle_crash_that_preceded_initial_view_in_initial_session(
-          fallback_application_id, diagnostic_logger, crash, ctx, encode_buffer, sink
+          fallback_application_id,
+          diagnostic_logger,
+          crash_dump,
+          ctx,
+          encode_buffer,
+          sink
       );
-      return;
+      return true;
     }
 
     // 2b. Otherwise, the crash is considered an "off-view" or "Background" event, which
@@ -695,7 +701,7 @@ void ContextThread_HandleCrashReport(
         "Ignoring prior-process crash report: crash occurred while no RUM View was "
         "active"
     );
-    return;
+    return false;
   }
 
   // 3. Otherwise, no RUM session was established at the time of the crash, so we
@@ -705,8 +711,8 @@ void ContextThread_HandleCrashReport(
   //     a.) Ignore the crash (when the new session is not sampled), or
   //     b.) Synthesize an `ApplicationLaunch` view for the new session, then generate
   //         both a RUM View event and a RUM Error event
-  handle_crash_that_preceded_initial_session(
-      fallback_application_id, diagnostic_logger, crash, ctx, encode_buffer, sink
+  return handle_crash_that_preceded_initial_session(
+      fallback_application_id, diagnostic_logger, crash_dump, ctx, encode_buffer, sink
   );
 }
 

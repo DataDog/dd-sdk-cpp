@@ -8,6 +8,14 @@
 
 #include <cinttypes>
 #include <functional>
+#include <optional>
+#include <vector>
+
+#include "datadog/timestamp.hpp"
+#include "datadog/uuid.hpp"
+
+#include "datadog/impl/types/crash_reporting.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 
@@ -35,5 +43,29 @@ enum class CrashEventType : uint8_t { View, Error };
  * (along with the minidump file) in its HTTP POST request.
  */
 using CrashEventSink = std::function<bool(CrashEventType, std::string_view)>;
+
+/**
+ * Entry point for RUM Crash Processing logic: given the details of a crash, including a
+ * CrashContext struct that describes the relevant state of the RUM Application at the
+ * time of the crash, produces between 0 and 2 RUM events that reflect the fact that the
+ * application crashed.
+ *
+ * If the crash can not or should not be handled, returns false and produces no events.
+ *
+ * If the crash is successfully handled, `sink` is used to convey one or more RUM Events
+ * to the caller, and the return value is true. For a successfully handled crash, a RUM
+ * Error event is always produced. A RUM View event is ordinarily produced as well, but
+ * it may be omitted in cases where the crash belongs to an already-active view that is
+ * too old to be updated.
+ */
+bool ProduceRumEventsForCrash(
+    const CrashDump& crash_dump,
+    const std::optional<CrashContext>& crash_context,
+    const DiagnosticLogger& diagnostic_logger,
+    Timestamp current_time,
+    const UUID& fallback_application_id,
+    std::vector<uint8_t>& encode_buffer,
+    const CrashEventSink& sink
+);
 
 }  // namespace datadog::impl

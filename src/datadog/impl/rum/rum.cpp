@@ -13,7 +13,7 @@
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/http/body_writer_tlv.hpp"
 #include "datadog/impl/core/http/request_builder.hpp"
-#include "datadog/impl/crash_processing/crash_handling.hpp"
+#include "datadog/impl/crash_processing/crash_events.hpp"
 #include "datadog/impl/rum/resource_types.hpp"
 
 namespace datadog::impl {
@@ -78,11 +78,15 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
         if (!self) {
           return;
         }
-        ContextThread_HandleCrashReport(
-            self->_deps.application_id,
+
+        // Use our crash_processing code to determine whether this crash should be
+        // handled, and if so, to produce the necessary RUM events
+        ProduceRumEventsForCrash(
+            crash.dump,
+            crash.context,
             self->_deps.diagnostic_logger,
             self->_deps.clock.Now(),
-            crash,
+            self->_deps.application_id,
             self->_deps.GetEncodeBuffer(),
             [&event_writer](CrashEventType, std::string_view event_data) {
               // Any RUM events produced in response to a crash are written to storage
