@@ -798,6 +798,38 @@ TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
     );
   }
 
+  SECTION("M disregard crash W view was active but last view event JSON is malformed") {
+    // Given a crash report where last_view_event_json is non-empty but unparseable
+    auto crash = make_crash_report();
+    crash.context->last_view_event_json = "{not valid json}";
+
+    // When we process that crash
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
+    );
+
+    // Then the crash is not handled and no events are produced
+    REQUIRE(!handled_crash);
+    REQUIRE(new_view_event.is_null());
+    REQUIRE(new_error_event.is_null());
+
+    // And a warning is logged
+    REQUIRE(diagnostics.error.size() == 0);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE_THAT(
+        diagnostics.warning[0],
+        Catch::Matchers::ContainsSubstring(
+            "Failed to handle prior-process crash: last view event could not be parsed"
+        )
+    );
+  }
+
   SECTION(
       "M produce updated view event and new error event W view was active and crash "
       "occurred less than 4 hours ago"
