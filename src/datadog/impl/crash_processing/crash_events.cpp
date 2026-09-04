@@ -449,7 +449,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
  * Handles a crash that occurred during an active RUM session while a RUM view was
  * active.
  */
-static void handle_crash_that_had_active_view(
+static bool handle_crash_that_had_active_view(
     const DiagnosticLogger& diagnostic_logger,
     Timestamp current_time,
     const CrashDump& dump,
@@ -471,7 +471,7 @@ static void handle_crash_that_had_active_view(
     diagnostic_logger.Warning(
         "Failed to handle prior-process crash: last view event could not be parsed"
     );
-    return;
+    return false;
   }
 
   // Determine whether the crash took place within the past 4 hours: if it's older, we
@@ -571,6 +571,7 @@ static void handle_crash_that_had_active_view(
        {"error_id", ev.error.id.value},
        {"error_message", ev.error.message}}
   );
+  return true;
 }
 
 bool ProduceRumEventsForCrash(
@@ -666,10 +667,9 @@ bool ProduceRumEventsForCrash(
   //       carrying over the requisite fields from the last view event such that the
   //       Error is recorded in the context of that View.
   if (!ctx.last_view_event_json.empty()) {
-    handle_crash_that_had_active_view(
+    return handle_crash_that_had_active_view(
         diagnostic_logger, current_time, crash_dump, ctx, encode_buffer, sink
     );
-    return true;
   }
 
   // 2. If the crash occurred with an active session but no active view, we branch based
