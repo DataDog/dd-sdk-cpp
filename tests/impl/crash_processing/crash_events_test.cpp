@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/crash_processing/crash_handling.hpp"
+#include "datadog/impl/crash_processing/crash_events.hpp"
 
 #include <chrono>
 #include <nlohmann/json.hpp>
@@ -164,7 +164,7 @@ static CrashReport make_crash_report(
   };
 }
 
-TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
+TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
   // Given a diagnostic logger that will capture all messages
   DiagnosticMessageBuffer diagnostics;
   DiagnosticLogger logger = diagnostics.CreateTestLogger();
@@ -213,11 +213,18 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context.reset();
 
     // When we process that crash
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
     // Then no events are produced
+    REQUIRE(!handled_crash);
     REQUIRE(new_view_event.is_null());
     REQUIRE(new_error_event.is_null());
 
@@ -244,11 +251,18 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->tracking_consent = consent;
 
     // When we process that crash
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
     // Then no events are produced
+    REQUIRE(!handled_crash);
     REQUIRE(new_view_event.is_null());
     REQUIRE(new_error_event.is_null());
 
@@ -272,11 +286,18 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_session_state.is_sampled = false;
 
     // When we process that crash
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
     // Then no events are produced
+    REQUIRE(!handled_crash);
     REQUIRE(new_view_event.is_null());
     REQUIRE(new_error_event.is_null());
 
@@ -302,8 +323,14 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_session_state.session_id = UUID::Zero;
 
     // When we process that crash
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
     // Then we produce a RUM View event that describes a synthetic 'ApplicationLaunch'
@@ -314,6 +341,7 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     // - view.url and view.name are magic values for ApplicationLaunch
     // - view.is_active is false, view.time_spent is 1
     // - error and crash count are 1
+    REQUIRE(handled_crash);
     REQUIRE(new_view_event.is_object());
     RequireEventMatch(new_view_event, DATADOG_RUM_EVENT_LITERAL(R"({
       "type": "view",
@@ -487,18 +515,25 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
   SECTION(
       "M disregard crash W no session was active and sampling decision is negative"
   ) {
-    // Given a crash in a process where no session has ever existed,
-    // and where the configured RUM session sample rate was 0%
+    // Given a crash in a process where no session has ever existed, and where the
+    // configured RUM session sample rate was 0%
     auto crash = make_crash_report();
     crash.context->rum_session_state.session_id = UUID::Zero;
     crash.context->rum_initial_config.session_sample_rate = 0.0f;
 
     // When we process that crash
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
     // Then no events are generated
+    REQUIRE(!handled_crash);
     REQUIRE(new_view_event.is_null());
     REQUIRE(new_error_event.is_null());
 
@@ -526,14 +561,21 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_session_state.has_tracked_any_view = false;
 
     // When we process that crash
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
     // Then we produce a RUM View event that describes a synthetic 'ApplicationLaunch'
     // view created to contain the Error, where all details are the same as the
     // pre-initial-session case above, except session.id refers to the already-existing
     // session
+    REQUIRE(handled_crash);
     REQUIRE(new_view_event.is_object());
     RequireEventMatch(new_view_event, DATADOG_RUM_EVENT_LITERAL(R"({
       "type": "view",
@@ -730,9 +772,18 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     }
 
     // When we process that crash
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
+
+    // Then the crash is not handled
+    REQUIRE(!handled_crash);
 
     // And a warning is logged to signal that we don't handle crashes that occurred
     // while no RUM View was active (except in the case of ApplicationLaunch)
@@ -773,12 +824,19 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     }
 
     // When we process that crash shortly after it's reported
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
     // Then we produce a schema-compliant RUM View event that describes the original
     // view, updated to reflect that the crash occurred
+    REQUIRE(handled_crash);
     REQUIRE(new_view_event.is_object());
     RequireEventMatch(new_view_event, DATADOG_RUM_EVENT_LITERAL(R"({
       "type": "view",
@@ -927,11 +985,20 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     // When we process that crash after more than 4 hours have elapsed since the crash
     // (crash happened at 1699999990000ms; initial time was 1700000000000ms)
     current_time += std::chrono::hours(4);
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
-    // Then we produce no view event
+    // Then the crash is considered handled
+    REQUIRE(handled_crash);
+
+    // And we produce no view event
     REQUIRE(new_view_event.is_null());
 
     // And we produce an error event that's identical to the event we would have
@@ -1046,13 +1113,20 @@ TEST_CASE("ContextThread_HandleCrashReport", "[unit][rum]") {
     crash.context->rum_session_state.session_id = UUID::Zero;
 
     // When we process that crash
-    ContextThread_HandleCrashReport(
-        rum_application_id, logger, current_time, crash, encode_buffer, sink
+    const bool handled_crash = ProduceRumEventsForCrash(
+        crash.dump,
+        crash.context,
+        logger,
+        current_time,
+        rum_application_id,
+        encode_buffer,
+        sink
     );
 
     // Then both the view and error events include a 'usr' object containing only
     // anonymous_id: all the empty string fields are omitted by OmitIfEmpty, and the
     // anonymous_id alone was sufficient to trigger 'usr' emission
+    REQUIRE(handled_crash);
     REQUIRE(new_view_event.is_object());
     REQUIRE(new_error_event.is_object());
     const std::string expected_anonymous_id = "b0b0cafe-1234-5678-abcd-b0b0cafeb0b0";
