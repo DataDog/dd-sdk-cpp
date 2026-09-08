@@ -135,6 +135,7 @@ class GnArgs:
     extra_cflags_objcc: Set[str] = field(default_factory=set)
     extra_ldflags: Set[str] = field(default_factory=set)
     extra_arflags: Set[str] = field(default_factory=set)
+    dd_sdk_cpp_dir: str = ""
 
     def __str__(self) -> str:
         args = [
@@ -152,6 +153,8 @@ class GnArgs:
             f'extra_ldflags={json.dumps(" ".join(sorted(self.extra_ldflags)))}',
             f'extra_arflags={json.dumps(" ".join(sorted(self.extra_arflags)))}',
         ]
+        if self.dd_sdk_cpp_dir:
+            args += [f'dd_sdk_cpp_dir={json.dumps(self.dd_sdk_cpp_dir)}']
         return ' '.join(args)
 
     @classmethod
@@ -266,6 +269,12 @@ class GnArgs:
         # It's not strictly guaranteed that this will end up being the same compiler and
         # linker used by the CMake build. For better compatibility guarantees, we may
         # want to add some additional validation/configuration here.
+
+        # dd_sdk_cpp_dir: when set, the handler BUILD.gn compiles dd-sdk-cpp sources
+        # directly into handler:common
+        dd_sdk_cpp_dir = vars.get('DD_SDK_CPP_DIR', '')
+        if dd_sdk_cpp_dir:
+            args.dd_sdk_cpp_dir = dd_sdk_cpp_dir
 
         return args
 

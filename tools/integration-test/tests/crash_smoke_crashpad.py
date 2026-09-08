@@ -7,14 +7,12 @@ import re
 import sys
 import struct
 import json
+import time
+import uuid
 import email
 import email.policy
 from pathlib import Path
 from lib.test import TestContext
-
-_UUID_RE = re.compile(
-    r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
-)
 
 # This test only runs when the SDK was compiled with DD_CRASH_MODE=crashpad
 CRASH_MODE = 'crashpad'
@@ -37,14 +35,15 @@ async def main(t: TestContext):
     add-user-extra-info attr:plan:premium
     set-account-info acct-456 name:"Acme"
     add-account-extra-info attr:tier:gold
-    add-rum-attribute attr:foo:hello
-    start-view crash-view name:"Crash View"
+    add-rum-attribute attr:foo:hello attr:bar:world
+    start-view crash-view name:"Crash View" attr:bar:alpha attr:baz:bravo
     sleep 10
     crash raise
     """)
 
     # When the repl crashes
     await p.join()
+    crash_time_ms = time.time_ns() // 1_000_000
     assert p.exitcode != 0
 
     # Then the Crashpad database directory was initialized by StartHandler()
@@ -52,177 +51,125 @@ async def main(t: TestContext):
     assert (crashes_dir / 'settings.dat').exists(), \
         f'Crashpad database not initialized: {crashes_dir / "settings.dat"} not found'
 
-    # And the Crashpad handler POSTed the minidump to the intake endpoint.
-    # The handler uploads out-of-process, but join() drains the proxy after the process
-    # exits, by which point the upload has already completed.
+    # And the Crashpad handler POSTed the minidump to the intake endpoint (the handler
+    # uploads out-of-process, but join() drains the proxy after the process exits, by
+    # which point the upload has already completed)
     assert len(p.requests) == 1, \
         f'Expected 1 request from Crashpad handler, got {len(p.requests)}'
     upload_request = p.requests[0]
     assert upload_request.method == 'POST'
     assert upload_request.url.path == '/api/v2/minidump'
-    # Header name lookup is case-insensitive: Crashpad sends 'Content-Type' (title case)
+
+    # And the request carries our RUM Application's client token in its DD-API-KEY
+    # header
+    assert upload_request.headers['DD-API-KEY'] == 'fake-client-token'
+
+    # And the DD-EVP-ORIGIN and DD-EVP-ORIGIN-VERSION headers identify the SDK that was
+    # responsible for this crash report
+    assert upload_request.headers['DD-EVP-ORIGIN'] == 'cpp'
+    sdk_version = upload_request.headers['DD-EVP-ORIGIN-VERSION']
+    assert re.match(r'^\d+\.\d+\.\d+$', sdk_version), \
+        f"Expected SemVer in DD-EVP-ORIGIN-VERSION; got {sdk_version}"
+
+    # And DD-REQUEST-ID is set to a randomly-generated UUID
+    assert uuid.UUID(upload_request.headers['DD-REQUEST-ID']) != uuid.UUID(int=0)
+
+    # And that request has Content-Type: multipart/form-data (case-insensitive)
     content_type = next(
         (v for k, v in upload_request.headers.items() if k.lower() == 'content-type'), ''
     )
     assert content_type.startswith('multipart/form-data'), \
         f'Expected multipart/form-data, got: {content_type!r}'
 
-    # And the upload contains dd.handled=true (injected by the pre-upload callback)
-    # and does NOT contain dd.tracking_consent (stripped by the same callback)
+    # And the form field values present in the HTTP request match the final set of
+    # annotation values that are set by the handler: we have Crashpad's own 'guid', then
+    # 'dd.rum.view' and 'dd.rum.error', and nothing else
     form_fields = _parse_multipart_form_fields(upload_request.body, content_type)
-    assert form_fields.get('dd.handled') == 'true', \
-        f'Expected dd.handled=true in upload, got: {form_fields.get("dd.handled")!r}'
-    assert 'dd.tracking_consent' not in form_fields, \
-        f'dd.tracking_consent must not appear in upload, got: {form_fields.get("dd.tracking_consent")!r}'
+    assert 'guid' in form_fields, \
+        f"Missing 'guid' value in form-data upload: {form_fields}"
+    assert 'dd.rum.view' in form_fields, \
+        f"Missing 'dd.rum.view' value in form-data upload: {form_fields}"
+    assert 'dd.rum.error' in form_fields, \
+        f"Missing 'dd.rum.error' value in form-data upload: {form_fields}"
+    expected_keys = {
+        'guid',
+        'dd.rum.view',
+        'dd.rum.error',
+    }
+    unexpected_form_field_keys = set(form_fields.keys()) - expected_keys
+    assert not unexpected_form_field_keys, \
+        f'Unexpected annotation values in form-data upload: {", ".join(unexpected_form_field_keys)}'
 
-    # And the upload contains well-formed dd.config, dd.os, and dd.device form fields,
-    # each a JSON object with the expected keys. OS and device fields are populated
-    # automatically by the SDK; config fields reflect what was set in the repl script
-    # above.
-    _assert_json_form_field(
-        form_fields, 'dd.config',
-        required_keys=['service', 'env', 'version', 'variant', 'source', 'sdk_version'],
-        non_empty_keys=['source', 'sdk_version'],
-    )
-    _assert_json_form_field(
-        form_fields, 'dd.os',
-        required_keys=['name', 'version', 'build', 'version_major'],
-        non_empty_keys=['name', 'version', 'version_major'],
-    )
-    _assert_json_form_field(
-        form_fields, 'dd.device',
-        required_keys=['type', 'name', 'model', 'brand', 'architecture', 'locale', 'time_zone'],
-        non_empty_keys=['architecture'],
-    )
+    # And both of those values are well-formed JSON objects
+    view = json.loads(form_fields['dd.rum.view'])
+    assert isinstance(view, dict)
+    assert view['type'] == 'view'
+    error = json.loads(form_fields['dd.rum.error'])
+    assert isinstance(error, dict)
+    assert error['type'] == 'error'
 
-    # And the upload contains well-formed dd.usr and dd.account form fields reflecting
-    # the user and account info set in the repl script above.
-    _assert_json_form_field(
-        form_fields, 'dd.usr',
-        required_keys=['id', 'name', 'email', 'anonymous_id', 'plan'],
-        non_empty_keys=['id', 'name', 'email', 'anonymous_id'],
-    )
-    usr = json.loads(form_fields['dd.usr'])
-    assert usr['id'] == 'usr-123', \
-        f'dd.usr id mismatch: expected "usr-123", got {usr["id"]!r}'
-    assert usr['name'] == 'Alice', \
-        f'dd.usr name mismatch: expected "Alice", got {usr["name"]!r}'
-    assert usr['email'] == 'alice@example.com', \
-        f'dd.usr email mismatch: expected "alice@example.com", got {usr["email"]!r}'
-    assert _UUID_RE.match(usr['anonymous_id']), \
-        f'dd.usr anonymous_id is not a valid UUID: {usr["anonymous_id"]!r}'
-    assert usr['plan'] == 'premium', \
-        f'dd.usr plan mismatch: expected "premium", got {usr["plan"]!r}'
+    # And the timestamp on the error event is roughly equivalent to the moment the
+    # process exited, give or take a handful of seconds
+    timestamp_error_ms = 5000
+    assert abs(error['date'] - crash_time_ms) < timestamp_error_ms, \
+        f"Expected dd.rum.error.date to be within {timestamp_error_ms}ms of {crash_time_ms}; got {error['date']}"
 
-    _assert_json_form_field(
-        form_fields, 'dd.account',
-        required_keys=['id', 'name', 'tier'],
-        non_empty_keys=['id', 'name'],
-    )
-    account = json.loads(form_fields['dd.account'])
-    assert account['id'] == 'acct-456', \
-        f'dd.account id mismatch: expected "acct-456", got {account["id"]!r}'
-    assert account['name'] == 'Acme', \
-        f'dd.account name mismatch: expected "Acme", got {account["name"]!r}'
-    assert account['tier'] == 'gold', \
-        f'dd.account tier mismatch: expected "gold", got {account["tier"]!r}'
+    # And the timestamp on the view event is recorded as 1ms prior to the time of the
+    # crash
+    assert view['date'] == error['date'] - 1, \
+        f"Expected dd.rum.view.date to be 1ms less than dd.rum.error.date ({error['date']}); got {view['date']}"
 
-    # And the upload contains a well-formed dd.rum.config field reflecting the RUM
-    # application ID and session sample rate set at SDK initialization.
-    _assert_json_form_field(
-        form_fields, 'dd.rum.config',
-        required_keys=['application_id', 'session_sample_rate'],
-        non_empty_keys=['application_id'],
-    )
-    rum_config = json.loads(form_fields['dd.rum.config'])
-    assert rum_config['application_id'] == 'a991ca10-4004-4004-4004-beefbeefbeef', \
-        f'dd.rum.config application_id mismatch: expected "a991ca10-4004-4004-4004-beefbeefbeef", got {rum_config["application_id"]!r}'
-    assert isinstance(rum_config['session_sample_rate'], (int, float)), \
-        f'dd.rum.config session_sample_rate is not a number: {rum_config["session_sample_rate"]!r}'
+    # And the error event carries the implicitly-configured service name
+    assert error['service'] == 'dd-sdk-cpp-repl'
+    assert 'service' not in view  # <-- For documentation. Is this a gap?
 
-    # And the upload contains a well-formed dd.rum.session field with all expected
-    # boolean flags and a valid session UUID. Since start-view was called before the
-    # crash, has_tracked_any_view must be true.
-    _assert_json_form_field(
-        form_fields, 'dd.rum.session',
-        required_keys=['id', 'is_sampled', 'is_active', 'is_initial',
-                       'has_tracked_any_view', 'did_start_with_replay'],
-        non_empty_keys=[],
-    )
-    rum_session = json.loads(form_fields['dd.rum.session'])
-    assert _UUID_RE.match(rum_session['id']), \
-        f'dd.rum.session id is not a valid UUID: {rum_session["id"]!r}'
-    assert isinstance(rum_session['is_sampled'], bool), \
-        f'dd.rum.session is_sampled is not a bool: {rum_session["is_sampled"]!r}'
-    assert isinstance(rum_session['is_active'], bool), \
-        f'dd.rum.session is_active is not a bool: {rum_session["is_active"]!r}'
-    assert isinstance(rum_session['is_initial'], bool), \
-        f'dd.rum.session is_initial is not a bool: {rum_session["is_initial"]!r}'
-    assert isinstance(rum_session['has_tracked_any_view'], bool), \
-        f'dd.rum.session has_tracked_any_view is not a bool: {rum_session["has_tracked_any_view"]!r}'
-    assert isinstance(rum_session['did_start_with_replay'], bool), \
-        f'dd.rum.session did_start_with_replay is not a bool: {rum_session["did_start_with_replay"]!r}'
-    assert rum_session['has_tracked_any_view'] == True, \
-        f'dd.rum.session has_tracked_any_view expected True after start-view, got {rum_session["has_tracked_any_view"]!r}'
+    # And both events reflect the same service and ddtags values for our repl test
+    ddtags_regex = re.compile(r'^service:dd-sdk-cpp-repl,env:development,sdk_version:\d+\.\d+\.\d+$')
+    assert ddtags_regex.match(view['ddtags'])
+    assert ddtags_regex.match(error['ddtags'])
 
-    # And the upload contains a well-formed dd.rum.attributes field containing the
-    # global RUM attribute set via add-rum-attribute in the repl script above.
-    _assert_json_form_field(
-        form_fields, 'dd.rum.attributes',
-        required_keys=['foo'],
-        non_empty_keys=['foo'],
-    )
-    rum_attrs = json.loads(form_fields['dd.rum.attributes'])
-    assert rum_attrs['foo'] == 'hello', \
-        f'dd.rum.attributes foo mismatch: expected "hello", got {rum_attrs["foo"]!r}'
+    # And both events have identical os and device properties
+    _assert_identical_object_present_in_both('os', view, error)
+    _assert_identical_object_present_in_both('device', view, error)
 
-    # And the upload contains a well-formed dd.rum.last_view field reflecting the view
-    # that was active at the time of the crash (started via start-view above).
-    _assert_json_form_field(
-        form_fields, 'dd.rum.last_view',
-        required_keys=['type', 'view'],
-        non_empty_keys=['type'],
-    )
-    rum_last_view = json.loads(form_fields['dd.rum.last_view'])
-    assert rum_last_view['type'] == 'view', \
-        f'dd.rum.last_view type mismatch: expected "view", got {rum_last_view["type"]!r}'
-    assert rum_last_view['view']['name'] == 'Crash View', \
-        f'dd.rum.last_view view.name mismatch: expected "Crash View", got {rum_last_view["view"]["name"]!r}'
+    # And both events have identical usr and account properties, both of which match the
+    # details provided in the test
+    _assert_usr_properties(view, error)
+    _assert_account_properties(view, error)
+
+    # And both events carry our configured application ID
+    _assert_application_properties(view, error)
+
+    # And both events belong to the same session, which the view event records as still
+    # active at the time of the crash
+    _assert_session_properties(view, error)
+
+    # And the view event reflects the state of our application at the time of the crash,
+    # while the error event is correlated with the same view
+    _assert_view_properties(view, error)
+
+    # And the error event records the basic details of the crash
+    _assert_error_properties(error)
+
+    # And both events carry the global RUM attributes that were set at the time of the
+    # crash
+    assert view['context']['foo'] == 'hello'
+    assert error['context']['foo'] == 'hello'
+    # Documented for clarity: there is a known gap in that we clobber all view-level
+    # attributes and just use the global RUM attributes as encoded in crash context.
+    # This is consistent with the current behavior of the iOS SDK, but we may want to
+    # improve it eventually, in which case we'd expect 'context' to be:
+    # - {"foo":"hello","bar":"alpha","baz":"bravo"}
+    # See comments flagged TODO(RUM-15994).
+    assert view['context']['bar'] == 'world'
+    assert error['context']['bar'] == 'world'
+    assert 'baz' not in view['context']
+    assert 'baz' not in error['context']
 
     # And the Crashpad database contains exactly one minidump reflecting a completed
     # upload. Since the HTTP upload has completed by this point, the handler has
     # finished all its work and the database is in its final state.
     _assert_one_completed_minidump(crashes_dir)
-
-
-def _assert_json_form_field(
-    form_fields: dict,
-    field_name: str,
-    required_keys: list,
-    non_empty_keys: list,
-):
-    """
-    Asserts that `field_name` is present in the multipart/form-data upload, parses as
-    a JSON object, contains all `required_keys`, and that each key in `non_empty_keys`
-    has a non-empty string value.
-    """
-    raw = form_fields.get(field_name)
-    assert raw is not None, \
-        f'Expected {field_name!r} field in upload, but it was not present'
-    try:
-        obj = json.loads(raw)
-    except json.JSONDecodeError as e:
-        raise AssertionError(
-            f'{field_name!r} field is not valid JSON: {e}\n  raw value: {raw!r}'
-        ) from e
-    assert isinstance(obj, dict), \
-        f'{field_name!r} field is not a JSON object; got: {raw!r}'
-    for key in required_keys:
-        assert key in obj, \
-            f'{field_name!r} field missing key {key!r}; got: {raw!r}'
-    for key in non_empty_keys:
-        assert obj.get(key), \
-            f'{field_name!r} field has empty value for {key!r}; got: {raw!r}'
 
 
 def _parse_multipart_form_fields(body: bytes, content_type: str) -> dict:
@@ -256,6 +203,115 @@ def _parse_multipart_form_fields(body: bytes, content_type: str) -> dict:
             payload = payload.decode('utf-8', errors='replace')
         fields[name] = payload.strip() if payload else ''
     return fields
+
+
+def _assert_object_present_in_both(property_name: str, view: dict, error: dict) -> tuple[dict, dict]:
+    assert property_name in view, \
+        f"'dd.rum.view' is missing expected property '{property_name}'"
+    view_obj = view[property_name]
+    assert isinstance(view_obj, dict), \
+        f"'dd.rum.view.{property_name}' is not an object (got {view_obj})"
+
+    assert property_name in error, \
+        f"'dd.rum.error' is missing expected property '{property_name}'"
+    error_obj = error[property_name]
+    assert isinstance(error_obj, dict), \
+        f"'dd.rum.error.{property_name}' is not an object (got {error_obj})"
+
+    return view_obj, error_obj
+
+
+def _assert_identical_object_present_in_both(property_name: str, view: dict, error: dict) -> dict:
+    view_obj, error_obj = _assert_object_present_in_both(property_name, view, error)
+    if view_obj != error_obj:
+        f"Mismatch in 'dd.rum.view.{property_name}' vs 'dd.rum.error.{property_name}': got {view_obj} vs. {error_obj}"
+    return view_obj
+
+
+def _assert_usr_properties(view: dict, error: dict):
+    usr = _assert_identical_object_present_in_both('usr', view, error)
+    assert usr['id'] == 'usr-123'
+    assert usr['name'] == 'Alice'
+    assert usr['email'] == 'alice@example.com'
+    assert uuid.UUID(usr['anonymous_id']) != uuid.UUID(int=0)
+    assert usr['plan'] == 'premium'
+
+
+def _assert_account_properties(view: dict, error: dict):
+    account = _assert_identical_object_present_in_both('account', view, error)
+    assert account['id'] == 'acct-456'
+    assert account['name'] == 'Acme'
+    assert account['tier'] == 'gold'
+
+
+def _assert_application_properties(view: dict, error: dict):
+    application = _assert_identical_object_present_in_both('application', view, error)
+    assert application['id'] == 'a991ca10-4004-4004-4004-beefbeefbeef'
+
+
+def _assert_session_properties(view: dict, error: dict):
+    view_session, error_session = _assert_object_present_in_both('session', view, error)
+    assert view_session['id'] == error_session['id']
+    assert view_session['type'] == error_session['type'] == 'user'
+    assert view_session['is_active'] == True
+
+    # Expected: session.is_active is only set on view events
+    assert 'is_active' not in error_session
+
+
+def _assert_view_properties(view: dict, error: dict):
+    # Both events have a top-level 'view' object
+    view_view, error_view = _assert_object_present_in_both('view', view, error)
+
+    # The commom subset of view properties is identical between view and error events:
+    # i.e. the error was recorded in the context of the view
+    assert view_view['id'] == error_view['id']
+    assert view_view['url'] == error_view['url']
+    assert view_view['name'] == error_view['name']
+
+    # All view properties on the view event match the application state from our test
+    v = view_view
+    assert v['url'] == 'crash-view'
+    assert v['name'] == 'Crash View'
+    assert v['is_active'] == False
+    assert v['error']['count'] == 1
+    assert v['crash']['count'] == 1
+
+
+def _assert_error_properties(error: dict):
+    # error is a top-level object on the error event
+    assert 'error' in error, \
+        f"'dd.rum.error' is missing expected property 'error'"
+    e = error['error']
+    assert isinstance(e, dict), \
+        f"'dd.rum.error.error' is not an object (got {e})"
+
+    # error.id is a valid UUID; error.source is set to 'source' (i.e. the fault was in
+    # runtime execution of the code, indicating a bug in the application source), and
+    # error.is_crash is true
+    assert uuid.UUID(e['id']) != uuid.UUID(int=0)
+    assert e['source'] == 'source'
+    assert e['is_crash'] == True
+
+    # error.source_type indicates the platform
+    if sys.platform == 'darwin':
+        assert e['source_type'] == 'macos'
+    elif sys.platform == 'win32':
+        assert e['source_type'] == 'windows'
+    else:
+        assert e['source_type'] == 'linux'
+
+    # error.message reflects the exception code detected by Crashpad
+    want_message = 'Application crash: SIGSEGV (Segmentation fault)'
+    if sys.platform == 'win32':
+        want_message = 'Application crash: EXCEPTION_ACCESS_VIOLATION (0xC0000005)'
+    assert e['message'] == want_message, \
+        f"Unexpected value for 'dd.rum.error.message': {e['message']}"
+
+    # No error.stack or error.binary_images values are present; the backend is
+    # responsible for pulling this data from the uploaded .dmp file
+    assert 'stack' not in e
+    assert 'binary_images' not in e
 
 
 def _assert_one_completed_minidump(crashes_dir: Path):
