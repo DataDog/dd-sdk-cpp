@@ -37,4 +37,17 @@ CrashContext ParseCrashContextFromAnnotations(
     const std::map<std::string, std::string>& params
 );
 
+/**
+ * Given a set of parameter values parsed from Crashpad annotations, unconditionally
+ * removes the subset of values associated with 'dd.*' keys used to encode CrashContext.
+ * The set of keys / annotation names considered for removal is guaranteed to match the
+ * same set of keys outlined above for ParseCrashContextFromAnnotations().
+ *
+ * These annotation values are used exclusively as an IPC mechanism, to share data
+ * between the crashing process and the Crashpad handler executable. They need not be
+ * present in the Crashpad POST request, so the handler is expected to remove them after
+ * parsing their values into a CrashContext, regardless of whether parsing succeeded.
+ */
+void RemoveCrashContextAnnotations(std::map<std::string, std::string>& params);
+
 }  // namespace datadog::impl

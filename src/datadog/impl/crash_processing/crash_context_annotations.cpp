@@ -32,6 +32,16 @@ std::string_view FindAnnotation(
 }
 
 /**
+ * Looks up `key` in `params` and removes it from the map if found.
+ */
+void RemoveIfFound(std::map<std::string, std::string>& params, std::string_view key) {
+  auto it = params.find(std::string(key));
+  if (it != params.end()) {
+    params.erase(it);
+  }
+}
+
+/**
  * Tries to advance `sc` past a JSON string literal value, writing the unescaped result
  * into `out`. Returns true and updates `out` on success; returns false (leaving `sc`
  * failed) if the scanner is not positioned at a string literal. ParseJsonString failure
@@ -363,6 +373,19 @@ CrashContext ParseCrashContextFromAnnotations(
   }
 
   return ctx;
+}
+
+void RemoveCrashContextAnnotations(std::map<std::string, std::string>& params) {
+  RemoveIfFound(params, "dd.tracking_consent");
+  RemoveIfFound(params, "dd.config");
+  RemoveIfFound(params, "dd.os");
+  RemoveIfFound(params, "dd.device");
+  RemoveIfFound(params, "dd.usr");
+  RemoveIfFound(params, "dd.account");
+  RemoveIfFound(params, "dd.rum.config");
+  RemoveIfFound(params, "dd.rum.session");
+  RemoveIfFound(params, "dd.rum.attributes");
+  RemoveIfFound(params, "dd.rum.last_view");
 }
 
 }  // namespace datadog::impl
