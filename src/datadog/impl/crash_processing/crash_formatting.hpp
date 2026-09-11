@@ -10,7 +10,7 @@
 
 namespace datadog::impl {
 
-struct CrashReport;
+struct CrashDump;
 
 /**
  * Given a crash report, returns a string suitable for use as `error.message` in the RUM
@@ -20,7 +20,7 @@ struct CrashReport;
  * - "Application crash: EXCEPTION_ACCESS_VIOLATION (0xC0000005)"
  * - "Application crash: SIGSEGV (Segmentation fault)"
  */
-std::string FormatCrashReportErrorMessage(const CrashReport& crash);
+std::string FormatCrashReportErrorMessage(const CrashDump& crash_dump);
 
 /**
  * Given a crash report, formats the stack trace, returning a multi-line string suitable
@@ -52,6 +52,6 @@ std::string FormatCrashReportErrorMessage(const CrashReport& crash);
  * - A final trailing '\n' may be present after the last frame (the backend tolerates it
  *   but does not require it)
  */
-std::string FormatCrashReportStack(const CrashReport& crash);
+std::string FormatCrashReportStack(const CrashDump& crash_dump);
 
 }  // namespace datadog::impl
