@@ -97,7 +97,8 @@ dd_crash_reporting_t* dd_crash_reporting_init(
       core->impl->GetFilesystem(),
       storage->GetPath(),
       config->handler_exe_path,
-      core->impl->GetIntakeOrigin()
+      core->impl->GetIntakeOrigin(),
+      core->impl->GetClientToken()
   );
 
   // If handler initialization failed, or if crash reporting is being enabled for an SDK
