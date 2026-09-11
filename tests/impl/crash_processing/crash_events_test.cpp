@@ -237,7 +237,7 @@ TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
     REQUIRE_THAT(
         diagnostics.warning[0],
         Catch::Matchers::ContainsSubstring(
-            "Ignoring prior-process crash report due to missing context"
+            "Ignoring crash report due to missing context"
         )
     );
   }
@@ -273,8 +273,7 @@ TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
     REQUIRE_THAT(
         diagnostics.status[0],
         Catch::Matchers::ContainsSubstring(
-            "Ignoring prior-process crash report due to lack of tracking consent at "
-            "time of crash"
+            "Ignoring crash report due to lack of tracking consent at time of crash"
         )
     );
   }
@@ -308,8 +307,8 @@ TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
     REQUIRE_THAT(
         diagnostics.status[0],
         Catch::Matchers::ContainsSubstring(
-            "Ignoring prior-process crash report: crash occurred during a session that "
-            "was not sampled"
+            "Ignoring crash report: crash occurred during a session that was not "
+            "sampled"
         )
     );
   }
@@ -544,8 +543,7 @@ TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
     REQUIRE_THAT(
         diagnostics.status.back(),
         Catch::Matchers::ContainsSubstring(
-            "Ignoring prior-process crash report: newly-created session was excluded "
-            "from sampling"
+            "Ignoring crash report: newly-created session was excluded from sampling"
         )
     );
   }
@@ -742,7 +740,7 @@ TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
         diagnostics.status.back(),
         Catch::Matchers::ContainsSubstring(
             "Handled crash report: created ApplicationLaunch view and recorded RUM "
-            "Error in prior-process session"
+            "Error in last active session at time of crash"
         )
     );
   }
@@ -792,8 +790,7 @@ TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
     REQUIRE_THAT(
         diagnostics.warning[0],
         Catch::Matchers::ContainsSubstring(
-            "Ignoring prior-process crash report: crash occurred while no RUM View was "
-            "active"
+            "Ignoring crash report: crash occurred while no RUM View was active"
         )
     );
   }
@@ -825,7 +822,7 @@ TEST_CASE("ProduceRumEventsForCrash", "[unit][crash_processing]") {
     REQUIRE_THAT(
         diagnostics.warning[0],
         Catch::Matchers::ContainsSubstring(
-            "Failed to handle prior-process crash: last view event could not be parsed"
+            "Failed to handle crash: last view event could not be parsed"
         )
     );
   }
