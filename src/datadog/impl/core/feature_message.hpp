@@ -21,10 +21,7 @@ namespace datadog::impl {
 /**
  * Carries a snapshot of `CoreContext` captured immediately after a
  * `CoreContextProvider::Update()` call completes. Subscribers can use this snapshot to
- * react proactively to state changes in other features — the primary use case being
- * `CrashReporting`, which needs to persist RUM session/view/action IDs every time
- * `RumFeatureContext` changes so that those IDs are available in a crash report
- * generated before the next normal launch.
+ * react proactively to state changes in other features.
  *
  * The snapshot is taken inside `Update()` while the write lock is still held, ensuring
  * the delivered context is consistent and not partially written.

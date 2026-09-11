@@ -300,8 +300,7 @@ static bool handle_crash_that_preceded_initial_session(
           new_session_seed, ctx.rum_initial_config.session_sample_rate
       )) {
     diagnostic_logger.Status(
-        "Ignoring prior-process crash report: newly-created session was excluded from "
-        "sampling"
+        "Ignoring crash report: newly-created session was excluded from sampling"
     );
     return false;
   }
@@ -389,7 +388,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
   // already-existing session from the process that crashed
   DATADOG_ASSERT(
       ctx.rum_session_state.is_sampled,
-      "attempting to create events for prior-process session that was not sampled"
+      "attempting to create events for session that was not sampled"
   );
 
   // We always assume this is an ordinary user session, as we don't yet support ci-test
@@ -437,7 +436,7 @@ static void handle_crash_that_preceded_initial_view_in_initial_session(
   // response to a crash report
   diagnostic_logger.Status(
       "Handled crash report: created ApplicationLaunch view and recorded RUM Error in "
-      "prior-process session",
+      "last active session at time of crash",
       {{"session_id", ctx.rum_session_state.session_id},
        {"view_id", view_ev.view.id},
        {"error_id", ev.error.id.value},
@@ -469,7 +468,7 @@ static bool handle_crash_that_had_active_view(
     // Failure to parse indicates that the prior run of the SDK may have written a
     // malformed RUM view event in the serialized CrashContext
     diagnostic_logger.Warning(
-        "Failed to handle prior-process crash: last view event could not be parsed"
+        "Failed to handle crash: last view event could not be parsed"
     );
     return false;
   }
@@ -517,8 +516,7 @@ static bool handle_crash_that_had_active_view(
   } else {
     // View is too old to be updated: log timing details for diagnostics
     diagnostic_logger.Debug(
-        "Sending no view update for prior-process crash that had active view: cutoff "
-        "time has passed",
+        "Sending no view update for crash that had active view: cutoff time has passed",
         {{"current_time", current_time},
          {"crash_time", crash_timestamp},
          {"cutoff_time", view_update_cutoff}}
@@ -564,7 +562,7 @@ static bool handle_crash_that_had_active_view(
   // Log a status message to indicate that we successfully produced RUM events in
   // response to a crash report
   diagnostic_logger.Status(
-      "Handled crash report: recorded RUM Error in prior-process view",
+      "Handled crash report: recorded RUM Error in last view active at crash time",
       {{"session_id", ctx.rum_session_state.session_id},
        {"view_id", parser.values.view_id},
        {"view_updated", send_updated_view_event},
@@ -600,9 +598,7 @@ bool ProduceRumEventsForCrash(
     //   - A crash that occurred very early in the process, before the SDK started or
     //     before CrashReporting had a chance to handle the initial
     //     `ContextChangedMessage` by flushing an initial context file
-    diagnostic_logger.Warning(
-        "Ignoring prior-process crash report due to missing context"
-    );
+    diagnostic_logger.Warning("Ignoring crash report due to missing context");
     return false;
   }
   const CrashContext& ctx = *crash_context;
@@ -616,8 +612,7 @@ bool ProduceRumEventsForCrash(
     // Note that we drop the crash report even if tracking consent was pending: this is
     // consistent with the behavior of the iOS SDK
     diagnostic_logger.Status(
-        "Ignoring prior-process crash report due to lack of tracking consent at time "
-        "of crash",
+        "Ignoring crash report due to lack of tracking consent at time of crash",
         {{"previous_consent",
           ctx.tracking_consent == TrackingConsent::NotGranted ? "not-granted"
                                                               : "pending"}}
@@ -632,8 +627,7 @@ bool ProduceRumEventsForCrash(
     // sampling rate, we've already committed to never sending events for that session
     if (!ctx.rum_session_state.is_sampled) {
       diagnostic_logger.Status(
-          "Ignoring prior-process crash report: crash occurred during a session that "
-          "was not sampled",
+          "Ignoring crash report: crash occurred during a session that was not sampled",
           {{"session_id", ctx.rum_session_state.session_id}}
       );
       return false;
@@ -698,8 +692,7 @@ bool ProduceRumEventsForCrash(
     // TODO(RUM-12247): Create a synthetic `Background` view to track the crash, and
     // generate a RUM View event and RUM Error event
     diagnostic_logger.Warning(
-        "Ignoring prior-process crash report: crash occurred while no RUM View was "
-        "active"
+        "Ignoring crash report: crash occurred while no RUM View was active"
     );
     return false;
   }
