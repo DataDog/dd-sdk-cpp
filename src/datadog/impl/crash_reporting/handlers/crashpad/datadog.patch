@@ -20,10 +20,10 @@ index 1db2920e..918bd4a5 100644
  
   * [Project status](doc/status.md)
 diff --git a/build/crashpad_buildconfig.gni b/build/crashpad_buildconfig.gni
-index 80992a1b..32d893a4 100644
+index 80992a1b..1a36b151 100644
 --- a/build/crashpad_buildconfig.gni
 +++ b/build/crashpad_buildconfig.gni
-@@ -18,6 +18,20 @@ declare_args() {
+@@ -18,6 +18,19 @@ declare_args() {
    # "fuchsia", "dart" or "external".
    crashpad_dependencies = "standalone"
  
@@ -34,18 +34,17 @@ index 80992a1b..32d893a4 100644
 +  # valid in GN sources and include_dirs (same mechanism as $sysroot/...).
 +  dd_sdk_cpp_dir = ""
 +
-+  # Absolute path to the dd-sdk-cpp CMake binary directory (i.e.
-+  # CMAKE_CURRENT_BINARY_DIR from the top-level CMakeLists.txt). Headers for
-+  # fetched external dependencies (e.g. date/date.h) are placed under
-+  # $dd_sdk_cpp_binary_dir/external/include. Must be set alongside
++  # Absolute path to the directory under which headers for fetched external
++  # dependencies (e.g. date/date.h) are placed. Corresponds to EXTERNAL_INCLUDE
++  # from cmake/external.cmake in dd-sdk-cpp. Must be set alongside
 +  # dd_sdk_cpp_dir; ignored when dd_sdk_cpp_dir is empty.
-+  dd_sdk_cpp_binary_dir = ""
++  dd_sdk_cpp_external_include = ""
 +
    if (defined(is_fuchsia_tree) && is_fuchsia_tree) {
      crashpad_dependencies = "fuchsia"
    }
 diff --git a/handler/BUILD.gn b/handler/BUILD.gn
-index 9061c2cb..da2b3817 100644
+index 9061c2cb..2819685c 100644
 --- a/handler/BUILD.gn
 +++ b/handler/BUILD.gn
 @@ -1,4 +1,6 @@
@@ -77,9 +76,9 @@ index 9061c2cb..da2b3817 100644
 +  }
 +
 +  # Compile and statically link all code from dd-sdk-cpp's 'types' and
-+  # 'crash_processing' modules. dd_sdk_cpp_dir and dd_sdk_cpp_binary_dir are
-+  # set automatically when using the bootstrap-crashpad script in dd-sdk-cpp.
-+  if (dd_sdk_cpp_dir != "" && dd_sdk_cpp_binary_dir != "") {
++  # 'crash_processing' modules. dd_sdk_cpp_dir and dd_sdk_cpp_external_include
++  # are set automatically when using the bootstrap-crashpad script in dd-sdk-cpp.
++  if (dd_sdk_cpp_dir != "" && dd_sdk_cpp_external_include != "") {
 +    sources += [
 +      # cpp: minimal definitions of public C++ API types
 +      "$dd_sdk_cpp_dir/src/datadog/cpp/attribute.cpp",
@@ -116,7 +115,7 @@ index 9061c2cb..da2b3817 100644
 +      "$dd_sdk_cpp_dir/include-cpp",
 +      "$dd_sdk_cpp_dir/include-c",
 +      "$dd_sdk_cpp_dir/src",
-+      "$dd_sdk_cpp_binary_dir/external/include",
++      "$dd_sdk_cpp_external_include",
 +    ]
 +    defines += [ "WITH_DATADOG_CRASH_PROCESSING=1" ]
 +
