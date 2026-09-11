@@ -12,8 +12,7 @@
 
 // Win32 preprocessor defines must be set before Crashpad includes
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
+#include "datadog/impl/types/windows_headers.hpp"
 #endif
 
 #include "client/annotation.h"
@@ -33,7 +32,7 @@
 #include "datadog/impl/types/rum.hpp"
 
 #ifdef _WIN32
-#include <windows.h>  // GetModuleFileName
+// GetModuleFileName included via windows_headers.hpp above
 #else
 #include <limits.h>  // PATH_MAX
 #ifdef __APPLE__

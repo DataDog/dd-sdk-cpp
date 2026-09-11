@@ -4,14 +4,11 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
-
 #include <memory>
 #include <string>
 
 #include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/types/windows_headers.hpp"
 
 namespace datadog::impl {
 

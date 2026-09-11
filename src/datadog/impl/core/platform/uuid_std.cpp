@@ -7,8 +7,10 @@
 #include "datadog/impl/core/platform/uuid.hpp"
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#include <objbase.h>
+// clang-format off
+#include "datadog/impl/types/windows_headers.hpp"
+#include <objbase.h> // Must follow windows.h
+// clang-format on
 #pragma comment(lib, "ole32.lib")
 #else
 #include <uuid/uuid.h>
