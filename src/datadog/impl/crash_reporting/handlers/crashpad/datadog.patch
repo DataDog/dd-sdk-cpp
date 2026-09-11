@@ -640,10 +640,10 @@ index 6c17a1d1..d6656340 100644
  }  // extern "C"
 diff --git a/handler/datadog_pre_upload_callback.cc b/handler/datadog_pre_upload_callback.cc
 new file mode 100644
-index 00000000..550f8f4f
+index 00000000..77c765bf
 --- /dev/null
 +++ b/handler/datadog_pre_upload_callback.cc
-@@ -0,0 +1,252 @@
+@@ -0,0 +1,303 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -674,7 +674,11 @@ index 00000000..550f8f4f
 +#include "datadog/impl/crash_processing/crash_events.hpp"
 +
 +#if BUILDFLAG(IS_APPLE)
++#include <csignal>
 +#include <mach/exception_types.h>
++#if defined(ARCH_CPU_X86_FAMILY)
++#include <mach/i386/exception.h>
++#endif
 +#endif
 +
 +namespace crashpad {
@@ -742,15 +746,62 @@ index 00000000..550f8f4f
 +    fault_address = exc->ExceptionAddress();
 +    tid = exc->ThreadID();
 +#if BUILDFLAG(IS_APPLE)
-+    // On macOS, exc->Exception() returns the recovered Mach exception type
-+    // (e.g. EXC_BAD_ACCESS for hardware faults), but returns 0 for software-
-+    // signaled crashes such as raise(SIGSEGV), where no underlying hardware
-+    // exception exists. In both cases, the relevant POSIX signal number is
-+    // always available in the EXC_CRASH wrapper: Codes()[0] is EXC_CRASH and
-+    // the signal is in bits 24-31 of Codes()[1].
++    // On macOS, exc->Exception() returns the Mach exception type rather than a
++    // POSIX signal. We need a POSIX signal for FormatCrashReportErrorMessage(),
++    // so translate here.
++    //
++    // Two cases:
++    //
++    // 1. EXC_CRASH: the kernel wraps both software-signalled crashes (e.g.
++    //    raise(SIGSEGV)) and, on arm64, hardware faults in EXC_CRASH before
++    //    delivering them. The original POSIX signal is in bits 24-31 of
++    //    Codes()[1] (see ExcCrashRecoverOriginalException in Crashpad, and
++    //    XNU bsd/kern/kern_exit.c proc_prepareexit()).
++    //
++    // 2. Hardware exception without EXC_CRASH wrapper: on x86_64, hardware
++    //    faults (EXC_BAD_ACCESS etc.) may arrive directly. Map the Mach
++    //    exception type to its POSIX signal using the same table as XNU's
++    //    ux_exception() (bsd/kern/ux_exception.c).
 +    const auto& codes = exc->Codes();
-+    if (codes.size() >= 2 && codes[0] == EXC_CRASH) {
-+      fault_code = (codes[1] >> 24) & 0xff;
++    if (fault_code == EXC_CRASH) {
++      // EXC_CRASH wrapper: recover the original POSIX signal directly.
++      fault_code = codes.size() >= 2 ? (codes[1] >> 24) & 0xff : 0;
++    } else {
++      // No EXC_CRASH wrapper: map the Mach exception type to its POSIX signal.
++      // Source: XNU bsd/kern/ux_exception.c ux_exception().
++      // For EXC_BAD_ACCESS, XNU signals SIGBUS for EXC_I386_GPFLT (general
++      // protection fault) and SIGSEGV for all other subcodes. On arm64 this
++      // path is not normally reached (hardware faults are always wrapped in
++      // EXC_CRASH), but SIGSEGV is the correct fallback if it ever is.
++      switch (fault_code) {
++        case EXC_BAD_ACCESS:
++#if defined(ARCH_CPU_X86_FAMILY)
++          {
++            const uint64_t exc_code_0 =
++                codes.size() >= 1 ? codes[0] : 0;
++            fault_code = (exc_code_0 == EXC_I386_GPFLT) ? SIGBUS : SIGSEGV;
++          }
++#else
++          fault_code = SIGSEGV;
++#endif
++          break;
++        case EXC_BAD_INSTRUCTION:
++          fault_code = SIGILL;
++          break;
++        case EXC_ARITHMETIC:
++          fault_code = SIGFPE;
++          break;
++        case EXC_EMULATION:
++          fault_code = SIGEMT;
++          break;
++        case EXC_BREAKPOINT:
++          fault_code = SIGTRAP;
++          break;
++        default:
++          // Leave fault_code as the raw Mach exception type; it will produce
++          // an "Application crash: signal N" message, which is still useful.
++          break;
++      }
 +    }
 +#endif
 +  }
