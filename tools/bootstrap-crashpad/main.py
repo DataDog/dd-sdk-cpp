@@ -136,6 +136,7 @@ class GnArgs:
     extra_ldflags: Set[str] = field(default_factory=set)
     extra_arflags: Set[str] = field(default_factory=set)
     dd_sdk_cpp_dir: str = ""
+    dd_sdk_cpp_binary_dir: str = ""
 
     def __str__(self) -> str:
         args = [
@@ -155,6 +156,8 @@ class GnArgs:
         ]
         if self.dd_sdk_cpp_dir:
             args += [f'dd_sdk_cpp_dir={json.dumps(self.dd_sdk_cpp_dir)}']
+        if self.dd_sdk_cpp_binary_dir:
+            args += [f'dd_sdk_cpp_binary_dir={json.dumps(self.dd_sdk_cpp_binary_dir)}']
         return ' '.join(args)
 
     @classmethod
@@ -275,6 +278,13 @@ class GnArgs:
         dd_sdk_cpp_dir = vars.get('DD_SDK_CPP_DIR', '')
         if dd_sdk_cpp_dir:
             args.dd_sdk_cpp_dir = dd_sdk_cpp_dir
+
+        # dd_sdk_cpp_binary_dir: the CMake binary directory under which headers for
+        # fetched external dependencies (e.g. date/date.h) are placed in
+        # external/include. Must be supplied alongside DD_SDK_CPP_DIR.
+        dd_sdk_cpp_binary_dir = vars.get('DD_SDK_CPP_BINARY_DIR', '')
+        if dd_sdk_cpp_binary_dir:
+            args.dd_sdk_cpp_binary_dir = dd_sdk_cpp_binary_dir
 
         return args
 
