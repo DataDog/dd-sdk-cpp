@@ -76,7 +76,8 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
       core->_impl->GetFilesystem(),
       storage->GetPath(),
       config.handler_exe_path,
-      core->_impl->GetIntakeOrigin()
+      core->_impl->GetIntakeOrigin(),
+      core->_impl->GetClientToken()
   );
 
   // If handler initialization failed, or if crash reporting is being enabled for an SDK

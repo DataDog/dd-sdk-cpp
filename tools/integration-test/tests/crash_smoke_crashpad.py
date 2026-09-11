@@ -59,7 +59,7 @@ async def main(t: TestContext):
         f'Expected 1 request from Crashpad handler, got {len(p.requests)}'
     upload_request = p.requests[0]
     assert upload_request.method == 'POST'
-    assert upload_request.url.path == '/crashpad-ingest-placeholder-path'
+    assert upload_request.url.path == '/api/v2/minidump'
     # Header name lookup is case-insensitive: Crashpad sends 'Content-Type' (title case)
     content_type = next(
         (v for k, v in upload_request.headers.items() if k.lower() == 'content-type'), ''

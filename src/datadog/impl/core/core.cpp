@@ -780,4 +780,8 @@ std::string_view Core::GetIntakeOrigin() const {
   return _immutable_context.intake_origin;
 }
 
+std::string_view Core::GetClientToken() const {
+  return _immutable_context.client_token;
+}
+
 }  // namespace datadog::impl

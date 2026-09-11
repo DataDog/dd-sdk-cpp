@@ -44,6 +44,7 @@
 // them safe to read during a crash. The Crashpad handler will automatically resolve
 // these values and include them as annotations when the crash dump is uploaded.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+static crashpad::StringAnnotation<64> s_dd_client_token("dd.client_token");
 static crashpad::StringAnnotation<16> s_dd_tracking_consent("dd.tracking_consent");
 static crashpad::StringAnnotation<512> s_dd_config("dd.config");
 static crashpad::StringAnnotation<256> s_dd_os("dd.os");
@@ -234,9 +235,29 @@ class CrashpadCrashHandler final : public ICrashHandler {
       IFilesystem& fs,
       const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path,
-      std::string_view upload_origin
+      std::string_view upload_origin,
+      std::string_view client_token
   ) override {
     (void)fs;
+
+    // Store the configured client token in a 'dd.client_token' annotation so the
+    // handler can properly authorize minidump uploads. Note that the client token is
+    // not a highly sensitive secret, and it's already plainly visible in all HTTP
+    // requests sent by the SDK, but using the Crashpad handler _does_ necessarily
+    // surface the client token in .dmp files written when the application crashes.
+    s_dd_client_token.Set(client_token);
+
+    // Initialize other annotation values to their defaults
+    s_dd_tracking_consent.Set("pending");
+    s_dd_config.Set("{}");
+    s_dd_os.Set("{}");
+    s_dd_device.Set("{}");
+    s_dd_usr.Set("{}");
+    s_dd_account.Set("{}");
+    s_dd_rum_config.Set("{}");
+    s_dd_rum_session.Set("{}");
+    s_dd_rum_attributes.Set("{}");
+    s_dd_rum_last_view.Set("{}");
 
     // Prepare Crashpad client options
     std::filesystem::path crashpad_handler_path = helper_exe_path;
@@ -244,8 +265,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
       crashpad_handler_path = get_crashpad_handler_path();
     }
     std::filesystem::path crashpad_database_path = crash_storage_dir_path.Get();
-    const std::string url =
-        std::string(upload_origin) + "/crashpad-ingest-placeholder-path";
+    const std::string url = std::string(upload_origin) + "/api/v2/minidump";
     std::map<std::string, std::string> annotations;
     std::vector<std::string> arguments;
     const bool restartable = false;
@@ -274,18 +294,6 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // receive data in SetCrashContext that can't be fully serialized to Crashpad
     // annotations
     _logger = logger;
-
-    // Initialize annotation values to their defaults
-    s_dd_tracking_consent.Set("pending");
-    s_dd_config.Set("{}");
-    s_dd_os.Set("{}");
-    s_dd_device.Set("{}");
-    s_dd_usr.Set("{}");
-    s_dd_account.Set("{}");
-    s_dd_rum_config.Set("{}");
-    s_dd_rum_session.Set("{}");
-    s_dd_rum_attributes.Set("{}");
-    s_dd_rum_last_view.Set("{}");
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a

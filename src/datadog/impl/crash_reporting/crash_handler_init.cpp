@@ -16,7 +16,8 @@ ICrashHandler* CrashHandler::InitializeOnce(
     IFilesystem& fs,
     const StoragePath& crash_storage_dir_path,
     std::string_view helper_exe_path,
-    std::string_view upload_origin
+    std::string_view upload_origin,
+    std::string_view client_token
 ) {
   // Establish an ICrashHandler singleton: once initialized, this value will live for
   // the lifetime of the process, entirely decoupled from any SDK state. Upon a clean
@@ -43,7 +44,12 @@ ICrashHandler* CrashHandler::InitializeOnce(
     // Initialize the handler: this is the point where we actually register signal
     // handlers, launch helper processes, etc.
     if (!new_handler->Initialize(
-            logger, fs, crash_storage_dir_path, helper_exe_path, upload_origin
+            logger,
+            fs,
+            crash_storage_dir_path,
+            helper_exe_path,
+            upload_origin,
+            client_token
         )) {
       return;
     }

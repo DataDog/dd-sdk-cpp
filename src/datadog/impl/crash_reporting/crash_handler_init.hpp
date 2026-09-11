@@ -37,13 +37,18 @@ namespace CrashHandler {
  *  crash-related artifacts.
  * @param helper_exe_path Configured path to a helper executable that may be used by the
  *  crash handler, if any. Valid only for the scope of the function call.
+ * @param upload_origin HTTP origin of the Datadog host that accepts data for this
+ *  application, as determined by its configured site and/or custom endpoint.
+ * @param client_token Client token value used to authorize uploads to that endpoint for
+ *  this application.
  */
 ICrashHandler* InitializeOnce(
     DiagnosticLogger logger,
     IFilesystem& fs,
     const StoragePath& crash_storage_dir_path,
     std::string_view helper_exe_path,
-    std::string_view upload_origin
+    std::string_view upload_origin,
+    std::string_view client_token
 );
 
 }  // namespace CrashHandler

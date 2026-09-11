@@ -454,6 +454,7 @@ class Core {
   const platform::IClock& GetClock() const;
   IFilesystem& GetFilesystem() const;
   std::string_view GetIntakeOrigin() const;
+  std::string_view GetClientToken() const;
 };
 
 }  // namespace datadog::impl

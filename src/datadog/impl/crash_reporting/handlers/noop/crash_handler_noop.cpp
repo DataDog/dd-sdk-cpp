@@ -34,12 +34,14 @@ class NoopCrashHandler final : public ICrashHandler {
       IFilesystem& fs,
       const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path,
-      std::string_view upload_origin
+      std::string_view upload_origin,
+      std::string_view client_token
   ) override {
     (void)fs;
     (void)crash_storage_dir_path;
     (void)helper_exe_path;
     (void)upload_origin;
+    (void)client_token;
 
     // Include some local log output to signal that CrashReporting API calls will do
     // nothing: this is not strictly a warning, but it should be noted for clarity

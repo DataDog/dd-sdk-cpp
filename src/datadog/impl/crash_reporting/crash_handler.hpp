@@ -49,7 +49,8 @@ class ICrashHandler {
       IFilesystem& fs,
       const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path,
-      std::string_view upload_origin
+      std::string_view upload_origin,
+      std::string_view client_token
   ) = 0;
 
   /**
