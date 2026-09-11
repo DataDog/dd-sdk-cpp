@@ -223,7 +223,7 @@ def _assert_object_present_in_both(property_name: str, view: dict, error: dict) 
 
 def _assert_identical_object_present_in_both(property_name: str, view: dict, error: dict) -> dict:
     view_obj, error_obj = _assert_object_present_in_both(property_name, view, error)
-    if view_obj != error_obj:
+    assert view_obj == error_obj, \
         f"Mismatch in 'dd.rum.view.{property_name}' vs 'dd.rum.error.{property_name}': got {view_obj} vs. {error_obj}"
     return view_obj
 
