@@ -640,6 +640,18 @@ bool ProduceRumEventsForCrash(
     return false;
   }
 
+  // If we will need to synthesize a session or view but have no application ID to
+  // put in the synthesized events, early-out with a descriptive warning
+  if (ctx.last_view_event_json.empty() &&
+      ctx.rum_initial_config.application_id == UUID::Zero &&
+      fallback_application_id == UUID::Zero) {
+    diagnostic_logger.Warning(
+        "Failed to handle crash: context has no RUM Application ID, and no fallback "
+        "value was provided"
+    );
+    return false;
+  }
+
   // RUM's crash-processing logic bypasses the ordinary mechanism for handling tracking
   // consent on event writes: instead, we generate events for a crash iff tracking
   // consent was granted at the time the crash occurred, unconditionally storing those
