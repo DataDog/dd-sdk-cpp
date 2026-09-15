@@ -60,6 +60,14 @@ class NameConflictFeature : public MockFeature {
   {}
 };
 
+class InitializationFailureFeature : public MockFeature {
+ public:
+  InitializationFailureFeature()
+      : MockFeature(CreateFeatureId("FAIL"), "initialization_failure") {}
+
+  bool Initialize() override { return false; }
+};
+
 TEST_CASE("Core Lifecycle", "[unit]") {
   // Given a buffer where we'll accumulate all diagnostic messages emitted
   DiagnosticMessageBuffer diagnostics;
@@ -112,6 +120,16 @@ TEST_CASE("Core Lifecycle", "[unit]") {
 
     // Then registration should fail
     REQUIRE_FALSE(result);
+  }
+
+  SECTION("M reject feature registration W feature initialization fails") {
+    impl::Core core = _make_core(diagnostics);
+    REQUIRE(core.Init());
+
+    auto feature = std::make_shared<InitializationFailureFeature>();
+
+    REQUIRE_FALSE(core.RegisterFeature(feature));
+    REQUIRE_FALSE(core.Start());
   }
 
   SECTION("M reject feature registration W same feature ID registered twice") {

@@ -141,7 +141,7 @@ set_target_properties(ddsdkcpp PROPERTIES
 
 # Building the SDK requires either C++17 or C++20 at a minimum, depending on
 # configuration. (The C++ API adheres to C++17, and the C API adheres to C99.)
-if(DD_CRASH_MODE STREQUAL "crashpad")
+if(DD_CRASH_MODE STREQUAL "crashpad" OR DD_ENABLE_PROFILING)
     target_compile_features(ddsdkcpp PUBLIC cxx_std_20)
 else()
     target_compile_features(ddsdkcpp PUBLIC cxx_std_17)
@@ -336,4 +336,15 @@ if(DD_BUILD_INSTALL)
         ARCHIVE DESTINATION lib
         RUNTIME DESTINATION bin
     )
+endif()
+
+# === profiling ===
+
+if(DD_ENABLE_PROFILING)
+    target_compile_definitions(ddsdkcpp PUBLIC DD_ENABLE_PROFILING=1)
+    target_sources(ddsdkcpp PRIVATE
+        datadog/cpp/profiling.cpp
+        datadog/impl/profiling/profiling.cpp
+    )
+    include(${DD_SDK_ROOT_DIR}/cmake/profiler.cmake)
 endif()

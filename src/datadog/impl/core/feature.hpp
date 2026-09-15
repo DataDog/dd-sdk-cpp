@@ -105,6 +105,11 @@ class Feature : public std::enable_shared_from_this<Feature> {
   virtual std::string_view GetName() const = 0;
   virtual FeatureStorageConfig GetStorageConfig() const { return {}; }
 
+  /**
+   * Performs registration-time initialization. A false result aborts registration.
+   */
+  virtual bool Initialize() { return true; }
+
   void OnCoreStarted(FeatureScope&& feature_scope);
   void OnCoreStopping();
 

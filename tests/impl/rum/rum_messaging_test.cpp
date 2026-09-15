@@ -274,6 +274,92 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(CountMessages<RumSessionStateChangedMessage>(test.feature_messages) == 2);
   }
 
+  // === RumCorrelationContextChangedMessage ===
+
+  SECTION("M emit complete correlation context W correlation state changes") {
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    FeatureTest test(MOCK_CONTEXT);
+
+    test.Start(rum);
+
+    REQUIRE(
+        CountMessages<RumCorrelationContextChangedMessage>(test.feature_messages) == 1
+    );
+    const auto* initial =
+        FindLastMessage<RumCorrelationContextChangedMessage>(test.feature_messages);
+    REQUIRE(initial != nullptr);
+    REQUIRE(initial->context.application_id == APPLICATION_ID);
+    REQUIRE(initial->context.session_id != UUID::Zero);
+    const UUID initial_session_id = initial->context.session_id;
+    REQUIRE(initial->context.view_id == UUID::Zero);
+    REQUIRE(initial->context.view_name.empty());
+
+    rum->StartView("foo", "Foo");
+
+    REQUIRE(
+        CountMessages<RumCorrelationContextChangedMessage>(test.feature_messages) == 2
+    );
+    const auto* with_view =
+        FindLastMessage<RumCorrelationContextChangedMessage>(test.feature_messages);
+    REQUIRE(with_view->context.session_id == initial_session_id);
+    REQUIRE(with_view->context.view_id != UUID::Zero);
+    REQUIRE(with_view->context.view_name == "Foo");
+
+    rum->StartAction(RumActionType::Custom, "action");
+    REQUIRE(
+        CountMessages<RumCorrelationContextChangedMessage>(test.feature_messages) == 2
+    );
+
+    rum->StopView("foo");
+
+    REQUIRE(
+        CountMessages<RumCorrelationContextChangedMessage>(test.feature_messages) == 3
+    );
+    const auto* without_view =
+        FindLastMessage<RumCorrelationContextChangedMessage>(test.feature_messages);
+    REQUIRE(without_view->context.session_id == initial_session_id);
+    REQUIRE(without_view->context.view_id == UUID::Zero);
+    REQUIRE(without_view->context.view_name.empty());
+
+    rum->StopSession();
+
+    REQUIRE(
+        CountMessages<RumCorrelationContextChangedMessage>(test.feature_messages) == 4
+    );
+    const auto* without_session =
+        FindLastMessage<RumCorrelationContextChangedMessage>(test.feature_messages);
+    REQUIRE(without_session->context.application_id == APPLICATION_ID);
+    REQUIRE(without_session->context.session_id == UUID::Zero);
+    REQUIRE(without_session->context.view_id == UUID::Zero);
+  }
+
+  SECTION("M emit initial correlation context W unsampled session restarts") {
+    RumConfig config(APPLICATION_ID);
+    config.SetSessionSampleRate(0.0f);
+    auto rum = std::make_shared<impl::Rum>(config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+
+    test.Start(rum);
+    REQUIRE(
+        CountMessages<RumCorrelationContextChangedMessage>(test.feature_messages) == 1
+    );
+    const auto* first =
+        FindLastMessage<RumCorrelationContextChangedMessage>(test.feature_messages);
+    REQUIRE(first->context.application_id == APPLICATION_ID);
+    REQUIRE(first->context.session_id == UUID::Zero);
+
+    test.Stop(rum);
+    test.Start(rum);
+
+    REQUIRE(
+        CountMessages<RumCorrelationContextChangedMessage>(test.feature_messages) == 2
+    );
+    const auto* second =
+        FindLastMessage<RumCorrelationContextChangedMessage>(test.feature_messages);
+    REQUIRE(second->context.application_id == APPLICATION_ID);
+    REQUIRE(second->context.session_id == UUID::Zero);
+  }
+
   // === RumActiveViewUpdatedMessage / RumActiveViewLostMessage ===
 
   SECTION("M emit RumActiveViewUpdatedMessage W StartView() causes a view event") {

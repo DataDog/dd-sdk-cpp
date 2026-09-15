@@ -52,4 +52,15 @@ RumFeatureContext RumContext::ToFeatureContext() const {
   };
 }
 
+RumCorrelationContext RumContext::ToCorrelationContext() const {
+  const RumFeatureContext context = ToFeatureContext();
+  RumCorrelationContext result{
+      context.application_id, context.session_id, context.view_id, {}
+  };
+  if (context.view_id != UUID::Zero) {
+    result.view_name = active_view_name.empty() ? active_view_key : active_view_name;
+  }
+  return result;
+}
+
 }  // namespace datadog::impl

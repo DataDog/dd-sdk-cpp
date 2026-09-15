@@ -135,6 +135,27 @@ struct RumFeatureContext {
 };
 
 /**
+ * Complete RUM state needed to correlate profiles with an active session and view.
+ *
+ * A transition timestamp is omitted for now. It can be added when profiling can apply
+ * updates according to transition time instead of delivery time.
+ */
+struct RumCorrelationContext {
+  UUID application_id;    // UUID::Zero if RUM not initialized
+  UUID session_id;        // UUID::Zero if no correlatable session
+  UUID view_id;           // UUID::Zero if no active view
+  std::string view_name;  // Empty if no active view
+
+  bool operator==(const RumCorrelationContext& other) const {
+    return application_id == other.application_id && session_id == other.session_id &&
+           view_id == other.view_id && view_name == other.view_name;
+  }
+  bool operator!=(const RumCorrelationContext& other) const {
+    return !(*this == other);
+  }
+};
+
+/**
  * Carries the essential state of the most recent RUM session. Each time RUM session
  * state meaningfully changes, `Rum` broadcasts a `RumSessionStateChangedMessage` to
  * describe the latest state.

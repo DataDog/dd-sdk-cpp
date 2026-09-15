@@ -41,3 +41,7 @@ target_enable_coverage(repl)
 target_enable_sanitizers(repl)
 target_include_directories(repl PRIVATE .)
 datadog_enable(repl)
+
+if(DD_ENABLE_PROFILING)
+    add_subdirectory(profiling-test)
+endif()

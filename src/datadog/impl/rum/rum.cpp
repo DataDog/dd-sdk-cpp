@@ -126,6 +126,9 @@ void Rum::Start() {
   // Fully reinitialize RUM application state to clear all sessions/views/etc. from
   // previous runs
   _application = RumApplicationScope(_deps);
+  _last_broadcast_correlation_context.reset();
+  _last_broadcast_session_state.reset();
+  _last_broadcast_view_id = UUID::Zero;
 
   // Take a snapshot of our global attributes, and enqueue a
   // RumGlobalAttributesChangedMessage to ensure that downstream features have a
@@ -444,6 +447,13 @@ void Rum::UpdateApplicationSnapshot() {
 }
 
 void Rum::BroadcastStateChanges(const MessagePublisher& publisher) {
+  RumCorrelationContext correlation = _application_snapshot.ToCorrelationContext();
+  if (!_last_broadcast_correlation_context ||
+      correlation != *_last_broadcast_correlation_context) {
+    publisher(RumCorrelationContextChangedMessage{correlation});
+    _last_broadcast_correlation_context = std::move(correlation);
+  }
+
   // If any RUM View events were generated during processing of the most recent command,
   // publish a RumActiveViewUpdatedMessage containing the most-recently-produced event
   if (auto ev = _application.ConsumeLastActiveViewEvent()) {
