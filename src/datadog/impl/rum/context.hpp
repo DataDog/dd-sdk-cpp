@@ -94,6 +94,11 @@ struct RumContext {
    * Converts this internal snapshot of our RUM state to an SDK-facing context struct.
    */
   RumFeatureContext ToFeatureContext() const;
+
+  /**
+   * Returns the complete context needed for RUM and profiling correlation.
+   */
+  RumCorrelationContext ToCorrelationContext() const;
 };
 
 /**

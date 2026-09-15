@@ -175,6 +175,19 @@ target_link_libraries(tests
     Catch2::Catch2WithMain
 )
 
+if(DD_ENABLE_PROFILING)
+    add_custom_command(TARGET tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:dd-win-prof>"
+                "$<TARGET_FILE_DIR:tests>"
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:libdatadog_dynamic>"
+                "$<TARGET_FILE_DIR:tests>"
+        VERBATIM
+        COMMENT "Copying profiling runtime DLLs to tests output directory"
+    )
+endif()
+
 # Register tests with CTest
 include(CTest)
 include(Catch)

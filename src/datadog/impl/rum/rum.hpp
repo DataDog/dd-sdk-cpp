@@ -208,8 +208,9 @@ class Rum final : public Feature {
   // Reusable struct for storing the latest snapshot of RUM application state
   RumContext _application_snapshot;
 
-  // Last-broadcast values used to detect changes in BroadcastStateChanges; only
-  // accessed on the context thread, so no additional locking is needed
+  // Last-broadcast values used to detect changes in BroadcastStateChanges. They are
+  // reset before context work starts, then accessed only on the context thread.
+  std::optional<RumCorrelationContext> _last_broadcast_correlation_context;
   std::optional<RumSessionState> _last_broadcast_session_state;
   UUID _last_broadcast_view_id{UUID::Zero};
 

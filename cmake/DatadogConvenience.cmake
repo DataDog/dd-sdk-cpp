@@ -42,6 +42,34 @@ function(datadog_enable target)
             message(FATAL_ERROR "datadog_enable(): target crashpad::handler does not exist")
         endif()
     endif()
+
+    if(DD_ENABLE_PROFILING OR DATADOG_BUILT_WITH_DD_ENABLE_PROFILING)
+        if(TARGET dd-win-prof AND TARGET libdatadog_dynamic)
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "$<TARGET_FILE:dd-win-prof>"
+                        "$<TARGET_FILE_DIR:${target}>"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "$<TARGET_FILE:libdatadog_dynamic>"
+                        "$<TARGET_FILE_DIR:${target}>"
+                VERBATIM
+                COMMENT "Copying profiling runtime DLLs to $<TARGET_FILE_DIR:${target}>"
+            )
+        elseif(TARGET Datadog::dd-win-prof AND DATADOG_PROFILING_FFI_DLL)
+            add_custom_command(TARGET ${target} POST_BUILD
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "$<TARGET_FILE:Datadog::dd-win-prof>"
+                        "$<TARGET_FILE_DIR:${target}>"
+                COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                        "${DATADOG_PROFILING_FFI_DLL}"
+                        "$<TARGET_FILE_DIR:${target}>"
+                VERBATIM
+                COMMENT "Copying profiling runtime DLLs to $<TARGET_FILE_DIR:${target}>"
+            )
+        else()
+            message(FATAL_ERROR "datadog_enable(): profiling runtime dependencies are unavailable")
+        endif()
+    endif()
 endfunction()
 
 # datadog_install(my-app [RUNTIME_DESTINATION <dir>] [LIBRARY_DESTINATION <dir>]):
@@ -157,6 +185,25 @@ function(datadog_install target)
             install(PROGRAMS ${CRASHPAD_HANDLER_PATH} DESTINATION "${ARG_RUNTIME_DESTINATION}")
         else()
             message(FATAL_ERROR "datadog_install(): target crashpad::handler does not exist")
+        endif()
+    endif()
+
+    if(DD_ENABLE_PROFILING OR DATADOG_BUILT_WITH_DD_ENABLE_PROFILING)
+        if(TARGET dd-win-prof AND TARGET libdatadog_dynamic)
+            install(FILES
+                "$<TARGET_FILE:dd-win-prof>"
+                "$<TARGET_FILE:libdatadog_dynamic>"
+                DESTINATION "${ARG_RUNTIME_DESTINATION}"
+            )
+        elseif(TARGET Datadog::dd-win-prof AND DATADOG_PROFILING_FFI_DLL)
+            install(IMPORTED_RUNTIME_ARTIFACTS Datadog::dd-win-prof
+                RUNTIME DESTINATION "${ARG_RUNTIME_DESTINATION}"
+            )
+            install(FILES "${DATADOG_PROFILING_FFI_DLL}"
+                DESTINATION "${ARG_RUNTIME_DESTINATION}"
+            )
+        else()
+            message(FATAL_ERROR "datadog_install(): profiling runtime dependencies are unavailable")
         endif()
     endif()
 endfunction()

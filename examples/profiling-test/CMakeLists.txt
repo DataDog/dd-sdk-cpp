@@ -1,0 +1,5 @@
+add_executable(profiling_test main.cpp)
+target_compile_definitions(profiling_test PRIVATE _CRT_SECURE_NO_WARNINGS)
+target_enable_strict_warnings(profiling_test)
+target_enable_parallel_compilation(profiling_test)
+datadog_enable(profiling_test)

@@ -154,3 +154,41 @@ TEST_CASE("RumContext::ToFeatureContext", "[unit][rum]") {
     REQUIRE(ctx.action_id == UUID::Zero);
   }
 }
+
+TEST_CASE("RumContext::ToCorrelationContext", "[unit][rum]") {
+  RumContext snapshot;
+  snapshot.application_id = *UUID::Parse("2138a97c-af75-4972-be50-8448db997abf");
+  snapshot.session_id = *UUID::Parse("ea3a7d2e-1862-4731-bdf1-ac3162811ba8");
+  snapshot.session_is_active = true;
+  snapshot.session_is_sampled = true;
+  snapshot.active_view_id = *UUID::Parse("76cb171c-c6d5-4719-adfc-f90c6b57c0a0");
+  snapshot.active_view_key = "foo";
+
+  SECTION("M use explicit view name W active view has a name") {
+    snapshot.active_view_name = "Foo";
+
+    const RumCorrelationContext context = snapshot.ToCorrelationContext();
+
+    REQUIRE(context.application_id == snapshot.application_id);
+    REQUIRE(context.session_id == snapshot.session_id);
+    REQUIRE(context.view_id == snapshot.active_view_id);
+    REQUIRE(context.view_name == "Foo");
+  }
+
+  SECTION("M use view key W active view has no explicit name") {
+    const RumCorrelationContext context = snapshot.ToCorrelationContext();
+
+    REQUIRE(context.view_name == "foo");
+  }
+
+  SECTION("M omit session and view W session is not sampled") {
+    snapshot.session_is_sampled = false;
+
+    const RumCorrelationContext context = snapshot.ToCorrelationContext();
+
+    REQUIRE(context.application_id == snapshot.application_id);
+    REQUIRE(context.session_id == UUID::Zero);
+    REQUIRE(context.view_id == UUID::Zero);
+    REQUIRE(context.view_name.empty());
+  }
+}

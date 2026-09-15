@@ -34,6 +34,13 @@ struct ContextChangedMessage {
 };
 
 /**
+ * Emitted by `Rum` when its complete profiling correlation context changes.
+ */
+struct RumCorrelationContextChangedMessage {
+  RumCorrelationContext context;
+};
+
+/**
  * Emitted by `Rum` whenever essential session state changes, such as when a new session
  * is created, the active session is stopped, or the `has_tracked_any_view` flag changes
  * state in response to a new view being recorded.
@@ -116,6 +123,7 @@ struct LogErrorGeneratedMessage {
  */
 using FeatureMessage = std::variant<
     ContextChangedMessage,
+    RumCorrelationContextChangedMessage,
     RumSessionStateChangedMessage,
     RumActiveViewUpdatedMessage,
     RumActiveViewLostMessage,
