@@ -12,6 +12,8 @@
 
 #include "datadog/impl/core/feature_message.hpp"
 
+#include "dd-win-rum-private.h"
+
 namespace datadog::impl {
 
 Profiling::Profiling(const ProfilerConfig* config) : _config(config) {}
@@ -33,8 +35,13 @@ bool Profiling::Initialize() {
 }
 
 void Profiling::Start() {
-  if (_profiler_setup) {
-    _profiler_started = StartProfiler();
+  if (!_profiler_setup) {
+    return;
+  }
+
+  _profiler_started = StartProfiler();
+  if (!_profiler_started) {
+    _scope->diagnostic_logger.Warning("Failed to start profiling");
   }
 }
 
@@ -86,15 +93,16 @@ void Profiling::OnRumContextChanged(const RumCorrelationContext& context) {
   }
 
   ::ProfilerRumCorrelationContext profiler_context{};
-  profiler_context.struct_size = sizeof(profiler_context);
   profiler_context.application_id = application_id.c_str();
   profiler_context.session_id = session_id.c_str();
   profiler_context.view_id = view_id.c_str();
   profiler_context.view_name = context.view_name.c_str();
 
-  if (SetRumCorrelationContext(&profiler_context) == PROFILER_RUM_CONTEXT_SUCCESS) {
-    _application_id_string = std::move(application_id);
+  if (!SetRumCorrelationContext(&profiler_context)) {
+    _scope->diagnostic_logger.Warning("Failed to update profiler RUM context");
+    return;
   }
+  _application_id_string = std::move(application_id);
 }
 
 void Profiling::ClearProfilerRumContext() {
@@ -103,12 +111,13 @@ void Profiling::ClearProfilerRumContext() {
   }
 
   ::ProfilerRumCorrelationContext profiler_context{};
-  profiler_context.struct_size = sizeof(profiler_context);
   profiler_context.application_id = _application_id_string.c_str();
   profiler_context.session_id = "";
   profiler_context.view_id = "";
   profiler_context.view_name = "";
-  SetRumCorrelationContext(&profiler_context);
+  if (!SetRumCorrelationContext(&profiler_context)) {
+    _scope->diagnostic_logger.Warning("Failed to clear profiler RUM context");
+  }
 }
 
 }  // namespace datadog::impl

@@ -306,6 +306,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(with_view->context.view_name == "Foo");
 
     rum->StartAction(RumActionType::Custom, "action");
+    rum->AddLongTask(std::chrono::milliseconds(10));
+    rum->StartOperation("load", "operation-1");
+    rum->StopOperation("load", "operation-1", std::nullopt);
     REQUIRE(
         CountMessages<RumCorrelationContextChangedMessage>(test.feature_messages) == 2
     );

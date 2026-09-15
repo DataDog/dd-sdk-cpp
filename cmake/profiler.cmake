@@ -10,7 +10,7 @@ else()
     FetchContent_Declare(
         dd-win-prof
         GIT_REPOSITORY https://github.com/DataDog/dd-win-prof.git
-        GIT_TAG 1fb2067f27f7e510406f3786fcddaee35689d548
+        GIT_TAG 58e29cb0ba9a19e6b7933609e342331ec5c8b395
     )
 endif()
 

@@ -79,8 +79,9 @@ if(PROJECT_IS_TOP_LEVEL)
     set(CMAKE_CXX_STANDARD_REQUIRED ON)
     set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-    # Crashpad and dd-win-prof require C++20.
-    if(DD_CRASH_MODE STREQUAL "crashpad" OR DD_ENABLE_PROFILING)
+    # Crashpad requires C++20, so building the SDK with crashpad support requires
+    # targeting C++20
+    if(DD_CRASH_MODE STREQUAL "crashpad")
         set(CMAKE_CXX_STANDARD 20)
     endif()
 endif()

@@ -141,7 +141,7 @@ set_target_properties(ddsdkcpp PROPERTIES
 
 # Building the SDK requires either C++17 or C++20 at a minimum, depending on
 # configuration. (The C++ API adheres to C++17, and the C API adheres to C99.)
-if(DD_CRASH_MODE STREQUAL "crashpad" OR DD_ENABLE_PROFILING)
+if(DD_CRASH_MODE STREQUAL "crashpad")
     target_compile_features(ddsdkcpp PUBLIC cxx_std_20)
 else()
     target_compile_features(ddsdkcpp PUBLIC cxx_std_17)
