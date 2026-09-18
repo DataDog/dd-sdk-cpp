@@ -67,6 +67,10 @@ set(DD_ENABLE_SANITIZERS "${DD_ENABLE_SANITIZERS}" CACHE STRING "Comma-separated
 option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_DEVELOPMENT})
 option(DD_ENABLE_MSVC_PARALLEL_BUILD "Enable parallel compilation within each MSVC target (/MP)" ON)
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
+option(DD_ENABLE_PROFILING "Enable integration with the Datadog Windows profiler" OFF)
+if(DD_ENABLE_PROFILING AND NOT WIN32)
+    message(FATAL_ERROR "DD_ENABLE_PROFILING is only supported on Windows")
+endif()
 
 # C API targets C99; C++ API targets C++17
 if(PROJECT_IS_TOP_LEVEL)
