@@ -42,7 +42,7 @@ struct HttpResult {
   HttpResultType type;
   int status_code;
   // Transport-level error details, set when no response was received, for diagnostics:
-  // a platform-specific error code (e.g. a CURLcode) and a message
+  // a platform-specific error code (e.g. a CURLcode or Windows error) and a message
   int error_code{0};
   std::string error_message{};
 };
