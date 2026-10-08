@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <string>
 
 namespace datadog::impl {
 
@@ -40,6 +41,10 @@ enum class HttpResultType : uint8_t {
 struct HttpResult {
   HttpResultType type;
   int status_code;
+  // Transport-level error details, set when no response was received, for diagnostics:
+  // a platform-specific error code (e.g. a CURLcode) and a message
+  int error_code{0};
+  std::string error_message{};
 };
 
 }  // namespace datadog::impl

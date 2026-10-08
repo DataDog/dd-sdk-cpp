@@ -53,7 +53,7 @@ enum class _process_and_upload_batch_result : uint8_t {
   bad_batch
 };
 
-static _process_and_upload_batch_result _interpret_http_result(const HttpResult res) {
+static _process_and_upload_batch_result _interpret_http_result(const HttpResult& res) {
   switch (res.type) {
     // If we couldn't even attempt the request, or if we failed to get a response for a
     // reason that indicates an inherent problem with the request, rather than transient
@@ -150,12 +150,20 @@ static _process_and_upload_batch_result _process_and_upload_batch(
       break;
     case HttpResultType::GotNoResponse_NonRetryable:
       diagnostic_logger.Debug(
-          "Got no HTTP response", {{"url", report->url}, {"is_retryable", false}}
+          "Got no HTTP response",
+          {{"url", report->url},
+           {"is_retryable", false},
+           {"error_code", static_cast<int64_t>(res.error_code)},
+           {"error_message", std::string_view{res.error_message}}}
       );
       break;
     case HttpResultType::GotNoResponse_Retryable:
       diagnostic_logger.Debug(
-          "Got no HTTP response", {{"url", report->url}, {"is_retryable", true}}
+          "Got no HTTP response",
+          {{"url", report->url},
+           {"is_retryable", true},
+           {"error_code", static_cast<int64_t>(res.error_code)},
+           {"error_message", std::string_view{res.error_message}}}
       );
       break;
     case HttpResultType::GotResponse:

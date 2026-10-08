@@ -178,6 +178,10 @@ class CurlHttpClient final : public IHttpClient {
     res = curl_easy_setopt(_curl, CURLOPT_TIMEOUT, 30L);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_TIMEOUT");
 
+    // Have curl describe transport failures in detail, for diagnostics
+    char error_buffer[CURL_ERROR_SIZE] = {0};
+    curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, error_buffer);
+
     // Initiate the request and block until it's finished
     const CURLcode perform_res = curl_easy_perform(_curl);
 
@@ -228,7 +232,14 @@ class CurlHttpClient final : public IHttpClient {
     curl_slist_free_all(headers_slist);
 
     // Return our result
-    return HttpResult{result_type, status_code};
+    HttpResult http_result{result_type, status_code};
+    if (perform_res != CURLE_OK) {
+      http_result.error_code = static_cast<int>(perform_res);
+      http_result.error_message =
+          std::string(curl_easy_strerror(perform_res)) + " | " +
+          (error_buffer[0] ? error_buffer : "(no error buffer)");
+    }
+    return http_result;
   }
 };
 
