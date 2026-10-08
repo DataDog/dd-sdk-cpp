@@ -182,14 +182,21 @@ class CurlHttpClient final : public IHttpClient {
 
     // Have curl describe transport failures in detail, for diagnostics
     std::array<char, CURL_ERROR_SIZE> error_buffer{};
-    curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, error_buffer.data());
+    res = curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, error_buffer.data());
+    DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_ERRORBUFFER");
 
     // Initiate the request and block until it's finished
     const CURLcode perform_res = curl_easy_perform(_curl);
 
-    // Interpret the result
+    // Detach the error buffer so that the handle doesn't retain a pointer into this
+    // stack frame after we return
+    res = curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, nullptr);
+    DATADOG_ASSERT(res == CURLE_OK, "Failed to clear CURLOPT_ERRORBUFFER");
+
+    // Interpret the result: note that CURLINFO_RESPONSE_CODE writes a long, so
+    // status_code must be a long to avoid overwriting adjacent stack memory
     HttpResultType result_type = HttpResultType::SentNoRequest;
-    int status_code = 0;
+    long status_code = 0;  // NOLINT(google-runtime-int): curl API requires long
     switch (perform_res) {
       // If our request completed successfully, get the response code
       case CURLE_OK:
@@ -234,7 +241,7 @@ class CurlHttpClient final : public IHttpClient {
     curl_slist_free_all(headers_slist);
 
     // Return our result
-    HttpResult http_result{result_type, status_code};
+    HttpResult http_result{result_type, static_cast<int>(status_code)};
     if (perform_res != CURLE_OK) {
       http_result.error_code = static_cast<int>(perform_res);
       http_result.error_message =
