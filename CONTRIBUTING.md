@@ -46,7 +46,8 @@ Other important options include:
 
 - `-DCMAKE_BUILD_TYPE=Debug` (or `Release`, or `RelWithDbgInfo`)
 - `-DBUILD_SHARED_LIBS=ON` will build the SDK as a shared library; use `OFF` for a static library build
-- `-DDD_HTTP_USE_SYSTEM_LIBCURL=ON` will link the SDK dynamically against the version of libcurl installed on your system; use `OFF` to download libcurl, build it from source, and link it into the `dd-sdk-cpp` binary
+- `-DDD_HTTP_CLIENT=winhttp`, `libcurl`, or `none` selects the HTTP client implementation; the default is `winhttp` on Windows and `libcurl` elsewhere
+- `-DDD_HTTP_USE_SYSTEM_LIBCURL=ON` will link the SDK dynamically against the version of libcurl installed on your system; use `OFF` to download libcurl, build it from source, and link it into the `dd-sdk-cpp` binary (this applies only when `DD_HTTP_CLIENT=libcurl`)
 - `-DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON` will permit the CMake configuration process to download **clang-format** and **clang-tidy** if not already present on your system
 - `-DDD_ENABLE_CLANG_FORMAT=OFF` and `-DDD_ENABLE_CLANG_TIDY=OFF` will omit those tools from the build
 - `-DDD_ENABLE_COVERAGE=OFF` will disable `llvm-cov` instrumentation in environments where it's unsupported or undesirable
