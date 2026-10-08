@@ -4,6 +4,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <array>
+
 #include "datadog/impl/core/http/client.hpp"
 #include "datadog/impl/types/assert.hpp"
 
@@ -179,8 +181,8 @@ class CurlHttpClient final : public IHttpClient {
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_TIMEOUT");
 
     // Have curl describe transport failures in detail, for diagnostics
-    char error_buffer[CURL_ERROR_SIZE] = {0};
-    curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, error_buffer);
+    std::array<char, CURL_ERROR_SIZE> error_buffer{};
+    curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, error_buffer.data());
 
     // Initiate the request and block until it's finished
     const CURLcode perform_res = curl_easy_perform(_curl);
@@ -237,7 +239,7 @@ class CurlHttpClient final : public IHttpClient {
       http_result.error_code = static_cast<int>(perform_res);
       http_result.error_message =
           std::string(curl_easy_strerror(perform_res)) + " | " +
-          (error_buffer[0] ? error_buffer : "(no error buffer)");
+          (error_buffer[0] ? error_buffer.data() : "(no error buffer)");
     }
     return http_result;
   }
