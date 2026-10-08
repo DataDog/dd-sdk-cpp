@@ -6,12 +6,17 @@
 
 #pragma once
 
+#include <algorithm>
 #include <atomic>
 #include <catch2/catch_test_macros.hpp>
+#include <cctype>
+#include <chrono>
 #include <cstdint>
+#include <cstdlib>
 #include <cstring>
 #include <iostream>
 #include <sstream>
+#include <string>
 #include <string_view>
 #include <thread>
 #include <vector>
@@ -36,8 +41,8 @@ struct MockHttpServer {
   // call SetResponseStatus() to populate with a valid-enough HTTP response
   std::string response;
 
-  // If set by test, server will close the client connection after reading the request,
-  // without sending a response
+  // If set by test, server will close the client connection after reading the complete
+  // request, without sending a response
   bool close_after_read{false};
 
   // All HTTP requests received will be recorded here for tests to examine
@@ -138,18 +143,111 @@ struct MockHttpServer {
     }
   }
 
+  // The longest we'll wait for a client to send more of its request, and the longest
+  // we'll spend receiving a single request, before giving up on the client
+  static constexpr int RECV_TIMEOUT_MS = 2000;
+  static constexpr std::chrono::seconds REQUEST_TIMEOUT{10};
+
+  // Returns a lowercase copy of the given ASCII string
+  static std::string ToLower(std::string_view s) {
+    std::string result(s);
+    std::transform(result.begin(), result.end(), result.begin(), [](unsigned char c) {
+      return static_cast<char>(std::tolower(c));
+    });
+    return result;
+  }
+
+  // Returns true if `body` holds a complete chunked-encoded body, i.e. all of its
+  // chunks, the final zero-length chunk, and the blank line that ends the body
+  static bool IsChunkedBodyComplete(std::string_view body) {
+    size_t pos = 0;
+    while (true) {
+      // Each chunk begins with its size in hex, on a line by itself
+      const size_t line_end = body.find("\r\n", pos);
+      if (line_end == std::string_view::npos) {
+        return false;
+      }
+      const std::string size_line(body.substr(pos, line_end - pos));
+      char* size_end = nullptr;
+      const size_t chunk_size = std::strtoull(size_line.c_str(), &size_end, 16);
+      if (size_end == size_line.c_str()) {
+        return true;  // Malformed; stop waiting and let the test examine what we have
+      }
+      pos = line_end + 2;
+
+      // The zero-length chunk ends the body (we don't expect any trailers)
+      if (chunk_size == 0) {
+        return body.size() >= pos + 2;
+      }
+
+      // Otherwise, the chunk's data and a trailing CRLF must follow
+      if (body.size() < pos + chunk_size + 2) {
+        return false;
+      }
+      pos += chunk_size + 2;
+    }
+  }
+
+  // Returns true if `request` holds a complete HTTP request: all of the headers, along
+  // with a body of whatever length the headers say to expect
+  static bool IsRequestComplete(const std::string& request) {
+    const size_t headers_end = request.find("\r\n\r\n");
+    if (headers_end == std::string::npos) {
+      return false;
+    }
+    const std::string headers =
+        ToLower(std::string_view(request).substr(0, headers_end));
+    const std::string_view body = std::string_view(request).substr(headers_end + 4);
+
+    // Header names are matched at the start of a line, which is preceded by CRLF
+    if (headers.find("\r\ntransfer-encoding: chunked") != std::string::npos) {
+      return IsChunkedBodyComplete(body);
+    }
+    const std::string content_length_header = "\r\ncontent-length:";
+    const size_t content_length_pos = headers.find(content_length_header);
+    if (content_length_pos != std::string::npos) {
+      const char* value =
+          headers.c_str() + content_length_pos + content_length_header.size();
+      return body.size() >= std::strtoull(value, nullptr, 10);
+    }
+
+    // With no body framing, the request ends with its headers
+    return true;
+  }
+
   void HandleClient(Socket conn) {
-    // Accumulate the text of the HTTP request into a string
+    // Accumulate the text of the HTTP request into a string, until we've received all
+    // of it. We can't take a pause in the incoming data to mean that the client is
+    // finished, because clients may legitimately pause, e.g. between sending headers
+    // and sending a body. If we replied and closed the connection too early, a client
+    // that was still sending could see its request fail.
     std::string request;
     char buffer[1024];
-    while (true) {
-      // Read from the socket, exiting our loop if no more data (or timeout)
-      const int num_bytes_read = conn.Recv(buffer, sizeof(buffer) - 1);
+    bool headers_received = false;
+    const auto deadline = std::chrono::steady_clock::now() + REQUEST_TIMEOUT;
+    while (!IsRequestComplete(request) && std::chrono::steady_clock::now() < deadline) {
+      // Read from the socket, exiting our loop if the client closes the connection or
+      // stops sending data (or on error)
+      const int num_bytes_read = conn.Recv(buffer, sizeof(buffer), RECV_TIMEOUT_MS);
       if (num_bytes_read <= 0) {
         break;
       }
-      buffer[num_bytes_read] = '\0';
-      request += buffer;
+      request.append(buffer, static_cast<size_t>(num_bytes_read));
+
+      // As soon as we've got the headers, tell clients that asked us to (as libcurl
+      // does for some requests) that they may proceed to send the body. Otherwise,
+      // they'd wait for our permission, and we'd wait for the body.
+      const size_t headers_end = request.find("\r\n\r\n");
+      if (!headers_received && headers_end != std::string::npos) {
+        headers_received = true;
+        const std::string headers =
+            ToLower(std::string_view(request).substr(0, headers_end));
+        if (headers.find("\r\nexpect: 100-continue") != std::string::npos) {
+          static const std::string_view continue_response =
+              "HTTP/1.1 100 Continue\r\n\r\n";
+          conn.Send(continue_response.data(), continue_response.size());
+        }
+      }
     }
     requests.push_back(request);
 
@@ -159,9 +257,9 @@ struct MockHttpServer {
       return;
     }
 
-    // We don't implement any HTTP-request-handling logic; we just record the request
-    // for tests to examine, and we respond with whatever response the test instructed
-    // us to send
+    // Beyond recognizing where a request ends, we don't implement any HTTP-handling
+    // logic; we just record the request for tests to examine, and we respond with
+    // whatever response the test instructed us to send
     conn.Send(response.data(), response.size());
     conn.Close();
   }
