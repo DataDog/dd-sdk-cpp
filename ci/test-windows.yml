@@ -63,7 +63,7 @@ compat-windows:
     TOOLCHAIN_TARGET: vs2022
   parallel:
     matrix:
-      # Visual Studio 2022 (17.14, vc143): md-static-release, w/ bundled libcurl
+      # Visual Studio 2022 (17.14, vc143): md-static-release, w/ WinHTTP
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         DD_CRASH_MODE: "inprocess"

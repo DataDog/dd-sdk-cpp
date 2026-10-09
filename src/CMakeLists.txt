@@ -81,12 +81,27 @@ target_sources(ddsdkcpp PRIVATE
 )
 
 # We support different HTTP client implementations:
-# - DD_HTTP_CLIENT=libcurl (default)
+# - DD_HTTP_CLIENT=winhttp (default on Windows; uses the WinHTTP API built into the OS)
+# - DD_HTTP_CLIENT=libcurl (default elsewhere)
 # - DD_HTTP_CLIENT=none    (define no client; for use by cross-platform SDKs)
-set(DD_HTTP_CLIENT "libcurl" CACHE STRING "HTTP client backend (libcurl, none)")
-set_property(CACHE DD_HTTP_CLIENT PROPERTY STRINGS "libcurl" "none")
+if(WIN32)
+    set(DD_HTTP_CLIENT_DEFAULT "winhttp")
+else()
+    set(DD_HTTP_CLIENT_DEFAULT "libcurl")
+endif()
+set(DD_HTTP_CLIENT "${DD_HTTP_CLIENT_DEFAULT}" CACHE STRING "HTTP client backend (winhttp, libcurl, none)")
+set_property(CACHE DD_HTTP_CLIENT PROPERTY STRINGS "winhttp" "libcurl" "none")
 
-if(DD_HTTP_CLIENT STREQUAL "libcurl")
+if(DD_HTTP_CLIENT STREQUAL "winhttp")
+    if(NOT WIN32)
+        message(FATAL_ERROR "DD_HTTP_CLIENT=winhttp is only supported on Windows")
+    endif()
+
+    # Use the internal IHttpClient implementation that depends on WinHTTP, which is
+    # installed with the operating system: nothing needs to be built or vendored
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/http/client_winhttp.cpp)
+    target_link_libraries(ddsdkcpp PRIVATE winhttp)
+elseif(DD_HTTP_CLIENT STREQUAL "libcurl")
     # Use the internal IHttpClient implementation that depends on libcurl
     target_sources(ddsdkcpp PRIVATE datadog/impl/core/http/client_curl.cpp)
 
@@ -119,7 +134,7 @@ elseif(DD_HTTP_CLIENT STREQUAL "none")
     endif()
     message(WARNING "Configured with DD_HTTP_CLIENT=none; resulting static library will be unusable without defining an IHttpClient implementation in a downstream build")
 else()
-    message(FATAL_ERROR "Invalid DD_HTTP_CLIENT: ${DD_HTTP_CLIENT}. Must be 'libcurl' or 'none'")
+    message(FATAL_ERROR "Invalid DD_HTTP_CLIENT: ${DD_HTTP_CLIENT}. Must be 'winhttp', 'libcurl', or 'none'")
 endif()
 
 # Inject version number from CMake project config
