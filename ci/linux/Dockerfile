@@ -31,20 +31,31 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 # - zlib1g-dev:                            Required by crashpad (along with libcurl)
 # - tzdata:                                Required for crashpad TimeZone tests
 # - uuid-dev:                              uuid/uuid.h, for datadog::UUID on Linux
-# - git:                                   Used by various scripts
+# - git:                                   Used by various scripts; installed from
+#                                          git-core/ppa because Ubuntu 24.04 ships
+#                                          git 2.43.0, which predates the fix for
+#                                          `git checkout --end-of-options` (git 2.44)
 # - ninja-build:                           Build system for use as CMake generator
 RUN apt-get update && apt-get install -y --no-install-recommends \
   software-properties-common \
   ca-certificates \
   gpg \
   gpg-agent \
-  wget \
+  wget
+
+# Install git from the git-core/ppa to get a version >= 2.44. Ubuntu 24.04 (Noble)
+# ships git 2.43.0, which does not correctly handle `git checkout --end-of-options`;
+# the fix landed in git 2.44.0.
+RUN add-apt-repository ppa:git-core/ppa \
+  && apt-get update \
+  && apt-get install -y --no-install-recommends git
+
+RUN apt-get install -y --no-install-recommends \
   libcurl4-openssl-dev \
   libssl-dev \
   zlib1g-dev \
   tzdata \
   uuid-dev \
-  git \
   ninja-build
 
 # Install Python 3.12 for use by build/test scripts
