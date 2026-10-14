@@ -19,9 +19,24 @@ inline RumConfig RumConfig_FromC(const dd_rum_config_t& config) {
   const UUID application_id(bytes);
 
   // Initialize a C++ config struct from our input values
-  return RumConfig(application_id)
-      .SetSessionSampleRate(config.session_sample_rate)
-      .SetTrackAnonymousUser(config.track_anonymous_user);
+  RumConfig cpp_config = RumConfig(application_id)
+                             .SetSessionSampleRate(config.session_sample_rate)
+                             .SetTrackAnonymousUser(config.track_anonymous_user);
+
+  // Adapt the C receiver
+  if (const auto receiver = config.context_receiver) {
+    cpp_config.SetContextReceiver(
+        [receiver,
+         userdata = config.context_receiver_userdata](const RumContextMessage& msg) {
+          dd_rum_context_message_t c_msg{};
+          dd_uuid_set(&c_msg.session_id, msg.session_id.bytes.data());
+          dd_uuid_set(&c_msg.anonymous_id, msg.anonymous_id.bytes.data());
+          dd_uuid_set(&c_msg.view_id, msg.view_id.bytes.data());
+          receiver(&c_msg, userdata);
+        }
+    );
+  }
+  return cpp_config;
 }
 
 inline RumActionType RumActionType_FromC(dd_rum_action_type_t value) {

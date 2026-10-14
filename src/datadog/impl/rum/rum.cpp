@@ -48,7 +48,13 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
 std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandler() {
   // Bind a weak_ptr to this so the callback will silently no-op after we're destroyed
   const auto weak_self = weak_from_this();
-  return [weak_self](const FeatureMessage& msg) {
+
+  // The values most recently delivered to the context receiver. The handler captures
+  // its own copy, which is recreated on each SDK start so that every run delivers its
+  // initial state; only the messaging thread invokes the handler.
+  std::optional<RumContextMessage> last_delivered;
+
+  return [weak_self, last_delivered](const FeatureMessage& msg) mutable {
   // MSVC flags each `else if (const auto* m = ...)` branch as shadowing an outer `m`,
   // even though the scopes are mutually exclusive
 #ifdef _MSC_VER
@@ -125,6 +131,38 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
               RumErrorDetails{m->error_message, m->error_kind, m->error_stack}
           )
       );
+    } else if (const auto* m = std::get_if<ContextChangedMessage>(&msg)) {
+      // Abort if our weak_ptr is no longer valid, or if the app registered no receiver
+      auto self = std::static_pointer_cast<Rum>(weak_self.lock());
+      if (!self || !self->_deps.context_receiver) {
+        return;
+      }
+
+      // Project the context snapshot onto the public message. The anonymous id is
+      // exposed only if the app has enabled tracking it, as on RUM and Log events.
+      const CoreContext& ctx = m->context;
+      const RumContextMessage out{
+          ctx.rum ? ctx.rum->session_id : UUID::Zero,
+          ctx.anonymous_id_enabled ? ctx.anonymous_id : UUID::Zero,
+          ctx.rum ? ctx.rum->view_id : UUID::Zero
+      };
+
+      // Most context changes don't affect the values we publish: skip the callback
+      // unless something the receiver can observe has changed
+      if (last_delivered.has_value() && last_delivered->session_id == out.session_id &&
+          last_delivered->anonymous_id == out.anonymous_id &&
+          last_delivered->view_id == out.view_id) {
+        return;
+      }
+      last_delivered = out;
+
+      // An exception thrown by application code must not unwind into the messaging
+      // thread
+      try {
+        (*self->_deps.context_receiver)(out);
+      } catch (...) {
+        self->_deps.diagnostic_logger.Error("RUM context receiver threw an exception");
+      }
     }
 #ifdef _MSC_VER
 #pragma warning(pop)

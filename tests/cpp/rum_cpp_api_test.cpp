@@ -18,6 +18,46 @@
 
 using namespace datadog;
 
+TEST_CASE("RumConfig::SetContextReceiver", "[unit][rum][cpp-api]") {
+  // Given a core, and a RUM config whose receiver records the values it is given
+  auto test = CoreTestHarness::Init();
+  auto core = CoreTestHarness::WrapForCpp(test);
+  std::vector<RumContextMessage> received;
+  RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+  config.SetContextReceiver([&](const RumContextMessage& msg) {
+    received.push_back(msg);
+  });
+
+  SECTION("M notify receiver of session, anonymous ID, and view W SDK runs") {
+    // When we register RUM, run the SDK, and start a view
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    rum->StartView("main");
+    core->Stop();
+
+    // Then the receiver saw an active session, an anonymous ID, and an active view
+    // (Stop() joins the thread that invokes the receiver, so all calls have completed)
+    REQUIRE(!received.empty());
+    REQUIRE(received.back().session_id != UUID::Zero);
+    REQUIRE(received.back().anonymous_id != UUID::Zero);
+    REQUIRE(received.back().view_id != UUID::Zero);
+  }
+
+  SECTION("M report zero anonymous ID W anonymous user tracking is disabled") {
+    // When we register RUM with anonymous user tracking disabled, and run the SDK
+    config.SetTrackAnonymousUser(false);
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    core->Stop();
+
+    // Then the receiver never saw an anonymous ID
+    REQUIRE(!received.empty());
+    for (const auto& msg : received) {
+      REQUIRE(msg.anonymous_id == UUID::Zero);
+    }
+  }
+}
+
 TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
   SECTION("M safely do nothing W this wraps nullptr") {
     // Given both a valid Core interface that has no valid implementation pointer, as

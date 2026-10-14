@@ -9,10 +9,12 @@
 #include <algorithm>
 #include <cinttypes>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
+#include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/feature_scope.hpp"
@@ -35,6 +37,7 @@ struct RumScopeDependencies {
   DiagnosticLogger diagnostic_logger;
   const platform::IClock& clock;
   bool track_anonymous_user;  // From RumConfig::track_anonymous_user
+  std::shared_ptr<const RumContextReceiver> context_receiver;  // May be null
 
  private:
   float _sampling_rate;  // [0.0f..100.f], from RumConfig::session_sample_rate

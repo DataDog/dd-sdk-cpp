@@ -9,6 +9,7 @@
 #include <cstring>
 #include <functional>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -157,6 +158,62 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
       // Cleanup
       dd_core_destroy(core);
     }
+  }
+}
+
+TEST_CASE("dd_rum_config_set_context_receiver", "[unit][rum][c-api]") {
+  // Given a receiver that records the values it is given, along with the userdata
+  struct Received {
+    std::vector<dd_rum_context_message_t> messages;
+  };
+  Received received;
+  auto receiver = [](const dd_rum_context_message_t* msg, void* userdata) {
+    static_cast<Received*>(userdata)->messages.push_back(*msg);
+  };
+
+  SECTION("M notify receiver with userdata W SDK runs") {
+    // Given a core with RUM configured with the receiver
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config config;
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(&config, receiver);
+    dd_rum_config_set_context_receiver_userdata(&config, &received);
+    dd_rum_t* rum = dd_rum_init(core, &config);
+
+    // When the SDK runs and a view is started
+    dd_core_start(core);
+    dd_rum_start_view(rum, "main", nullptr, nullptr);
+    dd_core_stop(core);
+
+    // Then the receiver saw an active session, an anonymous ID, and an active view
+    // (stopping joins the thread that invokes the receiver, so all calls have
+    // completed)
+    REQUIRE(!received.messages.empty());
+    REQUIRE(!dd_uuid_is_zero(&received.messages.back().session_id));
+    REQUIRE(!dd_uuid_is_zero(&received.messages.back().anonymous_id));
+    REQUIRE(!dd_uuid_is_zero(&received.messages.back().view_id));
+
+    // Cleanup
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M not crash W no receiver is set") {
+    // Given RUM configured without a receiver
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config config;
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_t* rum = dd_rum_init(core, &config);
+
+    // When the SDK runs, nothing goes wrong
+    dd_core_start(core);
+    dd_core_stop(core);
+
+    // Cleanup
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
   }
 }
 

@@ -52,6 +52,13 @@ RumConfig& RumConfig::SetTrackAnonymousUser(bool value) {
   return *this;
 }
 
+RumConfig& RumConfig::SetContextReceiver(RumContextReceiver receiver) {
+  context_receiver =
+      receiver ? std::make_shared<const RumContextReceiver>(std::move(receiver))
+               : nullptr;
+  return *this;
+}
+
 Rum::Rum(Rum::PrivateCtorTag)
     : _impl(nullptr),
       _diagnostic_handler(nullptr),
