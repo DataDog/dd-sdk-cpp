@@ -19,6 +19,7 @@ RumScopeDependencies::RumScopeDependencies(
     : application_id(config.application_id),
       clock(in_clock),
       track_anonymous_user(config.track_anonymous_user),
+      context_receiver(config.context_receiver),
       _sampling_rate(config.session_sample_rate) {
   _encode_buffer.reserve(8192);
 }

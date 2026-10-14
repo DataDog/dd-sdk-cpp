@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cinttypes>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -26,6 +27,35 @@ struct RumScopeDependencies;
 }  // namespace impl
 
 /**
+ * Snapshot of RUM state that is delivered to the receiver registered via
+ * RumConfig::SetContextReceiver().
+ */
+struct RumContextMessage {
+  /**
+   * ID of the active RUM session, or UUID::Zero if there is no active session or if the
+   * active session was not sampled.
+   */
+  UUID session_id;
+  /**
+   * Anonymous user ID persisted for this device, or UUID::Zero if anonymous user
+   * tracking is disabled (see RumConfig::SetTrackAnonymousUser()) or no ID is
+   * available.
+   */
+  UUID anonymous_id;
+  /**
+   * ID of the active RUM view, or UUID::Zero if there is no active view, or if there is
+   * no active, sampled session.
+   */
+  UUID view_id;
+};
+
+/**
+ * Callback that receives a RumContextMessage whenever the RUM state it describes
+ * changes.
+ */
+using RumContextReceiver = std::function<void(const RumContextMessage&)>;
+
+/**
  * Configures the details of the RUM feature upon initialization.
  */
 struct RumConfig {
@@ -37,6 +67,7 @@ struct RumConfig {
   UUID application_id;  // UUID::Zero if uninitialized or invalid
   float session_sample_rate{100.0f};
   bool track_anonymous_user{true};
+  std::shared_ptr<const RumContextReceiver> context_receiver;
 
  public:
   /**
@@ -49,7 +80,6 @@ struct RumConfig {
   DATADOG_API explicit RumConfig(std::string_view in_application_id);
   DATADOG_API explicit RumConfig(const UUID& in_application_id);
 
-  // RumConfig is trivially destructible
   ~RumConfig() = default;
 
   // RumConfig is copyable and movable
@@ -78,6 +108,17 @@ struct RumConfig {
    * as `usr.anonymous_id` on RUM and Log events.
    */
   DATADOG_API RumConfig& SetTrackAnonymousUser(bool value);
+
+  /**
+   * Registers a callback that is notified of changes to RUM state: the active session,
+   * the anonymous user ID, and the active view.
+   *
+   * The receiver is invoked once when the SDK starts, with the current state, and again
+   * whenever any value in RumContextMessage changes. It runs on an SDK-internal
+   * thread, so it must be thread-safe and should return quickly. It is never invoked
+   * after Core::Stop() returns.
+   */
+  DATADOG_API RumConfig& SetContextReceiver(RumContextReceiver receiver);
 };
 
 enum class RumActionType : uint8_t { Tap, Click, Scroll, Swipe, Custom };

@@ -20,13 +20,15 @@
 #include "datadog/impl/rum/rum.hpp"
 #include "datadog/impl/rum/types.hpp"
 
-static const uint32_t RUM_CONFIG_VERSION = 1;
+static const uint32_t RUM_CONFIG_VERSION = 2;
 
 static const dd_rum_config_t DEFAULT_RUM_CONFIG = {
     RUM_CONFIG_VERSION,  // version
     dd_uuid_t{},         // application_id
     100.0f,              // session_sample_rate
-    true                 // track_anonymous_user
+    true,                // track_anonymous_user
+    nullptr,             // context_receiver
+    nullptr              // context_receiver_userdata
 };
 
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
@@ -62,6 +64,22 @@ void dd_rum_config_set_application_id(dd_rum_config_t* config, const char* value
 void dd_rum_config_set_session_sample_rate(dd_rum_config_t* config, float value) {
   if (config) {
     config->session_sample_rate = value;
+  }
+}
+
+void dd_rum_config_set_context_receiver(
+    dd_rum_config_t* config, dd_rum_context_receiver_t receiver
+) {
+  if (config) {
+    config->context_receiver = receiver;
+  }
+}
+
+void dd_rum_config_set_context_receiver_userdata(
+    dd_rum_config_t* config, void* userdata
+) {
+  if (config) {
+    config->context_receiver_userdata = userdata;
   }
 }
 

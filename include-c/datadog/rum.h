@@ -31,11 +31,43 @@ extern "C" {
  * RUM configuration struct: initialize with dd_rum_config_init(), then call
  * dd_rum_config_set_<value>().
  */
+/**
+ * Snapshot of RUM state delivered to a dd_rum_context_receiver_t.
+ */
+typedef struct dd_rum_context_message {
+  /** ID of the active RUM session; all zeroes if none, or if the session isn't sampled.
+   */
+  dd_uuid_t session_id;
+  /**
+   * Anonymous user ID persisted for this device; all zeroes if anonymous user tracking
+   * is disabled or no ID is available.
+   */
+  dd_uuid_t anonymous_id;
+  /**
+   * ID of the active RUM view; all zeroes if none, or if there is no active, sampled
+   * session.
+   */
+  dd_uuid_t view_id;
+} dd_rum_context_message_t;
+
+/**
+ * Callback invoked when the RUM state described by dd_rum_context_message_t changes.
+ * Runs on an SDK-internal thread, so it must be thread-safe and should return quickly.
+ * `userdata` is the value supplied to dd_rum_config_set_context_receiver_userdata(), or
+ * NULL.
+ */
+typedef void (*dd_rum_context_receiver_t)(
+    const dd_rum_context_message_t* message, void* userdata
+);
+
 typedef struct dd_rum_config {
   uint32_t version;
   dd_uuid_t application_id;
   float session_sample_rate;
   bool track_anonymous_user;
+  // Fields below are present only when version >= 2
+  dd_rum_context_receiver_t context_receiver;
+  void* context_receiver_userdata;
 } dd_rum_config_t;
 
 /**
@@ -71,6 +103,24 @@ DATADOG_API void dd_rum_config_set_session_sample_rate(
  */
 DATADOG_API void dd_rum_config_set_track_anonymous_user(
     dd_rum_config_t* config, bool value
+);
+
+/**
+ * Registers a callback that is notified of changes to RUM state: the active session,
+ * the anonymous user ID, and the active view. It is invoked once when the SDK starts,
+ * with the current state, and again whenever any value in dd_rum_context_message_t
+ * changes. It is never invoked after dd_core_stop() returns. Pass NULL to remove the
+ * receiver.
+ */
+DATADOG_API void dd_rum_config_set_context_receiver(
+    dd_rum_config_t* config, dd_rum_context_receiver_t receiver
+);
+
+/**
+ * Sets the `userdata` value passed to the context receiver on each invocation.
+ */
+DATADOG_API void dd_rum_config_set_context_receiver_userdata(
+    dd_rum_config_t* config, void* userdata
 );
 
 // === RUM feature interface ===
