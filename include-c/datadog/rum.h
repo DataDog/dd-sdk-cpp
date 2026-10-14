@@ -65,6 +65,7 @@ typedef struct dd_rum_config {
   dd_uuid_t application_id;
   float session_sample_rate;
   bool track_anonymous_user;
+  // Fields below are present only when version >= 2
   dd_rum_context_receiver_t context_receiver;
   void* context_receiver_userdata;
 } dd_rum_config_t;

@@ -756,6 +756,12 @@ bool Core::EnqueueStorageWrite(
 void Core::UpdateContext(const std::function<void(CoreContext&)>& callback) {
   if (_context_queue) {
     auto* cp = _context_provider.get();
+    // The analyzer reports a leak of the heap-allocated state of the std::function
+    // copied into this lambda's capture (reached through libc++'s std::function copy
+    // constructor, which clones its target with `new`). The state is owned by the
+    // std::function and released by its destructor, whether the item is moved into the
+    // queue or rejected by Push(), so this is a false positive.
+    // NOLINTNEXTLINE(clang-analyzer-cplusplus.NewDeleteLeaks)
     _context_queue->Push([cp, callback]() { cp->Update(callback); });
   } else {
     _context_provider->Update(callback);

@@ -20,7 +20,7 @@
 #include "datadog/impl/rum/rum.hpp"
 #include "datadog/impl/rum/types.hpp"
 
-static const uint32_t RUM_CONFIG_VERSION = 1;
+static const uint32_t RUM_CONFIG_VERSION = 2;
 
 static const dd_rum_config_t DEFAULT_RUM_CONFIG = {
     RUM_CONFIG_VERSION,  // version

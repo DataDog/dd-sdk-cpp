@@ -199,6 +199,31 @@ TEST_CASE("dd_rum_config_set_context_receiver", "[unit][rum][c-api]") {
     dd_core_destroy(core);
   }
 
+  SECTION("M ignore receiver W config version is 1") {
+    // Given a config with a receiver set, whose version is then reset to 1, indicating
+    // a struct layout that has no receiver fields
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config config;
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(&config, receiver);
+    dd_rum_config_set_context_receiver_userdata(&config, &received);
+    config.version = 1;
+    dd_rum_t* rum = dd_rum_init(core, &config);
+    REQUIRE(rum != nullptr);
+
+    // When the SDK runs
+    dd_core_start(core);
+    dd_core_stop(core);
+
+    // Then the receiver is never called
+    REQUIRE(received.messages.empty());
+
+    // Cleanup
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
+  }
+
   SECTION("M not crash W no receiver is set") {
     // Given RUM configured without a receiver
     auto test = CoreTestHarness::Init();

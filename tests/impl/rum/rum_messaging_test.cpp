@@ -747,6 +747,8 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(calls == 2);
   }
 
+// Exceptions can only be thrown (and contained) in a build with exception support
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
   SECTION("M contain exception W context receiver throws") {
     // Given a started Rum feature with a context receiver that throws
     auto rum_config = RUM_CONFIG;
@@ -776,6 +778,7 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
         )
     );
   }
+#endif
 
   SECTION("M do nothing W no context receiver is configured") {
     // Given a started Rum feature with no receiver

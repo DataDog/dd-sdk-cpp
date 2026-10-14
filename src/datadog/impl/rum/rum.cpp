@@ -157,12 +157,16 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
       last_delivered = out;
 
       // An exception thrown by application code must not unwind into the messaging
-      // thread
+      // thread (when the SDK is built with exception support)
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
       try {
         (*self->_deps.context_receiver)(out);
       } catch (...) {
         self->_deps.diagnostic_logger.Error("RUM context receiver threw an exception");
       }
+#else
+      (*self->_deps.context_receiver)(out);
+#endif
     }
 #ifdef _MSC_VER
 #pragma warning(pop)
