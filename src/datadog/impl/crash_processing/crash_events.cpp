@@ -20,6 +20,31 @@
 
 namespace datadog::impl {
 
+static bool validate_required_crash_context_fields(
+    const CrashContext& ctx, const DiagnosticLogger& diagnostic_logger
+) {
+  // 'service', 'env', 'source', and 'sdk_version' are all set from configuration and
+  // SDK constants that are mandatory at SDK initialization time. If any are missing,
+  // the dd.config annotation was absent, truncated, or malformed.
+  if (ctx.service.empty()) {
+    diagnostic_logger.Warning("Failed to handle crash: context has no service value");
+    return false;
+  }
+  if (ctx.env.empty()) {
+    diagnostic_logger.Warning("Failed to handle crash: context has no env value");
+    return false;
+  }
+  if (ctx.source.empty()) {
+    diagnostic_logger.Warning("Failed to handle crash: context has no source value");
+    return false;
+  }
+  if (ctx.sdk_version.empty()) {
+    diagnostic_logger.Warning("Failed to handle crash: context has no sdk_version");
+    return false;
+  }
+  return true;
+}
+
 template <typename T>
 static std::string_view encode_event(
     const T& event, std::vector<uint8_t>& encode_buffer
@@ -585,10 +610,13 @@ bool ProduceRumEventsForCrash(
       sink != nullptr, "sink function must be provided when processing a crash"
   );
 
-  // If the crash report does not have an intact CrashContext describing the RUM state,
-  // tracking consent, etc. at the time of the crash, we're unable to handle this crash
+  // Our RUM logic depends on an intact CrashContext describing the RUM state, tracking
+  // consent, etc. at the time of the crash. If we don't have a CrashContext struct at
+  // all, just log a warning and abort.
   if (!crash_context.has_value()) {
-    // This could indicate that a context file was missing or unreadable due to:
+    // This is typically only possible in the in-process case, where we're reading crash
+    // and crash.ctx files from disk. This case could indicate that a context file was
+    // missing or unreadable due to:
     //   - Filesystem errors beyond our control
     //   - External tampering beyond our control
     //   - Excessively long string/array/object values that caused us to reject the file
@@ -602,6 +630,27 @@ bool ProduceRumEventsForCrash(
     return false;
   }
   const CrashContext& ctx = *crash_context;
+
+  // We also need to validate that the CrashContext actually contains all required
+  // fields: if essential data is missing, we should early-out. This may be the case
+  // because a .ctx file was malformed despite having a valid header and footer, or
+  // because Crashpad annotations were truncated, malformed, or never written in the
+  // first place.
+  if (!validate_required_crash_context_fields(ctx, diagnostic_logger)) {
+    return false;
+  }
+
+  // If we will need to synthesize a session or view but have no application ID to
+  // put in the synthesized events, early-out with a descriptive warning
+  if (ctx.last_view_event_json.empty() &&
+      ctx.rum_initial_config.application_id == UUID::Zero &&
+      fallback_application_id == UUID::Zero) {
+    diagnostic_logger.Warning(
+        "Failed to handle crash: context has no RUM Application ID, and no fallback "
+        "value was provided"
+    );
+    return false;
+  }
 
   // RUM's crash-processing logic bypasses the ordinary mechanism for handling tracking
   // consent on event writes: instead, we generate events for a crash iff tracking
