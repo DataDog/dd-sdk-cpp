@@ -11,6 +11,7 @@ import time
 import uuid
 import email
 import email.policy
+from dataclasses import dataclass
 from pathlib import Path
 from lib.test import TestContext
 
@@ -81,30 +82,40 @@ async def main(t: TestContext):
     assert content_type.startswith('multipart/form-data'), \
         f'Expected multipart/form-data, got: {content_type!r}'
 
-    # And the form field values present in the HTTP request match the final set of
-    # annotation values that are set by the handler: we have Crashpad's own 'guid', then
-    # 'dd.rum.view' and 'dd.rum.error', and nothing else
-    form_fields = _parse_multipart_form_fields(upload_request.body, content_type)
-    assert 'guid' in form_fields, \
-        f"Missing 'guid' value in form-data upload: {form_fields}"
-    assert 'dd.rum.view' in form_fields, \
-        f"Missing 'dd.rum.view' value in form-data upload: {form_fields}"
-    assert 'dd.rum.error' in form_fields, \
-        f"Missing 'dd.rum.error' value in form-data upload: {form_fields}"
-    expected_keys = {
-        'guid',
-        'dd.rum.view',
-        'dd.rum.error',
-    }
-    unexpected_form_field_keys = set(form_fields.keys()) - expected_keys
-    assert not unexpected_form_field_keys, \
-        f'Unexpected annotation values in form-data upload: {", ".join(unexpected_form_field_keys)}'
+    # And the only plain form field present in the HTTP request is Crashpad's own
+    # 'guid': all 'dd.*' annotations are consumed by the handler and stripped
+    parts = _parse_multipart_parts(upload_request.body, content_type)
+    form_fields = {name: part for name, part in parts.items() if part.filename is None}
+    assert set(form_fields.keys()) == {'guid'}, \
+        f'Unexpected form fields in upload: {", ".join(form_fields.keys())}'
 
-    # And both of those values are well-formed JSON objects
-    view = json.loads(form_fields['dd.rum.view'])
+    # And exactly two file parts are present: the RUM events produced by the handler,
+    # as 'event', and the minidump itself
+    file_parts = {name: part for name, part in parts.items() if part.filename is not None}
+    assert set(file_parts.keys()) == {'event', 'upload_file_minidump'}, \
+        f'Unexpected file parts in upload: {", ".join(file_parts.keys())}'
+
+    # And the minidump part carries the .dmp file written by Crashpad
+    minidump_part = file_parts['upload_file_minidump']
+    assert minidump_part.filename.endswith('.dmp')
+    assert minidump_part.payload.startswith(b'MDMP'), \
+        f'Expected minidump signature; got {minidump_part.payload[:4]!r}'
+
+    # And the event part is a JSON file containing both a view event and an error event
+    event_part = file_parts['event']
+    assert event_part.filename, "Expected a non-empty filename on the 'event' part"
+    assert event_part.content_type == 'application/json', \
+        f"Expected 'event' part to be application/json; got {event_part.content_type!r}"
+    event_payload = json.loads(event_part.payload)
+    assert isinstance(event_payload, dict)
+    assert set(event_payload.keys()) == {'view_event', 'error_event'}, \
+        f'Unexpected keys in event payload: {", ".join(event_payload.keys())}'
+
+    # And both of those events are well-formed JSON objects
+    view = event_payload['view_event']
     assert isinstance(view, dict)
     assert view['type'] == 'view'
-    error = json.loads(form_fields['dd.rum.error'])
+    error = event_payload['error_event']
     assert isinstance(error, dict)
     assert error['type'] == 'error'
 
@@ -112,12 +123,12 @@ async def main(t: TestContext):
     # process exited, give or take a handful of seconds
     timestamp_error_ms = 5000
     assert abs(error['date'] - crash_time_ms) < timestamp_error_ms, \
-        f"Expected dd.rum.error.date to be within {timestamp_error_ms}ms of {crash_time_ms}; got {error['date']}"
+        f"Expected error_event.date to be within {timestamp_error_ms}ms of {crash_time_ms}; got {error['date']}"
 
     # And the timestamp on the view event is recorded as 1ms prior to the time of the
     # crash
     assert view['date'] == error['date'] - 1, \
-        f"Expected dd.rum.view.date to be 1ms less than dd.rum.error.date ({error['date']}); got {view['date']}"
+        f"Expected view_event.date to be 1ms less than error_event.date ({error['date']}); got {view['date']}"
 
     # And the error event carries the implicitly-configured service name
     assert error['service'] == 'dd-sdk-cpp-repl'
@@ -172,11 +183,17 @@ async def main(t: TestContext):
     _assert_one_completed_minidump(crashes_dir)
 
 
-def _parse_multipart_form_fields(body: bytes, content_type: str) -> dict:
+@dataclass
+class _MultipartPart:
+    filename: str | None  # None for plain form fields
+    content_type: str | None
+    payload: bytes
+
+
+def _parse_multipart_parts(body: bytes, content_type: str) -> dict[str, _MultipartPart]:
     """
-    Parses a multipart/form-data body and returns a dict mapping each form
-    field name to its text value. Parts that carry a filename (i.e. file
-    attachments such as the minidump) are skipped.
+    Parses a multipart/form-data body and returns a dict mapping each part's name to its
+    filename (if it's a file part), content type, and raw payload.
 
     Uses Python's stdlib `email` package to handle boundary extraction and
     MIME part parsing.
@@ -186,37 +203,34 @@ def _parse_multipart_form_fields(body: bytes, content_type: str) -> dict:
     mime_bytes = (f'Content-Type: {content_type}\r\n\r\n').encode() + body
     msg = email.message_from_bytes(mime_bytes, policy=email.policy.compat32)
 
-    fields = {}
+    parts = {}
     for part in msg.get_payload():
-        disposition = part.get('Content-Disposition', '')
-        # Skip file-attachment parts (those with a filename parameter)
-        if 'filename' in disposition:
-            continue
-        # Extract the field name from Content-Disposition
-        _, params = email.header.decode_header(disposition)[0][0], {}
-        # Use get_param for reliable parameter extraction
         name = part.get_param('name', header='Content-Disposition')
         if name is None:
             continue
-        payload = part.get_payload(decode=False)
-        if isinstance(payload, bytes):
-            payload = payload.decode('utf-8', errors='replace')
-        fields[name] = payload.strip() if payload else ''
-    return fields
+        assert name not in parts, f'Duplicate multipart part named {name!r}'
+        filename = part.get_param('filename', header='Content-Disposition')
+        payload = part.get_payload(decode=True) or b''
+        parts[name] = _MultipartPart(
+            filename=filename,
+            content_type=part.get('Content-Type'),
+            payload=payload if filename else payload.strip(),
+        )
+    return parts
 
 
 def _assert_object_present_in_both(property_name: str, view: dict, error: dict) -> tuple[dict, dict]:
     assert property_name in view, \
-        f"'dd.rum.view' is missing expected property '{property_name}'"
+        f"'view_event' is missing expected property '{property_name}'"
     view_obj = view[property_name]
     assert isinstance(view_obj, dict), \
-        f"'dd.rum.view.{property_name}' is not an object (got {view_obj})"
+        f"'view_event.{property_name}' is not an object (got {view_obj})"
 
     assert property_name in error, \
-        f"'dd.rum.error' is missing expected property '{property_name}'"
+        f"'error_event' is missing expected property '{property_name}'"
     error_obj = error[property_name]
     assert isinstance(error_obj, dict), \
-        f"'dd.rum.error.{property_name}' is not an object (got {error_obj})"
+        f"'error_event.{property_name}' is not an object (got {error_obj})"
 
     return view_obj, error_obj
 
@@ -224,7 +238,7 @@ def _assert_object_present_in_both(property_name: str, view: dict, error: dict) 
 def _assert_identical_object_present_in_both(property_name: str, view: dict, error: dict) -> dict:
     view_obj, error_obj = _assert_object_present_in_both(property_name, view, error)
     assert view_obj == error_obj, \
-        f"Mismatch in 'dd.rum.view.{property_name}' vs 'dd.rum.error.{property_name}': got {view_obj} vs. {error_obj}"
+        f"Mismatch in 'view_event.{property_name}' vs 'error_event.{property_name}': got {view_obj} vs. {error_obj}"
     return view_obj
 
 
@@ -281,10 +295,10 @@ def _assert_view_properties(view: dict, error: dict):
 def _assert_error_properties(error: dict):
     # error is a top-level object on the error event
     assert 'error' in error, \
-        f"'dd.rum.error' is missing expected property 'error'"
+        f"'error_event' is missing expected property 'error'"
     e = error['error']
     assert isinstance(e, dict), \
-        f"'dd.rum.error.error' is not an object (got {e})"
+        f"'error_event.error' is not an object (got {e})"
 
     # error.id is a valid UUID; error.source is set to 'source' (i.e. the fault was in
     # runtime execution of the code, indicating a bug in the application source), and
@@ -306,7 +320,7 @@ def _assert_error_properties(error: dict):
     if sys.platform == 'win32':
         want_message = 'Application crash: EXCEPTION_ACCESS_VIOLATION (0xC0000005)'
     assert e['message'] == want_message, \
-        f"Unexpected value for 'dd.rum.error.message': {e['message']}"
+        f"Unexpected value for 'error_event.message': {e['message']}"
 
     # No error.stack or error.binary_images values are present; the backend is
     # responsible for pulling this data from the uploaded .dmp file

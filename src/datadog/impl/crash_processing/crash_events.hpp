@@ -39,8 +39,10 @@ enum class CrashEventType : uint8_t { View, Error };
  * file for RUM.
  *
  * When the SDK is configured to use Crashpad for crash handling, the Crashpad handler
- * process writes these events to the map of annotations used as form-field values
- * (along with the minidump file) in its HTTP POST request.
+ * process packs these events into a single JSON object (`{"view_event": {...},
+ * "error_event": {...}}`, with `view_event` omitted if no view event was produced),
+ * which it uploads as a file part named `event` alongside the minidump file in its
+ * HTTP POST request.
  */
 using CrashEventSink = std::function<bool(CrashEventType, std::string_view)>;
 
