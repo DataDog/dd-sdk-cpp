@@ -1,3 +1,18 @@
+## 0.8.0
+
+### Features
+
+- A WinHTTP-based `IHttpClient` implementation is now available and is used by default on Windows, removing the mandatory dependency on `libcurl` for Windows builds.
+- When using `DD_CRASH_MODE=crashpad`, the SDK now serializes SDK configuration, OS, device, user, account, and RUM state into Crashpad string annotations so that the modified `crashpad_handler` process can produce well-formed RUM view and error events at crash-upload time, matching the behavior of the in-process crash handler.
+- A `dd.client_token` Crashpad annotation is now set at SDK init so that the modified `crashpad_handler` can authorize minidump uploads with the `DD-API-KEY` header.
+- A `rum_session_sample_rate` field is now stored in `CrashContext` and persisted to the crash context file, allowing the correct sample rate to be applied when synthesizing a new RUM session during crash processing.
+- Added support for an anonymous user ID (`anonymous_id`) that is automatically generated and persisted across launches; when `trackAnonymousUser` is set to `true`, this ID is attached to RUM and Logs events.
+- Errors can now be reported with a custom fingerprint attribute that overrides the default grouping behavior in Error Tracking.
+- Error events now include a `source_type` property extracted from the `_dd.error.source_type` attribute, enabling cross-platform SDKs to indicate the format of the supplied stack trace.
+- Transport-level HTTP errors (such as TLS certificate failures) are now included in diagnostic log output as `error_code` and `error_message` fields, making it easier to diagnose why requests are failing.
+- Added `TryEncodeJson` for serializing values to fixed-size buffers, gracefully dropping extra attributes (back-to-front) when the encoded value exceeds the available buffer size rather than failing outright.
+- Added `ParseJsonAttribute` for populating an `Attribute` value from a JSON string.
+
 ## 0.7.1
 
 ### Fixes
