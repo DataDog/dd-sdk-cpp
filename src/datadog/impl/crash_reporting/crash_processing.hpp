@@ -11,7 +11,7 @@
 #include <string>
 
 #include "datadog/impl/core/feature_scope.hpp"
-#include "datadog/impl/core/feature_types/crash_reporting.hpp"
+#include "datadog/impl/types/crash_reporting.hpp"
 
 namespace datadog::impl {
 

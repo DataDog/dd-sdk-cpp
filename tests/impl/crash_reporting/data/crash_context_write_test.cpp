@@ -34,7 +34,7 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
   SECTION("M produce .ctx file with expected binary contents for latest format") {
     // Given the binary contents of the crash context file we expect to produce at the
     // current version
-    std::string_view data = MOCK_CRASH_CONTEXT_V1.Get();
+    std::string_view data = MOCK_CRASH_CONTEXT_V2.Get();
 
     // And the canonical context values that were used to come up with that binary data
     CrashContext ctx{};
@@ -59,12 +59,14 @@ TEST_CASE("WriteCrashContext", "[unit][crash_reporting]") {
     ctx.user_id = "usr-123";
     ctx.user_name = "Alice";
     ctx.user_email = "alice@example.com";
+    ctx.user_anonymous_id = *UUID::Parse("f47ac10b-58cc-4372-a567-0e02b2c3d479");
     ctx.user_extra = Attribute::Object();
     ctx.account_id = "acct-456";
     ctx.account_name = "Acme Corp";
     ctx.account_extra = Attribute::Object();
-    ctx.rum_session_state.application_id =
+    ctx.rum_initial_config.application_id =
         *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+    ctx.rum_initial_config.session_sample_rate = 55.5f;
     ctx.rum_session_state.session_id =
         *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
     ctx.rum_session_state.is_sampled = true;

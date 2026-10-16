@@ -32,7 +32,7 @@ ReadCrashContextResult ReadCrashContext(File& file) {
   if (auto res = ReadUInt64(file, version); !res.OK()) {
     return {std::nullopt, res.value};
   }
-  if (version != CrashContextFileVersion) {
+  if (version < 1 || version > CrashContextFileVersion) {
     return {std::nullopt, FilesystemResult::OK};
   }
 
@@ -119,6 +119,13 @@ ReadCrashContextResult ReadCrashContext(File& file) {
   if (auto r = ReadString(file, ctx.user_email, MAX_SHORT_STRING_LEN); !r.OK()) {
     return {std::nullopt, r.value};
   }
+  // user_anonymous_id was added in file format v2
+  const bool has_user_anonymous_id = version >= 2;
+  if (has_user_anonymous_id) {
+    if (auto r = ReadUUID(file, ctx.user_anonymous_id); !r.OK()) {
+      return {std::nullopt, r.value};
+    }
+  }
   if (auto r = AttributeBinarySerialization::Parse(file, ctx.user_extra); !r.ok) {
     return {std::nullopt, r.fs_result};
   }
@@ -134,9 +141,15 @@ ReadCrashContextResult ReadCrashContext(File& file) {
     return {std::nullopt, r.fs_result};
   }
 
-  // RUM session state
-  if (auto r = ReadUUID(file, ctx.rum_session_state.application_id); !r.OK()) {
+  // RUM config and session state
+  if (auto r = ReadUUID(file, ctx.rum_initial_config.application_id); !r.OK()) {
     return {std::nullopt, r.value};
+  }
+  // rum_initial_config.session_sample_rate was added in file format v2
+  if (version >= 2) {
+    if (auto r = ReadFloat(file, ctx.rum_initial_config.session_sample_rate); !r.OK()) {
+      return {std::nullopt, r.value};
+    }
   }
   if (auto r = ReadUUID(file, ctx.rum_session_state.session_id); !r.OK()) {
     return {std::nullopt, r.value};

@@ -28,7 +28,7 @@
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/core/upload_scheduler.hpp"
 #include "datadog/impl/core/upload_thread.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 // Forward declarations
 namespace datadog::platform {
@@ -454,6 +454,7 @@ class Core {
   const platform::IClock& GetClock() const;
   IFilesystem& GetFilesystem() const;
   std::string_view GetIntakeOrigin() const;
+  std::string_view GetClientToken() const;
 };
 
 }  // namespace datadog::impl

@@ -13,24 +13,31 @@
 #include "datadog/timestamp.hpp"
 
 #include "datadog/impl/core/context.hpp"
-#include "datadog/impl/core/feature_types/crash_reporting.hpp"
-#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/types/crash_reporting.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 namespace datadog::impl {
 
 /**
  * Carries a snapshot of `CoreContext` captured immediately after a
  * `CoreContextProvider::Update()` call completes. Subscribers can use this snapshot to
- * react proactively to state changes in other features — the primary use case being
- * `CrashReporting`, which needs to persist RUM session/view/action IDs every time
- * `RumFeatureContext` changes so that those IDs are available in a crash report
- * generated before the next normal launch.
+ * react proactively to state changes in other features.
  *
  * The snapshot is taken inside `Update()` while the write lock is still held, ensuring
  * the delivered context is consistent and not partially written.
  */
 struct ContextChangedMessage {
   CoreContext context;
+};
+
+/**
+ * Emitted by `Rum` once during `Start()`, carrying fixed RUM configuration values that
+ * other features need to persist. This fires before any session is created, ensuring
+ * that downstream consumers (e.g. `CrashReporting`) have configuration state even if
+ * the app crashes before the first session is established.
+ */
+struct RumInitializedMessage {
+  RumInitialConfig initial_config;
 };
 
 /**
@@ -116,6 +123,7 @@ struct LogErrorGeneratedMessage {
  */
 using FeatureMessage = std::variant<
     ContextChangedMessage,
+    RumInitializedMessage,
     RumSessionStateChangedMessage,
     RumActiveViewUpdatedMessage,
     RumActiveViewLostMessage,

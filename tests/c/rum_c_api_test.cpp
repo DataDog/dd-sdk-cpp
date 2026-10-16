@@ -9,6 +9,7 @@
 #include <cstring>
 #include <functional>
 #include <optional>
+#include <string>
 #include <string_view>
 #include <vector>
 
@@ -157,6 +158,87 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
       // Cleanup
       dd_core_destroy(core);
     }
+  }
+}
+
+TEST_CASE("dd_rum_config_set_context_receiver", "[unit][rum][c-api]") {
+  // Given a receiver that records the values it is given, along with the userdata
+  struct Received {
+    std::vector<dd_rum_context_message_t> messages;
+  };
+  Received received;
+  auto receiver = [](const dd_rum_context_message_t* msg, void* userdata) {
+    static_cast<Received*>(userdata)->messages.push_back(*msg);
+  };
+
+  SECTION("M notify receiver with userdata W SDK runs") {
+    // Given a core with RUM configured with the receiver
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config config;
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(&config, receiver);
+    dd_rum_config_set_context_receiver_userdata(&config, &received);
+    dd_rum_t* rum = dd_rum_init(core, &config);
+
+    // When the SDK runs and a view is started
+    dd_core_start(core);
+    dd_rum_start_view(rum, "main", nullptr, nullptr);
+    dd_core_stop(core);
+
+    // Then the receiver saw an active session, an anonymous ID, and an active view
+    // (stopping joins the thread that invokes the receiver, so all calls have
+    // completed)
+    REQUIRE(!received.messages.empty());
+    REQUIRE(!dd_uuid_is_zero(&received.messages.back().session_id));
+    REQUIRE(!dd_uuid_is_zero(&received.messages.back().anonymous_id));
+    REQUIRE(!dd_uuid_is_zero(&received.messages.back().view_id));
+
+    // Cleanup
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M ignore receiver W config version is 1") {
+    // Given a config with a receiver set, whose version is then reset to 1, indicating
+    // a struct layout that has no receiver fields
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config config;
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(&config, receiver);
+    dd_rum_config_set_context_receiver_userdata(&config, &received);
+    config.version = 1;
+    dd_rum_t* rum = dd_rum_init(core, &config);
+    REQUIRE(rum != nullptr);
+
+    // When the SDK runs
+    dd_core_start(core);
+    dd_core_stop(core);
+
+    // Then the receiver is never called
+    REQUIRE(received.messages.empty());
+
+    // Cleanup
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M not crash W no receiver is set") {
+    // Given RUM configured without a receiver
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config config;
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_t* rum = dd_rum_init(core, &config);
+
+    // When the SDK runs, nothing goes wrong
+    dd_core_start(core);
+    dd_core_stop(core);
+
+    // Cleanup
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
   }
 }
 
@@ -2906,6 +2988,43 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
          REQUIRE(views[1]["view"]["error"]["count"] == 1);
        }},
 
+      {"M set error.fingerprint W AddError is called with the fingerprint attribute "
+       "key",
+       [](dd_rum_config_t*) {
+         // Given an ordinary RUM config
+       },
+       [](dd_rum_t* rum, MockClock& clock) {
+         // When we create a RUM view and record an error carrying the
+         // DD_RUM_ERROR_CUSTOM_FINGERPRINT_ATTRIBUTE_KEY attribute
+         dd_rum_start_view(rum, "my-view", "My View", nullptr);
+         clock.TickMilliseconds(5);
+         dd_attribute_t error_attributes = dd_attribute_object(1);
+         dd_attribute_t fingerprint_val = dd_attribute_string("my-fingerprint");
+         dd_attribute_object_property_set(
+             &error_attributes,
+             DD_RUM_ERROR_CUSTOM_FINGERPRINT_ATTRIBUTE_KEY,
+             &fingerprint_val
+         );
+         dd_rum_add_error(
+             rum,
+             DD_RUM_ERROR_SOURCE_SOURCE,
+             "Something went wrong",
+             "AssertionError",
+             "",
+             &error_attributes
+         );
+         dd_attribute_free(&fingerprint_val);
+         dd_attribute_free(&error_attributes);
+       },
+       [](const nlohmann::json& events) {
+         // Then the error event has error.fingerprint set, and the attribute is
+         // excluded from context
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["error"]["fingerprint"] == "my-fingerprint");
+         REQUIRE(!errors[0].contains("context"));
+       }},
+
       {"M send error event with action.id W AddError is called with active action",
        [](dd_rum_config_t*) {
          // Given an ordinary RUM config
@@ -4365,9 +4484,12 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
-      // Given a RUM config modified as our test case demands
+      // Given a RUM config modified as our test case demands. Default
+      // track_anonymous_user to false here so that unrelated test cases' event
+      // assertions aren't disrupted by a usr.anonymous_id value they don't expect.
       dd_rum_config config;
       dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+      config.track_anonymous_user = false;
       tt.config_func(&config);
 
       // And a started SDK with RUM initialized from that config

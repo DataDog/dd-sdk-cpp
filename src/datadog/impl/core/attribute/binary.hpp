@@ -20,7 +20,7 @@ class File;
  * future process.
  *
  * In uploaded events, Attribute values are typically serialized as JSON using the code
- * in `impl/core/json/attribute.hpp`.
+ * in `impl/types/json/attribute.hpp`.
  *
  * However, `CrashReporting` needs to flush attribute values to disk as quickly and
  * simply as possible, and in a form that the SDK can easily deserialize. This simple

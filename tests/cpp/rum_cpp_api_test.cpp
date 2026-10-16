@@ -18,6 +18,46 @@
 
 using namespace datadog;
 
+TEST_CASE("RumConfig::SetContextReceiver", "[unit][rum][cpp-api]") {
+  // Given a core, and a RUM config whose receiver records the values it is given
+  auto test = CoreTestHarness::Init();
+  auto core = CoreTestHarness::WrapForCpp(test);
+  std::vector<RumContextMessage> received;
+  RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+  config.SetContextReceiver([&](const RumContextMessage& msg) {
+    received.push_back(msg);
+  });
+
+  SECTION("M notify receiver of session, anonymous ID, and view W SDK runs") {
+    // When we register RUM, run the SDK, and start a view
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    rum->StartView("main");
+    core->Stop();
+
+    // Then the receiver saw an active session, an anonymous ID, and an active view
+    // (Stop() joins the thread that invokes the receiver, so all calls have completed)
+    REQUIRE(!received.empty());
+    REQUIRE(received.back().session_id != UUID::Zero);
+    REQUIRE(received.back().anonymous_id != UUID::Zero);
+    REQUIRE(received.back().view_id != UUID::Zero);
+  }
+
+  SECTION("M report zero anonymous ID W anonymous user tracking is disabled") {
+    // When we register RUM with anonymous user tracking disabled, and run the SDK
+    config.SetTrackAnonymousUser(false);
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    core->Stop();
+
+    // Then the receiver never saw an anonymous ID
+    REQUIRE(!received.empty());
+    for (const auto& msg : received) {
+      REQUIRE(msg.anonymous_id == UUID::Zero);
+    }
+  }
+}
+
 TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
   SECTION("M safely do nothing W this wraps nullptr") {
     // Given both a valid Core interface that has no valid implementation pointer, as
@@ -3302,6 +3342,98 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          );
        }},
 
+      {"M set error.source_type and exclude it from context W a recognized "
+       "_dd.error.source_type is provided on AddError",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add an error carrying a recognized
+         // _dd.error.source_type attribute
+         rum->StartView("my-view", "My View");
+         Attribute add_error_obj = Attribute::Object(2);
+         add_error_obj.SetObjectProperty(
+             "_dd.error.source_type", Attribute::String("flutter")
+         );
+         add_error_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             add_error_obj
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has error.source_type set, and
+         // the attribute is excluded from context
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["error"]["source_type"] == "flutter");
+         REQUIRE(errors[0]["context"] == nlohmann::json{{"alpha", 1}});
+       }},
+
+      {"M omit error.source_type and exclude key from context W an unrecognized "
+       "_dd.error.source_type is provided on AddError",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add an error carrying an unrecognized
+         // _dd.error.source_type attribute
+         rum->StartView("my-view", "My View");
+         Attribute add_error_obj = Attribute::Object(1);
+         add_error_obj.SetObjectProperty(
+             "_dd.error.source_type", Attribute::String("some-unknown-platform")
+         );
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             add_error_obj
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has no error.source_type field,
+         // and no context (the only attribute provided was consumed regardless)
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(!errors[0]["error"].contains("source_type"));
+         REQUIRE(!errors[0].contains("context"));
+       }},
+
+      {"M set error.fingerprint and exclude it from context W "
+       "RumAttributes::ErrorCustomFingerprintAttributeKey is provided on AddError",
+       [](RumConfig&) {
+         // Given an ordinary RUM config
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         // When we create a RUM view and add an error carrying a custom fingerprint
+         rum->StartView("my-view", "My View");
+         Attribute add_error_obj = Attribute::Object(2);
+         add_error_obj.SetObjectProperty(
+             RumAttributes::ErrorCustomFingerprintAttributeKey,
+             Attribute::String("my-fingerprint")
+         );
+         add_error_obj.SetObjectProperty("alpha", Attribute::Int(1));
+         rum->AddError(
+             RumErrorSource::Source,
+             "Something went wrong",
+             "AssertionError",
+             "stack\ntrace",
+             add_error_obj
+         );
+       },
+       [](const nlohmann::json& events) {
+         // Then the RUM event produced for our error has error.fingerprint set, and
+         // the attribute is excluded from context
+         auto errors = filter_events("error", events);
+         REQUIRE(errors.size() == 1);
+         REQUIRE(errors[0]["error"]["fingerprint"] == "my-fingerprint");
+         REQUIRE(errors[0]["context"] == nlohmann::json{{"alpha", 1}});
+       }},
+
       // === Operations ===
 
       {"M emit start and end vital events W operation succeeds",
@@ -3702,11 +3834,49 @@ TEST_CASE("Rum events", "[unit][rum][cpp-api]") {
          REQUIRE(vitals[0].count("context") == 0);
          REQUIRE(vitals[1].count("context") == 0);
        }},
+
+      // === anonymous_id (RUM-17731) ===
+
+      {"M include usr.anonymous_id W trackAnonymousUser is set to true",
+       [](RumConfig& config) {
+         // Other test cases in this suite default to trackAnonymousUser=false (see
+         // below) to avoid usr.anonymous_id noise in unrelated assertions; opt back in
+         // here to test the (separately-defaulted-true) behavior directly
+         config.SetTrackAnonymousUser(true);
+       },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+       },
+       [](const nlohmann::json& events) {
+         auto views = filter_events("view", events);
+         REQUIRE(!views.empty());
+         REQUIRE(views[0].contains("usr"));
+         REQUIRE(views[0]["usr"].contains("anonymous_id"));
+         std::string id = views[0]["usr"]["anonymous_id"].get<std::string>();
+         REQUIRE(UUID::Parse(id).has_value());
+       }},
+
+      {"M omit usr.anonymous_id W trackAnonymousUser is set to false",
+       [](RumConfig& config) { config.SetTrackAnonymousUser(false); },
+       [](std::shared_ptr<Rum>& rum, MockClock&) {
+         rum->StartView("my-view", "My View");
+       },
+       [](const nlohmann::json& events) {
+         auto views = filter_events("view", events);
+         REQUIRE(!views.empty());
+         // With no user info and trackAnonymousUser disabled, 'usr' isn't populated at
+         // all
+         REQUIRE(!views[0].contains("usr"));
+       }},
   };
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
-      // Given a RUM config modified as our test case demands
+      // Given a RUM config modified as our test case demands. Default
+      // trackAnonymousUser to false here so that unrelated test cases' event
+      // assertions aren't disrupted by a usr.anonymous_id value they don't expect;
+      // specific test cases re-enable it to test that behavior directly.
       RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+      config.SetTrackAnonymousUser(false);
       tt.config_func(config);
 
       // And a started SDK with RUM initialized from that config

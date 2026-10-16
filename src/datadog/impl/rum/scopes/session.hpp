@@ -16,11 +16,11 @@
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/rum/containers/view_array.hpp"
 #include "datadog/impl/rum/scope.hpp"
 #include "datadog/impl/rum/scopes/view.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 namespace datadog::impl {
 

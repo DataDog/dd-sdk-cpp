@@ -7,8 +7,8 @@
 #include "datadog/attribute.h"
 #include "datadog/attribute.hpp"
 
-#include "datadog/impl/core/attribute/cow.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/attribute/cow.hpp"
 
 namespace datadog::impl {
 

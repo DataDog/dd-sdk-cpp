@@ -12,7 +12,7 @@
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;

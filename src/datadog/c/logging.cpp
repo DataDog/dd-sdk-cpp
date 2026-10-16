@@ -42,6 +42,8 @@ static const dd_logger_config_t DEFAULT_LOGGER_CONFIG = {
 
 extern "C" {
 
+const char* const DD_LOG_ERROR_FINGERPRINT_ATTRIBUTE_KEY = "_dd.error.fingerprint";
+
 void dd_logger_config_init(dd_logger_config_t* config) {
   // Require an input value
   if (!config) {

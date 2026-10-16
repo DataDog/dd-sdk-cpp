@@ -40,5 +40,6 @@ add_custom_target(integration-test-venv
 add_custom_target(integration-test
     DEPENDS integration-test-venv
     COMMAND ${INTEGRATION_TEST_VENV_PYTHON} ${DD_SDK_ROOT_DIR}/tools/integration-test/main.py
+        --crash-mode ${DD_CRASH_MODE}
     COMMENT "Running: tools/integration-test/main.py"
 )

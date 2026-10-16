@@ -133,6 +133,78 @@ TEST_CASE("IHttpClient", "[unit][http]") {
     REQUIRE(result.status_code == 0);
   }
 
+  SECTION("M signal non-retryable failure W URL scheme is unsupported") {
+    // When the client makes a request using a scheme that no client could support
+    auto result = client->Post("bogus://127.0.0.1/test", "", impl::StringWriter{"hi"});
+
+    // Then the client will signal that it got no response, non-retryable
+    REQUIRE(result.type == impl::HttpResultType::GotNoResponse_NonRetryable);
+    REQUIRE(result.status_code == 0);
+  }
+
+  SECTION("M signal non-retryable failure W body writer aborts") {
+    // Given an HTTP server
+    MockHttpServer server(0);
+    server.Start();
+
+    // And a body writer that signals an error
+    impl::HttpBodyWriter failing_writer = [](char*, size_t) {
+      return impl::HTTP_WRITE_RESULT_ABORT;
+    };
+
+    // When the client makes a request using that writer
+    const std::string url = server.BuildURL("/test");
+    auto result = client->Post(url.c_str(), "", failing_writer);
+
+    // Then the client will signal that it got no response, non-retryable
+    REQUIRE(result.type == impl::HttpResultType::GotNoResponse_NonRetryable);
+    REQUIRE(result.status_code == 0);
+  }
+
+  SECTION("M succeed W request body is empty") {
+    // Given an HTTP server
+    MockHttpServer server(0);
+    server.Start();
+
+    // When the client sends a request with an empty body
+    const std::string url = server.BuildURL("/test");
+    auto result = client->Post(url.c_str(), "", impl::StringWriter{""});
+
+    // Then it gets a valid response
+    REQUIRE(result.type == impl::HttpResultType::GotResponse);
+    REQUIRE(result.status_code == 200);
+
+    // And the server receives a chunked request with only the terminating chunk
+    server.Stop();
+    REQUIRE(server.requests.size() == 1);
+    const auto req = server.requests.front();
+    REQUIRE(req.find("Transfer-Encoding: chunked\r\n") != std::string::npos);
+    const size_t blank_line_pos = req.find("\r\n\r\n");
+    REQUIRE(blank_line_pos != std::string::npos);
+    REQUIRE(req.substr(blank_line_pos + 4) == "0\r\n\r\n");
+  }
+
+  SECTION("M signal retryable failure and describe error W connection is refused") {
+    // Given the URL of a server that is no longer listening
+    std::string url;
+    {
+      MockHttpServer server(0);
+      server.Start();
+      url = server.BuildURL("/test");
+    }
+
+    // When the client makes a request to that URL
+    auto result = client->Post(url.c_str(), "", impl::StringWriter{"hi"});
+
+    // Then the client will indicate a retryable error
+    REQUIRE(result.type == impl::HttpResultType::GotNoResponse_Retryable);
+    REQUIRE(result.status_code == 0);
+
+    // And it will convey details about the error
+    REQUIRE(result.error_code != 0);
+    REQUIRE_FALSE(result.error_message.empty());
+  }
+
   SECTION("M use chunked encoding W request is sent") {
     // Given an HTTP server
     MockHttpServer server(0);

@@ -30,7 +30,8 @@ async def main(t: TestContext):
     register-rum
     start-core
     set-account-info acct-456 name:"Bits"
-    start-view foo
+    add-account-extra-info attr:tier:gold
+    start-view foo attr:section:main
     sleep 10
     crash bad-sdk-usage
     """)
@@ -104,6 +105,8 @@ async def main(t: TestContext):
     assert p1_view['application']['id'] == 'a991ca10-4004-4004-4004-beefbeefbeef'
     assert p1_view['account']['id'] == 'acct-456'
     assert p1_view['account']['name'] == 'Bits'
+    assert p1_view['account']['tier'] == 'gold'
+    assert p1_view.get('context', {}).get('section') == 'main'
     assert p1_view['view']['is_active'] == True
     assert p1_view['view']['error']['count'] == 0
     assert 'crash' not in p1_view['view']
@@ -119,6 +122,7 @@ async def main(t: TestContext):
     # process, but with is_active False, error/crash counts incremented, and a modified
     # date value
     assert p2_view['account'] == p1_view['account']
+    assert p2_view.get('context', {}).get('section') == 'main'
     assert p2_view['application']['id'] == p1_view['application']['id']
     assert p2_view['session']['id'] == p1_view['session']['id']
     assert p2_view['view']['id'] == p1_view['view']['id']

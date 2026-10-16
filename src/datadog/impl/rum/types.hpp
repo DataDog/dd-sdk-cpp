@@ -13,13 +13,38 @@
 
 namespace datadog {
 
+inline RumContextReceiver RumContextReceiver_FromC(
+    dd_rum_context_receiver_t receiver, void* userdata
+) {
+  return [=](const RumContextMessage& msg) {
+    if (receiver) {
+      dd_rum_context_message_t c_msg{};
+      dd_uuid_set(&c_msg.session_id, msg.session_id.bytes.data());
+      dd_uuid_set(&c_msg.anonymous_id, msg.anonymous_id.bytes.data());
+      dd_uuid_set(&c_msg.view_id, msg.view_id.bytes.data());
+      receiver(&c_msg, userdata);
+    }
+  };
+}
+
 inline RumConfig RumConfig_FromC(const dd_rum_config_t& config) {
   // Convert from dd_uuid_t to datadog::UUID
   const uint8_t* bytes = static_cast<const uint8_t*>(config.application_id.bytes);
   const UUID application_id(bytes);
 
   // Initialize a C++ config struct from our input values
-  return RumConfig(application_id).SetSessionSampleRate(config.session_sample_rate);
+  RumConfig cpp_config = RumConfig(application_id)
+                             .SetSessionSampleRate(config.session_sample_rate)
+                             .SetTrackAnonymousUser(config.track_anonymous_user);
+
+  // The receiver fields exist only in version 2+ of the struct: an older struct doesn't
+  // include them, so they must not be read
+  if (config.version >= 2 && config.context_receiver) {
+    cpp_config.SetContextReceiver(RumContextReceiver_FromC(
+        config.context_receiver, config.context_receiver_userdata
+    ));
+  }
+  return cpp_config;
 }
 
 inline RumActionType RumActionType_FromC(dd_rum_action_type_t value) {

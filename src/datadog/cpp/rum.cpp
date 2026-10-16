@@ -12,9 +12,9 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/core/util/validation.hpp"
 #include "datadog/impl/rum/rum.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog {
 
@@ -44,6 +44,18 @@ RumConfig& RumConfig::SetApplicationId(const UUID& value) {
 
 RumConfig& RumConfig::SetSessionSampleRate(float value) {
   session_sample_rate = value;
+  return *this;
+}
+
+RumConfig& RumConfig::SetTrackAnonymousUser(bool value) {
+  track_anonymous_user = value;
+  return *this;
+}
+
+RumConfig& RumConfig::SetContextReceiver(RumContextReceiver receiver) {
+  context_receiver =
+      receiver ? std::make_shared<const RumContextReceiver>(std::move(receiver))
+               : nullptr;
   return *this;
 }
 

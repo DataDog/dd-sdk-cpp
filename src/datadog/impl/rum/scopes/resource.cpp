@@ -6,12 +6,12 @@
 
 #include "datadog/impl/rum/scopes/resource.hpp"
 
-#include "datadog/impl/core/attribute/merge.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/rum/context.hpp"
 #include "datadog/impl/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/rum/scopes/session.hpp"
 #include "datadog/impl/rum/scopes/view.hpp"
+#include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/attribute/merge.hpp"
 
 namespace datadog::impl {
 
@@ -280,6 +280,13 @@ void RumResourceScope::SendErrorEvent(
   // sets so they land on ev._dd rather than in context.
   Attribute context = MergeAttributesForEventContext(base);
   extract_resource_trace_attributes(_attributes, base.attributes, context, ev._dd);
+
+  // Extract a `_dd.error.source_type` override, if supplied alongside StartResource or
+  // StopResourceWithError, and strip it from the attributes that end up in 'context'
+  ev.error.source_type = ExtractErrorSourceType(
+      {_attributes, base.attributes}, context, deps.diagnostic_logger
+  );
+
   if (context.GetObjectPropertyCount() > 0) {
     ev.context.value = context;
   }

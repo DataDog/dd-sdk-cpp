@@ -10,10 +10,10 @@
 
 #include "datadog/impl/core/attribute/binary.hpp"
 #include "datadog/impl/core/block.hpp"
-#include "datadog/impl/core/feature_types/crash_reporting.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context.hpp"
+#include "datadog/impl/types/crash_reporting.hpp"
 
 namespace datadog::impl {
 
@@ -40,11 +40,11 @@ bool WriteCrashContext(
       (8 + ctx.device_model.size()) + (8 + ctx.device_brand.size()) +
       (8 + ctx.device_architecture.size()) + (8 + ctx.device_locale.size()) +
       (8 + ctx.device_time_zone.size()) + (8 + ctx.user_id.size()) +
-      (8 + ctx.user_name.size()) + (8 + ctx.user_email.size());
+      (8 + ctx.user_name.size()) + (8 + ctx.user_email.size()) + 16;
   const size_t second_chunk_size =
       (8 + ctx.account_id.size()) + (8 + ctx.account_name.size());
   const size_t third_chunk_size =
-      16 + 1 + 1 + 1 + 1 + 1 + (8 + ctx.last_view_event_json.size());
+      16 + 4 + 16 + 1 + 1 + 1 + 1 + 1 + (8 + ctx.last_view_event_json.size());
   size_t encode_buf_capacity = 2048;
   encode_buf_capacity = std::max(encode_buf_capacity, first_chunk_size);
   encode_buf_capacity = std::max(encode_buf_capacity, second_chunk_size);
@@ -67,6 +67,12 @@ bool WriteCrashContext(
   auto encode_string = [&](std::string_view value) {
     encode_uint64(value.size());
     encode_buf.insert(encode_buf.end(), value.begin(), value.end());
+  };
+
+  auto encode_float = [&](float value) {
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+    const char* bytes = reinterpret_cast<const char*>(&value);
+    encode_buf.insert(encode_buf.end(), bytes, bytes + sizeof(value));
   };
 
   auto encode_uuid = [&](const UUID& value) {
@@ -131,6 +137,7 @@ bool WriteCrashContext(
   encode_string(ctx.user_id);
   encode_string(ctx.user_name);
   encode_string(ctx.user_email);
+  encode_uuid(ctx.user_anonymous_id);
   // (end of first chunk: flush all data buffered so far, then write user attributes)
   if (write_encoded_data() != FilesystemResult::OK) {
     return false;
@@ -153,9 +160,10 @@ bool WriteCrashContext(
     return false;
   }
 
-  // RumSessionState
+  // RUM config and session state
   encode_buf.clear();  // begin third chunk
-  encode_uuid(ctx.rum_session_state.application_id);
+  encode_uuid(ctx.rum_initial_config.application_id);
+  encode_float(ctx.rum_initial_config.session_sample_rate);
   encode_uuid(ctx.rum_session_state.session_id);
   encode_uint8(ctx.rum_session_state.is_sampled ? 1 : 0);
   encode_uint8(ctx.rum_session_state.is_active ? 1 : 0);

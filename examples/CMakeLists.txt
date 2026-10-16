@@ -26,6 +26,7 @@ add_executable(repl
     repl/buffer.cpp
     repl/command.cpp
     repl/commands_config.cpp
+    repl/commands.cpp
     repl/commands_core.cpp
     repl/commands_crash.cpp
     repl/commands_logging.cpp

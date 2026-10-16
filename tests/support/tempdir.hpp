@@ -18,12 +18,10 @@
 #include <vector>
 
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "datadog/impl/types/windows_headers.hpp"
 #endif
 
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 /**
  * Returns the path to a suitable system-wide temp file directory.

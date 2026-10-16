@@ -49,6 +49,6 @@ namespace Clock {
  * Creates an IClock interface used to read to the system clock.
  */
 std::unique_ptr<IClock> Init();
-};  // namespace Clock
+}  // namespace Clock
 
 }  // namespace datadog::platform

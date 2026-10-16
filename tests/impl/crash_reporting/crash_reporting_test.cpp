@@ -210,8 +210,8 @@ TEST_CASE("CrashReporting message publishing", "[unit][crash_reporting]") {
     REQUIRE(msg != nullptr);
 
     // And the message contains the crash data parsed from the file
-    REQUIRE(msg->crash.fault_code == 11);
-    REQUIRE(msg->crash.timestamp_ms == 1700000000000);
+    REQUIRE(msg->crash.dump.fault_code == 11);
+    REQUIRE(msg->crash.dump.timestamp_ms == 1700000000000);
   }
 
   SECTION("M publish no messages W no crash files exist on start") {

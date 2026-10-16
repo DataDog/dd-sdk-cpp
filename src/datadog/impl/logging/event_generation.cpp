@@ -9,12 +9,13 @@
 #include <string_view>
 
 #include "datadog/impl/core/feature_message.hpp"
-#include "datadog/impl/core/feature_types/logging.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/core/upload_util.hpp"
-#include "datadog/impl/core/util/assert.hpp"
-#include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/logging/data.hpp"
+#include "datadog/impl/rum/scopes/event_enrichment.hpp"
+#include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/json.hpp"
+#include "datadog/impl/types/logging.hpp"
+#include "datadog/impl/types/upload_util.hpp"
 
 namespace datadog::impl {
 
@@ -24,7 +25,8 @@ void ContextThread_GenerateLogEvent(
     const CoreContext& ctx,
     const EventWriter& event_writer,
     std::vector<uint8_t>& encode_buf,
-    const MessagePublisher& publisher
+    const MessagePublisher& publisher,
+    const DiagnosticLogger& diagnostic_logger
 ) {
   // Use the overridden service name configured for this Logger if we have one;
   // otherwise fall back to the service name from SDK config
@@ -75,13 +77,17 @@ void ContextThread_GenerateLogEvent(
     ev.rum_action_id = ctx.rum->action_id;
   }
 
-  // If the SDK has been given valid user info, add it to 'usr'
-  if (!ctx.user_info.IsEmpty()) {
+  // If the SDK has been given valid user info, or has an anonymous id to expose, add
+  // 'usr'
+  if (!ctx.user_info.IsEmpty() || ctx.anonymous_id_enabled) {
     LogUserInfo& usr = ev.usr.value.emplace();
     usr.id = ctx.user_info.id;
     usr.name = ctx.user_info.name;
     usr.email = ctx.user_info.email;
     usr.extra = ctx.user_info.extra;
+    if (ctx.anonymous_id_enabled) {
+      usr.anonymous_id = ctx.anonymous_id;
+    }
   }
 
   // If the SDK has been given valid account info, add it to 'account'
@@ -129,8 +135,28 @@ void ContextThread_GenerateLogEvent(
   ev.error_stack = std::move(call.error_stack);
 
   // Add extra user attributes, to be merged into the event payload as top-level JSON
-  // properties
+  // properties. Keep a cheap copy-on-write copy of the un-extracted attributes to
+  // forward to RUM below: extracting `_dd.error.source_type` for this LogEvent below
+  // deletes the key from `ev.user_attributes`, but the Logger->RUM bridge (triggered
+  // for Error/Critical logs) needs to see the original attribute to run its own
+  // independent extraction against the resulting RUM error event.
+  Attribute unextracted_attributes = call.merged_attributes;
   ev.user_attributes = std::move(call.merged_attributes);
+
+  // Extract a `_dd.error.source_type` override, if supplied alongside this log call,
+  // and strip it from the attributes that end up as this event's custom attributes.
+  if (std::optional<RumErrorSourceType> source_type = ExtractErrorSourceType(
+          {ev.user_attributes}, ev.user_attributes, diagnostic_logger
+      )) {
+    ev.error_source_type = std::string(StringRumErrorSourceType(*source_type).Name());
+  }
+
+  // Extract a `_dd.error.fingerprint` override, if supplied alongside this log call,
+  // and strip it from the attributes that end up as this event's custom attributes.
+  if (std::optional<std::string> fingerprint =
+          ExtractErrorFingerprint(ev.user_attributes, diagnostic_logger)) {
+    ev.error_fingerprint = std::move(*fingerprint);
+  }
 
   // Encode to the shared buffer (accessed only on context thread)
   EncodeJson(encode_buf, ev);
@@ -154,7 +180,7 @@ void ContextThread_GenerateLogEvent(
             std::move(ev.error_message.value),
             std::move(ev.error_kind.value),
             std::move(ev.error_stack.value),
-            std::move(ev.user_attributes),
+            std::move(unextracted_attributes),
         }
     );
   }

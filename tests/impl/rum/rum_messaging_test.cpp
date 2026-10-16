@@ -8,6 +8,8 @@
 #include <chrono>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <stdexcept>
+#include <string>
 
 #include "datadog/core.hpp"
 #include "datadog/rum.hpp"
@@ -54,6 +56,21 @@ static const T* FindLastMessage(const std::vector<FeatureMessage>& msgs) {
     }
   }
   return result;
+}
+
+/**
+ * Returns a CoreContext carrying the values published through the RUM context receiver:
+ * the given session and view IDs (via RumFeatureContext), and the given anonymous ID,
+ * enabled.
+ */
+static CoreContext MakeReceiverContext(
+    const UUID& session_id, const UUID& anonymous_id, const UUID& view_id = UUID::Zero
+) {
+  CoreContext ctx = MOCK_CONTEXT;
+  ctx.rum = RumFeatureContext{APPLICATION_ID, session_id, view_id, UUID::Zero};
+  ctx.anonymous_id = anonymous_id;
+  ctx.anonymous_id_enabled = true;
+  return ctx;
 }
 
 TEST_CASE("Rum messaging", "[unit][rum]") {
@@ -581,5 +598,198 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(error_event["error"]["stack"] == "frame 0\nframe 1");
     REQUIRE(error_event["date"] == 1700000001234);
     REQUIRE(error_event["context"]["custom_key"] == "custom_value");
+  }
+
+  // === ContextChangedMessage (RUM context receiver) ===
+
+  SECTION(
+      "M deliver session, anonymous, and view IDs W ContextChangedMessage is received"
+  ) {
+    // Given a started Rum feature with a context receiver that records its messages
+    std::vector<RumContextMessage> deliveries;
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
+      deliveries.push_back(msg);
+    });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+
+    // When a context change is delivered
+    const UUID session_id = UUID::Random();
+    const UUID anonymous_id = UUID::Random();
+    const UUID view_id = UUID::Random();
+    handler(
+        ContextChangedMessage{MakeReceiverContext(session_id, anonymous_id, view_id)}
+    );
+
+    // Then the receiver is called once, with the values from the context
+    REQUIRE(deliveries.size() == 1);
+    REQUIRE(deliveries[0].session_id == session_id);
+    REQUIRE(deliveries[0].anonymous_id == anonymous_id);
+    REQUIRE(deliveries[0].view_id == view_id);
+  }
+
+  SECTION("M deliver zero session ID W context has no active session") {
+    // Given a started Rum feature with a context receiver
+    std::vector<UUID> session_ids;
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
+      session_ids.push_back(msg.session_id);
+    });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+
+    // When a context change is delivered with no RUM context, then with a session, then
+    // with that session cleared
+    handler(ContextChangedMessage{MOCK_CONTEXT});
+    handler(ContextChangedMessage{MakeReceiverContext(UUID::Random(), UUID::Zero)});
+    handler(ContextChangedMessage{MakeReceiverContext(UUID::Zero, UUID::Zero)});
+
+    // Then each change is delivered, with a zero session ID where there is no session
+    REQUIRE(session_ids.size() == 3);
+    REQUIRE(session_ids[0] == UUID::Zero);
+    REQUIRE(session_ids[1] != UUID::Zero);
+    REQUIRE(session_ids[2] == UUID::Zero);
+  }
+
+  SECTION("M deliver zero anonymous ID W anonymous user tracking is not enabled") {
+    // Given a started Rum feature with a context receiver
+    std::vector<RumContextMessage> deliveries;
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
+      deliveries.push_back(msg);
+    });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+
+    // When a context that holds an anonymous ID, but hasn't enabled it, is delivered
+    auto ctx = MakeReceiverContext(UUID::Random(), UUID::Random());
+    ctx.anonymous_id_enabled = false;
+    handler(ContextChangedMessage{ctx});
+
+    // Then the delivered anonymous ID is zero
+    REQUIRE(deliveries.size() == 1);
+    REQUIRE(deliveries[0].anonymous_id == UUID::Zero);
+  }
+
+  SECTION("M skip receiver W context changes without affecting delivered values") {
+    // Given a started Rum feature with a context receiver that counts its calls
+    int calls = 0;
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([&](const RumContextMessage&) { ++calls; });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+
+    // When we deliver a context, then the same context with the action, tracking
+    // consent, and user info changed
+    auto ctx = MakeReceiverContext(UUID::Random(), UUID::Random());
+    handler(ContextChangedMessage{ctx});
+    ctx.rum->action_id = UUID::Random();
+    ctx.tracking_consent = TrackingConsent::Granted;
+    ctx.user_info.id = "user-1";
+    handler(ContextChangedMessage{ctx});
+
+    // Then the receiver was called only for the first
+    REQUIRE(calls == 1);
+  }
+
+  SECTION("M deliver again W session ID, anonymous ID, or view ID changes") {
+    // Given a started Rum feature with a context receiver that counts its calls
+    int calls = 0;
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([&](const RumContextMessage&) { ++calls; });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+    auto ctx = MakeReceiverContext(UUID::Random(), UUID::Random());
+    handler(ContextChangedMessage{ctx});
+    REQUIRE(calls == 1);
+
+    // When the session ID changes, then the anonymous ID changes, then the view ID
+    // changes
+    ctx.rum->session_id = UUID::Random();
+    handler(ContextChangedMessage{ctx});
+    ctx.anonymous_id = UUID::Random();
+    handler(ContextChangedMessage{ctx});
+    ctx.rum->view_id = UUID::Random();
+    handler(ContextChangedMessage{ctx});
+
+    // Then the receiver is called for each change
+    REQUIRE(calls == 4);
+  }
+
+  SECTION("M deliver current state again W message handler is recreated") {
+    // Given a Rum feature with a context receiver that counts its calls
+    int calls = 0;
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([&](const RumContextMessage&) { ++calls; });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    const auto ctx = MakeReceiverContext(UUID::Random(), UUID::Random());
+    (*rum->MakeMessageHandler())(ContextChangedMessage{ctx});
+    REQUIRE(calls == 1);
+
+    // When the SDK restarts, so Core requests a new handler, and the same state is
+    // delivered
+    (*rum->MakeMessageHandler())(ContextChangedMessage{ctx});
+
+    // Then the receiver is called again
+    REQUIRE(calls == 2);
+  }
+
+// Exceptions can only be thrown (and contained) in a build with exception support
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+  SECTION("M contain exception W context receiver throws") {
+    // Given a started Rum feature with a context receiver that throws
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([](const RumContextMessage&) {
+      throw std::runtime_error("boom");
+    });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+
+    // When a context change is delivered
+    // Then the exception does not escape the handler
+    REQUIRE_NOTHROW(
+        handler(ContextChangedMessage{MakeReceiverContext(UUID::Random(), UUID::Zero)})
+    );
+
+    // And a diagnostic error is logged
+    REQUIRE(
+        std::any_of(
+            test.diagnostic_messages.begin(),
+            test.diagnostic_messages.end(),
+            [](const CapturedDiagnosticMessage& m) {
+              return m.level == DiagnosticLevel::Error &&
+                     m.text == "RUM context receiver threw an exception";
+            }
+        )
+    );
+  }
+#endif
+
+  SECTION("M do nothing W no context receiver is configured") {
+    // Given a started Rum feature with no receiver
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+
+    // When a context change is delivered, nothing happens
+    REQUIRE_NOTHROW(
+        handler(ContextChangedMessage{MakeReceiverContext(UUID::Random(), UUID::Zero)})
+    );
   }
 }

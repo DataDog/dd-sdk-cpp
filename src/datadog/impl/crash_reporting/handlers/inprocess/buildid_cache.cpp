@@ -8,9 +8,7 @@
 
 #ifdef _WIN32
 // clang-format off
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "datadog/impl/types/windows_headers.hpp"
 #include <tlhelp32.h>  // ToolHelp32 snapshot APIs; must follow windows.h
 // clang-format on
 

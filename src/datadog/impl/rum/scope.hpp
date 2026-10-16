@@ -9,31 +9,24 @@
 #include <algorithm>
 #include <cinttypes>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
 
-#include "datadog/impl/core/attribute/typed_attribute.hpp"
+#include "datadog/rum.hpp"
+#include "datadog/uuid.hpp"
+
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/rum/command.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog {
 struct RumConfig;
 }
 
 namespace datadog::impl {
-
-/**
- * Given a raw 64-bit `seed` and a `sample_rate` in [0, 100]: applies Knuth
- * multiplicative hashing and compares the result against a threshold scaled from
- * `sample_rate`. Returns true if the session should be sampled in.
- *
- * Exposed for direct testing with seed values used in other SDKs' test suites.
- * Production code goes through `RumScopeDependencies::ShouldSampleSession`.
- */
-bool ShouldSampleSessionFromSeed(uint64_t seed, float sample_rate);
 
 /**
  * Immutable set of input values used during RumScope processing.
@@ -43,6 +36,8 @@ struct RumScopeDependencies {
   UUID application_id;
   DiagnosticLogger diagnostic_logger;
   const platform::IClock& clock;
+  bool track_anonymous_user;  // From RumConfig::track_anonymous_user
+  std::shared_ptr<const RumContextReceiver> context_receiver;  // May be null
 
  private:
   float _sampling_rate;  // [0.0f..100.f], from RumConfig::session_sample_rate
@@ -65,6 +60,15 @@ struct RumScopeDependencies {
    * session scope ignores most commands and generate no events.
    */
   bool ShouldSampleSession(const UUID& session_id) const;
+
+  /** Returns the configured session sample rate in [0.0, 100.0]. */
+  float GetSessionSampleRate() const { return _sampling_rate; }
+
+  /**
+   * Returns a mutable reference to the reusable buffer where RUM event payloads are
+   * encoded. May only be called from the context thread.
+   */
+  std::vector<uint8_t>& GetEncodeBuffer() const { return _encode_buffer; }
 
   /**
    * Encodes a RUM event to JSON without writing it. The caller uses the returned

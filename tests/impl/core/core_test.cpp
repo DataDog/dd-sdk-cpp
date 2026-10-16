@@ -9,6 +9,8 @@
 #include <atomic>
 #include <utility>
 
+#include "datadog/uuid.hpp"
+
 #include "datadog/impl/core/feature_message.hpp"
 
 #include "mock/clock.hpp"
@@ -302,6 +304,107 @@ TEST_CASE("Core Lifecycle", "[unit]") {
     // Then OnCoreStopping() should be called
     REQUIRE(feature->num_start_calls == 1);
     REQUIRE(feature->num_stop_calls == 1);
+  }
+}
+
+// Like _make_core, but also hands back a raw pointer to the underlying MockFilesystem
+// (owned by the returned Core's CoreSubsystems) so tests can inspect the resulting
+// on-disk state.
+static impl::Core _make_core_with_fs(
+    DiagnosticMessageBuffer& diagnostics, MockFilesystem*& out_fs
+) {
+  auto fs = std::make_unique<MockFilesystem>();
+  fs->Mkdirs("app");
+  out_fs = fs.get();
+  return impl::Core(
+      CoreConfig("test-client-token", "initial-service", "initial-env")
+          .SetApplicationStoragePath("app")
+          .SetDiagnosticHandler(diagnostics.CreateHandler())
+          .SetDiagnosticThreshold(datadog::DiagnosticLevel::Debug)
+          .SetVersion("1.0.0")
+          .SetBatchSize(BatchSize::Small)
+          .SetUploadFrequency(UploadFrequency::Frequent)
+          .SetBatchProcessingLevel(BatchProcessingLevel::Low),
+      TrackingConsent::Granted,
+      CoreSubsystems(
+          std::make_unique<MockClock>(),
+          std::move(fs),
+          std::make_unique<MockHttpSubsystem>(),
+          std::make_unique<MockSystemInfo>()
+      )
+  );
+}
+
+TEST_CASE("Core anonymous_id", "[unit]") {
+  // Core::Init() unconditionally resolves (or generates and persists) an anonymous
+  // user id, storing it in a '.core' artifact directory beneath application storage.
+  // Whether that id is ever exposed on events is a decision made later by RUM (see
+  // cpp/rum_cpp_api_test.cpp); these tests only cover the underlying persistence.
+  DiagnosticMessageBuffer diagnostics;
+  static const char* kIdFilePath = "app/.datadog/.core/id";
+
+  SECTION("M generate and persist a new id W Init is called and none exists") {
+    // Given a core with no anonymous_id file yet
+    MockFilesystem* fs = nullptr;
+    impl::Core core = _make_core_with_fs(diagnostics, fs);
+
+    // When Init() is called
+    REQUIRE(core.Init());
+
+    // Then a valid, persisted UUID text value now exists on disk
+    REQUIRE(fs->IsFile(kIdFilePath));
+    std::string id = fs->Cat(kIdFilePath);
+    REQUIRE(id.size() == 36);
+    REQUIRE(UUID::Parse(id).has_value());
+  }
+
+  SECTION("M reuse the existing id W Init is called and a valid id file exists") {
+    // Given a core with an existing, valid anonymous_id file
+    MockFilesystem* fs = nullptr;
+    impl::Core core = _make_core_with_fs(diagnostics, fs);
+    const UUID existing = UUID::Random();
+    fs->Mkdirs("app/.datadog/.core");
+    fs->Touch(kIdFilePath, existing.ToString());
+
+    // When Init() is called
+    REQUIRE(core.Init());
+
+    // Then the persisted value is left unchanged
+    REQUIRE(fs->Cat(kIdFilePath) == existing.ToString());
+  }
+
+  SECTION("M regenerate the id W Init is called and the existing id file is corrupt") {
+    // Given a core with a corrupt (non-UUID) anonymous_id file
+    MockFilesystem* fs = nullptr;
+    impl::Core core = _make_core_with_fs(diagnostics, fs);
+    fs->Mkdirs("app/.datadog/.core");
+    fs->Touch(kIdFilePath, "not-a-valid-uuid");
+
+    // When Init() is called
+    REQUIRE(core.Init());
+
+    // Then the corrupt file is overwritten with a newly-generated, valid id
+    std::string id = fs->Cat(kIdFilePath);
+    REQUIRE(UUID::Parse(id).has_value());
+  }
+
+  SECTION("M still succeed W Init is called and the id file can't be written") {
+    // Given a core whose '.core' artifact directory exists, but where opening files
+    // within it is simulated to fail
+    MockFilesystem* fs = nullptr;
+    impl::Core core = _make_core_with_fs(diagnostics, fs);
+    fs->Mkdirs("app/.datadog/.core");
+    fs->SimulateFailure(
+        "app/.datadog/.core",
+        FilesystemResult::PermissionDenied,
+        MockFilesystem::FailureFlags::Open
+    );
+
+    // When Init() is called, it should still succeed overall
+    REQUIRE(core.Init());
+
+    // But no anonymous_id file is ever produced
+    REQUIRE_FALSE(fs->IsFile(kIdFilePath));
   }
 }
 

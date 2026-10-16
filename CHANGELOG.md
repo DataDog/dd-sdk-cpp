@@ -1,3 +1,17 @@
+## 0.8.0
+
+### Features
+
+- A WinHTTP-based `IHttpClient` implementation is now available and is used by default on Windows, removing the mandatory dependency on `libcurl` for Windows builds.
+- The SDK will now generate an anonymous user ID, persisting the same value across launches, and attaching that ID to RUM and Log events. Configure the SDK with `SetTrackAnonymousUser(false)` to omit the `anonymous_id` value from all events.
+- RUM can now be configured with an optional `RumContextReceiver` callback function, which will be notified of changes to internally-generated RUM values like `session_id`, `view_id`, or `anonymous_id`.
+
+### Fixes
+
+- Errors can now be reported with a custom fingerprint attribute that overrides the default grouping behavior in Error Tracking.
+- Error events now include a `source_type` property extracted from the `_dd.error.source_type` attribute, enabling cross-platform SDKs to indicate the format of the supplied stack trace.
+- Transport-level HTTP errors (such as TLS certificate failures) are now included in diagnostic log output as `error_code` and `error_message` fields, making it easier to diagnose why requests are failing.
+
 ## 0.7.1
 
 ### Fixes

@@ -12,8 +12,8 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/context.hpp"
-#include "datadog/impl/core/util/assert.hpp"
 #include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 
@@ -258,7 +258,6 @@ std::optional<RumSessionState> RumApplicationScope::GetCurrentSessionState() con
   // Interrogate the chosen RumSessionScope to populate our result value
   const bool did_start_with_replay = false;
   return RumSessionState{
-      _deps.get().application_id,
       session->GetSessionID(),
       session->IsSampled(),
       is_active,

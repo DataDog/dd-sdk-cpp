@@ -17,7 +17,7 @@ from typing import Callable, List, Dict, Optional
 from lib.proxy import ProxyServer
 from lib.repl import ReplProcess, __repo_root__, _next_sdk_id
 
-VALID_CRASH_MODES = ('inprocess', 'crashpad')
+VALID_CRASH_MODES = ('noop', 'inprocess', 'crashpad')
 
 
 @dataclass

@@ -96,6 +96,15 @@ CommandResult Handle(State& state, const CommandInput& input) {
   if (input.Peek() == "create-logger") {
     return HandleCreateLogger(state, input.Shift());
   }
+  if (input.Peek() == "add-logging-attribute") {
+    return HandleAddLoggingAttribute(state, input.Shift());
+  }
+  if (input.Peek() == "add-logger-attribute") {
+    return HandleAddLoggerAttribute(state, input.Shift());
+  }
+  if (input.Peek() == "add-logger-tag") {
+    return HandleAddLoggerTag(state, input.Shift());
+  }
   if (input.Peek() == "log") {
     return HandleLog(state, input.Shift());
   }
@@ -103,6 +112,12 @@ CommandResult Handle(State& state, const CommandInput& input) {
   // datadog::Rum
   if (input.Peek() == "register-rum") {
     return HandleRegisterRum(state, input.Shift());
+  }
+  if (input.Peek() == "add-rum-attribute") {
+    return HandleAddRumAttribute(state, input.Shift());
+  }
+  if (input.Peek() == "add-view-attribute") {
+    return HandleAddViewAttribute(state, input.Shift());
   }
   if (input.Peek() == "stop-session") {
     return HandleStopSession(state, input.Shift());

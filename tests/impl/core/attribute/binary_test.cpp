@@ -11,7 +11,7 @@
 #include <optional>
 
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
-#include "datadog/impl/core/util/json.hpp"
+#include "datadog/impl/types/json.hpp"
 
 #include "mock/filesystem.hpp"
 #include "support/catch.hpp"

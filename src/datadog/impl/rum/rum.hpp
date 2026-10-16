@@ -15,14 +15,13 @@
 #include "datadog/attribute.hpp"
 #include "datadog/rum.hpp"
 
-#include "datadog/impl/core/attribute/typed_attribute.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/rum/command.hpp"
 #include "datadog/impl/rum/context.hpp"
 #include "datadog/impl/rum/resource_types.hpp"
 #include "datadog/impl/rum/scopes/application.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 
@@ -196,7 +195,7 @@ class Rum final : public Feature {
 
  private:
   // Global attributes applied to all RUM events
-  ObjectAttribute _global_attributes;
+  Attribute _global_attributes;
   mutable std::shared_mutex _global_attributes_mutex;
 
   // Input dependencies passed to all child scopes by reference
@@ -222,15 +221,6 @@ class Rum final : public Feature {
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;
   std::string _request_headers;
-
-  // Rum is primarily responsible for servicing RUM API calls and maintaining the state
-  // tree that models the state of the active application. It also handles processing of
-  // crash reports from previous processes, but this process doesn't depend on or modify
-  // the active state tree in any way, so this code lives in `rum/crash_processing/`
-  // rather than polluting `Rum` itself.
-  friend void ContextThread_HandleCrashReport(
-      RumScopeDependencies&, const CrashReport&, const EventWriter&
-  );
 };
 
 }  // namespace datadog::impl

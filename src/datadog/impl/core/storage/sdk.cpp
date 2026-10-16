@@ -11,7 +11,7 @@
 #include <charconv>
 
 #include "datadog/impl/core/storage/util.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 

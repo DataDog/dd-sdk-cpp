@@ -21,7 +21,7 @@
 #include "datadog/impl/core/storage_write.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 

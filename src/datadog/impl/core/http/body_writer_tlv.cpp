@@ -8,7 +8,7 @@
 
 #include "datadog/impl/core/feature_read.hpp"
 #include "datadog/impl/core/http/body_writer_util.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 

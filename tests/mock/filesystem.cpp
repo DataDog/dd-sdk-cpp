@@ -10,9 +10,7 @@
 #include <cstring>
 
 #ifdef _WIN32
-#define NOMINMAX
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
+#include "datadog/impl/types/windows_headers.hpp"
 #endif
 
 using namespace datadog::impl;

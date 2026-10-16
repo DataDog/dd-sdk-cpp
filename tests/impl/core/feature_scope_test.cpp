@@ -10,14 +10,15 @@
 #include <atomic>
 #include <charconv>
 #include <cinttypes>
+#include <cstring>
 #include <utility>
 
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/context_thread.hpp"
-#include "datadog/impl/core/feature_types/rum.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 #include "support/catch.hpp"
 #include "support/context.hpp"
@@ -125,9 +126,9 @@ static uint64_t ReadContextValue(const CoreContext& ctx) {
     return 0;
   }
   const RumFeatureContext& rum_ctx = *ctx.rum;
-  const uint8_t* uuid_bytes = rum_ctx.session_id.bytes.data();
-  const uint64_t* ptr = reinterpret_cast<const uint64_t*>(uuid_bytes);
-  return *ptr;
+  uint64_t value;
+  std::memcpy(&value, rum_ctx.session_id.bytes.data(), sizeof(value));
+  return value;
 }
 
 TEST_CASE("FeatureScope", "[unit][core]") {

@@ -12,7 +12,7 @@
  * Binary layout of the crash context file (all integers encoded in native byte order):
  *
  * 0x0000: CrashContextHeaderMagic  uint64
- * 0x0008: version = 1              uint64
+ * 0x0008: version = 2              uint64
  *         service                  length-prefixed string
  *         env                      length-prefixed string
  *         application_version      length-prefixed string
@@ -33,11 +33,13 @@
  *         user_id                  length-prefixed string (empty if not set)
  *         user_name                length-prefixed string (empty if not set)
  *         user_email               length-prefixed string (empty if not set)
+ *         user_anonymous_id        16 raw bytes (UUID::Zero if not enabled or not set)
  *         user_extra               (see AttributeBinarySerialization)
  *         account_id               length-prefixed string (empty if not set)
  *         account_name             length-prefixed string (empty if not set)
  *         account_extra            (see AttributeBinarySerialization)
  *         rum_application_id       16 raw bytes (Zero if RUM state never broadcast)
+ *         rum_session_sample_rate  float (IEEE 754, 4 bytes)
  *         rum_session_id           16 raw bytes (UUID::Zero if no session)
  *         rum_session_is_sampled   uint8
  *         rum_session_is_active    uint8
@@ -55,7 +57,7 @@
 namespace datadog::impl {
 
 static const uint64_t CrashContextHeaderMagic = 0xdc01;
-static const uint64_t CrashContextFileVersion = 1;
+static const uint64_t CrashContextFileVersion = 2;
 
 static const uint64_t CrashContextFooterMagic = 0xdcff;
 

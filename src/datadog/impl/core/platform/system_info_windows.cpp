@@ -5,9 +5,7 @@
 // Copyright 2025-Present Datadog, Inc.
 
 // clang-format off
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "datadog/impl/types/windows_headers.hpp"
 #include <comdef.h>   // COM definitions; must follow windows.h
 #include <wbemidl.h>  // WMI interfaces; must follow windows.h
 // clang-format on
@@ -19,8 +17,8 @@
 
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/platform/windows_timezone_mapping.hpp"
-#include "datadog/impl/core/util/assert.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 #pragma comment(lib, "wbemuuid.lib")
 

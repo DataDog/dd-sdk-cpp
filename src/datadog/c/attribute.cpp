@@ -9,9 +9,9 @@
 #include <cstring>
 #include <memory>
 
-#include "datadog/impl/core/attribute/cow.hpp"
 #include "datadog/impl/core/attribute/types.hpp"
-#include "datadog/impl/core/util/assert.hpp"
+#include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/attribute/cow.hpp"
 
 // Defensively clamp the maximum array/object capacity to a reasonable upper limit at
 // the API boundary, so that e.g. a call to `dd_attribute_array(-1)` (which would

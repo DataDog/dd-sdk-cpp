@@ -4,6 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+#include <array>
 #include <filesystem>
 #include <map>
 #include <string>
@@ -11,8 +12,7 @@
 
 // Win32 preprocessor defines must be set before Crashpad includes
 #ifdef _WIN32
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
+#include "datadog/impl/types/windows_headers.hpp"
 #endif
 
 #include "client/annotation.h"
@@ -21,11 +21,18 @@
 #include "client/settings.h"
 
 #include "datadog/impl/core/storage/path.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
+#include "datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.hpp"
+#include "datadog/impl/types/crash_annotations.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
+#include "datadog/impl/types/events/omissible.hpp"
+#include "datadog/impl/types/events/struct.hpp"
+#include "datadog/impl/types/json.hpp"
+#include "datadog/impl/types/json/attribute.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 #ifdef _WIN32
-#include <windows.h>  // GetModuleFileName
+// GetModuleFileName included via windows_headers.hpp above
 #else
 #include <limits.h>  // PATH_MAX
 #ifdef __APPLE__
@@ -37,7 +44,17 @@
 // them safe to read during a crash. The Crashpad handler will automatically resolve
 // these values and include them as annotations when the crash dump is uploaded.
 // NOLINTBEGIN(cppcoreguidelines-avoid-non-const-global-variables)
+static crashpad::StringAnnotation<64> s_dd_client_token("dd.client_token");
 static crashpad::StringAnnotation<16> s_dd_tracking_consent("dd.tracking_consent");
+static crashpad::StringAnnotation<512> s_dd_config("dd.config");
+static crashpad::StringAnnotation<256> s_dd_os("dd.os");
+static crashpad::StringAnnotation<512> s_dd_device("dd.device");
+static crashpad::StringAnnotation<2048> s_dd_usr("dd.usr");
+static crashpad::StringAnnotation<2048> s_dd_account("dd.account");
+static crashpad::StringAnnotation<128> s_dd_rum_config("dd.rum.config");
+static crashpad::StringAnnotation<192> s_dd_rum_session("dd.rum.session");
+static crashpad::StringAnnotation<4096> s_dd_rum_attributes("dd.rum.attributes");
+static crashpad::StringAnnotation<8192> s_dd_rum_last_view("dd.rum.last_view");
 // NOLINTEND(cppcoreguidelines-avoid-non-const-global-variables)
 
 /**
@@ -87,6 +104,116 @@ static std::filesystem::path get_crashpad_handler_path() {
 namespace datadog::impl {
 
 /**
+ * Serializes `value` as JSON into a stack-allocated buffer and sets the given Crashpad
+ * string annotation to the result. If encoding fails because the value is too large to
+ * fit in the buffer, resets the annotation to `{}` (clearing any previously-set value)
+ * and logs an error once (guarded by `out_logged_error`).
+ */
+template <uint32_t N, typename T>
+void TrySetAnnotation(
+    crashpad::StringAnnotation<N>& annotation,
+    const T& value,
+    const DiagnosticLogger& logger,
+    bool& out_logged_error
+) {
+  std::array<char, N> buf{};
+  if (auto written = TryEncodeJson(buf.data(), N, value)) {
+    annotation.Set(std::string_view(buf.data(), *written));
+  } else {
+    annotation.Set("{}");
+    if (!out_logged_error) {
+      out_logged_error = true;
+      logger.Error(
+          "Failed to encode Crashpad annotation: value too large for buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  }
+}
+
+/**
+ * Serializes `value` (a struct with extra attributes) as JSON into a stack-allocated
+ * buffer and sets the given Crashpad string annotation to the result. If encoding fails
+ * because the base struct is too large to fit, resets the annotation to `{}` (clearing
+ * any previously-set value) and logs an error once (guarded by `out_logged_error`). If
+ * extra attributes were dropped to fit the buffer, logs a warning once (guarded by
+ * `out_logged_truncation_warning`).
+ */
+template <uint32_t N, typename T>
+void TrySetAnnotationWithExtras(
+    crashpad::StringAnnotation<N>& annotation,
+    const T& value,
+    const DiagnosticLogger& logger,
+    bool& out_logged_error,
+    bool& out_logged_truncation_warning
+) {
+  std::array<char, N> buf{};
+  const auto result = TryEncodeJson(buf.data(), N, value);
+  if (!result) {
+    annotation.Set("{}");
+    if (!out_logged_error) {
+      out_logged_error = true;
+      logger.Error(
+          "Failed to encode Crashpad annotation: value too large for buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  } else {
+    annotation.Set(std::string_view(buf.data(), result->bytes_written));
+    if (result->truncated && !out_logged_truncation_warning) {
+      out_logged_truncation_warning = true;
+      logger.Warning(
+          "Crashpad annotation truncated: extra attributes dropped to fit buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  }
+}
+
+/**
+ * Fits the given RUM View event JSON into the given Crashpad string annotation,
+ * dropping context attributes as needed. If the input is empty, sets the annotation
+ * to `{}`. If the event is too large to fit even after truncation, resets the
+ * annotation to `{}` and logs an error once. If context was dropped to fit, logs a
+ * truncation warning once.
+ */
+template <uint32_t N>
+void TrySetLastViewAnnotation(
+    crashpad::StringAnnotation<N>& annotation,
+    std::string_view last_view_event_json,
+    const DiagnosticLogger& logger,
+    bool& out_logged_error,
+    bool& out_logged_truncation_warning
+) {
+  if (last_view_event_json.empty()) {
+    annotation.Set("{}");
+    return;
+  }
+  std::array<char, N> buf{};
+  const auto result = FitViewEventToBuffer(last_view_event_json, buf);
+  annotation.Set(result.value);
+  if (result.status == FitViewEventResult::Status::Dropped) {
+    if (!out_logged_error) {
+      out_logged_error = true;
+      logger.Error(
+          "Failed to encode Crashpad annotation: last view event too large for "
+          "buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  } else if (result.status == FitViewEventResult::Status::Truncated) {
+    if (!out_logged_truncation_warning) {
+      out_logged_truncation_warning = true;
+      logger.Warning(
+          "Crashpad annotation truncated: last view event context dropped to fit "
+          "buffer",
+          {{"annotation", annotation.name()}}
+      );
+    }
+  }
+}
+
+/**
  * Crash handler implementation that uses the Crashpad client library, in conjunction
  * with an external, out-of-process crashpad_handler executable that will be spawned by
  * the client library on Initialize().
@@ -108,9 +235,29 @@ class CrashpadCrashHandler final : public ICrashHandler {
       IFilesystem& fs,
       const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path,
-      std::string_view upload_origin
+      std::string_view upload_origin,
+      std::string_view client_token
   ) override {
     (void)fs;
+
+    // Store the configured client token in a 'dd.client_token' annotation so the
+    // handler can properly authorize minidump uploads. Note that the client token is
+    // not a highly sensitive secret, and it's already plainly visible in all HTTP
+    // requests sent by the SDK, but using the Crashpad handler _does_ necessarily
+    // surface the client token in .dmp files written when the application crashes.
+    s_dd_client_token.Set(client_token);
+
+    // Initialize other annotation values to their defaults
+    s_dd_tracking_consent.Set("pending");
+    s_dd_config.Set("{}");
+    s_dd_os.Set("{}");
+    s_dd_device.Set("{}");
+    s_dd_usr.Set("{}");
+    s_dd_account.Set("{}");
+    s_dd_rum_config.Set("{}");
+    s_dd_rum_session.Set("{}");
+    s_dd_rum_attributes.Set("{}");
+    s_dd_rum_last_view.Set("{}");
 
     // Prepare Crashpad client options
     std::filesystem::path crashpad_handler_path = helper_exe_path;
@@ -118,8 +265,7 @@ class CrashpadCrashHandler final : public ICrashHandler {
       crashpad_handler_path = get_crashpad_handler_path();
     }
     std::filesystem::path crashpad_database_path = crash_storage_dir_path.Get();
-    const std::string url =
-        std::string(upload_origin) + "/crashpad-ingest-placeholder-path";
+    const std::string url = std::string(upload_origin) + "/api/v2/minidump";
     std::map<std::string, std::string> annotations;
     std::vector<std::string> arguments;
     const bool restartable = false;
@@ -144,8 +290,10 @@ class CrashpadCrashHandler final : public ICrashHandler {
       return false;
     }
 
-    // Initialize annotation values to their defaults
-    s_dd_tracking_consent.Set("pending");
+    // Store the DiagnosticLogger so we can use it to log diagnostic messages if we
+    // receive data in SetCrashContext that can't be fully serialized to Crashpad
+    // annotations
+    _logger = logger;
 
     // When the Crashpad client is first initialized, it populates the configured
     // database directory with configuration metadata and other state. By default, a
@@ -205,6 +353,8 @@ class CrashpadCrashHandler final : public ICrashHandler {
     // which the crashpad_handler executable will capture from process memory on crash
     (void)fs;
 
+    // Set dd.tracking_consent, so the handler's processing/upload of the crash can be
+    // conditioned upon user tracking consent
     const TrackingConsent consent = ctx.tracking_consent;
     if (consent != _tracking_consent) {
       _tracking_consent = consent;
@@ -220,11 +370,161 @@ class CrashpadCrashHandler final : public ICrashHandler {
           break;
       }
     }
+
+    // Set dd.config, so the handler has the essential details of SDK config needed to
+    // generate new RUM events and/or construct upload URLs with appropriate params
+    TrySetAnnotation(
+        s_dd_config,
+        ConfigAnnotation{
+            ctx.service,
+            ctx.env,
+            ctx.application_version,
+            ctx.variant,
+            ctx.source,
+            ctx.sdk_version,
+        },
+        _logger,
+        _logged_config_error
+    );
+
+    // Set dd.os, so the handler can populate the 'os' property on RUM events if it
+    // needs to create them from scratch
+    TrySetAnnotation(
+        s_dd_os,
+        OsAnnotation{
+            ctx.os_name,
+            ctx.os_version,
+            ctx.os_build,
+            ctx.os_version_major,
+        },
+        _logger,
+        _logged_os_error
+    );
+
+    // Set dd.device, so the handler can populate RUM events' 'device' property
+    TrySetAnnotation(
+        s_dd_device,
+        DeviceAnnotation{
+            ctx.device_type,
+            ctx.device_name,
+            ctx.device_model,
+            ctx.device_brand,
+            ctx.device_architecture,
+            ctx.device_locale,
+            ctx.device_time_zone,
+        },
+        _logger,
+        _logged_device_error
+    );
+
+    // Set dd.usr, so the handler can populate 'usr': if the application has provided
+    // more extra user attributes than will fit in our Crashpad annotation buffer, extra
+    // annotations will be dropped from the back
+    TrySetAnnotationWithExtras(
+        s_dd_usr,
+        UsrAnnotation{
+            ctx.user_id,
+            ctx.user_name,
+            ctx.user_email,
+            ctx.user_anonymous_id,
+            ctx.user_extra,
+        },
+        _logger,
+        _logged_usr_error,
+        _logged_usr_truncation_warning
+    );
+
+    // Set dd.account, for 'account' on RUM events: extra attributes will be truncated
+    // from the back as needed to fit
+    TrySetAnnotationWithExtras(
+        s_dd_account,
+        AccountAnnotation{
+            ctx.account_id,
+            ctx.account_name,
+            ctx.account_extra,
+        },
+        _logger,
+        _logged_account_error,
+        _logged_account_truncation_warning
+    );
+
+    // Set dd.rum.config: this ensures that if the handler needs to synthesize a new RUM
+    // session, it can make the same sampling decision that the app would have made
+    TrySetAnnotation(
+        s_dd_rum_config,
+        RumConfigAnnotation{
+            ctx.rum_initial_config.application_id,
+            ctx.rum_initial_config.session_sample_rate,
+        },
+        _logger,
+        _logged_rum_config_error
+    );
+
+    // Set dd.rum.session, telling the handler whether the app had an active RUM session
+    // when it crashed, and if so, what state that session was in: this allows the
+    // handler to make decisions about how to create and/or modify RUM view events as
+    // needed to record the crash as an error
+    TrySetAnnotation(
+        s_dd_rum_session,
+        RumSessionAnnotation{
+            ctx.rum_session_state.session_id,
+            ctx.rum_session_state.is_sampled,
+            ctx.rum_session_state.is_active,
+            ctx.rum_session_state.is_initial_session,
+            ctx.rum_session_state.has_tracked_any_view,
+            ctx.rum_session_state.did_start_with_replay,
+        },
+        _logger,
+        _logged_rum_session_error
+    );
+
+    // Set dd.rum.attributes, recording the last-known set of global RUM attributes so
+    // that the handler can include an up-to-date set of attributes with the crash. If
+    // encoding the full set of attributes as a JSON object would exceed the buffer
+    // size, top-level properties will be dropped until it fits.
+    TrySetAnnotationWithExtras(
+        s_dd_rum_attributes,
+        ctx.global_rum_attributes,
+        _logger,
+        _logged_rum_attributes_error,
+        _logged_rum_attributes_truncation_warning
+    );
+
+    // Set dd.rum.last_view, recording the full RUM View event that was most recently
+    // produced (or an empty object if no view is active), so that the handler can pull
+    // attributes from that view event as needed to construct an accurate Error event,
+    // and so it can produce a new event to update the state of the view to reflect the
+    // crash. If the event doesn't fit, we'll drop top-level properties from the custom
+    // attributes stored in `context`.
+    TrySetLastViewAnnotation(
+        s_dd_rum_last_view,
+        ctx.last_view_event_json,
+        _logger,
+        _logged_rum_last_view_error,
+        _logged_rum_last_view_truncation_warning
+    );
   };
 
  private:
+  DiagnosticLogger _logger;
+
   // Tracking consent cached on last call to SetCrashContext
   TrackingConsent _tracking_consent{TrackingConsent::Pending};
+
+  // Once-per-process flags preventing repeated logging of the same encode failure
+  bool _logged_config_error{false};
+  bool _logged_os_error{false};
+  bool _logged_device_error{false};
+  bool _logged_usr_error{false};
+  bool _logged_usr_truncation_warning{false};
+  bool _logged_account_error{false};
+  bool _logged_account_truncation_warning{false};
+  bool _logged_rum_config_error{false};
+  bool _logged_rum_session_error{false};
+  bool _logged_rum_attributes_error{false};
+  bool _logged_rum_attributes_truncation_warning{false};
+  bool _logged_rum_last_view_error{false};
+  bool _logged_rum_last_view_truncation_warning{false};
 };
 
 std::unique_ptr<ICrashHandler> CrashHandler::Create() {

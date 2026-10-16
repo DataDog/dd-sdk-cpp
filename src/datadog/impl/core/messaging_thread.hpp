@@ -7,7 +7,7 @@
 #pragma once
 
 #include "datadog/impl/core/message_bus.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 

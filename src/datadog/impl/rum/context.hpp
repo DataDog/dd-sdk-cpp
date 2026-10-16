@@ -11,7 +11,7 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/feature_types/rum.hpp"
+#include "datadog/impl/types/rum.hpp"
 
 namespace datadog::impl {
 

@@ -11,9 +11,9 @@
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
-#include "datadog/impl/core/util/assert.hpp"
-#include "datadog/impl/core/util/json.hpp"
 #include "datadog/impl/crash_reporting/crash_processing.hpp"
+#include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/json.hpp"
 
 namespace datadog::impl {
 
@@ -88,9 +88,12 @@ CrashReporting::MakeMessageHandler() {
       cc.user_name = ctx.user_info.name;
       cc.user_email = ctx.user_info.email;
       cc.user_extra = ctx.user_info.extra;
+      cc.user_anonymous_id = ctx.anonymous_id_enabled ? ctx.anonymous_id : UUID::Zero;
       cc.account_id = ctx.account_info.id;
       cc.account_name = ctx.account_info.name;
       cc.account_extra = ctx.account_info.extra;
+    } else if (const auto* m = std::get_if<RumInitializedMessage>(&msg)) {
+      cc.rum_initial_config = m->initial_config;
     } else if (const auto* m = std::get_if<RumSessionStateChangedMessage>(&msg)) {
       cc.rum_session_state = m->session_state;
     } else if (const auto* m = std::get_if<RumActiveViewUpdatedMessage>(&msg)) {

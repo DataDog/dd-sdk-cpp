@@ -46,7 +46,8 @@ Other important options include:
 
 - `-DCMAKE_BUILD_TYPE=Debug` (or `Release`, or `RelWithDbgInfo`)
 - `-DBUILD_SHARED_LIBS=ON` will build the SDK as a shared library; use `OFF` for a static library build
-- `-DDD_HTTP_USE_SYSTEM_LIBCURL=ON` will link the SDK dynamically against the version of libcurl installed on your system; use `OFF` to download libcurl, build it from source, and link it into the `dd-sdk-cpp` binary
+- `-DDD_HTTP_CLIENT=winhttp`, `libcurl`, or `none` selects the HTTP client implementation; the default is `winhttp` on Windows and `libcurl` elsewhere
+- `-DDD_HTTP_USE_SYSTEM_LIBCURL=ON` will link the SDK dynamically against the version of libcurl installed on your system; use `OFF` to download libcurl, build it from source, and link it into the `dd-sdk-cpp` binary (this applies only when `DD_HTTP_CLIENT=libcurl`)
 - `-DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON` will permit the CMake configuration process to download **clang-format** and **clang-tidy** if not already present on your system
 - `-DDD_ENABLE_CLANG_FORMAT=OFF` and `-DDD_ENABLE_CLANG_TIDY=OFF` will omit those tools from the build
 - `-DDD_ENABLE_COVERAGE=OFF` will disable `llvm-cov` instrumentation in environments where it's unsupported or undesirable
@@ -126,12 +127,17 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 - [`src/datadog/c/`][src-c] implements the C API.
 - [`src/datadog/cpp/`][src-cpp] implements the C++ API.
 - [`src/datadog/impl/`][src-impl] implements the core business logic of the library, split into:
+    - [`types/`][impl-types] implements essential data types and related routines used across modules, including:
+        - [`attribute/`][types-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
+        - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
+        - [`events/`][types-events]: Utilities used to build JSON-serializable struct types for event payloads
+        - [`diagnostics.hpp`][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
+        - [`logging.hpp`][types-logging]: Logging-related data structures used across module boundaries
+        - [`rum.hpp`][types-rum]: RUM-related data structures, including RUM events adhering to [rum-events-format]
+        - [`crash_reporting.hpp`][types-crash-reporting]: CrashReporting-related data structures used across modules
+    - [`crash_processing/`][impl-crash-processing] defines common logic used to produce new and/or updated RUM events in response to a crash that's been detected by the SDK: this code is used within the [`rum/`][impl-rum] feature, but it's also shared with the modified Crashpad handler process when built with `DD_CRASH_MODE=crashpad`
     - [`core/`][impl-core] implements the primary business logic of the SDK, including:
-        - [`util/`][core-util]: Internal utility code for commonly-used functionality like asserts, diagnostic logging, etc.
-        - [`attribute/`][core-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
-        - [`json/`][core-json]: Minimal JSON serialization routines for encoding event data and attribute values
-        - [`events/`][core-events]: Utilities used to build JSON-serializable struct types for event payloads
-        - [`feature_types/`][core-feature-types]: Feature-specific data types used across module boundaries, including event payload types and shared context types
+        - [`util/`][core-util]: Internal utility code for commonly-used functionality
         - [`storage/`][core-storage]: Code used to access the filesystem, prepare the SDK's `.datadog/` storage directory, and write and migrate event data
         - [`platform/`][core-platform]: Implementations of platform-specific functionality like system info, HTTP client, and access to the system clock
         - [`core.hpp`][core-hpp]: Internal core of the SDK, which handles initialization, feature registration, and which runs the storage and upload threads.
@@ -154,12 +160,17 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [src-c]: ./src/datadog/c/
 [src-cpp]: ./src/datadog/cpp/
 [src-impl]: ./src/datadog/impl/
+[impl-types]: ./src/datadog/impl/types/
+[types-attribute]: ./src/datadog/impl/types/attribute/
+[types-json]: ./src/datadog/impl/types/json/
+[types-events]: ./src/datadog/impl/types/events/
+[types-diagnostics]: ./src/datadog/impl/types/diagnostics.hpp
+[types-logging]: ./src/datadog/impl/types/logging.hpp
+[types-rum]: ./src/datadog/impl/types/rum.hpp
+[types-crash-reporting]: ./src/datadog/impl/types/crash_reporting.hpp
+[impl-crash-processing]: ./src/datadog/impl/crash_processing/
 [impl-core]: ./src/datadog/impl/core/
 [core-util]: ./src/datadog/impl/core/util/
-[core-attribute]: ./src/datadog/impl/core/attribute/
-[core-json]: ./src/datadog/impl/core/json/
-[core-events]: ./src/datadog/impl/core/events/
-[core-feature-types]: ./src/datadog/impl/core/feature_types/
 [core-storage]: ./src/datadog/impl/core/storage/
 [core-platform]: ./src/datadog/impl/core/platform/
 [core-hpp]: ./src/datadog/impl/core/core.hpp

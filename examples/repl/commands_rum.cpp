@@ -163,6 +163,46 @@ CommandResult HandleRegisterRum(State& state, const CommandInput&) {
   return CommandResult::OK("Rum::Register()");
 }
 
+CommandResult HandleAddRumAttribute(State& state, const CommandInput& args) {
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+  auto named = args.Named();
+  auto attrs = CollectAttributes(named);
+  if (attrs) {
+    for (size_t i = 0; i < attrs->GetObjectPropertyCount(); i++) {
+      state.rum->AddAttribute(
+          attrs->GetObjectPropertyNameAt(static_cast<int>(i)),
+          attrs->GetObjectPropertyValueAt(static_cast<int>(i))
+      );
+    }
+  }
+  return CommandResult::OK("Rum::AddAttribute()");
+}
+
+CommandResult HandleAddViewAttribute(State& state, const CommandInput& args) {
+  if (!state.rum) {
+    return CommandResult::Error("RUM is not registered!");
+  }
+  if (!state.started) {
+    return CommandResult::Error("SDK is not running!");
+  }
+  auto named = args.Named();
+  auto attrs = CollectAttributes(named);
+  if (attrs) {
+    for (size_t i = 0; i < attrs->GetObjectPropertyCount(); i++) {
+      state.rum->AddViewAttribute(
+          attrs->GetObjectPropertyNameAt(static_cast<int>(i)),
+          attrs->GetObjectPropertyValueAt(static_cast<int>(i))
+      );
+    }
+  }
+  return CommandResult::OK("Rum::AddViewAttribute()");
+}
+
 CommandResult HandleStopSession(State& state, const CommandInput&) {
   // RUM must be registered and SDK must be running
   if (!state.rum) {
@@ -195,8 +235,9 @@ CommandResult HandleStartView(State& state, const CommandInput& args) {
   // Named args
   auto named = args.Named();
   auto view_name = Unquote(named.Get("name"));
+  auto attrs = CollectAttributes(named);
 
-  state.rum->StartView(view_key, view_name);
+  state.rum->StartView(view_key, view_name, attrs.value_or(datadog::Attribute{}));
   return CommandResult::OK("Rum::StartView()");
 }
 
@@ -216,7 +257,11 @@ CommandResult HandleStopView(State& state, const CommandInput& args) {
     return CommandResult::Error("No view key given!");
   }
 
-  state.rum->StopView(view_key);
+  // Named args
+  auto named = args.Named();
+  auto attrs = CollectAttributes(named);
+
+  state.rum->StopView(view_key, attrs.value_or(datadog::Attribute{}));
   return CommandResult::OK("Rum::StopView()");
 }
 
@@ -248,7 +293,9 @@ CommandResult HandleAddAction(State& state, const CommandInput& args) {
     }
   }
 
-  state.rum->AddAction(type, name);
+  auto attrs = CollectAttributes(named);
+
+  state.rum->AddAction(type, name, attrs.value_or(datadog::Attribute{}));
   return CommandResult::OK("Rum::AddAction()");
 }
 
@@ -280,7 +327,9 @@ CommandResult HandleStartAction(State& state, const CommandInput& args) {
     }
   }
 
-  state.rum->StartAction(type, name);
+  auto attrs = CollectAttributes(named);
+
+  state.rum->StartAction(type, name, attrs.value_or(datadog::Attribute{}));
   return CommandResult::OK("Rum::StartAction()");
 }
 
@@ -312,7 +361,9 @@ CommandResult HandleStopAction(State& state, const CommandInput& args) {
     }
   }
 
-  state.rum->StopAction(type, name);
+  auto attrs = CollectAttributes(named);
+
+  state.rum->StopAction(type, name, attrs.value_or(datadog::Attribute{}));
   return CommandResult::OK("Rum::StopAction()");
 }
 
@@ -348,7 +399,9 @@ CommandResult HandleStartResource(State& state, const CommandInput& args) {
     }
   }
 
-  state.rum->StartResource(key, method, url);
+  auto attrs = CollectAttributes(named);
+
+  state.rum->StartResource(key, method, url, attrs.value_or(datadog::Attribute{}));
   return CommandResult::OK("Rum::StartResource()");
 }
 
@@ -391,7 +444,11 @@ CommandResult HandleStopResource(State& state, const CommandInput& args) {
     }
   }
 
-  state.rum->StopResource(key, status_code, size, type);
+  auto attrs = CollectAttributes(named);
+
+  state.rum->StopResource(
+      key, status_code, size, type, attrs.value_or(datadog::Attribute{})
+  );
   return CommandResult::OK("Rum::StopResource()");
 }
 
@@ -427,8 +484,16 @@ CommandResult HandleStopResourceWithError(State& state, const CommandInput& args
     status_code = static_cast<int32_t>(named.GetInt("status"));
   }
 
+  auto attrs = CollectAttributes(named);
+
   state.rum->StopResourceWithError(
-      key, error_message, error_type, error_stack_trace, is_network_error, status_code
+      key,
+      error_message,
+      error_type,
+      error_stack_trace,
+      is_network_error,
+      status_code,
+      attrs.value_or(datadog::Attribute{})
   );
   return CommandResult::OK("Rum::StopResourceWithError()");
 }
@@ -464,7 +529,11 @@ CommandResult HandleAddError(State& state, const CommandInput& args) {
     }
   }
 
-  state.rum->AddError(source, message, type, stack_trace);
+  auto attrs = CollectAttributes(named);
+
+  state.rum->AddError(
+      source, message, type, stack_trace, attrs.value_or(datadog::Attribute{})
+  );
   return CommandResult::OK("Rum::AddError()");
 }
 
@@ -491,7 +560,13 @@ CommandResult HandleAddLongTask(State& state, const CommandInput& args) {
     return CommandResult::Error("Duration must be a non-negative integer!");
   }
 
-  state.rum->AddLongTask(datadog::Duration(duration_ns));
+  // Named args
+  auto named = args.Named();
+  auto attrs = CollectAttributes(named);
+
+  state.rum->AddLongTask(
+      datadog::Duration(duration_ns), attrs.value_or(datadog::Attribute{})
+  );
   return CommandResult::OK("Rum::AddLongTask()");
 }
 

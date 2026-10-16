@@ -406,4 +406,95 @@ TEST_CASE_METHOD(ResourceFixture, "RumResourceScope::Process", "[unit][rum]") {
         nlohmann::json{{"_dd.trace_id", "global-trace-id"}, {"foo", 42}}
     );
   }
+
+  SECTION(
+      "M populate error.source_type and exclude it from context W a recognized "
+      "_dd.error.source_type is provided on StopResourceWithError"
+  ) {
+    // Given a scope started with no attributes
+    RumResourceScope traced_scope(
+        deps,
+        parent,
+        *UUID::Parse(RESOURCE_ID),
+        "source-type-key",
+        RumResourceMethod::Get,
+        "https://www.example.com/api/source-type",
+        clock.Now(),
+        Attribute()
+    );
+
+    // When the resource is stopped with an error carrying a recognized
+    // _dd.error.source_type attribute
+    Attribute stop_attrs = Attribute::Object(2);
+    stop_attrs.SetObjectProperty("_dd.error.source_type", Attribute::String("flutter"));
+    stop_attrs.SetObjectProperty("foo", Attribute::Int(42));
+
+    clock.TickMilliseconds(5);
+    traced_scope.Process(
+        RumCommand::StopResource(
+            RumCommandParams(clock.Now(), {}, stop_attrs),
+            "source-type-key",
+            RumResponseDetails{500},
+            RumErrorDetails{"internal error", "ServerError", "trace\n"}
+        ),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then the error event has 'error.source_type' set
+    auto errors = event_capture.Errors();
+    REQUIRE(errors.size() == 1);
+    const auto& event = errors.front();
+    REQUIRE(event["error"]["source_type"] == "flutter");
+
+    // And context contains only the non-source-type attribute
+    REQUIRE(event["context"] == nlohmann::json{{"foo", 42}});
+  }
+
+  SECTION(
+      "M omit error.source_type, exclude key from context, and warn W an "
+      "unrecognized _dd.error.source_type is provided on StopResourceWithError"
+  ) {
+    RumResourceScope traced_scope(
+        deps,
+        parent,
+        *UUID::Parse(RESOURCE_ID),
+        "bad-source-type-key",
+        RumResourceMethod::Get,
+        "https://www.example.com/api/bad-source-type",
+        clock.Now(),
+        Attribute()
+    );
+
+    // When the resource is stopped with an error carrying an unrecognized
+    // _dd.error.source_type value
+    Attribute stop_attrs = Attribute::Object(1);
+    stop_attrs.SetObjectProperty(
+        "_dd.error.source_type", Attribute::String("some-unknown-platform")
+    );
+
+    clock.TickMilliseconds(5);
+    traced_scope.Process(
+        RumCommand::StopResource(
+            RumCommandParams(clock.Now(), {}, stop_attrs),
+            "bad-source-type-key",
+            RumResponseDetails{500},
+            RumErrorDetails{"internal error", "ServerError", "trace\n"}
+        ),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then the error event has no 'error.source_type' field
+    auto errors = event_capture.Errors();
+    REQUIRE(errors.size() == 1);
+    const auto& event = errors.front();
+    REQUIRE(!event["error"].contains("source_type"));
+
+    // And the key is absent from context regardless
+    REQUIRE(!event.contains("context"));
+
+    // And a diagnostic warning was emitted
+    REQUIRE(!event_capture.Diagnostics().warning.empty());
+  }
 }

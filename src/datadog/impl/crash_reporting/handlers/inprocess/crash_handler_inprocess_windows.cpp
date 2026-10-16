@@ -11,9 +11,7 @@
 // handler.
 
 // clang-format off
-#define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
-#include <windows.h>
+#include "datadog/impl/types/windows_headers.hpp"
 #include <tlhelp32.h>  // ToolHelp32 snapshot APIs for enumerating loaded modules
 // clang-format on
 
@@ -25,12 +23,12 @@
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/path.hpp"
 #include "datadog/impl/core/storage/util.hpp"
-#include "datadog/impl/core/util/assert.hpp"
-#include "datadog/impl/core/util/diagnostics.hpp"
 #include "datadog/impl/crash_reporting/crash_handler.hpp"
 #include "datadog/impl/crash_reporting/data/crash_context_write.hpp"
 #include "datadog/impl/crash_reporting/data/crash_report_write.hpp"
 #include "datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.hpp"
+#include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 
@@ -262,11 +260,13 @@ class InProcessCrashHandler final : public ICrashHandler {
       IFilesystem& fs,
       const StoragePath& crash_storage_dir_path,
       std::string_view helper_exe_path,
-      std::string_view upload_origin
+      std::string_view upload_origin,
+      std::string_view client_token
   ) override {
     // The in-process handler doesn't use a helper executable
     (void)helper_exe_path;
     (void)upload_origin;
+    (void)client_token;
 
     // Set up the crash handler in stages, cleaning up on failure at each step
     DATADOG_ASSERT(!_initialized, "InProcessCrashHandler::Initialize called twice");

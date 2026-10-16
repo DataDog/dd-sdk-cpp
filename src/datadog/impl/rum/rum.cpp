@@ -13,12 +13,12 @@
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/http/body_writer_tlv.hpp"
 #include "datadog/impl/core/http/request_builder.hpp"
-#include "datadog/impl/rum/crash_processing/crash_handling.hpp"
+#include "datadog/impl/crash_processing/crash_events.hpp"
 #include "datadog/impl/rum/resource_types.hpp"
 
 namespace datadog::impl {
 Rum::Rum(const RumConfig& config, const platform::IClock& clock)
-    : _global_attributes(8),
+    : _global_attributes(Attribute::Object(8)),
       _deps(config, clock),
       _application(_deps),
       _application_snapshot() {}
@@ -48,7 +48,13 @@ std::optional<Report> Rum::UploadThread_PrepareReport(
 std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandler() {
   // Bind a weak_ptr to this so the callback will silently no-op after we're destroyed
   const auto weak_self = weak_from_this();
-  return [weak_self](const FeatureMessage& msg) {
+
+  // The values most recently delivered to the context receiver. The handler captures
+  // its own copy, which is recreated on each SDK start so that every run delivers its
+  // initial state; only the messaging thread invokes the handler.
+  std::optional<RumContextMessage> last_delivered;
+
+  return [weak_self, last_delivered](const FeatureMessage& msg) mutable {
   // MSVC flags each `else if (const auto* m = ...)` branch as shadowing an outer `m`,
   // even though the scopes are mutually exclusive
 #ifdef _MSC_VER
@@ -78,7 +84,27 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
         if (!self) {
           return;
         }
-        ContextThread_HandleCrashReport(self->_deps, crash, event_writer);
+
+        // Use our crash_processing code to determine whether this crash should be
+        // handled, and if so, to produce the necessary RUM events
+        ProduceRumEventsForCrash(
+            crash.dump,
+            crash.context,
+            self->_deps.diagnostic_logger,
+            self->_deps.clock.Now(),
+            self->_deps.application_id,
+            self->_deps.GetEncodeBuffer(),
+            [&event_writer](CrashEventType, std::string_view event_data) {
+              // Any RUM events produced in response to a crash are written to storage
+              // as ordinary RUM event data to be uploaded on the next cycle. Crash
+              // processing respects the tracking consent set at the time of the crash,
+              // not the currently-configured value- if we've ended up with events here,
+              // it means consent _was_ granted when this crash occurred, so we write
+              // these events to the consent-granted directory unconditionally.
+              const bool bypass_consent = true;
+              return event_writer(event_data, {}, bypass_consent);
+            }
+        );
       });
     } else if (const auto* m = std::get_if<LogErrorGeneratedMessage>(&msg)) {
       // Abort if our weak_ptr is no longer valid
@@ -105,6 +131,42 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
               RumErrorDetails{m->error_message, m->error_kind, m->error_stack}
           )
       );
+    } else if (const auto* m = std::get_if<ContextChangedMessage>(&msg)) {
+      // Abort if our weak_ptr is no longer valid, or if the app registered no receiver
+      auto self = std::static_pointer_cast<Rum>(weak_self.lock());
+      if (!self || !self->_deps.context_receiver) {
+        return;
+      }
+
+      // Project the context snapshot onto the public message. The anonymous id is
+      // exposed only if the app has enabled tracking it, as on RUM and Log events.
+      const CoreContext& ctx = m->context;
+      const RumContextMessage out{
+          ctx.rum ? ctx.rum->session_id : UUID::Zero,
+          ctx.anonymous_id_enabled ? ctx.anonymous_id : UUID::Zero,
+          ctx.rum ? ctx.rum->view_id : UUID::Zero
+      };
+
+      // Most context changes don't affect the values we publish: skip the callback
+      // unless something the receiver can observe has changed
+      if (last_delivered.has_value() && last_delivered->session_id == out.session_id &&
+          last_delivered->anonymous_id == out.anonymous_id &&
+          last_delivered->view_id == out.view_id) {
+        return;
+      }
+      last_delivered = out;
+
+      // An exception thrown by application code must not unwind into the messaging
+      // thread (when the SDK is built with exception support)
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+      try {
+        (*self->_deps.context_receiver)(out);
+      } catch (...) {
+        self->_deps.diagnostic_logger.Error("RUM context receiver threw an exception");
+      }
+#else
+      (*self->_deps.context_receiver)(out);
+#endif
     }
 #ifdef _MSC_VER
 #pragma warning(pop)
@@ -123,6 +185,13 @@ void Rum::Start() {
   // the scope tree, creating a copy since _scope is reset on Stop()
   _deps.diagnostic_logger = _scope->diagnostic_logger;
 
+  // Expose (or hide) CoreContext::anonymous_id on RUM/Log events, per our config's
+  // trackAnonymousUser setting. The value itself was already resolved by Core::Init();
+  // we're just flipping the gate that both RUM's and Logging's event enrichment check.
+  _scope->UpdateContext([enabled = _deps.track_anonymous_user](CoreContext& ctx) {
+    ctx.anonymous_id_enabled = enabled;
+  });
+
   // Fully reinitialize RUM application state to clear all sessions/views/etc. from
   // previous runs
   _application = RumApplicationScope(_deps);
@@ -133,12 +202,16 @@ void Rum::Start() {
   Attribute snapshot;
   {
     std::shared_lock lock(_global_attributes_mutex);
-    snapshot = _global_attributes.attribute;
+    snapshot = _global_attributes;
   }
   _scope->ExecuteOnContextThread(
-      [snapshot = std::move(snapshot)](
-          const CoreContext&, const EventWriter&, const MessagePublisher& pub
-      ) mutable { pub(RumGlobalAttributesChangedMessage{std::move(snapshot)}); }
+      [snapshot = std::move(snapshot),
+       initial_config = RumInitialConfig{
+           _deps.application_id, _deps.GetSessionSampleRate()
+       }](const CoreContext&, const EventWriter&, const MessagePublisher& pub) mutable {
+        pub(RumInitializedMessage{initial_config});
+        pub(RumGlobalAttributesChangedMessage{std::move(snapshot)});
+      }
   );
 
   // Dispatch SDKInit to start first session
@@ -166,8 +239,8 @@ void Rum::AddAttribute(std::string_view name, const Attribute& value) {
   Attribute snapshot;
   {
     std::unique_lock lock(_global_attributes_mutex);
-    _global_attributes.attribute.SetObjectProperty(name, value);
-    snapshot = _global_attributes.attribute;
+    _global_attributes.SetObjectProperty(name, value);
+    snapshot = _global_attributes;
   }
 
   // If we have no valid FeatureScope, the SDK is not yet running
@@ -192,8 +265,8 @@ void Rum::RemoveAttribute(std::string_view name) {
   Attribute snapshot;
   {
     std::unique_lock lock(_global_attributes_mutex);
-    _global_attributes.attribute.DeleteObjectProperty(name);
-    snapshot = _global_attributes.attribute;
+    _global_attributes.DeleteObjectProperty(name);
+    snapshot = _global_attributes;
   }
 
   // If we have no valid FeatureScope, the SDK is not yet running
@@ -362,7 +435,7 @@ void Rum::ReportAppFullyDisplayed() {
 RumCommandParams Rum::GetBaseCommandParams(const Attribute& attributes) const {
   // Create a shallow copy of the global attributes
   std::shared_lock read_only_lock(_global_attributes_mutex);
-  Attribute global_attributes = _global_attributes.attribute;
+  Attribute global_attributes = _global_attributes;
   read_only_lock.unlock();
 
   // Read the system clock for our issued_at timestamp

@@ -22,20 +22,24 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/cpp/rum.cpp
     datadog/cpp/uuid.cpp
     datadog/cpp/version.cpp
-    datadog/impl/core/
+    datadog/impl/types/attribute/cow.cpp
+    datadog/impl/types/attribute/merge.cpp
+    datadog/impl/types/json/primitives/bool.cpp
+    datadog/impl/types/json/primitives/float.cpp
+    datadog/impl/types/json/primitives/integer.cpp
+    datadog/impl/types/json/primitives/null.cpp
+    datadog/impl/types/json/primitives/string.cpp
+    datadog/impl/types/json/primitives/timestamp.cpp
+    datadog/impl/types/json/primitives/uuid.cpp
+    datadog/impl/types/json/attribute.cpp
+    datadog/impl/types/json/diagnostic_attribute.cpp
+    datadog/impl/types/json/json_scanner.cpp
+    datadog/impl/types/json/parse_attribute.cpp
+    datadog/impl/types/json/parse_primitives.cpp
+    datadog/impl/types/diagnostics.cpp
+    datadog/impl/types/sampling.cpp
+    datadog/impl/types/upload_util.cpp
     datadog/impl/core/attribute/binary.cpp
-    datadog/impl/core/attribute/cow.cpp
-    datadog/impl/core/attribute/merge.cpp
-    datadog/impl/core/json/primitives/bool.cpp
-    datadog/impl/core/json/primitives/float.cpp
-    datadog/impl/core/json/primitives/integer.cpp
-    datadog/impl/core/json/primitives/null.cpp
-    datadog/impl/core/json/primitives/string.cpp
-    datadog/impl/core/json/primitives/timestamp.cpp
-    datadog/impl/core/json/primitives/uuid.cpp
-    datadog/impl/core/json/attribute.cpp
-    datadog/impl/core/json/diagnostic_attribute.cpp
-    datadog/impl/core/util/diagnostics.cpp
     datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp
     datadog/impl/core/context.cpp
@@ -49,9 +53,9 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/core/storage_thread.cpp
     datadog/impl/core/storage_write.cpp
     datadog/impl/core/tlv.cpp
+    datadog/impl/core/types.cpp
     datadog/impl/core/upload_scheduler.cpp
     datadog/impl/core/upload_thread.cpp
-    datadog/impl/core/upload_util.cpp
 )
 
 # core/storage, with IFilesystem implementation determined per-platform
@@ -77,12 +81,27 @@ target_sources(ddsdkcpp PRIVATE
 )
 
 # We support different HTTP client implementations:
-# - DD_HTTP_CLIENT=libcurl (default)
+# - DD_HTTP_CLIENT=winhttp (default on Windows; uses the WinHTTP API built into the OS)
+# - DD_HTTP_CLIENT=libcurl (default elsewhere)
 # - DD_HTTP_CLIENT=none    (define no client; for use by cross-platform SDKs)
-set(DD_HTTP_CLIENT "libcurl" CACHE STRING "HTTP client backend (libcurl, none)")
-set_property(CACHE DD_HTTP_CLIENT PROPERTY STRINGS "libcurl" "none")
+if(WIN32)
+    set(DD_HTTP_CLIENT_DEFAULT "winhttp")
+else()
+    set(DD_HTTP_CLIENT_DEFAULT "libcurl")
+endif()
+set(DD_HTTP_CLIENT "${DD_HTTP_CLIENT_DEFAULT}" CACHE STRING "HTTP client backend (winhttp, libcurl, none)")
+set_property(CACHE DD_HTTP_CLIENT PROPERTY STRINGS "winhttp" "libcurl" "none")
 
-if(DD_HTTP_CLIENT STREQUAL "libcurl")
+if(DD_HTTP_CLIENT STREQUAL "winhttp")
+    if(NOT WIN32)
+        message(FATAL_ERROR "DD_HTTP_CLIENT=winhttp is only supported on Windows")
+    endif()
+
+    # Use the internal IHttpClient implementation that depends on WinHTTP, which is
+    # installed with the operating system: nothing needs to be built or vendored
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/http/client_winhttp.cpp)
+    target_link_libraries(ddsdkcpp PRIVATE winhttp)
+elseif(DD_HTTP_CLIENT STREQUAL "libcurl")
     # Use the internal IHttpClient implementation that depends on libcurl
     target_sources(ddsdkcpp PRIVATE datadog/impl/core/http/client_curl.cpp)
 
@@ -115,7 +134,7 @@ elseif(DD_HTTP_CLIENT STREQUAL "none")
     endif()
     message(WARNING "Configured with DD_HTTP_CLIENT=none; resulting static library will be unusable without defining an IHttpClient implementation in a downstream build")
 else()
-    message(FATAL_ERROR "Invalid DD_HTTP_CLIENT: ${DD_HTTP_CLIENT}. Must be 'libcurl' or 'none'")
+    message(FATAL_ERROR "Invalid DD_HTTP_CLIENT: ${DD_HTTP_CLIENT}. Must be 'winhttp', 'libcurl', or 'none'")
 endif()
 
 # Inject version number from CMake project config
@@ -245,6 +264,17 @@ else()
     endif()
 endif()
 
+# Common crash processing logic used by RUM as well as the Crashpad handler process:
+# depends only on impl/types/, not impl/core/
+
+target_sources(ddsdkcpp PRIVATE
+    datadog/impl/crash_processing/crash_context_annotations.cpp
+    datadog/impl/crash_processing/crash_events.cpp
+    datadog/impl/crash_processing/crash_formatting.cpp
+    datadog/impl/crash_processing/view_event_mutation.cpp
+    datadog/impl/crash_processing/view_event_parser.cpp
+)
+
 # === logging ===
 
 target_sources(ddsdkcpp PRIVATE
@@ -259,11 +289,6 @@ target_sources(ddsdkcpp PRIVATE
 target_sources(ddsdkcpp PRIVATE
     datadog/impl/rum/containers/resource_map.cpp
     datadog/impl/rum/containers/view_array.cpp
-    datadog/impl/rum/crash_processing/crash_formatting.cpp
-    datadog/impl/rum/crash_processing/crash_handling.cpp
-    datadog/impl/rum/crash_processing/json_scanner.cpp
-    datadog/impl/rum/crash_processing/view_event_mutation.cpp
-    datadog/impl/rum/crash_processing/view_event_parser.cpp
     datadog/impl/rum/scopes/action.cpp
     datadog/impl/rum/scopes/application.cpp
     datadog/impl/rum/scopes/resource.cpp
@@ -323,6 +348,7 @@ elseif(DD_CRASH_MODE STREQUAL "crashpad")
     include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
     target_sources(ddsdkcpp PRIVATE
         datadog/impl/crash_reporting/handlers/crashpad/crash_handler_crashpad.cpp
+        datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.cpp
     )
 else()
     message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")

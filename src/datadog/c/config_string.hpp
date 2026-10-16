@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <cstring>
 
-#include "datadog/impl/core/util/diagnostics.hpp"
+#include "datadog/impl/types/diagnostics.hpp"
 
 // Expands a macro constant to a string literal, e.g. DATADOG_CSTR(63) -> "63".
 // Used to embed DATADOG_MAX_* limit values in static diagnostic message strings

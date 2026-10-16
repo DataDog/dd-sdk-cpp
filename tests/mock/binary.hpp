@@ -7,6 +7,7 @@
 #pragma once
 
 #include <cstdint>
+#include <cstring>
 #include <initializer_list>
 #include <string_view>
 #include <vector>
@@ -17,6 +18,15 @@ struct MockBinaryFile {
   MockBinaryFile& UInt64(uint64_t value) {
     for (int i = 0; i < 8; ++i) {
       bytes.push_back(static_cast<uint8_t>(value >> (i * 8)));
+    }
+    return *this;
+  }
+
+  MockBinaryFile& Float(float value) {
+    uint32_t bits{};
+    std::memcpy(&bits, &value, sizeof(bits));
+    for (int i = 0; i < 4; ++i) {
+      bytes.push_back(static_cast<uint8_t>(bits >> (i * 8)));
     }
     return *this;
   }

@@ -9,10 +9,11 @@
 #include <cstdint>
 
 #ifdef _WIN32
-
-#define WIN32_LEAN_AND_MEAN
-#include <winsock2.h>
-#include <ws2tcpip.h>
+// clang-format off
+#include "datadog/impl/types/windows_headers.hpp"
+#include <winsock2.h>  // Must follow windows.h
+#include <ws2tcpip.h>  // Must follow windows.h
+// clang-format on
 #pragma comment(lib, "ws2_32.lib")
 
 /**
