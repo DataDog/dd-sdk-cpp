@@ -59,8 +59,9 @@ if(DD_CRASHPAD_LOCAL_CLONE)
     set(CRASHPAD_DOWNLOAD_COMMAND_ARG "")
     set(CRASHPAD_BUILD_SUBCOMMAND dev build ${DD_CRASHPAD_LOCAL_CLONE})
 else()
-    # Normal mode: fetch (or sync) the pinned crashpad revision via depot_tools, apply
-    # datadog.patch, then build.
+    # Normal mode: fetch (or sync) the pinned crashpad revision via depot_tools, then
+    # build. Each build ensures the source tree matches the pinned revision and the
+    # current datadog.patch, restoring and re-patching it if the SDK has been updated.
     set(CRASHPAD_SOURCE_DIR_ARG "")
     set(CRASHPAD_DOWNLOAD_COMMAND_ARG DOWNLOAD_COMMAND
         ${Python3_EXECUTABLE} ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py install)
