@@ -14,15 +14,15 @@
 namespace datadog::impl {
 
 /** Interface for a TraceID generator. */
-class ITraceIdGenerator {
+class ITraceIDGenerator {
  public:
-  virtual ~ITraceIdGenerator() = default;
+  virtual ~ITraceIDGenerator() = default;
 
   /** Generate a TraceID. */
   virtual TraceID Generate() = 0;
 
  protected:
-  ITraceIdGenerator() = default;
+  ITraceIDGenerator() = default;
 };
 
 /**
@@ -34,7 +34,7 @@ class ITraceIdGenerator {
  * - The following 32 bits are 0;
  * - The least significative 64 bit are random, uniformely distributed.
  */
-class DefaultTraceIDGenerator final : public ITraceIdGenerator {
+class DefaultTraceIDGenerator final : public ITraceIDGenerator {
  public:
   DefaultTraceIDGenerator(const platform::IClock& clock);
   DefaultTraceIDGenerator(const DefaultTraceIDGenerator&) = delete;

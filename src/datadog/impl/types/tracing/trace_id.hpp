@@ -15,7 +15,7 @@ namespace datadog::impl {
  * 128-bit Trace identifier.
  */
 struct TraceID {
-  TraceID(uint64_t high, uint64_t low);
+  explicit TraceID(uint64_t high, uint64_t low);
 
   bool operator==(const TraceID& other) const {
     return _high == other._high && _low == other._low;
@@ -38,10 +38,10 @@ struct TraceID {
 
  private:
   // The most significant 64 bits.
-  uint64_t _high;
+  const uint64_t _high;
 
   // The least significant 64 bits.
-  uint64_t _low;
+  const uint64_t _low;
 };
 
 }  // namespace datadog::impl

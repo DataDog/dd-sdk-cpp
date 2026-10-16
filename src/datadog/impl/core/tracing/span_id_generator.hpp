@@ -13,15 +13,15 @@
 namespace datadog::impl {
 
 /** Interface for a SpanID generator. */
-class ISpanIdGenerator {
+class ISpanIDGenerator {
  public:
-  virtual ~ISpanIdGenerator() = default;
+  virtual ~ISpanIDGenerator() = default;
 
   /** Generate a SpanID. */
   virtual SpanID Generate() = 0;
 
  protected:
-  ISpanIdGenerator() = default;
+  ISpanIDGenerator() = default;
 };
 
 /**
@@ -29,7 +29,7 @@ class ISpanIdGenerator {
  *
  * This generator generates random, uniformely distributed SpanIDs.
  */
-class DefaultSpanIDGenerator final : public ISpanIdGenerator {
+class DefaultSpanIDGenerator final : public ISpanIDGenerator {
  public:
   DefaultSpanIDGenerator();
   DefaultSpanIDGenerator(const DefaultSpanIDGenerator&) = delete;

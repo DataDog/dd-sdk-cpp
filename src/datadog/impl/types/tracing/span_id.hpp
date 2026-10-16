@@ -15,7 +15,7 @@ namespace datadog::impl {
  * 64-bit Span identifier.
  */
 struct SpanID {
-  SpanID(uint64_t value);
+  explicit SpanID(uint64_t value);
 
   bool operator==(const SpanID& other) const { return _value == other._value; };
 
@@ -36,7 +36,7 @@ struct SpanID {
 
  private:
   // The span ID 64 bit value.
-  uint64_t _value;
+  const uint64_t _value;
 };
 
 }  // namespace datadog::impl
