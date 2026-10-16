@@ -71,6 +71,7 @@ add_executable(tests
     impl/core/storage/sdk_test.cpp
     impl/core/tracing/span_id_generator_test.cpp
     impl/core/tracing/trace_id_generator_test.cpp
+    impl/core/util/insecure_random_generator_test.cpp
     impl/core/util/validation_test.cpp
     impl/core/block_test.cpp
     impl/core/context_test.cpp

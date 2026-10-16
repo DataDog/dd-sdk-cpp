@@ -6,9 +6,8 @@
 
 #pragma once
 
-#include <random>
-
 #include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/core/util/insecure_random_generator.hpp"
 #include "datadog/impl/types/tracing/trace_id.hpp"
 
 namespace datadog::impl {
@@ -47,8 +46,7 @@ class DefaultTraceIDGenerator final : public ITraceIDGenerator {
 
  private:
   const platform::IClock& _clock;
-  std::mt19937 _rng;
-  std::uniform_int_distribution<uint64_t> _distribution;
+  InsecureRandomUInt64Generator _random_generator;
 };
 
 }  // namespace datadog::impl

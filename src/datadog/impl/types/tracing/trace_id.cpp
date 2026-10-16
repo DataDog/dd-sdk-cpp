@@ -7,6 +7,7 @@
 #include "trace_id.hpp"
 
 #include <array>
+#include <cstdio>
 
 namespace datadog::impl {
 

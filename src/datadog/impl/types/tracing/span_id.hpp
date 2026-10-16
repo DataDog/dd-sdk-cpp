@@ -16,6 +16,10 @@ namespace datadog::impl {
  */
 struct SpanID {
   explicit SpanID(uint64_t value);
+  SpanID(const SpanID&) = default;
+  SpanID(SpanID&&) = default;
+  SpanID& operator=(const SpanID&) = default;
+  SpanID& operator=(SpanID&&) = default;
 
   bool operator==(const SpanID& other) const { return _value == other._value; };
 
@@ -32,11 +36,11 @@ struct SpanID {
    *
    * An ID is valid if at least one bit is 1.
    */
-  bool IsValid() { return _value != 0; };
+  [[nodiscard]] bool IsValid() const { return _value != 0; };
 
  private:
   // The span ID 64 bit value.
-  const uint64_t _value;
+  uint64_t _value;
 };
 
 }  // namespace datadog::impl

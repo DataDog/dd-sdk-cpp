@@ -6,8 +6,7 @@
 
 #pragma once
 
-#include <random>
-
+#include "datadog/impl/core/util/insecure_random_generator.hpp"
 #include "datadog/impl/types/tracing/span_id.hpp"
 
 namespace datadog::impl {
@@ -42,8 +41,7 @@ class DefaultSpanIDGenerator final : public ISpanIDGenerator {
   SpanID Generate() override;
 
  private:
-  std::mt19937 _rng;
-  std::uniform_int_distribution<uint64_t> _distribution;
+  InsecureRandomUInt64Generator _random_generator;
 };
 
 }  // namespace datadog::impl

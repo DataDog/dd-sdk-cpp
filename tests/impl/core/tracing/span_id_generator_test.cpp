@@ -7,6 +7,7 @@
 #include "datadog/impl/core/tracing/span_id_generator.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstdint>
 #include <unordered_set>
 
 using namespace datadog::impl;
@@ -27,5 +28,11 @@ TEST_CASE("DefaultSpanIDGenerator", "[unit][tracing]") {
     // The probability of this test failing, assuming a good quality, truly uniform
     // distribution is ~2.31e-760. So if it fails, there's probably a real bug.
     REQUIRE(values.size() >= MINIMUM_UNIQUE_VALUES);
+
+    // Make sure all values have their most significant bit unset.
+    for (const auto& value : values) {
+      const uint64_t numeric_value = std::stoull(value, nullptr, 16);
+      REQUIRE(numeric_value <= INT64_MAX);
+    }
   }
 }

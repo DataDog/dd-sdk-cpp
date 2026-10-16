@@ -9,19 +9,12 @@
 namespace datadog::impl {
 
 DefaultSpanIDGenerator::DefaultSpanIDGenerator()
-    : _rng(std::random_device{}()),
-      _distribution(
-          std::numeric_limits<uint64_t>::min(), std::numeric_limits<uint64_t>::max()
-      ) {}
+    // Intentionally capped at INT64_MAX since some tracers cannot handle
+    // the most significant bit set.
+    : _random_generator(1, INT64_MAX) {}
 
 SpanID DefaultSpanIDGenerator::Generate() {
-  while (1) {
-    SpanID id(_distribution(_rng));
-
-    if (id.IsValid()) {
-      return id;
-    }
-  }
+  return SpanID(_random_generator.NextValue());
 }
 
 }  // namespace datadog::impl

@@ -34,7 +34,7 @@ TEST_CASE("TraceID", "[unit][tracing]") {
   SECTION("M Validate IDs") {
     REQUIRE_FALSE(TraceID(0, 0).IsValid());
     REQUIRE(TraceID(0, 1).IsValid());
-    REQUIRE(TraceID(1, 0).IsValid());
+    REQUIRE_FALSE(TraceID(1, 0).IsValid());
     REQUIRE(TraceID(1, 1).IsValid());
     REQUIRE(TraceID(
                 std::numeric_limits<uint64_t>::max(),

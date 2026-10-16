@@ -119,6 +119,9 @@ struct TraceContext {
   /** The unique identifier for the current account, if any. */
   std::optional<std::string> account_id;
 
+  /** GraphQL request attributes extracted from the request, if any. */
+  std::optional<GraphQLRequestAttributes> graphql;
+
   /**
    * Initializes a `TraceContext` instance with the provided parameters.
    *
@@ -132,6 +135,7 @@ struct TraceContext {
    * @param session_id The unique identifier for the current RUM Session, if any.
    * @param user_id The unique identifier for the current user, if any.
    * @param account_id The unique identifier for the current account, if any.
+   * @param graphql GraphQL request attributes extracted from the request, if any.
    */
   explicit TraceContext(
       const TraceID& trace_id,
@@ -142,7 +146,8 @@ struct TraceContext {
       SamplingMechanism sampling_decision_maker,
       const std::optional<UUID>& session_id,
       const std::optional<std::string_view> user_id,
-      const std::optional<std::string_view> account_id
+      const std::optional<std::string_view> account_id,
+      const std::optional<GraphQLRequestAttributes>& graphql
   );
 };
 

@@ -16,6 +16,10 @@ namespace datadog::impl {
  */
 struct TraceID {
   explicit TraceID(uint64_t high, uint64_t low);
+  TraceID(const TraceID&) = default;
+  TraceID(TraceID&&) = default;
+  TraceID& operator=(const TraceID&) = default;
+  TraceID& operator=(TraceID&&) = default;
 
   bool operator==(const TraceID& other) const {
     return _high == other._high && _low == other._low;
@@ -32,16 +36,16 @@ struct TraceID {
   /**
    * True if this is a valid ID, false otherwise.
    *
-   * An ID is valid if at least one bit is 1.
+   * An ID is valid if at least one of the least 64 bits is 1.
    */
-  bool IsValid() { return _high != 0 || _low != 0; };
+  [[nodiscard]] bool IsValid() const { return _low != 0; };
 
  private:
   // The most significant 64 bits.
-  const uint64_t _high;
+  uint64_t _high;
 
   // The least significant 64 bits.
-  const uint64_t _low;
+  uint64_t _low;
 };
 
 }  // namespace datadog::impl

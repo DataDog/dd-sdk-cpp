@@ -28,7 +28,8 @@ TraceContext::TraceContext(
     SamplingMechanism sampling_decision_maker,
     const std::optional<UUID>& session_id,
     const std::optional<std::string_view> user_id,
-    const std::optional<std::string_view> account_id
+    const std::optional<std::string_view> account_id,
+    const std::optional<GraphQLRequestAttributes>& graphql
 )
     : trace_id(trace_id),
       span_id(span_id),
@@ -38,6 +39,7 @@ TraceContext::TraceContext(
       sampling_decision_maker(sampling_decision_maker),
       session_id(session_id),
       user_id(user_id),
-      account_id(account_id) {}
+      account_id(account_id),
+      graphql(graphql) {}
 
 }  // namespace datadog::impl
