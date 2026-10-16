@@ -24,6 +24,10 @@ Commands:
 - `main.py gn ls`: Lists all targets in the generated gn build
 - `main.py gn desc //client:client --format=json`: Inspects gn build config for a target
 - `main.py build`: runs install, builds with `gn gen` and `ninja build`, runs tests
+    - before building, ensures the source tree is at the pinned revision with the
+        current datadog.patch applied; if the SDK has been updated such that either has
+        changed, the tree is reset to a pristine checkout (discarding local changes) and
+        re-patched
     - add `--out-dir <path>` to specify a build directory
     - add `--no-install` to skip the install steps
     - add `--no-test` to skip running Crashpad's test suite
@@ -58,13 +62,14 @@ the following values MUST be provided:
 import os
 import sys
 import json
+import hashlib
 import platform
 import pathlib
 import subprocess
 import argparse
 import tempfile
 from dataclasses import dataclass, field
-from typing import Dict, List, Set
+from typing import Dict, List, Optional, Set
 
 __repo_root__ = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..'))
 __chromium_root__ = os.path.join(__repo_root__, 'chromium')
@@ -356,7 +361,12 @@ def write_pinned_revision(new_hash: str) -> None:
 
 
 def apply_patch(repo_root: str) -> None:
-    """Idempotently apply datadog.patch to the git repo at repo_root."""
+    """Idempotently apply datadog.patch to the git repo at repo_root.
+
+    Used by `dev init` against a developer's local clone, so this never discards local
+    changes. SDK builds use ensure_patched_source() instead, which can recover a fetched
+    source tree that has a stale version of the patch applied.
+    """
     # If the patch file is absent or empty there is nothing to do
     if not os.path.isfile(__patch_file__) or os.path.getsize(__patch_file__) == 0:
         print('No patch to apply.')
@@ -442,6 +452,155 @@ def fetch_crashpad():
         print('Syncing crashpad...')
         _run_depot_tool(['gclient', 'sync'], __crashpad_build_root__)
     print(f'Crashpad is present at: {__crashpad_repo_root__}')
+
+
+def _patch_stamp_path(repo_root: str) -> str:
+    git_dir = subprocess.check_output(
+        ['git', 'rev-parse', '--absolute-git-dir'], cwd=repo_root, text=True
+    ).strip()
+    return os.path.join(git_dir, 'datadog-patch-stamp')
+
+
+def _read_patch_stamp(stamp_path: str) -> Optional[Dict[str, str]]:
+    try:
+        with open(stamp_path, 'r') as f:
+            stamp = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return stamp if isinstance(stamp, dict) else None
+
+
+def _write_patch_stamp(stamp_path: str, stamp: Dict[str, str]) -> None:
+    fd, tmp_path = tempfile.mkstemp(dir=os.path.dirname(stamp_path))
+    try:
+        with os.fdopen(fd, 'w') as f:
+            json.dump(stamp, f)
+        os.replace(tmp_path, stamp_path)
+    except Exception:
+        try:
+            os.unlink(tmp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _compute_patch_sha256() -> str:
+    # A missing patch file is treated as an empty patch: the tree should be pristine
+    if not os.path.isfile(__patch_file__):
+        return hashlib.sha256(b'').hexdigest()
+    with open(__patch_file__, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def _restore_pristine_source(repo_root: str, pinned: str) -> None:
+    """Reset the crashpad repo to the pinned revision and sync its dependencies.
+
+    Discards all changes to tracked files and removes untracked files (but not ignored
+    files, which include dependency checkouts under third_party/ and build output), then
+    runs `gclient sync` so that dependencies match the DEPS file at the pinned revision.
+    Raises on failure, leaving the tree in an indeterminate state.
+    """
+    def has_commit() -> bool:
+        result = subprocess.run(
+            ['git', 'cat-file', '-e', f'{pinned}^{{commit}}'],
+            cwd=repo_root, capture_output=True
+        )
+        return result.returncode == 0
+
+    # If the pin has been bumped, the new revision may not have been fetched yet
+    if not has_commit():
+        print(f'Pinned revision {pinned} not present locally; fetching...')
+        subprocess.check_call(['git', 'fetch', 'origin'], cwd=repo_root)
+        if not has_commit():
+            raise RuntimeError(
+                f'Pinned crashpad revision {pinned!r} could not be found after fetching '
+                f'from origin.'
+            )
+            # Pin refers to a commit that doesn't exist upstream; unable to restore
+
+    # Check out the pinned commit with a detached HEAD so that no branch is moved, then
+    # remove any files that a previous version of datadog.patch may have added
+    subprocess.check_call(['git', 'checkout', '--force', '--detach', pinned], cwd=repo_root)
+    subprocess.check_call(['git', 'clean', '-fd'], cwd=repo_root)
+
+    # .gclient declares crashpad as an unmanaged solution, so gclient sync leaves the
+    # crashpad checkout itself alone and only updates its dependencies. This runs on
+    # every restore (not just when the pin changes) so that a previously interrupted
+    # restore can't leave dependencies out of sync with the checked-out revision.
+    clone_depot_tools()
+    print('Syncing crashpad dependencies...')
+    _run_depot_tool(['gclient', 'sync'], __crashpad_build_root__)
+
+
+def ensure_patched_source() -> None:
+    """Ensure the fetched crashpad source is at the pinned revision with datadog.patch.
+
+    The crashpad source tree at chromium/crashpad/crashpad is untracked by the SDK repo,
+    so it persists when the SDK is updated to a new version, which may pin a different
+    crashpad revision or ship a different datadog.patch. To detect this, we record the
+    pinned revision and the SHA-256 of the patch in a stamp file inside the crashpad
+    repo's .git directory once the patch has been applied. If the stamp matches and HEAD
+    is at the pinned revision, the tree is up to date and is left untouched, so that
+    incremental builds don't recompile anything. Otherwise, the tree is restored to a
+    pristine checkout of the pinned revision and the current patch is applied.
+
+    The stamp is deleted before the tree is modified and written only once the patch
+    has been applied, so if this process is interrupted, the next build will restore
+    the tree again. Raises if the tree can't be restored or the patch doesn't apply.
+    """
+    repo_root = __crashpad_repo_root__
+    if not os.path.isdir(repo_root):
+        raise RuntimeError(
+            f'Crashpad source not found at {repo_root!r}. Run `main.py install` first.'
+        )
+        # Source was never fetched; nothing to patch
+
+    pinned = read_pinned_revision()
+    expected_stamp = {'pinned_revision': pinned, 'patch_sha256': _compute_patch_sha256()}
+    stamp_path = _patch_stamp_path(repo_root)
+    stamp = _read_patch_stamp(stamp_path)
+    head = subprocess.check_output(
+        ['git', 'rev-parse', 'HEAD'], cwd=repo_root, text=True
+    ).strip()
+
+    if stamp == expected_stamp and head == pinned:
+        print('Crashpad source is up to date with datadog.patch.')
+        return
+
+    if stamp is None:
+        reason = 'no record of a previously-applied patch'
+    elif stamp.get('pinned_revision') != pinned:
+        reason = f'pinned revision changed from {stamp.get("pinned_revision")!r}'
+    elif stamp.get('patch_sha256') != expected_stamp['patch_sha256']:
+        reason = 'datadog.patch has changed'
+    else:
+        reason = f'HEAD is {head!r} rather than the pinned revision'
+    print(f'Restoring crashpad source to pinned revision {pinned} ({reason})...')
+
+    try:
+        os.remove(stamp_path)
+    except FileNotFoundError:
+        pass
+    _restore_pristine_source(repo_root, pinned)
+
+    # git apply is atomic: on failure, the tree is left as a pristine checkout
+    if os.path.isfile(__patch_file__) and os.path.getsize(__patch_file__) > 0:
+        apply_result = subprocess.run(
+            ['git', 'apply', '--ignore-whitespace', __patch_file__],
+            cwd=repo_root, capture_output=True, text=True
+        )
+        if apply_result.returncode != 0:
+            raise RuntimeError(
+                f'datadog.patch does not apply to crashpad revision {pinned!r}. The patch '
+                f'must be regenerated against the pinned revision.\n\n'
+                f'git apply stderr:\n{apply_result.stderr}'
+            )
+            # Patch is inconsistent with the pinned revision; unable to build
+        print('Patch applied successfully.')
+    else:
+        print('No patch to apply.')
+
+    _write_patch_stamp(stamp_path, expected_stamp)
 
 
 def build_crashpad(out_dir: str, gn_args: GnArgs, num_parallel_jobs: int, source_root: str = None):
@@ -534,8 +693,9 @@ def build_main(args: argparse.Namespace):
     if cmake_vars:
         gn_args = GnArgs.from_cmake(cmake_vars)
 
-    # Apply our patch to the checked-out crashpad source (idempotent)
-    apply_patch(__crashpad_repo_root__)
+    # Ensure the checked-out crashpad source is at the pinned revision with the current
+    # datadog.patch applied, recovering from any previously-applied version of the patch
+    ensure_patched_source()
 
     # Use gn and ninja to produce a build of crashpad
     build_crashpad(args.out_dir, gn_args, args.parallel)
