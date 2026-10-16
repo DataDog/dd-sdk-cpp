@@ -211,7 +211,7 @@ index 9061c2cb..2819685c 100644
      # having this target produce crashpad_handler_com.com. Don’t use this target
      # directly. Instead, use crashpad_handler_console.
 diff --git a/handler/crash_report_upload_thread.cc b/handler/crash_report_upload_thread.cc
-index bec87142..78ce38b6 100644
+index bec87142..17871a05 100644
 --- a/handler/crash_report_upload_thread.cc
 +++ b/handler/crash_report_upload_thread.cc
 @@ -1,4 +1,6 @@
@@ -250,17 +250,19 @@ index bec87142..78ce38b6 100644
        url_(url),
        // When watching for pending reports, check every 15 minutes, even in the
        // absence of a signal from the handler thread. This allows for failed
-@@ -299,6 +312,19 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
+@@ -299,6 +312,21 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
          BreakpadHTTPFormParametersFromMinidump(&minidump_process_snapshot);
    }
  
 +#if WITH_DATADOG_UPLOAD_EXTENSIONS
 +  HTTPHeaders extra_headers;
++  std::map<std::string, std::string> extra_query_params;
 +  std::string event_payload;
 +  if (pre_upload_callback_) {
 +    if (!pre_upload_callback_(minidump_process_snapshot,
 +                              parameters,
 +                              extra_headers,
++                              extra_query_params,
 +                              event_payload)) {
 +      return UploadResult::kPermanentFailure;
 +    }
@@ -270,7 +272,7 @@ index bec87142..78ce38b6 100644
    if (!reader->SeekSet(start_offset)) {
      return UploadResult::kPermanentFailure;
    }
-@@ -307,16 +333,38 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
+@@ -307,16 +335,38 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
    http_multipart_builder.SetGzipEnabled(options_.upload_gzip);
  
    static constexpr char kMinidumpKey[] = "upload_file_minidump";
@@ -309,7 +311,7 @@ index bec87142..78ce38b6 100644
    for (const auto& it : report->GetAttachments()) {
      http_multipart_builder.SetFileAttachment(
          it.first, it.first, it.second, "application/octet-stream");
-@@ -337,6 +385,11 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
+@@ -337,6 +387,11 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
    for (const auto& content_header : content_headers) {
      http_transport->SetHeader(content_header.first, content_header.second);
    }
@@ -321,8 +323,24 @@ index bec87142..78ce38b6 100644
    http_transport->SetBodyStream(http_multipart_builder.GetBodyStream());
    // TODO(mark): The timeout should be configurable by the client.
    http_transport->SetTimeout(internal::kUploadReportTimeoutSeconds);
+@@ -364,6 +419,15 @@ CrashReportUploadThread::UploadResult CrashReportUploadThread::UploadReport(
+       }
+     }
+   }
++#if WITH_DATADOG_UPLOAD_EXTENSIONS
++  for (const auto& kv : extra_query_params) {
++    url.append(
++        base::StringPrintf("%c%s=%s",
++                           url.find('?') == std::string::npos ? '?' : '&',
++                           kv.first.c_str(),
++                           URLEncode(kv.second).c_str()));
++  }
++#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
+   http_transport->SetURL(url);
+ 
+   if (!http_transport->ExecuteSynchronously(response_body)) {
 diff --git a/handler/crash_report_upload_thread.h b/handler/crash_report_upload_thread.h
-index 22bb26e3..eef01303 100644
+index 22bb26e3..497da2ed 100644
 --- a/handler/crash_report_upload_thread.h
 +++ b/handler/crash_report_upload_thread.h
 @@ -1,4 +1,6 @@
@@ -349,7 +367,7 @@ index 22bb26e3..eef01303 100644
  #include "util/stdlib/thread_safe_vector.h"
  #include "util/thread/stoppable.h"
  #include "util/thread/worker_thread.h"
-@@ -75,6 +80,41 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -75,6 +80,47 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
    //! synchronize appropriately.
    using ProcessPendingReportsObservationCallback = std::function<void()>;
  
@@ -371,6 +389,11 @@ index 22bb26e3..eef01303 100644
 +  //!     present after the callback returns will be set on the outgoing
 +  //!     HTTP request in addition to the standard content headers. Entries
 +  //!     are ignored if the callback returns `false`.
++  //! \param[out] extra_query_params An initially-empty map of URL query
++  //!     parameter name-value pairs. The callback may insert entries; any
++  //!     entries present after the callback returns will be URL-encoded and
++  //!     appended to the upload URL. Entries are ignored if the callback
++  //!     returns `false`.
 +  //! \param[out] event_payload An initially-empty string. If the callback
 +  //!     sets it to a non-empty value, that value is uploaded as a JSON file
 +  //!     part named `event` (with `Content-Type: application/json`). If left
@@ -385,13 +408,14 @@ index 22bb26e3..eef01303 100644
 +      std::function<bool(const ProcessSnapshot&,
 +                         std::map<std::string, std::string>&,
 +                         HTTPHeaders&,
++                         std::map<std::string, std::string>&,
 +                         std::string&)>;
 +#endif  // WITH_DATADOG_UPLOAD_EXTENSIONS
 +
    //! \brief Constructs a new object.
    //!
    //! \param[in] database The database to upload crash reports from.
-@@ -84,10 +124,16 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -84,10 +130,16 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
    //!     on a background thread each time the this object finishes
    //!     processing and attempting to upload on-disk crash reports.
    //!     If this callback is empty, it is not invoked.
@@ -412,7 +436,7 @@ index 22bb26e3..eef01303 100644
  
    CrashReportUploadThread(const CrashReportUploadThread&) = delete;
    CrashReportUploadThread& operator=(const CrashReportUploadThread&) = delete;
-@@ -225,6 +271,9 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
+@@ -225,6 +277,9 @@ class CrashReportUploadThread : public WorkerThread::Delegate,
  
    const Options options_;
    const ProcessPendingReportsObservationCallback callback_;
@@ -424,10 +448,10 @@ index 22bb26e3..eef01303 100644
    ThreadSafeVector<UUID> known_pending_report_uuids_;
 diff --git a/handler/crash_report_upload_thread_test.cc b/handler/crash_report_upload_thread_test.cc
 new file mode 100644
-index 00000000..5122e5e3
+index 00000000..434fa225
 --- /dev/null
 +++ b/handler/crash_report_upload_thread_test.cc
-@@ -0,0 +1,235 @@
+@@ -0,0 +1,237 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -544,6 +568,7 @@ index 00000000..5122e5e3
 +      [&](const ProcessSnapshot&,
 +          std::map<std::string, std::string>& parameters,
 +          HTTPHeaders&,
++          std::map<std::string, std::string>&,
 +          std::string&) -> bool {
 +        received_parameters = parameters;
 +        callback_fired.Signal();
@@ -636,6 +661,7 @@ index 00000000..5122e5e3
 +      [&](const ProcessSnapshot&,
 +          std::map<std::string, std::string>&,
 +          HTTPHeaders&,
++          std::map<std::string, std::string>&,
 +          std::string&) -> bool {
 +        return false;
 +      });
@@ -701,10 +727,10 @@ index 6c17a1d1..d6656340 100644
  }  // extern "C"
 diff --git a/handler/datadog_pre_upload_callback.cc b/handler/datadog_pre_upload_callback.cc
 new file mode 100644
-index 00000000..903730d8
+index 00000000..310587b9
 --- /dev/null
 +++ b/handler/datadog_pre_upload_callback.cc
-@@ -0,0 +1,339 @@
+@@ -0,0 +1,345 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -879,10 +905,12 @@ index 00000000..903730d8
 +}
 +}  // namespace
 +
-+bool DatadogPreUploadCallback(const ProcessSnapshot& snapshot,
-+                              std::map<std::string, std::string>& parameters,
-+                              HTTPHeaders& extra_headers,
-+                              std::string& event_payload) {
++bool DatadogPreUploadCallback(
++    const ProcessSnapshot& snapshot,
++    std::map<std::string, std::string>& parameters,
++    HTTPHeaders& extra_headers,
++    std::map<std::string, std::string>& extra_query_params,
++    std::string& event_payload) {
 +  // Construct a DiagosticLogger that wraps Crashpad's own log output
 +  // functionality, so that diagnostic output related to crash processing will
 +  // be routed to crashpad_handler's stderr
@@ -921,6 +949,10 @@ index 00000000..903730d8
 +  // version values parsed from CrashContext
 +  extra_headers["DD-EVP-ORIGIN"] = crash_context.source;
 +  extra_headers["DD-EVP-ORIGIN-VERSION"] = crash_context.sdk_version;
++
++  // The intake also requires the source as a 'ddsource' query parameter, as
++  // with all other HTTP requests sent by the SDK
++  extra_query_params["ddsource"] = crash_context.source;
 +
 +  // Generate a random UUID to use as a unique request ID
 +  crashpad::UUID request_id;
@@ -1046,10 +1078,10 @@ index 00000000..903730d8
 +#endif
 diff --git a/handler/datadog_pre_upload_callback.h b/handler/datadog_pre_upload_callback.h
 new file mode 100644
-index 00000000..f1e75980
+index 00000000..1c92a5c9
 --- /dev/null
 +++ b/handler/datadog_pre_upload_callback.h
-@@ -0,0 +1,49 @@
+@@ -0,0 +1,53 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -1085,26 +1117,30 @@ index 00000000..f1e75980
 +//!     crash report. The callback may read, modify, or erase entries.
 +//! \param[out] extra_headers Receives the `DD-*` HTTP headers required by the
 +//!     Datadog intake.
++//! \param[out] extra_query_params Receives the URL query parameters required
++//!     by the Datadog intake (e.g. `ddsource`).
 +//! \param[out] event_payload On success, receives the RUM events produced for
 +//!     the crash, as a JSON object of the form
 +//!     `{"view_event":{...},"error_event":{...}}`, where `view_event` may be
 +//!     omitted. Left empty if the upload is suppressed.
 +//!
 +//! \return `true` to proceed with the upload, `false` to suppress it.
-+bool DatadogPreUploadCallback(const ProcessSnapshot& snapshot,
-+                              std::map<std::string, std::string>& parameters,
-+                              HTTPHeaders& extra_headers,
-+                              std::string& event_payload);
++bool DatadogPreUploadCallback(
++    const ProcessSnapshot& snapshot,
++    std::map<std::string, std::string>& parameters,
++    HTTPHeaders& extra_headers,
++    std::map<std::string, std::string>& extra_query_params,
++    std::string& event_payload);
 +
 +}  // namespace crashpad
 +
 +#endif  // CRASHPAD_HANDLER_DATADOG_PRE_UPLOAD_CALLBACK_H_
 diff --git a/handler/datadog_pre_upload_callback_test.cc b/handler/datadog_pre_upload_callback_test.cc
 new file mode 100644
-index 00000000..2fe0754d
+index 00000000..cda75adc
 --- /dev/null
 +++ b/handler/datadog_pre_upload_callback_test.cc
-@@ -0,0 +1,272 @@
+@@ -0,0 +1,282 @@
 +// Copyright 2026 Datadog, Inc.
 +//
 +// Licensed under the Apache License, Version 2.0 (the "License");
@@ -1212,9 +1248,10 @@ index 00000000..2fe0754d
 +  // When we invoke our pre-upload callback to apply RUM crash processing logic
 +  // prior to the HTTP upload of a minidump for this crash
 +  HTTPHeaders extra_headers;
++  std::map<std::string, std::string> extra_query_params;
 +  std::string event_payload;
-+  const bool ok =
-+      DatadogPreUploadCallback(snapshot, params, extra_headers, event_payload);
++  const bool ok = DatadogPreUploadCallback(
++      snapshot, params, extra_headers, extra_query_params, event_payload);
 +
 +  // Then we get the OK to proceed with the upload
 +  EXPECT_TRUE(ok);
@@ -1243,6 +1280,10 @@ index 00000000..2fe0754d
 +  EXPECT_EQ(extra_headers.at("DD-API-KEY"), "fake-client-token");
 +  EXPECT_EQ(extra_headers.at("DD-EVP-ORIGIN"), "alto");
 +  EXPECT_EQ(extra_headers.at("DD-EVP-ORIGIN-VERSION"), "1973.3.1");
++
++  // And the source is also included in the upload URL as a query parameter
++  EXPECT_EQ(extra_query_params.size(), 1u);
++  EXPECT_EQ(extra_query_params.at("ddsource"), "alto");
 +
 +  // And the event payload is a JSON object containing a view event followed by
 +  // an error event
@@ -1288,9 +1329,10 @@ index 00000000..2fe0754d
 +
 +  // When we attempt to process the crash
 +  HTTPHeaders extra_headers;
++  std::map<std::string, std::string> extra_query_params;
 +  std::string event_payload;
-+  const bool ok =
-+      DatadogPreUploadCallback(snapshot, params, extra_headers, event_payload);
++  const bool ok = DatadogPreUploadCallback(
++      snapshot, params, extra_headers, extra_query_params, event_payload);
 +
 +  // Then the crash report is dropped, even though it had all required
 +  // CrashContext
@@ -1301,6 +1343,7 @@ index 00000000..2fe0754d
 +  EXPECT_EQ(CountDatadogParameters(params), 0u);
 +  EXPECT_EQ(params.at("other"), "value");
 +  EXPECT_EQ(extra_headers.size(), 0u);
++  EXPECT_EQ(extra_query_params.size(), 0u);
 +  EXPECT_TRUE(event_payload.empty());
 +}
 +
@@ -1314,9 +1357,10 @@ index 00000000..2fe0754d
 +
 +  // When we attempt to process the crash
 +  HTTPHeaders extra_headers;
++  std::map<std::string, std::string> extra_query_params;
 +  std::string event_payload;
-+  const bool ok =
-+      DatadogPreUploadCallback(snapshot, params, extra_headers, event_payload);
++  const bool ok = DatadogPreUploadCallback(
++      snapshot, params, extra_headers, extra_query_params, event_payload);
 +
 +  // Then the crash report is dropped, even though it had all required
 +  // CrashContext
@@ -1338,9 +1382,10 @@ index 00000000..2fe0754d
 +
 +  // When we attempt to process the crash
 +  HTTPHeaders extra_headers;
++  std::map<std::string, std::string> extra_query_params;
 +  std::string event_payload;
-+  const bool ok =
-+      DatadogPreUploadCallback(snapshot, params, extra_headers, event_payload);
++  const bool ok = DatadogPreUploadCallback(
++      snapshot, params, extra_headers, extra_query_params, event_payload);
 +
 +  // Then the crash report is dropped, even though it had all required
 +  // CrashContext
@@ -1361,9 +1406,10 @@ index 00000000..2fe0754d
 +
 +  // When we attempt to process the crash
 +  HTTPHeaders extra_headers;
++  std::map<std::string, std::string> extra_query_params;
 +  std::string event_payload;
-+  const bool ok =
-+      DatadogPreUploadCallback(snapshot, params, extra_headers, event_payload);
++  const bool ok = DatadogPreUploadCallback(
++      snapshot, params, extra_headers, extra_query_params, event_payload);
 +
 +  // Then the crash report is dropped, because a missing tracking consent value
 +  // is treated the same as 'pending' consent

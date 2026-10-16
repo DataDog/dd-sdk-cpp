@@ -13,6 +13,7 @@ import email
 import email.policy
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import parse_qs
 from lib.test import TestContext
 
 # This test only runs when the SDK was compiled with DD_CRASH_MODE=crashpad
@@ -71,6 +72,12 @@ async def main(t: TestContext):
     sdk_version = upload_request.headers['DD-EVP-ORIGIN-VERSION']
     assert re.match(r'^\d+\.\d+\.\d+$', sdk_version), \
         f"Expected SemVer in DD-EVP-ORIGIN-VERSION; got {sdk_version}"
+
+    # And the same source value is supplied as a 'ddsource' query parameter, as with all
+    # other requests sent to the intake
+    query = parse_qs(upload_request.url.query)
+    assert query.get('ddsource') == ['cpp'], \
+        f"Expected exactly one 'ddsource=cpp' query parameter; got {upload_request.url.query!r}"
 
     # And DD-REQUEST-ID is set to a randomly-generated UUID
     assert uuid.UUID(upload_request.headers['DD-REQUEST-ID']) != uuid.UUID(int=0)
