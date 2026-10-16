@@ -492,6 +492,20 @@ def _compute_patch_sha256() -> str:
         return hashlib.sha256(f.read()).hexdigest()
 
 
+def _is_patch_applied(repo_root: str) -> bool:
+    # A missing or empty patch file is trivially applied
+    if not os.path.isfile(__patch_file__) or os.path.getsize(__patch_file__) == 0:
+        return True
+
+    # If the patch can be cleanly reversed, every change it makes is present in the
+    # worktree; --check ensures that no files are modified
+    result = subprocess.run(
+        ['git', 'apply', '--ignore-whitespace', '--check', '--reverse', __patch_file__],
+        cwd=repo_root, capture_output=True
+    )
+    return result.returncode == 0
+
+
 def _restore_pristine_source(repo_root: str, pinned: str) -> None:
     """Reset the crashpad repo to the pinned revision and sync its dependencies.
 
@@ -539,9 +553,10 @@ def ensure_patched_source() -> None:
     so it persists when the SDK is updated to a new version, which may pin a different
     crashpad revision or ship a different datadog.patch. To detect this, we record the
     pinned revision and the SHA-256 of the patch in a stamp file inside the crashpad
-    repo's .git directory once the patch has been applied. If the stamp matches and HEAD
-    is at the pinned revision, the tree is up to date and is left untouched, so that
-    incremental builds don't recompile anything. Otherwise, the tree is restored to a
+    repo's .git directory once the patch has been applied. If the stamp matches, HEAD is
+    at the pinned revision, and the patch's changes are still present in the worktree,
+    the tree is up to date and is left untouched, so that incremental builds don't
+    recompile anything. Otherwise, the tree is restored to a
     pristine checkout of the pinned revision and the current patch is applied.
 
     The stamp is deleted before the tree is modified and written only once the patch
@@ -563,7 +578,10 @@ def ensure_patched_source() -> None:
         ['git', 'rev-parse', 'HEAD'], cwd=repo_root, text=True
     ).strip()
 
-    if stamp == expected_stamp and head == pinned:
+    # The stamp alone isn't sufficient: it lives in .git, so it survives operations like
+    # `git reset --hard` that would discard the patched changes from the worktree
+    is_current = stamp == expected_stamp and head == pinned
+    if is_current and _is_patch_applied(repo_root):
         print('Crashpad source is up to date with datadog.patch.')
         return
 
@@ -573,8 +591,10 @@ def ensure_patched_source() -> None:
         reason = f'pinned revision changed from {stamp.get("pinned_revision")!r}'
     elif stamp.get('patch_sha256') != expected_stamp['patch_sha256']:
         reason = 'datadog.patch has changed'
-    else:
+    elif head != pinned:
         reason = f'HEAD is {head!r} rather than the pinned revision'
+    else:
+        reason = 'datadog.patch is no longer applied to the worktree'
     print(f'Restoring crashpad source to pinned revision {pinned} ({reason})...')
 
     try:
