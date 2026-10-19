@@ -8,3 +8,7 @@ mini_chromium,"https://chromium.googlesource.com/chromium/mini_chromium",BSD-3-C
 nlohmann/json,"https://github.com/nlohmann/json",MIT,Copyright (c) 2013-2025 Niels Lohmann
 Unicode CLDR,"https://github.com/unicode-org/cldr",Unicode License,"Copyright © Unicode, Inc."
 zlib,"https://zlib.net",zlib,"Copyright (C) 1995-2022 Jean-loup Gailly and Mark Adler"
+dd-win-prof,"https://github.com/DataDog/dd-win-prof",Apache-2.0,"Copyright 2025 Datadog, Inc."
+libdatadog,"https://github.com/DataDog/libdatadog",Apache-2.0,Copyright 2021-2025 Datadog Inc.
+spdlog,"https://github.com/gabime/spdlog",MIT,Copyright (c) 2016 Gabi Melman
+fmt (via spdlog),"https://github.com/fmtlib/fmt",MIT,Copyright (c) 2012 - present Victor Zverovich

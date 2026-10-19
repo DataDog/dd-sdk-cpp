@@ -6,6 +6,12 @@
 # DllMain, so it has to be loaded at process start to see the threads created before the
 # SDK initializes. Applications that build with profiling therefore need
 # dd-win-prof.dll alongside them (datadog_enable() / datadog_install() handle this).
+#
+# dd-win-prof.dll is the only runtime file needed: it links libdatadog's static library,
+# so the FFI code is compiled into the DLL and it does not import
+# datadog_profiling_ffi.dll (check with `dumpbin /dependents dd-win-prof.dll`).
+# dd-win-prof's own README and dd_win_prof_copy_runtime_deps still mention that DLL, but
+# only its own test executable loads it.
 
 include(FetchContent)
 

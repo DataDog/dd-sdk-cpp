@@ -97,6 +97,7 @@ add_executable(tests
     impl/logging/event_generation_test.cpp
     impl/logging/logger_test.cpp
     impl/logging/tags_test.cpp
+    impl/profiling/profiler_ownership_test.cpp
     impl/profiling/profiling_test.cpp
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp

@@ -81,6 +81,11 @@ class Profiling {
    *
    * You MUST call this function after creating the Core and before calling
    * Core::Start().
+   *
+   * The profiler is shared by the whole process, so only one Core can use it at a time.
+   * If another Core has already registered Profiling, this logs a warning and returns
+   * an object whose calls do nothing. The profiler becomes available again once that
+   * Core is destroyed.
    */
   DATADOG_API static std::shared_ptr<Profiling> Register(
       const std::shared_ptr<class Core>& core,
