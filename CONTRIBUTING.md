@@ -152,6 +152,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
     - [`rum/`][impl-rum] allows an application to keep track of application state and user interactions via Views, Actions, Resources, etc., sending RUM events to Datadog.
     - [`crash_reporting/`][impl-crash-reporting] automatically detects application crashes and sends crash reports to Datadog as RUM Errors.
         - Multiple crash-handling mechanisms are planned; currently only `DD_CRASH_MODE=inprocess` is supported.
+    - [`profiling/`][impl-profiling] configures and starts the dd-win-prof Windows profiler when the SDK starts, and stops it when the SDK stops. Only available when building for Windows x64 with `DD_ENABLE_PROFILING=ON`; in all other builds the feature is a no-op.
 - [`tests/`][tests]: Unit tests for code in `src/`, along with test-only support code.
 - [`examples/`][examples] demonstrates usage of both C and C++ APIs.
 
@@ -184,6 +185,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [impl-logging]: ./src/datadog/impl/logging/
 [impl-rum]: ./src/datadog/impl/rum/
 [impl-crash-reporting]: ./src/datadog/impl/crash_reporting/
+[impl-profiling]: ./src/datadog/impl/profiling/
 [tests]: ./tests/
 [examples]: ./examples/
 

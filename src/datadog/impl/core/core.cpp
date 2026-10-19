@@ -790,4 +790,6 @@ std::string_view Core::GetClientToken() const {
   return _immutable_context.client_token;
 }
 
+const ImmutableContext& Core::GetImmutableContext() const { return _immutable_context; }
+
 }  // namespace datadog::impl

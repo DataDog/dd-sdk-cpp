@@ -97,6 +97,7 @@ add_executable(tests
     impl/logging/event_generation_test.cpp
     impl/logging/logger_test.cpp
     impl/logging/tags_test.cpp
+    impl/profiling/profiling_test.cpp
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp
     impl/rum/scopes/action_test.cpp
@@ -188,6 +189,18 @@ target_link_libraries(tests
     ddsdkcpp
     Catch2::Catch2WithMain
 )
+
+# If the SDK was built with profiling support, ensure that dd-win-prof.dll is present
+# alongside the test binary post-build
+if(DD_PROFILING_ACTIVE)
+    add_custom_command(TARGET tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:dd-win-prof>"
+                "$<TARGET_FILE_DIR:tests>"
+        VERBATIM
+        COMMENT "Copying dd-win-prof.dll to $<TARGET_FILE_DIR:tests>"
+    )
+endif()
 
 # Register tests with CTest
 include(CTest)

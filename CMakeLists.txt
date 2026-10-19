@@ -76,6 +76,20 @@ set(DD_ENABLE_SANITIZERS "${DD_ENABLE_SANITIZERS}" CACHE STRING "Comma-separated
 option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_DEVELOPMENT})
 option(DD_ENABLE_MSVC_PARALLEL_BUILD "Enable parallel compilation within each MSVC target (/MP)" ON)
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
+option(DD_ENABLE_PROFILING "Build the dd-win-prof Windows profiler and link it into the SDK (Windows x64 only)" OFF)
+
+# DD_PROFILING_ACTIVE is the effective setting. Profiling only exists on Windows x64, so
+# on other platforms the option is ignored rather than failing the build.
+set(DD_PROFILING_ACTIVE OFF)
+if(DD_ENABLE_PROFILING)
+    if(NOT WIN32)
+        message(STATUS "DD_ENABLE_PROFILING is only supported on Windows; ignoring it")
+    elseif(NOT CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "x64")
+        message(FATAL_ERROR "DD_ENABLE_PROFILING requires a Windows x64 build (target architecture: '${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}')")
+    else()
+        set(DD_PROFILING_ACTIVE ON)
+    endif()
+endif()
 
 # C API targets C99; C++ API targets C++17
 if(PROJECT_IS_TOP_LEVEL)
