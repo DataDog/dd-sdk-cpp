@@ -48,6 +48,8 @@ add_executable(tests
     impl/types/json_test.cpp
     impl/types/rum_test.cpp
     impl/types/sampling_test.cpp
+    impl/types/tracing/span_id_test.cpp
+    impl/types/tracing/trace_id_test.cpp
     impl/types/upload_util_test.cpp
     impl/crash_processing/crash_context_annotations_test.cpp
     impl/crash_processing/crash_events_test.cpp
@@ -67,6 +69,9 @@ add_executable(tests
     impl/core/storage/filesystem_wrapper_test.cpp
     impl/core/storage/path_test.cpp
     impl/core/storage/sdk_test.cpp
+    impl/core/tracing/span_id_generator_test.cpp
+    impl/core/tracing/trace_id_generator_test.cpp
+    impl/core/util/insecure_random_generator_test.cpp
     impl/core/util/validation_test.cpp
     impl/core/block_test.cpp
     impl/core/context_test.cpp
