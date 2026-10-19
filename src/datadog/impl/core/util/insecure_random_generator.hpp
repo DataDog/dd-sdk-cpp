@@ -13,6 +13,8 @@
 #include <random>
 #include <stdexcept>
 
+#include "datadog/impl/types/assert.hpp"
+
 namespace datadog::impl {
 
 /**
@@ -59,9 +61,7 @@ class InsecureRandomGenerator final {
   static std::uniform_int_distribution<IntType> CreateDistribution(
       IntType minimum, IntType maximum
   ) {
-    if (minimum > maximum) {
-      throw std::invalid_argument("minimum random value must not exceed maximum");
-    }
+    DATADOG_ASSERT(minimum <= maximum, "minimum random value must not exceed maximum");
 
     return std::uniform_int_distribution<IntType>(minimum, maximum);
   }

@@ -47,8 +47,4 @@ TEST_CASE("InsecureRandomGenerator", "[unit][random]") {
 
     REQUIRE(values.size() >= MINIMUM_UNIQUE_VALUES);
   }
-
-  SECTION("M reject a range whose minimum exceeds its maximum") {
-    REQUIRE_THROWS_AS((InsecureRandomUInt64Generator{2, 1}), std::invalid_argument);
-  }
 }
