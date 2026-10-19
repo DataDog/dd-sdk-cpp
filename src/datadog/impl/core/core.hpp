@@ -455,6 +455,7 @@ class Core {
   IFilesystem& GetFilesystem() const;
   std::string_view GetIntakeOrigin() const;
   std::string_view GetClientToken() const;
+  const ImmutableContext& GetImmutableContext() const;
 };
 
 }  // namespace datadog::impl
