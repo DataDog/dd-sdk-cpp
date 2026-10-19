@@ -11,6 +11,7 @@
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/profiling/profiler.hpp"
+#include "datadog/impl/profiling/profiler_ownership.hpp"
 #include "datadog/impl/profiling/profiling.hpp"
 
 namespace datadog {
@@ -54,15 +55,27 @@ std::shared_ptr<Profiling> Profiling::Register(
     return std::make_shared<Profiling>(Profiling::PrivateCtorTag{});
   }
 
+  const impl::DiagnosticLogger diagnostic_logger{
+      core->_diagnostic_handler, core->_diagnostic_threshold
+  };
+
   // If this build has no profiler, return a no-op Profiling interface
   auto profiler = impl::CreateProfiler();
   if (!profiler) {
-    impl::DiagnosticLogger diagnostic_logger{
-        core->_diagnostic_handler, core->_diagnostic_threshold
-    };
     diagnostic_logger.Warning(
         "Profiling is not supported in this build of the SDK: it requires Windows x64 "
         "and the DD_ENABLE_PROFILING CMake option"
+    );
+    return std::make_shared<Profiling>(Profiling::PrivateCtorTag{});
+  }
+
+  // The profiler is process-global, so only one SDK instance may use it at a time: if
+  // another already has, return a no-op Profiling interface
+  auto ownership = impl::ProfilerOwnership::TryAcquire();
+  if (!ownership) {
+    diagnostic_logger.Warning(
+        "Profiling is already enabled for another SDK instance in this process: the "
+        "profiler is shared by the whole process, so only one instance can use it"
     );
     return std::make_shared<Profiling>(Profiling::PrivateCtorTag{});
   }
@@ -73,8 +86,9 @@ std::shared_ptr<Profiling> Profiling::Register(
   settings.env = im.env;
   settings.version = im.application_version;
 
-  auto profiling_impl =
-      std::make_shared<impl::Profiling>(std::move(profiler), std::move(settings));
+  auto profiling_impl = std::make_shared<impl::Profiling>(
+      std::move(profiler), std::move(settings), std::move(ownership)
+  );
 
   // Register the feature with the core, returning a no-op interface on failure
   if (!core->_impl->RegisterFeature(profiling_impl)) {

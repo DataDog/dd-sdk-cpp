@@ -25,8 +25,9 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
 
   // And a Profiling feature that owns the profiler
   ProfilerSettings settings{"my-service", "staging", "1.2.3"};
-  auto profiling =
-      std::make_shared<impl::Profiling>(std::move(mock_profiler), std::move(settings));
+  auto profiling = std::make_shared<impl::Profiling>(
+      std::move(mock_profiler), std::move(settings), nullptr
+  );
 
   // And a message handler callback returned by the feature implementation
   auto message_handler = profiling->MakeMessageHandler();
@@ -216,4 +217,22 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     REQUIRE(profiler.start_calls == 1);
     REQUIRE(test.diagnostic_messages.size() == 1);
   }
+}
+
+TEST_CASE("Profiling feature profiler ownership", "[unit][profiling]") {
+  // Given a Profiling feature that holds the claim on the process-global profiler
+  auto ownership = ProfilerOwnership::TryAcquire();
+  REQUIRE(ownership);
+  auto profiling = std::make_shared<impl::Profiling>(
+      std::make_unique<MockProfiler>(), ProfilerSettings{}, std::move(ownership)
+  );
+
+  // Then no other claim can be made while the feature exists
+  REQUIRE(ProfilerOwnership::TryAcquire() == nullptr);
+
+  // When the feature is destroyed
+  profiling.reset();
+
+  // Then the profiler can be claimed again
+  REQUIRE(ProfilerOwnership::TryAcquire() != nullptr);
 }
