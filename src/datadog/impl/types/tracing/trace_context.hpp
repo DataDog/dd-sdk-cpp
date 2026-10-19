@@ -19,15 +19,15 @@
 namespace datadog::impl {
 
 /** The sampling priority for a trace span. */
-enum SamplingPriority {
+enum class SamplingPriority : int8_t {
   /** The span is not sampled based on a manual override. */
-  manualDrop = -1,
+  ManualDrop = -1,
   /** The span is not sampled based on a sampler decision. */
-  autoDrop = 0,
+  AutoDrop = 0,
   /** The span is sampled based on a sampler decision. */
-  autoKeep = 1,
+  AutoKeep = 1,
   /** The span is sampled based on a manual override. */
-  manualKeep = 2
+  ManualKeep = 2
 };
 
 /**
@@ -37,20 +37,20 @@ enum SamplingPriority {
  * They do not include the `-` character, since that character is a separator
  * and not part of the value itself.
  */
-enum SamplingMechanism {
+enum class SamplingMechanism : uint8_t {
   /**
    * Fallback mechanism. This mechanism samples all spans. It should never be used, but
    * it's included for completion.
    */
-  fallback = 0,
+  Fallback = 0,
   /**
    * The main decision mechanism. Although the SDK runs in an agent-less scenario, we
    * consider the SDK sampling decisions act as the agent rate in scenarios with
    * independent tracers and agent.
    */
-  agentRate = 1,
+  AgentRate = 1,
   /** Decision mechanism used when a decision is manually set by the developer. */
-  manual = 4
+  Manual = 4
 };
 
 /** GraphQL request attributes. */
