@@ -758,6 +758,23 @@ void RumViewScope::SendLongTaskEvent(
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
   writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+
+  // Announce the long task so that other features (e.g. Profiling) can correlate it
+  RumEventContext event_context{
+      RumFeatureContext{
+          deps.application_id,
+          session.GetSessionID(),
+          _view_id,
+          _active_action_scope ? _active_action_scope->GetActionID() : UUID::Zero
+      },
+      _name
+  };
+  deps.QueueMessage(
+      RumLongTaskGeneratedMessage{
+          std::move(event_context), ev.long_task.id, event_timestamp, payload.duration
+      }
+  );
+
   _num_long_tasks_reported++;
   if (is_frozen_frame) {
     _num_frozen_frames_reported++;

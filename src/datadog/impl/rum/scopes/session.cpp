@@ -413,6 +413,28 @@ void RumSessionScope::SendVitalEvent(
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
   writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+
+  // Announce the vital so that other features (e.g. Profiling) can correlate it
+  UUID action_id = UUID::Zero;
+  if (view_opt) {
+    if (const auto action_opt = view_opt->get().GetActiveAction()) {
+      action_id = action_opt->get().GetActionID();
+    }
+  }
+  deps.QueueMessage(
+      RumVitalGeneratedMessage{
+          RumEventContext{
+              RumFeatureContext{deps.application_id, _session_id, view_id, action_id},
+              std::string(view_name_str)
+          },
+          vital_id,
+          std::string(name),
+          operation_key,
+          step_type,
+          base.issued_at,
+          std::nullopt
+      }
+  );
 }
 
 void RumSessionScope::HandleReportAppDisplayInitialized(
@@ -576,6 +598,36 @@ void RumSessionScope::SendAppLaunchVitalEvent(
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
   writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+
+  // Announce the time to initial display so that other features (e.g. Profiling) can
+  // correlate it. Profiling does not use time to full display.
+  if (metric == RumVitalAppLaunchMetric::TTID) {
+    UUID action_id = UUID::Zero;
+    if (view) {
+      if (const auto action_opt = view->GetActiveAction()) {
+        action_id = action_opt->get().GetActionID();
+      }
+    }
+    deps.QueueMessage(
+        RumVitalGeneratedMessage{
+            RumEventContext{
+                RumFeatureContext{
+                    deps.application_id,
+                    _session_id,
+                    view ? view->GetViewID() : UUID::Zero,
+                    action_id
+                },
+                view ? std::string(view->GetName()) : std::string()
+            },
+            vital_id,
+            std::string(vital_name),
+            std::nullopt,
+            std::nullopt,
+            context.process_launch_time,
+            Duration(static_cast<int64_t>(duration_ns))
+        }
+    );
+  }
 }
 
 void RumSessionScope::AttemptViewTransfer(

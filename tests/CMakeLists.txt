@@ -47,6 +47,7 @@ add_executable(tests
     impl/types/diagnostics_test.cpp
     impl/types/json/json_scanner_test.cpp
     impl/types/json_test.cpp
+    impl/types/profiling_test.cpp
     impl/types/rum_test.cpp
     impl/types/sampling_test.cpp
     impl/types/tracing/span_id_test.cpp
@@ -98,7 +99,9 @@ add_executable(tests
     impl/logging/event_generation_test.cpp
     impl/logging/logger_test.cpp
     impl/logging/tags_test.cpp
+    impl/profiling/profile_metadata_test.cpp
     impl/profiling/profiling_test.cpp
+    impl/profiling/rum_event_tracker_test.cpp
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp
     impl/rum/scopes/action_test.cpp

@@ -450,3 +450,62 @@ TEST_CASE("RumViewScope::PopulateContext", "[unit][rum]") {
     }
   }
 }
+
+TEST_CASE_METHOD(ViewFixture, "RumViewScope long task messages", "[unit][rum]") {
+  SECTION("M queue a message W a long task is added") {
+    // Given an active view
+    scope.Process(
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
+    );
+    deps.ClearQueuedMessages();
+
+    // When a long task of 50ms is added
+    scope.Process(
+        RumCommand::AddLongTask(GetBaseParams(), std::chrono::milliseconds(50)),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then a message is queued for it
+    const auto& messages = deps.GetQueuedMessages();
+    REQUIRE(messages.size() == 1);
+    const auto& message = std::get<RumLongTaskGeneratedMessage>(messages[0]);
+
+    // And it has the duration, and the start time (the time it ended, less its
+    // duration)
+    REQUIRE(message.duration == std::chrono::milliseconds(50));
+    REQUIRE(message.start == clock.Now() - std::chrono::milliseconds(50));
+
+    // And the ID of the long task event that was written
+    auto long_tasks = event_capture.FilterByType("long_task");
+    REQUIRE(long_tasks.size() == 1);
+    REQUIRE(long_tasks[0]["long_task"]["id"] == message.long_task_id.ToString());
+
+    // And the RUM context in which it occurred
+    REQUIRE(message.context.ids.application_id.ToString() == APPLICATION_ID);
+    REQUIRE(message.context.ids.session_id.ToString() == SESSION_ID);
+    REQUIRE(message.context.ids.view_id.ToString() == VIEW_ID);
+    REQUIRE(message.context.view_name == "My View Name");
+    REQUIRE(message.context.ids.action_id == UUID::Zero);
+  }
+
+  SECTION("M queue no message W the view is inactive") {
+    // Given a view that has been stopped
+    scope.Process(
+        RumCommand::StopSession(GetBaseParams()), GetTestContext(), GetTestWriter()
+    );
+    deps.ClearQueuedMessages();
+
+    // When a long task is added
+    scope.Process(
+        RumCommand::AddLongTask(GetBaseParams(), std::chrono::milliseconds(50)),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then no message is queued
+    REQUIRE(deps.GetQueuedMessages().empty());
+  }
+}

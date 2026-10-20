@@ -12,11 +12,13 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
 
+#include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/rum/command.hpp"
@@ -29,7 +31,10 @@ struct RumConfig;
 namespace datadog::impl {
 
 /**
- * Immutable set of input values used during RumScope processing.
+ * Set of input values used during RumScope processing. The configuration details are
+ * immutable. The only state that changes is context-thread scratch space: a buffer for
+ * encoding events, and a queue of messages announcing the events that scopes generate,
+ * which `Rum` publishes once it has finished processing a command.
  */
 struct RumScopeDependencies {
   // Configuration details
@@ -44,6 +49,10 @@ struct RumScopeDependencies {
 
   // Reusable buffer for encoding events; accessed only on the context thread
   mutable std::vector<uint8_t> _encode_buffer;
+
+  // Messages produced while processing the current command; accessed only on the
+  // context thread
+  mutable std::vector<FeatureMessage> _pending_messages;
 
  public:
   explicit RumScopeDependencies(
@@ -69,6 +78,27 @@ struct RumScopeDependencies {
    * encoded. May only be called from the context thread.
    */
   std::vector<uint8_t>& GetEncodeBuffer() const { return _encode_buffer; }
+
+  /**
+   * Queues a message to be published once processing of the current command completes.
+   * Scopes use this to announce events that they generate. May only be called from the
+   * context thread.
+   */
+  void QueueMessage(FeatureMessage message) const {
+    _pending_messages.push_back(std::move(message));
+  }
+
+  /**
+   * Returns the messages queued since the last call to ClearQueuedMessages(). May only
+   * be called from the context thread.
+   */
+  std::vector<FeatureMessage>& GetQueuedMessages() const { return _pending_messages; }
+
+  /**
+   * Empties the queue of messages, retaining its capacity for reuse. May only be called
+   * from the context thread.
+   */
+  void ClearQueuedMessages() const { _pending_messages.clear(); }
 
   /**
    * Encodes a RUM event to JSON without writing it. The caller uses the returned
