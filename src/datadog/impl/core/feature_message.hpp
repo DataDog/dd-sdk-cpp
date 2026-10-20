@@ -6,11 +6,13 @@
 
 #pragma once
 
+#include <optional>
 #include <string>
 #include <variant>
 
 #include "datadog/attribute.hpp"
 #include "datadog/timestamp.hpp"
+#include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/types/crash_reporting.hpp"
@@ -97,6 +99,49 @@ struct RumGlobalAttributesChangedMessage {
 };
 
 /**
+ * Identifies where in the RUM hierarchy a RUM event was generated. Copied from the
+ * scopes that generated the event, so each value is accurate as of that event.
+ */
+struct RumEventContext {
+  RumFeatureContext ids;  // UUID::Zero for any scope that was not active
+  std::string view_name;  // Empty if no view was active or the view is unnamed
+};
+
+/**
+ * Emitted by `Rum` each time it generates a RUM Vital event that is relevant to
+ * profiling: an operation step (start, update, retry or end), or the app launch TTID.
+ *
+ * Operation steps carry a `step_type`, and a profiler pairs the start and end of an
+ * operation by `name` and `operation_key` to learn its duration. An app launch vital
+ * has no `step_type` and carries its `duration` directly.
+ *
+ * Used by `Profiling` to describe, in the metadata of each profile, which RUM events
+ * took place while the profile was being recorded.
+ */
+struct RumVitalGeneratedMessage {
+  RumEventContext context;
+  UUID vital_id;
+  std::string name;
+  std::optional<std::string> operation_key;
+  std::optional<RumVitalStepType> step_type;
+  Timestamp timestamp;
+  std::optional<Duration> duration;
+};
+
+/**
+ * Emitted by `Rum` each time it generates a RUM Long Task event.
+ *
+ * Used by `Profiling` to describe, in the metadata of each profile, which RUM events
+ * took place while the profile was being recorded.
+ */
+struct RumLongTaskGeneratedMessage {
+  RumEventContext context;
+  UUID long_task_id;
+  Timestamp start;
+  Duration duration;
+};
+
+/**
  * Emitted by the `CrashReporting` feature when it processes a crash dump indicating
  * that a previous application process detected a crash.
  */
@@ -128,6 +173,8 @@ using FeatureMessage = std::variant<
     RumActiveViewUpdatedMessage,
     RumActiveViewLostMessage,
     RumGlobalAttributesChangedMessage,
+    RumVitalGeneratedMessage,
+    RumLongTaskGeneratedMessage,
     CrashReportProcessedMessage,
     LogErrorGeneratedMessage>;
 

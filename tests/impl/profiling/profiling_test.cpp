@@ -6,7 +6,10 @@
 
 #include "datadog/impl/profiling/profiling.hpp"
 
+#include <chrono>
 #include <memory>
+#include <nlohmann/json.hpp>
+#include <string>
 #include <utility>
 
 #include "datadog/impl/core/feature_message.hpp"
@@ -235,4 +238,80 @@ TEST_CASE("Profiling feature profiler ownership", "[unit][profiling]") {
 
   // Then the profiler can be claimed again
   REQUIRE(ProfilerOwnership::TryAcquire() != nullptr);
+}
+
+TEST_CASE("Profiling feature profile metadata", "[unit][profiling]") {
+  // Given a Profiling feature that owns a mock profiler
+  auto profiling = std::make_shared<impl::Profiling>(
+      std::make_unique<MockProfiler>(),
+      ProfilerSettings{"my-service", "staging", "1.2.3"},
+      nullptr
+  );
+  auto message_handler_func = *profiling->MakeMessageHandler();
+
+  // And helpers that deliver consent, and RUM events, as the Core and RUM do
+  CoreContext context = MOCK_CONTEXT;
+  auto send_consent = [&](datadog::TrackingConsent consent) {
+    context.tracking_consent = consent;
+    message_handler_func(ContextChangedMessage{context});
+  };
+  const UUID long_task_id = UUID::Random();
+  auto send_long_task = [&] {
+    RumLongTaskGeneratedMessage message;
+    message.context.ids.view_id = UUID::Random();
+    message.long_task_id = long_task_id;
+    message.start = datadog::Timestamp{std::chrono::seconds{1700000000}};
+    message.duration = std::chrono::milliseconds{60};
+    message_handler_func(message);
+  };
+  const ProfileTimeRange range{
+      datadog::Timestamp{std::chrono::seconds{1700000000}},
+      datadog::Timestamp{std::chrono::seconds{1700000060}}
+  };
+
+  FeatureTest test(context);
+  test.Start(profiling);
+
+  SECTION("M describe the RUM events seen W the profiler is running") {
+    // Given a running profiler that has seen a long task
+    send_consent(datadog::TrackingConsent::Granted);
+    send_long_task();
+
+    // When the profiler asks for the metadata of a profile
+    const ProfileMetadata metadata = profiling->BuildProfileMetadata(range);
+
+    // Then it describes the application and the long task
+    const auto event = nlohmann::json::parse(metadata.event_json);
+    REQUIRE(
+        event["tags_profiler"].get<std::string>().find("service:mock-service") !=
+        std::string::npos
+    );
+    REQUIRE(event["long_task.id"][0] == long_task_id.ToString());
+    REQUIRE(nlohmann::json::parse(metadata.rum_events_json).size() == 1);
+  }
+
+  SECTION("M not record RUM events W the profiler is not running") {
+    // When a long task is seen before consent is granted
+    send_consent(datadog::TrackingConsent::Pending);
+    send_long_task();
+    send_consent(datadog::TrackingConsent::Granted);
+
+    // Then the profile does not describe it
+    const ProfileMetadata metadata = profiling->BuildProfileMetadata(range);
+    REQUIRE_FALSE(nlohmann::json::parse(metadata.event_json).contains("long_task.id"));
+  }
+
+  SECTION("M forget the RUM events seen W the profiler stops") {
+    // Given a running profiler that has seen a long task
+    send_consent(datadog::TrackingConsent::Granted);
+    send_long_task();
+
+    // When consent is withdrawn, then granted again
+    send_consent(datadog::TrackingConsent::NotGranted);
+    send_consent(datadog::TrackingConsent::Granted);
+
+    // Then the long task is not described in the next profile
+    const ProfileMetadata metadata = profiling->BuildProfileMetadata(range);
+    REQUIRE_FALSE(nlohmann::json::parse(metadata.event_json).contains("long_task.id"));
+  }
 }
