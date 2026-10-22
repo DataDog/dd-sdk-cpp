@@ -38,16 +38,47 @@ const ProfileTimeRange RANGE{At(1700000000000), At(1700000060000)};
 const platform::OsInfo OS_INFO{"Windows", "10.0.22631", "22631", "10"};
 const platform::OsInfo OS_INFO_NO_VERSION{"Windows", "", "", ""};
 
-/** Returns a context whose identifying values are those of a typical application. */
-CoreContext MakeContext() {
-  CoreContext context = MOCK_CONTEXT;
-  context.os = &OS_INFO;
-  context.service = "my-service";
-  context.env = "staging";
-  context.application_version = "1.2.3";
-  context.sdk_version = "9.9.9";
-  context.source = "cpp";
-  return context;
+/**
+ * A CoreContext, together with what it views: the Core builds its identifying values,
+ * including the sanitized unified service tags, from the configuration an application
+ * provides.
+ */
+class TestContext {
+ public:
+  TestContext(
+      std::string_view service,
+      std::string_view env,
+      std::string_view application_version,
+      const platform::OsInfo& os
+  )
+      : _config(MakeConfig(service, env, application_version)),
+        _immutable(_config, os, MOCK_DEVICE_INFO, At(1700000000000), "mock", "0.0.0"),
+        _context(_immutable, TrackingConsent::Granted) {}
+
+  TestContext(const TestContext&) = delete;
+  TestContext& operator=(const TestContext&) = delete;
+
+  const CoreContext& Get() const { return _context; }
+
+ private:
+  static CoreConfig MakeConfig(
+      std::string_view service, std::string_view env, std::string_view version
+  ) {
+    CoreConfig config{"token", service, env};
+    config.SetVersion(version);
+    config.Internal_SetSource("cpp").Internal_SetSdkVersion("9.9.9");
+    return config;
+  }
+
+  CoreConfig _config;
+  ImmutableContext _immutable;
+  CoreContext _context;
+};
+
+/** Returns the context of a typical application. */
+const CoreContext& MakeContext() {
+  static const TestContext typical("my-service", "staging", "1.2.3", OS_INFO);
+  return typical.Get();
 }
 
 /** Builds the event.json content as text, with the tags that `context` yields. */
@@ -89,24 +120,43 @@ TEST_CASE("BuildProfileEventJson", "[unit][profiling]") {
         result ==
         R"({"start":"2023-11-14T22:13:20.000Z","end":"2023-11-14T22:14:20.000Z",)"
         R"("attachments":["profile.pprof","rum-mobile-events.json"],)"
-        R"("tags_profiler":"service:my-service,version:1.2.3,sdk_version:9.9.9,)"
-        R"(profiler_version:9.9.9,runtime_version:10.0.22631,env:staging,source:cpp,)"
-        R"(language:cpp,format:pprof,remote_symbols:yes,operation:continuous",)"
+        R"("tags_profiler":"service:my-service,version:1.2.3,env:staging,)"
+        R"(sdk_version:9.9.9,profiler_version:9.9.9,runtime_version:10.0.22631,)"
+        R"(source:cpp,language:cpp,format:pprof,remote_symbols:yes,)"
+        R"(operation:continuous",)"
         R"("family":"windows","runtime":"windows","version":"4"})"
     );
   }
 
   SECTION("M leave out tags with no value") {
-    CoreContext context = MakeContext();
-    context.application_version = {};
-    context.os = &OS_INFO_NO_VERSION;
+    // Given an application with no version, running on an OS with no version
+    const TestContext context("my-service", "staging", "", OS_INFO_NO_VERSION);
 
-    const json event = json::parse(EventJson(context, RANGE, no_events));
+    const json event = json::parse(EventJson(context.Get(), RANGE, no_events));
 
-    const std::string tags = event["tags_profiler"];
-    REQUIRE(tags.find("version:") == tags.find("sdk_version:") + 4);
-    REQUIRE(tags.find("runtime_version") == std::string::npos);
-    REQUIRE(tags.find(",,") == std::string::npos);
+    // Then those tags are left out, with no stray commas
+    REQUIRE(
+        event["tags_profiler"] ==
+        "service:my-service,env:staging,sdk_version:9.9.9,profiler_version:9.9.9,"
+        "source:cpp,language:cpp,format:pprof,remote_symbols:yes,operation:continuous"
+    );
+  }
+
+  SECTION("M strip commas and colons from application-provided tag values") {
+    // Given an application whose service, env, and version contain the characters that
+    // separate tags and their values
+    const TestContext context("my,service:x", "a:b", "1,2:3", OS_INFO);
+
+    const json event = json::parse(EventJson(context.Get(), RANGE, no_events));
+
+    // Then they cannot alter the structure of the tags, as with the tags that the Core
+    // gives to RUM and Logs
+    REQUIRE(
+        event["tags_profiler"] ==
+        "service:myservicex,version:123,env:ab,sdk_version:9.9.9,"
+        "profiler_version:9.9.9,runtime_version:10.0.22631,source:cpp,language:cpp,"
+        "format:pprof,remote_symbols:yes,operation:continuous"
+    );
   }
 
   SECTION("M name the operation W it is not continuous") {

@@ -48,13 +48,14 @@ std::string BuildTags(const CoreContext& context, ProfilingOperation operation) 
                                           ? std::string_view(context.os->version)
                                           : std::string_view();
 
-  std::string tags;
-  AppendTag(tags, "service", context.service);
-  AppendTag(tags, "version", context.application_version);
-  AppendTag(tags, "sdk_version", context.sdk_version);
+  // The Core has already built the unified service tags (service, version, env,
+  // sdk_version, variant) once for all of its features, with any ',' or ':' stripped
+  // from the application-provided values so that they cannot alter the tag list. Every
+  // value added after them comes from the SDK or the operating system, not from the
+  // application, so needs no sanitizing.
+  std::string tags(context.per_event_ddtags);
   AppendTag(tags, "profiler_version", context.sdk_version);
   AppendTag(tags, "runtime_version", os_version);
-  AppendTag(tags, "env", context.env);
   AppendTag(tags, "source", context.source);
   AppendTag(tags, "language", kLanguage);
   AppendTag(tags, "format", kFormat);
@@ -166,7 +167,7 @@ ProfileMetadata ProfileMetadataSource::BuildMetadata(const ProfileTimeRange& ran
   const std::string_view tags_profiler =
       tags != nullptr ? tags->Get(ProfilingOperation::Continuous) : std::string_view();
 
-  const RumEventSnapshot events = _tracker.TakeSnapshot();
+  const RumEventSnapshot events = _tracker.TakeSnapshot(range.end);
   ProfileMetadata metadata;
   BuildProfileEventJson(metadata.event_json, tags_profiler, range, events);
   BuildRumEventsJson(metadata.rum_events_json, events);

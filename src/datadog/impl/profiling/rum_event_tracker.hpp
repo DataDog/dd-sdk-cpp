@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <chrono>
 #include <cstddef>
 #include <mutex>
 #include <optional>
@@ -64,6 +65,8 @@ struct RumEventSnapshot {
  *   no matching start.
  * - Long tasks are recorded as they arrive.
  *
+ * - An operation that has not ended is not tracked forever. See `TakeSnapshot()`.
+ *
  * Each kind of event is capped at `kMaxEventsPerKind` between snapshots: when the cap
  * is reached, further events of that kind are dropped.
  *
@@ -74,17 +77,29 @@ class RumEventTracker {
  public:
   static constexpr size_t kMaxEventsPerKind = 1000;
 
+  // How long after its start an operation that has not ended is still expected to end;
+  // matches the `cutOffTime` of dd-sdk-ios
+  static constexpr Duration kOngoingOperationCutoff = std::chrono::seconds(60);
+
   void OnVital(const RumVitalGeneratedMessage& message);
   void OnLongTask(const RumLongTaskGeneratedMessage& message);
 
   /**
-   * Returns everything recorded since the last call, and begins a new snapshot.
+   * Returns everything recorded since the last call, and begins a new snapshot. `now`
+   * is the time at which the profile that the snapshot describes ended.
    *
-   * Operations that have started but not ended are included, and remain tracked so that
-   * a later end step can still complete them: they are reported again, with a duration,
-   * by the snapshot that follows their end.
+   * Operations that have started but not ended are included. They remain tracked, so
+   * that a later end step can still complete them, and are reported again, with a
+   * duration, by the snapshot that follows their end. While any remain, the context of
+   * the latest event also remains, so that each snapshot that reports them can say
+   * where they occurred.
+   *
+   * Operations are only kept while one of them started less than
+   * `kOngoingOperationCutoff` before `now`. When none did, they are all assumed to have
+   * been abandoned, and are reported this once and then forgotten, so that an operation
+   * that never ends does not appear in every profile that follows.
    */
-  RumEventSnapshot TakeSnapshot();
+  RumEventSnapshot TakeSnapshot(const Timestamp& now);
 
   /** Forgets everything, including operations that have started but not ended. */
   void Reset();
