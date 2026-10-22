@@ -46,6 +46,10 @@ prepare-release = ["anthropic"]
 # release X.Y.Z, and uploads all release artifacts from the CI pipeline to that release
 publish-release = []
 
+# tools/check-package: verifies that a package built by the 'package' target has the
+# expected linkage and contains the expected library and debug-info files; no deps
+check-package = []
+
 # Dummy target to install dependencies for all tools
 all = [
   "dd-sdk-cpp-tools[bootstrap-crashpad]",
@@ -55,6 +59,7 @@ all = [
   "dd-sdk-cpp-tools[validate-event-types]",
   "dd-sdk-cpp-tools[prepare-release]",
   "dd-sdk-cpp-tools[publish-release]",
+  "dd-sdk-cpp-tools[check-package]",
 ]
 
 # This is a trivial pyproject.toml used solely to manage dependencies; we don't release

@@ -76,24 +76,29 @@ def main():
 
     # We should be passed a list of paths to archive files containing prebuilt binaries
     # to be included in this release as artifacts: perform some basic sanity checks to
-    # verify that we have at least one archive for each supported platform at the
-    # expected version number
-    linux_prefix = f"ddsdkcpp-v{sdk_version}-linux-"
-    macos_prefix = f"ddsdkcpp-v{sdk_version}-macos-"
-    windows_prefix = f"ddsdkcpp-v{sdk_version}-windows-"
-    missing_platforms: set[str] = {'linux', 'macos', 'windows'}
+    # verify that every archive is named for the expected version number, and that we
+    # have at least one shared-library and one static-library archive for each supported
+    # platform, e.g. 'ddsdkcpp-v0.8.0-linux-x64-clang-libstdc++-shared-release.tar.gz'
+    archive_name_regex = re.compile(
+        r'ddsdkcpp-v' + re.escape(sdk_version) +
+        r'-(linux|macos|windows)-.+-(shared|static)-(release|debug)\.(tar\.gz|zip)'
+    )
+    missing_flavors: set[tuple[str, str]] = {
+        (platform, linkage)
+        for platform in ('linux', 'macos', 'windows')
+        for linkage in ('shared', 'static')
+    }
     print(f"Publishing release with {len(args.archives)} artifacts:")
     for archive_relpath in args.archives:
         print(f"- {archive_relpath}")
         filename: str = os.path.basename(archive_relpath)
-        if filename.startswith(linux_prefix):
-            missing_platforms.discard('linux')
-        elif filename.startswith(macos_prefix):
-            missing_platforms.discard('macos')
-        elif filename.startswith(windows_prefix):
-            missing_platforms.discard('windows')
-    if missing_platforms:
-        raise RuntimeError(f"Missing archives for {', '.join(missing_platforms)}")
+        m = archive_name_regex.fullmatch(filename)
+        if not m:
+            raise RuntimeError(f"Unexpected archive name for v{sdk_version}: {filename}")
+        missing_flavors.discard((m.group(1), m.group(2)))
+    if missing_flavors:
+        missing = ', '.join(f"{platform}-{linkage}" for platform, linkage in sorted(missing_flavors))
+        raise RuntimeError(f"Missing archives for {missing}")
     
     # Pull the release notes for this version from the relevant h2-delimited section of
     # CHANGELOG.md

@@ -8,12 +8,15 @@ package-linux:
       - TOOLCHAIN_TARGET: clang20
         BUILD_CONFIGURATION: RelWithDebInfo
         BUILD_SHARED_LIBS: "ON"
+      # linux-{arch}-clang-libstdc++-static-release
+      - TOOLCHAIN_TARGET: clang20
+        BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "OFF"
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
     - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
     - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - stat build/artifact_name.txt
-    - stat "build/$(cat build/artifact_name.txt).tar.gz"
+    - python3 tools/check-package/main.py build --build-shared-libs ${BUILD_SHARED_LIBS}
   artifacts:
     expire_in: "1 week"
     paths:
@@ -31,11 +34,17 @@ package-macos:
         BUILD_SHARED_LIBS: "ON"
         CMAKE_OSX_DEPLOYMENT_TARGET: "14.0"
         CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
+      # macos-{arch}-clang-libc++-static-release
+      - BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "OFF"
+        CMAKE_OSX_DEPLOYMENT_TARGET: "14.0"
+        CMAKE_OSX_ARCHITECTURES: "arm64;x86_64"
   script:
+    - export PYENV_ROOT="$HOME/.pyenv"
+    - export PATH="$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH"
     - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DCMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET} -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
     - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - stat build/artifact_name.txt
-    - stat "build/$(cat build/artifact_name.txt).tar.gz"
+    - python tools/check-package/main.py build --build-shared-libs ${BUILD_SHARED_LIBS}
   artifacts:
     expire_in: "1 week"
     paths:
@@ -54,6 +63,10 @@ package-windows:
       - BUILD_CONFIGURATION: RelWithDebInfo
         BUILD_SHARED_LIBS: "ON"
         CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
+      # windows-x64-msvc143-md-static-release
+      - BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "OFF"
+        CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
@@ -64,7 +77,7 @@ package-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DCMAKE_MSVC_RUNTIME_LIBRARY=${env:CMAKE_MSVC_RUNTIME_LIBRARY} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package --parallel ${env:NUM_PARALLEL_BUILD_JOBS}"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DCMAKE_MSVC_RUNTIME_LIBRARY=${env:CMAKE_MSVC_RUNTIME_LIBRARY} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --target package --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && python tools\check-package\main.py build --build-shared-libs ${env:BUILD_SHARED_LIBS}"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
   artifacts:
     expire_in: 1 week
