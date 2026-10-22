@@ -224,13 +224,9 @@ if(DD_UUID_USE_DEFAULT)
                                "  Alpine: sudo apk add util-linux-dev")
         endif()
 
-        # On Linux, we need to link against this separate uuid library
+        # On Linux, `uuid_generate()` is defined in libuuid, not in libc
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-            find_library(UUID_LIBRARY uuid)
-            if(NOT UUID_LIBRARY)
-                message(FATAL_ERROR "UUID library not found")
-            endif()
-            target_link_libraries(ddsdkcpp PRIVATE ${UUID_LIBRARY})
+            target_link_libraries(ddsdkcpp PRIVATE uuid)
         endif()
     endif()
 else()
