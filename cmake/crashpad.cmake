@@ -75,6 +75,15 @@ endif()
 # always receives a plain value such as 'MultiThreadedDLL'. Configurations in which the
 # SDK's CRT can't be determined reliably are rejected.
 if(MSVC)
+    # If a parent project enabled MSVC with policy CMP0091 set to OLD, CMake ignores
+    # CMAKE_MSVC_RUNTIME_LIBRARY. CMake records the effective policy by leaving this
+    # (internal) variable empty; cmake_policy(GET) would only report our own setting.
+    if(NOT CMAKE_MSVC_RUNTIME_LIBRARY_DEFAULT)
+        message(FATAL_ERROR
+            "Crashpad support requires policy CMP0091 to be NEW in your top-level "
+            "project: use cmake_minimum_required(VERSION 3.15) or later.")
+    endif()
+
     # An empty CMAKE_MSVC_RUNTIME_LIBRARY is distinct from an unset one: CMake passes no
     # CRT flag at all, leaving the choice to the compiler or native build system. We
     # can't reliably build Crashpad to match that, so we reject it.
