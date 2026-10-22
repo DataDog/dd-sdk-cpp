@@ -14,11 +14,16 @@ namespace datadog::impl {
 
 namespace {
 
+/**
+ * Returns true if `vital` is an operation that has started and not yet ended, and that
+ * `message` is a step of. An operation that has ended is complete: a later step with
+ * the same name and key belongs to a new run of the operation, not to it.
+ */
 bool IsSameOperation(
     const TrackedRumVital& vital, const RumVitalGeneratedMessage& message
 ) {
-  return vital.is_operation && vital.name == message.name &&
-         vital.operation_key == message.operation_key;
+  return vital.is_operation && !vital.duration.has_value() &&
+         vital.name == message.name && vital.operation_key == message.operation_key;
 }
 
 }  // namespace
@@ -86,20 +91,31 @@ void RumEventTracker::OnLongTask(const RumLongTaskGeneratedMessage& message) {
   _context = message.context;
 }
 
-RumEventSnapshot RumEventTracker::TakeSnapshot() {
+RumEventSnapshot RumEventTracker::TakeSnapshot(const Timestamp& now) {
   std::lock_guard<std::mutex> lock(_mutex);
 
   RumEventSnapshot snapshot;
   snapshot.context = std::exchange(_context, RumEventContext{});
   snapshot.long_tasks = std::exchange(_long_tasks, {});
 
-  // Hand over every vital in order, moving those that are complete, and copying (and
-  // keeping, compacted to the front) the operations still waiting for their end step
+  const auto is_pending = [](const TrackedRumVital& vital) {
+    return vital.is_operation && !vital.duration.has_value();
+  };
+
+  // Operations that have not ended are kept, all together, only while one of them is
+  // recent enough to still be expected to end
+  const bool keep_pending =
+      std::any_of(_vitals.begin(), _vitals.end(), [&](const TrackedRumVital& vital) {
+        return is_pending(vital) && now - vital.start < kOngoingOperationCutoff;
+      });
+
+  // Hand over every vital in order, moving those that are done with, and copying (and
+  // keeping, compacted to the front) the operations that are still waiting for their
+  // end step
   snapshot.vitals.reserve(_vitals.size());
   size_t num_kept = 0;
   for (TrackedRumVital& vital : _vitals) {
-    const bool is_pending = vital.is_operation && !vital.duration.has_value();
-    if (!is_pending) {
+    if (!keep_pending || !is_pending(vital)) {
       snapshot.vitals.push_back(std::move(vital));
       continue;
     }
@@ -110,6 +126,12 @@ RumEventSnapshot RumEventTracker::TakeSnapshot() {
     num_kept++;
   }
   _vitals.erase(_vitals.begin() + static_cast<std::ptrdiff_t>(num_kept), _vitals.end());
+
+  // The operations we kept will be reported again by the next snapshot, so they need
+  // the context they occurred in, even if nothing else happens before then
+  if (num_kept > 0) {
+    _context = snapshot.context;
+  }
   return snapshot;
 }
 

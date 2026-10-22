@@ -21,6 +21,10 @@ Timestamp At(int64_t ms) {
   return Timestamp{std::chrono::duration_cast<Duration>(std::chrono::milliseconds{ms})};
 }
 
+// When snapshots are taken, unless a test says otherwise. Every operation in these
+// tests starts shortly before this, and so is recent.
+const Timestamp SNAPSHOT_TIME = At(10'000);
+
 RumEventContext MakeContext(std::string_view view_name = "Home") {
   RumEventContext context;
   context.ids.application_id = UUID::Random();
@@ -75,7 +79,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
   RumEventTracker tracker;
 
   SECTION("M return an empty snapshot W nothing has been recorded") {
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
 
     REQUIRE(snapshot.IsEmpty());
     REQUIRE(snapshot.context.ids.application_id == UUID::Zero);
@@ -88,7 +92,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     tracker.OnVital(vital);
 
     // Then the snapshot has the vital, with the duration it arrived with
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
     REQUIRE(snapshot.vitals.size() == 1);
     REQUIRE(snapshot.vitals[0].id == vital.vital_id);
     REQUIRE(snapshot.vitals[0].name == "time_to_initial_display");
@@ -104,7 +108,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     tracker.OnVital(MakeStep(RumVitalStepType::End, 1400, "checkout", "op-1"));
 
     // Then there is one vital, with the ID and start time of the start step
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
     REQUIRE(snapshot.vitals.size() == 1);
     REQUIRE(snapshot.vitals[0].id == start.vital_id);
     REQUIRE(snapshot.vitals[0].start == At(1000));
@@ -124,7 +128,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     tracker.OnVital(MakeStep(RumVitalStepType::End, 2000, "upload", "a"));
 
     // Then each is completed by its own end
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
     REQUIRE(snapshot.vitals.size() == 2);
     REQUIRE(snapshot.vitals[0].id == first.vital_id);
     REQUIRE(snapshot.vitals[0].duration == std::chrono::milliseconds(1000));
@@ -137,7 +141,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     tracker.OnVital(MakeStep(RumVitalStepType::Update, 1100));
     tracker.OnVital(MakeStep(RumVitalStepType::Retry, 1200));
 
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
     REQUIRE(snapshot.vitals.size() == 1);
     REQUIRE_FALSE(snapshot.vitals[0].duration.has_value());
   }
@@ -145,7 +149,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
   SECTION("M ignore an end W the operation was never started") {
     tracker.OnVital(MakeStep(RumVitalStepType::End, 1400));
 
-    REQUIRE(tracker.TakeSnapshot().IsEmpty());
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).IsEmpty());
   }
 
   SECTION("M restart an operation W it starts again before it ends") {
@@ -156,10 +160,151 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     tracker.OnVital(MakeStep(RumVitalStepType::End, 1500));
 
     // Then there is one vital, measured from the second start
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
     REQUIRE(snapshot.vitals.size() == 1);
     REQUIRE(snapshot.vitals[0].id == restart.vital_id);
     REQUIRE(snapshot.vitals[0].duration == std::chrono::milliseconds(200));
+  }
+
+  SECTION("M track a new run W an operation starts again after it ended") {
+    // Given an operation that has started and ended
+    const auto first = MakeStep(RumVitalStepType::Start, 1000, "checkout", "op-1");
+    tracker.OnVital(first);
+    tracker.OnVital(MakeStep(RumVitalStepType::End, 1400, "checkout", "op-1"));
+
+    // When the same operation starts again before a snapshot is taken
+    const auto second = MakeStep(RumVitalStepType::Start, 2000, "checkout", "op-1");
+    tracker.OnVital(second);
+
+    // Then both runs are reported: the second does not replace the first
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(snapshot.vitals.size() == 2);
+    REQUIRE(snapshot.vitals[0].id == first.vital_id);
+    REQUIRE(snapshot.vitals[0].duration == std::chrono::milliseconds(400));
+    REQUIRE(snapshot.vitals[1].id == second.vital_id);
+    REQUIRE_FALSE(snapshot.vitals[1].duration.has_value());
+  }
+
+  SECTION("M follow each run W operations span profiles and restart") {
+    // Given an operation that starts during profile 1
+    const auto first = MakeStep(RumVitalStepType::Start, 1000, "checkout", "op-1");
+    tracker.OnVital(first);
+
+    // When profile 1 ends, the operation is reported without a duration
+    const auto profile_1 = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(profile_1.vitals.size() == 1);
+    REQUIRE(profile_1.vitals[0].id == first.vital_id);
+    REQUIRE_FALSE(profile_1.vitals[0].duration.has_value());
+
+    // And during profile 2 it ends, and then the same operation starts again
+    tracker.OnVital(MakeStep(RumVitalStepType::End, 5000, "checkout", "op-1"));
+    const auto second = MakeStep(RumVitalStepType::Start, 6000, "checkout", "op-1");
+    tracker.OnVital(second);
+
+    // Then profile 2 reports the first run, now complete, and the second, still running
+    const auto profile_2 = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(profile_2.vitals.size() == 2);
+    REQUIRE(profile_2.vitals[0].id == first.vital_id);
+    REQUIRE(profile_2.vitals[0].duration == std::chrono::milliseconds(4000));
+    REQUIRE(profile_2.vitals[1].id == second.vital_id);
+    REQUIRE_FALSE(profile_2.vitals[1].duration.has_value());
+
+    // And profile 3 reports only the second run, which is still running
+    const auto profile_3 = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(profile_3.vitals.size() == 1);
+    REQUIRE(profile_3.vitals[0].id == second.vital_id);
+    REQUIRE_FALSE(profile_3.vitals[0].duration.has_value());
+
+    // And once the second run ends, profile 4 reports it complete, and nothing is left
+    tracker.OnVital(MakeStep(RumVitalStepType::End, 9000, "checkout", "op-1"));
+    const auto profile_4 = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(profile_4.vitals.size() == 1);
+    REQUIRE(profile_4.vitals[0].id == second.vital_id);
+    REQUIRE(profile_4.vitals[0].duration == std::chrono::milliseconds(3000));
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).IsEmpty());
+  }
+
+  SECTION("M forget an operation W it has not ended and none is recent") {
+    // Given an operation that started, and never ends
+    const auto abandoned = MakeStep(RumVitalStepType::Start, 1000, "upload", "a");
+    tracker.OnVital(abandoned);
+
+    // When a snapshot is taken more than a minute after it started
+    const Timestamp late = At(1000 + 61'000);
+    const auto first = tracker.TakeSnapshot(late);
+
+    // Then it is reported this once, without a duration
+    REQUIRE(first.vitals.size() == 1);
+    REQUIRE(first.vitals[0].id == abandoned.vital_id);
+    REQUIRE_FALSE(first.vitals[0].duration.has_value());
+
+    // And is not reported again, nor is the context kept for it
+    const auto second = tracker.TakeSnapshot(late + std::chrono::seconds(60));
+    REQUIRE(second.IsEmpty());
+    REQUIRE(second.context.ids.view_id == UUID::Zero);
+
+    // And a late end has nothing to complete
+    tracker.OnVital(MakeStep(RumVitalStepType::End, 200'000, "upload", "a"));
+    REQUIRE(tracker.TakeSnapshot(At(200'000)).IsEmpty());
+  }
+
+  SECTION("M keep an operation W it started less than a minute before the snapshot") {
+    const auto recent = MakeStep(RumVitalStepType::Start, 1000, "upload", "a");
+    tracker.OnVital(recent);
+
+    // When snapshots are taken just inside the cutoff, and then just outside it
+    const Timestamp inside = At(1000 + 59'000);
+    REQUIRE(tracker.TakeSnapshot(inside).vitals.size() == 1);
+    REQUIRE(tracker.TakeSnapshot(inside).vitals.size() == 1);
+    REQUIRE(tracker.TakeSnapshot(At(1000 + 60'000)).vitals.size() == 1);
+
+    // Then it is reported once more once the cutoff has passed, and no more after
+    REQUIRE(tracker.TakeSnapshot(At(1000 + 61'000)).IsEmpty());
+  }
+
+  SECTION("M keep every running operation W any one of them is recent") {
+    // Given an old operation, and a recent one
+    const auto old_op = MakeStep(RumVitalStepType::Start, 1000, "old", "a");
+    const auto recent = MakeStep(RumVitalStepType::Start, 100'000, "new", "b");
+    tracker.OnVital(old_op);
+    tracker.OnVital(recent);
+
+    // When a snapshot is taken, the old one more than a minute after its start
+    const auto first = tracker.TakeSnapshot(At(110'000));
+    REQUIRE(first.vitals.size() == 2);
+
+    // Then both are still tracked afterwards, as in dd-sdk-ios
+    const auto second = tracker.TakeSnapshot(At(110'000));
+    REQUIRE(second.vitals.size() == 2);
+    REQUIRE(second.vitals[0].id == old_op.vital_id);
+    REQUIRE(second.vitals[1].id == recent.vital_id);
+  }
+
+  SECTION("M forget only operations W completed ones are reported once") {
+    // Given a completed vital and an abandoned operation
+    tracker.OnVital(MakeLaunchVital(500, 250));
+    tracker.OnVital(MakeStep(RumVitalStepType::Start, 1000, "upload", "a"));
+
+    // When a snapshot is taken long after
+    const auto first = tracker.TakeSnapshot(At(1000 + 120'000));
+
+    // Then both are reported, and neither is reported again
+    REQUIRE(first.vitals.size() == 2);
+    REQUIRE(tracker.TakeSnapshot(At(1000 + 180'000)).IsEmpty());
+  }
+
+  SECTION("M ignore a second end W the operation already ended") {
+    // Given an operation that has started and ended
+    tracker.OnVital(MakeStep(RumVitalStepType::Start, 1000, "checkout", "op-1"));
+    tracker.OnVital(MakeStep(RumVitalStepType::End, 1400, "checkout", "op-1"));
+
+    // When another end arrives for it
+    tracker.OnVital(MakeStep(RumVitalStepType::End, 9000, "checkout", "op-1"));
+
+    // Then its duration is unchanged
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(snapshot.vitals.size() == 1);
+    REQUIRE(snapshot.vitals[0].duration == std::chrono::milliseconds(400));
   }
 
   SECTION("M record long tasks as they arrive") {
@@ -168,7 +313,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     tracker.OnLongTask(first);
     tracker.OnLongTask(second);
 
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
     REQUIRE(snapshot.long_tasks.size() == 2);
     REQUIRE(snapshot.long_tasks[0].id == first.long_task_id);
     REQUIRE(snapshot.long_tasks[0].start == At(1000));
@@ -183,7 +328,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     tracker.OnLongTask(latest);
 
     // Then the snapshot has the context of the last of them
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
     REQUIRE(snapshot.context.ids.view_id == latest.context.ids.view_id);
     REQUIRE(snapshot.context.ids.session_id == latest.context.ids.session_id);
   }
@@ -192,10 +337,10 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     // Given a recorded vital and long task
     tracker.OnVital(MakeLaunchVital(1000, 250));
     tracker.OnLongTask(MakeLongTask(1000, 60));
-    REQUIRE_FALSE(tracker.TakeSnapshot().IsEmpty());
+    REQUIRE_FALSE(tracker.TakeSnapshot(SNAPSHOT_TIME).IsEmpty());
 
     // When another snapshot is taken straight away
-    const auto snapshot = tracker.TakeSnapshot();
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
 
     // Then it is empty, and its context is clear
     REQUIRE(snapshot.IsEmpty());
@@ -208,9 +353,9 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     tracker.OnVital(start);
 
     // When a snapshot is taken, then the operation ends
-    const auto before_end = tracker.TakeSnapshot();
+    const auto before_end = tracker.TakeSnapshot(SNAPSHOT_TIME);
     tracker.OnVital(MakeStep(RumVitalStepType::End, 1700));
-    const auto after_end = tracker.TakeSnapshot();
+    const auto after_end = tracker.TakeSnapshot(SNAPSHOT_TIME);
 
     // Then the first snapshot reports it without a duration
     REQUIRE(before_end.vitals.size() == 1);
@@ -222,7 +367,29 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     REQUIRE(after_end.vitals[0].duration == std::chrono::milliseconds(700));
 
     // And it is reported no more once complete
-    REQUIRE(tracker.TakeSnapshot().IsEmpty());
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).IsEmpty());
+  }
+
+  SECTION("M keep the context W an operation is still waiting for its end") {
+    // Given an operation that has started, in a known RUM context
+    const auto start = MakeStep(RumVitalStepType::Start, 1000);
+    tracker.OnVital(start);
+
+    // When snapshots are taken with nothing else happening in between
+    const auto first = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    const auto second = tracker.TakeSnapshot(SNAPSHOT_TIME);
+
+    // Then each reports the operation in the context in which it started
+    REQUIRE(first.context.ids.view_id == start.context.ids.view_id);
+    REQUIRE(second.vitals.size() == 1);
+    REQUIRE(second.context.ids.view_id == start.context.ids.view_id);
+    REQUIRE(second.context.ids.session_id == start.context.ids.session_id);
+    REQUIRE(second.context.view_name == start.context.view_name);
+
+    // And once the operation ends and is reported, the context is released
+    tracker.OnVital(MakeStep(RumVitalStepType::End, 1700));
+    tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).context.ids.view_id == UUID::Zero);
   }
 
   SECTION("M forget everything W reset") {
@@ -233,7 +400,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     // An end for an operation forgotten by the reset has nothing to complete
     tracker.OnVital(MakeStep(RumVitalStepType::End, 1700));
 
-    REQUIRE(tracker.TakeSnapshot().IsEmpty());
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).IsEmpty());
   }
 
   SECTION("M drop further events W a kind reaches its cap") {
@@ -244,7 +411,8 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
 
     // Then only those up to the cap are kept
     REQUIRE(
-        tracker.TakeSnapshot().long_tasks.size() == RumEventTracker::kMaxEventsPerKind
+        tracker.TakeSnapshot(SNAPSHOT_TIME).long_tasks.size() ==
+        RumEventTracker::kMaxEventsPerKind
     );
   }
 }
