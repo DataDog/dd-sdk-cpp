@@ -24,17 +24,15 @@ ProfilingConfig::ProfilingConfig(ProfilingConfig&&) noexcept = default;
 ProfilingConfig& ProfilingConfig::operator=(ProfilingConfig&&) noexcept = default;
 
 Profiling::Profiling(Profiling::PrivateCtorTag)
-    : _impl(nullptr),
-      _diagnostic_handler(nullptr),
-      _diagnostic_threshold(DiagnosticLevel::Error) {}
+    : _diagnostic_handler(nullptr), _diagnostic_threshold(DiagnosticLevel::Error) {}
 
 Profiling::Profiling(
-    std::shared_ptr<impl::Profiling>&& impl,
+    const std::shared_ptr<impl::Profiling>& impl,
     DiagnosticHandler diagnostic_handler,
     DiagnosticLevel diagnostic_threshold,
     Profiling::PrivateCtorTag
 )
-    : _impl(std::move(impl)),
+    : _impl(impl),
       _diagnostic_handler(std::move(diagnostic_handler)),
       _diagnostic_threshold(diagnostic_threshold) {
   // The C++ profiling API doesn't currently emit any diagnostic messages, but storing
@@ -96,7 +94,7 @@ std::shared_ptr<Profiling> Profiling::Register(
   }
 
   return std::make_shared<Profiling>(
-      std::move(profiling_impl),
+      profiling_impl,
       core->_diagnostic_handler,
       core->_diagnostic_threshold,
       Profiling::PrivateCtorTag{}

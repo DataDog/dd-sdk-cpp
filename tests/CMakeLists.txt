@@ -18,6 +18,7 @@ add_executable(tests
     cpp/core_cpp_api_test.cpp
     cpp/diagnostics_cpp_api_test.cpp
     cpp/logging_cpp_api_test.cpp
+    cpp/profiling_cpp_api_test.cpp
     cpp/rum_cpp_api_test.cpp
     cpp/timestamp_cpp_api_test.cpp
     cpp/account_info_cpp_api_test.cpp
@@ -194,6 +195,9 @@ target_link_libraries(tests
 # If the SDK was built with profiling support, ensure that dd-win-prof.dll is present
 # alongside the test binary post-build
 if(DD_PROFILING_ACTIVE)
+    # Enables the tests of how Profiling::Register claims the profiler
+    target_compile_definitions(tests PRIVATE DD_TESTS_WITH_PROFILING=1)
+
     add_custom_command(TARGET tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
                 "$<TARGET_FILE:dd-win-prof>"
