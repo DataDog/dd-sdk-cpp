@@ -19,9 +19,10 @@ endif()
 #
 # On Windows:
 #
-# - MSVC_RUNTIME_LIBRARY (e.g. 'MultiThreadedDLL'): controls the CRT version that your
-#   application links against; the SDK should link against the same CRT for ABI
-#   compatibility.
+# - CMAKE_MSVC_RUNTIME_LIBRARY (e.g. 'MultiThreadedDLL'): controls the CRT version that
+#   your application links against; the SDK should link against the same CRT for ABI
+#   compatibility. If unset, CMake's default applies ('MultiThreadedDebugDLL' for Debug
+#   builds; 'MultiThreadedDLL' otherwise).
 #
 # On macOS:
 #
