@@ -44,7 +44,12 @@ Profiling::MakeMessageHandler() {
       return;
     }
     if (const auto* m = std::get_if<ContextChangedMessage>(&msg)) {
+      self->_metadata_source.OnContextChanged(m->context);
       self->OnTrackingConsent(m->context.tracking_consent);
+    } else if (const auto* vital = std::get_if<RumVitalGeneratedMessage>(&msg)) {
+      self->OnRumVital(*vital);
+    } else if (const auto* long_task = std::get_if<RumLongTaskGeneratedMessage>(&msg)) {
+      self->OnRumLongTask(*long_task);
     }
   };
 }
@@ -63,6 +68,20 @@ void Profiling::Stop() {
   // starting the profiler
   _consent = TrackingConsent::Pending;
   UpdateProfilerState();
+}
+
+void Profiling::OnRumVital(const RumVitalGeneratedMessage& message) {
+  std::lock_guard<std::mutex> lock(_mutex);
+  if (_profiler_running) {
+    _metadata_source.OnVital(message);
+  }
+}
+
+void Profiling::OnRumLongTask(const RumLongTaskGeneratedMessage& message) {
+  std::lock_guard<std::mutex> lock(_mutex);
+  if (_profiler_running) {
+    _metadata_source.OnLongTask(message);
+  }
 }
 
 void Profiling::OnTrackingConsent(TrackingConsent consent) {
@@ -100,6 +119,7 @@ void Profiling::UpdateProfilerState() {
   } else if (!should_run && _profiler_running) {
     _profiler->Stop();
     _profiler_running = false;
+    _metadata_source.ResetRumEvents();
   }
 }
 
