@@ -72,12 +72,22 @@ endif()
 # value that CMake uses for SDK targets: CMAKE_MSVC_RUNTIME_LIBRARY if set, otherwise
 # CMake's documented default. This value may contain generator expressions, which are
 # evaluated per-configuration when the build command runs, so the bootstrap script
-# always receives a plain value such as 'MultiThreadedDLL'.
+# always receives a plain value such as 'MultiThreadedDLL'. Configurations in which the
+# SDK's CRT can't be determined reliably are rejected.
 if(MSVC)
-    if(CMAKE_MSVC_RUNTIME_LIBRARY)
-        set(CRASHPAD_MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
-    else()
+    # An empty CMAKE_MSVC_RUNTIME_LIBRARY is distinct from an unset one: CMake passes no
+    # CRT flag at all, leaving the choice to the compiler or native build system. We
+    # can't reliably build Crashpad to match that, so we reject it.
+    if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
         set(CRASHPAD_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    elseif(CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL "")
+        message(FATAL_ERROR
+            "CMAKE_MSVC_RUNTIME_LIBRARY is set to an empty value, which is unsupported "
+            "when Crashpad is enabled: the SDK and Crashpad must be built against the "
+            "same CRT. Set it to an explicit value (e.g. 'MultiThreadedDLL'), or unset "
+            "it to use CMake's default.")
+    else()
+        set(CRASHPAD_MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
     endif()
 else()
     set(CRASHPAD_MSVC_RUNTIME_LIBRARY "")
