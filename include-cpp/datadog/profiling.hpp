@@ -68,7 +68,7 @@ class Profiling {
   // Callers should use Profiling::Register
   explicit Profiling(PrivateCtorTag);
   explicit Profiling(
-      std::shared_ptr<impl::Profiling>&& impl,
+      const std::shared_ptr<impl::Profiling>& impl,
       DiagnosticHandler diagnostic_handler,
       DiagnosticLevel diagnostic_threshold,
       PrivateCtorTag
@@ -99,7 +99,12 @@ class Profiling {
   Profiling(Profiling&&) = delete;
   Profiling& operator=(Profiling&&) = delete;
 
-  std::shared_ptr<impl::Profiling> _impl;
+  // Held weakly, so that the Core's own reference is the only thing that keeps the
+  // feature alive. The feature owns the claim on the process-global profiler: if this
+  // handle shared ownership of it, an application that kept the handle after its Core
+  // was destroyed would hold the claim, and the profiler would never become available
+  // to another Core.
+  std::weak_ptr<impl::Profiling> _impl;
   DiagnosticHandler _diagnostic_handler;
   DiagnosticLevel _diagnostic_threshold;
 };
