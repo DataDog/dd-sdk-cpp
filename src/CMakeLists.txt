@@ -43,6 +43,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/tracing/trace_id.cpp
     datadog/impl/types/upload_util.cpp
     datadog/impl/core/attribute/binary.cpp
+    datadog/impl/core/tracing/deterministic_sampler.cpp
     datadog/impl/core/tracing/span_id_generator.cpp
     datadog/impl/core/tracing/trace_id_generator.cpp
     datadog/impl/core/util/validation.cpp

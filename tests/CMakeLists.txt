@@ -69,6 +69,7 @@ add_executable(tests
     impl/core/storage/filesystem_wrapper_test.cpp
     impl/core/storage/path_test.cpp
     impl/core/storage/sdk_test.cpp
+    impl/core/tracing/deterministic_sampler_test.cpp
     impl/core/tracing/span_id_generator_test.cpp
     impl/core/tracing/trace_id_generator_test.cpp
     impl/core/util/insecure_random_generator_test.cpp
