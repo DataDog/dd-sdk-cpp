@@ -42,5 +42,12 @@ function(target_enable_shared_library_support target_name)
             PUBLIC DATADOG_SHARED_LIB
             PRIVATE WITH_DATADOG_EXPORTS
         )
+
+        # On Linux, embed a build ID so that debug info split from the library (see
+        # debug-info.cmake) can be matched to it reliably. Many toolchains do this by
+        # default, but not all: Clang only does so if configured to.
+        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+            target_link_options(${target_name} PRIVATE LINKER:--build-id)
+        endif()
     endif()
 endfunction()
