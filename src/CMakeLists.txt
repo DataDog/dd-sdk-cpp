@@ -19,6 +19,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/cpp/core.cpp
     datadog/cpp/crash_reporting.cpp
     datadog/cpp/logging.cpp
+    datadog/cpp/profiling.cpp
     datadog/cpp/rum.cpp
     datadog/cpp/uuid.cpp
     datadog/cpp/version.cpp
@@ -289,6 +290,13 @@ target_sources(ddsdkcpp PRIVATE
     datadog/impl/logging/tags.cpp
 )
 
+# === profiling ===
+
+target_sources(ddsdkcpp PRIVATE
+    datadog/impl/profiling/profiler_ownership.cpp
+    datadog/impl/profiling/profiling.cpp
+)
+
 # === rum ===
 
 target_sources(ddsdkcpp PRIVATE
@@ -357,6 +365,14 @@ elseif(DD_CRASH_MODE STREQUAL "crashpad")
     )
 else()
     message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
+endif()
+
+# If building with profiling support, build dd-win-prof and link it into ddsdkcpp;
+# otherwise, compile the CreateProfiler() variant that reports profiling as unsupported
+if(DD_PROFILING_ACTIVE)
+    include(${DD_SDK_ROOT_DIR}/cmake/profiler.cmake)
+else()
+    target_sources(ddsdkcpp PRIVATE datadog/impl/profiling/profiler_unsupported.cpp)
 endif()
 
 # Install configuration

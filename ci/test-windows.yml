@@ -51,9 +51,11 @@ test-windows-crashpad:
 
 compat-windows:
   # - COMPILE: Build with MSVC 17.14 on Windows x64
-  # - CONFIG:  Validate Release build (test-windows handles Debug)
+  # - CONFIG:  Validate Release build (test-windows handles Debug), plus the profiling
+  #            builds below, which also cover Debug and static-CRT variations
   # - CRASH:   Use the default crash handling implementation
-  # - EXTRAS:  Build test binaries
+  # - EXTRAS:  Build test binaries (static SDK only)
+  # - PROFILER: Build dd-win-prof into the SDK where DD_ENABLE_PROFILING is ON
   # - RUNTIME: Run unit tests
   stage: test
   dependencies: []
@@ -67,6 +69,38 @@ compat-windows:
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         DD_CRASH_MODE: "inprocess"
+        DD_BUILD_TESTING: "ON"
+        DD_ENABLE_PROFILING: "OFF"
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
+      # Same, with profiling (dd-win-prof) enabled: md-static-release
+      - BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        DD_BUILD_TESTING: "ON"
+        DD_CRASH_MODE: "inprocess"
+        DD_ENABLE_PROFILING: "ON"
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
+      # Profiling, Debug: md-static-debug
+      - BUILD_CONFIGURATION: Debug
+        BUILD_SHARED_LIBS: "OFF"
+        DD_BUILD_TESTING: "ON"
+        DD_CRASH_MODE: "inprocess"
+        DD_ENABLE_PROFILING: "ON"
+        MSVC_RUNTIME_LIBRARY: MultiThreadedDebugDLL
+      # Profiling, static CRT: mt-static-release
+      - BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "OFF"
+        DD_BUILD_TESTING: "ON"
+        DD_CRASH_MODE: "inprocess"
+        DD_ENABLE_PROFILING: "ON"
+        MSVC_RUNTIME_LIBRARY: MultiThreaded
+      # Profiling, shared SDK library: md-shared-release. Build only, as on Linux and
+      # macOS: the unit tests link internal SDK symbols that a shared library does not
+      # export, so tests can only be built against a static SDK
+      - BUILD_CONFIGURATION: Release
+        BUILD_SHARED_LIBS: "ON"
+        DD_BUILD_TESTING: "OFF"
+        DD_CRASH_MODE: "inprocess"
+        DD_ENABLE_PROFILING: "ON"
         MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
   script:
     - $ErrorActionPreference = "Stop"
@@ -80,5 +114,5 @@ compat-windows:
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_BUILD_TESTING=ON -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --build-config ${env:BUILD_CONFIGURATION} --output-on-failure"
+      cmd /S /C "cmake -DCMAKE_BUILD_TYPE=${env:BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${env:BUILD_SHARED_LIBS} -DDD_CRASH_MODE=${env:DD_CRASH_MODE} -DDD_ENABLE_PROFILING=${env:DD_ENABLE_PROFILING} -DDD_RUN_CRASHPAD_TESTS=${env:DD_RUN_CRASHPAD_TESTS} -DMSVC_RUNTIME_LIBRARY=${env:MSVC_RUNTIME_LIBRARY} -DDD_BUILD_TESTING=${env:DD_BUILD_TESTING} -S . -B build && cmake --build build --config ${env:BUILD_CONFIGURATION} --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --build-config ${env:BUILD_CONFIGURATION} --output-on-failure --no-tests=ignore"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (cmake build) returned $LASTEXITCODE" }
