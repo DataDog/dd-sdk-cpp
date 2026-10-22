@@ -91,6 +91,19 @@ if(PROJECT_IS_TOP_LEVEL)
     endif()
 endif()
 
+# For static-library builds with MSVC, pass /Z7 to embed debug info into object files
+# rather than producing a separate .pdb. Consumers of the .lib will always have debug
+# info available at link-time, rather than needing to have a .pdb alongside the .lib,
+# without which they'd get LNK4099 warnings and no symbols for SDK code.
+if(MSVC AND NOT DD_BUILD_SHARED)
+    foreach(lang C CXX)
+        foreach(config DEBUG RELWITHDEBINFO)
+            string(REPLACE "/Zi" "/Z7"
+                CMAKE_${lang}_FLAGS_${config} "${CMAKE_${lang}_FLAGS_${config}}")
+        endforeach()
+    endforeach()
+endif()
+
 # Set the root directory for the project: this is build/ when building the library;
 # build/_deps/datadog-build (or something similar) when included in another project via
 # FetchContent
