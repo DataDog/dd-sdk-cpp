@@ -112,7 +112,18 @@ if(MSVC AND NOT DD_BUILD_SHARED)
                 CMAKE_${lang}_FLAGS_${config} "${CMAKE_${lang}_FLAGS_${config}}")
         endforeach()
     endforeach()
-    set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "$<$<CONFIG:Debug,RelWithDebInfo>:Embedded>")
+
+    # Start from the parent project's chosen format (or CMake's default if none is set,
+    # as documented for CMP0141), and switch ProgramDatabase (/Zi) to Embedded (/Z7).
+    # This preserves the parent's choices for each config, including an explicitly empty
+    # value (i.e. no debug info), and works whether the value is a plain format name or
+    # a generator expression.
+    if(NOT DEFINED CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
+        set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+            "$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>")
+    endif()
+    string(REPLACE "ProgramDatabase" "Embedded"
+        CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "${CMAKE_MSVC_DEBUG_INFORMATION_FORMAT}")
 endif()
 
 # Set the root directory for the project: this is build/ when building the library;
