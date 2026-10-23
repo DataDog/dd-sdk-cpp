@@ -20,7 +20,7 @@ package-linux:
   artifacts:
     expire_in: "1 week"
     paths:
-      - build/ddsdkcpp-*.tar.gz
+      - build/ddsdkcpp-*.zip
 
 package-macos:
   stage: package
@@ -48,7 +48,7 @@ package-macos:
   artifacts:
     expire_in: "1 week"
     paths:
-      - build/ddsdkcpp-*.tar.gz
+      - build/ddsdkcpp-*.zip
 
 package-windows:
   stage: package

@@ -6,7 +6,6 @@
 # Copyright 2025-Present Datadog, Inc.
 import re
 import sys
-import tarfile
 import zipfile
 import argparse
 from pathlib import Path
@@ -64,12 +63,9 @@ def parse_cmake_bool(value: str) -> bool:
 
 
 def list_archive(archive_path: Path) -> list[str]:
-    """Returns the paths of all files (not directories) in a .tar.gz or .zip archive."""
-    if archive_path.suffix == ".zip":
-        with zipfile.ZipFile(archive_path) as archive:
-            return [info.filename for info in archive.infolist() if not info.is_dir()]
-    with tarfile.open(archive_path, "r:gz") as archive:
-        return [member.name for member in archive.getmembers() if not member.isdir()]
+    """Returns the paths of all files (not directories) in a .zip archive."""
+    with zipfile.ZipFile(archive_path) as archive:
+        return [info.filename for info in archive.infolist() if not info.is_dir()]
 
 
 def main():
@@ -102,8 +98,7 @@ def main():
 
     # CPack writes the archive alongside artifact_name.txt, with all files nested in a
     # top-level directory of the same name
-    extension = ".zip" if platform == "windows" else ".tar.gz"
-    archive_path = args.build_dir / f"{artifact_name}{extension}"
+    archive_path = args.build_dir / f"{artifact_name}.zip"
     if not archive_path.is_file():
         sys.exit(f"ERROR: Package not found: {archive_path}")
     prefix = f"{artifact_name}/"
