@@ -2,19 +2,14 @@
 
 ### Features
 
-- New `TraceContext`, `TraceID`, and `SpanID` types are available, along with `ITraceIDGenerator` and `ISpanIDGenerator` interfaces and their default implementations, enabling trace and span ID generation for RUM integrations.
 - Static-library builds of the SDK are now published as release artifacts alongside the existing shared-library builds, for all platforms.
 - Shared-library release artifacts now include separate debug-info files on all platforms: `.pdb` on Windows, `.dSYM` on macOS, and a stripped `.so` with an accompanying `.so.debug` on Linux.
-- Linux shared-library builds now embed a GNU Build ID, enabling reliable correlation between the binary and its separate debug-info file.
-- Release archives for all platforms are now packaged as `.zip` files; macOS and Linux releases previously used `.tar.gz`.
+- Release archives are now packaged as `.zip` file on all platforms. If your build process previously consumed binary releases of `dd-sdk-cpp` from GitHub for macOS or Linux, note that these files are now `.zip` instead of `.tar.gz`.
 
 ### Fixes
 
-- RUM crash reports are now correctly uploaded to the intake endpoint by packaging the RUM view and error events as a single JSON `event` file attachment, resolving 400 errors caused by the previous plain form-field format.
-- Crash reports uploaded via Crashpad now correctly include `ddsource` as a query parameter in the upload URL, matching the behavior of other SDK requests.
 - On Windows, `CMAKE_MSVC_RUNTIME_LIBRARY` is now the correct variable to use when controlling CRT linkage flavor; previously, setting `MSVC_RUNTIME_LIBRARY` had no effect on the SDK build and could cause a link failure with the Crashpad client.
 - Linux builds now correctly require `libuuid` by name rather than embedding the build-machine library path in the installed CMake targets, fixing linker errors when consuming the SDK as a static library dependency.
-- The Crashpad bootstrap process now gracefully handles patch or pinned-revision updates when upgrading the SDK from an existing build directory, preventing build failures that previously required manual cleanup.
 
 ## 0.8.0
 
@@ -80,13 +75,6 @@
 - `datadog_install()` now automatically deploys the SDK shared library alongside the application and configures the correct runtime search path (`RPATH`) on POSIX platforms.
 - Strings passed as `name` or `key` to the RUM Operations API are now safely copied, preventing potential crashes or undefined behavior if the original string is destroyed or modified after the call returns.
 - Fixed compilation errors when building for 32-bit ARMv7 targets caused by C++ type-deduction issues.
-
-<!-- ### Internal Changes
-
-- UUID generation is now pluggable: platforms without a built-in UUID generator can supply their own implementation, while existing platforms continue to use their built-in generator by default.
-- RUM Resource events and Resource error events now correctly propagate trace context attributes (`_dd.trace_id`, `_dd.span_id`, `_dd.parent_span_id`, `_dd.rule_psr`) to their dedicated event fields rather than leaving them in the generic `context` object.
-
--->
 
 ## 0.4.0
 
