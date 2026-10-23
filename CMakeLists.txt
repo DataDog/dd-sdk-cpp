@@ -19,9 +19,11 @@ endif()
 #
 # On Windows:
 #
-# - MSVC_RUNTIME_LIBRARY (e.g. 'MultiThreadedDLL'): controls the CRT version that your
-#   application links against; the SDK should link against the same CRT for ABI
-#   compatibility.
+# - CMAKE_MSVC_RUNTIME_LIBRARY (e.g. 'MultiThreadedDLL'): controls the CRT version that
+#   your application links against; the SDK should link against the same CRT for ABI
+#   compatibility. If unset, CMake's default applies ('MultiThreadedDebugDLL' for Debug
+#   builds; 'MultiThreadedDLL' otherwise). When Crashpad is enabled, an empty value is
+#   rejected, and policy CMP0091 must be NEW when your top-level project enables MSVC.
 #
 # On macOS:
 #

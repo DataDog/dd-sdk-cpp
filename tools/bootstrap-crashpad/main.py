@@ -238,8 +238,11 @@ class GnArgs:
                 continue
             args.extra_ldflags.add(opt)
 
-        # On Windows, require MSVC_RUNTIME_LIBRARY and ensure that we're building
-        # crashpad with the appropriate CRT binary
+        # On Windows, require a non-empty MSVC_RUNTIME_LIBRARY and ensure that we're
+        # building crashpad with the appropriate CRT binary. CMake may pass an empty value
+        # if CMAKE_MSVC_RUNTIME_LIBRARY is a generator expression that evaluates to an
+        # empty string for the current configuration, in which case CMake passes no CRT
+        # flag to the SDK build, and we can't reliably match it.
         if sys.platform == 'win32':
             # Map CMake options to the corresponding switches provided to cl.exe
             crt_flags = {
@@ -252,7 +255,10 @@ class GnArgs:
             # Identify the CRT flag that we should be passing to the compiler
             msvc_runtime_library = vars.get('MSVC_RUNTIME_LIBRARY', '')
             if not msvc_runtime_library:
-                raise ValueError('MSVC_RUNTIME_LIBRARY must be specified for Windows builds')
+                raise ValueError(
+                    'MSVC_RUNTIME_LIBRARY resolved to an empty value for this build '
+                    'configuration; an explicit CRT is required so that Crashpad matches '
+                    'the SDK')
             crt_flag = crt_flags.get(msvc_runtime_library)
             if not crt_flag:
                 raise ValueError(f"Unsupported MSVC_RUNTIME_LIBRARY: '{msvc_runtime_library}'")
