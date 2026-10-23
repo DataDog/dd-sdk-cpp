@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.21)
 
+# CMake 3.24+ warns when a URL download doesn't specify DOWNLOAD_EXTRACT_TIMESTAMP. Opt
+# in to the new behavior (extracted files are timestamped at extraction time, so that
+# changing a URL triggers a rebuild of dependent targets) where the policy exists.
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 # When building dd-sdk-cpp from source, you should generally ensure that your top-level
 # build defines these standard properties, either in your project's CMakeLists.txt or in
 # the cmake configure command for your build.
