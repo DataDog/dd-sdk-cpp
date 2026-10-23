@@ -78,10 +78,10 @@ def main():
     # to be included in this release as artifacts: perform some basic sanity checks to
     # verify that every archive is named for the expected version number, and that we
     # have at least one shared-library and one static-library archive for each supported
-    # platform, e.g. 'ddsdkcpp-v0.8.0-linux-x64-clang-libstdc++-shared-release.tar.gz'
+    # platform, e.g. 'ddsdkcpp-v0.8.0-linux-x64-clang-libstdc++-shared-release.zip'
     archive_name_regex = re.compile(
         r'ddsdkcpp-v' + re.escape(sdk_version) +
-        r'-(linux|macos|windows)-.+-(shared|static)-(release|debug)\.(tar\.gz|zip)'
+        r'-(linux|macos|windows)-.+-(shared|static)-(release|debug)\.zip'
     )
     missing_flavors: set[tuple[str, str]] = {
         (platform, linkage)

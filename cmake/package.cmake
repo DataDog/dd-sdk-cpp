@@ -17,12 +17,8 @@ add_custom_command(TARGET version POST_BUILD
     COMMAND $<TARGET_FILE:version> -e artifact > ${CMAKE_CURRENT_BINARY_DIR}/artifact_name.txt
 )
 
-# Use .zip by default on windows; .tar.gz everywhere else
-if(WIN32)
+# Package as .zip on all platforms
 set(CPACK_GENERATOR "ZIP")
-else()
-set(CPACK_GENERATOR "TGZ")
-endif()
 
 # Include CPack to define a package target: running
 # `cmake --build build --target package` will build the library and write a

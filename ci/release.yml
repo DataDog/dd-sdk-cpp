@@ -24,13 +24,13 @@ publish-release:
     - dd-octo-sts --disable-tracing token --scope DataDog/dd-sdk-cpp --policy self.publish-release > /tmp/gh-token.txt
   script:
     # Upstream 'package' jobs should have produced archives containing prebuilt binaries
-    # to be used in this release: these '*.tar.gz'/'*.zip' files are tagged as artifacts
+    # to be used in this release: these '*.zip' files are tagged as artifacts
     # in those CI jobs, meaning they should be automatically copied into our `build`
     # directory
     - |
       mapfile -d '' ARCHIVE_FILES < <(
         find build -maxdepth 1 -type f \
-          \( -name 'ddsdkcpp-*.tar.gz' -o -name 'ddsdkcpp-*.zip' \) \
+          -name 'ddsdkcpp-*.zip' \
           -print0
       )
       if [ "${#ARCHIVE_FILES[@]}" -eq 0 ]; then
