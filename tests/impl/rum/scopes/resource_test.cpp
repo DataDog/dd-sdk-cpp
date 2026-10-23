@@ -56,7 +56,7 @@ class ResourceFixture {
             deps,
             root,
             true,
-            true,
+            std::make_unique<DeterministicSampler>(*UUID::Parse(SESSION_ID), 100.0f),
             *UUID::Parse(SESSION_ID),
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(

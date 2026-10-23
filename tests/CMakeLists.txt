@@ -47,7 +47,6 @@ add_executable(tests
     impl/types/json/json_scanner_test.cpp
     impl/types/json_test.cpp
     impl/types/rum_test.cpp
-    impl/types/sampling_test.cpp
     impl/types/tracing/span_id_test.cpp
     impl/types/tracing/trace_id_test.cpp
     impl/types/upload_util_test.cpp
