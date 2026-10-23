@@ -11,7 +11,7 @@
 
 namespace datadog::impl {
 
-DeterministicSampler::DeterministicSampler(uint64_t seed, float sample_rate)
+DeterministicSampler::DeterministicSampler(const uint64_t seed, const float sample_rate)
     : _seed(seed), _sample_rate(std::clamp(sample_rate, 0.0f, 100.0f)) {
   // If sampling rate is 100%, all data is sampled
   if (sample_rate >= 100.0f) {
@@ -60,7 +60,9 @@ uint64_t GenerateSeedFrom(const UUID& session_id) {
 }
 }  // namespace
 
-DeterministicSampler::DeterministicSampler(const UUID& session_id, float sample_rate)
+DeterministicSampler::DeterministicSampler(
+    const UUID& session_id, const float sample_rate
+)
     : DeterministicSampler(GenerateSeedFrom(session_id), sample_rate) {}
 
 bool DeterministicSampler::Sample() { return _is_sampled; }

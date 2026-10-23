@@ -29,7 +29,7 @@ class DeterministicSampler final : public ISampler {
    * @param seed The seed for this sampler.
    * @param sample_rate A sample rate between 0 and 100.
    */
-  DeterministicSampler(uint64_t seed, float sample_rate);
+  DeterministicSampler(const uint64_t seed, const float sample_rate);
 
   /**
    * Creates a new sampler for a given session ID. The sampler seed is derived
@@ -38,7 +38,7 @@ class DeterministicSampler final : public ISampler {
    * @param session_id A UUID representing a session ID.
    * @param sample_rate A sample rate between 0 and 100.
    */
-  DeterministicSampler(const UUID& session_id, float sample_rate);
+  DeterministicSampler(const UUID& session_id, const float sample_rate);
 
   bool Sample() override;
 

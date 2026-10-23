@@ -37,7 +37,6 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/json/parse_attribute.cpp
     datadog/impl/types/json/parse_primitives.cpp
     datadog/impl/types/diagnostics.cpp
-    datadog/impl/types/sampling.cpp
     datadog/impl/types/tracing/span_id.cpp
     datadog/impl/types/tracing/trace_context.cpp
     datadog/impl/types/tracing/trace_id.cpp
