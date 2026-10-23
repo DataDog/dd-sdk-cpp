@@ -29,7 +29,7 @@ function(install_shared_library_debug_info target_name library_destination runti
         # builds).
         find_program(DD_DSYMUTIL_EXECUTABLE dsymutil REQUIRED)
         set(install_code [[
-            if(CMAKE_INSTALL_CONFIG_NAME MATCHES "^(Debug|RelWithDebInfo)$")
+            if($<CONFIG:Debug,RelWithDebInfo>)
                 set(dsym "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/@library_destination@/@library_file_name@.dSYM")
                 message(STATUS "Installing: ${dsym}")
                 file(REMOVE_RECURSE "${dsym}")
@@ -50,7 +50,7 @@ function(install_shared_library_debug_info target_name library_destination runti
         # re-added in two steps so that re-running the install (when the installed
         # library is already up to date, and therefore already stripped) is harmless.
         set(install_code [[
-            if(CMAKE_INSTALL_CONFIG_NAME MATCHES "^(Debug|RelWithDebInfo)$")
+            if($<CONFIG:Debug,RelWithDebInfo>)
                 set(library "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/@library_destination@/@library_file_name@")
                 message(STATUS "Installing: ${library}.debug")
                 execute_process(
