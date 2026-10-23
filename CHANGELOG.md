@@ -8,7 +8,7 @@
 
 ### Fixes
 
-- On Windows, `CMAKE_MSVC_RUNTIME_LIBRARY` is now the correct variable to use when controlling CRT linkage flavor; previously, setting `MSVC_RUNTIME_LIBRARY` had no effect on the SDK build and could cause a link failure with the Crashpad client.
+- For Windows builds, `CMAKE_MSVC_RUNTIME_LIBRARY` is now correctly documented as controlling CRT linkage flavor. Previously, comments in `CMakeLists.txt` advised setting a variable called `MSVC_RUNTIME_LIBRARY`, which is incorrect.
 - Linux builds now correctly require `libuuid` by name rather than embedding the build-machine library path in the installed CMake targets, fixing linker errors when consuming the SDK as a static library dependency.
 
 ## 0.8.0
