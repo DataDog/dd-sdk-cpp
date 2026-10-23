@@ -40,10 +40,6 @@ function(install_shared_library_debug_info target_name library_destination runti
             endif()
         ]])
     elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        if(NOT CMAKE_OBJCOPY)
-            message(FATAL_ERROR "objcopy is required to split debug info from ${target_name}")
-        endif()
-
         # Copy debug sections from the library in the build tree (which always has
         # them) to a .debug file, then strip debug sections from the installed library
         # and point its .gnu_debuglink at that file. The debug link is removed and
@@ -51,18 +47,22 @@ function(install_shared_library_debug_info target_name library_destination runti
         # library is already up to date, and therefore already stripped) is harmless.
         set(install_code [[
             if($<CONFIG:Debug,RelWithDebInfo>)
+                set(objcopy "@CMAKE_OBJCOPY@")
+                if(NOT objcopy)
+                    message(FATAL_ERROR "objcopy is required to split debug info from @target_name@")
+                endif()
                 set(library "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/@library_destination@/@library_file_name@")
                 message(STATUS "Installing: ${library}.debug")
                 execute_process(
-                    COMMAND "@CMAKE_OBJCOPY@" --only-keep-debug "@library_file@" "${library}.debug"
+                    COMMAND "${objcopy}" --only-keep-debug "@library_file@" "${library}.debug"
                     COMMAND_ERROR_IS_FATAL ANY
                 )
                 execute_process(
-                    COMMAND "@CMAKE_OBJCOPY@" --strip-debug --remove-section=.gnu_debuglink "${library}"
+                    COMMAND "${objcopy}" --strip-debug --remove-section=.gnu_debuglink "${library}"
                     COMMAND_ERROR_IS_FATAL ANY
                 )
                 execute_process(
-                    COMMAND "@CMAKE_OBJCOPY@" "--add-gnu-debuglink=${library}.debug" "${library}"
+                    COMMAND "${objcopy}" "--add-gnu-debuglink=${library}.debug" "${library}"
                     COMMAND_ERROR_IS_FATAL ANY
                 )
             endif()
