@@ -2,14 +2,14 @@
 
 ### Features
 
-- Static-library builds of the SDK are now published as release artifacts alongside the existing shared-library builds, for all platforms.
+- We now publish precompiled releases of the SDK as a static library, in addition to the existing shared-library builds.
 - Shared-library release artifacts now include separate debug-info files on all platforms: `.pdb` on Windows, `.dSYM` on macOS, and a stripped `.so` with an accompanying `.so.debug` on Linux.
 - Release archives are now packaged as `.zip` file on all platforms. If your build process previously consumed binary releases of `dd-sdk-cpp` from GitHub for macOS or Linux, note that these files are now `.zip` instead of `.tar.gz`.
 
 ### Fixes
 
 - For Windows builds, `CMAKE_MSVC_RUNTIME_LIBRARY` is now correctly documented as controlling CRT linkage flavor. Previously, comments in `CMakeLists.txt` advised setting a variable called `MSVC_RUNTIME_LIBRARY`, which is incorrect.
-- Linux builds now correctly require `libuuid` by name rather than embedding the build-machine library path in the installed CMake targets, fixing linker errors when consuming the SDK as a static library dependency.
+- Linux builds now correctly require `libuuid` by name rather than embedding the build-machine library path.
 
 ## 0.8.0
 
