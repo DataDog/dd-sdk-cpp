@@ -59,12 +59,47 @@ if(DD_CRASHPAD_LOCAL_CLONE)
     set(CRASHPAD_DOWNLOAD_COMMAND_ARG "")
     set(CRASHPAD_BUILD_SUBCOMMAND dev build ${DD_CRASHPAD_LOCAL_CLONE})
 else()
-    # Normal mode: fetch (or sync) the pinned crashpad revision via depot_tools, apply
-    # datadog.patch, then build.
+    # Normal mode: fetch (or sync) the pinned crashpad revision via depot_tools, then
+    # build. Each build ensures the source tree matches the pinned revision and the
+    # current datadog.patch, restoring and re-patching it if the SDK has been updated.
     set(CRASHPAD_SOURCE_DIR_ARG "")
     set(CRASHPAD_DOWNLOAD_COMMAND_ARG DOWNLOAD_COMMAND
         ${Python3_EXECUTABLE} ${DD_SDK_ROOT_DIR}/tools/bootstrap-crashpad/main.py install)
     set(CRASHPAD_BUILD_SUBCOMMAND build --no-install)
+endif()
+
+# On Windows, Crashpad must be built against the same CRT as the SDK. Pass through the
+# value that CMake uses for SDK targets: CMAKE_MSVC_RUNTIME_LIBRARY if set, otherwise
+# CMake's documented default. This value may contain generator expressions, which are
+# evaluated per-configuration when the build command runs, so the bootstrap script
+# always receives a plain value such as 'MultiThreadedDLL'. Configurations in which the
+# SDK's CRT can't be determined reliably are rejected.
+if(MSVC)
+    # If a parent project enabled MSVC with policy CMP0091 set to OLD, CMake ignores
+    # CMAKE_MSVC_RUNTIME_LIBRARY. CMake records the effective policy by leaving this
+    # (internal) variable empty; cmake_policy(GET) would only report our own setting.
+    if(NOT CMAKE_MSVC_RUNTIME_LIBRARY_DEFAULT)
+        message(FATAL_ERROR
+            "Crashpad support requires policy CMP0091 to be NEW in your top-level "
+            "project: use cmake_minimum_required(VERSION 3.15) or later.")
+    endif()
+
+    # An empty CMAKE_MSVC_RUNTIME_LIBRARY is distinct from an unset one: CMake passes no
+    # CRT flag at all, leaving the choice to the compiler or native build system. We
+    # can't reliably build Crashpad to match that, so we reject it.
+    if(NOT DEFINED CMAKE_MSVC_RUNTIME_LIBRARY)
+        set(CRASHPAD_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>DLL")
+    elseif(CMAKE_MSVC_RUNTIME_LIBRARY STREQUAL "")
+        message(FATAL_ERROR
+            "CMAKE_MSVC_RUNTIME_LIBRARY is set to an empty value, which is unsupported "
+            "when Crashpad is enabled: the SDK and Crashpad must be built against the "
+            "same CRT. Set it to an explicit value (e.g. 'MultiThreadedDLL'), or unset "
+            "it to use CMake's default.")
+    else()
+        set(CRASHPAD_MSVC_RUNTIME_LIBRARY "${CMAKE_MSVC_RUNTIME_LIBRARY}")
+    endif()
+else()
+    set(CRASHPAD_MSVC_RUNTIME_LIBRARY "")
 endif()
 
 # Declare an ExternalProject target, which we can build in order to bootstrap the
@@ -81,7 +116,7 @@ ExternalProject_Add(crashpad_external
         -c CMAKE_CXX_STANDARD=${CMAKE_CXX_STANDARD}
         -c CMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -c CMAKE_OSX_DEPLOYMENT_TARGET=${CMAKE_OSX_DEPLOYMENT_TARGET}
-        -c MSVC_RUNTIME_LIBRARY=${MSVC_RUNTIME_LIBRARY}
+        -c MSVC_RUNTIME_LIBRARY=${CRASHPAD_MSVC_RUNTIME_LIBRARY}
         -c DD_COMPILE_OPTIONS=${DD_COMPILE_OPTIONS_ENCODED}
         -c DD_LINK_OPTIONS=${DD_LINK_OPTIONS_ENCODED}
         -c DD_SDK_CPP_DIR=${DD_SDK_ROOT_DIR}

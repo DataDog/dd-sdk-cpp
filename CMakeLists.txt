@@ -1,5 +1,12 @@
 cmake_minimum_required(VERSION 3.21)
 
+# CMake 3.24+ warns when a URL download doesn't specify DOWNLOAD_EXTRACT_TIMESTAMP. Opt
+# in to the new behavior (extracted files are timestamped at extraction time, so that
+# changing a URL triggers a rebuild of dependent targets) where the policy exists.
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW)
+endif()
+
 # When building dd-sdk-cpp from source, you should generally ensure that your top-level
 # build defines these standard properties, either in your project's CMakeLists.txt or in
 # the cmake configure command for your build.
@@ -12,9 +19,11 @@ cmake_minimum_required(VERSION 3.21)
 #
 # On Windows:
 #
-# - MSVC_RUNTIME_LIBRARY (e.g. 'MultiThreadedDLL'): controls the CRT version that your
-#   application links against; the SDK should link against the same CRT for ABI
-#   compatibility.
+# - CMAKE_MSVC_RUNTIME_LIBRARY (e.g. 'MultiThreadedDLL'): controls the CRT version that
+#   your application links against; the SDK should link against the same CRT for ABI
+#   compatibility. If unset, CMake's default applies ('MultiThreadedDebugDLL' for Debug
+#   builds; 'MultiThreadedDLL' otherwise). When Crashpad is enabled, an empty value is
+#   rejected, and policy CMP0091 must be NEW when your top-level project enables MSVC.
 #
 # On macOS:
 #
@@ -24,7 +33,7 @@ cmake_minimum_required(VERSION 3.21)
 # - CMAKE_OSX_ARCHITECTURES (e.g. 'arm64;x86_64' for universal binaries): determines the
 #   target architecture(s) for the build.
 
-project(ddsdkcpp VERSION 0.8.0 LANGUAGES C CXX)
+project(ddsdkcpp VERSION 0.8.1 LANGUAGES C CXX)
 
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
@@ -80,6 +89,41 @@ if(PROJECT_IS_TOP_LEVEL)
     if(DD_CRASH_MODE STREQUAL "crashpad")
         set(CMAKE_CXX_STANDARD 20)
     endif()
+endif()
+
+# For static-library builds with MSVC, pass /Z7 to embed debug info into object files
+# rather than producing a separate .pdb. Consumers of the .lib will always have debug
+# info available at link-time, rather than needing to have a .pdb alongside the .lib,
+# without which they'd get LNK4099 warnings and no symbols for SDK code.
+#
+# How the debug info format is selected depends on policy CMP0141, as set when the
+# top-level project first enables C/C++ (our own cmake_minimum_required doesn't affect
+# it when we're included as a subproject). If OLD or unavailable (CMake < 3.25), /Zi is
+# baked into the per-config flag variables, so we rewrite it. If NEW, those variables
+# contain no /Zi, and the format is instead selected via
+# CMAKE_MSVC_DEBUG_INFORMATION_FORMAT. Each mechanism is ignored under the other policy
+# setting, so we apply both. Either way, the change applies to all targets subsequently
+# defined in this directory tree, including in-tree dependencies like libcurl (but not
+# Crashpad, which is built separately).
+if(MSVC AND NOT DD_BUILD_SHARED)
+    foreach(lang C CXX)
+        foreach(config DEBUG RELWITHDEBINFO)
+            string(REPLACE "/Zi" "/Z7"
+                CMAKE_${lang}_FLAGS_${config} "${CMAKE_${lang}_FLAGS_${config}}")
+        endforeach()
+    endforeach()
+
+    # Start from the parent project's chosen format (or CMake's default if none is set,
+    # as documented for CMP0141), and switch ProgramDatabase (/Zi) to Embedded (/Z7).
+    # This preserves the parent's choices for each config, including an explicitly empty
+    # value (i.e. no debug info), and works whether the value is a plain format name or
+    # a generator expression.
+    if(NOT DEFINED CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
+        set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+            "$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>")
+    endif()
+    string(REPLACE "ProgramDatabase" "Embedded"
+        CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "${CMAKE_MSVC_DEBUG_INFORMATION_FORMAT}")
 endif()
 
 # Set the root directory for the project: this is build/ when building the library;

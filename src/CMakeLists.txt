@@ -38,8 +38,13 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/json/parse_primitives.cpp
     datadog/impl/types/diagnostics.cpp
     datadog/impl/types/sampling.cpp
+    datadog/impl/types/tracing/span_id.cpp
+    datadog/impl/types/tracing/trace_context.cpp
+    datadog/impl/types/tracing/trace_id.cpp
     datadog/impl/types/upload_util.cpp
     datadog/impl/core/attribute/binary.cpp
+    datadog/impl/core/tracing/span_id_generator.cpp
+    datadog/impl/core/tracing/trace_id_generator.cpp
     datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp
     datadog/impl/core/context.cpp
@@ -219,13 +224,9 @@ if(DD_UUID_USE_DEFAULT)
                                "  Alpine: sudo apk add util-linux-dev")
         endif()
 
-        # On Linux, we need to link against this separate uuid library
+        # On Linux, `uuid_generate()` is defined in libuuid, not in libc
         if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-            find_library(UUID_LIBRARY uuid)
-            if(NOT UUID_LIBRARY)
-                message(FATAL_ERROR "UUID library not found")
-            endif()
-            target_link_libraries(ddsdkcpp PRIVATE ${UUID_LIBRARY})
+            target_link_libraries(ddsdkcpp PRIVATE uuid)
         endif()
     endif()
 else()
@@ -362,4 +363,11 @@ if(DD_BUILD_INSTALL)
         ARCHIVE DESTINATION lib
         RUNTIME DESTINATION bin
     )
+
+    # Install debug info for shared-library builds as separate files alongside the
+    # library: see debug-info.cmake for details
+    if(DD_BUILD_SHARED)
+        include(${DD_SDK_ROOT_DIR}/cmake/debug-info.cmake)
+        install_shared_library_debug_info(ddsdkcpp lib bin)
+    endif()
 endif()
