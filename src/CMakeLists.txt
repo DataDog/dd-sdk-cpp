@@ -363,4 +363,11 @@ if(DD_BUILD_INSTALL)
         ARCHIVE DESTINATION lib
         RUNTIME DESTINATION bin
     )
+
+    # Install debug info for shared-library builds as separate files alongside the
+    # library: see debug-info.cmake for details
+    if(DD_BUILD_SHARED)
+        include(${DD_SDK_ROOT_DIR}/cmake/debug-info.cmake)
+        install_shared_library_debug_info(ddsdkcpp lib bin)
+    endif()
 endif()
