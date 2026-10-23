@@ -1,3 +1,21 @@
+## 0.8.1
+
+### Features
+
+- New `TraceContext`, `TraceID`, and `SpanID` types are available, along with `ITraceIDGenerator` and `ISpanIDGenerator` interfaces and their default implementations, enabling trace and span ID generation for RUM integrations.
+- Static-library builds of the SDK are now published as release artifacts alongside the existing shared-library builds, for all platforms.
+- Shared-library release artifacts now include separate debug-info files on all platforms: `.pdb` on Windows, `.dSYM` on macOS, and a stripped `.so` with an accompanying `.so.debug` on Linux.
+- Linux shared-library builds now embed a GNU Build ID, enabling reliable correlation between the binary and its separate debug-info file.
+- Release archives for all platforms are now packaged as `.zip` files; macOS and Linux releases previously used `.tar.gz`.
+
+### Fixes
+
+- RUM crash reports are now correctly uploaded to the intake endpoint by packaging the RUM view and error events as a single JSON `event` file attachment, resolving 400 errors caused by the previous plain form-field format.
+- Crash reports uploaded via Crashpad now correctly include `ddsource` as a query parameter in the upload URL, matching the behavior of other SDK requests.
+- On Windows, `CMAKE_MSVC_RUNTIME_LIBRARY` is now the correct variable to use when controlling CRT linkage flavor; previously, setting `MSVC_RUNTIME_LIBRARY` had no effect on the SDK build and could cause a link failure with the Crashpad client.
+- Linux builds now correctly require `libuuid` by name rather than embedding the build-machine library path in the installed CMake targets, fixing linker errors when consuming the SDK as a static library dependency.
+- The Crashpad bootstrap process now gracefully handles patch or pinned-revision updates when upgrading the SDK from an existing build directory, preventing build failures that previously required manual cleanup.
+
 ## 0.8.0
 
 ### Features
