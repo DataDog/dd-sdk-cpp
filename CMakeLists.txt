@@ -91,6 +91,41 @@ if(PROJECT_IS_TOP_LEVEL)
     endif()
 endif()
 
+# For static-library builds with MSVC, pass /Z7 to embed debug info into object files
+# rather than producing a separate .pdb. Consumers of the .lib will always have debug
+# info available at link-time, rather than needing to have a .pdb alongside the .lib,
+# without which they'd get LNK4099 warnings and no symbols for SDK code.
+#
+# How the debug info format is selected depends on policy CMP0141, as set when the
+# top-level project first enables C/C++ (our own cmake_minimum_required doesn't affect
+# it when we're included as a subproject). If OLD or unavailable (CMake < 3.25), /Zi is
+# baked into the per-config flag variables, so we rewrite it. If NEW, those variables
+# contain no /Zi, and the format is instead selected via
+# CMAKE_MSVC_DEBUG_INFORMATION_FORMAT. Each mechanism is ignored under the other policy
+# setting, so we apply both. Either way, the change applies to all targets subsequently
+# defined in this directory tree, including in-tree dependencies like libcurl (but not
+# Crashpad, which is built separately).
+if(MSVC AND NOT DD_BUILD_SHARED)
+    foreach(lang C CXX)
+        foreach(config DEBUG RELWITHDEBINFO)
+            string(REPLACE "/Zi" "/Z7"
+                CMAKE_${lang}_FLAGS_${config} "${CMAKE_${lang}_FLAGS_${config}}")
+        endforeach()
+    endforeach()
+
+    # Start from the parent project's chosen format (or CMake's default if none is set,
+    # as documented for CMP0141), and switch ProgramDatabase (/Zi) to Embedded (/Z7).
+    # This preserves the parent's choices for each config, including an explicitly empty
+    # value (i.e. no debug info), and works whether the value is a plain format name or
+    # a generator expression.
+    if(NOT DEFINED CMAKE_MSVC_DEBUG_INFORMATION_FORMAT)
+        set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT
+            "$<$<CONFIG:Debug,RelWithDebInfo>:ProgramDatabase>")
+    endif()
+    string(REPLACE "ProgramDatabase" "Embedded"
+        CMAKE_MSVC_DEBUG_INFORMATION_FORMAT "${CMAKE_MSVC_DEBUG_INFORMATION_FORMAT}")
+endif()
+
 # Set the root directory for the project: this is build/ when building the library;
 # build/_deps/datadog-build (or something similar) when included in another project via
 # FetchContent
