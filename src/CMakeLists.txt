@@ -371,3 +371,14 @@ if(DD_BUILD_INSTALL)
         install_shared_library_debug_info(ddsdkcpp lib bin)
     endif()
 endif()
+
+# === profiling ===
+
+if(DD_ENABLE_PROFILING)
+    target_compile_definitions(ddsdkcpp PUBLIC DD_ENABLE_PROFILING=1)
+    target_sources(ddsdkcpp PRIVATE
+        datadog/cpp/profiling.cpp
+        datadog/impl/profiling/profiling.cpp
+    )
+    include(${DD_SDK_ROOT_DIR}/cmake/profiler.cmake)
+endif()
