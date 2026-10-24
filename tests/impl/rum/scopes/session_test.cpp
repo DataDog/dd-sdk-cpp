@@ -51,7 +51,9 @@ class SessionFixture {
             deps,
             parent,
             true,
-            is_session_sampled,
+            std::make_unique<DeterministicSampler>(
+                *UUID::Parse(SESSION_ID), is_session_sampled ? 100.0f : 0.0f
+            ),
             *UUID::Parse(SESSION_ID),
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(
@@ -440,7 +442,7 @@ class SessionEventFixture {
             deps,
             parent,
             true,
-            true,
+            std::make_unique<DeterministicSampler>(*UUID::Parse(SESSION_ID), 100.0f),
             *UUID::Parse(SESSION_ID),
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(
@@ -1588,13 +1590,12 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
 
     // And a RumSessionScope with a specific session ID
     const bool is_initial_session = true;
-    const bool is_sampled = true;
     const UUID session_id = *UUID::Parse("689d0d6c-c716-4eed-b449-0df936a615f8");
     RumSessionScope scope(
         deps,
         application_scope,
         is_initial_session,
-        is_sampled,
+        std::make_unique<DeterministicSampler>(session_id, 100.0f),
         session_id,
         RumSessionPrecondition::UserAppLaunch,
         Timestamp{},
@@ -1623,13 +1624,12 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
 
     // And a RumSessionScope that's not sampled
     const bool is_initial_session = true;
-    const bool is_sampled = false;
     const UUID session_id = *UUID::Parse("689d0d6c-c716-4eed-b449-0df936a615f8");
     RumSessionScope scope(
         deps,
         application_scope,
         is_initial_session,
-        is_sampled,
+        std::make_unique<DeterministicSampler>(session_id, 0.0f),
         session_id,
         RumSessionPrecondition::BackgroundLaunch,
         Timestamp{},
@@ -1655,12 +1655,11 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
     RumApplicationScope application_scope(deps);
     const UUID session_id = *UUID::Parse("689d0d6c-c716-4eed-b449-0df936a615f8");
     const bool is_initial_session = true;
-    const bool is_sampled = true;
     RumSessionScope scope(
         deps,
         application_scope,
         is_initial_session,
-        is_sampled,
+        std::make_unique<DeterministicSampler>(session_id, 100.0f),
         session_id,
         RumSessionPrecondition::InactivityTimeout,
         Timestamp{},

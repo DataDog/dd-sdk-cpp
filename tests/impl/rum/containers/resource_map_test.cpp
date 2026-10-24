@@ -50,12 +50,13 @@ TEST_CASE("RumResourceMap", "[unit][rum]") {
   clock.FreezeAtMilliseconds(1700000000000);
   RumScopeDependencies deps(config, clock);
   RumApplicationScope application(deps);
+  UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
   RumSessionScope session(
       deps,
       application,
       true,
-      true,
-      *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef"),
+      std::make_unique<DeterministicSampler>(session_id, 100.0f),
+      session_id,
       RumSessionPrecondition::UserAppLaunch,
       clock.Now(),
       std::nullopt

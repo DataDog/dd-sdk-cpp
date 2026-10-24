@@ -53,7 +53,7 @@ class ViewFixture {
             deps,
             root,
             true,
-            true,
+            std::make_unique<DeterministicSampler>(*UUID::Parse(SESSION_ID), 100.0f),
             *UUID::Parse(SESSION_ID),
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(
@@ -404,13 +404,12 @@ TEST_CASE("RumViewScope::PopulateContext", "[unit][rum]") {
 
       // And a RumSessionScope
       const bool is_initial_session = true;
-      const bool is_sampled = true;
       const UUID session_id = *UUID::Parse("689d0d6c-c716-4eed-b449-0df936a615f8");
       RumSessionScope session_scope(
           deps,
           application_scope,
           is_initial_session,
-          is_sampled,
+          std::make_unique<DeterministicSampler>(session_id, 100.0f),
           session_id,
           RumSessionPrecondition::UserAppLaunch,
           Timestamp{},
