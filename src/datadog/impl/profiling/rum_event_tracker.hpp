@@ -32,6 +32,9 @@ struct TrackedRumVital {
 
   // Absent for an operation that has started but not (yet) ended
   std::optional<Duration> duration;
+
+  // Where the vital occurred. For an operation, this is where it started.
+  RumEventContext context;
 };
 
 /** A RUM long task seen by the profiler. */
@@ -60,9 +63,9 @@ struct RumEventSnapshot {
  *
  * - Vitals that are not operation steps (e.g. app launch) are recorded as they arrive.
  * - An operation's start is recorded, and its end completes it by giving it a duration.
- *   The vital is identified by its name and operation key, and keeps the ID and start
- *   time of its start step. Update and retry steps are ignored, as is an end step with
- *   no matching start.
+ *   The vital is identified by its name and operation key within the RUM session, and
+ *   keeps the ID, start time and context of its start step. Update and retry steps are
+ *   ignored, as is an end step with no matching start.
  * - Long tasks are recorded as they arrive.
  *
  * - An operation that has not ended is not tracked forever. See `TakeSnapshot()`.
@@ -90,9 +93,9 @@ class RumEventTracker {
    *
    * Operations that have started but not ended are included. They remain tracked, so
    * that a later end step can still complete them, and are reported again, with a
-   * duration, by the snapshot that follows their end. While any remain, the context of
-   * the latest event also remains, so that each snapshot that reports them can say
-   * where they occurred.
+   * duration, by the snapshot that follows their end. While any remain, the snapshot's
+   * context is that of the latest of them if nothing else has happened since, so that
+   * each snapshot that reports them can say where they occurred.
    *
    * Operations are only kept while one of them started less than
    * `kOngoingOperationCutoff` before `now`. When none did, they are all assumed to have

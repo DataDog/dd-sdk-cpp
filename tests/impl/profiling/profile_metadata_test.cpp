@@ -189,9 +189,9 @@ TEST_CASE("BuildProfileEventJson", "[unit][profiling]") {
     const UUID first_vital = UUID::Random();
     const UUID second_vital = UUID::Random();
     const UUID long_task = UUID::Random();
-    events.vitals.push_back({first_vital, "checkout", "op-1", At(1), true, Ms(5)});
+    events.vitals.push_back({first_vital, "checkout", "op-1", At(1), true, Ms(5), {}});
     events.vitals.push_back(
-        {second_vital, "time_to_initial_display", std::nullopt, At(2), false, Ms(7)}
+        {second_vital, "time_to_initial_display", std::nullopt, At(2), false, Ms(7), {}}
     );
     events.long_tasks.push_back({long_task, At(3), Ms(60)});
 
@@ -246,9 +246,9 @@ TEST_CASE("BuildRumEventsJson", "[unit][profiling]") {
     const UUID done = UUID::Random();
     const UUID open = UUID::Random();
     const UUID long_task = UUID::Random();
-    events.vitals.push_back({done, "checkout", "op-1", At(1000), true, Ms(400)});
+    events.vitals.push_back({done, "checkout", "op-1", At(1000), true, Ms(400), {}});
     events.vitals.push_back(
-        {open, "upload", std::nullopt, At(2000), true, std::nullopt}
+        {open, "upload", std::nullopt, At(2000), true, std::nullopt, {}}
     );
     events.long_tasks.push_back({long_task, At(3000), Ms(60)});
 

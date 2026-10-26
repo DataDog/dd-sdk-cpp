@@ -18,12 +18,17 @@ namespace {
  * Returns true if `vital` is an operation that has started and not yet ended, and that
  * `message` is a step of. An operation that has ended is complete: a later step with
  * the same name and key belongs to a new run of the operation, not to it.
+ *
+ * Operations belong to the RUM session in which they started. RUM forgets them when the
+ * session closes, but still publishes a step for an operation it has no record of, so
+ * a step in a new session cannot be matched to a start in an earlier one.
  */
 bool IsSameOperation(
     const TrackedRumVital& vital, const RumVitalGeneratedMessage& message
 ) {
   return vital.is_operation && !vital.duration.has_value() &&
-         vital.name == message.name && vital.operation_key == message.operation_key;
+         vital.name == message.name && vital.operation_key == message.operation_key &&
+         vital.context.ids.session_id == message.context.ids.session_id;
 }
 
 }  // namespace
@@ -72,7 +77,8 @@ void RumEventTracker::OnVital(const RumVitalGeneratedMessage& message) {
       message.operation_key,
       message.timestamp,
       is_operation,
-      message.duration
+      message.duration,
+      message.context
   };
   if (existing != nullptr) {
     *existing = std::move(vital);
@@ -128,9 +134,10 @@ RumEventSnapshot RumEventTracker::TakeSnapshot(const Timestamp& now) {
   _vitals.erase(_vitals.begin() + static_cast<std::ptrdiff_t>(num_kept), _vitals.end());
 
   // The operations we kept will be reported again by the next snapshot, so they need
-  // the context they occurred in, even if nothing else happens before then
+  // the context they occurred in, even if nothing else happens before then. That is the
+  // context of the latest of them, not of whatever other event happened to come last.
   if (num_kept > 0) {
-    _context = snapshot.context;
+    _context = _vitals.back().context;
   }
   return snapshot;
 }

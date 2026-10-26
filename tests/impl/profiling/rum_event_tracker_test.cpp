@@ -34,12 +34,19 @@ RumEventContext MakeContext(std::string_view view_name = "Home") {
   return context;
 }
 
+// The context in which operation steps occur unless a test says otherwise: every step
+// is in one RUM session, as the steps of an operation normally are
+RumEventContext SameSessionContext() {
+  static const RumEventContext context = MakeContext();
+  return context;
+}
+
 RumVitalGeneratedMessage MakeStep(
     RumVitalStepType step_type,
     int64_t at_ms,
     std::string_view name = "checkout",
     std::optional<std::string> operation_key = std::nullopt,
-    RumEventContext context = MakeContext()
+    RumEventContext context = SameSessionContext()
 ) {
   return RumVitalGeneratedMessage{
       std::move(context),
@@ -291,6 +298,78 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     // Then both are reported, and neither is reported again
     REQUIRE(first.vitals.size() == 2);
     REQUIRE(tracker.TakeSnapshot(At(1000 + 180'000)).IsEmpty());
+  }
+
+  SECTION("M not match an end in a later session W the start was in an earlier one") {
+    // Given an operation that started in one RUM session
+    RumEventContext first_session = MakeContext();
+    const auto start =
+        MakeStep(RumVitalStepType::Start, 1000, "checkout", "op-1", first_session);
+    tracker.OnVital(start);
+
+    // When the session closes, and an end for the same name and key arrives in a new
+    // session (RUM publishes it, though it has no record of the start)
+    RumEventContext second_session = MakeContext();
+    tracker.OnVital(
+        MakeStep(RumVitalStepType::End, 4000, "checkout", "op-1", second_session)
+    );
+
+    // Then the end completes nothing: the start has no duration, and keeps its own
+    // session
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(snapshot.vitals.size() == 1);
+    REQUIRE(snapshot.vitals[0].id == start.vital_id);
+    REQUIRE_FALSE(snapshot.vitals[0].duration.has_value());
+    REQUIRE(snapshot.vitals[0].context.ids.session_id == first_session.ids.session_id);
+  }
+
+  SECTION("M track each session's run W the same operation starts in two sessions") {
+    // Given the same operation, started in two sessions
+    RumEventContext first_session = MakeContext();
+    RumEventContext second_session = MakeContext();
+    const auto first =
+        MakeStep(RumVitalStepType::Start, 1000, "checkout", "op-1", first_session);
+    const auto second =
+        MakeStep(RumVitalStepType::Start, 2000, "checkout", "op-1", second_session);
+    tracker.OnVital(first);
+    tracker.OnVital(second);
+
+    // When the operation ends in the second session
+    tracker.OnVital(
+        MakeStep(RumVitalStepType::End, 3000, "checkout", "op-1", second_session)
+    );
+
+    // Then only the second run is completed, and the first is not replaced
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(snapshot.vitals.size() == 2);
+    REQUIRE(snapshot.vitals[0].id == first.vital_id);
+    REQUIRE_FALSE(snapshot.vitals[0].duration.has_value());
+    REQUIRE(snapshot.vitals[1].id == second.vital_id);
+    REQUIRE(snapshot.vitals[1].duration == std::chrono::milliseconds(1000));
+  }
+
+  SECTION("M keep the operation's own context W another event came after it") {
+    // Given an operation that started in one context, followed by a long task in
+    // another
+    RumEventContext operation_context = MakeContext("Checkout");
+    tracker.OnVital(
+        MakeStep(RumVitalStepType::Start, 1000, "upload", "a", operation_context)
+    );
+    const auto long_task = MakeLongTask(2000, 60);
+    tracker.OnLongTask(long_task);
+
+    // When the first snapshot is taken, it has the latest event's context
+    const auto first = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(first.context.ids.view_id == long_task.context.ids.view_id);
+    REQUIRE(first.long_tasks.size() == 1);
+
+    // Then the next, which holds only the operation, has the operation's own context
+    const auto second = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(second.long_tasks.empty());
+    REQUIRE(second.vitals.size() == 1);
+    REQUIRE(second.context.ids.view_id == operation_context.ids.view_id);
+    REQUIRE(second.context.ids.session_id == operation_context.ids.session_id);
+    REQUIRE(second.context.view_name == "Checkout");
   }
 
   SECTION("M ignore a second end W the operation already ended") {
