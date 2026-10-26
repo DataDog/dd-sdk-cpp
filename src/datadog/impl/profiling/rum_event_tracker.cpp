@@ -45,46 +45,43 @@ void RumEventTracker::OnVital(const RumVitalGeneratedMessage& message) {
   }
 
   // Only an operation can match a vital we already hold
-  TrackedRumVital* existing = nullptr;
+  auto existing = _vitals.end();
   if (is_operation) {
-    const auto it =
+    existing =
         std::find_if(_vitals.begin(), _vitals.end(), [&](const TrackedRumVital& vital) {
           return IsSameOperation(vital, message);
         });
-    if (it != _vitals.end()) {
-      existing = &*it;
-    }
   }
 
   if (is_operation && *message.step_type == RumVitalStepType::End) {
     // An end completes an operation that we saw start; otherwise there is nothing to
     // complete, and the end is dropped
-    if (existing != nullptr) {
+    if (existing != _vitals.end()) {
       existing->duration = message.timestamp - existing->start;
       _context = message.context;
     }
     return;
   }
 
-  // A repeated start replaces the operation; anything else adds a vital, if there is
-  // room for it
-  if (existing == nullptr && _vitals.size() >= kMaxEventsPerKind) {
+  // A repeated start replaces the operation: the old one is removed, and the new one
+  // is added after all the others, so that the list stays in the order that vitals
+  // arrived. Anything else is added if there is room for it.
+  if (existing != _vitals.end()) {
+    _vitals.erase(existing);
+  } else if (_vitals.size() >= kMaxEventsPerKind) {
     return;
   }
-  TrackedRumVital vital{
-      message.vital_id,
-      message.name,
-      message.operation_key,
-      message.timestamp,
-      is_operation,
-      message.duration,
-      message.context
-  };
-  if (existing != nullptr) {
-    *existing = std::move(vital);
-  } else {
-    _vitals.push_back(std::move(vital));
-  }
+  _vitals.push_back(
+      TrackedRumVital{
+          message.vital_id,
+          message.name,
+          message.operation_key,
+          message.timestamp,
+          is_operation,
+          message.duration,
+          message.context
+      }
+  );
   _context = message.context;
 }
 
@@ -135,7 +132,8 @@ RumEventSnapshot RumEventTracker::TakeSnapshot(const Timestamp& now) {
 
   // The operations we kept will be reported again by the next snapshot, so they need
   // the context they occurred in, even if nothing else happens before then. That is the
-  // context of the latest of them, not of whatever other event happened to come last.
+  // context of the one that started most recently, which is the last in the list, and
+  // not of whatever other event happened to come last.
   if (num_kept > 0) {
     _context = _vitals.back().context;
   }

@@ -372,6 +372,33 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     REQUIRE(second.context.view_name == "Checkout");
   }
 
+  SECTION("M keep the context of the newest start W an operation restarts") {
+    // Given operation A, which starts in one view, and operation B, which starts later
+    // in another
+    RumEventContext first_view = MakeContext("First");
+    RumEventContext other_view = MakeContext("Other");
+    tracker.OnVital(MakeStep(RumVitalStepType::Start, 1000, "a", "1", first_view));
+    tracker.OnVital(MakeStep(RumVitalStepType::Start, 2000, "b", "2", other_view));
+
+    // When A starts again, in the same session but a newer view. This replaces A, which
+    // is now the most recent start, and so comes after B.
+    RumEventContext newer_view = first_view;
+    newer_view.ids.view_id = UUID::Random();
+    newer_view.view_name = "Newer";
+    tracker.OnVital(MakeStep(RumVitalStepType::Start, 3000, "a", "1", newer_view));
+    tracker.TakeSnapshot(SNAPSHOT_TIME);
+
+    // Then the operations are listed in the order they started, with the restarted A
+    // last, and the context kept for the next snapshot is that of the restarted A
+    const auto next = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(next.vitals.size() == 2);
+    REQUIRE(next.vitals[0].name == "b");
+    REQUIRE(next.vitals[1].name == "a");
+    REQUIRE(next.vitals[1].context.view_name == "Newer");
+    REQUIRE(next.context.ids.view_id == newer_view.ids.view_id);
+    REQUIRE(next.context.view_name == "Newer");
+  }
+
   SECTION("M ignore a second end W the operation already ended") {
     // Given an operation that has started and ended
     tracker.OnVital(MakeStep(RumVitalStepType::Start, 1000, "checkout", "op-1"));
