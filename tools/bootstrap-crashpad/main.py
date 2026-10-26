@@ -128,6 +128,37 @@ def _gn_default_target_cpu():
     raise RuntimeError(f"Unsupported architecture: {machine}")
 
 
+def _translate_cmake_link_option(opt: str) -> List[str]:
+    """Translate one entry of a CMake target's LINK_OPTIONS into GN link flag(s).
+
+    CMake stores link options verbatim and only expands its own `LINKER:` syntax when
+    generating link commands for its own targets, so `LINKER:` entries reach us
+    untranslated. `LINKER:a,b` (or `LINKER:SHELL:a b`) means "pass `a` and `b` to the
+    linker". On macOS and Linux, Crashpad links via a GCC-style compiler driver, so
+    these must be wrapped as `-Wl,a,b`. On Windows, Crashpad's GN toolchain invokes
+    the linker directly, so the arguments are passed as-is.
+
+    Options without a `LINKER:` prefix are returned unchanged.
+    """
+    prefix = 'LINKER:'
+    if not opt.startswith(prefix):
+        return [opt]
+
+    value = opt[len(prefix):]
+    shell_prefix = 'SHELL:'
+    if value.startswith(shell_prefix):
+        linker_args = value[len(shell_prefix):].split()
+    else:
+        linker_args = value.split(',')
+    linker_args = [x for x in linker_args if x]
+    if not linker_args:
+        raise ValueError(f"Empty LINKER: option in DD_LINK_OPTIONS: '{opt}'")
+
+    if sys.platform == 'win32':
+        return linker_args
+    return ['-Wl,' + ','.join(linker_args)]
+
+
 @dataclass
 class GnArgs:
     is_debug: bool = False
@@ -236,7 +267,7 @@ class GnArgs:
             # Strip sanitizer flags for the same reasons noted above
             if opt.startswith('-fsanitize') or opt.startswith('-fno-sanitize'):
                 continue
-            args.extra_ldflags.add(opt)
+            args.extra_ldflags.update(_translate_cmake_link_option(opt))
 
         # On Windows, require a non-empty MSVC_RUNTIME_LIBRARY and ensure that we're
         # building crashpad with the appropriate CRT binary. CMake may pass an empty value
