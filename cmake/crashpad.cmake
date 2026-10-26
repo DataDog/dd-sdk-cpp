@@ -256,6 +256,25 @@ if(DD_BUILD_INSTALL)
     # The Crashpad handler executable should be distributed in bin/
     install(PROGRAMS ${CRASHPAD_HANDLER_EXE_PATH} DESTINATION bin)
 
+    # Distribute license texts for Crashpad and the third-party code it builds in:
+    # mini_chromium everywhere, lss on Linux, and on Windows, an embedded zlib (other
+    # platforms use the system zlib) and getopt (used by crashpad_handler)
+    install(FILES
+        ${DD_SDK_ROOT_DIR}/licenses/crashpad.txt
+        ${DD_SDK_ROOT_DIR}/licenses/mini_chromium.txt
+        DESTINATION licenses
+    )
+    if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+        install(FILES ${DD_SDK_ROOT_DIR}/licenses/lss.txt DESTINATION licenses)
+    endif()
+    if(WIN32)
+        install(FILES
+            ${DD_SDK_ROOT_DIR}/licenses/zlib.txt
+            ${DD_SDK_ROOT_DIR}/licenses/getopt.txt
+            DESTINATION licenses
+        )
+    endif()
+
     # CrashpadConfig.cmake should be generated from the .cmake.in template and
     # distributed alongside DatadogConfig.cmake so that the relative include path
     # in DatadogConfig.cmake resolves correctly regardless of CMAKE_INSTALL_LIBDIR

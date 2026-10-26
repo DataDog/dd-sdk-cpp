@@ -219,6 +219,19 @@ if(DD_BUILD_INSTALL)
         FILES_MATCHING PATTERN "*.hpp"
     )
 
+    # Install the SDK's own license and notice at the root of the install tree, and the
+    # license text for each third-party component that's built into the SDK to
+    # licenses/. Components that are only built in for some configurations (Crashpad and
+    # its dependencies, vendored libcurl) install their license texts alongside their
+    # binaries, so that licenses/ lists exactly the third-party code in each build.
+    install(FILES LICENSE.md NOTICE DESTINATION .)
+    install(FILES licenses/date.txt DESTINATION licenses)
+    if(WIN32)
+        # Windows builds embed a timezone mapping table generated from Unicode CLDR data
+        # (see src/datadog/impl/core/platform/windows_timezone_mapping.hpp)
+        install(FILES licenses/unicode-cldr.txt DESTINATION licenses)
+    endif()
+
     # Install export targets and generate CMake config files
     install(EXPORT DatadogTargets
         FILE DatadogTargets.cmake
