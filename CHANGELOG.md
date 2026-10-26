@@ -1,3 +1,16 @@
+## 0.8.1
+
+### Features
+
+- We now publish precompiled releases of the SDK as a static library, in addition to the existing shared-library builds.
+- Shared-library release artifacts now include separate debug-info files on all platforms: `.pdb` on Windows, `.dSYM` on macOS, and a stripped `.so` with an accompanying `.so.debug` on Linux.
+- Release archives are now packaged as `.zip` file on all platforms. If your build process previously consumed binary releases of `dd-sdk-cpp` from GitHub for macOS or Linux, note that these files are now `.zip` instead of `.tar.gz`.
+
+### Fixes
+
+- For Windows builds, `CMAKE_MSVC_RUNTIME_LIBRARY` is now correctly documented as controlling CRT linkage flavor. Previously, comments in `CMakeLists.txt` advised setting a variable called `MSVC_RUNTIME_LIBRARY`, which is incorrect.
+- Linux builds now correctly require `libuuid` by name rather than embedding the build-machine library path.
+
 ## 0.8.0
 
 ### Features
@@ -62,13 +75,6 @@
 - `datadog_install()` now automatically deploys the SDK shared library alongside the application and configures the correct runtime search path (`RPATH`) on POSIX platforms.
 - Strings passed as `name` or `key` to the RUM Operations API are now safely copied, preventing potential crashes or undefined behavior if the original string is destroyed or modified after the call returns.
 - Fixed compilation errors when building for 32-bit ARMv7 targets caused by C++ type-deduction issues.
-
-<!-- ### Internal Changes
-
-- UUID generation is now pluggable: platforms without a built-in UUID generator can supply their own implementation, while existing platforms continue to use their built-in generator by default.
-- RUM Resource events and Resource error events now correctly propagate trace context attributes (`_dd.trace_id`, `_dd.span_id`, `_dd.parent_span_id`, `_dd.rule_psr`) to their dedicated event fields rather than leaving them in the generic `context` object.
-
--->
 
 ## 0.4.0
 
