@@ -128,6 +128,58 @@ def _gn_default_target_cpu():
     raise RuntimeError(f"Unsupported architecture: {machine}")
 
 
+def _reject_unsupported_cmake_option(opt: str, var_name: str) -> None:
+    """Raise if `opt`, from the CMake list `var_name`, can't be passed to the GN build.
+
+    CMake stores target options verbatim and only evaluates its own syntax (generator
+    expressions, `SHELL:` groups) when generating build commands for its own targets,
+    so options reach us exactly as they were written. GN receives each extra_* value as
+    a single space-separated string that's spliced unquoted into shell commands, so an
+    option containing whitespace would be split into multiple arguments. We don't
+    attempt to evaluate or re-quote any of these forms: instead, we fail with an error
+    that identifies the offending option.
+    """
+    if '$<' in opt:
+        raise ValueError(
+            f"Generator expressions in {var_name} are not supported for Crashpad builds: "
+            f"'{opt}'")
+    if opt.startswith('SHELL:') or opt.startswith('LINKER:SHELL:'):
+        raise ValueError(
+            f"SHELL: options in {var_name} are not supported for Crashpad builds: "
+            f"'{opt}'")
+    if any(c.isspace() for c in opt):
+        raise ValueError(
+            f"Options containing whitespace in {var_name} are not supported for Crashpad "
+            f"builds: '{opt}'")
+
+
+def _translate_cmake_link_option(opt: str) -> List[str]:
+    """Translate one entry of a CMake target's LINK_OPTIONS into GN link flag(s).
+
+    CMake only expands its own `LINKER:` syntax when generating link commands for its
+    own targets, so `LINKER:` entries reach us untranslated. `LINKER:a,b` means "pass
+    `a` and `b` to the linker". On macOS and Linux, Crashpad links via a GCC-style
+    compiler driver, so these must be wrapped as `-Wl,a,b`: since CMake treats commas
+    as delimiters, no individual argument can contain one, and the driver's splitting
+    on commas yields the same arguments. On Windows, Crashpad's GN toolchain invokes
+    the linker directly, so the arguments are passed as-is.
+
+    Options without a `LINKER:` prefix are returned unchanged. Options must first be
+    validated with `_reject_unsupported_cmake_option`.
+    """
+    prefix = 'LINKER:'
+    if not opt.startswith(prefix):
+        return [opt]
+
+    linker_args = [x for x in opt[len(prefix):].split(',') if x]
+    if not linker_args:
+        raise ValueError(f"Empty LINKER: option in DD_LINK_OPTIONS: '{opt}'")
+
+    if sys.platform == 'win32':
+        return linker_args
+    return ['-Wl,' + ','.join(linker_args)]
+
+
 @dataclass
 class GnArgs:
     is_debug: bool = False
@@ -201,6 +253,8 @@ class GnArgs:
         dd_compile_options_encoded = vars.get('DD_COMPILE_OPTIONS', '')
         dd_compile_options = {x.strip() for x in dd_compile_options_encoded.split('|') if x.strip()}
         for opt in dd_compile_options:
+            _reject_unsupported_cmake_option(opt, 'DD_COMPILE_OPTIONS')
+
             # Strip any clang/GCC warning flags
             if opt.startswith('-W'):
                 continue
@@ -233,10 +287,12 @@ class GnArgs:
         dd_link_options_encoded = vars.get('DD_LINK_OPTIONS', '')
         dd_link_options = {x.strip() for x in dd_link_options_encoded.split('|') if x.strip()}
         for opt in dd_link_options:
+            _reject_unsupported_cmake_option(opt, 'DD_LINK_OPTIONS')
+
             # Strip sanitizer flags for the same reasons noted above
             if opt.startswith('-fsanitize') or opt.startswith('-fno-sanitize'):
                 continue
-            args.extra_ldflags.add(opt)
+            args.extra_ldflags.update(_translate_cmake_link_option(opt))
 
         # On Windows, require a non-empty MSVC_RUNTIME_LIBRARY and ensure that we're
         # building crashpad with the appropriate CRT binary. CMake may pass an empty value
