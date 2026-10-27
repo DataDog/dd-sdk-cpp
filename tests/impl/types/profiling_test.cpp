@@ -27,7 +27,7 @@ TEST_CASE("ProfileEvent JSON serialization", "[unit][profiling]") {
       "service:foo,env:bar",
       "windows",
       "windows",
-      "4"
+      4
   );
   event.attachments = {"profile.pprof", "rum-mobile-events.json"};
 
@@ -37,16 +37,15 @@ TEST_CASE("ProfileEvent JSON serialization", "[unit][profiling]") {
         R"({"start":"2023-11-14T22:13:20.000Z","end":"2023-11-14T22:14:20.000Z",)"
         R"("attachments":["profile.pprof","rum-mobile-events.json"],)"
         R"("tags_profiler":"service:foo,env:bar","family":"windows",)"
-        R"("runtime":"windows","version":"4"})"
+        R"("runtime":"windows","version":4})"
     );
   }
 
   SECTION("M render the RUM properties W they are set") {
     event.application_id = uuid_6ade;
     event.session_id = uuid_e294;
-    event.view_id = uuid_6ade;
-    event.view_name = "Home";
-    event.action_id = uuid_e294;
+    event.view_id.value = {uuid_6ade, uuid_e294};
+    event.view_name.value = {"Home", "Checkout"};
     event.vital_id.value = {uuid_6ade, uuid_e294};
     event.vital_label.value = {"checkout", "upload"};
     event.long_task_id.value = {uuid_e294};
@@ -56,12 +55,12 @@ TEST_CASE("ProfileEvent JSON serialization", "[unit][profiling]") {
         R"({"start":"2023-11-14T22:13:20.000Z","end":"2023-11-14T22:14:20.000Z",
             "attachments":["profile.pprof","rum-mobile-events.json"],
             "tags_profiler":"service:foo,env:bar","family":"windows",
-            "runtime":"windows","version":"4",
+            "runtime":"windows","version":4,
             "application.id":"6ade2e39-c3c4-42a9-93f5-d004e2cc452f",
             "session.id":"e29459c7-2a4a-47da-93d9-2fd197c8a8f6",
-            "view.id":"6ade2e39-c3c4-42a9-93f5-d004e2cc452f",
-            "view.name":"Home",
-            "user_action.id":"e29459c7-2a4a-47da-93d9-2fd197c8a8f6",
+            "view.id":["6ade2e39-c3c4-42a9-93f5-d004e2cc452f",
+                       "e29459c7-2a4a-47da-93d9-2fd197c8a8f6"],
+            "view.name":["Home","Checkout"],
             "vital.id":["6ade2e39-c3c4-42a9-93f5-d004e2cc452f",
                         "e29459c7-2a4a-47da-93d9-2fd197c8a8f6"],
             "vital.label":["checkout","upload"],

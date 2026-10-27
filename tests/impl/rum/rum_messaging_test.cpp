@@ -478,12 +478,12 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(msg != nullptr);
     REQUIRE(msg->duration == std::chrono::milliseconds(50));
     REQUIRE(msg->long_task_id != UUID::Zero);
-    REQUIRE(msg->context.ids.application_id == APPLICATION_ID);
+    REQUIRE(msg->context.application_id == APPLICATION_ID);
     const auto* view_msg =
         FindLastMessage<RumActiveViewUpdatedMessage>(test.feature_messages);
     REQUIRE(view_msg != nullptr);
-    REQUIRE(msg->context.ids.view_id == view_msg->view_event.view.id);
-    REQUIRE(msg->context.ids.session_id == view_msg->view_event.session.id);
+    REQUIRE(msg->context.view_id == view_msg->view_event.view.id);
+    REQUIRE(msg->context.session_id == view_msg->view_event.session.id);
   }
 
   SECTION(
@@ -546,7 +546,7 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
         vitals[1]->timestamp - vitals[0]->timestamp == std::chrono::milliseconds(400)
     );
     REQUIRE(vitals[0]->vital_id != vitals[1]->vital_id);
-    REQUIRE(vitals[0]->context.ids.view_id != UUID::Zero);
+    REQUIRE(vitals[0]->context.view_id != UUID::Zero);
   }
 
   // === RumGlobalAttributesChangedMessage ===

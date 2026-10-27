@@ -56,15 +56,19 @@ struct ProfileEvent {
   std::string_view tags_profiler;
   std::string_view family;
   std::string_view runtime;
-  std::string_view version;
 
-  // RUM context of the latest event seen while recording the profile. `view_name` is a
-  // view, which must outlive the encoding of the event.
+  // Version of this event format, as a number
+  int64_t version;
+
+  // Application and session of the latest event seen while recording the profile
   OmitIfZero<UUID> application_id;
   OmitIfZero<UUID> session_id;
-  OmitIfZero<UUID> view_id;
-  OmitIfEmpty<std::string_view> view_name;
-  OmitIfZero<UUID> action_id;
+
+  // Every view that events seen while recording the profile took place in. The names
+  // are views, which must outlive the encoding of the event, and only views that have a
+  // name contribute one.
+  OmitIfEmpty<std::vector<UUID>> view_id;
+  OmitIfEmpty<std::vector<std::string_view>> view_name;
 
   // RUM vitals and long tasks seen while recording the profile; `vital_id` and
   // `vital_label` have one entry per vital, in the same order. The labels are views,
@@ -79,7 +83,7 @@ struct ProfileEvent {
       std::string_view in_tags_profiler,
       std::string_view in_family,
       std::string_view in_runtime,
-      std::string_view in_version
+      int64_t in_version
   )
       : start(in_start),
         end(in_end),
@@ -102,7 +106,6 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD_NAME(session_id, "session.id"),
     DATADOG_JSON_FIELD_NAME(view_id, "view.id"),
     DATADOG_JSON_FIELD_NAME(view_name, "view.name"),
-    DATADOG_JSON_FIELD_NAME(action_id, "user_action.id"),
     DATADOG_JSON_FIELD_NAME(vital_id, "vital.id"),
     DATADOG_JSON_FIELD_NAME(vital_label, "vital.label"),
     DATADOG_JSON_FIELD_NAME(long_task_id, "long_task.id")

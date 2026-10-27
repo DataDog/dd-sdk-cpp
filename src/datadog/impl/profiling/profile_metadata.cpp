@@ -23,8 +23,9 @@ namespace {
 constexpr std::string_view kFamily = "windows";
 constexpr std::string_view kRuntime = "windows";
 
-// Version of the event format. Matches dd-sdk-ios.
-constexpr std::string_view kEventVersion = "4";
+// Version of the event format. The only one that the backend supports, as on iOS and
+// Android.
+constexpr int64_t kEventVersion = 4;
 
 constexpr std::string_view kLanguage = "cpp";
 constexpr std::string_view kFormat = "pprof";
@@ -113,11 +114,16 @@ void BuildProfileEventJson(
   // Correlate the profile with RUM. The event only views the names in `events`, which
   // outlives the encoding below.
   const RumEventContext& context = events.context;
-  event.application_id = context.ids.application_id;
-  event.session_id = context.ids.session_id;
-  event.view_id = context.ids.view_id;
-  event.view_name = std::string_view(context.view_name);
-  event.action_id = context.ids.action_id;
+  event.application_id = context.application_id;
+  event.session_id = context.session_id;
+  event.view_id.value.reserve(events.views.size());
+  event.view_name.value.reserve(events.views.size());
+  for (const TrackedRumView& view : events.views) {
+    event.view_id.value.push_back(view.id);
+    if (!view.name.empty()) {
+      event.view_name.value.push_back(std::string_view(view.name));
+    }
+  }
   event.vital_id.value.reserve(events.vitals.size());
   event.vital_label.value.reserve(events.vitals.size());
   event.long_task_id.value.reserve(events.long_tasks.size());

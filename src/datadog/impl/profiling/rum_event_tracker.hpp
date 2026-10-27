@@ -44,15 +44,27 @@ struct TrackedRumLongTask {
   Duration duration;
 };
 
+/** A RUM view that events seen by the profiler took place in. */
+struct TrackedRumView {
+  UUID id;
+  std::string name;  // Empty if the view is unnamed
+};
+
 /**
  * The RUM events seen by the profiler since the previous snapshot, and the RUM context
  * in which the most recent of them was generated.
  */
 struct RumEventSnapshot {
-  // Zero/empty fields if no events were seen
+  // The application and session of the latest event, and the view it was in. Zero/empty
+  // fields if no events were seen.
   RumEventContext context;
   std::vector<TrackedRumVital> vitals;
   std::vector<TrackedRumLongTask> long_tasks;
+
+  // Every view that the events took place in, each once, in the order they were first
+  // seen. A vital counts in the view it started in, and in the view of the step that
+  // completed it.
+  std::vector<TrackedRumView> views;
 
   bool IsEmpty() const { return vitals.empty() && long_tasks.empty(); }
 };
@@ -67,7 +79,7 @@ struct RumEventSnapshot {
  *   keeps the ID, start time and context of its start step. Update and retry steps are
  *   ignored, as is an end step with no matching start.
  * - Long tasks are recorded as they arrive.
- *
+ * - The views that these events took place in are collected, each once.
  * - An operation that has not ended is not tracked forever. See `TakeSnapshot()`.
  *
  * Each kind of event is capped at `kMaxEventsPerKind` between snapshots: when the cap
@@ -108,10 +120,17 @@ class RumEventTracker {
   void Reset();
 
  private:
+  /**
+   * Adds the view that `context` is in to `_views`, unless it is in no view, is already
+   * there, or there is no room. Caller must hold `_mutex`.
+   */
+  void NoteView(const RumEventContext& context);
+
   std::mutex _mutex;
   RumEventContext _context;
   std::vector<TrackedRumVital> _vitals;
   std::vector<TrackedRumLongTask> _long_tasks;
+  std::vector<TrackedRumView> _views;
 };
 
 }  // namespace datadog::impl

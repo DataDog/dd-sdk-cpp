@@ -27,9 +27,9 @@ const Timestamp SNAPSHOT_TIME = At(10'000);
 
 RumEventContext MakeContext(std::string_view view_name = "Home") {
   RumEventContext context;
-  context.ids.application_id = UUID::Random();
-  context.ids.session_id = UUID::Random();
-  context.ids.view_id = UUID::Random();
+  context.application_id = UUID::Random();
+  context.session_id = UUID::Random();
+  context.view_id = UUID::Random();
   context.view_name = view_name;
   return context;
 }
@@ -71,9 +71,11 @@ RumVitalGeneratedMessage MakeLaunchVital(int64_t launch_ms, int64_t duration_ms)
   };
 }
 
-RumLongTaskGeneratedMessage MakeLongTask(int64_t start_ms, int64_t duration_ms) {
+RumLongTaskGeneratedMessage MakeLongTask(
+    int64_t start_ms, int64_t duration_ms, RumEventContext context = MakeContext()
+) {
   return RumLongTaskGeneratedMessage{
-      MakeContext(),
+      std::move(context),
       UUID::Random(),
       At(start_ms),
       std::chrono::duration_cast<Duration>(std::chrono::milliseconds{duration_ms})
@@ -89,7 +91,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
 
     REQUIRE(snapshot.IsEmpty());
-    REQUIRE(snapshot.context.ids.application_id == UUID::Zero);
+    REQUIRE(snapshot.context.application_id == UUID::Zero);
     REQUIRE(snapshot.context.view_name.empty());
   }
 
@@ -248,7 +250,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     // And is not reported again, nor is the context kept for it
     const auto second = tracker.TakeSnapshot(late + std::chrono::seconds(60));
     REQUIRE(second.IsEmpty());
-    REQUIRE(second.context.ids.view_id == UUID::Zero);
+    REQUIRE(second.context.view_id == UUID::Zero);
 
     // And a late end has nothing to complete
     tracker.OnVital(MakeStep(RumVitalStepType::End, 200'000, "upload", "a"));
@@ -320,7 +322,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     REQUIRE(snapshot.vitals.size() == 1);
     REQUIRE(snapshot.vitals[0].id == start.vital_id);
     REQUIRE_FALSE(snapshot.vitals[0].duration.has_value());
-    REQUIRE(snapshot.vitals[0].context.ids.session_id == first_session.ids.session_id);
+    REQUIRE(snapshot.vitals[0].context.session_id == first_session.session_id);
   }
 
   SECTION("M track each session's run W the same operation starts in two sessions") {
@@ -360,15 +362,15 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
 
     // When the first snapshot is taken, it has the latest event's context
     const auto first = tracker.TakeSnapshot(SNAPSHOT_TIME);
-    REQUIRE(first.context.ids.view_id == long_task.context.ids.view_id);
+    REQUIRE(first.context.view_id == long_task.context.view_id);
     REQUIRE(first.long_tasks.size() == 1);
 
     // Then the next, which holds only the operation, has the operation's own context
     const auto second = tracker.TakeSnapshot(SNAPSHOT_TIME);
     REQUIRE(second.long_tasks.empty());
     REQUIRE(second.vitals.size() == 1);
-    REQUIRE(second.context.ids.view_id == operation_context.ids.view_id);
-    REQUIRE(second.context.ids.session_id == operation_context.ids.session_id);
+    REQUIRE(second.context.view_id == operation_context.view_id);
+    REQUIRE(second.context.session_id == operation_context.session_id);
     REQUIRE(second.context.view_name == "Checkout");
   }
 
@@ -383,7 +385,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     // When A starts again, in the same session but a newer view. This replaces A, which
     // is now the most recent start, and so comes after B.
     RumEventContext newer_view = first_view;
-    newer_view.ids.view_id = UUID::Random();
+    newer_view.view_id = UUID::Random();
     newer_view.view_name = "Newer";
     tracker.OnVital(MakeStep(RumVitalStepType::Start, 3000, "a", "1", newer_view));
     tracker.TakeSnapshot(SNAPSHOT_TIME);
@@ -395,8 +397,85 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     REQUIRE(next.vitals[0].name == "b");
     REQUIRE(next.vitals[1].name == "a");
     REQUIRE(next.vitals[1].context.view_name == "Newer");
-    REQUIRE(next.context.ids.view_id == newer_view.ids.view_id);
+    REQUIRE(next.context.view_id == newer_view.view_id);
     REQUIRE(next.context.view_name == "Newer");
+  }
+
+  SECTION("M list each view once W events took place in it") {
+    // Given events in two views, one of which has two events
+    RumEventContext home = MakeContext("Home");
+    RumEventContext checkout = MakeContext("Checkout");
+    tracker.OnLongTask(MakeLongTask(1000, 60, home));
+    tracker.OnVital(MakeStep(RumVitalStepType::Start, 2000, "upload", "a", checkout));
+    tracker.OnLongTask(MakeLongTask(3000, 60, home));
+
+    // Then the snapshot lists the views in the order that they were first seen, once
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(snapshot.views.size() == 2);
+    REQUIRE(snapshot.views[0].id == home.view_id);
+    REQUIRE(snapshot.views[0].name == "Home");
+    REQUIRE(snapshot.views[1].id == checkout.view_id);
+    REQUIRE(snapshot.views[1].name == "Checkout");
+  }
+
+  SECTION("M list no view W the events took place in none") {
+    RumEventContext no_view = MakeContext();
+    no_view.view_id = UUID::Zero;
+    no_view.view_name.clear();
+    tracker.OnLongTask(MakeLongTask(1000, 60, no_view));
+
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
+
+    REQUIRE(snapshot.long_tasks.size() == 1);
+    REQUIRE(snapshot.views.empty());
+  }
+
+  SECTION("M list both views W an operation ends in a different view than it started") {
+    // Given an operation that starts in one view, and ends in another of the session
+    RumEventContext in_cart = MakeContext("Cart");
+    RumEventContext in_receipt = in_cart;
+    in_receipt.view_id = UUID::Random();
+    in_receipt.view_name = "Receipt";
+    tracker.OnVital(MakeStep(RumVitalStepType::Start, 1000, "checkout", "op", in_cart));
+    tracker.OnVital(
+        MakeStep(RumVitalStepType::End, 2000, "checkout", "op", in_receipt)
+    );
+
+    // Then the operation is one vital, and both views are listed
+    const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
+    REQUIRE(snapshot.vitals.size() == 1);
+    REQUIRE(snapshot.views.size() == 2);
+    REQUIRE(snapshot.views[0].id == in_cart.view_id);
+    REQUIRE(snapshot.views[1].id == in_receipt.view_id);
+  }
+
+  SECTION("M report a running operation's view again W the operation is kept") {
+    // Given an operation that is running in a view
+    RumEventContext in_cart = MakeContext("Cart");
+    tracker.OnVital(MakeStep(RumVitalStepType::Start, 1000, "checkout", "op", in_cart));
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).views.size() == 1);
+
+    // When the next snapshot is taken with nothing else having happened
+    const auto next = tracker.TakeSnapshot(SNAPSHOT_TIME);
+
+    // Then it reports the operation again, in the view it started in
+    REQUIRE(next.vitals.size() == 1);
+    REQUIRE(next.views.size() == 1);
+    REQUIRE(next.views[0].id == in_cart.view_id);
+
+    // And once the operation has ended and been reported, its view is carried no
+    // further
+    tracker.OnVital(MakeStep(RumVitalStepType::End, 3000, "checkout", "op", in_cart));
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).views.size() == 1);
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).views.empty());
+  }
+
+  SECTION("M forget the views W reset") {
+    tracker.OnLongTask(MakeLongTask(1000, 60));
+
+    tracker.Reset();
+
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).views.empty());
   }
 
   SECTION("M ignore a second end W the operation already ended") {
@@ -435,8 +514,8 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
 
     // Then the snapshot has the context of the last of them
     const auto snapshot = tracker.TakeSnapshot(SNAPSHOT_TIME);
-    REQUIRE(snapshot.context.ids.view_id == latest.context.ids.view_id);
-    REQUIRE(snapshot.context.ids.session_id == latest.context.ids.session_id);
+    REQUIRE(snapshot.context.view_id == latest.context.view_id);
+    REQUIRE(snapshot.context.session_id == latest.context.session_id);
   }
 
   SECTION("M begin a new snapshot W one is taken") {
@@ -450,7 +529,7 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
 
     // Then it is empty, and its context is clear
     REQUIRE(snapshot.IsEmpty());
-    REQUIRE(snapshot.context.ids.view_id == UUID::Zero);
+    REQUIRE(snapshot.context.view_id == UUID::Zero);
   }
 
   SECTION("M keep an operation tracked W a snapshot is taken before it ends") {
@@ -486,16 +565,16 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
     const auto second = tracker.TakeSnapshot(SNAPSHOT_TIME);
 
     // Then each reports the operation in the context in which it started
-    REQUIRE(first.context.ids.view_id == start.context.ids.view_id);
+    REQUIRE(first.context.view_id == start.context.view_id);
     REQUIRE(second.vitals.size() == 1);
-    REQUIRE(second.context.ids.view_id == start.context.ids.view_id);
-    REQUIRE(second.context.ids.session_id == start.context.ids.session_id);
+    REQUIRE(second.context.view_id == start.context.view_id);
+    REQUIRE(second.context.session_id == start.context.session_id);
     REQUIRE(second.context.view_name == start.context.view_name);
 
     // And once the operation ends and is reported, the context is released
     tracker.OnVital(MakeStep(RumVitalStepType::End, 1700));
     tracker.TakeSnapshot(SNAPSHOT_TIME);
-    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).context.ids.view_id == UUID::Zero);
+    REQUIRE(tracker.TakeSnapshot(SNAPSHOT_TIME).context.view_id == UUID::Zero);
   }
 
   SECTION("M forget everything W reset") {

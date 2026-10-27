@@ -28,7 +28,7 @@ bool IsSameOperation(
 ) {
   return vital.is_operation && !vital.duration.has_value() &&
          vital.name == message.name && vital.operation_key == message.operation_key &&
-         vital.context.ids.session_id == message.context.ids.session_id;
+         vital.context.session_id == message.context.session_id;
 }
 
 }  // namespace
@@ -59,6 +59,7 @@ void RumEventTracker::OnVital(const RumVitalGeneratedMessage& message) {
     if (existing != _vitals.end()) {
       existing->duration = message.timestamp - existing->start;
       _context = message.context;
+      NoteView(message.context);
     }
     return;
   }
@@ -83,6 +84,7 @@ void RumEventTracker::OnVital(const RumVitalGeneratedMessage& message) {
       }
   );
   _context = message.context;
+  NoteView(message.context);
 }
 
 void RumEventTracker::OnLongTask(const RumLongTaskGeneratedMessage& message) {
@@ -92,14 +94,22 @@ void RumEventTracker::OnLongTask(const RumLongTaskGeneratedMessage& message) {
   }
   _long_tasks.push_back({message.long_task_id, message.start, message.duration});
   _context = message.context;
+  NoteView(message.context);
 }
 
 RumEventSnapshot RumEventTracker::TakeSnapshot(const Timestamp& now) {
   std::lock_guard<std::mutex> lock(_mutex);
 
+  // A vital is reported in the view it started in, as well as in the view of the step
+  // that completed it, which is already known
+  for (const TrackedRumVital& vital : _vitals) {
+    NoteView(vital.context);
+  }
+
   RumEventSnapshot snapshot;
   snapshot.context = std::exchange(_context, RumEventContext{});
   snapshot.long_tasks = std::exchange(_long_tasks, {});
+  snapshot.views = std::exchange(_views, {});
 
   const auto is_pending = [](const TrackedRumVital& vital) {
     return vital.is_operation && !vital.duration.has_value();
@@ -136,8 +146,27 @@ RumEventSnapshot RumEventTracker::TakeSnapshot(const Timestamp& now) {
   // not of whatever other event happened to come last.
   if (num_kept > 0) {
     _context = _vitals.back().context;
+
+    // They are also reported in the views they started in
+    for (const TrackedRumVital& vital : _vitals) {
+      NoteView(vital.context);
+    }
   }
   return snapshot;
+}
+
+void RumEventTracker::NoteView(const RumEventContext& context) {
+  if (context.view_id == UUID::Zero) {
+    return;
+  }
+  const auto known =
+      std::find_if(_views.begin(), _views.end(), [&](const TrackedRumView& view) {
+        return view.id == context.view_id;
+      });
+  if (known != _views.end() || _views.size() >= kMaxEventsPerKind) {
+    return;
+  }
+  _views.push_back({context.view_id, context.view_name});
 }
 
 void RumEventTracker::Reset() {
@@ -145,6 +174,7 @@ void RumEventTracker::Reset() {
   _context = RumEventContext{};
   _vitals.clear();
   _long_tasks.clear();
+  _views.clear();
 }
 
 }  // namespace datadog::impl

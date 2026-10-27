@@ -124,7 +124,7 @@ TEST_CASE("BuildProfileEventJson", "[unit][profiling]") {
         R"(sdk_version:9.9.9,profiler_version:9.9.9,runtime_version:10.0.22631,)"
         R"(source:cpp,language:cpp,format:pprof,remote_symbols:yes,)"
         R"(operation:continuous",)"
-        R"("family":"windows","runtime":"windows","version":"4"})"
+        R"("family":"windows","runtime":"windows","version":4})"
     );
   }
 
@@ -179,13 +179,10 @@ TEST_CASE("BuildProfileEventJson", "[unit][profiling]") {
   }
 
   SECTION("M carry the RUM IDs W events were seen") {
-    // Given a vital, a long task, and the RUM context of the latest of them
+    // Given a vital, a long task, and the application and session of the latest of them
     RumEventSnapshot events;
-    events.context.ids.application_id = UUID::Random();
-    events.context.ids.session_id = UUID::Random();
-    events.context.ids.view_id = UUID::Random();
-    events.context.ids.action_id = UUID::Random();
-    events.context.view_name = "Checkout \"Page\"";
+    events.context.application_id = UUID::Random();
+    events.context.session_id = UUID::Random();
     const UUID first_vital = UUID::Random();
     const UUID second_vital = UUID::Random();
     const UUID long_task = UUID::Random();
@@ -195,15 +192,27 @@ TEST_CASE("BuildProfileEventJson", "[unit][profiling]") {
     );
     events.long_tasks.push_back({long_task, At(3), Ms(60)});
 
+    // And two views that they took place in
+    const UUID first_view = UUID::Random();
+    const UUID second_view = UUID::Random();
+    events.views.push_back({first_view, "Home"});
+    events.views.push_back({second_view, "Checkout \"Page\""});
+
     // When the event is built
     const json event = json::parse(EventJson(MakeContext(), RANGE, events));
 
-    // Then it identifies the RUM context
-    REQUIRE(event["application.id"] == events.context.ids.application_id.ToString());
-    REQUIRE(event["session.id"] == events.context.ids.session_id.ToString());
-    REQUIRE(event["view.id"] == events.context.ids.view_id.ToString());
-    REQUIRE(event["view.name"] == "Checkout \"Page\"");
-    REQUIRE(event["user_action.id"] == events.context.ids.action_id.ToString());
+    // Then it identifies the application and session
+    REQUIRE(event["application.id"] == events.context.application_id.ToString());
+    REQUIRE(event["session.id"] == events.context.session_id.ToString());
+
+    // And lists every view as an array, as the profile event schema does
+    REQUIRE(
+        event["view.id"] == json::array({first_view.ToString(), second_view.ToString()})
+    );
+    REQUIRE(event["view.name"] == json::array({"Home", "Checkout \"Page\""}));
+
+    // And never identifies an action: the mobile profile event has none
+    REQUIRE_FALSE(event.contains("user_action.id"));
 
     // And lists the vitals and long tasks
     REQUIRE(
@@ -216,11 +225,33 @@ TEST_CASE("BuildProfileEventJson", "[unit][profiling]") {
     REQUIRE(event["long_task.id"] == json::array({long_task.ToString()}));
   }
 
+  SECTION("M give only the views that have one a name") {
+    // Given a view with a name and a view without
+    RumEventSnapshot events;
+    const UUID named = UUID::Random();
+    const UUID unnamed = UUID::Random();
+    events.views.push_back({named, "Home"});
+    events.views.push_back({unnamed, ""});
+
+    const json event = json::parse(EventJson(MakeContext(), RANGE, events));
+
+    // Then both views are listed, but only one name
+    REQUIRE(event["view.id"] == json::array({named.ToString(), unnamed.ToString()}));
+    REQUIRE(event["view.name"] == json::array({"Home"}));
+  }
+
+  SECTION("M send the event version as a number") {
+    const json event = json::parse(EventJson(MakeContext(), RANGE, RumEventSnapshot{}));
+
+    REQUIRE(event["version"].is_number_integer());
+    REQUIRE(event["version"] == 4);
+  }
+
   SECTION("M leave out IDs W they are zero or there are none") {
     // Given a context with only an application and session
     RumEventSnapshot events;
-    events.context.ids.application_id = UUID::Random();
-    events.context.ids.session_id = UUID::Random();
+    events.context.application_id = UUID::Random();
+    events.context.session_id = UUID::Random();
 
     const json event = json::parse(EventJson(MakeContext(), RANGE, events));
 
@@ -296,7 +327,7 @@ TEST_CASE("ProfileMetadataSource", "[unit][profiling]") {
   SECTION("M consume the RUM events W metadata is built") {
     // Given a long task
     RumLongTaskGeneratedMessage message;
-    message.context.ids.view_id = UUID::Random();
+    message.context.view_id = UUID::Random();
     message.long_task_id = UUID::Random();
     message.start = At(1000);
     message.duration = Ms(60);
@@ -311,6 +342,10 @@ TEST_CASE("ProfileMetadataSource", "[unit][profiling]") {
         message.long_task_id.ToString()
     );
     REQUIRE(json::parse(first.rum_events_json).size() == 1);
+
+    // And the view it took place in, which has no name
+    REQUIRE(json::parse(first.event_json)["view.id"].size() == 1);
+    REQUIRE_FALSE(json::parse(first.event_json).contains("view.name"));
 
     // And the next profile does not
     const ProfileMetadata second = source->BuildMetadata(RANGE);

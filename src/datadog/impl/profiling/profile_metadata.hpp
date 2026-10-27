@@ -77,9 +77,9 @@ class ProfileTags {
  * dd-sdk-ios profile event, with the family and runtime of this platform.
  *
  * Alongside the fixed description (time range, tags, attachments), it carries IDs that
- * correlate the profile with the RUM events in `events`: the IDs of the application,
- * session, view and action in which the latest event occurred, and the IDs of the
- * vitals and long tasks that were seen.
+ * correlate the profile with the RUM events in `events`: the IDs of the application and
+ * session in which the latest event occurred, the IDs and names of the views that the
+ * events took place in, and the IDs of the vitals and long tasks that were seen.
  */
 void BuildProfileEventJson(
     std::vector<uint8_t>& out,

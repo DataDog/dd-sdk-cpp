@@ -225,8 +225,7 @@ TEST_CASE("Profiling feature profile metadata", "[unit][profiling]") {
   // Given a Profiling feature that owns a mock profiler
   auto profiling = std::make_shared<impl::Profiling>(
       std::make_unique<MockProfiler>(),
-      ProfilerSettings{"my-service", "staging", "1.2.3"},
-      nullptr
+      ProfilerSettings{"my-service", "staging", "1.2.3"}
   );
   auto message_handler_func = *profiling->MakeMessageHandler();
 
@@ -239,7 +238,7 @@ TEST_CASE("Profiling feature profile metadata", "[unit][profiling]") {
   const UUID long_task_id = UUID::Random();
   auto send_long_task = [&] {
     RumLongTaskGeneratedMessage message;
-    message.context.ids.view_id = UUID::Random();
+    message.context.view_id = UUID::Random();
     message.long_task_id = long_task_id;
     message.start = datadog::Timestamp{std::chrono::seconds{1700000000}};
     message.duration = std::chrono::milliseconds{60};

@@ -1728,9 +1728,9 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope vital messages", "[unit][
     REQUIRE(vitals[1]["vital"]["id"] == end.vital_id.ToString());
 
     // And the RUM context in which it occurred
-    REQUIRE(start.context.ids.application_id.ToString() == APPLICATION_ID);
-    REQUIRE(start.context.ids.session_id.ToString() == SESSION_ID);
-    REQUIRE(start.context.ids.view_id != UUID::Zero);
+    REQUIRE(start.context.application_id.ToString() == APPLICATION_ID);
+    REQUIRE(start.context.session_id.ToString() == SESSION_ID);
+    REQUIRE(start.context.view_id != UUID::Zero);
     REQUIRE(start.context.view_name == "My View");
   }
 

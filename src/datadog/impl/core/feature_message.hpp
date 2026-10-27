@@ -103,7 +103,9 @@ struct RumGlobalAttributesChangedMessage {
  * scopes that generated the event, so each value is accurate as of that event.
  */
 struct RumEventContext {
-  RumFeatureContext ids;  // UUID::Zero for any scope that was not active
+  UUID application_id;
+  UUID session_id;
+  UUID view_id;           // UUID::Zero if no view was active
   std::string view_name;  // Empty if no view was active or the view is unnamed
 };
 

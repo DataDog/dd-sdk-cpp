@@ -761,13 +761,7 @@ void RumViewScope::SendLongTaskEvent(
 
   // Announce the long task so that other features (e.g. Profiling) can correlate it
   RumEventContext event_context{
-      RumFeatureContext{
-          deps.application_id,
-          session.GetSessionID(),
-          _view_id,
-          _active_action_scope ? _active_action_scope->GetActionID() : UUID::Zero
-      },
-      _name
+      deps.application_id, session.GetSessionID(), _view_id, _name
   };
   deps.QueueMessage(
       RumLongTaskGeneratedMessage{

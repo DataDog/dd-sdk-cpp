@@ -484,11 +484,10 @@ TEST_CASE_METHOD(ViewFixture, "RumViewScope long task messages", "[unit][rum]") 
     REQUIRE(long_tasks[0]["long_task"]["id"] == message.long_task_id.ToString());
 
     // And the RUM context in which it occurred
-    REQUIRE(message.context.ids.application_id.ToString() == APPLICATION_ID);
-    REQUIRE(message.context.ids.session_id.ToString() == SESSION_ID);
-    REQUIRE(message.context.ids.view_id.ToString() == VIEW_ID);
+    REQUIRE(message.context.application_id.ToString() == APPLICATION_ID);
+    REQUIRE(message.context.session_id.ToString() == SESSION_ID);
+    REQUIRE(message.context.view_id.ToString() == VIEW_ID);
     REQUIRE(message.context.view_name == "My View Name");
-    REQUIRE(message.context.ids.action_id == UUID::Zero);
   }
 
   SECTION("M queue no message W the view is inactive") {
