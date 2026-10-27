@@ -7,6 +7,7 @@
 #pragma once
 
 #include <atomic>
+#include <memory>
 #include <optional>
 #include <shared_mutex>
 #include <string>
@@ -17,6 +18,7 @@
 
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/core/scheduler.hpp"
 #include "datadog/impl/rum/command.hpp"
 #include "datadog/impl/rum/context.hpp"
 #include "datadog/impl/rum/resource_types.hpp"
@@ -217,6 +219,9 @@ class Rum final : public Feature {
 
   // Guards against duplicate ReportAppFullyDisplayed() calls; cleared on Stop()
   std::atomic<bool> _ttfd_reported{false};
+
+  // Runs periodic RUM work (e.g. timeseries sampling); alive between Start() and Stop()
+  std::unique_ptr<Scheduler> _scheduler;
 
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;

@@ -84,6 +84,7 @@ add_executable(tests
     impl/core/feature_scope_test.cpp
     impl/core/feature_test.cpp
     impl/core/queue_test.cpp
+    impl/core/scheduler_test.cpp
     impl/core/storage_queue_test.cpp
     impl/core/storage_thread_test.cpp
     impl/core/storage_write_test.cpp

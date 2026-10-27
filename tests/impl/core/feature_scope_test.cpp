@@ -373,3 +373,64 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     }
   }
 }
+
+TEST_CASE("FeatureScope (synchronous testing mode)", "[unit][core]") {
+  // Given a FeatureScope created for testing, which executes functions inline
+  CoreContextProvider context_provider(MOCK_CONTEXT);
+  FeatureScope scope = FeatureScope::CreateForTesting(
+      context_provider,
+      [](Block, Block, bool) { return true; },
+      [](FeatureMessage) { return true; },
+      DiagnosticLogger{}
+  );
+
+  SECTION("M never run functions concurrently W called from multiple threads") {
+    // Given a counter of functions currently executing
+    std::atomic<int> num_inside{0};
+    std::atomic<bool> overlap_observed{false};
+    auto func = [&](const CoreContext&, const EventWriter&, const MessagePublisher&) {
+      if (num_inside.fetch_add(1) != 0) {
+        overlap_observed = true;
+      }
+      std::this_thread::yield();
+      if (num_inside.load() != 1) {
+        overlap_observed = true;
+      }
+      num_inside.fetch_sub(1);
+    };
+
+    // When two threads concurrently execute many functions via the same scope
+    auto threads = RunParallel(2, [&](size_t) {
+      for (size_t i = 0; i < 1000; i++) {
+        scope.ExecuteOnContextThread(func);
+        scope.UpdateContext([](CoreContext&) {});
+      }
+    });
+    for (auto& thread : threads) {
+      thread.join();
+    }
+
+    // Then no two functions ever ran at the same time
+    REQUIRE_FALSE(overlap_observed);
+    REQUIRE(num_inside == 0);
+  }
+
+  SECTION("M not deadlock W context function calls back into the scope") {
+    // When a context function makes nested calls into the same scope
+    int num_nested_executions = 0;
+    scope.ExecuteOnContextThread(
+        [&](const CoreContext&, const EventWriter&, const MessagePublisher&) {
+          scope.UpdateContext([](CoreContext& ctx) { WriteContextValue(ctx, 0xbeef); });
+          scope.ExecuteOnContextThread(
+              [&](const CoreContext& ctx, const EventWriter&, const MessagePublisher&) {
+                REQUIRE(ReadContextValue(ctx) == 0xbeef);
+                num_nested_executions++;
+              }
+          );
+        }
+    );
+
+    // Then the nested calls run inline and the outer call returns
+    REQUIRE(num_nested_executions == 1);
+  }
+}
