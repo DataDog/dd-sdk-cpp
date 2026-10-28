@@ -72,8 +72,8 @@ class Callback<void> : public CallbackBase {
  * Tasks run serially on the scheduler thread, outside of any internal lock, and use a
  * monotonic clock so wall-clock changes don't affect their cadence.
  *
- * Schedule() and Cancel() are thread-safe. Shutdown() must not be called concurrently
- * with itself or with the destructor.
+ * Schedule(), Cancel() and Shutdown() are thread-safe. The destructor must not run
+ * concurrently with a Shutdown() called from another thread than the scheduler's.
  */
 class Scheduler {
  public:
@@ -195,6 +195,7 @@ class Scheduler {
   static void ThreadMain(const std::shared_ptr<State>& state);
 
   std::shared_ptr<State> _state;
+  // Guarded by _state->mutex; empty once a Shutdown() has taken it
   std::thread _thread;
   const std::thread::id _worker_id;
 };

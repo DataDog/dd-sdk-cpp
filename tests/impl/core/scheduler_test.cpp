@@ -313,6 +313,33 @@ TEST_CASE("Scheduler", "[unit]") {
     REQUIRE(run_finished);
   }
 
+  SECTION("M wait for task W shut down from a task and the test thread concurrently") {
+    // Given a task that shuts down its scheduler once the test thread starts doing so
+    std::promise<void> started;
+    std::promise<void> release;
+    std::atomic<bool> task_finished{false};
+    Scheduler scheduler;
+    ScheduleTask(scheduler, 1ms, [&, release_future = release.get_future().share()] {
+      started.set_value();
+      release_future.wait();
+      scheduler.Shutdown(false);
+      task_finished = true;
+    });
+    started.get_future().wait();
+
+    // When both threads shut it down at the same time
+    std::thread releaser([&] {
+      std::this_thread::sleep_for(5ms);
+      release.set_value();
+    });
+    scheduler.Shutdown(true);
+    const bool finished_at_shutdown = task_finished;
+    releaser.join();
+
+    // Then the waiting shutdown returns only after the task finished
+    REQUIRE(finished_at_shutdown);
+  }
+
   SECTION("M reject tasks W already shut down") {
     // Given a scheduler that has been shut down
     Scheduler scheduler;

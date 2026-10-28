@@ -65,29 +65,28 @@ void Scheduler::Shutdown(bool wait) {
   // Swap the tasks out before taking the lock so their closures are destroyed once the
   // lock is gone: a destructor calling back into the Scheduler would relock the mutex
   std::unordered_map<TaskId, Task> tasks;
+  // Exactly one caller takes the thread; concurrent callers wait for `exited` instead
+  std::thread thread;
   {
     std::lock_guard lock(_state->mutex);
     _state->stopped = true;
     tasks.swap(_state->tasks);
+    thread = std::move(_thread);
     _state->cv.notify_all();
   }
 
   // Waiting from the scheduler thread itself would deadlock, even after detach
-  if (_worker_id == std::this_thread::get_id()) {
-    if (_thread.joinable()) {
-      _thread.detach();
-    }
-    return;
-  }
-  if (wait) {
-    if (_thread.joinable()) {
-      _thread.join();
+  const bool on_worker = _worker_id == std::this_thread::get_id();
+  if (thread.joinable()) {
+    if (wait && !on_worker) {
+      // Outside the lock: a task calling Shutdown() meanwhile must not block on it
+      thread.join();
     } else {
-      std::unique_lock lock(_state->mutex);
-      _state->cv.wait(lock, [&] { return _state->exited; });
+      thread.detach();
     }
-  } else if (_thread.joinable()) {
-    _thread.detach();
+  } else if (wait && !on_worker) {
+    std::unique_lock lock(_state->mutex);
+    _state->cv.wait(lock, [&] { return _state->exited; });
   }
 }
 
