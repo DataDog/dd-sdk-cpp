@@ -52,12 +52,11 @@ test-windows-crashpad:
 
 compat-windows:
   # - COMPILE: Build with MSVC 17.14 on Windows x64
-  # - CONFIG:  Validate Release build (test-windows handles Debug, including profiling),
-  #            plus the profiling builds below, which also cover static-CRT and shared
-  #            library variations
+  # - CONFIG:  Validate Release builds (test-windows handles Debug), including static-CRT
+  #            and shared library variations
   # - CRASH:   Use the default crash handling implementation
   # - EXTRAS:  Build test binaries (static SDK only)
-  # - PROFILER: Build dd-win-prof into the SDK where DD_ENABLE_PROFILING is ON
+  # - PROFILER: Build dd-win-prof into the SDK (DD_ENABLE_PROFILING=ON)
   # - RUNTIME: Run unit tests
   stage: test
   dependencies: []
@@ -70,25 +69,18 @@ compat-windows:
       # Visual Studio 2022 (17.14, vc143): md-static-release, w/ WinHTTP
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
-        DD_CRASH_MODE: "inprocess"
-        DD_BUILD_TESTING: "ON"
-        DD_ENABLE_PROFILING: "OFF"
-        CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
-      # Same, with profiling (dd-win-prof) enabled: md-static-release
-      - BUILD_CONFIGURATION: Release
-        BUILD_SHARED_LIBS: "OFF"
         DD_BUILD_TESTING: "ON"
         DD_CRASH_MODE: "inprocess"
         DD_ENABLE_PROFILING: "ON"
         CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreadedDLL
-      # Profiling, static CRT: mt-static-release
+      # Static CRT: mt-static-release
       - BUILD_CONFIGURATION: Release
         BUILD_SHARED_LIBS: "OFF"
         DD_BUILD_TESTING: "ON"
         DD_CRASH_MODE: "inprocess"
         DD_ENABLE_PROFILING: "ON"
         CMAKE_MSVC_RUNTIME_LIBRARY: MultiThreaded
-      # Profiling, shared SDK library: md-shared-release. Build only, as on Linux and
+      # Shared SDK library: md-shared-release. Build only, as on Linux and
       # macOS: the unit tests link internal SDK symbols that a shared library does not
       # export, so tests can only be built against a static SDK
       - BUILD_CONFIGURATION: Release
