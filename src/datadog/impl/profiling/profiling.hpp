@@ -62,7 +62,7 @@ class Profiling final : public Feature {
 
  private:
   /** Handles a context update, reacting only if tracking consent has changed. */
-  void OnTrackingConsent(TrackingConsent consent);
+  void OnTrackingConsentChanged(TrackingConsent consent);
 
   /**
    * Starts or stops the profiler as needed to match the desired state: running if and

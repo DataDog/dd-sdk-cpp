@@ -35,8 +35,9 @@ Profiling::Profiling(
     : _impl(impl),
       _diagnostic_handler(std::move(diagnostic_handler)),
       _diagnostic_threshold(diagnostic_threshold) {
-  // The C++ profiling API doesn't currently emit any diagnostic messages, but storing
-  // these values ensures that we can do so in the future without ABI changes
+  // This object doesn't currently emit diagnostic messages itself (Profiling::Register
+  // logs through the Core's handler), but storing these values ensures that we can do
+  // so in the future without ABI changes
   (void)_diagnostic_handler;
   (void)_diagnostic_threshold;
 }
@@ -60,7 +61,7 @@ std::shared_ptr<Profiling> Profiling::Register(
   // If this build has no profiler, return a no-op Profiling interface
   auto profiler = impl::CreateProfiler();
   if (!profiler) {
-    diagnostic_logger.Warning(
+    diagnostic_logger.Status(
         "Profiling is not supported in this build of the SDK: it requires Windows x64 "
         "and the DD_ENABLE_PROFILING CMake option"
     );

@@ -5,7 +5,7 @@
 // Copyright 2025-Present Datadog, Inc.
 
 // IProfiler implementation backed by dd-win-prof. Only compiled into builds with
-// profiling support (see cmake/profiler.cmake).
+// profiling support (see cmake/deps/dd-win-prof.cmake).
 
 #include <dd-win-prof.h>
 
@@ -19,7 +19,7 @@ namespace {
 
 class DdWinProfProfiler final : public IProfiler {
  public:
-  bool Setup(const ProfilerSettings& settings) override {
+  bool Init(const ProfilerSettings& settings) override {
     ProfilerConfig config = {};
     config.size = sizeof(ProfilerConfig);
 

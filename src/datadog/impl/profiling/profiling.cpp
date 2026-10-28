@@ -44,7 +44,7 @@ Profiling::MakeMessageHandler() {
       return;
     }
     if (const auto* m = std::get_if<ContextChangedMessage>(&msg)) {
-      self->OnTrackingConsent(m->context.tracking_consent);
+      self->OnTrackingConsentChanged(m->context.tracking_consent);
     }
   };
 }
@@ -65,7 +65,7 @@ void Profiling::Stop() {
   UpdateProfilerState();
 }
 
-void Profiling::OnTrackingConsent(TrackingConsent consent) {
+void Profiling::OnTrackingConsentChanged(TrackingConsent consent) {
   std::lock_guard<std::mutex> lock(_mutex);
 
   // Every context change (user info, etc.) arrives here: only a consent change can
@@ -88,7 +88,7 @@ void Profiling::UpdateProfilerState() {
       DATADOG_ASSERT(false, "Profiling has invalid _scope while the SDK is running");
       return;
     }
-    if (!_profiler->Setup(_settings)) {
+    if (!_profiler->Init(_settings)) {
       _scope->diagnostic_logger.Warning("Failed to configure profiler");
       return;
     }

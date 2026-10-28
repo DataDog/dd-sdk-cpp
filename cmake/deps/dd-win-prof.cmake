@@ -1,6 +1,6 @@
 # Builds dd-win-prof (the Windows profiler DLL) as a dependency and links it into
 # ddsdkcpp. Included from src/CMakeLists.txt, after ddsdkcpp is configured, only when
-# DD_PROFILING_ACTIVE is set (i.e. DD_ENABLE_PROFILING on Windows x64).
+# DD_PROFILER_IMPL is "dd-win-prof" (i.e. DD_ENABLE_PROFILING on Windows x64).
 #
 # dd-win-prof is linked normally rather than delay-loaded: it discovers threads through
 # DllMain, so it has to be loaded at process start to see the threads created before the
@@ -15,7 +15,6 @@
 
 include(FetchContent)
 
-# Merge of dd-win-prof PR #75, which makes it consumable as a dependency
 set(DD_WIN_PROF_GIT_TAG "7caf25bfce0e55e9df3d60c9baf0b1dfa408f97e" CACHE STRING
     "dd-win-prof revision (commit SHA) to build")
 

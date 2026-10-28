@@ -39,7 +39,7 @@ set(DATADOG_BUILT_WITH_DD_BUILD_SHARED @DD_BUILD_SHARED@)
 
 # If the SDK was built with profiling support, DatadogTargets.cmake also defines the
 # Datadog::dd-win-prof target (dd-win-prof.dll and its import library)
-set(DATADOG_BUILT_WITH_DD_ENABLE_PROFILING @DD_PROFILING_ACTIVE@)
+set(DATADOG_BUILT_WITH_DD_PROFILER_IMPL "@DD_PROFILER_IMPL@")
 
 # Include DatadogTargets.cmake, which is generated from our build-time CMake
 # configuration and includes all exported targets with the relevant details of how to

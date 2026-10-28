@@ -58,7 +58,7 @@ TEST_CASE("Profiling::Register null safety", "[unit][profiling][cpp-api]") {
   }
 }
 
-#ifndef DD_TESTS_WITH_PROFILING
+#ifndef WITH_DATADOG_PROFILING_TESTS
 
 TEST_CASE(
     "Profiling::Register without profiling support", "[unit][profiling][cpp-api]"
@@ -155,4 +155,4 @@ TEST_CASE("Profiling::Register claims the profiler", "[unit][profiling][cpp-api]
   }
 }
 
-#endif  // DD_TESTS_WITH_PROFILING
+#endif  // WITH_DATADOG_PROFILING_TESTS

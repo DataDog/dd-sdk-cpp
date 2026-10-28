@@ -194,9 +194,9 @@ target_link_libraries(tests
 
 # If the SDK was built with profiling support, ensure that dd-win-prof.dll is present
 # alongside the test binary post-build
-if(DD_PROFILING_ACTIVE)
+if(DD_PROFILER_IMPL STREQUAL "dd-win-prof")
     # Enables the tests of how Profiling::Register claims the profiler
-    target_compile_definitions(tests PRIVATE DD_TESTS_WITH_PROFILING=1)
+    target_compile_definitions(tests PRIVATE WITH_DATADOG_PROFILING_TESTS=1)
 
     add_custom_command(TARGET tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

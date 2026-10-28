@@ -16,18 +16,18 @@ using namespace datadog;
  */
 class MockProfiler : public impl::IProfiler {
  public:
-  bool setup_result = true;
+  bool init_result = true;
   bool start_result = true;
-  int setup_calls = 0;
+  int init_calls = 0;
   int start_calls = 0;
   int stop_calls = 0;
   impl::ProfilerSettings last_settings;
 
   // IProfiler interface
-  bool Setup(const impl::ProfilerSettings& settings) override {
-    setup_calls++;
+  bool Init(const impl::ProfilerSettings& settings) override {
+    init_calls++;
     last_settings = settings;
-    return setup_result;
+    return init_result;
   }
 
   bool Start() override {

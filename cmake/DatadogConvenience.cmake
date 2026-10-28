@@ -4,12 +4,12 @@
 
 # Internal: sets <out_var> to the name of the dd-win-prof target if the SDK was built with
 # profiling support, or to an empty string otherwise.
-function(_datadog_profiler_target out_var)
+function(_datadog_find_dd_win_prof_target out_var)
     set(_target "")
-    if(DD_ENABLE_PROFILING AND TARGET dd-win-prof)
+    if(DD_PROFILER_IMPL STREQUAL "dd-win-prof" AND TARGET dd-win-prof)
         # SDK included via FetchContent / add_subdirectory
         set(_target dd-win-prof)
-    elseif(DATADOG_BUILT_WITH_DD_ENABLE_PROFILING)
+    elseif(DATADOG_BUILT_WITH_DD_PROFILER_IMPL STREQUAL "dd-win-prof")
         # SDK included via find_package(Datadog)
         if(NOT TARGET Datadog::dd-win-prof)
             message(FATAL_ERROR "The SDK was built with profiling support, but target Datadog::dd-win-prof does not exist")
@@ -65,7 +65,7 @@ function(datadog_enable target)
 
     # If the SDK was built with profiling support, ensure that dd-win-prof.dll is present
     # alongside the application binary post-build
-    _datadog_profiler_target(_dd_profiler)
+    _datadog_find_dd_win_prof_target(_dd_profiler)
     if(_dd_profiler)
         add_custom_command(TARGET ${target} POST_BUILD
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -197,7 +197,7 @@ function(datadog_install target)
     # If the SDK was built with profiling support, install dd-win-prof.dll to
     # RUNTIME_DESTINATION: the application loads it at startup. (A DLL is a RUNTIME
     # artifact in CMake's model, so its import library is not installed.)
-    _datadog_profiler_target(_dd_profiler)
+    _datadog_find_dd_win_prof_target(_dd_profiler)
     if(_dd_profiler)
         if(_dd_profiler STREQUAL "dd-win-prof")
             install(TARGETS dd-win-prof RUNTIME DESTINATION "${ARG_RUNTIME_DESTINATION}")

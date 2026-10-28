@@ -41,7 +41,7 @@ class IProfiler {
   /**
    * Applies the given settings. Must be called before Start().
    */
-  virtual bool Setup(const ProfilerSettings& settings) = 0;
+  virtual bool Init(const ProfilerSettings& settings) = 0;
 
   /**
    * Starts profiling. Returns false if the profiler could not be started.
@@ -57,7 +57,7 @@ class IProfiler {
 /**
  * Creates the IProfiler implementation for this build: one backed by dd-win-prof in
  * builds with profiling support (Windows x64, DD_ENABLE_PROFILING=ON), or nullptr in
- * all other builds. The implementation is chosen by which source file CMake compiles.
+ * all other builds.
  */
 std::unique_ptr<IProfiler> CreateProfiler();
 
