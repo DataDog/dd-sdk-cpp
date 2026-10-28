@@ -136,6 +136,30 @@ TEST_CASE("Scheduler", "[unit]") {
     REQUIRE(WaitFor([&] { return runs >= 1; }));
   }
 
+  SECTION("M skip overrun ticks and keep the grid W a run overruns its period") {
+    // Given a 100ms task whose first run takes 110ms, ending just past the 200ms tick
+    std::atomic<int> runs{0};
+    std::promise<std::chrono::steady_clock::time_point> second_run;
+    auto second_run_future = second_run.get_future();
+    const auto scheduled_at = std::chrono::steady_clock::now();
+    Scheduler scheduler;
+    ScheduleTask(scheduler, 100ms, [&] {
+      const int run = ++runs;
+      if (run == 1) {
+        std::this_thread::sleep_for(110ms);
+      } else if (run == 2) {
+        second_run.set_value(std::chrono::steady_clock::now());
+      }
+    });
+
+    // When the second run happens
+    REQUIRE(second_run_future.wait_for(5s) == std::future_status::ready);
+
+    // Then it waited for the first tick after the overrun (300ms) instead of running
+    // right after it (~210ms); the wide gap absorbs sleep_for overshoot
+    REQUIRE(second_run_future.get() - scheduled_at >= 300ms);
+  }
+
   SECTION("M stop running task W cancelled") {
     // Given a counter and a task that has run at least once
     std::atomic<int> runs{0};

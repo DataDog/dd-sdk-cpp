@@ -6,7 +6,6 @@
 
 #include "datadog/impl/core/scheduler.hpp"
 
-#include <algorithm>
 #include <utility>
 
 namespace datadog::impl {
@@ -35,14 +34,16 @@ std::optional<Scheduler::TaskId> Scheduler::ScheduleRun(
     return std::nullopt;
   }
   const TaskId id = _state->next_id++;
+  const auto next_run = Clock::now() + clock_period;
   _state->tasks.emplace(
       id,
       Task{
-          Clock::now() + clock_period,
+          next_run,
           clock_period,
           std::make_shared<std::function<void()>>(std::move(run))
       }
   );
+  _state->deadlines.emplace(next_run, id);
   // Wake the thread: the new task may be due earlier than the one it's waiting for
   _state->cv.notify_all();
   return id;
@@ -57,6 +58,9 @@ bool Scheduler::Cancel(TaskId id) {
   {
     std::lock_guard lock(_state->mutex);
     cancelled = _state->tasks.extract(id);
+    if (cancelled) {
+      _state->deadlines.erase({cancelled.mapped().next_run, id});
+    }
   }
   return static_cast<bool>(cancelled);
 }
@@ -71,6 +75,7 @@ void Scheduler::Shutdown(bool wait) {
     std::lock_guard lock(_state->mutex);
     _state->stopped = true;
     tasks.swap(_state->tasks);
+    _state->deadlines.clear();
     thread = std::move(_thread);
     _state->cv.notify_all();
   }
@@ -93,43 +98,37 @@ void Scheduler::Shutdown(bool wait) {
 void Scheduler::ThreadMain(const std::shared_ptr<State>& state) {
   std::unique_lock lock(state->mutex);
   while (!state->stopped) {
-    // ponytail: O(n) scan per wakeup, fine for a handful of tasks; switch to a heap
-    // if many tasks get scheduled
-    auto next = std::min_element(
-        state->tasks.begin(), state->tasks.end(), [](const auto& a, const auto& b) {
-          return a.second.next_run < b.second.next_run;
-        }
-    );
-
     // Sleep until something changes or the earliest task is due, then re-evaluate:
     // tasks may have been added or cancelled in the meantime
-    if (next == state->tasks.end()) {
+    if (state->deadlines.empty()) {
       state->cv.wait(lock);
       continue;
     }
-    const auto now = Clock::now();
-    Task& task = next->second;
-    if (task.next_run > now) {
-      // Copy the deadline: wait_until reads it after unlocking, when the task may
-      // already be erased by Cancel()/Shutdown()
-      const auto deadline = task.next_run;
+    // Copied: wait_until reads the deadline after unlocking, when the entry may
+    // already be erased by Cancel()/Shutdown()
+    const auto [deadline, id] = *state->deadlines.begin();
+    if (deadline > Clock::now()) {
       state->cv.wait_until(lock, deadline);
       continue;
     }
 
-    // Fixed-rate: keep the cadence, but skip runs we're already too late for
-    task.next_run += task.period;
-    if (task.next_run <= now) {
-      task.next_run = now + task.period;
-    }
-
-    auto fn = task.fn;
+    auto fn = state->tasks.at(id).fn;
     lock.unlock();
     (*fn)();
     // Drop the closure before relocking: if the task was cancelled meanwhile, this copy
     // is the last reference, and its destructor must not run under the mutex
     fn.reset();
     lock.lock();
+
+    // Fixed-rate: move to the first tick after the run ended, skipping the ticks it
+    // overran. Looked up again: the task may have been cancelled during the run
+    if (auto it = state->tasks.find(id); it != state->tasks.end()) {
+      Task& done = it->second;
+      state->deadlines.erase({done.next_run, id});
+      const auto overdue = Clock::now() - done.next_run;
+      done.next_run += (overdue / done.period + 1) * done.period;
+      state->deadlines.emplace(done.next_run, id);
+    }
   }
   state->exited = true;
   state->cv.notify_all();

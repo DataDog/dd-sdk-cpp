@@ -14,9 +14,11 @@
 #include <memory>
 #include <mutex>
 #include <optional>
+#include <set>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
+#include <utility>
 
 #include "datadog/timestamp.hpp"
 
@@ -101,7 +103,9 @@ class Scheduler {
 
   /**
    * Schedules a task to run every `period`, first run one `period` from now. Runs are
-   * fixed-rate; if a run overruns, missed runs are skipped rather than run in a burst.
+   * fixed-rate: if a run overruns, the ticks it overran are skipped rather than run in
+   * a burst, and the next run happens on the original grid. Tasks run serially, so
+   * keep them short and offload long work to another thread.
    * The outcome of each run is reported to `callback`.
    *
    * Returns the ID used to cancel the task, or std::nullopt if the scheduler has been
@@ -187,6 +191,9 @@ class Scheduler {
     bool exited = false;
     TaskId next_id = 1;
     std::unordered_map<TaskId, Task> tasks;
+    // The tasks ordered by next run, earliest first; kept in sync with `tasks`. The ID
+    // keeps tasks due at the same time apart
+    std::set<std::pair<Clock::time_point, TaskId>> deadlines;
   };
 
   // Callback-less entry point; private so every task reports its outcome
