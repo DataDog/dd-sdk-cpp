@@ -9,6 +9,8 @@
 #include <memory>
 #include <string>
 
+#include "datadog/impl/types/diagnostics.hpp"
+
 namespace datadog::impl {
 
 /**
@@ -56,9 +58,16 @@ class IProfiler {
 
 /**
  * Creates the IProfiler implementation for this build: one backed by dd-win-prof in
- * builds with profiling support (Windows x64, DD_ENABLE_PROFILING=ON), or nullptr in
- * all other builds.
+ * builds with profiling support (Windows x64, DD_ENABLE_PROFILING=ON).
+ *
+ * The profiler is process-global, so only one IProfiler may exist at a time: otherwise,
+ * instances would overwrite each other's settings, restart a running profiler, or stop
+ * profiling while another instance is still using it. Destroying the IProfiler allows a
+ * later call to succeed.
+ *
+ * Returns null, after logging the reason, if this build has no profiler or if another
+ * IProfiler already exists.
  */
-std::unique_ptr<IProfiler> CreateProfiler();
+std::unique_ptr<IProfiler> CreateProfiler(const DiagnosticLogger& logger);
 
 }  // namespace datadog::impl

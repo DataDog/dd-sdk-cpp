@@ -289,7 +289,6 @@ target_sources(ddsdkcpp PRIVATE
 # === profiling ===
 
 target_sources(ddsdkcpp PRIVATE
-    datadog/impl/profiling/profiler_ownership.cpp
     datadog/impl/profiling/profiling.cpp
 )
 

@@ -14,14 +14,8 @@
 
 namespace datadog::impl {
 
-Profiling::Profiling(
-    std::unique_ptr<IProfiler> profiler,
-    ProfilerSettings settings,
-    std::unique_ptr<ProfilerOwnership> ownership
-)
-    : _ownership(std::move(ownership)),
-      _profiler(std::move(profiler)),
-      _settings(std::move(settings)) {
+Profiling::Profiling(std::unique_ptr<IProfiler> profiler, ProfilerSettings settings)
+    : _profiler(std::move(profiler)), _settings(std::move(settings)) {
   DATADOG_ASSERT(_profiler, "Profiling feature requires a profiler");
 }
 

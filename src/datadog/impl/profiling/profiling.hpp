@@ -14,7 +14,6 @@
 
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/profiling/profiler.hpp"
-#include "datadog/impl/profiling/profiler_ownership.hpp"
 
 namespace datadog::impl {
 
@@ -34,15 +33,7 @@ namespace datadog::impl {
  */
 class Profiling final : public Feature {
  public:
-  /**
-   * @param ownership The claim on the process-global profiler, held until this feature
-   *  is destroyed. May be null only where no real profiler is involved, as in tests.
-   */
-  Profiling(
-      std::unique_ptr<IProfiler> profiler,
-      ProfilerSettings settings,
-      std::unique_ptr<ProfilerOwnership> ownership
-  );
+  Profiling(std::unique_ptr<IProfiler> profiler, ProfilerSettings settings);
 
   // Feature interface
   FeatureId GetId() const override { return CreateFeatureId("PROF"); }
@@ -69,9 +60,6 @@ class Profiling final : public Feature {
    * only if the SDK is running and consent is granted. Caller must hold _mutex.
    */
   void UpdateProfilerState();
-
-  // Declared first so that it is released last, after the profiler has been stopped
-  std::unique_ptr<ProfilerOwnership> _ownership;
 
   std::unique_ptr<IProfiler> _profiler;
   ProfilerSettings _settings;

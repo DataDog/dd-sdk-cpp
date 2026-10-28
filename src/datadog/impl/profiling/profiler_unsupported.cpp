@@ -13,6 +13,12 @@
 
 namespace datadog::impl {
 
-std::unique_ptr<IProfiler> CreateProfiler() { return nullptr; }
+std::unique_ptr<IProfiler> CreateProfiler(const DiagnosticLogger& logger) {
+  logger.Status(
+      "Profiling is not supported in this build of the SDK: it requires Windows x64 "
+      "and the DD_ENABLE_PROFILING CMake option"
+  );
+  return nullptr;
+}
 
 }  // namespace datadog::impl

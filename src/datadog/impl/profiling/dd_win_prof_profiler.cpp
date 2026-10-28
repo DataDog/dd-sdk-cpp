@@ -9,6 +9,7 @@
 
 #include <dd-win-prof.h>
 
+#include <atomic>
 #include <memory>
 
 #include "datadog/impl/profiling/profiler.hpp"
@@ -17,8 +18,13 @@ namespace datadog::impl {
 
 namespace {
 
+// Whether a DdWinProfProfiler exists: dd-win-prof is process-global
+std::atomic<bool> s_profiler_exists{false};
+
 class DdWinProfProfiler final : public IProfiler {
  public:
+  ~DdWinProfProfiler() override { s_profiler_exists.store(false); }
+
   bool Init(const ProfilerSettings& settings) override {
     ProfilerConfig config = {};
     config.size = sizeof(ProfilerConfig);
@@ -43,7 +49,15 @@ class DdWinProfProfiler final : public IProfiler {
 
 }  // namespace
 
-std::unique_ptr<IProfiler> CreateProfiler() {
+std::unique_ptr<IProfiler> CreateProfiler(const DiagnosticLogger& logger) {
+  bool expected = false;
+  if (!s_profiler_exists.compare_exchange_strong(expected, true)) {
+    logger.Warning(
+        "Profiling is already enabled for another SDK instance in this process: the "
+        "profiler is shared by the whole process, so only one instance can use it"
+    );
+    return nullptr;
+  }
   return std::make_unique<DdWinProfProfiler>();
 }
 
