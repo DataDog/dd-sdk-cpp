@@ -21,15 +21,15 @@ using namespace datadog;
 
 namespace {
 
-// Warning that Profiling::Register logs when the build has no profiler
-constexpr std::string_view NOT_SUPPORTED_WARNING = "not supported in this build";
+// Status message that Profiling::Register logs when the build has no profiler
+constexpr std::string_view NOT_SUPPORTED_STATUS = "not supported in this build";
 
-/** Returns true if the buffer holds a warning that contains `text`. */
-bool HasWarning(const DiagnosticMessageBuffer& diagnostics, std::string_view text) {
+/** Returns true if the buffer holds a status message that contains `text`. */
+bool HasStatus(const DiagnosticMessageBuffer& diagnostics, std::string_view text) {
   std::lock_guard lock(diagnostics.mutex);
   return std::any_of(
-      diagnostics.warning.begin(),
-      diagnostics.warning.end(),
+      diagnostics.status.begin(),
+      diagnostics.status.end(),
       [&](const std::string& message) {
         return message.find(text) != std::string::npos;
       }
@@ -63,7 +63,7 @@ TEST_CASE("Profiling::Register null safety", "[unit][profiling][cpp-api]") {
 TEST_CASE(
     "Profiling::Register without profiling support", "[unit][profiling][cpp-api]"
 ) {
-  SECTION("M warn and return a no-op interface W the build has no profiler") {
+  SECTION("M log status and return a no-op interface W the build has no profiler") {
     // Given a valid core
     auto test = CoreTestHarness::Init();
     auto core = CoreTestHarness::WrapForCpp(test);
@@ -71,9 +71,10 @@ TEST_CASE(
     // When we register the profiling feature
     auto profiling = Profiling::Register(core);
 
-    // Then we get a valid object, and a warning that explains why it does nothing
+    // Then we get a valid object, and a status message that explains why it does
+    // nothing
     REQUIRE(profiling != nullptr);
-    REQUIRE(HasWarning(test.diagnostics, NOT_SUPPORTED_WARNING));
+    REQUIRE(HasStatus(test.diagnostics, NOT_SUPPORTED_STATUS));
   }
 }
 
@@ -84,6 +85,18 @@ namespace {
 // Warning that Profiling::Register logs when another Core already has the profiler. It
 // is only defined here, because only these tests use it.
 constexpr std::string_view ALREADY_ENABLED_WARNING = "already enabled";
+
+/** Returns true if the buffer holds a warning that contains `text`. */
+bool HasWarning(const DiagnosticMessageBuffer& diagnostics, std::string_view text) {
+  std::lock_guard lock(diagnostics.mutex);
+  return std::any_of(
+      diagnostics.warning.begin(),
+      diagnostics.warning.end(),
+      [&](const std::string& message) {
+        return message.find(text) != std::string::npos;
+      }
+  );
+}
 
 }  // namespace
 
@@ -98,7 +111,7 @@ TEST_CASE("Profiling::Register claims the profiler", "[unit][profiling][cpp-api]
 
     // Then we get a valid object, with no warning
     REQUIRE(profiling != nullptr);
-    REQUIRE_FALSE(HasWarning(test.diagnostics, NOT_SUPPORTED_WARNING));
+    REQUIRE_FALSE(HasStatus(test.diagnostics, NOT_SUPPORTED_STATUS));
     REQUIRE_FALSE(HasWarning(test.diagnostics, ALREADY_ENABLED_WARNING));
   }
 
