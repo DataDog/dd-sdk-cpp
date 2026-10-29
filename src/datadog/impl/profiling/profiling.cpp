@@ -45,16 +45,13 @@ Profiling::MakeMessageHandler() {
 
 void Profiling::Start() {
   std::lock_guard<std::mutex> lock(_mutex);
-  _core_running = true;
   UpdateProfilerState();
 }
 
 void Profiling::Stop() {
   std::lock_guard<std::mutex> lock(_mutex);
-  _core_running = false;
-
-  // Forget consent, so that the next run waits for its own context update before
-  // starting the profiler
+  // Reset consent. This stops the profiler (via UpdateProfilerState() below), and
+  // makes the next run wait for its own context update before starting the profiler.
   _consent = TrackingConsent::Pending;
   UpdateProfilerState();
 }
@@ -73,15 +70,9 @@ void Profiling::OnTrackingConsentChanged(TrackingConsent consent) {
 }
 
 void Profiling::UpdateProfilerState() {
-  const bool should_run = _core_running && _consent == TrackingConsent::Granted;
+  const bool should_run = _scope.has_value() && _consent == TrackingConsent::Granted;
 
   if (should_run && !_profiler_running) {
-    // _core_running is only set between Start() and Stop(), so the scope is always
-    // valid here
-    if (!_scope) {
-      DATADOG_ASSERT(false, "Profiling has invalid _scope while the SDK is running");
-      return;
-    }
     if (!_profiler->Init(_settings)) {
       _scope->diagnostic_logger.Warning("Failed to configure profiler");
       return;

@@ -66,9 +66,6 @@ class Profiling final : public Feature {
 
   std::mutex _mutex;
 
-  // True between Start() and Stop()
-  bool _core_running = false;
-
   // Latest consent seen since Start(); not granted until a context update says so
   TrackingConsent _consent = TrackingConsent::Pending;
 
