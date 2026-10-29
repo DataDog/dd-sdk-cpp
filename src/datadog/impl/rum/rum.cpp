@@ -196,6 +196,9 @@ void Rum::Start() {
   // previous runs
   _application = RumApplicationScope(_deps);
 
+  DATADOG_ASSERT(!_scheduler, "_scheduler already exists on Rum::Start");
+  _scheduler = std::make_unique<Scheduler>(_deps.diagnostic_logger);
+
   // Take a snapshot of our global attributes, and enqueue a
   // RumGlobalAttributesChangedMessage to ensure that downstream features have a
   // consistent view of any attribute changes that occurred while the SDK wasn't running
@@ -219,6 +222,12 @@ void Rum::Start() {
 };
 
 void Rum::Stop() {
+  // Wait for any in-flight periodic task so none runs after Stop() returns
+  if (_scheduler) {
+    _scheduler->Shutdown(true);
+    _scheduler.reset();
+  }
+
   // Reset the once-per-SDK-lifetime TTID guard so that it fires correctly if the SDK
   // is stopped and restarted (e.g. in tests).
   _ttid_reported.store(false, std::memory_order_relaxed);

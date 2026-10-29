@@ -8,6 +8,8 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
+#include <mutex>
 
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
@@ -62,7 +64,8 @@ class FeatureScope {
    */
   enum class ExecutionMode : uint8_t {
     OnContextThread,  // Used in production: functions are queued for async execution
-    Synchronous,      // Used for testing: functions are executed synchronously
+    Synchronous,      // Used for testing: functions are executed synchronously,
+                      // serialized across threads by _sync_mutex
   };
 
   CoreContextProvider* _context_provider;
@@ -70,6 +73,12 @@ class FeatureScope {
   MessagePublisher _message_produced_func;
   ExecutionMode _mode;
   Queue<std::function<void()>>* _context_queue;
+
+  // Synchronous mode only: held for the duration of each inline call so that, as with
+  // the single context thread, functions never run concurrently. Recursive because a
+  // context function may call back into the scope. Heap-allocated to keep FeatureScope
+  // movable.
+  std::unique_ptr<std::recursive_mutex> _sync_mutex;
 
  private:
   /**
@@ -117,7 +126,8 @@ class FeatureScope {
   /**
    * Creates a FeatureScope for use in unit tests, where functions passed to
    * UpdateContext and ExecuteOnContextThread are executed synchronously on the calling
-   * thread.
+   * thread. Calls from different threads are serialized (as they would be on the
+   * context thread); nested calls from within a context function are allowed.
    *
    * @param context_provider Provides thread-safe access to CoreContext
    * @param event_writer Callback invoked when features generate events
@@ -142,7 +152,8 @@ class FeatureScope {
    * onto the context queue for async execution on the context thread.
    *
    * If initialized with FeatureScope::CreateForTesting(), where mode == Synchronous,
-   * the update will be immediately executed on the calling thread.
+   * the update will be immediately executed on the calling thread, serialized with all
+   * other synchronous UpdateContext / ExecuteOnContextThread calls on this scope.
    */
   void UpdateContext(const std::function<void(CoreContext&)>& callback);
 
@@ -159,7 +170,8 @@ class FeatureScope {
    * shutdown.
    *
    * If initialized with FeatureScope::CreateForTesting(), where mode == Synchronous,
-   * the function will be immediately executed on the calling thread.
+   * the function will be immediately executed on the calling thread, serialized with
+   * all other synchronous UpdateContext / ExecuteOnContextThread calls on this scope.
    */
   void ExecuteOnContextThread(const ContextThreadFunc& func);
 };

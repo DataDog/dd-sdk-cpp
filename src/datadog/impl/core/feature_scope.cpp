@@ -23,6 +23,11 @@ FeatureScope::FeatureScope(
       _message_produced_func(message_publisher),
       _mode(mode),
       _context_queue(context_queue),
+      _sync_mutex(
+          mode == FeatureScope::ExecutionMode::Synchronous
+              ? std::make_unique<std::recursive_mutex>()
+              : nullptr
+      ),
       diagnostic_logger(in_diagnostic_logger) {
   // Invariant: context_queue must be non-null when mode is OnContextThread
   DATADOG_ASSERT(
@@ -68,7 +73,9 @@ void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callba
   DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
 
   if (_mode == FeatureScope::ExecutionMode::Synchronous) {
-    // Testing mode: execute synchronously on calling thread
+    // Testing mode: execute synchronously on calling thread, serialized with other
+    // threads to emulate the single context thread
+    const std::lock_guard lock(*_sync_mutex);
     _context_provider->Update(callback);
     return;
   }
@@ -85,8 +92,10 @@ void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callba
 
 void FeatureScope::ExecuteOnContextThread(const ContextThreadFunc& func) {
   if (_mode == FeatureScope::ExecutionMode::Synchronous) {
-    // Testing mode: execute synchronously on calling thread
+    // Testing mode: execute synchronously on calling thread, serialized with other
+    // threads to emulate the single context thread
     DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
+    const std::lock_guard lock(*_sync_mutex);
     const CoreContext context = _context_provider->Get();
     func(context, _event_generated_func, _message_produced_func);
     return;
