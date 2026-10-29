@@ -196,7 +196,8 @@ void Rum::Start() {
   // previous runs
   _application = RumApplicationScope(_deps);
 
-  _scheduler = std::make_unique<Scheduler>();
+  DATADOG_ASSERT(!_scheduler, "_scheduler already exists on Rum::Start");
+  _scheduler = std::make_unique<Scheduler>(_deps.diagnostic_logger);
 
   // Take a snapshot of our global attributes, and enqueue a
   // RumGlobalAttributesChangedMessage to ensure that downstream features have a

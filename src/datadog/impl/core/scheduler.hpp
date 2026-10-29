@@ -11,22 +11,24 @@
 #include <cstdint>
 #include <exception>
 #include <functional>
+#include <future>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <set>
 #include <thread>
 #include <type_traits>
 #include <unordered_map>
-#include <utility>
 
 #include "datadog/timestamp.hpp"
+
+#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 
 /**
  * Receives the outcome of every run of a scheduled task. Both methods are called on the
- * scheduler thread; an exception escaping either of them terminates the program.
+ * scheduler thread. An exception escaping either of them is logged and the task stays
+ * scheduled; without exception support it terminates the program.
  *
  * Common part of Callback<T> and Callback<void>, which differ only in OnSuccess.
  */
@@ -84,8 +86,9 @@ class Scheduler {
   /** Longest accepted period; keeps deadline arithmetic far from clock overflow. */
   static constexpr Duration MAX_PERIOD = std::chrono::hours(24 * 365);
 
-  /** Starts the scheduler thread. */
-  Scheduler();
+  /** Starts the scheduler thread; `diagnostic_logger` reports exceptions from
+   * callbacks. */
+  explicit Scheduler(DiagnosticLogger diagnostic_logger = {});
 
   /**
    * Equivalent to Shutdown(true), including after an earlier Shutdown(false).
@@ -157,8 +160,12 @@ class Scheduler {
   }
 
   /**
-   * Cancels a scheduled task so it never runs again. A run already in progress is not
-   * interrupted. Returns false if no such task is scheduled.
+   * Cancels a scheduled task so it is never dispatched again. Returns false if no such
+   * task is scheduled.
+   *
+   * Does not wait for a run already in progress or being dispatched: it may still
+   * execute once after Cancel() returns. The task's closure stays alive until then, so
+   * capture state by value or std::shared_ptr rather than by reference.
    */
   bool Cancel(TaskId id);
 
@@ -185,15 +192,18 @@ class Scheduler {
 
   // Shared with the thread so a detached thread (Shutdown(false)) never outlives it
   struct State {
+    explicit State(DiagnosticLogger logger) : diagnostic_logger(std::move(logger)) {}
+
     std::mutex mutex;
     std::condition_variable cv;
     bool stopped = false;
-    bool exited = false;
     TaskId next_id = 1;
     std::unordered_map<TaskId, Task> tasks;
-    // The tasks ordered by next run, earliest first; kept in sync with `tasks`. The ID
-    // keeps tasks due at the same time apart
-    std::set<std::pair<Clock::time_point, TaskId>> deadlines;
+    const DiagnosticLogger diagnostic_logger;
+    // Made ready only once the thread has fully exited, thread-local destructors
+    // included, so waiting on it is as strong as join()
+    std::promise<void> exit_promise;
+    const std::shared_future<void> exited = exit_promise.get_future().share();
   };
 
   // Callback-less entry point; private so every task reports its outcome

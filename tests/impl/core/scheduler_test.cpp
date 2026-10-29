@@ -16,6 +16,8 @@
 #include <stdexcept>
 #include <thread>
 
+#include "support/diagnostics.hpp"
+
 using namespace datadog;
 using namespace datadog::impl;
 using namespace std::chrono_literals;
@@ -50,6 +52,37 @@ class CallOnDestroy {
 
  private:
   std::function<void()> _on_destroy;
+};
+
+// Sleeps in its destructor, which for a thread_local runs at thread exit, after the
+// thread function has returned
+struct SlowThreadLocalCleanup {
+  std::atomic<bool>* cleaned = nullptr;
+
+  SlowThreadLocalCleanup() = default;
+  SlowThreadLocalCleanup(const SlowThreadLocalCleanup&) = delete;
+  SlowThreadLocalCleanup& operator=(const SlowThreadLocalCleanup&) = delete;
+  SlowThreadLocalCleanup(SlowThreadLocalCleanup&&) = delete;
+  SlowThreadLocalCleanup& operator=(SlowThreadLocalCleanup&&) = delete;
+
+  ~SlowThreadLocalCleanup() {
+    if (cleaned != nullptr) {
+      std::this_thread::sleep_for(50ms);
+      *cleaned = true;
+    }
+  }
+};
+
+// Throws from OnSuccess, counting the calls
+class ThrowingCallback : public Callback<void> {
+ public:
+  void OnSuccess() override {
+    calls++;
+    throw std::runtime_error("callback failure");
+  }
+  void OnFailure(std::exception_ptr /*error*/) override {}
+
+  std::atomic<int> calls{0};
 };
 
 // Records the outcome of each run
@@ -210,7 +243,7 @@ TEST_CASE("Scheduler", "[unit]") {
       release_future.wait();
       finished = true;
     });
-    started.get_future().wait();
+    REQUIRE(started.get_future().wait_for(5s) == std::future_status::ready);
 
     // When we shut down with wait=true while the task is released shortly after
     std::thread releaser([&] {
@@ -239,7 +272,7 @@ TEST_CASE("Scheduler", "[unit]") {
         task_finished = true;
       }
     });
-    started.get_future().wait();
+    REQUIRE(started.get_future().wait_for(5s) == std::future_status::ready);
 
     // When shutdown returns while the task is blocked, then destruction starts
     scheduler->Shutdown(false);
@@ -251,7 +284,7 @@ TEST_CASE("Scheduler", "[unit]") {
       scheduler.reset();
       destroyed = true;
     });
-    destroying.get_future().wait();
+    REQUIRE(destroying.get_future().wait_for(5s) == std::future_status::ready);
     std::this_thread::sleep_for(20ms);
     const bool destroyed_before_release = destroyed;
 
@@ -278,7 +311,7 @@ TEST_CASE("Scheduler", "[unit]") {
       release_future.wait();
       task_finished = true;
     });
-    started.get_future().wait();
+    REQUIRE(started.get_future().wait_for(5s) == std::future_status::ready);
     scheduler.Shutdown(false);
 
     // When a later shutdown waits while another thread releases the task
@@ -315,7 +348,7 @@ TEST_CASE("Scheduler", "[unit]") {
       release_future.wait();
       task_finished = true;
     });
-    stopped.get_future().wait();
+    REQUIRE(stopped.get_future().wait_for(5s) == std::future_status::ready);
 
     // When the test thread destroys the scheduler while the task is released later
     std::atomic<bool> destroyed{false};
@@ -349,7 +382,7 @@ TEST_CASE("Scheduler", "[unit]") {
       scheduler.Shutdown(false);
       task_finished = true;
     });
-    started.get_future().wait();
+    REQUIRE(started.get_future().wait_for(5s) == std::future_status::ready);
 
     // When both threads shut it down at the same time
     std::thread releaser([&] {
@@ -362,6 +395,28 @@ TEST_CASE("Scheduler", "[unit]") {
 
     // Then the waiting shutdown returns only after the task finished
     REQUIRE(finished_at_shutdown);
+  }
+
+  SECTION(
+      "M wait for thread-local cleanup W shutdown with wait after shutdown without wait"
+  ) {
+    // Given a task that gives the scheduler thread a slow thread_local destructor
+    std::atomic<bool> ran{false};
+    std::atomic<bool> cleaned{false};
+    Scheduler scheduler;
+    ScheduleTask(scheduler, 1ms, [&] {
+      thread_local SlowThreadLocalCleanup cleanup;
+      cleanup.cleaned = &cleaned;
+      ran = true;
+    });
+    REQUIRE(WaitFor([&] { return ran.load(); }));
+
+    // When the thread is detached, then waited for
+    scheduler.Shutdown(false);
+    scheduler.Shutdown(true);
+
+    // Then the wait covered the thread-local destructors too
+    REQUIRE(cleaned);
   }
 
   SECTION("M reject tasks W already shut down") {
@@ -541,6 +596,21 @@ TEST_CASE("Scheduler", "[unit]") {
     // Then it is rejected
     REQUIRE_FALSE(id.has_value());
   }
+
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
+  SECTION("M log and keep running W callback throws") {
+    // Given a scheduler with a logger and a callback that throws from OnSuccess
+    DiagnosticMessageBuffer diagnostics;
+    auto callback = std::make_shared<ThrowingCallback>();
+    Scheduler scheduler(diagnostics.CreateTestLogger());
+    scheduler.Schedule<void>(1ms, [] {}, callback);
+
+    // Then the task keeps running and each exception is logged as an error
+    REQUIRE(WaitFor([&] { return callback->calls >= 2; }));
+    std::lock_guard lock(diagnostics.mutex);
+    REQUIRE_FALSE(diagnostics.error.empty());
+  }
+#endif
 
   SECTION("M call OnSuccess W void task returns") {
     // Given a scheduler with a task that returns nothing

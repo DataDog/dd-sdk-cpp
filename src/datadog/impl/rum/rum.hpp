@@ -220,12 +220,14 @@ class Rum final : public Feature {
   // Guards against duplicate ReportAppFullyDisplayed() calls; cleared on Stop()
   std::atomic<bool> _ttfd_reported{false};
 
-  // Runs periodic RUM work (e.g. timeseries sampling); alive between Start() and Stop()
-  std::unique_ptr<Scheduler> _scheduler;
-
   // HTTP request details used on upload; owned by the upload thread
   std::string _request_url;
   std::string _request_headers;
+
+  // Runs periodic RUM work (e.g. timeseries sampling); alive between Start() and
+  // Stop(). Declared last so it is destroyed first: ~Scheduler waits for a run in
+  // progress, which may still use the members above
+  std::unique_ptr<Scheduler> _scheduler;
 };
 
 }  // namespace datadog::impl
