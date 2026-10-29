@@ -37,6 +37,7 @@ class SessionFixture {
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope parent;
+  UUID session_id;
   RumSessionScope scope;
 
   CoreContext context;
@@ -47,14 +48,13 @@ class SessionFixture {
       : config(APPLICATION_ID),
         deps(config, clock),
         parent(deps),
+        session_id(*UUID::Parse(SESSION_ID)),
         scope(
             deps,
             parent,
             true,
-            std::make_unique<DeterministicSampler>(
-                *UUID::Parse(SESSION_ID), is_session_sampled ? 100.0f : 0.0f
-            ),
-            *UUID::Parse(SESSION_ID),
+            DeterministicSampler{session_id, is_session_sampled ? 100.0f : 0.0f},
+            session_id,
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(
                 std::chrono::milliseconds{1700000000000}
@@ -426,6 +426,7 @@ class SessionEventFixture {
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope parent;
+  UUID session_id;
   RumSessionScope scope;
 
   // Event capture - delegates to shared RumEventCapture harness
@@ -438,12 +439,13 @@ class SessionEventFixture {
       : config(APPLICATION_ID),
         deps(config, clock),
         parent(deps),
+        session_id(*UUID::Parse(SESSION_ID)),
         scope(
             deps,
             parent,
             true,
-            std::make_unique<DeterministicSampler>(*UUID::Parse(SESSION_ID), 100.0f),
-            *UUID::Parse(SESSION_ID),
+            DeterministicSampler{session_id, 100.0f},
+            session_id,
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(
                 std::chrono::milliseconds{1700000000000}
@@ -1595,7 +1597,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         deps,
         application_scope,
         is_initial_session,
-        std::make_unique<DeterministicSampler>(session_id, 100.0f),
+        DeterministicSampler{session_id, 100.0f},
         session_id,
         RumSessionPrecondition::UserAppLaunch,
         Timestamp{},
@@ -1629,7 +1631,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         deps,
         application_scope,
         is_initial_session,
-        std::make_unique<DeterministicSampler>(session_id, 0.0f),
+        DeterministicSampler{session_id, 0.0f},
         session_id,
         RumSessionPrecondition::BackgroundLaunch,
         Timestamp{},
@@ -1659,7 +1661,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         deps,
         application_scope,
         is_initial_session,
-        std::make_unique<DeterministicSampler>(session_id, 100.0f),
+        DeterministicSampler{session_id, 100.0f},
         session_id,
         RumSessionPrecondition::InactivityTimeout,
         Timestamp{},

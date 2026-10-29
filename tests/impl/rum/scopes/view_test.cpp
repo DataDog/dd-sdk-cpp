@@ -37,6 +37,7 @@ class ViewFixture {
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope root;
+  UUID session_id;
   RumSessionScope parent;
   RumViewScope scope;
 
@@ -49,12 +50,13 @@ class ViewFixture {
       : config(APPLICATION_ID),
         deps(config, clock),
         root(deps),
+        session_id(*UUID::Parse(SESSION_ID)),
         parent(
             deps,
             root,
             true,
-            std::make_unique<DeterministicSampler>(*UUID::Parse(SESSION_ID), 100.0f),
-            *UUID::Parse(SESSION_ID),
+            DeterministicSampler{session_id, 100.0f},
+            session_id,
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(
                 std::chrono::milliseconds{1700000000000}
@@ -409,7 +411,7 @@ TEST_CASE("RumViewScope::PopulateContext", "[unit][rum]") {
           deps,
           application_scope,
           is_initial_session,
-          std::make_unique<DeterministicSampler>(session_id, 100.0f),
+          DeterministicSampler{session_id, 100.0f},
           session_id,
           RumSessionPrecondition::UserAppLaunch,
           Timestamp{},

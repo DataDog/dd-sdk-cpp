@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "deterministic_sampler.hpp"
+#include "datadog/impl/core/tracing/deterministic_sampler.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -65,14 +65,12 @@ DeterministicSampler::DeterministicSampler(
 )
     : DeterministicSampler(GenerateSeedFrom(session_id), sample_rate) {}
 
-bool DeterministicSampler::Sample() { return _is_sampled; }
+bool DeterministicSampler::Sample() const { return _is_sampled; }
 
-float DeterministicSampler::GetRulePSR() { return _sample_rate * 0.01f; }
+float DeterministicSampler::GetRulePSR() const { return _sample_rate * 0.01f; }
 
-std::unique_ptr<ISampler> DeterministicSampler::CombineWith(float child_rate) {
-  return std::make_unique<DeterministicSampler>(
-      _seed, _sample_rate * child_rate * 0.01f
-  );
+DeterministicSampler DeterministicSampler::CombineWith(float child_rate) const {
+  return DeterministicSampler(_seed, _sample_rate * child_rate * 0.01f);
 }
 
 }  // namespace datadog::impl

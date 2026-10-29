@@ -40,11 +40,21 @@ class DeterministicSampler final : public ISampler {
    */
   DeterministicSampler(const UUID& session_id, const float sample_rate);
 
-  bool Sample() override;
+  bool Sample() const override;
 
-  float GetRulePSR() override;
+  float GetRulePSR() const override;
 
-  std::unique_ptr<ISampler> CombineWith(float child_rate) override;
+  /**
+   * Obtains a new sampler with the combined sample rate between this sampler's original
+   * sample rate and the given child sample rate.
+   *
+   * The sample rate of the returned sampler is the normalized product of the original
+   * and child sample rates.
+   *
+   * @param child_rate A child sample rate between 0 and 100 to combine with this
+   * sampler's rate.
+   */
+  DeterministicSampler CombineWith(float child_rate) const;
 
  private:
   /**

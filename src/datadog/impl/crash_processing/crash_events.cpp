@@ -320,10 +320,8 @@ static bool handle_crash_that_preceded_initial_session(
   // There was no session active at the time of the crash, and a RUM Error must be
   // recorded in a session: generate a session_id and make a sampling decision
   const UUID new_session_id = UUID::Random();
-  std::unique_ptr sampler = std::make_unique<DeterministicSampler>(
-      new_session_id, ctx.rum_initial_config.session_sample_rate
-  );
-  if (!sampler->Sample()) {
+  if (!DeterministicSampler(new_session_id, ctx.rum_initial_config.session_sample_rate)
+           .Sample()) {
     diagnostic_logger.Status(
         "Ignoring crash report: newly-created session was excluded from sampling"
     );

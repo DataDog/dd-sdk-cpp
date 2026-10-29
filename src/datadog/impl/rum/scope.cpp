@@ -22,10 +22,4 @@ RumScopeDependencies::RumScopeDependencies(
   _encode_buffer.reserve(8192);
 }
 
-std::unique_ptr<DeterministicSampler> RumScopeDependencies::MakeSampler(
-    const UUID& session_id
-) const {
-  return std::make_unique<DeterministicSampler>(session_id, _sampling_rate);
-}
-
 }  // namespace datadog::impl

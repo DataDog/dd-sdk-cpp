@@ -55,7 +55,7 @@ TEST_CASE("RumResourceMap", "[unit][rum]") {
       deps,
       application,
       true,
-      std::make_unique<DeterministicSampler>(session_id, 100.0f),
+      DeterministicSampler{session_id, 100.0f},
       session_id,
       RumSessionPrecondition::UserAppLaunch,
       clock.Now(),

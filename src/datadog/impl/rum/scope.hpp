@@ -52,26 +52,6 @@ struct RumScopeDependencies {
   );
 
  public:
-  /**
-   * Determines whether the session identified by `session_id` should be sampled in,
-   * using the deterministic Knuth multiplicative hash algorithm used by all RUM SDKs.
-   *
-   * If true, RUM will process the full set of commands for this session and generate
-   * RUM events to be sent to intake. If false, the session is not sampled, meaning the
-   * session scope ignores most commands and generate no events.
-   */
-  // bool ShouldSampleSession(const UUID& session_id) const;
-
-  /**
-   * Creates the deterministic sampler for this session ID.
-   *
-   * The sampler decides if this session should be sampled in, based on it's ID and
-   * sampling rate. If sampled, RUM will process the full set of commands for this
-   * session and generate RUM events to be sent to intake. Otherwise, the session is not
-   * sampled, meaning the session scope ignores most commands and generate no events.
-   */
-  std::unique_ptr<DeterministicSampler> MakeSampler(const UUID& session_id) const;
-
   /** Returns the configured session sample rate in [0.0, 100.0]. */
   float GetSessionSampleRate() const { return _sampling_rate; }
 
