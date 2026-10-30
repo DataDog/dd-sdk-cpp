@@ -8,6 +8,7 @@ add_executable(tests
     c/core_c_api_test.cpp
     c/diagnostics_c_api_test.cpp
     c/logging_c_api_test.cpp
+    c/profiling_c_api_test.cpp
     c/rum_c_api_test.cpp
     c/timestamp_c_api_test.cpp
     c/account_info_c_api_test.cpp

@@ -9,6 +9,7 @@
 #include <utility>
 #include <variant>
 
+#include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/types/assert.hpp"
 
@@ -17,6 +18,30 @@ namespace datadog::impl {
 Profiling::Profiling(std::unique_ptr<IProfiler> profiler, ProfilerSettings settings)
     : _profiler(std::move(profiler)), _settings(std::move(settings)) {
   DATADOG_ASSERT(_profiler, "Profiling feature requires a profiler");
+}
+
+std::shared_ptr<Profiling> Profiling::CreateAndRegister(
+    Core& core, const DiagnosticLogger& logger
+) {
+  // The profiler is process-global: this returns null (after logging why) if this
+  // build has no profiler, or if another SDK instance is already using it
+  auto profiler = CreateProfiler(logger);
+  if (!profiler) {
+    return nullptr;
+  }
+
+  const ImmutableContext& im = core.GetImmutableContext();
+  ProfilerSettings settings;
+  settings.service = im.service;
+  settings.env = im.env;
+  settings.version = im.application_version;
+
+  auto profiling =
+      std::make_shared<Profiling>(std::move(profiler), std::move(settings));
+  if (!core.RegisterFeature(profiling)) {
+    return nullptr;
+  }
+  return profiling;
 }
 
 std::optional<Report> Profiling::UploadThread_PrepareReport(

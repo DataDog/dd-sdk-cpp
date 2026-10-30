@@ -18,6 +18,8 @@
 
 namespace datadog::impl {
 
+class Core;
+
 /**
  * Profiling feature implementation.
  *
@@ -40,6 +42,17 @@ namespace datadog::impl {
 class Profiling final : public Feature {
  public:
   Profiling(std::unique_ptr<IProfiler> profiler, ProfilerSettings settings);
+
+  /**
+   * Creates the Profiling feature for `core` and registers it with that core. This is
+   * the shared body of the C and C++ APIs' registration functions.
+   *
+   * Returns null, after logging the reason, if this build has no profiler, if another
+   * Core already holds the process-global profiler, or if registration fails.
+   */
+  static std::shared_ptr<Profiling> CreateAndRegister(
+      Core& core, const DiagnosticLogger& logger
+  );
 
   /**
    * Builds the metadata for a profile covering `range`, consuming the RUM events seen

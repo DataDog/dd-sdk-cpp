@@ -11,6 +11,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/c/core.cpp
     datadog/c/crash_reporting.cpp
     datadog/c/logging.cpp
+    datadog/c/profiling.cpp
     datadog/c/rum.cpp
     datadog/c/timestamp.cpp
     datadog/c/uuid.cpp

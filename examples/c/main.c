@@ -48,6 +48,10 @@ int main(int argc, char* argv[]) {
     return 1;
   }
 
+  // Register the profiling feature. Profiling is only available in Windows x64 builds
+  // with DD_ENABLE_PROFILING=ON;
+  dd_profiling_t* profiling = dd_profiling_init(core, NULL);
+
   // Start the core to begin processing events
   printf("Starting Datadog core...\n");
   if (!dd_core_start(core)) {
@@ -89,6 +93,7 @@ int main(int argc, char* argv[]) {
 
   // Clean up SDK resources
   dd_rum_destroy(rum);
+  dd_profiling_destroy(profiling);
   dd_logger_destroy(logger);
   dd_logging_destroy(logging);
   dd_core_destroy(core);
