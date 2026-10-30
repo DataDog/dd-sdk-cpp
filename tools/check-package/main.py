@@ -50,7 +50,12 @@ FORBIDDEN_FILES: dict[tuple[str, str], list[str]] = {
 # Files that every package must contain, regardless of platform and linkage
 COMMON_REQUIRED_FILES = [
     "lib/cmake/Datadog/DatadogConfig.cmake",
+    "LICENSE.md",
+    "NOTICE",
 ]
+
+# Third-party license texts are installed to licenses/
+LICENSES_DIR = "licenses/"
 
 
 def parse_cmake_bool(value: str) -> bool:
@@ -62,6 +67,38 @@ def parse_cmake_bool(value: str) -> bool:
     raise ValueError(f"Not a recognized CMake boolean value: '{value}'")
 
 
+def read_cmake_cache(build_dir: Path) -> dict[str, str]:
+    """Returns the variables recorded in a build directory's CMakeCache.txt."""
+    cache: dict[str, str] = {}
+    for line in (build_dir / "CMakeCache.txt").read_text().splitlines():
+        # Each entry has the form 'NAME:TYPE=VALUE'; comments begin with '#' or '//'
+        m = re.fullmatch(r"([^#/:=][^:=]*):[A-Z]+=(.*)", line)
+        if m:
+            cache[m.group(1)] = m.group(2)
+    return cache
+
+
+def expected_license_files(platform: str, cache: dict[str, str]) -> set[str]:
+    """
+    Returns the third-party license texts that a package should contain, given the
+    configuration it was built with: this must mirror the install rules for licenses/ in
+    CMakeLists.txt, cmake/crashpad.cmake, and cmake/deps/libcurl.cmake.
+    """
+    names = {"date"}
+    if platform == "windows":
+        names.add("unicode-cldr")
+    if cache.get("DD_CRASH_MODE") == "crashpad":
+        names |= {"crashpad", "mini_chromium"}
+        if platform == "linux":
+            names.add("lss")
+        if platform == "windows":
+            names |= {"zlib", "getopt"}
+    if (cache.get("DD_HTTP_CLIENT") == "libcurl"
+            and not parse_cmake_bool(cache["DD_HTTP_USE_SYSTEM_LIBCURL"])):
+        names.add("curl")
+    return {f"{LICENSES_DIR}{name}.txt" for name in names}
+
+
 def list_archive(archive_path: Path) -> list[str]:
     """Returns the paths of all files (not directories) in a .zip archive."""
     with zipfile.ZipFile(archive_path) as archive:
@@ -71,7 +108,8 @@ def list_archive(archive_path: Path) -> list[str]:
 def main():
     parser = argparse.ArgumentParser(description=(
         "Verifies that the package produced by building the 'package' target is labeled "
-        "with the expected linkage and contains the expected library and debug-info files"
+        "with the expected linkage and contains the expected library, debug-info, and "
+        "license files"
     ))
     parser.add_argument("build_dir", type=Path,
                         help="Build directory containing artifact_name.txt and the archive")
@@ -104,10 +142,14 @@ def main():
     prefix = f"{artifact_name}/"
     files = {path.removeprefix(prefix) for path in list_archive(archive_path)}
 
-    # Check for required and forbidden files, reporting all problems at once
+    # Check for required and forbidden files, reporting all problems at once. A package
+    # must contain a license text for each third-party component built into it, and no
+    # others, so that licenses/ accurately lists the third-party code in that package.
+    license_files = expected_license_files(platform, read_cmake_cache(args.build_dir))
     print(f"Checking {archive_path.name} ({len(files)} files):")
     errors: list[str] = []
-    for path in COMMON_REQUIRED_FILES + REQUIRED_FILES[(platform, linkage)]:
+    required_files = COMMON_REQUIRED_FILES + REQUIRED_FILES[(platform, linkage)]
+    for path in required_files + sorted(license_files):
         if path in files:
             print(f"- OK: {path}")
         else:
@@ -115,6 +157,9 @@ def main():
     for path in FORBIDDEN_FILES.get((platform, linkage), []):
         if path in files:
             errors.append(f"contains unexpected file: {path}")
+    for path in sorted(files):
+        if path.startswith(LICENSES_DIR) and path not in license_files:
+            errors.append(f"contains unexpected license file: {path}")
     if errors:
         for error in errors:
             print(f"ERROR: {archive_path.name} {error}", file=sys.stderr)
