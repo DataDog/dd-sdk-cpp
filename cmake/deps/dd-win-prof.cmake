@@ -41,7 +41,7 @@ FetchContent_MakeAvailable(dd-win-prof)
 target_link_libraries(ddsdkcpp PRIVATE dd-win-prof)
 target_compile_definitions(ddsdkcpp PRIVATE WITH_DATADOG_PROFILING=1)
 target_sources(ddsdkcpp PRIVATE
-    ${DD_SDK_ROOT_DIR}/src/datadog/impl/profiling/dd_win_prof_profiler.cpp
+    ${DD_SDK_ROOT_DIR}/src/datadog/impl/profiling/dd_win_prof_profiler_backend.cpp
 )
 
 # dd-win-prof's own install rules are disabled when it is built as a dependency. The DLL
