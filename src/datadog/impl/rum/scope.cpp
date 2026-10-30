@@ -9,8 +9,6 @@
 #include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/types/sampling.hpp"
-
 namespace datadog::impl {
 
 RumScopeDependencies::RumScopeDependencies(
@@ -22,14 +20,6 @@ RumScopeDependencies::RumScopeDependencies(
       context_receiver(config.context_receiver),
       _sampling_rate(config.session_sample_rate) {
   _encode_buffer.reserve(8192);
-}
-
-bool RumScopeDependencies::ShouldSampleSession(const UUID& session_id) const {
-  // Extract the lower 48 bits from the UUID as the input value for our
-  // Knuth-multiplicative-hashing algorithm, then compare the resulting hash value
-  // against a threshold derived from our configured sampling rate
-  const uint64_t seed = ExtractSamplingSeed(session_id);
-  return ShouldSample_Deterministic(seed, _sampling_rate);
 }
 
 }  // namespace datadog::impl

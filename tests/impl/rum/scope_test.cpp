@@ -29,14 +29,18 @@ TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
     auto rate = GENERATE(10.0f, 20.0f, 30.0f, 40.0f, 50.0f);
     config.SetSessionSampleRate(rate);
     auto deps = make_deps();
-    REQUIRE(deps.ShouldSampleSession(session_id) == false);
+    REQUIRE(
+        DeterministicSampler{session_id, deps.GetSessionSampleRate()}.Sample() == false
+    );
   }
 
   SECTION("M sample W rate is above ~50.68") {
     auto rate = GENERATE(50.7f, 60.0f, 70.0f, 80.0f, 90.0f);
     config.SetSessionSampleRate(rate);
     auto deps = make_deps();
-    REQUIRE(deps.ShouldSampleSession(session_id) == true);
+    REQUIRE(
+        DeterministicSampler{session_id, deps.GetSessionSampleRate()}.Sample() == true
+    );
   }
 
   SECTION("M never sample W rate is 0%") {
@@ -44,7 +48,7 @@ TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
     auto deps = make_deps();
     for (int i = 0; i < 20; i++) {
       const UUID id = UUID::Random();
-      REQUIRE(deps.ShouldSampleSession(id) == false);
+      REQUIRE(DeterministicSampler{id, deps.GetSessionSampleRate()}.Sample() == false);
     }
   }
 
@@ -52,7 +56,7 @@ TEST_CASE("RumScopeDependencies::ShouldSampleSession", "[unit][rum]") {
     auto deps = make_deps();
     for (int i = 0; i < 20; i++) {
       const UUID id = UUID::Random();
-      REQUIRE(deps.ShouldSampleSession(id) == true);
+      REQUIRE(DeterministicSampler{id, deps.GetSessionSampleRate()}.Sample() == true);
     }
   }
 }

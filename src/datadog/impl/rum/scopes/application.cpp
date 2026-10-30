@@ -125,7 +125,7 @@ RumSessionScope RumApplicationScope::CreateSession(
 
   // Make a deterministic sampling decision for this session based on its ID
   const RumScopeDependencies& deps = _deps;
-  const bool is_sampled = deps.ShouldSampleSession(session_id);
+  DeterministicSampler sampler{session_id, deps.GetSessionSampleRate()};
 
   // Determine the proper "session precondition" value, which indicates the reason
   // the session was started
@@ -162,7 +162,7 @@ RumSessionScope RumApplicationScope::CreateSession(
   // details of its last active view (if any) so that the new session can recreate it if
   // needed
   std::optional<RumSessionScope::ViewDetails> last_active_view;
-  if (prev_session && is_sampled) {
+  if (prev_session && sampler.Sample()) {
     // TODO(RUM-12245): Views are only transferred if the app is in the foreground
     // TODO(RUM-12246): Views are only transferred if the app is in the foreground
     last_active_view = prev_session->GetActiveViewOnClose();
@@ -174,7 +174,7 @@ RumSessionScope RumApplicationScope::CreateSession(
       deps,
       *this,
       is_initial_session,
-      is_sampled,
+      sampler,
       session_id,
       precondition,
       start_time,

@@ -8,6 +8,7 @@
 
 #include <algorithm>
 #include <string>
+#include <utility>
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/rum/context.hpp"
@@ -25,7 +26,7 @@ RumSessionScope::RumSessionScope(
     const RumScopeDependencies& deps,
     RumApplicationScope& parent,
     bool is_initial_session,
-    bool is_sampled,
+    const DeterministicSampler& sampler,
     const UUID& session_id,
     RumSessionPrecondition start_precondition,
     Timestamp start_time,
@@ -34,7 +35,7 @@ RumSessionScope::RumSessionScope(
     : _deps(deps),
       _parent(parent),
       _is_initial_session(is_initial_session),
-      _is_sampled(is_sampled),
+      _sampler(sampler),
       _session_id(session_id),
       _precondition(start_precondition),
       _started_at(start_time),
@@ -49,7 +50,7 @@ void RumSessionScope::PopulateContext(RumContext& out_context) const {
 
   // Set session-specific parameters
   out_context.session_id = _session_id;
-  out_context.session_is_sampled = _is_sampled;
+  out_context.session_is_sampled = IsSampled();
   out_context.session_is_active = !_end_reason.has_value();
   out_context.session_precondition = _precondition;
 }
@@ -92,7 +93,7 @@ RumScopeResult RumSessionScope::Process(
   // For sessions that are excluded from sampling, we don't bother keeping track of
   // state for views etc. - since no events will be stored or uploaded in conjunction
   // with this session, there's no need to do any further command processing
-  if (!_is_sampled) {
+  if (!IsSampled()) {
     return RumScopeResult::RemainOpen;
   }
 
@@ -588,7 +589,7 @@ void RumSessionScope::AttemptViewTransfer(
   // RumApplicationScope should not have provided it with any last_active_view details
   // on construction
   DATADOG_ASSERT(!_is_initial_session, "attempted view transfer in initial session");
-  DATADOG_ASSERT(_is_sampled, "attempted view transfer in non-sampled session");
+  DATADOG_ASSERT(IsSampled(), "attempted view transfer in non-sampled session");
 
   // If we've ever created any foreground views in this session, old views from the
   // previous session are now irrelevant and should be ignored

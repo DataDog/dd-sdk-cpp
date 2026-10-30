@@ -9,13 +9,13 @@
 #include <charconv>
 #include <chrono>
 
+#include "datadog/impl/core/tracing/deterministic_sampler.hpp"
 #include "datadog/impl/core/version.hpp"
 #include "datadog/impl/crash_processing/crash_formatting.hpp"
 #include "datadog/impl/crash_processing/view_event_mutation.hpp"
 #include "datadog/impl/crash_processing/view_event_parser.hpp"
 #include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json.hpp"
-#include "datadog/impl/types/sampling.hpp"
 #include "datadog/impl/types/upload_util.hpp"
 
 namespace datadog::impl {
@@ -320,10 +320,8 @@ static bool handle_crash_that_preceded_initial_session(
   // There was no session active at the time of the crash, and a RUM Error must be
   // recorded in a session: generate a session_id and make a sampling decision
   const UUID new_session_id = UUID::Random();
-  const uint64_t new_session_seed = ExtractSamplingSeed(new_session_id);
-  if (!ShouldSample_Deterministic(
-          new_session_seed, ctx.rum_initial_config.session_sample_rate
-      )) {
+  if (!DeterministicSampler(new_session_id, ctx.rum_initial_config.session_sample_rate)
+           .Sample()) {
     diagnostic_logger.Status(
         "Ignoring crash report: newly-created session was excluded from sampling"
     );
