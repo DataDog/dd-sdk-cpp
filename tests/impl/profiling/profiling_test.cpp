@@ -14,7 +14,7 @@
 
 #include "datadog/impl/core/feature_message.hpp"
 
-#include "mock/profiler.hpp"
+#include "mock/profiler_backend.hpp"
 #include "support/catch.hpp"
 #include "support/context.hpp"
 #include "support/feature.hpp"
@@ -23,11 +23,11 @@ using namespace datadog::impl;
 
 TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
   // Given a mock profiler, keeping a reference to it before the feature takes ownership
-  auto mock_profiler = std::make_unique<MockProfiler>();
-  MockProfiler& profiler = *mock_profiler;
+  auto mock_profiler = std::make_unique<MockProfilerBackend>();
+  MockProfilerBackend& profiler = *mock_profiler;
 
   // And a Profiling feature that owns the profiler
-  ProfilerSettings settings{"my-service", "staging", "1.2.3"};
+  ProfilerBackendSettings settings{"my-service", "staging", "1.2.3"};
   auto profiling =
       std::make_shared<impl::Profiling>(std::move(mock_profiler), std::move(settings));
 
@@ -224,8 +224,8 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
 TEST_CASE("Profiling feature profile metadata", "[unit][profiling]") {
   // Given a Profiling feature that owns a mock profiler
   auto profiling = std::make_shared<impl::Profiling>(
-      std::make_unique<MockProfiler>(),
-      ProfilerSettings{"my-service", "staging", "1.2.3"}
+      std::make_unique<MockProfilerBackend>(),
+      ProfilerBackendSettings{"my-service", "staging", "1.2.3"}
   );
   auto message_handler_func = *profiling->MakeMessageHandler();
 
