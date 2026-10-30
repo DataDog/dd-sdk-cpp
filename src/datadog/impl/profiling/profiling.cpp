@@ -15,9 +15,11 @@
 
 namespace datadog::impl {
 
-Profiling::Profiling(std::unique_ptr<IProfiler> profiler, ProfilerSettings settings)
-    : _profiler(std::move(profiler)), _settings(std::move(settings)) {
-  DATADOG_ASSERT(_profiler, "Profiling feature requires a profiler");
+Profiling::Profiling(
+    std::unique_ptr<IProfilerBackend> profiler, ProfilerBackendSettings settings
+)
+    : _backend(std::move(profiler)), _settings(std::move(settings)) {
+  DATADOG_ASSERT(_backend, "Profiling feature requires a profiler");
 }
 
 std::shared_ptr<Profiling> Profiling::CreateAndRegister(
@@ -25,13 +27,13 @@ std::shared_ptr<Profiling> Profiling::CreateAndRegister(
 ) {
   // The profiler is process-global: this returns null (after logging why) if this
   // build has no profiler, or if another SDK instance is already using it
-  auto profiler = CreateProfiler(logger);
+  auto profiler = CreateProfilerBackend(logger);
   if (!profiler) {
     return nullptr;
   }
 
   const ImmutableContext& im = core.GetImmutableContext();
-  ProfilerSettings settings;
+  ProfilerBackendSettings settings;
   settings.service = im.service;
   settings.env = im.env;
   settings.version = im.application_version;
@@ -75,27 +77,27 @@ Profiling::MakeMessageHandler() {
 
 void Profiling::Start() {
   std::lock_guard<std::mutex> lock(_mutex);
-  UpdateProfilerState();
+  UpdateBackendState();
 }
 
 void Profiling::Stop() {
   std::lock_guard<std::mutex> lock(_mutex);
-  // Reset consent. This stops the profiler (via UpdateProfilerState() below), and
+  // Reset consent. This stops the profiler (via UpdateBackendState() below), and
   // makes the next run wait for its own context update before starting the profiler.
   _consent = TrackingConsent::Pending;
-  UpdateProfilerState();
+  UpdateBackendState();
 }
 
 void Profiling::OnRumVital(const RumVitalGeneratedMessage& message) {
   std::lock_guard<std::mutex> lock(_mutex);
-  if (_profiler_running) {
+  if (_backend_running) {
     _metadata_source.OnVital(message);
   }
 }
 
 void Profiling::OnRumLongTask(const RumLongTaskGeneratedMessage& message) {
   std::lock_guard<std::mutex> lock(_mutex);
-  if (_profiler_running) {
+  if (_backend_running) {
     _metadata_source.OnLongTask(message);
   }
 }
@@ -110,25 +112,25 @@ void Profiling::OnTrackingConsentChanged(TrackingConsent consent) {
     return;
   }
   _consent = consent;
-  UpdateProfilerState();
+  UpdateBackendState();
 }
 
-void Profiling::UpdateProfilerState() {
+void Profiling::UpdateBackendState() {
   const bool should_run = _scope.has_value() && _consent == TrackingConsent::Granted;
 
-  if (should_run && !_profiler_running) {
-    if (!_profiler->Init(_settings)) {
+  if (should_run && !_backend_running) {
+    if (!_backend->Init(_settings)) {
       _scope->diagnostic_logger.Warning("Failed to configure profiler");
       return;
     }
-    if (!_profiler->Start()) {
+    if (!_backend->Start()) {
       _scope->diagnostic_logger.Warning("Failed to start profiler");
       return;
     }
-    _profiler_running = true;
-  } else if (!should_run && _profiler_running) {
-    _profiler->Stop();
-    _profiler_running = false;
+    _backend_running = true;
+  } else if (!should_run && _backend_running) {
+    _backend->Stop();
+    _backend_running = false;
     _metadata_source.ResetRumEvents();
   }
 }

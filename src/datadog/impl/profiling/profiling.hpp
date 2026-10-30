@@ -14,7 +14,7 @@
 
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/profiling/profile_metadata.hpp"
-#include "datadog/impl/profiling/profiler.hpp"
+#include "datadog/impl/profiling/profiler_backend.hpp"
 
 namespace datadog::impl {
 
@@ -41,7 +41,9 @@ class Core;
  */
 class Profiling final : public Feature {
  public:
-  Profiling(std::unique_ptr<IProfiler> profiler, ProfilerSettings settings);
+  Profiling(
+      std::unique_ptr<IProfilerBackend> profiler, ProfilerBackendSettings settings
+  );
 
   /**
    * Creates the Profiling feature for `core` and registers it with that core. This is
@@ -93,10 +95,10 @@ class Profiling final : public Feature {
    * Starts or stops the profiler as needed to match the desired state: running if and
    * only if the SDK is running and consent is granted. Caller must hold _mutex.
    */
-  void UpdateProfilerState();
+  void UpdateBackendState();
 
-  std::unique_ptr<IProfiler> _profiler;
-  ProfilerSettings _settings;
+  std::unique_ptr<IProfilerBackend> _backend;
+  ProfilerBackendSettings _settings;
 
   // Thread-safe, and guarded by no lock but its own
   ProfileMetadataSource _metadata_source;
@@ -107,7 +109,7 @@ class Profiling final : public Feature {
   TrackingConsent _consent = TrackingConsent::Pending;
 
   // True if the profiler was successfully started, and so needs to be stopped
-  bool _profiler_running = false;
+  bool _backend_running = false;
 };
 
 }  // namespace datadog::impl
