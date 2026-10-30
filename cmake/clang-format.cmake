@@ -29,16 +29,22 @@ if(DD_ENABLE_CLANG_FORMAT AND CLANG_FORMAT_BINARY)
         endforeach()
     endforeach()
 
+    # Pass the file list to clang-format via a file rather than on the command line: with
+    # hundreds of absolute paths, the command line exceeds the Windows length limit.
+    set(FORMAT_FILE_LIST "${CMAKE_BINARY_DIR}/clang-format-files.txt")
+    list(JOIN FORMAT_SOURCE_FILES "\n" FORMAT_FILE_LIST_CONTENT)
+    file(WRITE "${FORMAT_FILE_LIST}" "${FORMAT_FILE_LIST_CONTENT}\n")
+
     # 'format': run in-place formatting of all SDK source files
     add_custom_target(format
-        COMMAND "${CLANG_FORMAT_BINARY}" -i ${FORMAT_SOURCE_FILES}
+        COMMAND "${CLANG_FORMAT_BINARY}" -i "--files=${FORMAT_FILE_LIST}"
         COMMENT "Formatting source code with clang-format"
         VERBATIM
     )
 
     # 'check-format': verify that all source files are properly formatted
     add_custom_target(check-format
-        COMMAND "${CLANG_FORMAT_BINARY}" --dry-run --Werror ${FORMAT_SOURCE_FILES}
+        COMMAND "${CLANG_FORMAT_BINARY}" --dry-run --Werror "--files=${FORMAT_FILE_LIST}"
         COMMENT "Checking source code formatting with clang-format"
         VERBATIM
     )
