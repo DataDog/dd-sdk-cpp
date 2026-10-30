@@ -51,6 +51,15 @@ int main()  // NOLINT(bugprone-exception-escape)
     return 1;
   }
 
+  // Register the profiling feature: it starts the profiler once tracking consent is
+  // granted. Profiling is only available in Windows x64 builds with
+  // DD_ENABLE_PROFILING=ON; in all other builds, this is a no-op.
+  auto profiling = datadog::Profiling::Register(core);
+  if (!profiling) {
+    std::cout << "Failed to register profiling\n";
+    return 1;
+  }
+
   // Start the core to begin processing events
   std::cout << "Starting Datadog core...\n";
   if (!core->Start()) {

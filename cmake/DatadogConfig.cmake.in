@@ -14,7 +14,8 @@
 #    (from either the C or C++ API) and call functions from those headers. If the SDK
 #    build includes crash reporting support via Crashpad, also adds a post-build step to
 #    copy the `crashpad_handler` executable to the directory where the `app` binary is
-#    built.
+#    built. If the SDK build includes profiling support, likewise copies
+#    `dd-win-prof.dll`, which the application loads at startup.
 
 @PACKAGE_INIT@
 
@@ -35,6 +36,10 @@ if(DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad")
 endif()
 
 set(DATADOG_BUILT_WITH_DD_BUILD_SHARED @DD_BUILD_SHARED@)
+
+# If the SDK was built with profiling support, DatadogTargets.cmake also defines the
+# Datadog::dd-win-prof target (dd-win-prof.dll and its import library)
+set(DATADOG_BUILT_WITH_DD_PROFILER_IMPL "@DD_PROFILER_IMPL@")
 
 # Include DatadogTargets.cmake, which is generated from our build-time CMake
 # configuration and includes all exported targets with the relevant details of how to
