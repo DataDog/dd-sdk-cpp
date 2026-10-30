@@ -57,25 +57,11 @@ std::shared_ptr<Profiling> Profiling::Register(
       core->_diagnostic_handler, core->_diagnostic_threshold
   };
 
-  // The profiler is process-global: this returns null (after logging why) if this
-  // build has no profiler, or if another SDK instance is already using it. In that
-  // case, return a no-op Profiling interface
-  auto profiler = impl::CreateProfiler(diagnostic_logger);
-  if (!profiler) {
-    return std::make_shared<Profiling>(Profiling::PrivateCtorTag{});
-  }
-
-  const impl::ImmutableContext& im = core->_impl->GetImmutableContext();
-  impl::ProfilerSettings settings;
-  settings.service = im.service;
-  settings.env = im.env;
-  settings.version = im.application_version;
-
+  // Return a no-op Profiling interface if there is no profiler to use (this logs why),
+  // or if registration fails
   auto profiling_impl =
-      std::make_shared<impl::Profiling>(std::move(profiler), std::move(settings));
-
-  // Register the feature with the core, returning a no-op interface on failure
-  if (!core->_impl->RegisterFeature(profiling_impl)) {
+      impl::Profiling::CreateAndRegister(*core->_impl, diagnostic_logger);
+  if (!profiling_impl) {
     return std::make_shared<Profiling>(Profiling::PrivateCtorTag{});
   }
 

@@ -458,6 +458,97 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     REQUIRE(latest->session_state.has_tracked_any_view == false);
   }
 
+  // === RumVitalGeneratedMessage / RumLongTaskGeneratedMessage ===
+
+  SECTION("M emit RumLongTaskGeneratedMessage W AddLongTask() is called") {
+    // Given a Rum feature with a started view
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    rum->StartView("foo");
+    REQUIRE(CountMessages<RumLongTaskGeneratedMessage>(test.feature_messages) == 0);
+
+    // When we record a 50ms long task
+    rum->AddLongTask(std::chrono::milliseconds(50));
+
+    // Then Rum produces a single message describing it, in the context of our view
+    REQUIRE(CountMessages<RumLongTaskGeneratedMessage>(test.feature_messages) == 1);
+    const auto* msg =
+        FindLastMessage<RumLongTaskGeneratedMessage>(test.feature_messages);
+    REQUIRE(msg != nullptr);
+    REQUIRE(msg->duration == std::chrono::milliseconds(50));
+    REQUIRE(msg->long_task_id != UUID::Zero);
+    REQUIRE(msg->context.application_id == APPLICATION_ID);
+    const auto* view_msg =
+        FindLastMessage<RumActiveViewUpdatedMessage>(test.feature_messages);
+    REQUIRE(view_msg != nullptr);
+    REQUIRE(msg->context.view_id == view_msg->view_event.view.id);
+    REQUIRE(msg->context.session_id == view_msg->view_event.session.id);
+  }
+
+  SECTION(
+      "M emit RumLongTaskGeneratedMessage before RumActiveViewUpdatedMessage W "
+      "AddLongTask() updates the view"
+  ) {
+    // Given a Rum feature with a started view
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    rum->StartView("foo");
+    const size_t num_before = test.feature_messages.size();
+
+    // When we record a long task, which also updates the view's event
+    rum->AddLongTask(std::chrono::milliseconds(50));
+
+    // Then the messages that the command produced are published in the order that the
+    // events were generated: the long task, then the view update
+    REQUIRE(test.feature_messages.size() > num_before + 1);
+    REQUIRE(
+        std::holds_alternative<RumLongTaskGeneratedMessage>(
+            test.feature_messages[num_before]
+        )
+    );
+    REQUIRE(
+        std::holds_alternative<RumActiveViewUpdatedMessage>(
+            test.feature_messages[num_before + 1]
+        )
+    );
+  }
+
+  SECTION("M emit RumVitalGeneratedMessage W an operation starts and stops") {
+    // Given a Rum feature with a started view
+    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    rum->StartView("foo");
+
+    // When we start and then stop an operation
+    rum->StartOperation("checkout", "op-1");
+    clock.FreezeAtMilliseconds(1700000000400);
+    rum->StopOperation("checkout", "op-1", std::nullopt);
+
+    // Then Rum produces one message for each step, in order
+    REQUIRE(CountMessages<RumVitalGeneratedMessage>(test.feature_messages) == 2);
+    std::vector<const RumVitalGeneratedMessage*> vitals;
+    for (const auto& m : test.feature_messages) {
+      if (const auto* v = std::get_if<RumVitalGeneratedMessage>(&m)) {
+        vitals.push_back(v);
+      }
+    }
+    REQUIRE(vitals[0]->step_type == RumVitalStepType::Start);
+    REQUIRE(vitals[1]->step_type == RumVitalStepType::End);
+
+    // And each identifies its operation, and the timestamp of the step
+    REQUIRE(vitals[0]->name == "checkout");
+    REQUIRE(vitals[0]->operation_key == "op-1");
+    REQUIRE(vitals[1]->operation_key == "op-1");
+    REQUIRE(
+        vitals[1]->timestamp - vitals[0]->timestamp == std::chrono::milliseconds(400)
+    );
+    REQUIRE(vitals[0]->vital_id != vitals[1]->vital_id);
+    REQUIRE(vitals[0]->context.view_id != UUID::Zero);
+  }
+
   // === RumGlobalAttributesChangedMessage ===
 
   SECTION("M emit RumGlobalAttributesChangedMessage W AddAttribute() is called") {
