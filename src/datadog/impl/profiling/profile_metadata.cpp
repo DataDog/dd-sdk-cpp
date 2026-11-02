@@ -19,18 +19,6 @@ namespace datadog::impl {
 
 namespace {
 
-// Placeholders until the profiling team confirms the values for this platform
-constexpr std::string_view kFamily = "windows";
-constexpr std::string_view kRuntime = "windows";
-
-// Version of the event format. The only one that the backend supports, as on iOS and
-// Android.
-constexpr int64_t kEventVersion = 4;
-
-constexpr std::string_view kLanguage = "cpp";
-constexpr std::string_view kFormat = "pprof";
-constexpr std::string_view kRemoteSymbols = "yes";
-
 void AppendTag(std::string& tags, std::string_view key, std::string_view value) {
   // Tags without a value are left out
   if (value.empty()) {
@@ -58,9 +46,9 @@ std::string BuildTags(const CoreContext& context, ProfilingOperation operation) 
   AppendTag(tags, "profiler_version", context.sdk_version);
   AppendTag(tags, "runtime_version", os_version);
   AppendTag(tags, "source", context.source);
-  AppendTag(tags, "language", kLanguage);
-  AppendTag(tags, "format", kFormat);
-  AppendTag(tags, "remote_symbols", kRemoteSymbols);
+  AppendTag(tags, "language", "cpp");
+  AppendTag(tags, "format", "pprof");
+  AppendTag(tags, "remote_symbols", "yes");
   AppendTag(tags, "operation", StringProfilingOperation(operation).Name());
   return tags;
 }
@@ -89,15 +77,15 @@ ProfileTags ProfileTags::FromContext(const CoreContext& context) {
   for (size_t i = 0; i < kNumOperations; i++) {
     // i is less than kNumOperations, the number of ProfilingOperation values
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
-    tags._tags[i] = BuildTags(context, static_cast<ProfilingOperation>(i));
+    tags._tags_by_operation[i] = BuildTags(context, static_cast<ProfilingOperation>(i));
   }
   return tags;
 }
 
 std::string_view ProfileTags::Get(ProfilingOperation operation) const {
-  // ProfilingOperation values index its names, which fill _tags
+  // ProfilingOperation values index its names, which fill _tags_by_operation
   // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
-  return _tags[static_cast<size_t>(operation)];
+  return _tags_by_operation[static_cast<size_t>(operation)];
 }
 
 void BuildProfileEventJson(
@@ -106,10 +94,16 @@ void BuildProfileEventJson(
     const ProfileTimeRange& range,
     const RumEventSnapshot& events
 ) {
-  ProfileEvent event(
-      range.start, range.end, tags_profiler, kFamily, kRuntime, kEventVersion
-  );
-  event.attachments = {kProfilePprofFilename, kProfileRumEventsFilename};
+  // Version 4 is the only event format that the backend supports, as on iOS and
+  // Android.
+  const std::string_view family = "windows";
+  const std::string_view runtime = "windows";
+  const int64_t version = 4;
+  ProfileEvent event(range.start, range.end, tags_profiler, family, runtime, version);
+
+  // The other parts of the multipart request sent to the profiling intake, besides
+  // event.json itself
+  event.attachments = {"profile.pprof", "rum-mobile-events.json"};
 
   // Correlate the profile with RUM. The event only views the names in `events`, which
   // outlives the encoding below.

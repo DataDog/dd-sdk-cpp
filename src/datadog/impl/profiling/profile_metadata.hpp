@@ -45,12 +45,6 @@ struct ProfileMetadata {
   std::vector<uint8_t> rum_events_json;
 };
 
-// Names of the parts of the multipart request sent to the profiling intake.
-// `event.json` lists the other parts as its `attachments`.
-inline constexpr std::string_view kProfileEventFilename = "event.json";
-inline constexpr std::string_view kProfilePprofFilename = "profile.pprof";
-inline constexpr std::string_view kProfileRumEventsFilename = "rum-mobile-events.json";
-
 /**
  * The `tags_profiler` value of a profile event, for each profiling operation.
  *
@@ -67,8 +61,10 @@ class ProfileTags {
   std::string_view Get(ProfilingOperation operation) const;
 
  private:
+  // ProfilingOperationValues lists every value of the ProfilingOperation enum, which is
+  // declared with DATADOG_STRING_ENUM. One tags string is stored for each value.
   static constexpr size_t kNumOperations = std::size(ProfilingOperationValues);
-  std::array<std::string, kNumOperations> _tags;
+  std::array<std::string, kNumOperations> _tags_by_operation;
 };
 
 /**
