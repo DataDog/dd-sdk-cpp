@@ -59,4 +59,5 @@ if(DD_BUILD_INSTALL)
         ARCHIVE DESTINATION lib
         RUNTIME DESTINATION bin
     )
+    install(FILES ${DD_SDK_ROOT_DIR}/licenses/curl.txt DESTINATION licenses)
 endif()
