@@ -1688,3 +1688,97 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
     REQUIRE(ctx.session_precondition == RumSessionPrecondition::InactivityTimeout);
   }
 }
+
+TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope vital messages", "[unit][rum]") {
+  SECTION("M queue a message for each step W an operation starts and ends") {
+    // Given an active session with a view
+    StartView();
+    deps.ClearQueuedMessages();
+
+    // When an operation starts and ends
+    scope.Process(
+        RumCommand::StartOperation(GetBaseParams(), "checkout", "op-1"),
+        GetTestContext(),
+        GetTestWriter()
+    );
+    scope.Process(
+        RumCommand::StopOperation(GetBaseParams(), "checkout", "op-1", std::nullopt),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then a message is queued for each step, in order
+    const auto& messages = deps.GetQueuedMessages();
+    REQUIRE(messages.size() == 2);
+    const auto& start = std::get<RumVitalGeneratedMessage>(messages[0]);
+    const auto& end = std::get<RumVitalGeneratedMessage>(messages[1]);
+    REQUIRE(start.step_type == RumVitalStepType::Start);
+    REQUIRE(end.step_type == RumVitalStepType::End);
+
+    // And each carries the name, operation key, and timestamp of its step
+    REQUIRE(start.name == "checkout");
+    REQUIRE(start.operation_key == "op-1");
+    REQUIRE(start.timestamp == clock.Now());
+    REQUIRE(start.duration == std::nullopt);
+
+    // And the ID of the vital event that was written for the step
+    auto vitals = event_capture.Vitals();
+    REQUIRE(vitals.size() == 2);
+    REQUIRE(vitals[0]["vital"]["id"] == start.vital_id.ToString());
+    REQUIRE(vitals[1]["vital"]["id"] == end.vital_id.ToString());
+
+    // And the RUM context in which it occurred
+    REQUIRE(start.context.application_id.ToString() == APPLICATION_ID);
+    REQUIRE(start.context.session_id.ToString() == SESSION_ID);
+    REQUIRE(start.context.view_id != UUID::Zero);
+    REQUIRE(start.context.view_name == "My View");
+  }
+
+  SECTION("M queue a message with its duration W the TTID vital is generated") {
+    // Given an active session with a view, and a process launch 5 seconds ago
+    StartView();
+    deps.ClearQueuedMessages();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+
+    // When the app reports that its display was initialized
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then a message is queued for the vital
+    const auto& messages = deps.GetQueuedMessages();
+    REQUIRE(messages.size() == 1);
+    const auto& message = std::get<RumVitalGeneratedMessage>(messages[0]);
+
+    // And it is not an operation step, and carries the launch time and duration
+    REQUIRE(message.name == "time_to_initial_display");
+    REQUIRE(message.step_type == std::nullopt);
+    REQUIRE(message.timestamp == ctx.process_launch_time);
+    REQUIRE(message.duration == std::chrono::seconds(5));
+  }
+
+  SECTION("M queue no message W the TTFD vital is generated") {
+    // Given an active session with a view, and a TTID that has been reported
+    StartView();
+    CoreContext ctx = GetTestContext();
+    ctx.process_launch_time = Timestamp{
+        std::chrono::duration_cast<Duration>(std::chrono::milliseconds{1699999995000})
+    };
+    scope.Process(
+        RumCommand::ReportAppDisplayInitialized(GetBaseParams()), ctx, GetTestWriter()
+    );
+    deps.ClearQueuedMessages();
+
+    // When the app reports that it is fully displayed
+    scope.Process(
+        RumCommand::ReportAppFullyDisplayed(GetBaseParams()), ctx, GetTestWriter()
+    );
+
+    // Then a TTFD vital is written, but no message is queued for it
+    REQUIRE(event_capture.Vitals().size() == 2);
+    REQUIRE(deps.GetQueuedMessages().empty());
+  }
+}

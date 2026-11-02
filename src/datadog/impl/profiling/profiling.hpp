@@ -13,9 +13,12 @@
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/feature.hpp"
+#include "datadog/impl/profiling/profile_metadata.hpp"
 #include "datadog/impl/profiling/profiler.hpp"
 
 namespace datadog::impl {
+
+class Core;
 
 /**
  * Profiling feature implementation.
@@ -27,6 +30,11 @@ namespace datadog::impl {
  * while consent is pending. This feature neither writes events to storage nor produces
  * upload reports.
  *
+ * While the profiler runs, the feature records the RUM events that RUM announces
+ * (vitals and long tasks), so that `BuildProfileMetadata()` can describe them, along
+ * with the application's identifying details, in the metadata of a profile. The events
+ * are forgotten when the profiler stops.
+ *
  * Tracking consent is learned from `ContextChangedMessage`s, which arrive on the
  * messaging thread, while `Start()` and `Stop()` are called from the main thread, so
  * all state is guarded by a mutex.
@@ -34,6 +42,25 @@ namespace datadog::impl {
 class Profiling final : public Feature {
  public:
   Profiling(std::unique_ptr<IProfiler> profiler, ProfilerSettings settings);
+
+  /**
+   * Creates the Profiling feature for `core` and registers it with that core. This is
+   * the shared body of the C and C++ APIs' registration functions.
+   *
+   * Returns null, after logging the reason, if this build has no profiler, if another
+   * Core already holds the process-global profiler, or if registration fails.
+   */
+  static std::shared_ptr<Profiling> CreateAndRegister(
+      Core& core, const DiagnosticLogger& logger
+  );
+
+  /**
+   * Builds the metadata for a profile covering `range`, consuming the RUM events seen
+   * since the previous call. Thread-safe.
+   */
+  ProfileMetadata BuildProfileMetadata(const ProfileTimeRange& range) {
+    return _metadata_source.BuildMetadata(range);
+  }
 
   // Feature interface
   FeatureId GetId() const override { return CreateFeatureId("PROF"); }
@@ -52,6 +79,13 @@ class Profiling final : public Feature {
   void Stop() override;
 
  private:
+  /**
+   * Record a RUM event for the metadata of the current profile. Events from before the
+   * profiler started, or after it stopped, belong to no profile, and are ignored.
+   */
+  void OnRumVital(const RumVitalGeneratedMessage& message);
+  void OnRumLongTask(const RumLongTaskGeneratedMessage& message);
+
   /** Handles a context update, reacting only if tracking consent has changed. */
   void OnTrackingConsentChanged(TrackingConsent consent);
 
@@ -63,6 +97,9 @@ class Profiling final : public Feature {
 
   std::unique_ptr<IProfiler> _profiler;
   ProfilerSettings _settings;
+
+  // Thread-safe, and guarded by no lock but its own
+  ProfileMetadataSource _metadata_source;
 
   std::mutex _mutex;
 

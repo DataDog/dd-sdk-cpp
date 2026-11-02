@@ -22,6 +22,7 @@ RumScopeDependencies::RumScopeDependencies(
       context_receiver(config.context_receiver),
       _sampling_rate(config.session_sample_rate) {
   _encode_buffer.reserve(8192);
+  _pending_messages.reserve(4);
 }
 
 bool RumScopeDependencies::ShouldSampleSession(const UUID& session_id) const {
