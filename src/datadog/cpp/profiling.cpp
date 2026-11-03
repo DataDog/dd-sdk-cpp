@@ -10,7 +10,7 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/profiling/profiler.hpp"
+#include "datadog/impl/profiling/profiler_backend.hpp"
 #include "datadog/impl/profiling/profiling.hpp"
 
 namespace datadog {

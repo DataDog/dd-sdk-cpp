@@ -16,7 +16,7 @@ namespace datadog::impl {
 /**
  * Application identity passed to the profiler, used to tag the profiles it produces.
  */
-struct ProfilerSettings {
+struct ProfilerBackendSettings {
   std::string service;
   std::string env;
   std::string version;
@@ -27,23 +27,23 @@ struct ProfilerSettings {
  *
  * The production implementation wraps dd-win-prof; tests substitute a mock.
  */
-class IProfiler {
+class IProfilerBackend {
  protected:
-  IProfiler() = default;
+  IProfilerBackend() = default;
 
  public:
-  virtual ~IProfiler() = default;
+  virtual ~IProfilerBackend() = default;
 
-  // An IProfiler is never copied or moved
-  IProfiler(const IProfiler&) = delete;
-  IProfiler& operator=(const IProfiler&) = delete;
-  IProfiler(IProfiler&&) = delete;
-  IProfiler& operator=(IProfiler&&) = delete;
+  // An IProfilerBackend is never copied or moved
+  IProfilerBackend(const IProfilerBackend&) = delete;
+  IProfilerBackend& operator=(const IProfilerBackend&) = delete;
+  IProfilerBackend(IProfilerBackend&&) = delete;
+  IProfilerBackend& operator=(IProfilerBackend&&) = delete;
 
   /**
    * Applies the given settings. Must be called before Start().
    */
-  virtual bool Init(const ProfilerSettings& settings) = 0;
+  virtual bool Init(const ProfilerBackendSettings& settings) = 0;
 
   /**
    * Starts profiling. Returns false if the profiler could not be started.
@@ -57,17 +57,17 @@ class IProfiler {
 };
 
 /**
- * Creates the IProfiler implementation for this build: one backed by dd-win-prof in
- * builds with profiling support (Windows x64, DD_ENABLE_PROFILING=ON).
+ * Creates the IProfilerBackend implementation for this build: one backed by dd-win-prof
+ * in builds with profiling support (Windows x64, DD_ENABLE_PROFILING=ON).
  *
- * The profiler is process-global, so only one IProfiler may exist at a time: otherwise,
- * instances would overwrite each other's settings, restart a running profiler, or stop
- * profiling while another instance is still using it. Destroying the IProfiler allows a
- * later call to succeed.
+ * The profiler is process-global, so only one IProfilerBackend may exist at a time:
+ * otherwise, instances would overwrite each other's settings, restart a running
+ * profiler, or stop profiling while another instance is still using it. Destroying the
+ * IProfilerBackend allows a later call to succeed.
  *
  * Returns null, after logging the reason, if this build has no profiler or if another
- * IProfiler already exists.
+ * IProfilerBackend already exists.
  */
-std::unique_ptr<IProfiler> CreateProfiler(const DiagnosticLogger& logger);
+std::unique_ptr<IProfilerBackend> CreateProfilerBackend(const DiagnosticLogger& logger);
 
 }  // namespace datadog::impl

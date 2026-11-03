@@ -366,11 +366,11 @@ else()
 endif()
 
 # If building with profiling support, build dd-win-prof and link it into ddsdkcpp;
-# otherwise, compile the CreateProfiler() variant that reports profiling as unsupported
+# otherwise, compile the CreateProfilerBackend() variant that reports profiling as unsupported
 if(DD_PROFILER_IMPL STREQUAL "dd-win-prof")
     include(${DD_SDK_ROOT_DIR}/cmake/deps/dd-win-prof.cmake)
 else()
-    target_sources(ddsdkcpp PRIVATE datadog/impl/profiling/profiler_unsupported.cpp)
+    target_sources(ddsdkcpp PRIVATE datadog/impl/profiling/profiler_backend_unsupported.cpp)
 endif()
 
 # Install configuration

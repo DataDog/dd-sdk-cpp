@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-// IProfiler implementation backed by dd-win-prof. Only compiled into builds with
+// IProfilerBackend implementation backed by dd-win-prof. Only compiled into builds with
 // profiling support (see cmake/deps/dd-win-prof.cmake).
 
 #include <dd-win-prof.h>
@@ -12,20 +12,20 @@
 #include <atomic>
 #include <memory>
 
-#include "datadog/impl/profiling/profiler.hpp"
+#include "datadog/impl/profiling/profiler_backend.hpp"
 
 namespace datadog::impl {
 
 namespace {
 
-// Whether a DdWinProfProfiler exists: dd-win-prof is process-global
-std::atomic<bool> s_profiler_exists{false};
+// Whether a DdWinProfBackend exists: dd-win-prof is process-global
+std::atomic<bool> s_backend_exists{false};
 
-class DdWinProfProfiler final : public IProfiler {
+class DdWinProfBackend final : public IProfilerBackend {
  public:
-  ~DdWinProfProfiler() override { s_profiler_exists.store(false); }
+  ~DdWinProfBackend() override { s_backend_exists.store(false); }
 
-  bool Init(const ProfilerSettings& settings) override {
+  bool Init(const ProfilerBackendSettings& settings) override {
     ProfilerConfig config = {};
     config.size = sizeof(ProfilerConfig);
 
@@ -49,16 +49,18 @@ class DdWinProfProfiler final : public IProfiler {
 
 }  // namespace
 
-std::unique_ptr<IProfiler> CreateProfiler(const DiagnosticLogger& logger) {
+std::unique_ptr<IProfilerBackend> CreateProfilerBackend(
+    const DiagnosticLogger& logger
+) {
   bool expected = false;
-  if (!s_profiler_exists.compare_exchange_strong(expected, true)) {
+  if (!s_backend_exists.compare_exchange_strong(expected, true)) {
     logger.Warning(
         "Profiling is already enabled for another SDK instance in this process: the "
         "profiler is shared by the whole process, so only one instance can use it"
     );
     return nullptr;
   }
-  return std::make_unique<DdWinProfProfiler>();
+  return std::make_unique<DdWinProfBackend>();
 }
 
 }  // namespace datadog::impl
