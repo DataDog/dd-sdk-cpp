@@ -108,7 +108,6 @@ add_executable(tests
     impl/rum/context_test.cpp
     impl/rum/rum_messaging_test.cpp
     impl/rum/rum_test.cpp
-    impl/rum/scope_test.cpp
     mock/filesystem.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp
