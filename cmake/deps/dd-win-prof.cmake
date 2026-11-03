@@ -53,4 +53,14 @@ if(DD_BUILD_INSTALL)
         RUNTIME DESTINATION bin
         ARCHIVE DESTINATION lib
     )
+
+    # dd-win-prof.dll embeds libdatadog (linked statically) and spdlog with its bundled
+    # fmt (header-only), so distribute their license texts with it
+    install(FILES
+        ${DD_SDK_ROOT_DIR}/licenses/dd-win-prof.txt
+        ${DD_SDK_ROOT_DIR}/licenses/libdatadog.txt
+        ${DD_SDK_ROOT_DIR}/licenses/spdlog.txt
+        ${DD_SDK_ROOT_DIR}/licenses/fmt.txt
+        DESTINATION licenses
+    )
 endif()

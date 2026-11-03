@@ -3,7 +3,8 @@
 This directory contains the license text for each third-party component that can be
 built into an installed build of the SDK. At install time, each file is copied to
 `licenses/` only if its component is built into that configuration: see the install
-rules in `CMakeLists.txt`, `cmake/crashpad.cmake`, and `cmake/deps/libcurl.cmake`.
+rules in `CMakeLists.txt`, `cmake/crashpad.cmake`, `cmake/deps/libcurl.cmake`, and
+`cmake/deps/dd-win-prof.cmake`.
 `tools/check-package` verifies that each release package contains exactly the expected
 set. `LICENSE-3rdparty.csv` lists all third-party components, including test-only ones.
 
@@ -22,3 +23,7 @@ from the source listed below at the new revision.
 | `date.txt` | Lines 4-32 of `include/date/date.h` from [date](https://github.com/HowardHinnant/date) at the tag in `cmake/deps/date.cmake` |
 | `curl.txt` | `COPYING` from [curl](https://github.com/curl/curl) at the release in `cmake/deps/libcurl.cmake` |
 | `unicode-cldr.txt` | `LICENSE` from [CLDR](https://github.com/unicode-org/cldr), from the branch used by `tools/generate-windows-timezone-mapping` |
+| `dd-win-prof.txt` | `LICENSE` from [dd-win-prof](https://github.com/DataDog/dd-win-prof) at the revision in `cmake/deps/dd-win-prof.cmake` |
+| `libdatadog.txt` | `LICENSE` from [libdatadog](https://github.com/DataDog/libdatadog) at the release tag of the pre-built binaries fetched by dd-win-prof's `src/CMakeLists.txt` (at the revision above) |
+| `spdlog.txt` | `LICENSE` from [spdlog](https://github.com/gabime/spdlog) at the tag fetched by dd-win-prof's `src/CMakeLists.txt` (at the revision above) |
+| `fmt.txt` | `include/spdlog/fmt/bundled/fmt.license.rst` from spdlog at the same tag (the fmt license, including its exception for embedded object code) |
