@@ -82,7 +82,8 @@ def expected_license_files(platform: str, cache: dict[str, str]) -> set[str]:
     """
     Returns the third-party license texts that a package should contain, given the
     configuration it was built with: this must mirror the install rules for licenses/ in
-    CMakeLists.txt, cmake/crashpad.cmake, and cmake/deps/libcurl.cmake.
+    CMakeLists.txt, cmake/crashpad.cmake, cmake/deps/libcurl.cmake, and
+    cmake/deps/dd-win-prof.cmake.
     """
     names = {"date"}
     if platform == "windows":
@@ -93,6 +94,8 @@ def expected_license_files(platform: str, cache: dict[str, str]) -> set[str]:
             names.add("lss")
         if platform == "windows":
             names |= {"zlib", "getopt"}
+    if cache.get("DD_PROFILER_IMPL") == "dd-win-prof":
+        names |= {"dd-win-prof", "libdatadog", "spdlog", "fmt"}
     if (cache.get("DD_HTTP_CLIENT") == "libcurl"
             and not parse_cmake_bool(cache["DD_HTTP_USE_SYSTEM_LIBCURL"])):
         names.add("curl")
