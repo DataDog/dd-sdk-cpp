@@ -8,6 +8,7 @@
 
 #include <array>
 #include <cstdint>
+#include <string_view>
 
 #include "support/catch.hpp"
 
@@ -101,5 +102,33 @@ TEST_CASE("Big-endian routines round trip", "[unit][endian]") {
       WriteBigEndian32(buf.data(), value);
       REQUIRE(ReadBigEndian32(buf.data()) == value);
     }
+  }
+}
+
+TEST_CASE("Big-endian routines read from a string_view", "[unit][endian]") {
+  SECTION("16-bit") {
+    REQUIRE(ReadBigEndian16(std::string_view("\x12\x34", 2)) == 0x1234);
+    // Bytes of 0x80 and above, and zeros, are read as they are
+    REQUIRE(ReadBigEndian16(std::string_view("\xFF\xFE", 2)) == 0xFFFE);
+    REQUIRE(ReadBigEndian16(std::string_view("\x00\x01", 2)) == 0x0001);
+  }
+
+  SECTION("32-bit") {
+    REQUIRE(ReadBigEndian32(std::string_view("\x01\x02\x03\x04", 4)) == 0x01020304);
+    REQUIRE(ReadBigEndian32(std::string_view("\xFF\xFE\xFD\xFC", 4)) == 0xFFFEFDFC);
+    REQUIRE(ReadBigEndian32(std::string_view("\x00\x00\x00\x07", 4)) == 7);
+  }
+
+  SECTION("only the first bytes of a longer view") {
+    // The bytes after the value are not part of it
+    REQUIRE(ReadBigEndian16(std::string_view("\x12\x34\x56\x78", 4)) == 0x1234);
+    REQUIRE(
+        ReadBigEndian32(std::string_view("\x01\x02\x03\x04\x05\x06", 6)) == 0x01020304
+    );
+  }
+
+  SECTION("a view of a subrange") {
+    const std::string_view bytes("\xAA\x01\x02\x03\x04\xBB", 6);
+    REQUIRE(ReadBigEndian32(bytes.substr(1, 4)) == 0x01020304);
   }
 }
