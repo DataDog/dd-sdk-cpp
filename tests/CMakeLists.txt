@@ -46,6 +46,7 @@ add_executable(tests
     impl/types/events/struct_test.cpp
     impl/types/events/timestamp_test.cpp
     impl/types/diagnostics_test.cpp
+    impl/types/endian_test.cpp
     impl/types/json/json_scanner_test.cpp
     impl/types/json_test.cpp
     impl/types/profiling_test.cpp
@@ -100,6 +101,7 @@ add_executable(tests
     impl/logging/event_generation_test.cpp
     impl/logging/logger_test.cpp
     impl/logging/tags_test.cpp
+    impl/profiling/profile_frame_test.cpp
     impl/profiling/profile_metadata_test.cpp
     impl/profiling/profiling_test.cpp
     impl/profiling/rum_event_tracker_test.cpp

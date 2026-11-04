@@ -17,6 +17,7 @@
 #endif
 
 #include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/endian.hpp"
 
 namespace datadog::platform {
 
@@ -25,14 +26,9 @@ void UuidGenerate(uint8_t out[16]) {
   GUID guid;
   HRESULT hr = ::CoCreateGuid(&guid);
   DATADOG_ASSERT(SUCCEEDED(hr), "CoCreateGuid failed");
-  out[0] = static_cast<uint8_t>((guid.Data1 >> 24) & 0xFF);
-  out[1] = static_cast<uint8_t>((guid.Data1 >> 16) & 0xFF);
-  out[2] = static_cast<uint8_t>((guid.Data1 >> 8) & 0xFF);
-  out[3] = static_cast<uint8_t>((guid.Data1) & 0xFF);
-  out[4] = static_cast<uint8_t>((guid.Data2 >> 8) & 0xFF);
-  out[5] = static_cast<uint8_t>((guid.Data2) & 0xFF);
-  out[6] = static_cast<uint8_t>((guid.Data3 >> 8) & 0xFF);
-  out[7] = static_cast<uint8_t>((guid.Data3) & 0xFF);
+  impl::WriteBigEndian32(out, guid.Data1);
+  impl::WriteBigEndian16(out + 4, guid.Data2);
+  impl::WriteBigEndian16(out + 6, guid.Data3);
   out[8] = guid.Data4[0];
   out[9] = guid.Data4[1];
   out[10] = guid.Data4[2];
