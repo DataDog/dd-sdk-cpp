@@ -11,47 +11,16 @@
 
 #include "datadog/impl/core/storage/util.hpp"
 #include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/endian.hpp"
 
 namespace datadog::impl {
-
-static uint16_t _read_big_endian_16(const char* src) {
-  const unsigned char c0 = static_cast<unsigned char>(src[0]);
-  const unsigned char c1 = static_cast<unsigned char>(src[1]);
-  const uint16_t b0 = static_cast<uint16_t>(c0) << 8;
-  const uint16_t b1 = static_cast<uint16_t>(c1) << 0;
-  return b0 | b1;
-}
-
-static uint32_t _read_big_endian_32(const char* src) {
-  const unsigned char c0 = static_cast<unsigned char>(src[0]);
-  const unsigned char c1 = static_cast<unsigned char>(src[1]);
-  const unsigned char c2 = static_cast<unsigned char>(src[2]);
-  const unsigned char c3 = static_cast<unsigned char>(src[3]);
-  const uint32_t b0 = static_cast<uint32_t>(c0) << 24;
-  const uint32_t b1 = static_cast<uint32_t>(c1) << 16;
-  const uint32_t b2 = static_cast<uint32_t>(c2) << 8;
-  const uint32_t b3 = static_cast<uint32_t>(c3) << 0;
-  return b0 | b1 | b2 | b3;
-}
-
-static void _write_big_endian_16(char* dst, uint16_t value) {
-  dst[0] = static_cast<char>(value >> 8);
-  dst[1] = static_cast<char>(value);
-}
-
-static void _write_big_endian_32(char* dst, uint32_t value) {
-  dst[0] = static_cast<char>(value >> 24);
-  dst[1] = static_cast<char>(value >> 16);
-  dst[2] = static_cast<char>(value >> 8);
-  dst[3] = static_cast<char>(value);
-}
 
 std::optional<TLVBlockHeader> TLVBlockHeader::Decode(
     const char buf[TLVBlockHeader::SIZE]
 ) {
   // Multi-byte binary values are always written big-endian; decode them
-  uint16_t type = _read_big_endian_16(buf);
-  uint32_t block_size = _read_big_endian_32(buf + sizeof(uint16_t));
+  uint16_t type = ReadBigEndian16(buf);
+  uint32_t block_size = ReadBigEndian32(buf + sizeof(uint16_t));
 
   // Zero-length blocks are explicitly disallowed
   if (block_size == 0) {
@@ -73,8 +42,8 @@ std::optional<TLVBlockHeader> TLVBlockHeader::Decode(
 }
 
 void TLVBlockHeader::Encode(char buf[TLVBlockHeader::SIZE]) const {
-  _write_big_endian_16(buf, static_cast<uint16_t>(type));
-  _write_big_endian_32(buf + sizeof(uint16_t), block_size);
+  WriteBigEndian16(buf, static_cast<uint16_t>(type));
+  WriteBigEndian32(buf + sizeof(uint16_t), block_size);
 }
 
 size_t EncodeTLVBlock(char* dst, size_t n, TLVBlockType type, Block data) {
