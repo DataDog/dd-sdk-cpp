@@ -6,7 +6,11 @@
 
 #pragma once
 
+#include <array>
 #include <cstdint>
+#include <string_view>
+
+#include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
 
@@ -19,6 +23,9 @@ namespace datadog::impl {
  * Each routine works on a buffer of any one-byte type (`char`, `unsigned char`,
  * `uint8_t`, ...), so that it can be used on whichever the surrounding code has. Reads
  * treat every byte as unsigned, whether or not `char` is signed.
+ *
+ * Reads from a pointer trust the caller to have the bytes. To read from a
+ * `std::string_view`, use the overloads that take one: they check its size.
  */
 
 /**
@@ -65,6 +72,26 @@ uint32_t ReadBigEndian32(const Byte* src) {
   const auto b2 = static_cast<uint32_t>(static_cast<uint8_t>(src[2]));
   const auto b3 = static_cast<uint32_t>(static_cast<uint8_t>(src[3]));
   return (b0 << 24) | (b1 << 16) | (b2 << 8) | b3;
+}
+
+/**
+ * Reads the value in the first two bytes of `bytes`, which must have at least two.
+ */
+inline uint16_t ReadBigEndian16(std::string_view bytes) {
+  DATADOG_ASSERT(bytes.size() >= sizeof(uint16_t), "ReadBigEndian16 needs two bytes");
+  const std::array<char, sizeof(uint16_t)> first = {bytes[0], bytes[1]};
+  return ReadBigEndian16(first.data());
+}
+
+/**
+ * Reads the value in the first four bytes of `bytes`, which must have at least four.
+ */
+inline uint32_t ReadBigEndian32(std::string_view bytes) {
+  DATADOG_ASSERT(bytes.size() >= sizeof(uint32_t), "ReadBigEndian32 needs four bytes");
+  const std::array<char, sizeof(uint32_t)> first = {
+      bytes[0], bytes[1], bytes[2], bytes[3]
+  };
+  return ReadBigEndian32(first.data());
 }
 
 }  // namespace datadog::impl

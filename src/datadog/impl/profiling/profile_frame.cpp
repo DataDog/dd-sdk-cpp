@@ -53,7 +53,7 @@ static bool _read_part(std::string_view& mut_remaining, std::string_view& out_pa
   if (mut_remaining.size() < sizeof(uint32_t)) {
     return false;
   }
-  const size_t size = ReadBigEndian32(mut_remaining.data());
+  const size_t size = ReadBigEndian32(mut_remaining);
   const std::string_view after_size = mut_remaining.substr(sizeof(uint32_t));
   if (size > after_size.size()) {
     return false;
