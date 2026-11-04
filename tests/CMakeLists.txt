@@ -30,6 +30,7 @@ add_executable(tests
     impl/types/json/parse_attribute_test.cpp
     impl/types/json/parse_primitives_test.cpp
     impl/types/events/enum_test.cpp
+    impl/types/endian_test.cpp
     impl/types/events/omissible_test.cpp
     impl/types/events/struct_test.cpp
     impl/types/events/timestamp_test.cpp
@@ -155,6 +156,7 @@ if(TARGET ddsdkcpp_profiling)
     target_sources(tests PRIVATE
         c/profiling_c_api_test.cpp
         cpp/profiling_cpp_api_test.cpp
+        impl/profiling/profile_frame_test.cpp
         impl/profiling/profile_metadata_test.cpp
         impl/profiling/profiling_test.cpp
         impl/profiling/rum_event_tracker_test.cpp
