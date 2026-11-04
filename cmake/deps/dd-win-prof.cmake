@@ -15,7 +15,10 @@
 
 include(FetchContent)
 
-set(DD_WIN_PROF_GIT_TAG "7caf25bfce0e55e9df3d60c9baf0b1dfa408f97e" CACHE STRING
+# The SDK-private callback API (internal/dd-win-rum-private.h) passes std::function and
+# std::vector across the dd-win-prof.dll boundary with no ABI guarantee, so dd-win-prof
+# must be built with the same compiler, standard library, and CRT settings as the SDK.
+set(DD_WIN_PROF_GIT_TAG "2a433920781b236282f6ba82e75441a01b641483" CACHE STRING
     "dd-win-prof revision (commit SHA) to build")
 
 # To work on dd-win-prof alongside the SDK, point this at a local checkout
@@ -36,8 +39,6 @@ else()
 endif()
 FetchContent_MakeAvailable(dd-win-prof)
 
-# Only dd-win-prof.h is exposed by the dd-win-prof target, and it stays private to the
-# SDK: it is not part of the SDK's public API
 target_link_libraries(ddsdkcpp PRIVATE dd-win-prof)
 target_compile_definitions(ddsdkcpp PRIVATE WITH_DATADOG_PROFILING=1)
 target_sources(ddsdkcpp PRIVATE

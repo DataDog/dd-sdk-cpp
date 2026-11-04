@@ -6,8 +6,13 @@
 
 #pragma once
 
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
+
+#include "datadog/timestamp.hpp"
 
 #include "datadog/impl/types/diagnostics.hpp"
 
@@ -21,6 +26,36 @@ struct ProfilerBackendSettings {
   std::string env;
   std::string version;
 };
+
+/**
+ * A finished profile delivered by the profiler, or the error that prevented one.
+ */
+struct ProfileData {
+  /**
+   * Why the profiler could not produce a profile. Empty if it succeeded, in which case
+   * `pprof` holds the profile.
+   */
+  std::string error;
+
+  /**
+   * The serialized profile, in the compressed pprof form that the profiling intake
+   * accepts. Empty if `error` is set.
+   */
+  std::vector<uint8_t> pprof;
+
+  /** The period of time that the profile covers. */
+  Timestamp start;
+  Timestamp end;
+
+  /** True for the last profile of a run: the one delivered when the profiler stops. */
+  bool is_last = false;
+};
+
+/**
+ * Receives each profile that the profiler produces. See
+ * IProfilerBackend::SetProfileCallback().
+ */
+using ProfileCallback = std::function<void(ProfileData)>;
 
 /**
  * Interface to a process-global sampling profiler.
@@ -39,6 +74,22 @@ class IProfilerBackend {
   IProfilerBackend& operator=(const IProfilerBackend&) = delete;
   IProfilerBackend(IProfilerBackend&&) = delete;
   IProfilerBackend& operator=(IProfilerBackend&&) = delete;
+
+  /**
+   * Sets the function that receives each profile. Calling this with an empty function
+   * removes it, returning the profiler to its own default reporting mechanism.
+   * Returns false if the profiler could not be given the callback.
+   *
+   * Must be called while the profiler is stopped, and before the first Init(). The
+   * callback stays in place across Stop() and Start(), until it is replaced, removed,
+   * or the backend is destroyed.
+   *
+   * The callback runs on a thread owned by the profiler, or, for the last profile of a
+   * run (`ProfileData::is_last`), on the thread that calls Stop(). It must not block,
+   * throw, or call back into this interface. A profile that the callback fails to
+   * handle is not delivered again.
+   */
+  virtual bool SetProfileCallback(ProfileCallback callback) = 0;
 
   /**
    * Applies the given settings. Must be called before Start().

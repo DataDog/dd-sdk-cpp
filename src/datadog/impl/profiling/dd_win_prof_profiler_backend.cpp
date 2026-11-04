@@ -8,9 +8,15 @@
 // profiling support (see cmake/deps/dd-win-prof.cmake).
 
 #include <dd-win-prof.h>
+// The SDK-private part of dd-win-prof's interface, which hands profiles to the SDK
+// instead of uploading them. It shares std types with dd-win-prof.dll, so it relies on
+// the DLL being built with the SDK (see cmake/deps/dd-win-prof.cmake).
+#include <internal/dd-win-rum-private.h>
 
 #include <atomic>
+#include <chrono>
 #include <memory>
+#include <utility>
 
 #include "datadog/impl/profiling/profiler_backend.hpp"
 
@@ -21,9 +27,54 @@ namespace {
 // Whether a DdWinProfBackend exists: dd-win-prof is process-global
 std::atomic<bool> s_backend_exists{false};
 
+// dd-win-prof reports times as milliseconds since the Unix epoch
+Timestamp FromUnixMs(int64_t unix_ms) {
+  return Timestamp{std::chrono::milliseconds(unix_ms)};
+}
+
+ProfileData ConvertProfilingData(ProfilingData&& data) {
+  ProfileData profile;
+  if (data.result != 0) {
+    // Always non-null static text, valid until the DLL unloads
+    profile.error = GetProfilingErrorMessage(data.result);
+  } else {
+    profile.pprof = std::move(data.pprof);
+  }
+  profile.start = FromUnixMs(data.startUnixTimeMs);
+  profile.end = FromUnixMs(data.endUnixTimeMs);
+  profile.is_last = data.isLast;
+  return profile;
+}
+
 class DdWinProfBackend final : public IProfilerBackend {
  public:
-  ~DdWinProfBackend() override { s_backend_exists.store(false); }
+  explicit DdWinProfBackend(const DiagnosticLogger& logger) : _logger(logger) {}
+
+  ~DdWinProfBackend() override {
+    // dd-win-prof only accepts a callback change while stopped, and delivers a last
+    // profile when it stops, so stop it, then remove our callback, before this object
+    // is considered gone. Stopping is safe if the profiler is not running.
+    StopProfiler();
+    if (!SetupProfilingDataCallback({})) {
+      // dd-win-prof keeps calling the callback it has, which only holds what the
+      // callback's owner gave it, so there is nothing more to do than report it
+      _logger.Warning("Failed to remove the profiling callback from the profiler");
+    }
+    s_backend_exists.store(false);
+  }
+
+  bool SetProfileCallback(ProfileCallback callback) override {
+    // An empty callback selects dd-win-prof's own upload, which is also what an empty
+    // dd-win-prof callback means
+    if (!callback) {
+      return SetupProfilingDataCallback({});
+    }
+    // dd-win-prof copies the callback it is given
+    return SetupProfilingDataCallback([callback =
+                                           std::move(callback)](ProfilingData data) {
+      callback(ConvertProfilingData(std::move(data)));
+    });
+  }
 
   bool Init(const ProfilerBackendSettings& settings) override {
     ProfilerConfig config = {};
@@ -45,6 +96,10 @@ class DdWinProfBackend final : public IProfilerBackend {
   bool Start() override { return StartProfiler(); }
 
   void Stop() override { StopProfiler(); }
+
+ private:
+  // Used where there is no caller to report a failure to, i.e. in the destructor
+  DiagnosticLogger _logger;
 };
 
 }  // namespace
@@ -60,7 +115,7 @@ std::unique_ptr<IProfilerBackend> CreateProfilerBackend(
     );
     return nullptr;
   }
-  return std::make_unique<DdWinProfBackend>();
+  return std::make_unique<DdWinProfBackend>(logger);
 }
 
 }  // namespace datadog::impl
