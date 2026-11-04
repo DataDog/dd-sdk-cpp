@@ -282,6 +282,7 @@ target_sources(ddsdkcpp PRIVATE
 # === profiling ===
 
 target_sources(ddsdkcpp PRIVATE
+    datadog/impl/profiling/profile_frame.cpp
     datadog/impl/profiling/profile_metadata.cpp
     datadog/impl/profiling/profiling.cpp
     datadog/impl/profiling/rum_event_tracker.cpp
