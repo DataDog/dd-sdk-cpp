@@ -101,7 +101,7 @@ index 9061c2cb..2819685c 100644
 +      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/parse_attribute.cpp",
 +      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/parse_primitives.cpp",
 +      "$dd_sdk_cpp_dir/src/datadog/impl/types/diagnostics.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/sampling.cpp",
++      "$dd_sdk_cpp_dir/src/datadog/impl/core/tracing/deterministic_sampler.cpp",
 +      "$dd_sdk_cpp_dir/src/datadog/impl/types/upload_util.cpp",
 +
 +      # crash_processing: self-contained logic for producing RUM events from crash reports

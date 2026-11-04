@@ -17,6 +17,7 @@
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/core/tracing/deterministic_sampler.hpp"
 #include "datadog/impl/rum/containers/view_array.hpp"
 #include "datadog/impl/rum/scope.hpp"
 #include "datadog/impl/rum/scopes/view.hpp"
@@ -121,7 +122,7 @@ class RumSessionScope {
       const RumScopeDependencies& deps,
       class RumApplicationScope& parent,
       bool is_initial_session,
-      bool is_sampled,
+      const DeterministicSampler& sampler,
       const UUID& session_id,
       RumSessionPrecondition start_precondition,
       Timestamp start_time,
@@ -239,7 +240,7 @@ class RumSessionScope {
 
   // Essential session state
   bool _is_initial_session;
-  bool _is_sampled;
+  DeterministicSampler _sampler;
   UUID _session_id;
   RumSessionPrecondition _precondition;
   Timestamp _started_at;
@@ -288,7 +289,7 @@ class RumSessionScope {
 
  public:
   bool IsInitialSession() const { return _is_initial_session; }
-  bool IsSampled() const { return _is_sampled; }
+  bool IsSampled() const { return _sampler.Sample(); }
   UUID GetSessionID() const { return _session_id; }
   RumSessionPrecondition GetStartReason() const { return _precondition; }
   std::optional<EndReason> GetEndReason() const { return _end_reason; }

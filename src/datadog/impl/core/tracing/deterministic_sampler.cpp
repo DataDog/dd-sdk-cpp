@@ -4,29 +4,25 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/types/sampling.hpp"
+#include "datadog/impl/core/tracing/deterministic_sampler.hpp"
 
+#include <algorithm>
 #include <limits>
 
 namespace datadog::impl {
 
-uint64_t ExtractSamplingSeed(const UUID& uuid) {
-  uint64_t seed = 0;
-  for (size_t i = 10; i < 16; ++i) {
-    seed = (seed << 8) | static_cast<uint64_t>(uuid.bytes.at(i));
-  }
-  return seed;
-}
-
-bool ShouldSample_Deterministic(uint64_t seed, float sample_rate) {
+DeterministicSampler::DeterministicSampler(const uint64_t seed, const float sample_rate)
+    : _seed(seed), _sample_rate(std::clamp(sample_rate, 0.0f, 100.0f)) {
   // If sampling rate is 100%, all data is sampled
   if (sample_rate >= 100.0f) {
-    return true;
+    _is_sampled = true;
+    return;
   }
 
   // If sampling rate is 0%, all data is ignored
   if (sample_rate <= 0.0f) {
-    return false;
+    _is_sampled = false;
+    return;
   }
 
   // Data may or may not be sampled, depending on the sample rate and the seed, i.e. the
@@ -51,7 +47,30 @@ bool ShouldSample_Deterministic(uint64_t seed, float sample_rate) {
 
   // Compare our hash result to the threshold: if we landed under the sample rate, we'll
   // sample this data in (e.g. at 80% => 80% below sampled, 20% above dropped)
-  return static_cast<double>(hash) < threshold;
+  _is_sampled = static_cast<double>(hash) < threshold;
+}
+
+namespace {
+uint64_t GenerateSeedFrom(const UUID& session_id) {
+  uint64_t seed = 0;
+  for (size_t i = 10; i < 16; ++i) {
+    seed = (seed << 8) | static_cast<uint64_t>(session_id.bytes.at(i));
+  }
+  return seed;
+}
+}  // namespace
+
+DeterministicSampler::DeterministicSampler(
+    const UUID& session_id, const float sample_rate
+)
+    : DeterministicSampler(GenerateSeedFrom(session_id), sample_rate) {}
+
+bool DeterministicSampler::Sample() const { return _is_sampled; }
+
+float DeterministicSampler::GetRulePSR() const { return _sample_rate * 0.01f; }
+
+DeterministicSampler DeterministicSampler::CombineWith(float child_rate) const {
+  return DeterministicSampler(_seed, _sample_rate * child_rate * 0.01f);
 }
 
 }  // namespace datadog::impl

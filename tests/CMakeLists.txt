@@ -50,7 +50,6 @@ add_executable(tests
     impl/types/json_test.cpp
     impl/types/profiling_test.cpp
     impl/types/rum_test.cpp
-    impl/types/sampling_test.cpp
     impl/types/tracing/span_id_test.cpp
     impl/types/tracing/trace_id_test.cpp
     impl/types/upload_util_test.cpp
@@ -72,6 +71,7 @@ add_executable(tests
     impl/core/storage/filesystem_wrapper_test.cpp
     impl/core/storage/path_test.cpp
     impl/core/storage/sdk_test.cpp
+    impl/core/tracing/deterministic_sampler_test.cpp
     impl/core/tracing/span_id_generator_test.cpp
     impl/core/tracing/trace_id_generator_test.cpp
     impl/core/util/insecure_random_generator_test.cpp
@@ -114,7 +114,6 @@ add_executable(tests
     impl/rum/context_test.cpp
     impl/rum/rum_messaging_test.cpp
     impl/rum/rum_test.cpp
-    impl/rum/scope_test.cpp
     mock/filesystem.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp
