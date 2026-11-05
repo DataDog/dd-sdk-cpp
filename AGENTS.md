@@ -1,98 +1,62 @@
 # Agent instructions for dd-sdk-cpp
 
-This file gives AI coding assistants (Claude Code, Codex, Cursor, etc.) the
-minimum context needed to contribute to this repository without breaking CI.
+`CONTRIBUTING.md` is the full developer guide: build options, tooling setup, troubleshooting, and an annotated tour of the source tree. This file covers what an agent needs to make a change that passes CI, plus conventions that aren't enforced by tooling. If the two disagree, follow `CONTRIBUTING.md`.
 
-Humans should read [`CONTRIBUTING.md`](./CONTRIBUTING.md) instead — it has
-deeper context and examples. This file is deliberately short and command-
-oriented so agents can follow it mechanically.
+## Validating a change
 
-## Before declaring any code change "done"
-
-Run, from the repo root:
+A change to SDK source isn't finished until it passes this, run from the repo root:
 
 ```
 cmake --build build --target check-all
 ```
 
-This target runs, in order:
+This checks formatting, builds the SDK and tests (clang-tidy runs at compile time, and its warnings are errors), runs the unit tests, and then runs the integration tests, which drive the example `repl` binary against a local proxy and assert on the requests the SDK sends. If `build/` doesn't exist, or the target is missing, configure with `DD_DEVELOPMENT=ON` as described in "Formatting and linting your code" in `CONTRIBUTING.md`. That configuration enables the integration tests, which need Python 3.12+; `check-all` sets up their venv itself.
 
-1. `check-format` — clang-format 20.1.8 in dry-run mode (CI will reject any diff).
-2. A full build of the test binary — clang-tidy runs at compile time via the
-   `CXX_CLANG_TIDY` target property, so tidy violations surface as build errors.
-3. The unit test suite via CTest.
+Fix formatting with `cmake --build build --target format`. Don't run `clang-format` on individual files: the CMake targets format exactly the set of files that CI checks.
 
-If `check-format` reports formatting violations, fix them with:
+If you change RUM event generation or any test that uses `DATADOG_RUM_EVENT_LITERAL`, also run RUM event validation, which checks those literals against the rum-events-format schema. Configure with `-DDD_ENABLE_EVENT_VALIDATION=ON`, then run `cmake --build build --target validate-event-types`. It only scans the test files listed in `__cpp_test_relpaths__` in `tools/validate-event-types/main.py`, so add any new test file that uses the macro to that list.
 
-```
-cmake --build build --target format
-```
+To run a subset of unit tests, pass Catch2 tags to the binary, e.g. `build/tests/tests "[rum]"`. Each test is tagged `[unit]` plus an area such as `[rum]`, `[logging]`, `[c-api]`, or `[cpp-api]`.
 
-…and commit the result.
+`DD_DEVELOPMENT=ON` enables ASan and UBSan, which intercept some deliberate crashes before the SDK's crash handler sees them, so `check-all` skips the integration tests that depend on those crashes (CI still runs them). To test crash behavior locally, configure with `-DDD_ENABLE_SANITIZERS=`.
 
-## First-time build configuration
-
-If the `build/` directory does not yet exist, or `cmake --build build --target format`
-fails with `No rule to make target 'format'`, configure (or re-configure) with:
-
-```
-cmake -DDD_DEVELOPMENT=ON \
-      -DDD_ENABLE_CLANG_FORMAT=ON \
-      -DDD_ENABLE_CLANG_TIDY=ON \
-      -DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON \
-      -S . -B build
-```
-
-`DD_DEVELOPMENT=ON` implies `DD_ENABLE_CLANG_FORMAT=ON` and
-`DD_ENABLE_CLANG_TIDY=ON`. The flags are passed explicitly so that this
-command also fixes an existing `build/` cache that was previously configured
-with them disabled.
-
-`DD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON` lets CMake download clang-format and
-clang-tidy 20.1.8 into `llvm-tools/` automatically if they are not already on
-`PATH`. The download is ~1 GB on Linux and ~1.4 GB on macOS — expect the first
-configure to take several minutes.
-
-If the configure fails with an LLVM archive hash mismatch, delete `llvm-tools/`
-and rerun the configure. The auto-installer retries once internally, but a
-persistently-corrupt download means the cached file must be removed.
-
-## Commit messages and PR titles
-
-- Start the first line of every commit message and PR title with `feat:`,
-  `fix:`, or `chore:`. Don't add a scope in parentheses:
-  `tools/prepare-release` parses PR titles with `^(feat|fix|chore)(!)?:`.
-- Add `!` only for breaking changes, and not while the major version is 0.
-- If there is a Jira ticket, add it to commit messages on its own line as
-  `refs: RUM-12345`, separated from the first line by a blank line. For a PR,
-  put it in the description.
-
-## Do-not rules
-
-- Do **not** run `clang-format` directly on individual files. Always use the
-  CMake `format` / `check-format` targets so the set of formatted files
-  matches CI (`examples include-c include-cpp src tests`).
-- Do **not** commit changes inside `build/` or `llvm-tools/`; they are local
-  build artifacts and are ignored by `.gitignore`.
-- Do **not** bypass pre-commit hooks with `--no-verify`. If a hook fails,
-  fix the underlying problem.
-- Do **not** change CI behavior silently. If you modify `cmake/clang-format.cmake`,
-  `cmake/clang-tidy.cmake`, `cmake/llvm-tools.cmake`, or `.clang-format` /
-  `.clang-tidy`, call it out explicitly in the PR description.
-
-## Repository layout (quick reference)
+## Repository layout
 
 | Path | Purpose |
 |---|---|
-| `include-c/`, `include-cpp/` | Public C and C++ API headers |
-| `src/datadog/impl/` | SDK implementation (core, rum, logging, crash_reporting) |
-| `tests/` | Catch2 unit tests (binary: `build/tests/tests`) |
-| `examples/` | Example C and C++ programs using the SDK |
-| `cmake/` | Build configuration modules |
-| `CONTRIBUTING.md` | Full developer guide (the canonical reference) |
+| `include-cpp/`, `src/datadog/cpp/` | Public C++ API: headers and the thin layer implementing them |
+| `include-c/`, `src/datadog/c/` | Public C API: headers and the thin layer implementing them |
+| `src/datadog/impl/` | The SDK's implementation: `core/`, `rum/`, `logging/`, `crash_reporting/`, `crash_processing/`, shared `types/` |
+| `tests/` | Catch2 unit tests, mirroring `src/` (`tests/c/`, `tests/cpp/`, `tests/impl/`) |
+| `tools/integration-test/tests/` | Python integration tests, one scenario per file (e.g. `rum_smoke.py`, `crash_smoke_inprocess.py`) |
+| `examples/` | C and C++ example programs, including the `repl` used by integration tests |
+| `tools/` | Developer and release scripts (`integration-test`, `validate-event-types`, `prepare-release`, ...) |
 
-## When in doubt
+## Design constraints
 
-If these instructions conflict with `CONTRIBUTING.md`, follow `CONTRIBUTING.md`.
-If `CONTRIBUTING.md` is silent on something, prefer the narrower, safer option
-and note the ambiguity in the PR description.
+- **API calls must not block the caller.** Public API functions enqueue work to the context thread, which updates SDK state and generates events. Storage and upload run on their own threads. See "Repository overview" in `CONTRIBUTING.md` for the thread model.
+- **Every public API function has both a C and a C++ surface.** A new function touches `include-cpp/` and `src/datadog/cpp/`, `include-c/` and `src/datadog/c/`, the `impl/` code behind them, and tests in both `tests/cpp/` and `tests/c/`.
+- **Code reachable from the in-process crash handler must be async-signal-safe**: no heap allocation, no locks, and no calls that aren't safe from a signal handler. This covers `crash_reporting/handlers/inprocess/` and the crash report writer it calls.
+- **Public headers are user-facing documentation.** `include-c/` and `include-cpp/` are read by SDK users and by the cross-platform SDKs built on dd-sdk-cpp, so document every public type and function there.
+
+## Code style
+
+clang-format (Google-based, 88 columns) and clang-tidy enforce formatting and many lint rules. Beyond those:
+
+- **Naming:** types and methods are `PascalCase`; parameters and locals are `snake_case`; data members are `_snake_case`. File-local helpers are `static` functions named in `snake_case`.
+- **Doc comments:** use `/** ... */` blocks for types and functions, with narrative prose that weaves parameters in with backticks and ends with return behavior ("On success, returns X. On failure, returns Y."). Use `@param`/`@return` only when a parameter's constraints would be awkward in prose. Note constraints like thread-safety or async-signal-safety inline. Omit docs on helpers whose name and body are self-explanatory.
+- **Comment width:** write comments to fit 88 columns, so that clang-format doesn't reflow them awkwardly.
+- **Error paths:** after an early return, add a brief comment saying what failed and why we stop: `// Invalid signature; unable to parse`.
+- **Binary formats:** before code that navigates a binary layout (storage batches, crash report data, executable headers), add an ASCII diagram of offsets, structures, and sizes, with a worked example.
+- **Structure:**
+  - Keep detection (reading files, identifying formats or architectures) in the caller, and pass the result to a focused helper that implements the algorithm.
+  - Validate inputs at function entry, checking sizes, magic numbers, and counts against sane limits.
+  - Prefer descriptive intermediate variables (`section_start`, `section_end`) over complex inline expressions.
+  - Define functions in a `.cpp` in the order they're declared in its `.h`, and insert new definitions at the matching position.
+
+## Commits and PRs
+
+- Start the first line of every commit message and PR title with `feat:`, `fix:`, or `chore:`, with no scope in parentheses: `tools/prepare-release` parses PR titles with `^(feat|fix|chore)(!)?:`.
+- Add `!` only for breaking changes, and not while the major version is 0.
+- If there is a Jira ticket, add it to commit messages on its own line as `refs: RUM-12345`, separated from the first line by a blank line. For a PR, put it in the description.
+- Don't edit `CHANGELOG.md` in feature PRs; it's written at release time, starting from PR titles.
