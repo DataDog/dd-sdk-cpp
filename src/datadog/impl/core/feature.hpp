@@ -17,6 +17,7 @@
 #include "datadog/impl/core/feature_id.hpp"
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
+#include "datadog/impl/core/feature_storage_config.hpp"
 #include "datadog/impl/core/http/body_writer.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/types/assert.hpp"
@@ -48,14 +49,6 @@ struct Report {
    * copies.
    */
   HttpBodyWriter body_writer;
-};
-
-/**
- * Describes how the storage thread should enforce size limits and other constraints on
- * the batch files for a specific feature.
- */
-struct FeatureStorageConfig {
-  // TODO: Implement defaults, use these values in BatchWriter
 };
 
 /**

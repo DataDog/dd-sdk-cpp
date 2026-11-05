@@ -69,6 +69,12 @@ class Profiling final : public Feature {
 
   std::string_view GetName() const override { return "profiling"; }
 
+  /**
+   * Each profile is stored in a batch file of its own, since the profiling intake takes
+   * one profile per request, and the size limits allow for a large profile.
+   */
+  FeatureStorageConfig GetStorageConfig() const override;
+
   std::optional<Report> UploadThread_PrepareReport(
       BatchReader& reader, HttpRequestBuilder& builder
   ) override;

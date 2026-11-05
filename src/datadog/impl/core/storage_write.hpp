@@ -15,6 +15,7 @@
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/block.hpp"
+#include "datadog/impl/core/feature_storage_config.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/storage/feature_event.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
@@ -60,7 +61,13 @@ struct BatchWriterConfig {
   explicit BatchWriterConfig(Duration in_max_file_age)
       : max_file_age(in_max_file_age) {}
 
-  static BatchWriterConfig FromBatchSize(BatchSize batch_size);
+  /**
+   * Builds the config used for a feature's events: the defaults for the given batch
+   * size, with any limits that the feature has overridden in `feature_config`.
+   */
+  static BatchWriterConfig FromBatchSize(
+      BatchSize batch_size, const FeatureStorageConfig& feature_config = {}
+  );
 };
 
 /**

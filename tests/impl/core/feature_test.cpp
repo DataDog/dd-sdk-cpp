@@ -10,6 +10,7 @@
 #include <chrono>
 #include <future>
 #include <sstream>
+#include <string>
 #include <thread>
 #include <vector>
 
@@ -46,6 +47,18 @@ class ChattyFeature : public MockFeature {
         }
     );
   }
+};
+
+/**
+ * A feature whose storage limits are set by the test, before it is registered.
+ */
+class StorageConfigFeature : public MockFeature {
+ public:
+  FeatureStorageConfig storage_config;
+
+  StorageConfigFeature() : MockFeature(CreateFeatureId("STOR"), "storageconfig") {}
+
+  FeatureStorageConfig GetStorageConfig() const override { return storage_config; }
 };
 
 TEST_CASE("Feature", "[unit]") {
@@ -197,6 +210,109 @@ TEST_CASE("Feature", "[unit]") {
     // And the batch file should have been deleted on successful upload
     auto names = test.fs.Ls("app/.datadog/main/12345/chatty/v1");
     REQUIRE(names.size() == 0);
+  }
+}
+
+TEST_CASE("Feature storage config", "[unit]") {
+  const std::string storage_dir = "app/.datadog/main/12345/storageconfig/v1";
+
+  SECTION(
+      "M write each event to its own batch file W feature allows one write per file"
+  ) {
+    // Given a feature that allows only one write per batch file
+    const bool flush_http_requests = false;
+    CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
+    test.clock.FreezeAtMilliseconds(1708675309000);
+    auto feature = std::make_shared<StorageConfigFeature>();
+    feature->storage_config.max_writes_per_file = 1;
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+
+    // When it generates three events, all within the same millisecond, and the core is
+    // stopped
+    REQUIRE(feature->GenerateEvent("event-0"));
+    REQUIRE(feature->GenerateEvent("event-1"));
+    REQUIRE(feature->GenerateEvent("event-2"));
+    test.core.Stop();
+
+    // Then each event is in a batch file of its own, where a feature with the default
+    // limits would have written all three to one file
+    auto names = test.fs.Ls(storage_dir);
+    REQUIRE(names.size() == 3);
+    std::sort(names.begin(), names.end());
+    for (size_t i = 0; i < names.size(); i++) {
+      REQUIRE(
+          test.fs.Cat(storage_dir + "/" + names[i]) ==
+          MockTLVFile().AppendEvent("event-" + std::to_string(i)).ToString()
+      );
+    }
+  }
+
+  SECTION("M upload one request per event W feature allows one write per file") {
+    // Given a feature that allows only one write per batch file, with a core that
+    // uploads on stop
+    const bool flush_http_requests = true;
+    CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
+    auto feature = std::make_shared<StorageConfigFeature>();
+    feature->storage_config.max_writes_per_file = 1;
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+
+    // When it generates three events and the core is stopped
+    REQUIRE(feature->GenerateEvent("event-0"));
+    REQUIRE(feature->GenerateEvent("event-1"));
+    REQUIRE(feature->GenerateEvent("event-2"));
+    test.core.Stop();
+
+    // Then the upload makes a request for each event, in the order they were generated
+    REQUIRE(test.client.requests.size() == 3);
+    REQUIRE(test.client.requests[0].body == "event-0");
+    REQUIRE(test.client.requests[1].body == "event-1");
+    REQUIRE(test.client.requests[2].body == "event-2");
+    REQUIRE(test.fs.Ls(storage_dir).empty());
+  }
+
+  // Larger than the default limit of 512 KB per event, and within the default limit of
+  // 4 MB per file
+  const std::string large_event(600 * 1024, 'x');
+
+  SECTION("M drop an event W it is over the default size limit") {
+    // Given a feature that keeps the default limits
+    const bool flush_http_requests = false;
+    CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
+    auto feature = std::make_shared<StorageConfigFeature>();
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+
+    // When it generates an event over the limit and the core is stopped
+    REQUIRE(feature->GenerateEvent(large_event));
+    test.core.Stop();
+
+    // Then the event was dropped
+    REQUIRE(test.fs.Ls(storage_dir).empty());
+  }
+
+  SECTION("M store an event W the feature raises the size limit above its size") {
+    // Given a feature that raises the limits
+    const bool flush_http_requests = false;
+    CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
+    auto feature = std::make_shared<StorageConfigFeature>();
+    feature->storage_config.max_event_size = 2 * 1024 * 1024;
+    feature->storage_config.max_file_size = 2 * 1024 * 1024;
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+
+    // When it generates the same event and the core is stopped
+    REQUIRE(feature->GenerateEvent(large_event));
+    test.core.Stop();
+
+    // Then the event was stored
+    auto names = test.fs.Ls(storage_dir);
+    REQUIRE(names.size() == 1);
+    REQUIRE(
+        test.fs.Cat(storage_dir + "/" + names.front()) ==
+        MockTLVFile().AppendEvent(large_event).ToString()
+    );
   }
 }
 

@@ -21,6 +21,25 @@
 
 using namespace datadog::impl;
 
+TEST_CASE("Profiling storage config", "[unit][profiling]") {
+  auto profiling = std::make_shared<impl::Profiling>(
+      std::make_unique<MockProfilerBackend>(), ProfilerBackendSettings{}
+  );
+  const FeatureStorageConfig config = profiling->GetStorageConfig();
+
+  // Each profile is stored in a batch file of its own, since an upload takes one
+  // profile
+  REQUIRE(config.max_writes_per_file == 1);
+
+  // The limits leave room for a profile of 10 MB, which the default of 512 KB per event
+  // would not, along with what is stored with it
+  const size_t ten_mb = static_cast<size_t>(10) * 1024 * 1024;
+  REQUIRE(config.max_event_size.has_value());
+  REQUIRE(config.max_file_size.has_value());
+  REQUIRE(*config.max_event_size > ten_mb);
+  REQUIRE(*config.max_file_size >= *config.max_event_size);
+}
+
 TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
   // Given a mock profiler, keeping a reference to it before the feature takes ownership
   auto mock_profiler = std::make_unique<MockProfilerBackend>();
