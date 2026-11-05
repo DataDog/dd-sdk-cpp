@@ -1103,3 +1103,63 @@ TEST_CASE("BatchWriter", "[unit]") {
     );
   }
 }
+
+TEST_CASE("BatchWriterConfig feature overrides", "[unit]") {
+  // Given the config that applies to a feature that overrides nothing
+  const BatchWriterConfig defaults = BatchWriterConfig::FromBatchSize(BatchSize::Small);
+
+  SECTION("M keep every default W the feature overrides nothing") {
+    // When the config is built for a feature with no overrides
+    const BatchWriterConfig config =
+        BatchWriterConfig::FromBatchSize(BatchSize::Small, FeatureStorageConfig{});
+
+    // Then every limit is the default
+    REQUIRE(config.max_file_age == defaults.max_file_age);
+    REQUIRE(config.max_writes_per_file == defaults.max_writes_per_file);
+    REQUIRE(config.max_event_size == defaults.max_event_size);
+    REQUIRE(config.max_file_size == defaults.max_file_size);
+    REQUIRE(config.max_directory_size == defaults.max_directory_size);
+  }
+
+  SECTION("M apply every override W the feature sets every limit") {
+    FeatureStorageConfig feature_config;
+    feature_config.max_writes_per_file = 1;
+    feature_config.max_event_size = 1000;
+    feature_config.max_file_size = 2000;
+
+    const BatchWriterConfig config =
+        BatchWriterConfig::FromBatchSize(BatchSize::Small, feature_config);
+
+    REQUIRE(config.max_writes_per_file == 1);
+    REQUIRE(config.max_event_size == 1000);
+    REQUIRE(config.max_file_size == 2000);
+  }
+
+  SECTION("M override only what is set W the feature sets some limits") {
+    // When a feature sets only the number of writes per file
+    FeatureStorageConfig feature_config;
+    feature_config.max_writes_per_file = 1;
+    const BatchWriterConfig config =
+        BatchWriterConfig::FromBatchSize(BatchSize::Small, feature_config);
+
+    // Then that limit is changed, and the others keep their defaults
+    REQUIRE(config.max_writes_per_file == 1);
+    REQUIRE(config.max_event_size == defaults.max_event_size);
+    REQUIRE(config.max_file_size == defaults.max_file_size);
+  }
+
+  SECTION("M leave file age and directory size alone W the feature overrides limits") {
+    // The overrides cover only what a feature's events need to differ on: the age at
+    // which files stop being written, and the quota for the feature's directory, still
+    // follow the Core's settings
+    FeatureStorageConfig feature_config;
+    feature_config.max_writes_per_file = 1;
+    feature_config.max_event_size = 1000;
+    feature_config.max_file_size = 2000;
+    const BatchWriterConfig config =
+        BatchWriterConfig::FromBatchSize(BatchSize::Small, feature_config);
+
+    REQUIRE(config.max_file_age == defaults.max_file_age);
+    REQUIRE(config.max_directory_size == defaults.max_directory_size);
+  }
+}
