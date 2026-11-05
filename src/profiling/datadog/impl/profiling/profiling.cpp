@@ -46,6 +46,19 @@ std::shared_ptr<Profiling> Profiling::CreateAndRegister(
   return profiling;
 }
 
+// The most that a stored profile may take, counting the metadata stored with it.
+// dd-sdk-ios accepts profiles of up to 10 MB, and allows 5 MB more than that for what
+// is stored with the profile; the profiling feature here does the same.
+static constexpr size_t MAX_STORED_PROFILE_SIZE = static_cast<size_t>(15) * 1024 * 1024;
+
+FeatureStorageConfig Profiling::GetStorageConfig() const {
+  FeatureStorageConfig config;
+  config.max_writes_per_file = 1;
+  config.max_event_size = MAX_STORED_PROFILE_SIZE;
+  config.max_file_size = MAX_STORED_PROFILE_SIZE;
+  return config;
+}
+
 std::optional<Report> Profiling::UploadThread_PrepareReport(
     BatchReader& reader, HttpRequestBuilder& builder
 ) {
