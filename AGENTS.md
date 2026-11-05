@@ -57,6 +57,16 @@ If the configure fails with an LLVM archive hash mismatch, delete `llvm-tools/`
 and rerun the configure. The auto-installer retries once internally, but a
 persistently-corrupt download means the cached file must be removed.
 
+## Commit messages and PR titles
+
+- Start the first line of every commit message and PR title with `feat:`,
+  `fix:`, or `chore:`. Don't add a scope in parentheses:
+  `tools/prepare-release` parses PR titles with `^(feat|fix|chore)(!)?:`.
+- Add `!` only for breaking changes, and not while the major version is 0.
+- If there is a Jira ticket, add it to commit messages on its own line as
+  `refs: RUM-12345`, separated from the first line by a blank line. For a PR,
+  put it in the description.
+
 ## Do-not rules
 
 - Do **not** run `clang-format` directly on individual files. Always use the
