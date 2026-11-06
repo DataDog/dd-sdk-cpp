@@ -44,7 +44,7 @@ index 80992a1b..1a36b151 100644
      crashpad_dependencies = "fuchsia"
    }
 diff --git a/handler/BUILD.gn b/handler/BUILD.gn
-index 9061c2cb..2819685c 100644
+index 9061c2cb..89641217 100644
 --- a/handler/BUILD.gn
 +++ b/handler/BUILD.gn
 @@ -1,4 +1,6 @@
@@ -63,7 +63,7 @@ index 9061c2cb..2819685c 100644
      "minidump_to_upload_parameters.cc",
      "minidump_to_upload_parameters.h",
      "user_stream_data_source.cc",
-@@ -31,6 +35,65 @@ static_library("common") {
+@@ -31,6 +35,70 @@ static_library("common") {
        "mac/file_limit_annotation.h",
      ]
    }
@@ -83,7 +83,6 @@ index 9061c2cb..2819685c 100644
 +      # cpp: minimal definitions of public C++ API types
 +      "$dd_sdk_cpp_dir/src/datadog/cpp/attribute.cpp",
 +      "$dd_sdk_cpp_dir/src/datadog/cpp/uuid.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/core/platform/uuid_std.cpp",
 +
 +      # types: SDK data structures, serialization, and utility code
 +      "$dd_sdk_cpp_dir/src/datadog/impl/types/attribute/cow.cpp",
@@ -119,17 +118,23 @@ index 9061c2cb..2819685c 100644
 +    ]
 +    defines += [ "WITH_DATADOG_CRASH_PROCESSING=1" ]
 +
-+    # uuid_std.cpp calls uuid_generate_random(), which on Linux lives in a
-+    # separate libuuid (util-linux / uuid-dev). On macOS it is in libc.
-+    if (crashpad_is_linux) {
-+      libs = [ "uuid" ]
++    # dd-sdk-cpp's default UUID generator has one implementation per platform
++    if (crashpad_is_win) {
++      sources +=
++          [ "$dd_sdk_cpp_dir/src/datadog/impl/core/platform/uuid_windows.cpp" ]
++    } else if (crashpad_is_mac) {
++      sources +=
++          [ "$dd_sdk_cpp_dir/src/datadog/impl/core/platform/uuid_macos.cpp" ]
++    } else if (crashpad_is_linux) {
++      sources +=
++          [ "$dd_sdk_cpp_dir/src/datadog/impl/core/platform/uuid_linux.cpp" ]
 +    }
 +  }
 +
    public_configs = [ "..:crashpad_config" ]
    public_deps = [
      "../third_party/mini_chromium:base",
-@@ -43,6 +106,11 @@ static_library("common") {
+@@ -43,6 +111,11 @@ static_library("common") {
      "../util",
      "../util:net",
    ]
@@ -141,7 +146,7 @@ index 9061c2cb..2819685c 100644
    if (crashpad_is_win) {
      cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
    }
-@@ -110,6 +178,9 @@ if (!crashpad_is_ios) {
+@@ -110,6 +183,9 @@ if (!crashpad_is_ios) {
        "../tools:tool_support",
      ]
  
@@ -151,7 +156,7 @@ index 9061c2cb..2819685c 100644
      if (crashpad_is_win) {
        cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
      }
-@@ -122,6 +193,9 @@ if (!crashpad_is_ios) {
+@@ -122,6 +198,9 @@ if (!crashpad_is_ios) {
        sources = [ "crashpad_handler_main.cc" ]
  
        deps = [ ":handler" ]
@@ -161,7 +166,7 @@ index 9061c2cb..2819685c 100644
      }
    }
  
-@@ -130,6 +204,8 @@ if (!crashpad_is_ios) {
+@@ -130,6 +209,8 @@ if (!crashpad_is_ios) {
  
      sources = [
        "crash_report_upload_rate_limit_test.cc",
@@ -170,7 +175,7 @@ index 9061c2cb..2819685c 100644
        "minidump_to_upload_parameters_test.cc",
      ]
  
-@@ -141,6 +217,9 @@ if (!crashpad_is_ios) {
+@@ -141,6 +222,9 @@ if (!crashpad_is_ios) {
        sources += [ "crashpad_handler_test.cc" ]
      }
  
@@ -180,7 +185,7 @@ index 9061c2cb..2819685c 100644
      deps = [
        ":handler",
        "../client",
-@@ -177,6 +256,9 @@ if (!crashpad_is_ios) {
+@@ -177,6 +261,9 @@ if (!crashpad_is_ios) {
        "../tools:tool_support",
      ]
  
@@ -190,7 +195,7 @@ index 9061c2cb..2819685c 100644
      if (crashpad_is_win) {
        if (crashpad_is_in_chromium || crashpad_is_in_dart) {
          remove_configs = [ "//build/config/win:console" ]
-@@ -255,6 +337,9 @@ if (!crashpad_is_ios) {
+@@ -255,6 +342,9 @@ if (!crashpad_is_ios) {
        "../third_party/mini_chromium:base",
        "../tools:tool_support",
      ]
@@ -200,7 +205,7 @@ index 9061c2cb..2819685c 100644
    }
  }
  
-@@ -262,6 +347,9 @@ if (crashpad_is_win) {
+@@ -262,6 +352,9 @@ if (crashpad_is_win) {
    crashpad_executable("crashpad_handler_com") {
      sources = [ "main.cc" ]
  

@@ -210,26 +210,12 @@ target_include_directories(ddsdkcpp
 # Platform-specific support for UUID generation
 option(DD_UUID_USE_DEFAULT "Use default UUID implementation. If disabled, you must supply an implementation of platform/uuid.hpp in a file specified as DD_UUID_SRC" ON)
 if(DD_UUID_USE_DEFAULT)
-    target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_std.cpp)
-    # On Win32, the default implementation uses CoCreateGuid from objbase.h; on
-    # other systems it requires uuid/uuid.h
-    if(NOT WIN32)
-        # On macOS, uuid/uuid.h is a system header and `uuid_generate()` et al. are
-        # implemented in libc. But on Linux, uuid/uuid.h is typically not available by
-        # default and must be installed from a package
-        include(CheckIncludeFiles)
-        check_include_files("uuid/uuid.h" HAVE_UUID_H)
-        if(NOT HAVE_UUID_H)
-            message(FATAL_ERROR "uuid/uuid.h not found in include path. Please install the UUID development package:\n"
-                               "  Ubuntu/Debian: sudo apt-get install uuid-dev\n"
-                               "  RHEL/CentOS/Fedora: sudo yum install libuuid-devel\n"
-                               "  Alpine: sudo apk add util-linux-dev")
-        endif()
-
-        # On Linux, `uuid_generate()` is defined in libuuid, not in libc
-        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-            target_link_libraries(ddsdkcpp PRIVATE uuid)
-        endif()
+    if(WIN32)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_windows.cpp)
+    elseif(APPLE)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_macos.cpp)
+    elseif(UNIX)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_linux.cpp)
     endif()
 else()
     set(DD_UUID_SRC "" CACHE STRING "Path to custom implementation of platform/uuid.hpp")
