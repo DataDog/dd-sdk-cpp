@@ -366,8 +366,8 @@ struct CoreConfig {
    *
    * Use this option when the SDK is linked against a libcurl that has no default CA
    * location. If libcurl rejects the data, the SDK reports an error through diagnostic
-   * logging. The option has no effect with the WinHTTP client, or in builds with no
-   * HTTP client (`DD_HTTP_CLIENT=none`).
+   * logging, and requests use libcurl's default CA location. The option has no effect
+   * with the WinHTTP client, or in builds with no HTTP client (`DD_HTTP_CLIENT=none`).
    */
   DATADOG_API CoreConfig& Internal_SetCaCertificates(std::string_view pem);
 };
