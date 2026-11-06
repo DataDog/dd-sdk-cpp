@@ -20,6 +20,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/cpp/core.cpp
     datadog/cpp/crash_reporting.cpp
     datadog/cpp/logging.cpp
+    datadog/cpp/network_instrumentation.cpp
     datadog/cpp/profiling.cpp
     datadog/cpp/rum.cpp
     datadog/cpp/uuid.cpp
@@ -45,6 +46,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/upload_util.cpp
     datadog/impl/core/attribute/binary.cpp
     datadog/impl/core/tracing/deterministic_sampler.cpp
+    datadog/impl/core/tracing/first_party_hosts_matcher.cpp
     datadog/impl/core/tracing/span_id_generator.cpp
     datadog/impl/core/tracing/trace_id_generator.cpp
     datadog/impl/core/util/validation.cpp
