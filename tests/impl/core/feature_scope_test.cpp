@@ -131,6 +131,34 @@ static uint64_t ReadContextValue(const CoreContext& ctx) {
   return value;
 }
 
+/**
+ * Counts how many times it is copied, so that a test can tell whether a function that
+ * holds one was copied on its way to the context thread. Moving it is not counted.
+ */
+class CopyCounter {
+ public:
+  explicit CopyCounter(int* num_copies) : _num_copies(num_copies) {}
+
+  CopyCounter(const CopyCounter& other) : _num_copies(other._num_copies) {
+    ++*_num_copies;
+  }
+
+  CopyCounter& operator=(const CopyCounter& other) {
+    _num_copies = other._num_copies;
+    ++*_num_copies;
+    return *this;
+  }
+
+  CopyCounter(CopyCounter&&) noexcept = default;
+  CopyCounter& operator=(CopyCounter&&) noexcept = default;
+  ~CopyCounter() = default;
+
+  int NumCopies() const { return *_num_copies; }
+
+ private:
+  int* _num_copies;
+};
+
 TEST_CASE("FeatureScope", "[unit][core]") {
   // Given a CoreContextProvider
   CoreContextProvider context_provider(MOCK_CONTEXT);
@@ -172,6 +200,34 @@ TEST_CASE("FeatureScope", "[unit][core]") {
 
     // And our function did indeed execute
     REQUIRE(num_executions == 1);
+  }
+
+  SECTION("M not copy what a function captured W enqueued via ExecuteOnContextThread") {
+    // Given a single feature with a FeatureScope
+    FeatureState feature;
+    FeatureScope scope = feature.CreateScope(context_provider, context_queue);
+
+    // And an object, which counts its copies, that is moved into a function's captures
+    int num_copies = 0;
+    CopyCounter counter(&num_copies);
+
+    // When we offload that function to the context thread
+    int num_executions = 0;
+    int num_copies_seen_by_function = -1;
+    scope.ExecuteOnContextThread(
+        [counter = std::move(counter), &num_executions, &num_copies_seen_by_function](
+            const CoreContext&, const EventWriter&, const MessagePublisher&
+        ) {
+          num_executions++;
+          num_copies_seen_by_function = counter.NumCopies();
+        }
+    );
+    stop_context_thread();
+
+    // Then the function ran, and what it captured was moved all the way to the context
+    // thread: it was never copied, which would have copied everything that it owns
+    REQUIRE(num_executions == 1);
+    REQUIRE(num_copies_seen_by_function == 0);
   }
 
   SECTION(

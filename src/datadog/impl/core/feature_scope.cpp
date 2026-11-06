@@ -6,6 +6,8 @@
 
 #include "datadog/impl/core/feature_scope.hpp"
 
+#include <utility>
+
 #include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
@@ -83,7 +85,7 @@ void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callba
   });
 }
 
-void FeatureScope::ExecuteOnContextThread(const ContextThreadFunc& func) {
+void FeatureScope::ExecuteOnContextThread(ContextThreadFunc func) {
   if (_mode == FeatureScope::ExecutionMode::Synchronous) {
     // Testing mode: execute synchronously on calling thread
     DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
@@ -96,7 +98,9 @@ void FeatureScope::ExecuteOnContextThread(const ContextThreadFunc& func) {
   DATADOG_ASSERT(
       _context_queue != nullptr, "context_queue is null in OnContextThread mode"
   );
-  _context_queue->Push([this, func]() {
+  // Move the function into the queued thunk, rather than copying it: a copy would copy
+  // everything that the function captured
+  _context_queue->Push([this, func = std::move(func)]() {
     DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
     const CoreContext context = _context_provider->Get();
     func(context, _event_generated_func, _message_produced_func);

@@ -160,8 +160,14 @@ class FeatureScope {
    *
    * If initialized with FeatureScope::CreateForTesting(), where mode == Synchronous,
    * the function will be immediately executed on the calling thread.
+   *
+   * The function is taken by value, and relies on move semantics as it moves to the
+   * queue. A function that owns a lot of data, such as a large buffer, can therefore
+   * be given that data by moving it into the function's captures, as in
+   * `[data = std::move(data)](...) { ... }`, and the data reaches the context thread
+   * without being copied.
    */
-  void ExecuteOnContextThread(const ContextThreadFunc& func);
+  void ExecuteOnContextThread(ContextThreadFunc func);
 };
 
 }  // namespace datadog::impl
