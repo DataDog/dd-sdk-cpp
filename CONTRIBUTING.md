@@ -22,6 +22,8 @@ To build the Datadog C++ SDK, you'll need [CMake](https://cmake.org/) 3.21 or ne
 - On **Linux:** Clang 15, Clang 20, GCC 11, and GCC 13, all with libstdc++
 - On **Windows:** Microsoft Visual C++ 17.14 (vc143), installed with Visual Studio 2022
 
+On Linux, the SDK requires glibc 2.25 or newer, which provides `getrandom()` for UUID generation.
+
 ### Optional tools
 
 We use [**clang-format**](https://clang.llvm.org/docs/ClangFormat.html) for automatic source code formatting, and we use [**clang-tidy**](https://clang.llvm.org/extra/clang-tidy/) for static analysis. These tools are not strictly required in order to build the SDK, but you should use them if you intend to submit a PR.

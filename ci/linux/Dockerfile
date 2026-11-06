@@ -30,7 +30,6 @@ RUN ln -sf /usr/share/zoneinfo/Etc/UTC /etc/localtime
 # - libcurl4-openssl-dev, libssl-dev:      For default libcurl HTTP client impl
 # - zlib1g-dev:                            Required by crashpad (along with libcurl)
 # - tzdata:                                Required for crashpad TimeZone tests
-# - uuid-dev:                              uuid/uuid.h, for datadog::UUID on Linux
 # - git:                                   Used by various scripts; installed from
 #                                          git-core/ppa because Ubuntu 24.04 ships
 #                                          git 2.43.0, which predates the fix for
@@ -55,7 +54,6 @@ RUN apt-get install -y --no-install-recommends \
   libssl-dev \
   zlib1g-dev \
   tzdata \
-  uuid-dev \
   ninja-build
 
 # Install Python 3.12 for use by build/test scripts
@@ -148,8 +146,7 @@ RUN dpkg --add-architecture i386 \
     g++-multilib \
     libcurl4-openssl-dev:i386 \
     libssl-dev:i386 \
-    zlib1g-dev:i386 \
-    uuid-dev:i386
+    zlib1g-dev:i386
 # -m32:                  compile and link as 32-bit x86
 # -D_FILE_OFFSET_BITS=64: redirect stat()/fopen()/etc. to their 64-bit equivalents
 #                         so that 32-bit code handles 64-bit inodes correctly on

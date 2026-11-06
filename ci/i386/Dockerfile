@@ -21,8 +21,6 @@ RUN apk add --no-cache \
     make \
     gcc \
     g++ \
-    # uuid/uuid.h and libuuid, required on Linux for UUID generation
-    util-linux-dev \
     # libcurl, used as the HTTP client backend
     curl-dev \
     # OpenSSL, required by libcurl
