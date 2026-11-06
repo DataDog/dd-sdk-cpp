@@ -8,6 +8,11 @@
 # > cmake --build build --target integration-test
 #
 
+# The integration tests run the repl example program, so they require examples
+if(NOT DD_BUILD_EXAMPLES)
+    message(FATAL_ERROR "DD_ENABLE_INTEGRATION_TEST requires DD_BUILD_EXAMPLES")
+endif()
+
 include("${DD_SDK_ROOT_DIR}/cmake/python.cmake")
 
 # We'll use that system Python3 interpreter to create a .venv directory within
@@ -26,20 +31,39 @@ add_custom_command(
     COMMENT "Creating Python virtual environment at ${INTEGRATION_TEST_VENV_DIR}"
 )
 
-# Define a integration-test-venv target that requires a .venv and ensures it has the
-# latest dependencies installed as specified in pyproject.toml
-add_custom_target(integration-test-venv
-    DEPENDS ${INTEGRATION_TEST_VENV_PYTHON}
+# Install the integration test dependencies into the .venv, recording success in a stamp
+# file. pip only runs again if the .venv is recreated or pyproject.toml changes; changes
+# to the tools' own source take effect without reinstalling, since pip installs them in
+# editable mode.
+set(INTEGRATION_TEST_VENV_STAMP "${INTEGRATION_TEST_VENV_DIR}/.deps-installed.stamp")
+add_custom_command(
+    OUTPUT ${INTEGRATION_TEST_VENV_STAMP}
     COMMAND ${INTEGRATION_TEST_VENV_PYTHON} -m pip install -e "${DD_SDK_ROOT_DIR}[integration-test]"
+    COMMAND ${CMAKE_COMMAND} -E touch ${INTEGRATION_TEST_VENV_STAMP}
+    DEPENDS ${INTEGRATION_TEST_VENV_PYTHON} ${DD_SDK_ROOT_DIR}/pyproject.toml
     COMMENT "Installing Python dependencies for tools/integration-test"
 )
+add_custom_target(integration-test-venv DEPENDS ${INTEGRATION_TEST_VENV_STAMP})
 
-# Define a integration-test target that requires a .venv with all dependencies, and
-# that uses the venv's Python interpreter to run tools/integration-test/main.py,
-# forwarding command-line arguments
-add_custom_target(integration-test
-    DEPENDS integration-test-venv
-    COMMAND ${INTEGRATION_TEST_VENV_PYTHON} ${DD_SDK_ROOT_DIR}/tools/integration-test/main.py
-        --crash-mode ${DD_CRASH_MODE}
-    COMMENT "Running: tools/integration-test/main.py"
+# The command that runs the integration test suite against the repl binary from this
+# build. check-all runs the same command after the unit tests.
+set(INTEGRATION_TEST_COMMAND
+    ${INTEGRATION_TEST_VENV_PYTHON} ${DD_SDK_ROOT_DIR}/tools/integration-test/main.py
+    --crash-mode ${DD_CRASH_MODE}
+    --repl $<TARGET_FILE:repl>
 )
+
+# Sanitizers intercept some deliberate crashes before the SDK's crash handler sees them,
+# so tell the runner to skip the tests that depend on those crashes
+if(DD_ENABLE_SANITIZERS)
+    list(APPEND INTEGRATION_TEST_COMMAND --sanitized)
+endif()
+
+# Define an integration-test target that builds repl, ensures the .venv has all
+# dependencies, and then runs the test suite
+add_custom_target(integration-test
+    COMMAND ${INTEGRATION_TEST_COMMAND}
+    COMMENT "Running: tools/integration-test/main.py"
+    VERBATIM
+)
+add_dependencies(integration-test repl integration-test-venv)

@@ -49,7 +49,13 @@ def _find_repl_binary() -> str:
     return ''
 
 
-def check_repl_binary() -> str:
+def check_repl_binary(explicit_path: str | None = None) -> str:
+    if explicit_path:
+        if not os.path.isfile(explicit_path):
+            print('ERROR: repl binary not found at: %s' % explicit_path)
+            sys.exit(1)
+        return os.path.abspath(explicit_path)
+
     repl_binary_path = _find_repl_binary()
     if not repl_binary_path:
         print('ERROR: repl binary not found within: %s' % __repo_root__)

@@ -105,7 +105,7 @@ Verify formatting without modifying files (what CI runs):
 cmake --build build --target check-format
 ```
 
-Verify formatting, build the tests (which runs clang-tidy at compile time via `CXX_CLANG_TIDY`), and run CTest — a single command that mirrors CI:
+Verify formatting, build the tests (which runs clang-tidy at compile time via `CXX_CLANG_TIDY`), run CTest, and then run the integration tests in `tools/integration-test/`, all in a single command:
 
 ```
 cmake --build build --target check-all

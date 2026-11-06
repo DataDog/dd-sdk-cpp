@@ -199,22 +199,37 @@ if(DD_BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
-# 'check-all' is a convenience target that mirrors what CI runs: formatting,
-# a full test build (which triggers clang-tidy via the CXX_CLANG_TIDY target
-# property), and the test suite. Agents and contributors should prefer this
-# single target over invoking each check individually.
+# 'check-all' is a convenience target that runs every local check that a change to SDK
+# source should pass: formatting, a full test build (which triggers clang-tidy via the
+# CXX_CLANG_TIDY target property), the unit tests, and, if DD_ENABLE_INTEGRATION_TEST is
+# enabled, the integration tests.
+#
+# The commands run in order, so the integration tests only run once the unit tests have
+# passed. The checks that precede them are dependencies, which may build in parallel.
 #
 # Gated on PROJECT_IS_TOP_LEVEL so the generic 'check-all' name does not leak into
 # parent projects that consume this SDK via FetchContent or add_subdirectory.
 if(PROJECT_IS_TOP_LEVEL AND TARGET check-format AND DD_BUILD_TESTING)
-    add_custom_target(check-all
+    set(CHECK_ALL_COMMANDS
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure
-        COMMENT "Running local CI checks: clang-format, build (with clang-tidy), and tests"
-        VERBATIM
     )
     # Building the `tests` target forces a full compile of the SDK and test suite,
     # which is where clang-tidy runs via CXX_CLANG_TIDY / C_CLANG_TIDY.
-    add_dependencies(check-all check-format tests)
+    set(CHECK_ALL_DEPENDENCIES check-format tests)
+    if(DD_ENABLE_INTEGRATION_TEST)
+        list(APPEND CHECK_ALL_COMMANDS COMMAND ${INTEGRATION_TEST_COMMAND})
+        list(APPEND CHECK_ALL_DEPENDENCIES repl integration-test-venv)
+        set(CHECK_ALL_COMMENT "Running local checks: clang-format, build (with clang-tidy), unit tests, and integration tests")
+    else()
+        message(STATUS "check-all will not run integration tests, since DD_ENABLE_INTEGRATION_TEST is disabled")
+        set(CHECK_ALL_COMMENT "Running local checks: clang-format, build (with clang-tidy), and unit tests")
+    endif()
+    add_custom_target(check-all
+        ${CHECK_ALL_COMMANDS}
+        COMMENT "${CHECK_ALL_COMMENT}"
+        VERBATIM
+    )
+    add_dependencies(check-all ${CHECK_ALL_DEPENDENCIES})
 endif()
 
 # If configured to build developer tools, include the CMake targets defined in tools/
