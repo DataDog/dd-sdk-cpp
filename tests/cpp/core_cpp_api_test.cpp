@@ -433,3 +433,46 @@ TEST_CASE(
     REQUIRE(req.headers.find("DD-EVP-ORIGIN-VERSION: 99.0.0\r\n") != std::string::npos);
   }
 }
+
+TEST_CASE("CoreConfig Internal_SetCaCertificates", "[unit][core][cpp-api]") {
+  SECTION("M pass no CA certificates to HTTP client W option not set") {
+    // Given a core created from a config without CA certificates
+    auto test = CoreTestHarness::Init(MOCK_CORE_CONFIG);
+
+    // Then the HTTP client is created with no CA certificate data
+    REQUIRE(test.client.ca_certificates.empty());
+  }
+
+  SECTION("M pass a copy of the data to HTTP client W caller's buffer released") {
+    // Given a config whose CA certificates came from a buffer that no longer exists
+    CoreConfig config = MOCK_CORE_CONFIG;
+    {
+      std::string pem =
+          "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n";
+      config.Internal_SetCaCertificates(pem);
+      pem.assign(pem.size(), 'x');
+    }
+
+    // When we create a core from that config
+    auto test = CoreTestHarness::Init(config);
+
+    // Then the HTTP client is created with the original data
+    REQUIRE(
+        test.client.ca_certificates ==
+        "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"
+    );
+  }
+
+  SECTION("M pass no CA certificates to HTTP client W option cleared") {
+    // Given a config whose CA certificates were set, then cleared with an empty value
+    CoreConfig config = MOCK_CORE_CONFIG;
+    config.Internal_SetCaCertificates("pem-data");
+    config.Internal_SetCaCertificates("");
+
+    // When we create a core from that config
+    auto test = CoreTestHarness::Init(config);
+
+    // Then the HTTP client is created with no CA certificate data
+    REQUIRE(test.client.ca_certificates.empty());
+  }
+}

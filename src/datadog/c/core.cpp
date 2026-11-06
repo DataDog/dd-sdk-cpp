@@ -37,10 +37,12 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     DD_UPLOAD_FREQUENCY_AVERAGE,       // upload_frequency
     DD_BATCH_PROCESSING_LEVEL_MEDIUM,  // batch_processing_level
     {
-        false,  // internal_options.flush_http_requests_on_stop
-        "",     // internal_options.custom_endpoint_url
-        "",     // internal_options.source
-        ""      // internal_options.sdk_version
+        false,    // internal_options.flush_http_requests_on_stop
+        "",       // internal_options.custom_endpoint_url
+        "",       // internal_options.source
+        "",       // internal_options.sdk_version
+        nullptr,  // internal_options.ca_certificates
+        0         // internal_options.ca_certificates_size
     }
 };
 
@@ -348,6 +350,24 @@ void dd_core_config_internal_set_sdk_version(
           DATADOG_INTERNAL_MAX_SDK_VERSION_LEN
       ) ") and will be truncated"
   );
+}
+
+void dd_core_config_internal_set_ca_certificates(
+    dd_core_config_t* config, const char* data, size_t size
+) {
+  if (!config) {
+    return;
+  }
+
+  // Treat a null pointer or an empty buffer as clearing the option, so that the stored
+  // pointer is null whenever the size is 0, and vice versa
+  if (!data || size == 0) {
+    config->internal_options.ca_certificates = nullptr;
+    config->internal_options.ca_certificates_size = 0;
+    return;
+  }
+  config->internal_options.ca_certificates = data;
+  config->internal_options.ca_certificates_size = size;
 }
 
 dd_core_t* dd_core_create(

@@ -36,7 +36,8 @@ TEST_CASE("IHttpSubsystem", "[unit][http]") {
   REQUIRE(http != nullptr);
 
   SECTION("M create a valid IHttpClient W ") {
-    auto client = http->CreateClient();
+    auto client =
+        http->CreateClient(impl::HttpClientOptions{}, impl::DiagnosticLogger{});
     REQUIRE(client != nullptr);
   }
 }
@@ -45,7 +46,7 @@ TEST_CASE("IHttpClient", "[unit][http]") {
   // Given an HTTP client
   auto http = impl::Http::Init(impl::DiagnosticLogger{});
   REQUIRE(http != nullptr);
-  auto client = http->CreateClient();
+  auto client = http->CreateClient(impl::HttpClientOptions{}, impl::DiagnosticLogger{});
   REQUIRE(client != nullptr);
 
   SECTION("M get valid response W request is initiated") {
