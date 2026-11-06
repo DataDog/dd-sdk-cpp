@@ -11,7 +11,9 @@ Running this script will:
 
 1. Prepare a local clone of the rum-events-format repo at the specified revision
    (latest if no revision specified)
-2. Use python-jsonschema to parse rum-events-format/schemas/rum-events-schema.json
+2. Use python-jsonschema to parse rum-events-format/schemas/rum-events-schema.json, along
+   with the standalone timeseries event schemas (rum/timeseries-*-schema.json) that the
+   root schema does not reference
 3. Find every invocation of the `DATADOG_RUM_EVENT_LITERAL` macro in the subset of .cpp
    test files configured below, each of which must wrap a C++ raw-string literal
    representing the exact value of a RUM event's JSON object literal
