@@ -296,6 +296,9 @@ class CurlHttpClient final : public IHttpClient {
       case CURLE_HTTP2_STREAM:
       case CURLE_PROXY:
       case CURLE_HTTP3:
+      // A CA bundle that curl can't load is a local configuration problem, not a
+      // problem with the batch, so keep the batch for a later attempt
+      case CURLE_SSL_CACERT_BADFILE:
         result_type = HttpResultType::GotNoResponse_Retryable;
         break;
 
