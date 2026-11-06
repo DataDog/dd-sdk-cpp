@@ -296,6 +296,7 @@ target_sources(ddsdkcpp PRIVATE
     datadog/impl/rum/scopes/resource.cpp
     datadog/impl/rum/scopes/session.cpp
     datadog/impl/rum/scopes/view.cpp
+    datadog/impl/rum/timeseries/pipeline_factory.cpp
     datadog/impl/rum/context.cpp
     datadog/impl/rum/rum.cpp
     datadog/impl/rum/scope.cpp
