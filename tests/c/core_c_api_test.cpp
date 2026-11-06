@@ -522,3 +522,93 @@ TEST_CASE(
     dd_core_destroy(core);
   }
 }
+
+TEST_CASE("dd_core_config_internal_set_ca_certificates", "[unit][core][c-api]") {
+  // Given an initialized config
+  dd_core_config_t config;
+  dd_core_config_init(&config, "token", "service", "env");
+
+  SECTION("M leave option unset W config initialized") {
+    // Then the config holds no CA certificate data
+    REQUIRE(config.internal_options.ca_certificates == nullptr);
+    REQUIRE(config.internal_options.ca_certificates_size == 0);
+  }
+
+  SECTION("M safely do nothing W config is null") {
+    const char data[] = "pem-data";
+    dd_core_config_internal_set_ca_certificates(nullptr, data, sizeof(data) - 1);
+  }
+
+  SECTION("M borrow the caller's buffer W data set") {
+    // When we set CA certificates
+    const char data[] = "pem-data";
+    dd_core_config_internal_set_ca_certificates(&config, data, sizeof(data) - 1);
+
+    // Then the config references the caller's buffer, without copying it
+    REQUIRE(config.internal_options.ca_certificates == data);
+    REQUIRE(config.internal_options.ca_certificates_size == sizeof(data) - 1);
+  }
+
+  SECTION("M clear the option W data is null or size is 0") {
+    const char data[] = "pem-data";
+
+    // When we set CA certificates, then pass a null pointer
+    dd_core_config_internal_set_ca_certificates(&config, data, sizeof(data) - 1);
+    dd_core_config_internal_set_ca_certificates(&config, nullptr, sizeof(data) - 1);
+
+    // Then the option is cleared
+    REQUIRE(config.internal_options.ca_certificates == nullptr);
+    REQUIRE(config.internal_options.ca_certificates_size == 0);
+
+    // When we set CA certificates, then pass a size of 0
+    dd_core_config_internal_set_ca_certificates(&config, data, sizeof(data) - 1);
+    dd_core_config_internal_set_ca_certificates(&config, data, 0);
+
+    // Then the option is cleared
+    REQUIRE(config.internal_options.ca_certificates == nullptr);
+    REQUIRE(config.internal_options.ca_certificates_size == 0);
+  }
+
+  SECTION(
+      "M pass a copy of the data to HTTP client W buffer changed after conversion"
+  ) {
+    // Given a config that borrows a buffer which isn't null-terminated, and whose
+    // length is given only by the size argument
+    std::vector<char> buffer = {'p', 'e', 'm', '-', 'd', 'a', 't', 'a'};
+    dd_core_config_internal_set_ca_certificates(&config, buffer.data(), 3);
+    dd_core_config_set_application_storage_path(&config, "app");
+
+    // When the config is converted, as dd_core_create does, and the caller then
+    // overwrites its buffer
+    CoreConfig cpp_config = CoreConfig_FromC(config);
+    std::fill(buffer.begin(), buffer.end(), 'x');
+
+    // Then the HTTP client is created with exactly `size` bytes of the original data
+    auto test = CoreTestHarness::Init(cpp_config);
+    REQUIRE(test.client.ca_certificates == "pem");
+  }
+
+  SECTION("M pass no CA certificates to HTTP client W option not set") {
+    // When a config without CA certificates is converted
+    dd_core_config_set_application_storage_path(&config, "app");
+    auto test = CoreTestHarness::Init(CoreConfig_FromC(config));
+
+    // Then the HTTP client is created with no CA certificate data
+    REQUIRE(test.client.ca_certificates.empty());
+  }
+
+  SECTION("M create a core W option set") {
+    // Given a config with CA certificates, storing data in a temp directory
+    TempDirectory tmpdir;
+    const char data[] = "pem-data";
+    dd_core_config_set_application_storage_path(&config, tmpdir.path.c_str());
+    dd_core_config_internal_set_ca_certificates(&config, data, sizeof(data) - 1);
+
+    // When we create a core from that config
+    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+
+    // Then the core is valid
+    REQUIRE(core != nullptr);
+    dd_core_destroy(core);
+  }
+}

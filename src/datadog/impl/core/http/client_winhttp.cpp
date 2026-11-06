@@ -483,7 +483,11 @@ class WinHttpSubsystem final : public IHttpSubsystem {
   // WinHTTP is part of the operating system, whose version is reported separately
   std::string_view GetVersion() const override { return ""; }
 
-  std::unique_ptr<IHttpClient> CreateClient() override {
+  // WinHTTP uses the Windows certificate store, so this client ignores
+  // HttpClientOptions::ca_certificates
+  std::unique_ptr<IHttpClient> CreateClient(
+      const HttpClientOptions& /*options*/, const DiagnosticLogger& /*logger*/
+  ) override {
     return std::make_unique<WinHttpClient>(_session);
   }
 };
