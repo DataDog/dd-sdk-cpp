@@ -21,6 +21,10 @@
 
 include(CMakeFindDependencyMacro)
 
+# The SDK links the platform's thread library (Threads::Threads), which a static build
+# passes on to the application's link
+find_dependency(Threads REQUIRED)
+
 # If the SDK was built to link against a system-installed libcurl (rather than compiling
 # libcurl from source), ensure that libcurl is available
 set(DATADOG_BUILT_WITH_DD_HTTP_USE_SYSTEM_LIBCURL @DD_HTTP_USE_SYSTEM_LIBCURL@)

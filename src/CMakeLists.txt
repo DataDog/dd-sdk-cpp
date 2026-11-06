@@ -65,6 +65,12 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/core/upload_thread.cpp
 )
 
+# The SDK runs its work on background threads. Before glibc 2.34, pthread functions live
+# in libpthread rather than libc, so link the platform's thread library explicitly: on
+# newer glibc, and on macOS and Windows, this adds nothing to the link.
+find_package(Threads REQUIRED)
+target_link_libraries(ddsdkcpp PRIVATE Threads::Threads)
+
 # core/storage, with IFilesystem implementation determined per-platform
 target_sources(ddsdkcpp PRIVATE
     datadog/impl/core/storage/artifact.cpp

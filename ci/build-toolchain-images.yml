@@ -6,7 +6,7 @@ build-toolchain-image-linux:
   image: ${BUILD_STABLE_REGISTRY}/${DIND_IMAGE}
   parallel:
     matrix:
-      - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20, clang20-x86]
+      - TOOLCHAIN_TARGET: [gcc11, gcc13, clang15, clang20, clang20-x86, ue-clang20]
   script:
     - DIGEST_FILE=$(mktemp)
     - export TOOLCHAIN_IMAGE="${DISTRIBUTION_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}"

@@ -156,3 +156,61 @@ RUN dpkg --add-architecture i386 \
 ENV CFLAGS="-m32 -D_FILE_OFFSET_BITS=64"
 ENV CXXFLAGS="-m32 -D_FILE_OFFSET_BITS=64"
 ENV LDFLAGS=-m32
+
+# Build `ci/dd-sdk-cpp/ue-clang20` with: --target ue-clang20
+# Builds with Unreal Engine's Linux toolchain (clang 20 with LLVM libc++, and a Rocky
+# Linux 8 sysroot with glibc 2.28), so that the static library links into Unreal Engine
+# 5.7 and 5.8 projects, which use the same toolchain. unreal-toolchain.cmake configures
+# CMake to use it; CMake reads the CMAKE_TOOLCHAIN_FILE environment variable.
+FROM base AS ue-clang20
+ARG UE_TOOLCHAIN_VERSION=v26_clang-20.1.8-rockylinux8
+ARG UE_TOOLCHAIN_SHA256=6eef42679b744cdcb50276f2d7cff0a51f7ddd632960e06bfbc3f6b9508ef615
+ENV UE_TOOLCHAIN_DIR=/opt/ue-toolchain
+RUN wget -q -O /tmp/ue-toolchain.tar.gz \
+    "https://cdn.unrealengine.com/Toolchain_Linux/native-linux-${UE_TOOLCHAIN_VERSION}.tar.gz" \
+  && echo "${UE_TOOLCHAIN_SHA256}  /tmp/ue-toolchain.tar.gz" | sha256sum -c - \
+  && mkdir -p ${UE_TOOLCHAIN_DIR} \
+  && tar xzf /tmp/ue-toolchain.tar.gz -C ${UE_TOOLCHAIN_DIR} --strip-components=1 \
+    "${UE_TOOLCHAIN_VERSION}/x86_64-unknown-linux-gnu" \
+  && rm /tmp/ue-toolchain.tar.gz
+COPY unreal-toolchain.cmake ${UE_TOOLCHAIN_DIR}/unreal-toolchain.cmake
+ENV CMAKE_TOOLCHAIN_FILE=${UE_TOOLCHAIN_DIR}/unreal-toolchain.cmake
+
+# The toolchain's sysroot has no libcurl. Build a minimal static libcurl with the same
+# toolchain, solely so that dd-sdk-cpp can compile against curl's headers and link the
+# executables it builds alongside the library. The packaged static library leaves curl
+# symbols unresolved, and Unreal's own libcurl supplies them. We match UE 5.7's libcurl
+# version (8.12.1), and disable TLS and compression since nothing makes requests with
+# this build of curl.
+ARG CURL_VERSION=8.12.1
+ARG CURL_SHA256=7b40ea64947e0b440716a4d7f0b7aa56230a5341c8377d7b609649d4aea8dbcf
+ENV UE_CURL_DIR=/opt/ue-curl
+RUN wget -q -O /tmp/curl.tar.gz \
+    "https://github.com/curl/curl/releases/download/curl-$(echo ${CURL_VERSION} | tr . _)/curl-${CURL_VERSION}.tar.gz" \
+  && echo "${CURL_SHA256}  /tmp/curl.tar.gz" | sha256sum -c - \
+  && mkdir -p /tmp/curl-src \
+  && tar xzf /tmp/curl.tar.gz -C /tmp/curl-src --strip-components=1 \
+  && cmake -S /tmp/curl-src -B /tmp/curl-build \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DCMAKE_INSTALL_PREFIX=${UE_CURL_DIR} \
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
+    -DBUILD_SHARED_LIBS=OFF \
+    -DBUILD_STATIC_LIBS=ON \
+    -DBUILD_CURL_EXE=OFF \
+    -DBUILD_TESTING=OFF \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_LIBCURL_DOCS=OFF \
+    -DBUILD_MISC_DOCS=OFF \
+    -DENABLE_CURL_MANUAL=OFF \
+    -DCURL_ENABLE_SSL=OFF \
+    -DCURL_ZLIB=OFF \
+    -DCURL_BROTLI=OFF \
+    -DCURL_ZSTD=OFF \
+    -DUSE_NGHTTP2=OFF \
+    -DUSE_LIBIDN2=OFF \
+    -DCURL_USE_LIBPSL=OFF \
+    -DCURL_USE_LIBSSH2=OFF \
+  && cmake --build /tmp/curl-build --parallel \
+  && cmake --install /tmp/curl-build \
+  && rm -rf /tmp/curl.tar.gz /tmp/curl-src /tmp/curl-build
+ENV CMAKE_PREFIX_PATH=${UE_CURL_DIR}

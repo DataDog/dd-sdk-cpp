@@ -210,3 +210,18 @@ Or to produce precompiled binaries using GCC 11:
 ```
 
 Run the script with no arguments for usage information.
+
+### Linux release artifacts
+
+Each release publishes precompiled Linux libraries, built by the `package-linux` job in [`ci/package.yml`](./ci/package.yml). An application that links a static library must also link that library's system dependencies itself. The CMake package's `DatadogConfig.cmake` does this for CMake projects, which link the `Datadog::sdk` target.
+
+- **`linux-x64-clang-libstdc++-shared-release`** and **`linux-x64-clang-libstdc++-static-release`** are built with Clang 20 on Ubuntu 24.04, against GNU libstdc++ and Ubuntu 24.04's glibc (2.39). The static library's system link dependencies are libstdc++, `curl`, and the platform's thread library (`-pthread`).
+- **`linux-x64-clang-libc++-static-release`** is built for Unreal Engine projects, with the toolchain that Unreal Engine 5.7 and 5.8 use for Linux (`v26_clang-20.1.8-rockylinux8`). It's compiled against that toolchain's LLVM libc++, and its glibc 2.28 sysroot. Its system link dependencies are libc++ and libc++abi from a compatible toolchain, `curl`, and `pthread`, which before glibc 2.34 is a separate library from libc. Unreal Engine's build supplies all of these. Unreal's libcurl has no default CA certificate location, so an application that uses it must supply CA certificates with `CoreConfig::Internal_SetCaCertificates` or `dd_core_config_internal_set_ca_certificates`.
+
+The `ue-clang20` stage of [`ci/linux/Dockerfile`](./ci/linux/Dockerfile) builds the Unreal-compatible image, and [`tools/check-package`](./tools/check-package/main.py) verifies that its library references no libstdc++ symbols, and no glibc symbol versions newer than 2.28. To build that artifact locally with Docker, on an x86-64 host:
+
+```
+BUILD_CONFIGURATION=RelWithDebInfo BUILD_SHARED_LIBS=OFF \
+CHECK_PACKAGE_ARGS="--forbid-libstdc++ --max-glibc-version 2.28" \
+./docker-ci.sh --toolchain ue-clang20 run package --clean --exit
+```
