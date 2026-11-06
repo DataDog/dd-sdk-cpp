@@ -104,8 +104,70 @@ class CurlHttpClient final : public IHttpClient {
  private:
   CURL* _curl;
 
+  // PEM data for CURLOPT_CAINFO_BLOB, owned by the caller and guaranteed to outlive
+  // this client; empty if libcurl should use its default CA location
+  std::string_view _ca_certificates;
+
+  DiagnosticLogger _logger;
+
+  // Set once we've logged that libcurl rejected the CA certificate data, so that a
+  // persistent failure is reported once rather than on every upload
+  bool _reported_ca_certificates_error{false};
+
+  /**
+   * Passes the configured CA certificates to curl for the next request. Must be called
+   * after each curl_easy_reset, which clears the option. If curl doesn't accept the
+   * option, logs an error and leaves curl's default CA location in place.
+   */
+  void ApplyCaCertificates() {
+#if LIBCURL_VERSION_NUM >= 0x074D00
+    // CURLOPT_CAINFO_BLOB was added in curl 7.77.0. CURL_BLOB_NOCOPY makes curl
+    // reference our data rather than copy it on every request: this is safe because the
+    // data outlives the handle. curl copies the curl_blob struct itself, so it may live
+    // on the stack.
+    curl_blob blob{};
+    // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast): curl never writes to it
+    blob.data = const_cast<char*>(_ca_certificates.data());
+    blob.len = _ca_certificates.size();
+    blob.flags = CURL_BLOB_NOCOPY;
+    const CURLcode res = curl_easy_setopt(_curl, CURLOPT_CAINFO_BLOB, &blob);
+    if (res != CURLE_OK) {
+      // curl returns CURLE_NOT_BUILT_IN if its TLS backend can't load CA certificates
+      // from memory, or CURLE_BAD_FUNCTION_ARGUMENT if the data is too large
+      ReportCaCertificatesError(
+          "libcurl rejected the configured CA certificates; requests will use "
+          "libcurl's default CA location",
+          res
+      );
+    }
+#else
+    ReportCaCertificatesError(
+        "The SDK was built against libcurl older than 7.77.0, which can't load CA "
+        "certificates from memory; requests will use libcurl's default CA location",
+        CURLE_NOT_BUILT_IN
+    );
+#endif
+  }
+
+  void ReportCaCertificatesError(const char* text, CURLcode res) {
+    if (_reported_ca_certificates_error) {
+      return;
+    }
+    _reported_ca_certificates_error = true;
+    const char* curl_error_text = curl_easy_strerror(res);
+    _logger.Error(
+        text,
+        {{"error_code", static_cast<int64_t>(res)},
+         {"error",
+          curl_error_text ? std::string_view{curl_error_text} : std::string_view{}}}
+    );
+  }
+
  public:
-  explicit CurlHttpClient(CURL* curl) : _curl(curl) {
+  explicit CurlHttpClient(
+      CURL* curl, std::string_view ca_certificates, const DiagnosticLogger& logger
+  )
+      : _curl(curl), _ca_certificates(ca_certificates), _logger(logger) {
     DATADOG_ASSERT(_curl, "CurlHttpClient constructed with null curl handle");
   }
 
@@ -180,6 +242,12 @@ class CurlHttpClient final : public IHttpClient {
     res = curl_easy_setopt(_curl, CURLOPT_TIMEOUT, 30L);
     DATADOG_ASSERT(res == CURLE_OK, "Failed to set CURLOPT_TIMEOUT");
 
+    // Trust the configured CA certificates, if any, in place of curl's default CA
+    // location
+    if (!_ca_certificates.empty()) {
+      ApplyCaCertificates();
+    }
+
     // Have curl describe transport failures in detail, for diagnostics
     std::array<char, CURL_ERROR_SIZE> error_buffer{};
     res = curl_easy_setopt(_curl, CURLOPT_ERRORBUFFER, error_buffer.data());
@@ -236,6 +304,14 @@ class CurlHttpClient final : public IHttpClient {
         result_type = HttpResultType::GotNoResponse_NonRetryable;
     }
 
+    // When we supplied CA certificates, curl parses them while setting up the TLS
+    // connection, and reports data it can't load as CURLE_SSL_CACERT_BADFILE
+    if (perform_res == CURLE_SSL_CACERT_BADFILE && !_ca_certificates.empty()) {
+      ReportCaCertificatesError(
+          "libcurl could not load the configured CA certificates", perform_res
+      );
+    }
+
     // Free any memory allocated to pass our headers to curl
     // TODO: Remove this call if we cache header slists for reuse
     curl_slist_free_all(headers_slist);
@@ -277,7 +353,9 @@ class CurlHttpSubsystem final : public IHttpSubsystem {
     return info ? info->version : "";
   }
 
-  std::unique_ptr<IHttpClient> CreateClient() override {
+  std::unique_ptr<IHttpClient> CreateClient(
+      const HttpClientOptions& options, const DiagnosticLogger& logger
+  ) override {
     // Initialize the curl handle that our client implementation will use to make
     // requests: clients can only make one request at a time
     CURL* curl = curl_easy_init();
@@ -286,7 +364,7 @@ class CurlHttpSubsystem final : public IHttpSubsystem {
     }
 
     // Initialize our client once we're guaranteed a valid curl handle
-    return std::make_unique<CurlHttpClient>(curl);
+    return std::make_unique<CurlHttpClient>(curl, options.ca_certificates, logger);
   }
 };
 

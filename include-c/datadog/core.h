@@ -141,6 +141,8 @@ typedef struct dd_internal_options {
   char custom_endpoint_url[DATADOG_INTERNAL_MAX_CUSTOM_ENDPOINT_URL_LEN + 1];
   char source[DATADOG_INTERNAL_MAX_SOURCE_LEN + 1];
   char sdk_version[DATADOG_INTERNAL_MAX_SDK_VERSION_LEN + 1];
+  const char* ca_certificates;
+  size_t ca_certificates_size;
 } dd_internal_options_t;
 
 /**
@@ -334,6 +336,30 @@ DATADOG_API void dd_core_config_internal_set_source(
  */
 DATADOG_API void dd_core_config_internal_set_sdk_version(
     dd_core_config_t* config, const char* value
+);
+
+/**
+ * FOR INTERNAL USE ONLY - This function is not part of the public API and may change
+ * without notice. Do not use in production code.
+ *
+ * Supplies the root CA certificates that the libcurl HTTP client trusts when it
+ * verifies the intake server's TLS certificate. `data` points to `size` bytes holding
+ * one or more certificates in PEM format, concatenated; the data need not be
+ * null-terminated. Passing NULL or a `size` of 0 restores the default, in which libcurl
+ * uses the CA bundle or directory it was built with.
+ *
+ * The config stores only the pointer and size, without copying the data. The caller
+ * must keep `data` valid and unchanged until dd_core_create() returns for this config.
+ * dd_core_create() makes its own copy of the data, so the caller may release it as
+ * soon as that call returns.
+ *
+ * Use this option when the SDK is linked against a libcurl that has no default CA
+ * location. If libcurl rejects the data, the SDK reports an error through diagnostic
+ * logging. The option has no effect with the WinHTTP client, or in builds with no
+ * HTTP client (`DD_HTTP_CLIENT=none`).
+ */
+DATADOG_API void dd_core_config_internal_set_ca_certificates(
+    dd_core_config_t* config, const char* data, size_t size
 );
 
 // === SDK Core ===

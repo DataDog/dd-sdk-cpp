@@ -261,6 +261,17 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
   if (config.internal_options.sdk_version[0]) {
     cpp_config.Internal_SetSdkVersion(config.internal_options.sdk_version);
   }
+  // Copy the borrowed CA certificate data into the C++ config, which owns it from here
+  // on: the C API only requires the caller's buffer to outlive this conversion
+  if (config.internal_options.ca_certificates &&
+      config.internal_options.ca_certificates_size > 0) {
+    cpp_config.Internal_SetCaCertificates(
+        std::string_view{
+            config.internal_options.ca_certificates,
+            config.internal_options.ca_certificates_size
+        }
+    );
+  }
 
   return cpp_config;
 }

@@ -48,6 +48,9 @@ class MockHttpClient : public impl::IHttpClient {
   // Details of calls to Post will be recorded here
   std::vector<MockHttpRequest> requests;
 
+  // A copy of the CA certificate data passed in HttpClientOptions on creation
+  std::string ca_certificates;
+
   // Tests can set this value after ctor to determine the result that that client will
   // receive; or use the helper functions below
   impl::HttpResult result{impl::HttpResultType::GotResponse, 200};
@@ -126,8 +129,11 @@ class MockHttpSubsystem : public impl::IHttpSubsystem {
 
   std::string_view GetVersion() const override { return "0.0.0"; }
 
-  std::unique_ptr<impl::IHttpClient> CreateClient() override {
+  std::unique_ptr<impl::IHttpClient> CreateClient(
+      const impl::HttpClientOptions& options, const impl::DiagnosticLogger& /*logger*/
+  ) override {
     auto client = std::make_unique<MockHttpClient>();
+    client->ca_certificates = std::string(options.ca_certificates);
     clients.push_back(client.get());
     return client;
   }
