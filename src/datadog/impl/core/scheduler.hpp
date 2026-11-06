@@ -78,7 +78,7 @@ class Callback<void> : public CallbackBase {
  * Schedule(), Cancel() and Shutdown() are thread-safe. The destructor must not run
  * concurrently with a Shutdown() called from another thread than the scheduler's.
  */
-class Scheduler {
+class Scheduler final {
  public:
   using TaskId = std::uint64_t;
 
@@ -183,7 +183,7 @@ class Scheduler {
  private:
   using Clock = std::chrono::steady_clock;
 
-  struct Task {
+  struct Task final {
     Clock::time_point next_run;
     Clock::duration period;
     // Shared so a run can proceed outside the lock even if the task is cancelled
@@ -192,7 +192,7 @@ class Scheduler {
 
   // Shared with the thread so it never outlives the state, even once detached by a
   // destructor running on it
-  struct State {
+  struct State final {
     explicit State(DiagnosticLogger logger) : diagnostic_logger(std::move(logger)) {}
 
     std::mutex mutex;

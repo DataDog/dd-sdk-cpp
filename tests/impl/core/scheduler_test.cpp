@@ -38,7 +38,7 @@ static bool WaitFor(Predicate predicate, std::chrono::milliseconds timeout = 5s)
 // Calls the given callback when destroyed. Captured (by shared_ptr) in a task closure,
 // it makes the closure call back into the Scheduler at the moment it is destroyed,
 // which deadlocks if that happens while the scheduler mutex is held
-class CallOnDestroy {
+class CallOnDestroy final {
  public:
   explicit CallOnDestroy(std::function<void()> on_destroy)
       : _on_destroy(std::move(on_destroy)) {}
@@ -56,7 +56,7 @@ class CallOnDestroy {
 
 // Sleeps in its destructor, which for a thread_local runs at thread exit, after the
 // thread function has returned
-struct SlowThreadLocalCleanup {
+struct SlowThreadLocalCleanup final {
   std::atomic<bool>* cleaned = nullptr;
 
   SlowThreadLocalCleanup() = default;
@@ -74,7 +74,7 @@ struct SlowThreadLocalCleanup {
 };
 
 // Throws from OnSuccess, counting the calls
-class ThrowingCallback : public Callback<void> {
+class ThrowingCallback final : public Callback<void> {
  public:
   void OnSuccess() override {
     calls++;
@@ -86,7 +86,7 @@ class ThrowingCallback : public Callback<void> {
 };
 
 // Records the outcome of each run
-class RecordingCallback : public Callback<int> {
+class RecordingCallback final : public Callback<int> {
  public:
   void OnSuccess(int result) override {
     last_result = result;
@@ -104,7 +104,7 @@ class RecordingCallback : public Callback<int> {
 };
 
 // Counts the outcomes of a task without a result
-class CountingCallback : public Callback<void> {
+class CountingCallback final : public Callback<void> {
  public:
   void OnSuccess() override { successes++; }
   void OnFailure(std::exception_ptr error) override {
