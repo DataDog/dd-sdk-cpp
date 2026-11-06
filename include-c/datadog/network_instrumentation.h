@@ -101,6 +101,17 @@ typedef struct dd_first_party_hosts {
 
 #ifdef __cplusplus
 }
+
+/**
+ * Returns the union of the two given `dd_tracing_header_types_t` values.
+ */
+constexpr dd_tracing_header_types_t operator|(
+    dd_tracing_header_types_t lhs, dd_tracing_header_types_t rhs
+) {
+  return static_cast<dd_tracing_header_types_t>(
+      static_cast<unsigned int>(lhs) | static_cast<unsigned int>(rhs)
+  );
+}
 #endif
 
 #endif  // DATADOG_INCLUDE_NETWORK_INSTRUMENTATION_H

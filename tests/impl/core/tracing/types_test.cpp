@@ -20,11 +20,9 @@ using datadog::impl::FirstPartyHostsMatcher;
 
 TEST_CASE("FirstPartyHosts_FromC", "[unit][tracing]") {
   SECTION("M convert first-party hosts") {
-    const auto combined = static_cast<dd_tracing_header_types_t>(
-        DD_TRACING_HEADER_TYPES_B3 | DD_TRACING_HEADER_TYPES_TRACE_CONTEXT
-    );
     const dd_first_party_host_t entries[] = {
-        {"example.com", combined},
+        {"example.com",
+         DD_TRACING_HEADER_TYPES_B3 | DD_TRACING_HEADER_TYPES_TRACE_CONTEXT},
         {"example.org", DD_TRACING_HEADER_TYPES_DATADOG},
     };
     const dd_first_party_hosts_t value{entries, std::size(entries)};

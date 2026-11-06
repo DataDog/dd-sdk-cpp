@@ -31,6 +31,19 @@ TEST_CASE("FirstPartyHosts matching", "[unit][tracing]") {
       REQUIRE(FirstPartyHostsMatcher::MatchesHost("Example.COM", "API.eXAMPLE.com"));
     }
 
+    SECTION("M distinguish absolute and relative DNS names") {
+      REQUIRE_FALSE(FirstPartyHostsMatcher::MatchesHost("example.com", "example.com."));
+      REQUIRE_FALSE(FirstPartyHostsMatcher::MatchesHost("example.com.", "example.com"));
+      REQUIRE_FALSE(
+          FirstPartyHostsMatcher::MatchesHost("example.com", "api.example.com.")
+      );
+      REQUIRE_FALSE(
+          FirstPartyHostsMatcher::MatchesHost("example.com.", "api.example.com")
+      );
+      REQUIRE(FirstPartyHostsMatcher::MatchesHost("example.com.", "example.com."));
+      REQUIRE(FirstPartyHostsMatcher::MatchesHost("example.com.", "api.example.com."));
+    }
+
     SECTION("M not match a suffix without a domain separator") {
       REQUIRE_FALSE(
           FirstPartyHostsMatcher::MatchesHost("example.com", "notexample.com")

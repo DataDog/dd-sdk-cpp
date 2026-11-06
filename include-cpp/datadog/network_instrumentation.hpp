@@ -97,7 +97,7 @@ struct FirstPartyHost {
  *
  * const FirstPartyHosts hosts{{
  *        {"store.example.com", TracingHeaderTypes::B3},
- *        {"example.com", TracingHeaderTypes.Default}
+ *        {"example.com", TracingHeaderTypes::Default}
  *      }};
  *
  * If the order of the hosts is inverted, `store.example.com` will match the more

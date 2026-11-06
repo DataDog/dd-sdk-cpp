@@ -10,9 +10,7 @@
 
 namespace datadog::impl {
 
-namespace {
-
-constexpr char ToAsciiLower(char character) {
+static constexpr char to_ascii_lower(char character) {
   if (character >= 'A' && character <= 'Z') {
     return static_cast<char>(character + 32);
   }
@@ -20,11 +18,9 @@ constexpr char ToAsciiLower(char character) {
   return character;
 }
 
-constexpr bool AsciiCaseInsensitiveEqual(char lhs, char rhs) {
-  return ToAsciiLower(lhs) == ToAsciiLower(rhs);
+static constexpr bool ascii_case_insensitive_equal(char lhs, char rhs) {
+  return to_ascii_lower(lhs) == to_ascii_lower(rhs);
 }
-
-}  // namespace
 
 std::optional<TracingHeaderTypes> FirstPartyHostsMatcher::MatchesHost(
     const FirstPartyHosts& first_party_hosts, std::string_view host
@@ -41,6 +37,11 @@ std::optional<TracingHeaderTypes> FirstPartyHostsMatcher::MatchesHost(
 bool FirstPartyHostsMatcher::MatchesHost(
     std::string_view configured_host, std::string_view host
 ) {
+  // Return early in two situations: the configured host is empty (invalid)
+  // and would cause this function to erroneously return true if `host` is
+  // an absolute DNS name (trailing dot), or the host being tested is smaller
+  // than the configured_host, meaning it can't possibly be a match, and
+  // avoiding suffix_outset below to become negative.
   if (configured_host.empty() || host.size() < configured_host.size()) {
     return false;
   }
@@ -51,7 +52,7 @@ bool FirstPartyHostsMatcher::MatchesHost(
           configured_host.begin(),
           configured_host.end(),
           suffix.begin(),
-          AsciiCaseInsensitiveEqual
+          ascii_case_insensitive_equal
       )) {
     return false;
   }
