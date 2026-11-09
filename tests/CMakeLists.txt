@@ -142,6 +142,14 @@ if("datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.cpp" IN_LIST _
 endif()
 unset(_sdk_sources)
 
+# The default UUID implementations generate version 4 UUIDs; a custom implementation
+# supplied via DD_UUID_SRC isn't required to
+if(DD_UUID_USE_DEFAULT)
+    target_sources(tests PRIVATE
+        impl/core/platform/uuid_test.cpp
+    )
+endif()
+
 # Add Windows-specific tests
 if(WIN32)
     target_sources(tests PRIVATE
