@@ -1,3 +1,16 @@
+## 0.9.0
+
+### Features
+
+- A new Linux release artifact (`linux-x64-clang-libc++-static-release`) is now published, built with Unreal Engine's clang/libc++ toolchain targeting a glibc 2.28 sysroot, enabling the SDK to be linked into Unreal Engine 5.7 and 5.8 projects on Linux.
+- `config.Internal_SetCaCertificates(pem_data)` (C++) and `dd_core_config_internal_set_ca_certificates(config, data, size)` (C) are now available to supply a CA certificate bundle in PEM format to the libcurl HTTP client, enabling peer verification on platforms such as Linux where no default CA bundle is available.
+- `Profiling::Register(core)` is now available in the public C++ API, enabling integration of the profiling feature on Windows x64 builds; on unsupported platforms it is a no-op that emits a warning.
+
+### Fixes
+
+- Linux shared-library builds with `DD_CRASH_MODE=crashpad` no longer fail due to the CMake `LINKER:` prefix being passed through to Clang/GN unchanged.
+- Linux builds no longer require `libuuid`; UUID generation now uses `getrandom()` directly with a `/dev/urandom`-based fallback, requiring glibc 2.25 or newer.
+
 ## 0.8.1
 
 ### Features
