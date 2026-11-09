@@ -1,9 +1,5 @@
 ## 0.9.0
 
-### Features
-
-- Initial support has been added for a `Profiling` feature. This is an experimental new feature that's still under active development. It's enabled only on an opt-in basis (by configuring the build with `DD_ENABLE_PROFILING=ON`), and it's currently only supported on Windows.
-
 ### Fixes
 
 - Linux builds no longer require `libuuid`; UUID generation now uses `getrandom()` directly with a `/dev/urandom`-based fallback, requiring glibc 2.25 or newer.
