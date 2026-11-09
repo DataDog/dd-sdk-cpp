@@ -265,7 +265,8 @@ TEST_CASE("MockHttpSubsystem", "[unit][mock-http-client]") {
     MockHttpSubsystem subsystem;
 
     // When CreateClient is called
-    auto client = subsystem.CreateClient();
+    auto client =
+        subsystem.CreateClient(impl::HttpClientOptions{}, impl::DiagnosticLogger{});
 
     // Then returns a valid MockHttpClient instance
     REQUIRE(client != nullptr);
@@ -281,8 +282,10 @@ TEST_CASE("MockHttpSubsystem", "[unit][mock-http-client]") {
     MockHttpSubsystem subsystem;
 
     // When multiple clients are created
-    auto client1 = subsystem.CreateClient();
-    auto client2 = subsystem.CreateClient();
+    auto client1 =
+        subsystem.CreateClient(impl::HttpClientOptions{}, impl::DiagnosticLogger{});
+    auto client2 =
+        subsystem.CreateClient(impl::HttpClientOptions{}, impl::DiagnosticLogger{});
 
     // Then each client is independent
     REQUIRE(client1 != nullptr);

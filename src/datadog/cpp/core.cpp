@@ -115,6 +115,11 @@ CoreConfig& CoreConfig::Internal_SetSdkVersion(std::string_view value) {
   return *this;
 }
 
+CoreConfig& CoreConfig::Internal_SetCaCertificates(std::string_view pem) {
+  internal_options.ca_certificates = pem;
+  return *this;
+}
+
 Core::Core(Core::PrivateCtorTag)
     : _impl(nullptr),
       _diagnostic_handler(nullptr),
