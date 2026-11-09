@@ -14,6 +14,10 @@ from lib.test import TestContext
 # This test only runs when the SDK was compiled with DD_CRASH_MODE=inprocess
 CRASH_MODE = 'inprocess'
 
+# The deliberate crash is undefined behavior that UBSan reports and aborts on before the
+# SDK's crash handler can see it, so this test only runs in builds without sanitizers
+REQUIRES_UNSANITIZED = True
+
 
 async def main(t: TestContext):
     """

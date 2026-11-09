@@ -6,22 +6,17 @@
 
 #include "datadog/impl/core/platform/uuid.hpp"
 
-#ifdef _WIN32
 // clang-format off
 #include "datadog/impl/types/windows_headers.hpp"
 #include <objbase.h> // Must follow windows.h
 // clang-format on
 #pragma comment(lib, "ole32.lib")
-#else
-#include <uuid/uuid.h>
-#endif
 
 #include "datadog/impl/types/assert.hpp"
 
 namespace datadog::platform {
 
 void UuidGenerate(uint8_t out[16]) {
-#ifdef _WIN32
   GUID guid;
   HRESULT hr = ::CoCreateGuid(&guid);
   DATADOG_ASSERT(SUCCEEDED(hr), "CoCreateGuid failed");
@@ -41,10 +36,6 @@ void UuidGenerate(uint8_t out[16]) {
   out[13] = guid.Data4[5];
   out[14] = guid.Data4[6];
   out[15] = guid.Data4[7];
-#else
-  // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-array-to-pointer-decay)
-  uuid_generate_random(out);
-#endif
 }
 
 }  // namespace datadog::platform

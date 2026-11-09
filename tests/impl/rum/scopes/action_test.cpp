@@ -39,6 +39,7 @@ class ActionFixture {
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope root;
+  UUID session_id;
   RumSessionScope session;
   RumViewScope parent;
   RumActionScope scope;
@@ -52,12 +53,13 @@ class ActionFixture {
       : config(APPLICATION_ID),
         deps(config, clock),
         root(deps),
+        session_id(*UUID::Parse(SESSION_ID)),
         session(
             deps,
             root,
             true,
-            true,
-            *UUID::Parse(SESSION_ID),
+            DeterministicSampler{session_id, 100.0f},
+            session_id,
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(
                 std::chrono::milliseconds{1700000000000}
@@ -408,13 +410,12 @@ TEST_CASE("RumActionScope::PopulateContext", "[unit][rum]") {
 
       // And a RumSessionScope
       const bool is_initial_session = true;
-      const bool is_sampled = true;
       const UUID session_id = *UUID::Parse("689d0d6c-c716-4eed-b449-0df936a615f8");
       RumSessionScope session_scope(
           deps,
           application_scope,
           is_initial_session,
-          is_sampled,
+          DeterministicSampler{session_id, 100.0f},
           session_id,
           RumSessionPrecondition::UserAppLaunch,
           Timestamp{},

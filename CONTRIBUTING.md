@@ -22,6 +22,8 @@ To build the Datadog C++ SDK, you'll need [CMake](https://cmake.org/) 3.21 or ne
 - On **Linux:** Clang 15, Clang 20, GCC 11, and GCC 13, all with libstdc++
 - On **Windows:** Microsoft Visual C++ 17.14 (vc143), installed with Visual Studio 2022
 
+On Linux, the SDK requires glibc 2.25 or newer, which provides `getrandom()` for UUID generation.
+
 ### Optional tools
 
 We use [**clang-format**](https://clang.llvm.org/docs/ClangFormat.html) for automatic source code formatting, and we use [**clang-tidy**](https://clang.llvm.org/extra/clang-tidy/) for static analysis. These tools are not strictly required in order to build the SDK, but you should use them if you intend to submit a PR.
@@ -105,7 +107,7 @@ Verify formatting without modifying files (what CI runs):
 cmake --build build --target check-format
 ```
 
-Verify formatting, build the tests (which runs clang-tidy at compile time via `CXX_CLANG_TIDY`), and run CTest — a single command that mirrors CI:
+Verify formatting, build the tests (which runs clang-tidy at compile time via `CXX_CLANG_TIDY`), run CTest, and then run the integration tests in `tools/integration-test/`, all in a single command:
 
 ```
 cmake --build build --target check-all
@@ -152,6 +154,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
     - [`rum/`][impl-rum] allows an application to keep track of application state and user interactions via Views, Actions, Resources, etc., sending RUM events to Datadog.
     - [`crash_reporting/`][impl-crash-reporting] automatically detects application crashes and sends crash reports to Datadog as RUM Errors.
         - Multiple crash-handling mechanisms are planned; currently only `DD_CRASH_MODE=inprocess` is supported.
+    - [`profiling/`][impl-profiling] configures and starts the dd-win-prof Windows profiler when the SDK starts, and stops it when the SDK stops. Only available when building for Windows x64 with `DD_ENABLE_PROFILING=ON`; in all other builds the feature is a no-op.
 - [`tests/`][tests]: Unit tests for code in `src/`, along with test-only support code.
 - [`examples/`][examples] demonstrates usage of both C and C++ APIs.
 
@@ -184,6 +187,7 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 [impl-logging]: ./src/datadog/impl/logging/
 [impl-rum]: ./src/datadog/impl/rum/
 [impl-crash-reporting]: ./src/datadog/impl/crash_reporting/
+[impl-profiling]: ./src/datadog/impl/profiling/
 [tests]: ./tests/
 [examples]: ./examples/
 
@@ -206,3 +210,20 @@ Or to produce precompiled binaries using GCC 11:
 ```
 
 Run the script with no arguments for usage information.
+
+### Release artifacts
+
+Each release publishes precompiled libraries, built by the `package-*` jobs in [`ci/package.yml`](./ci/package.yml).
+
+On Windows, the `package-windows` job uses the `vs2022` image from [`ci/windows/`](./ci/windows/Dockerfile):
+
+- **`windows-x64-msvc143-md-shared-release`** and **`windows-x64-msvc143-md-static-release`** are built on Windows Server Core ltsc2022 with Visual Studio 2022 Build Tools 17.14 (MSVC v143) and Windows SDK 10.0.26100. Both link the dynamic CRT (`/MD`).
+
+On macOS, the `package-macos` job runs on a macOS 14 (Sonoma) VM image with Xcode 15.3 (Apple Clang 15.0.0):
+
+- **`macos-universal-clang-libc++-shared-release`** and **`macos-universal-clang-libc++-static-release`** are universal binaries for `arm64` and `x86_64`, against Apple's libc++, with a deployment target of macOS 14.0.
+
+On Linux, the `package-linux` job uses images from [`ci/linux/Dockerfile`](./ci/linux/Dockerfile):
+
+- **`linux-x64-clang-libstdc++-shared-release`** and **`linux-x64-clang-libstdc++-static-release`** are built in the `clang20` image: Clang 20 on Ubuntu 24.04, against GNU libstdc++, glibc 2.39, and Ubuntu's libcurl.
+- **`linux-x64-clang-libc++-static-release`** is built in the `ue-clang20` image, with the toolchain that Unreal Engine 5.7 and 5.8 use for Linux (`v26_clang-20.1.8-rockylinux8`): Clang 20.1.8, against LLVM libc++ and a Rocky Linux 8 sysroot with glibc 2.28. It compiles against libcurl 8.12.1 headers. [`tools/check-package`](./tools/check-package/main.py) fails the build if this library references any libstdc++ symbols or any glibc symbol versions newer than 2.28.

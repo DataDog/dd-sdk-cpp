@@ -2,6 +2,23 @@
 # required in order to add the Datadog C++ SDK as a dependency for an executable target,
 # configured as needed based on the set of features and options used to build the SDK.
 
+# Internal: sets <out_var> to the name of the dd-win-prof target if the SDK was built with
+# profiling support, or to an empty string otherwise.
+function(_datadog_find_dd_win_prof_target out_var)
+    set(_target "")
+    if(DD_PROFILER_IMPL STREQUAL "dd-win-prof" AND TARGET dd-win-prof)
+        # SDK included via FetchContent / add_subdirectory
+        set(_target dd-win-prof)
+    elseif(DATADOG_BUILT_WITH_DD_PROFILER_IMPL STREQUAL "dd-win-prof")
+        # SDK included via find_package(Datadog)
+        if(NOT TARGET Datadog::dd-win-prof)
+            message(FATAL_ERROR "The SDK was built with profiling support, but target Datadog::dd-win-prof does not exist")
+        endif()
+        set(_target Datadog::dd-win-prof)
+    endif()
+    set(${out_var} "${_target}" PARENT_SCOPE)
+endfunction()
+
 # datadog_enable(my-app):
 #
 # - Adds the Datadog SDK as a linker dependency for `my-app`, allowing you to call SDK
@@ -9,6 +26,9 @@
 # - (if Crashpad support is enabled): copies the crashpad_handler executable alongside
 #   the binary for `my-app` as a post-build step, ensuring that crash reporting works
 #   without explicitly configuring a handler path in development builds of `my-app`.
+# - (if profiling support is enabled): copies dd-win-prof.dll alongside the binary for
+#   `my-app` as a post-build step. The application loads it at startup, so it won't
+#   launch without it.
 #
 # Call this function after including the SDK via FetchContent or find_package(Datadog).
 # If you need finer-grained control, link against `Datadog::sdk` directly instead.
@@ -42,6 +62,19 @@ function(datadog_enable target)
             message(FATAL_ERROR "datadog_enable(): target crashpad::handler does not exist")
         endif()
     endif()
+
+    # If the SDK was built with profiling support, ensure that dd-win-prof.dll is present
+    # alongside the application binary post-build
+    _datadog_find_dd_win_prof_target(_dd_profiler)
+    if(_dd_profiler)
+        add_custom_command(TARGET ${target} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "$<TARGET_FILE:${_dd_profiler}>"
+                    "$<TARGET_FILE_DIR:${target}>"
+            VERBATIM
+            COMMENT "Copying dd-win-prof.dll to $<TARGET_FILE_DIR:${target}>"
+        )
+    endif()
 endfunction()
 
 # datadog_install(my-app [RUNTIME_DESTINATION <dir>] [LIBRARY_DESTINATION <dir>]):
@@ -54,6 +87,7 @@ endfunction()
 #   LIBRARY_DESTINATION and, on POSIX systems, stamps INSTALL_RPATH on the target so
 #   the installed executable can locate the shared library at runtime.
 # - (if Crashpad support is enabled): installs crashpad_handler to RUNTIME_DESTINATION.
+# - (if profiling support is enabled): installs dd-win-prof.dll to RUNTIME_DESTINATION.
 #
 # RUNTIME_DESTINATION: directory for executables and, on Windows, DLLs. Defaults to
 # CMAKE_INSTALL_BINDIR if defined (e.g. via GNUInstallDirs), otherwise "bin".
@@ -157,6 +191,20 @@ function(datadog_install target)
             install(PROGRAMS ${CRASHPAD_HANDLER_PATH} DESTINATION "${ARG_RUNTIME_DESTINATION}")
         else()
             message(FATAL_ERROR "datadog_install(): target crashpad::handler does not exist")
+        endif()
+    endif()
+
+    # If the SDK was built with profiling support, install dd-win-prof.dll to
+    # RUNTIME_DESTINATION: the application loads it at startup. (A DLL is a RUNTIME
+    # artifact in CMake's model, so its import library is not installed.)
+    _datadog_find_dd_win_prof_target(_dd_profiler)
+    if(_dd_profiler)
+        if(_dd_profiler STREQUAL "dd-win-prof")
+            install(TARGETS dd-win-prof RUNTIME DESTINATION "${ARG_RUNTIME_DESTINATION}")
+        else()
+            install(IMPORTED_RUNTIME_ARTIFACTS ${_dd_profiler}
+                RUNTIME DESTINATION "${ARG_RUNTIME_DESTINATION}"
+            )
         endif()
     endif()
 endfunction()

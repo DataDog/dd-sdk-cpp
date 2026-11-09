@@ -51,6 +51,22 @@ class IHttpClient {
 };
 
 /**
+ * Settings that apply to every request made by an IHttpClient. Implementations ignore
+ * any settings they don't support.
+ */
+struct HttpClientOptions {
+  /**
+   * Root CA certificates, in PEM format, that the client trusts when it verifies a
+   * server's TLS certificate. If empty, the client uses its default trust store. Only
+   * the libcurl client supports this setting.
+   *
+   * This is a view, not a copy: the data must remain valid for the lifetime of the
+   * client created with these options.
+   */
+  std::string_view ca_certificates;
+};
+
+/**
  * Interface to the HTTP client implementation used on the current platform.
  */
 class IHttpSubsystem {
@@ -68,7 +84,16 @@ class IHttpSubsystem {
 
   virtual std::string_view GetName() const = 0;
   virtual std::string_view GetVersion() const = 0;
-  virtual std::unique_ptr<IHttpClient> CreateClient() = 0;
+
+  /**
+   * Creates a new HTTP client, configured with `options`. Any data referenced by
+   * `options` must outlive the client. The client may report configuration problems
+   * through `logger`, and keeps a copy of it for that purpose. On success, returns the
+   * new client. On failure, returns null.
+   */
+  virtual std::unique_ptr<IHttpClient> CreateClient(
+      const HttpClientOptions& options, const DiagnosticLogger& logger
+  ) = 0;
 };
 
 /**

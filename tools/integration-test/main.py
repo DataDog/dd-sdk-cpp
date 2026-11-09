@@ -61,11 +61,13 @@ if __name__ == "__main__":
     parser.add_argument('--verbose', '-v', action='store_true', help='If true, print full output for all tests, even if successful')
     parser.add_argument('--jobs', '-j', type=int, default=max(1, multiprocessing.cpu_count() - 2), help='maximum number of tests to run in parallel')
     parser.add_argument('--crash-mode', type=str, default='inprocess', choices=VALID_CRASH_MODES, help='crash handler implementation the repl was compiled with (default: inprocess)')
+    parser.add_argument('--repl', type=str, help='path to the repl binary to test; omit to search build/')
+    parser.add_argument('--sanitized', action='store_true', help='the repl was compiled with sanitizers enabled (DD_ENABLE_SANITIZERS), so skip tests that require a build without them')
     args = parser.parse_args()
 
-    # repl must already be built (in build/): the CI job should take care of this before
-    # running this script
-    repl_binary_path = check_repl_binary()
+    # repl must already be built: the CMake integration-test target builds it and passes
+    # its path, and the CI job builds it in build/ before running this script
+    repl_binary_path = check_repl_binary(args.repl)
 
     # Load all integration tests defined in tools/integration-test/tests/
     tests = collect_tests(args.crash_mode)
@@ -95,14 +97,16 @@ if __name__ == "__main__":
     if args.jobs > 1:
         num_test_threads = min(len(tests), args.jobs)
 
-    # Each test result is a tuple of (passed: bool, skipped: bool, stdout: str, stderr: str, exc: str|None)
+    # Each test result is a tuple of:
+    # (passed: bool, skip_reason: str|None, stdout: str, stderr: str, exc: str|None)
     test_results: List[Optional[tuple]] = [None] * len(tests)
 
     def run_test(test_index: int):
         test = tests[test_index]
-        # Skip tests that require a crash mode that doesn't match the active mode
-        if test.required_crash_mode is not None and test.required_crash_mode != args.crash_mode:
-            test_results[test_index] = (True, True, '', '', None)
+        # Skip tests that can't run against this repl build (e.g. due to crash mode)
+        skip_reason = test.get_skip_reason(args.crash_mode, args.sanitized)
+        if skip_reason:
+            test_results[test_index] = (True, skip_reason, '', '', None)
             return
         with tempfile.TemporaryDirectory() as tmpdir:
             storage = StorageDirectory(path=tmpdir)
@@ -110,10 +114,10 @@ if __name__ == "__main__":
             try:
                 asyncio.run(test.func(ctx))
                 stdout, stderr = _gather_repl_output(ctx)
-                test_results[test_index] = (True, False, stdout, stderr, None)
+                test_results[test_index] = (True, None, stdout, stderr, None)
             except Exception:
                 stdout, stderr = _gather_repl_output(ctx)
-                test_results[test_index] = (False, False, stdout, stderr, traceback.format_exc())
+                test_results[test_index] = (False, None, stdout, stderr, traceback.format_exc())
             finally:
                 unjoined = [p for p in ctx._repls if p.exitcode == -1]
                 for p in unjoined:
@@ -123,7 +127,7 @@ if __name__ == "__main__":
                     pids = ', '.join(str(p.pid) for p in unjoined)
                     stdout, stderr = _gather_repl_output(ctx)
                     test_results[test_index] = (
-                        False, False, stdout, stderr,
+                        False, None, stdout, stderr,
                         'Test exited without joining repl process(es) (pid(s): %s)' % pids
                     )
 
@@ -161,10 +165,10 @@ if __name__ == "__main__":
         if not result:
             raise RuntimeError(f'No result recorded for test {i}')
 
-        passed, skipped, stdout, stderr, exc = result
+        passed, skip_reason, stdout, stderr, exc = result
 
-        if skipped:
-            print(f'=== ⏭️ {test.name} [skipped: requires crash-mode={test.required_crash_mode}] ===')
+        if skip_reason:
+            print(f'=== ⏭️ {test.name} [skipped: {skip_reason}] ===')
             num_tests_skipped += 1
             continue
 

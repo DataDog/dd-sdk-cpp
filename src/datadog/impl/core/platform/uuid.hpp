@@ -18,6 +18,15 @@ namespace datadog::platform {
  * version, but the output should be sufficiently random to avoid collisions.
  *
  * This function must be thread-safe.
+ *
+ * The default implementations generate version 4 UUIDs: on Windows from
+ * `CoCreateGuid()`, on macOS from `uuid_generate_random()`, and on Linux from
+ * `getrandom()`, falling back to /dev/urandom on kernels or sandboxes where
+ * `getrandom()` is unavailable. The Linux implementation never blocks: if the
+ * kernel's random pool isn't initialized yet (early in boot) or no kernel source can
+ * be read, it uses a non-cryptographic fallback built from the time, process and
+ * thread IDs, and a counter, which never returns the same UUID twice within a
+ * process.
  */
 void UuidGenerate(uint8_t out[16]);
 

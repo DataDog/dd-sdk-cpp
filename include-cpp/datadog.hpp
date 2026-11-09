@@ -11,6 +11,7 @@
 #include "datadog/core.hpp"
 #include "datadog/crash_reporting.hpp"
 #include "datadog/logging.hpp"
+#include "datadog/profiling.hpp"
 #include "datadog/rum.hpp"
 #include "datadog/timestamp.hpp"
 #include "datadog/uuid.hpp"

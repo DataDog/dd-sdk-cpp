@@ -295,8 +295,11 @@ bool Core::Init() {
     return false;
   }
 
-  // Create a single HTTP client
-  _http_client = _subsystems.http->CreateClient();
+  // Create a single HTTP client. Its options may reference data in _config, which
+  // outlives the client because _http_client is declared after _config.
+  HttpClientOptions http_options;
+  http_options.ca_certificates = _config.internal_options.ca_certificates;
+  _http_client = _subsystems.http->CreateClient(http_options, _diagnostic_logger);
   if (!_http_client) {
     _diagnostic_logger.Error(
         "Core initialization failed: could not create HTTP client"
@@ -789,5 +792,7 @@ std::string_view Core::GetIntakeOrigin() const {
 std::string_view Core::GetClientToken() const {
   return _immutable_context.client_token;
 }
+
+const ImmutableContext& Core::GetImmutableContext() const { return _immutable_context; }
 
 }  // namespace datadog::impl

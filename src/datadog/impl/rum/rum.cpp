@@ -517,6 +517,13 @@ void Rum::UpdateApplicationSnapshot() {
 }
 
 void Rum::BroadcastStateChanges(const MessagePublisher& publisher) {
+  // Publish messages announcing the events (vitals, long tasks) generated while
+  // processing the most recent command, in the order they were generated
+  for (auto& message : _deps.GetQueuedMessages()) {
+    publisher(std::move(message));
+  }
+  _deps.ClearQueuedMessages();
+
   // If any RUM View events were generated during processing of the most recent command,
   // publish a RumActiveViewUpdatedMessage containing the most-recently-produced event
   if (auto ev = _application.ConsumeLastActiveViewEvent()) {

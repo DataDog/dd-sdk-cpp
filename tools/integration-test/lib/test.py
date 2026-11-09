@@ -99,6 +99,14 @@ class Test:
     name: str
     func: AsyncTestFunc
     required_crash_mode: Optional[str]  # None means runs under all crash modes
+    requires_unsanitized: bool  # True if sanitizers would intercept the test's crash
+
+    def get_skip_reason(self, crash_mode: str, sanitized: bool) -> Optional[str]:
+        if self.required_crash_mode is not None and self.required_crash_mode != crash_mode:
+            return 'requires crash-mode=%s' % self.required_crash_mode
+        if self.requires_unsanitized and sanitized:
+            return 'requires a build without sanitizers'
+        return None
 
 
 def collect_tests(crash_mode: str) -> List[Test]:
@@ -148,6 +156,11 @@ def collect_tests(crash_mode: str) -> List[Test]:
         if required_crash_mode is not None and required_crash_mode not in VALID_CRASH_MODES:
             raise ValueError('CRASH_MODE in tests/%s is %r; expected one of %s' % (filename, required_crash_mode, VALID_CRASH_MODES))
 
-        tests.append(Test(name, test_main, required_crash_mode))
+        # Read the optional REQUIRES_UNSANITIZED module attribute
+        requires_unsanitized = getattr(module, 'REQUIRES_UNSANITIZED', False)
+        if not isinstance(requires_unsanitized, bool):
+            raise ValueError('REQUIRES_UNSANITIZED in tests/%s is %r; expected a bool' % (filename, requires_unsanitized))
+
+        tests.append(Test(name, test_main, required_crash_mode, requires_unsanitized))
 
     return tests

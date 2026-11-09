@@ -11,6 +11,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/c/core.cpp
     datadog/c/crash_reporting.cpp
     datadog/c/logging.cpp
+    datadog/c/profiling.cpp
     datadog/c/rum.cpp
     datadog/c/timestamp.cpp
     datadog/c/uuid.cpp
@@ -19,6 +20,7 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/cpp/core.cpp
     datadog/cpp/crash_reporting.cpp
     datadog/cpp/logging.cpp
+    datadog/cpp/profiling.cpp
     datadog/cpp/rum.cpp
     datadog/cpp/uuid.cpp
     datadog/cpp/version.cpp
@@ -37,12 +39,12 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/json/parse_attribute.cpp
     datadog/impl/types/json/parse_primitives.cpp
     datadog/impl/types/diagnostics.cpp
-    datadog/impl/types/sampling.cpp
     datadog/impl/types/tracing/span_id.cpp
     datadog/impl/types/tracing/trace_context.cpp
     datadog/impl/types/tracing/trace_id.cpp
     datadog/impl/types/upload_util.cpp
     datadog/impl/core/attribute/binary.cpp
+    datadog/impl/core/tracing/deterministic_sampler.cpp
     datadog/impl/core/tracing/span_id_generator.cpp
     datadog/impl/core/tracing/trace_id_generator.cpp
     datadog/impl/core/util/validation.cpp
@@ -62,6 +64,12 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/core/upload_scheduler.cpp
     datadog/impl/core/upload_thread.cpp
 )
+
+# The SDK runs its work on background threads. Before glibc 2.34, pthread functions live
+# in libpthread rather than libc, so link the platform's thread library explicitly: on
+# newer glibc, and on macOS and Windows, this adds nothing to the link.
+find_package(Threads REQUIRED)
+target_link_libraries(ddsdkcpp PRIVATE Threads::Threads)
 
 # core/storage, with IFilesystem implementation determined per-platform
 target_sources(ddsdkcpp PRIVATE
@@ -208,26 +216,12 @@ target_include_directories(ddsdkcpp
 # Platform-specific support for UUID generation
 option(DD_UUID_USE_DEFAULT "Use default UUID implementation. If disabled, you must supply an implementation of platform/uuid.hpp in a file specified as DD_UUID_SRC" ON)
 if(DD_UUID_USE_DEFAULT)
-    target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_std.cpp)
-    # On Win32, the default implementation uses CoCreateGuid from objbase.h; on
-    # other systems it requires uuid/uuid.h
-    if(NOT WIN32)
-        # On macOS, uuid/uuid.h is a system header and `uuid_generate()` et al. are
-        # implemented in libc. But on Linux, uuid/uuid.h is typically not available by
-        # default and must be installed from a package
-        include(CheckIncludeFiles)
-        check_include_files("uuid/uuid.h" HAVE_UUID_H)
-        if(NOT HAVE_UUID_H)
-            message(FATAL_ERROR "uuid/uuid.h not found in include path. Please install the UUID development package:\n"
-                               "  Ubuntu/Debian: sudo apt-get install uuid-dev\n"
-                               "  RHEL/CentOS/Fedora: sudo yum install libuuid-devel\n"
-                               "  Alpine: sudo apk add util-linux-dev")
-        endif()
-
-        # On Linux, `uuid_generate()` is defined in libuuid, not in libc
-        if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-            target_link_libraries(ddsdkcpp PRIVATE uuid)
-        endif()
+    if(WIN32)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_windows.cpp)
+    elseif(APPLE)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_macos.cpp)
+    elseif(UNIX)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_linux.cpp)
     endif()
 else()
     set(DD_UUID_SRC "" CACHE STRING "Path to custom implementation of platform/uuid.hpp")
@@ -283,6 +277,14 @@ target_sources(ddsdkcpp PRIVATE
     datadog/impl/logging/logger.cpp
     datadog/impl/logging/logging.cpp
     datadog/impl/logging/tags.cpp
+)
+
+# === profiling ===
+
+target_sources(ddsdkcpp PRIVATE
+    datadog/impl/profiling/profile_metadata.cpp
+    datadog/impl/profiling/profiling.cpp
+    datadog/impl/profiling/rum_event_tracker.cpp
 )
 
 # === rum ===
@@ -353,6 +355,14 @@ elseif(DD_CRASH_MODE STREQUAL "crashpad")
     )
 else()
     message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
+endif()
+
+# If building with profiling support, build dd-win-prof and link it into ddsdkcpp;
+# otherwise, compile the CreateProfilerBackend() variant that reports profiling as unsupported
+if(DD_PROFILER_IMPL STREQUAL "dd-win-prof")
+    include(${DD_SDK_ROOT_DIR}/cmake/deps/dd-win-prof.cmake)
+else()
+    target_sources(ddsdkcpp PRIVATE datadog/impl/profiling/profiler_backend_unsupported.cpp)
 endif()
 
 # Install configuration

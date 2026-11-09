@@ -8,6 +8,7 @@ add_executable(tests
     c/core_c_api_test.cpp
     c/diagnostics_c_api_test.cpp
     c/logging_c_api_test.cpp
+    c/profiling_c_api_test.cpp
     c/rum_c_api_test.cpp
     c/timestamp_c_api_test.cpp
     c/account_info_c_api_test.cpp
@@ -18,6 +19,7 @@ add_executable(tests
     cpp/core_cpp_api_test.cpp
     cpp/diagnostics_cpp_api_test.cpp
     cpp/logging_cpp_api_test.cpp
+    cpp/profiling_cpp_api_test.cpp
     cpp/rum_cpp_api_test.cpp
     cpp/timestamp_cpp_api_test.cpp
     cpp/account_info_cpp_api_test.cpp
@@ -46,8 +48,8 @@ add_executable(tests
     impl/types/diagnostics_test.cpp
     impl/types/json/json_scanner_test.cpp
     impl/types/json_test.cpp
+    impl/types/profiling_test.cpp
     impl/types/rum_test.cpp
-    impl/types/sampling_test.cpp
     impl/types/tracing/span_id_test.cpp
     impl/types/tracing/trace_id_test.cpp
     impl/types/upload_util_test.cpp
@@ -69,6 +71,7 @@ add_executable(tests
     impl/core/storage/filesystem_wrapper_test.cpp
     impl/core/storage/path_test.cpp
     impl/core/storage/sdk_test.cpp
+    impl/core/tracing/deterministic_sampler_test.cpp
     impl/core/tracing/span_id_generator_test.cpp
     impl/core/tracing/trace_id_generator_test.cpp
     impl/core/util/insecure_random_generator_test.cpp
@@ -97,6 +100,9 @@ add_executable(tests
     impl/logging/event_generation_test.cpp
     impl/logging/logger_test.cpp
     impl/logging/tags_test.cpp
+    impl/profiling/profile_metadata_test.cpp
+    impl/profiling/profiling_test.cpp
+    impl/profiling/rum_event_tracker_test.cpp
     impl/rum/containers/resource_map_test.cpp
     impl/rum/containers/view_array_test.cpp
     impl/rum/scopes/action_test.cpp
@@ -108,7 +114,6 @@ add_executable(tests
     impl/rum/context_test.cpp
     impl/rum/rum_messaging_test.cpp
     impl/rum/rum_test.cpp
-    impl/rum/scope_test.cpp
     mock/filesystem.cpp
     mock/http_client_mock_test.cpp
     support/allocation_tracker.cpp
@@ -136,6 +141,14 @@ if("datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.cpp" IN_LIST _
     )
 endif()
 unset(_sdk_sources)
+
+# The default UUID implementations generate version 4 UUIDs; a custom implementation
+# supplied via DD_UUID_SRC isn't required to
+if(DD_UUID_USE_DEFAULT)
+    target_sources(tests PRIVATE
+        impl/core/platform/uuid_test.cpp
+    )
+endif()
 
 # Add Windows-specific tests
 if(WIN32)
@@ -188,6 +201,21 @@ target_link_libraries(tests
     ddsdkcpp
     Catch2::Catch2WithMain
 )
+
+# If the SDK was built with profiling support, ensure that dd-win-prof.dll is present
+# alongside the test binary post-build
+if(DD_PROFILER_IMPL STREQUAL "dd-win-prof")
+    # Enables the tests of how Profiling::Register claims the profiler
+    target_compile_definitions(tests PRIVATE WITH_DATADOG_PROFILING_TESTS=1)
+
+    add_custom_command(TARGET tests POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                "$<TARGET_FILE:dd-win-prof>"
+                "$<TARGET_FILE_DIR:tests>"
+        VERBATIM
+        COMMENT "Copying dd-win-prof.dll to $<TARGET_FILE_DIR:tests>"
+    )
+endif()
 
 # Register tests with CTest
 include(CTest)

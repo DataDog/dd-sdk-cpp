@@ -33,7 +33,7 @@ endif()
 # - CMAKE_OSX_ARCHITECTURES (e.g. 'arm64;x86_64' for universal binaries): determines the
 #   target architecture(s) for the build.
 
-project(ddsdkcpp VERSION 0.8.1 LANGUAGES C CXX)
+project(ddsdkcpp VERSION 0.9.0 LANGUAGES C CXX)
 
 # Run builds with -DDD_DEVELOPMENT=ON to enable all required options for internal
 # development of the SDK implementation
@@ -76,6 +76,23 @@ set(DD_ENABLE_SANITIZERS "${DD_ENABLE_SANITIZERS}" CACHE STRING "Comma-separated
 option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_DEVELOPMENT})
 option(DD_ENABLE_MSVC_PARALLEL_BUILD "Enable parallel compilation within each MSVC target (/MP)" ON)
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
+option(DD_ENABLE_PROFILING "Build the dd-win-prof Windows profiler and link it into the SDK (Windows x64 only)" OFF)
+
+# DD_PROFILER_IMPL (internal) is the profiler implementation in use: "dd-win-prof" or
+# "none". Profiling only exists on Windows x64, so on other platforms the
+# DD_ENABLE_PROFILING option is ignored rather than failing the build. It is an internal
+# cache variable so that it is also visible to a parent project that includes the SDK
+# via FetchContent or add_subdirectory (e.g. when calling datadog_enable()).
+set(DD_PROFILER_IMPL none CACHE INTERNAL "Profiler implementation in use")
+if(DD_ENABLE_PROFILING)
+    if(NOT WIN32)
+        message(STATUS "DD_ENABLE_PROFILING is only supported on Windows; ignoring it")
+    elseif(NOT CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "x64")
+        message(FATAL_ERROR "DD_ENABLE_PROFILING requires a Windows x64 build (target architecture: '${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}')")
+    else()
+        set(DD_PROFILER_IMPL dd-win-prof CACHE INTERNAL "Profiler implementation in use")
+    endif()
+endif()
 
 # C API targets C99; C++ API targets C++17
 if(PROJECT_IS_TOP_LEVEL)
@@ -182,22 +199,37 @@ if(DD_BUILD_TESTING)
     add_subdirectory(tests)
 endif()
 
-# 'check-all' is a convenience target that mirrors what CI runs: formatting,
-# a full test build (which triggers clang-tidy via the CXX_CLANG_TIDY target
-# property), and the test suite. Agents and contributors should prefer this
-# single target over invoking each check individually.
+# 'check-all' is a convenience target that runs every local check that a change to SDK
+# source should pass: formatting, a full test build (which triggers clang-tidy via the
+# CXX_CLANG_TIDY target property), the unit tests, and, if DD_ENABLE_INTEGRATION_TEST is
+# enabled, the integration tests.
+#
+# The commands run in order, so the integration tests only run once the unit tests have
+# passed. The checks that precede them are dependencies, which may build in parallel.
 #
 # Gated on PROJECT_IS_TOP_LEVEL so the generic 'check-all' name does not leak into
 # parent projects that consume this SDK via FetchContent or add_subdirectory.
 if(PROJECT_IS_TOP_LEVEL AND TARGET check-format AND DD_BUILD_TESTING)
-    add_custom_target(check-all
+    set(CHECK_ALL_COMMANDS
         COMMAND ${CMAKE_CTEST_COMMAND} --test-dir ${CMAKE_BINARY_DIR} --output-on-failure
-        COMMENT "Running local CI checks: clang-format, build (with clang-tidy), and tests"
-        VERBATIM
     )
     # Building the `tests` target forces a full compile of the SDK and test suite,
     # which is where clang-tidy runs via CXX_CLANG_TIDY / C_CLANG_TIDY.
-    add_dependencies(check-all check-format tests)
+    set(CHECK_ALL_DEPENDENCIES check-format tests)
+    if(DD_ENABLE_INTEGRATION_TEST)
+        list(APPEND CHECK_ALL_COMMANDS COMMAND ${INTEGRATION_TEST_COMMAND})
+        list(APPEND CHECK_ALL_DEPENDENCIES repl integration-test-venv)
+        set(CHECK_ALL_COMMENT "Running local checks: clang-format, build (with clang-tidy), unit tests, and integration tests")
+    else()
+        message(STATUS "check-all will not run integration tests, since DD_ENABLE_INTEGRATION_TEST is disabled")
+        set(CHECK_ALL_COMMENT "Running local checks: clang-format, build (with clang-tidy), and unit tests")
+    endif()
+    add_custom_target(check-all
+        ${CHECK_ALL_COMMANDS}
+        COMMENT "${CHECK_ALL_COMMENT}"
+        VERBATIM
+    )
+    add_dependencies(check-all ${CHECK_ALL_DEPENDENCIES})
 endif()
 
 # If configured to build developer tools, include the CMake targets defined in tools/
@@ -218,6 +250,19 @@ if(DD_BUILD_INSTALL)
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
         FILES_MATCHING PATTERN "*.hpp"
     )
+
+    # Install the SDK's own license and notice at the root of the install tree, and the
+    # license text for each third-party component that's built into the SDK to
+    # licenses/. Components that are only built in for some configurations (Crashpad and
+    # its dependencies, vendored libcurl) install their license texts alongside their
+    # binaries, so that licenses/ lists exactly the third-party code in each build.
+    install(FILES LICENSE.md NOTICE DESTINATION .)
+    install(FILES licenses/date.txt DESTINATION licenses)
+    if(WIN32)
+        # Windows builds embed a timezone mapping table generated from Unicode CLDR data
+        # (see src/datadog/impl/core/platform/windows_timezone_mapping.hpp)
+        install(FILES licenses/unicode-cldr.txt DESTINATION licenses)
+    endif()
 
     # Install export targets and generate CMake config files
     install(EXPORT DatadogTargets

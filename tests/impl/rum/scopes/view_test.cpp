@@ -37,6 +37,7 @@ class ViewFixture {
   RumConfig config;
   RumScopeDependencies deps;
   RumApplicationScope root;
+  UUID session_id;
   RumSessionScope parent;
   RumViewScope scope;
 
@@ -49,12 +50,13 @@ class ViewFixture {
       : config(APPLICATION_ID),
         deps(config, clock),
         root(deps),
+        session_id(*UUID::Parse(SESSION_ID)),
         parent(
             deps,
             root,
             true,
-            true,
-            *UUID::Parse(SESSION_ID),
+            DeterministicSampler{session_id, 100.0f},
+            session_id,
             RumSessionPrecondition::UserAppLaunch,
             Timestamp{std::chrono::duration_cast<Duration>(
                 std::chrono::milliseconds{1700000000000}
@@ -404,13 +406,12 @@ TEST_CASE("RumViewScope::PopulateContext", "[unit][rum]") {
 
       // And a RumSessionScope
       const bool is_initial_session = true;
-      const bool is_sampled = true;
       const UUID session_id = *UUID::Parse("689d0d6c-c716-4eed-b449-0df936a615f8");
       RumSessionScope session_scope(
           deps,
           application_scope,
           is_initial_session,
-          is_sampled,
+          DeterministicSampler{session_id, 100.0f},
           session_id,
           RumSessionPrecondition::UserAppLaunch,
           Timestamp{},
@@ -448,5 +449,63 @@ TEST_CASE("RumViewScope::PopulateContext", "[unit][rum]") {
       REQUIRE(ctx.active_view_key == view_key);
       REQUIRE(ctx.active_view_name == view_name);
     }
+  }
+}
+
+TEST_CASE_METHOD(ViewFixture, "RumViewScope long task messages", "[unit][rum]") {
+  SECTION("M queue a message W a long task is added") {
+    // Given an active view
+    scope.Process(
+        RumCommand::StartView(GetBaseParams(), "my-view-key", "My View Name"),
+        GetTestContext(),
+        GetTestWriter()
+    );
+    deps.ClearQueuedMessages();
+
+    // When a long task of 50ms is added
+    scope.Process(
+        RumCommand::AddLongTask(GetBaseParams(), std::chrono::milliseconds(50)),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then a message is queued for it
+    const auto& messages = deps.GetQueuedMessages();
+    REQUIRE(messages.size() == 1);
+    const auto& message = std::get<RumLongTaskGeneratedMessage>(messages[0]);
+
+    // And it has the duration, and the start time (the time it ended, less its
+    // duration)
+    REQUIRE(message.duration == std::chrono::milliseconds(50));
+    REQUIRE(message.start == clock.Now() - std::chrono::milliseconds(50));
+
+    // And the ID of the long task event that was written
+    auto long_tasks = event_capture.FilterByType("long_task");
+    REQUIRE(long_tasks.size() == 1);
+    REQUIRE(long_tasks[0]["long_task"]["id"] == message.long_task_id.ToString());
+
+    // And the RUM context in which it occurred
+    REQUIRE(message.context.application_id.ToString() == APPLICATION_ID);
+    REQUIRE(message.context.session_id.ToString() == SESSION_ID);
+    REQUIRE(message.context.view_id.ToString() == VIEW_ID);
+    REQUIRE(message.context.view_name == "My View Name");
+  }
+
+  SECTION("M queue no message W the view is inactive") {
+    // Given a view that has been stopped
+    scope.Process(
+        RumCommand::StopSession(GetBaseParams()), GetTestContext(), GetTestWriter()
+    );
+    deps.ClearQueuedMessages();
+
+    // When a long task is added
+    scope.Process(
+        RumCommand::AddLongTask(GetBaseParams(), std::chrono::milliseconds(50)),
+        GetTestContext(),
+        GetTestWriter()
+    );
+
+    // Then no message is queued
+    REQUIRE(deps.GetQueuedMessages().empty());
   }
 }

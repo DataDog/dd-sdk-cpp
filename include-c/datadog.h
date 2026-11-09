@@ -12,6 +12,7 @@
 #include "datadog/core.h"
 #include "datadog/crash_reporting.h"
 #include "datadog/logging.h"
+#include "datadog/profiling.h"
 #include "datadog/rum.h"
 #include "datadog/timestamp.h"
 #include "datadog/uuid.h"

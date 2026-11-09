@@ -12,11 +12,19 @@ package-linux:
       - TOOLCHAIN_TARGET: clang20
         BUILD_CONFIGURATION: RelWithDebInfo
         BUILD_SHARED_LIBS: "OFF"
+      # linux-x64-clang-libc++-static-release: built with Unreal Engine's Linux
+      # toolchain, for linking into Unreal Engine projects. Unreal links against its
+      # toolchain's libc++ and glibc 2.28 sysroot, so the library must not reference
+      # libstdc++ or any newer glibc symbol versions.
+      - TOOLCHAIN_TARGET: ue-clang20
+        BUILD_CONFIGURATION: RelWithDebInfo
+        BUILD_SHARED_LIBS: "OFF"
+        CHECK_PACKAGE_ARGS: "--forbid-libstdc++ --max-glibc-version 2.28"
   image: ${BUILD_STABLE_REGISTRY}/${TOOLCHAIN_IMAGE_PATH}:${TOOLCHAIN_TARGET}-${LINUX_TOOLCHAIN_IMAGE_VERSION}
   script:
     - cmake -DCMAKE_BUILD_TYPE=${BUILD_CONFIGURATION} -DBUILD_SHARED_LIBS=${BUILD_SHARED_LIBS} -DDD_ENABLE_GIT_REVISION_INFO=ON -S . -B build
     - cmake --build build --target package --parallel ${NUM_PARALLEL_BUILD_JOBS}
-    - python3 tools/check-package/main.py build --build-shared-libs ${BUILD_SHARED_LIBS}
+    - python3 tools/check-package/main.py build --build-shared-libs ${BUILD_SHARED_LIBS} ${CHECK_PACKAGE_ARGS}
   artifacts:
     expire_in: "1 week"
     paths:
