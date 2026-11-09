@@ -93,32 +93,24 @@ static void _handle_event_generated(
   }
 }
 
-void StorageThreadMain(
+void HandleStorageMessage(
     const DiagnosticLogger& diagnostic_logger,
-    StorageQueue& queue,
-    std::vector<RegisteredFeature>& features
+    std::vector<RegisteredFeature>& features,
+    const StorageMessage& message
 ) {
-  diagnostic_logger.Debug("Storage thread starting");
+  switch (message.type) {
+    case StorageMessageType::TrackingConsentChanged:
+      _handle_tracking_consent_changed(
+          diagnostic_logger, features, message.payload.tracking_consent_changed
+      );
+      break;
 
-  // Perform continual blocking reads until we get std::nullopt, indicating that the
-  // queue is drained and processing should stop
-  while (const auto item = queue.Pop()) {
-    switch (item->type) {
-      case StorageMessageType::TrackingConsentChanged:
-        _handle_tracking_consent_changed(
-            diagnostic_logger, features, item->payload.tracking_consent_changed
-        );
-        break;
-
-      case StorageMessageType::EventGenerated:
-        _handle_event_generated(
-            diagnostic_logger, features, item->payload.event_generated
-        );
-        break;
-    }
+    case StorageMessageType::EventGenerated:
+      _handle_event_generated(
+          diagnostic_logger, features, message.payload.event_generated
+      );
+      break;
   }
-
-  diagnostic_logger.Debug("Storage thread finished");
 }
 
 }  // namespace datadog::impl

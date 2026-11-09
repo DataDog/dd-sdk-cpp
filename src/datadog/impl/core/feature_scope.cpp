@@ -16,14 +16,19 @@ FeatureScope::FeatureScope(
     const MessagePublisher& message_publisher,
     const DiagnosticLogger& in_diagnostic_logger,
     FeatureScope::ExecutionMode mode,
-    Queue<std::function<void()>>* context_queue
+    TaskQueue* context_queue,
+    Executor* executor,
+    std::shared_ptr<Executor> owned_executor
 )
     : _context_provider(&context_provider),
       _event_generated_func(event_writer),
       _message_produced_func(message_publisher),
       _mode(mode),
       _context_queue(context_queue),
+      _executor(executor),
+      _owned_executor(std::move(owned_executor)),
       diagnostic_logger(in_diagnostic_logger) {
+  DATADOG_ASSERT(_executor != nullptr, "FeatureScope requires an Executor");
   // Invariant: context_queue must be non-null when mode is OnContextThread
   DATADOG_ASSERT(
       mode != FeatureScope::ExecutionMode::OnContextThread || context_queue != nullptr,
@@ -36,7 +41,8 @@ FeatureScope FeatureScope::Create(
     const EventWriter& event_writer,
     const MessagePublisher& message_publisher,
     const DiagnosticLogger& diagnostic_logger,
-    Queue<std::function<void()>>& context_queue
+    TaskQueue& context_queue,
+    Executor& executor
 ) {
   return FeatureScope(
       context_provider,
@@ -44,7 +50,9 @@ FeatureScope FeatureScope::Create(
       message_publisher,
       diagnostic_logger,
       FeatureScope::ExecutionMode::OnContextThread,
-      &context_queue
+      &context_queue,
+      &executor,
+      nullptr
   );
 }
 
@@ -54,13 +62,16 @@ FeatureScope FeatureScope::CreateForTesting(
     const MessagePublisher& message_publisher,
     const DiagnosticLogger& diagnostic_logger
 ) {
+  auto owned_executor = std::make_shared<Executor>(0, diagnostic_logger);
   return FeatureScope(
       context_provider,
       event_writer,
       message_publisher,
       diagnostic_logger,
       FeatureScope::ExecutionMode::Synchronous,
-      nullptr
+      nullptr,
+      owned_executor.get(),
+      owned_executor
   );
 }
 
@@ -73,7 +84,7 @@ void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callba
     return;
   }
 
-  // Production mode: queue for async execution on context thread
+  // Production mode: queue for async execution on the context queue
   DATADOG_ASSERT(
       _context_queue != nullptr, "context_queue is null in OnContextThread mode"
   );
@@ -92,7 +103,7 @@ void FeatureScope::ExecuteOnContextThread(const ContextThreadFunc& func) {
     return;
   }
 
-  // Production mode: queue for async execution on context thread
+  // Production mode: queue for async execution on the context queue
   DATADOG_ASSERT(
       _context_queue != nullptr, "context_queue is null in OnContextThread mode"
   );
@@ -101,6 +112,10 @@ void FeatureScope::ExecuteOnContextThread(const ContextThreadFunc& func) {
     const CoreContext context = _context_provider->Get();
     func(context, _event_generated_func, _message_produced_func);
   });
+}
+
+std::unique_ptr<TaskQueue> FeatureScope::CreateTaskQueue(const QueueOptions& options) {
+  return _executor->CreateTaskQueue(options);
 }
 
 }  // namespace datadog::impl

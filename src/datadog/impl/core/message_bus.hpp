@@ -7,32 +7,36 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <vector>
 
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/core/feature_message.hpp"
-#include "datadog/impl/core/queue.hpp"
-#include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 
 /**
- * Holds the shared state for the messaging subsystem: a thread-safe queue and the
- * fixed list of subscriber callbacks. The background thread that drains the queue and
- * invokes the handlers lives outside this class (see `MessagingThreadMain`), following
- * the same ownership pattern used by `context_thread`, `storage_thread`, and
- * `upload_thread`.
+ * Delivers FeatureMessages to a fixed list of subscriber callbacks, asynchronously, on
+ * the executor's "message-bus" queue. Each message is broadcast to every handler in
+ * registration order before the next message is delivered.
  *
- * Handlers are supplied at construction time and are never modified afterward, so
- * `MessagingThreadMain` can iterate `_handlers` without any synchronization.
+ * Handlers are supplied at construction time and never modified afterward, so they can
+ * be invoked without any synchronization.
  *
- * `Send()` enqueues a message non-blocking from any thread and returns false if the
- * queue has been stopped. Call `Stop()` to signal shutdown; the messaging thread will
- * drain any remaining messages before exiting.
+ * Delivery starts suspended: messages sent before Resume() are buffered, so that the
+ * owner can accept messages before every subscriber is ready to receive them.
+ *
+ * `Send()` enqueues a message without blocking, from any thread, and returns false if
+ * the bus has been stopped.
  */
 class MessageBus {
  public:
-  explicit MessageBus(std::vector<std::function<void(const FeatureMessage&)>> handlers);
+  MessageBus(
+      Executor& executor,
+      std::vector<std::function<void(const FeatureMessage&)>> handlers
+  );
 
+  /** Equivalent to Stop(). */
   ~MessageBus() = default;
   MessageBus(const MessageBus&) = delete;
   MessageBus& operator=(const MessageBus&) = delete;
@@ -40,23 +44,26 @@ class MessageBus {
   MessageBus& operator=(MessageBus&&) = delete;
 
   /**
-   * Enqueues `msg` for delivery to all handlers. Non-blocking. Returns false if the
-   * queue has been stopped and the message was therefore dropped.
+   * Enqueues `msg` for delivery to all handlers. Non-blocking. Returns false if the bus
+   * has been stopped and the message was therefore dropped.
    */
   bool Send(FeatureMessage msg);
 
   /**
-   * Signals the messaging thread to drain remaining messages and exit. Must be called
-   * before the bus is destroyed; the caller must join the messaging thread after this
-   * returns.
+   * Starts delivering messages, including any buffered before this call. Idempotent.
+   */
+  void Resume();
+
+  /**
+   * Stops accepting messages, then blocks until every message accepted so far has been
+   * delivered. Must not be called from a handler.
    */
   void Stop();
 
  private:
-  friend void MessagingThreadMain(const DiagnosticLogger&, MessageBus&);
-
-  Queue<FeatureMessage> _queue;
+  // Declared before _queue: the queue's handler reads it until the queue is destroyed
   std::vector<std::function<void(const FeatureMessage&)>> _handlers;
+  std::unique_ptr<SerialQueue<FeatureMessage>> _queue;
 };
 
 }  // namespace datadog::impl

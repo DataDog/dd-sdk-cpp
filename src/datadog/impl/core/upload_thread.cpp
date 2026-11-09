@@ -21,7 +21,6 @@
 #include "datadog/impl/core/feature_read.hpp"
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
 #include "datadog/impl/core/storage/util.hpp"
-#include "datadog/impl/core/upload_scheduler.hpp"
 #include "datadog/impl/types/assert.hpp"
 
 namespace datadog::impl {
@@ -197,19 +196,75 @@ static std::optional<Duration> batch_file_age(
   return file_time < now ? now - file_time : Duration::zero();
 }
 
-static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-complexity)
-    DiagnosticLogger& diagnostic_logger,
-    UploadThreadConfig config,
-    const platform::IClock& clock,
-    RegisteredFeature& feature,
-    IFilesystem& fs,
-    IHttpClient& http_client,
-    std::vector<std::string>& mut_filenames,
-    std::vector<char>& mut_read_buffer
-)
-{
+/**
+ * One upload cycle for one feature, split into steps so that it can run as a series of
+ * queue items, each attempting at most one batch upload.
+ *
+ * Call Begin(); if it returns a delay, the cycle is over. Otherwise call Step() until
+ * it returns false, then Finish(). The filenames and read buffer are borrowed for the
+ * duration of the cycle and must not be used by anything else in the meantime.
+ */
+class UploadCycle {
+ public:
+  UploadCycle(
+      DiagnosticLogger& diagnostic_logger,
+      UploadThreadConfig config,
+      const platform::IClock& clock,
+      RegisteredFeature& feature,
+      IFilesystem& fs,
+      IHttpClient& http_client,
+      std::vector<std::string>& mut_filenames,
+      std::vector<char>& mut_read_buffer
+  )
+      : _diagnostic_logger(diagnostic_logger),
+        _config(config),
+        _clock(clock),
+        _feature(feature),
+        _fsw(fs),
+        _http_client(http_client),
+        _filenames(mut_filenames),
+        _read_buffer(mut_read_buffer) {}
+
+  /**
+   * Evicts stale pending-consent files and lists the batches that may be uploaded.
+   * Returns the delay until the next cycle if the cycle ends here.
+   */
+  std::optional<Duration> Begin();
+
+  /**
+   * Examines files until one batch upload has been attempted, or until the cycle should
+   * end. Returns true if the cycle may have more batches to upload.
+   */
+  bool Step();
+
+  /**
+   * Logs the outcome of the cycle and returns the delay until the next one, adjusting
+   * the feature's backoff.
+   */
+  Duration Finish();
+
+ private:
+  DiagnosticLogger& _diagnostic_logger;
+  const UploadThreadConfig _config;
+  const platform::IClock& _clock;
+  RegisteredFeature& _feature;
+  FilesystemWrapper _fsw;
+  IHttpClient& _http_client;
+  std::vector<std::string>& _filenames;
+  std::vector<char>& _read_buffer;
+
+  Timestamp _now;
+  size_t _next_file_index{0};
+  size_t _num_uploads_attempted{0};
+  size_t _num_uploads_completed_successfully{0};
+  _process_and_upload_batch_result _last_batch_result{
+      _process_and_upload_batch_result::success
+  };
+};
+
+std::optional<Duration> UploadCycle::Begin() {
   // The feature should have its own state related to upload attempt timing etc.
-  if (!feature.upload_state) {
+  if (!_feature.upload_state) {
     DATADOG_ASSERT(false, "registered feature has no upload state in upload thread");
     return ASSERTION_FAILURE_BACKOFF;
   }
@@ -217,15 +272,12 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
   // The feature should also have a FeatureEventStorage object that provides access to
   // the directory where the Core stores batches of event data for this feature which we
   // have consent to upload
-  if (!feature.storage) {
+  if (!_feature.storage) {
     DATADOG_ASSERT(false, "registered feature has no storage in upload thread");
     return ASSERTION_FAILURE_BACKOFF;
   }
 
-  // Prepare a FilesystemWrapper that will handle path encoding transparently
-  FilesystemWrapper fsw(fs);
-
-  const Timestamp now = clock.Now();
+  _now = _clock.Now();
 
   // Evict stale files from the pending-consent directory. These accumulate when consent
   // is set to Pending and never resolved. The upload thread never reads from this
@@ -233,17 +285,17 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
   //
   // This runs before the granted-directory listing so that a transient failure listing
   // the granted directory does not prevent eviction of stale pending files.
-  const StoragePath& pending_dir_path = feature.storage->GetPendingPath();
-  mut_filenames.clear();
-  const auto pending_list_res = fsw.ListFiles(pending_dir_path.CStr(), mut_filenames);
+  const StoragePath& pending_dir_path = _feature.storage->GetPendingPath();
+  _filenames.clear();
+  const auto pending_list_res = _fsw.ListFiles(pending_dir_path.CStr(), _filenames);
   if (pending_list_res == FilesystemResult::OK) {
-    std::sort(mut_filenames.begin(), mut_filenames.end());
-    for (const std::string& pending_filename : mut_filenames) {
-      const auto file_age = batch_file_age(pending_filename, now);
+    std::sort(_filenames.begin(), _filenames.end());
+    for (const std::string& pending_filename : _filenames) {
+      const auto file_age = batch_file_age(pending_filename, _now);
       if (!file_age) {
         continue;
       }
-      if (*file_age < config.max_file_age_for_read) {
+      if (*file_age < _config.max_file_age_for_read) {
         // Files are sorted oldest-first; all subsequent files are also too young.
         break;
       }
@@ -254,16 +306,16 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
         continue;
       }
 
-      const auto delete_res = fsw.Delete(pending_file_path.CStr());
+      const auto delete_res = _fsw.Delete(pending_file_path.CStr());
       if (delete_res == FilesystemResult::OK) {
-        diagnostic_logger.Debug(
+        _diagnostic_logger.Debug(
             "Deleted outdated pending batch file",
-            {{"feature", feature.name}, {"filename", pending_filename}}
+            {{"feature", _feature.name}, {"filename", pending_filename}}
         );
       } else {
-        diagnostic_logger.Warning(
+        _diagnostic_logger.Warning(
             "Failed to delete outdated pending batch file",
-            {{"feature", feature.name},
+            {{"feature", _feature.name},
              {"filename", pending_filename},
              {"error", FilesystemResultStr(delete_res)}}
         );
@@ -272,39 +324,41 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
   }
 
   // Retrieve a list of all filenames in the consent-granted event directory
-  mut_filenames.clear();
-  const StoragePath& granted_dir_path = feature.storage->GetGrantedPath();
-  const auto list_res = fsw.ListFiles(granted_dir_path.CStr(), mut_filenames);
+  _filenames.clear();
+  const StoragePath& granted_dir_path = _feature.storage->GetGrantedPath();
+  const auto list_res = _fsw.ListFiles(granted_dir_path.CStr(), _filenames);
   if (list_res != FilesystemResult::OK) {
-    return feature.upload_state->current_delay;
+    return _feature.upload_state->current_delay;
   }
 
   // Sort all filenames lexicographically: this will cause an ordering bug for a brief
   // moment on November 20, 2286
-  std::sort(mut_filenames.begin(), mut_filenames.end());
+  std::sort(_filenames.begin(), _filenames.end());
+  _next_file_index = 0;
+  return std::nullopt;
+}
 
-  // Iterate over the names of all files, starting with the oldest
-  size_t num_uploads_attempted = 0;
-  size_t num_uploads_completed_successfully = 0;
-  _process_and_upload_batch_result last_batch_result{
-      _process_and_upload_batch_result::success
-  };
-  for (const std::string& filename : mut_filenames) {
-    const auto file_age = batch_file_age(filename, now);
+bool UploadCycle::Step() {  // NOLINT(readability-function-cognitive-complexity)
+  const StoragePath& granted_dir_path = _feature.storage->GetGrantedPath();
+
+  // Iterate over the names of all remaining files, starting with the oldest
+  while (_next_file_index < _filenames.size()) {
+    const std::string& filename = _filenames[_next_file_index++];
+    const auto file_age = batch_file_age(filename, _now);
     if (!file_age) {
       continue;
     }
 
     // Under normal circumstances, we have to respect a minimum file age threshold
-    // before we can read from files, as the storage thread may still be writing to them
+    // before we can read from files, as the storage queue may still be writing to them
     // before they hit that age. If our threshold is 0, it means we're permitted to
     // bypass these checks and read from all files, as long as they're not too _old_ to
     // upload.
-    if (*file_age < config.min_file_age_for_read) {
+    if (*file_age < _config.min_file_age_for_read) {
       // If we've encountered our first file that's too new to process, we're done. We
       // process files in order, sorted lexically by timestamp, so every file that we'd
       // encounter hereafter would be even newer than this one.
-      break;
+      return false;
     }
 
     // Build the full path to the batch file we're examining
@@ -318,19 +372,19 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     }
 
     // If this file is too old to process, delete it and continue
-    if (*file_age >= config.max_file_age_for_read) {
-      const auto delete_res = fsw.Delete(file_path.CStr());
+    if (*file_age >= _config.max_file_age_for_read) {
+      const auto delete_res = _fsw.Delete(file_path.CStr());
       if (delete_res == FilesystemResult::OK) {
-        diagnostic_logger.Debug(
+        _diagnostic_logger.Debug(
             "Deleted outdated batch file",
-            {{"feature", feature.name}, {"filename", filename}}
+            {{"feature", _feature.name}, {"filename", filename}}
         );
       } else {
         // TODO: Keep track of the files we've processed, so that even if we fail to
         // delete a batch, we won't continually reupload it
-        diagnostic_logger.Warning(
+        _diagnostic_logger.Warning(
             "Failed to delete outdated batch file",
-            {{"feature", feature.name},
+            {{"feature", _feature.name},
              {"filename", filename},
              {"error", FilesystemResultStr(delete_res)}}
         );
@@ -341,40 +395,40 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // Read the batch of event data from the file, pass it to the feature implementation
     // to be processed, then initiate the resulting HTTP request to upload the batch to
     // intake
-    last_batch_result = _process_and_upload_batch(
-        diagnostic_logger,
-        *feature.impl,
-        feature.upload_state->request_builder,
-        fsw,
+    _last_batch_result = _process_and_upload_batch(
+        _diagnostic_logger,
+        *_feature.impl,
+        _feature.upload_state->request_builder,
+        _fsw,
         file_path,
-        http_client,
-        mut_read_buffer
+        _http_client,
+        _read_buffer
     );
-    num_uploads_attempted++;
+    _num_uploads_attempted++;
 
     // Decide what to do with this file, and whether we should keep going
     bool should_delete_batch = false;
     bool should_abort_upload_cycle = false;
-    switch (last_batch_result) {
+    switch (_last_batch_result) {
       case _process_and_upload_batch_result::success:
-        diagnostic_logger.Debug(
+        _diagnostic_logger.Debug(
             "Batch upload OK; will delete and continue this upload cycle",
-            {{"feature", feature.name}, {"filename", filename}}
+            {{"feature", _feature.name}, {"filename", filename}}
         );
-        num_uploads_completed_successfully++;
+        _num_uploads_completed_successfully++;
         should_delete_batch = true;
         break;
       case _process_and_upload_batch_result::retryable_failure:
-        diagnostic_logger.Debug(
+        _diagnostic_logger.Debug(
             "Batch upload failed; will abort this upload cycle and retry later",
-            {{"feature", feature.name}, {"filename", filename}}
+            {{"feature", _feature.name}, {"filename", filename}}
         );
         should_abort_upload_cycle = true;
         break;
       case _process_and_upload_batch_result::bad_batch:
-        diagnostic_logger.Debug(
+        _diagnostic_logger.Debug(
             "Batch rejected on upload; will delete and continue this upload cycle",
-            {{"feature", feature.name}, {"filename", filename}}
+            {{"feature", _feature.name}, {"filename", filename}}
         );
         should_delete_batch = true;
         break;
@@ -383,76 +437,82 @@ static Duration _run_upload_cycle( // NOLINT(readability-function-cognitive-comp
     // If we need to delete the batch file, either because we processed it successfully
     // or because it's somehow malformed, delete it
     if (should_delete_batch) {
-      const auto delete_res = fsw.Delete(file_path.CStr());
+      const auto delete_res = _fsw.Delete(file_path.CStr());
       if (delete_res == FilesystemResult::OK) {
-        diagnostic_logger.Debug(
-            "Deleted batch file", {{"feature", feature.name}, {"filename", filename}}
+        _diagnostic_logger.Debug(
+            "Deleted batch file", {{"feature", _feature.name}, {"filename", filename}}
         );
       } else {
         // TODO: Keep track of the files we've processed, so that even if we fail to
         // delete a batch, we won't continually reupload it
-        diagnostic_logger.Warning(
+        _diagnostic_logger.Warning(
             "Failed to delete batch file",
-            {{"feature", feature.name},
+            {{"feature", _feature.name},
              {"filename", filename},
              {"error", FilesystemResultStr(delete_res)}}
         );
       }
     }
 
-    // Break out of the loop if we don't want to continue processing batches
+    // Stop if we don't want to continue processing batches
     if (should_abort_upload_cycle) {
-      break;
+      return false;
     }
 
     // If we would otherwise keep going but we've hit our limit on the number of batches
     // processed in one upload cycle, stop processing
-    if (num_uploads_attempted >= config.max_batches_per_cycle) {
+    if (_num_uploads_attempted >= _config.max_batches_per_cycle) {
       // Frequent occurrence of this log message may be an indication that the SDK is
       // accumulating data in storage faster than it can upload it
-      diagnostic_logger.Debug(
+      _diagnostic_logger.Debug(
           "Reached batch limit for this upload cycle",
-          {{"feature", feature.name},
-           {"num_uploads_attempted", num_uploads_attempted},
-           {"max_batches_per_cycle", config.max_batches_per_cycle}}
+          {{"feature", _feature.name},
+           {"num_uploads_attempted", _num_uploads_attempted},
+           {"max_batches_per_cycle", _config.max_batches_per_cycle}}
       );
-      break;
+      return false;
     }
-  }
 
-  if (num_uploads_attempted == 0) {
-    diagnostic_logger.Debug(
-        "Upload cycle finished with nothing to upload", {{"feature", feature.name}}
+    // One batch attempted: let the caller decide whether to continue right away
+    return _next_file_index < _filenames.size();
+  }
+  return false;
+}
+
+Duration UploadCycle::Finish() {
+  if (_num_uploads_attempted == 0) {
+    _diagnostic_logger.Debug(
+        "Upload cycle finished with nothing to upload", {{"feature", _feature.name}}
     );
-  } else if (num_uploads_completed_successfully == num_uploads_attempted) {
-    diagnostic_logger.Status(
+  } else if (_num_uploads_completed_successfully == _num_uploads_attempted) {
+    _diagnostic_logger.Status(
         "Upload cycle finished with all uploads successful",
-        {{"feature", feature.name}, {"num_uploads", num_uploads_attempted}}
+        {{"feature", _feature.name}, {"num_uploads", _num_uploads_attempted}}
     );
   } else {
-    diagnostic_logger.Warning(
+    _diagnostic_logger.Warning(
         "Upload cycle finished with unsuccessful uploads",
-        {{"feature", feature.name},
-         {"num_uploads_attempted", num_uploads_attempted},
-         {"num_uploads_completed_successfully", num_uploads_completed_successfully}}
+        {{"feature", _feature.name},
+         {"num_uploads_attempted", _num_uploads_attempted},
+         {"num_uploads_completed_successfully", _num_uploads_completed_successfully}}
     );
   }
 
   // If we didn't find any batches to upload, leave our backoff interval unchanged
-  if (num_uploads_attempted == 0) {
+  if (_num_uploads_attempted == 0) {
     // Schedule the next upload cycle after the same delay
-    return feature.upload_state->current_delay;
+    return _feature.upload_state->current_delay;
   }
 
   // We did try to process one or more batches: modify this feature's backoff interval
   // based on the result of the last batch
-  if (last_batch_result == _process_and_upload_batch_result::success) {
+  if (_last_batch_result == _process_and_upload_batch_result::success) {
     // Last batch was good; schedule the next upload cycle to happen sooner
-    return feature.upload_state->ResetDelayToMin();
+    return _feature.upload_state->ResetDelayToMin();
   }
 
   // Last batch failed; wait a bit longer for the next upload cycle
-  return feature.upload_state->IncreaseDelayTowardMax();
+  return _feature.upload_state->IncreaseDelayTowardMax();
 }
 
 UploadThreadConfig::UploadThreadConfig(
@@ -534,10 +594,10 @@ Duration Internal_HandleUploadProc(
     return ASSERTION_FAILURE_BACKOFF;
   }
 
-  // Kick off the next upload cycle for this feature, scanning the appropriate storage
+  // Run a full upload cycle for this feature, scanning the appropriate storage
   // directory for files that need to be uploaded, and uploading any that are found, up
   // to the configured limits
-  return _run_upload_cycle(
+  UploadCycle cycle(
       diagnostic_logger,
       config,
       clock,
@@ -547,63 +607,137 @@ Duration Internal_HandleUploadProc(
       mut_filenames,
       mut_read_buffer
   );
+  if (auto early_delay = cycle.Begin()) {
+    return *early_delay;
+  }
+  while (cycle.Step()) {
+  }
+  return cycle.Finish();
 }
 
-void UploadThreadMain(
+UploadWorker::UploadWorker(
+    Executor& executor,
     DiagnosticLogger& diagnostic_logger,
     UploadThreadConfig config,
     const platform::IClock& clock,
-    UploadScheduler& scheduler,
     std::vector<RegisteredFeature>& features,
     IFilesystem& fs,
     IHttpClient& http_client
-) {
-  diagnostic_logger.Debug("Upload thread starting");
+)
+    : _diagnostic_logger(diagnostic_logger),
+      _config(config),
+      _clock(clock),
+      _features(features),
+      _fs(fs),
+      _http_client(http_client),
+      _queue(executor.CreateTaskQueue({"upload", StopPolicy::DiscardPending})) {
+  // Reusable buffers: cycles run one at a time, so they can share them
+  _filenames.reserve(64);
+  _read_buffer.reserve(QuantizeBufferSize(1024));
+}
 
+UploadWorker::~UploadWorker() {
+  // Pending items capture `this`: make sure none can run once members start being
+  // destroyed
+  _queue->Close();
+  _queue->WaitIdle();
+}
+
+void UploadWorker::Start() {
   // Schedule initial upload cycles for all features
-  for (auto& feature : features) {
-    scheduler.Schedule(feature.id, feature.upload_state->current_delay);
-    diagnostic_logger.Debug(
-        "Scheduled first upload cycle for feature",
-        {{"feature", feature.name},
-         {"feature_id", static_cast<int64_t>(feature.id)},
-         {"delay_ms", feature.upload_state->current_delay.count() / 1000000}}
+  for (auto& feature : _features) {
+    ScheduleCycle(feature.id, feature.upload_state->current_delay);
+  }
+}
+
+void UploadWorker::Close() { _queue->Close(); }
+
+void UploadWorker::WaitIdle() { _queue->WaitIdle(); }
+
+void UploadWorker::ScheduleCycle(FeatureId feature_id, Duration delay) {
+  const auto timer =
+      _queue->PostAfter(delay, [this, feature_id] { OnCycleDue(feature_id); });
+  if (timer) {
+    _diagnostic_logger.Debug(
+        "Scheduled upload cycle for feature",
+        {{"feature_id", static_cast<int64_t>(feature_id)},
+         {"delay_ms",
+          std::chrono::duration_cast<std::chrono::milliseconds>(delay).count()}}
     );
   }
+}
 
-  // Initialize a reusable vector to contain filenames, so we don't have to allocate
-  // every time we scan through a directory
-  std::vector<std::string> filenames;
-  filenames.reserve(64);
+void UploadWorker::OnCycleDue(FeatureId feature_id) {
+  // Cycles run one at a time, since they share the HTTP client and the reusable
+  // buffers. If another feature's cycle is between batches, this one waits its turn
+  // without holding a thread.
+  if (std::find(_due_features.begin(), _due_features.end(), feature_id) ==
+      _due_features.end()) {
+    _due_features.push_back(feature_id);
+  }
+  if (!_cycle) {
+    StartNextCycle();
+  }
+}
 
-  // Similarly, initialize a reusable buffer to contain the current TLV block data read
-  // from each file: we process uploads serially, so this buffer can be reused between
-  // uploads and between features
-  std::vector<char> read_buffer;
-  read_buffer.reserve(QuantizeBufferSize(1024));
+void UploadWorker::StartNextCycle() {
+  if (_cycle || _due_features.empty()) {
+    return;
+  }
+  const FeatureId feature_id = _due_features.front();
+  _due_features.pop_front();
 
-  // Run indefinitely, exiting once the scheduler returns nullopt
-  while (auto feature_id = scheduler.WaitForNext()) {
-    const Duration delay_until_next_cycle = Internal_HandleUploadProc(
-        diagnostic_logger,
-        config,
-        clock,
-        *feature_id,
-        features,
-        fs,
-        http_client,
-        filenames,
-        read_buffer
+  const auto feature = std::find_if(
+      _features.begin(), _features.end(), [feature_id](const RegisteredFeature& f) {
+        return f.id == feature_id;
+      }
+  );
+  if (feature == _features.end()) {
+    DATADOG_ASSERT(
+        false, "feature_id on scheduled upload matches no registered feature"
     );
-    scheduler.Schedule(*feature_id, delay_until_next_cycle);
-    diagnostic_logger.Debug(
-        "Scheduled next upload cycle for feature",
-        {{"feature_id", static_cast<int64_t>(*feature_id)},
-         {"delay_ms", delay_until_next_cycle.count() / 1000000}}
-    );
+    ScheduleCycle(feature_id, ASSERTION_FAILURE_BACKOFF);
+    return;
   }
 
-  diagnostic_logger.Debug("Upload thread finished");
+  _cycle = std::make_unique<UploadCycle>(
+      _diagnostic_logger,
+      _config,
+      _clock,
+      *feature,
+      _fs,
+      _http_client,
+      _filenames,
+      _read_buffer
+  );
+  _cycle_feature_id = feature_id;
+  if (auto early_delay = _cycle->Begin()) {
+    FinishCycle(*early_delay);
+    return;
+  }
+  ContinueCycle();
+}
+
+void UploadWorker::ContinueCycle() {
+  if (!_cycle) {
+    return;
+  }
+  if (_cycle->Step()) {
+    // More batches may follow: attempt the next one in a separate item, so that each
+    // item holds a worker for at most one HTTP request. If the queue is closed, the
+    // cycle is abandoned, leaving unsent batches on disk.
+    _queue->Push([this] { ContinueCycle(); });
+    return;
+  }
+  FinishCycle(_cycle->Finish());
+}
+
+void UploadWorker::FinishCycle(Duration delay_until_next_cycle) {
+  _cycle.reset();
+  ScheduleCycle(_cycle_feature_id, delay_until_next_cycle);
+  if (!_due_features.empty()) {
+    _queue->Push([this] { StartNextCycle(); });
+  }
 }
 
 }  // namespace datadog::impl

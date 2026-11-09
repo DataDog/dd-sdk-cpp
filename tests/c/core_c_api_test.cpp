@@ -66,6 +66,25 @@ TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-
   }
 }
 
+TEST_CASE("dd_core_config max_worker_threads", "[unit][core][c-api]") {
+  SECTION("M default to 0 W config initialized") {
+    dd_core_config_t config;
+    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
+    REQUIRE(config.max_worker_threads == 0);
+  }
+
+  SECTION("M store value W set") {
+    dd_core_config_t config;
+    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
+    dd_core_config_set_max_worker_threads(&config, 1);
+    REQUIRE(config.max_worker_threads == 1);
+  }
+
+  SECTION("M safely do nothing W config is null") {
+    dd_core_config_set_max_worker_threads(nullptr, 1);
+  }
+}
+
 TEST_CASE("dd_core null safety", "[unit][core][c-api]") {
   SECTION("M safely do nothing W target object is null") {
     REQUIRE(dd_core_create(nullptr, DD_TRACKING_CONSENT_PENDING) == nullptr);

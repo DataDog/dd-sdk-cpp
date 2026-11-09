@@ -163,6 +163,7 @@ typedef struct dd_core_config {
   dd_batch_size_t batch_size;
   dd_upload_frequency_t upload_frequency;
   dd_batch_processing_level_t batch_processing_level;
+  uint32_t max_worker_threads;
   dd_internal_options_t internal_options;
 } dd_core_config_t;
 
@@ -302,6 +303,27 @@ DATADOG_API void dd_core_config_set_upload_frequency(
  */
 DATADOG_API void dd_core_config_set_batch_processing_level(
     dd_core_config_t* config, dd_batch_processing_level_t value
+);
+
+/**
+ * Limits the number of worker threads that the SDK spawns to run its background work:
+ * writing events to storage, uploading them, processing context updates and feature
+ * messages, and periodic sampling.
+ *
+ * Each kind of background work runs on its own serial queue, and the SDK's workers take
+ * turns between queues. By default (0), the SDK may spawn one worker per queue, so that
+ * no kind of work waits for another. Lower values reduce the number of threads, at the
+ * cost of latency: in particular, with a limit of 1, other background work may wait
+ * for an HTTP upload request in progress to complete, up to the HTTP timeout. A limit
+ * of 2 or more keeps uploads from delaying other work. Workers are only spawned as
+ * needed, so the SDK may use fewer threads than the limit.
+ *
+ * This limit only applies to the worker threads described above. It doesn't count
+ * threads created by other components, such as the HTTP library's internal threads, or
+ * the crash reporting handler.
+ */
+DATADOG_API void dd_core_config_set_max_worker_threads(
+    dd_core_config_t* config, uint32_t value
 );
 
 /**

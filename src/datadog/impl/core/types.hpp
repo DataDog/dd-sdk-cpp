@@ -246,7 +246,8 @@ inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
           .SetUploadFrequency(UploadFrequency_FromC(config.upload_frequency))
           .SetBatchProcessingLevel(
               BatchProcessingLevel_FromC(config.batch_processing_level)
-          );
+          )
+          .SetMaxWorkerThreads(config.max_worker_threads);
 
   // Handle internal options
   if (config.internal_options.flush_http_requests_on_stop) {

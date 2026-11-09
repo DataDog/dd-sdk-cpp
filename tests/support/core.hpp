@@ -6,6 +6,8 @@
 
 #pragma once
 
+#include <cstdint>
+#include <cstdlib>
 #include <limits>
 #include <memory>
 
@@ -27,6 +29,21 @@ using namespace datadog;
 static void on_c_diagnostic(const dd_diagnostic_message_t* message, void* userdata);
 
 /**
+ * Returns the worker-thread limit that tests should configure the SDK with: by default
+ * 0 (the SDK's default), or the value of the DD_TEST_MAX_WORKER_THREADS environment
+ * variable. CTest also runs the suite with this set to 1, so that every test exercising
+ * a real Core also checks that the SDK works with a single worker thread.
+ */
+inline uint32_t TestMaxWorkerThreads() {
+  const char* value =
+      std::getenv("DD_TEST_MAX_WORKER_THREADS");  // NOLINT(concurrency-mt-unsafe)
+  if (value == nullptr) {
+    return 0;
+  }
+  return static_cast<uint32_t>(std::strtoul(value, nullptr, 10));
+}
+
+/**
  * Default SDK configuration used in tests.
  */
 static const CoreConfig MOCK_CORE_CONFIG =
@@ -36,6 +53,7 @@ static const CoreConfig MOCK_CORE_CONFIG =
         .SetBatchSize(BatchSize::Small)
         .SetUploadFrequency(UploadFrequency::Frequent)
         .SetBatchProcessingLevel(BatchProcessingLevel::Low)
+        .SetMaxWorkerThreads(TestMaxWorkerThreads())
         .Internal_SetSource("mock-source")
         .Internal_SetSdkVersion("1.2.3");
 

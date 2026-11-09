@@ -12,21 +12,19 @@
 #include <memory>
 #include <optional>
 #include <string_view>
-#include <thread>
 #include <vector>
 
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/message_bus.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/core/queue.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
 #include "datadog/impl/core/storage/sdk.hpp"
 #include "datadog/impl/core/storage_queue.hpp"
 #include "datadog/impl/core/storage_write.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/core/upload_scheduler.hpp"
 #include "datadog/impl/core/upload_thread.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
@@ -193,93 +191,97 @@ struct RegisteredFeature {
  * registered feature implementations receive OnStart(). When the core is stopped, all
  * features receive OnStop() prior to shutdown.
  *
- * When started, the Core runs two background threads:
+ * When started, the Core runs its background work on an `Executor` (see
+ * `executor.hpp`): a set of worker threads, capped by
+ * `CoreConfig::SetMaxWorkerThreads`, shared by several serial queues. Each queue runs
+ * its items one at a time, in FIFO order, on whichever worker is free, so the work on
+ * each queue is serialized exactly as if it had a dedicated thread. By default the
+ * executor may spawn one worker per queue, so no queue ever waits for another. The Core
+ * owns four queues:
  *
- * 1.) The storage thread (see `storage_thread.hpp`), which consumes from a thread-safe
- *     queue that's owned by the Core (see `queue.hpp`). When a feature generates new
- *     event data, or when the Core needs to change the state of the storage thread,
- *     code running in the the main thread produces a `StorageMessage` to the storage
- *     queue.
+ * 1.) The context queue, a TaskQueue of functions submitted by features through
+ *     FeatureScope (see `feature_scope.hpp`). Features rely on these functions never
+ *     running concurrently with each other.
  *
- *     For each registered feature, the storage thread takes responsibility for writing
+ * 2.) The message bus queue (see `message_bus.hpp`), which delivers FeatureMessages to
+ *     every feature's handler. Delivery starts only once every feature has received
+ *     OnCoreStarted().
+ *
+ * 3.) The storage queue (see `storage_thread.hpp`). When a feature generates new event
+ *     data, or when the Core needs to change the state of storage, a `StorageMessage`
+ *     is pushed onto this queue, and `HandleStorageMessage` processes each one
+ *     serially.
+ *
+ *     For each registered feature, the storage queue takes responsibility for writing
  *     event data to '<storage_root>/<feature_name>/', split into two subdirectories:
  *     one for batches of events collected while tracking consent is pending, and
  *     another containing batches that we have consent to upload. Each batch is a stored
  *     as a binary file in TLV format (see `tlv.hpp`).
  *
- *     In `StorageThreadMain`, the storage thread consumes from the storage queue,
- *     blocking until messages are available, and processes each message serially.
+ *     When a new event has been queued for write, it is written to the appropriate
+ *     batch file, in '<storage_root>/<feature_name>/<consent_subdir>/'. The name of
+ *     each batch file is a Unix timestamp (in milliseconds, no extension) representing
+ *     the timestamp at which it was created. Storage makes decisions about when to stop
+ *     writing to the the current file and start a new batch, based on size limits,
+ *     timing requirements, etc., some of which are user-configurable and some of which
+ *     are feature-defined.
  *
- *     When a new event has been queued for write, the storage thread writes it to the
- *     appropriate batch file, in '<storage_root>/<feature_name>/<consent_subdir>/'.
- *     The name of each batch file is a Unix timestamp (in milliseconds, no extension)
- *     representing the timestamp at which it was created. The storage thread makes
- *     decisions about when to stop writing to the the current file and start a new
- *     batch, based on size limits, timing requirements, etc., some of which are
- *     user-configurable and some of which are feature-defined.
+ * 4.) The upload queue (see `upload_thread.hpp`), on which an `UploadWorker`
+ *     periodically runs "upload cycles" for all registered features. The timing of
+ *     upload cycles is controlled independently for each feature, but only a single
+ *     upload cycle runs at a time, and the HTTP client is only ever used for one
+ *     request at a time.
  *
- *     When the storage thread is stopped in response to Core::Stop():
- *     - The storage queue will stop accepting new messages
- *     - The storage thread will drain the queue, flushing all pending writes to disk
- *     - The storage thread will exit
- *
- * 2.) The upload thread (see `upload_thread.hpp`), which uses an `UploadScheduler` to
- *     periodically initiate "upload cycles" for all registered features. The timing of
- *     upload cycles is controlled independently for each feature, but the upload thread
- *     only handles a single upload cycle at a time.
- *
- *     For each registered feature, the upload thread takes responsibility for reading
+ *     For each registered feature, the upload queue takes responsibility for reading
  *     event data from '<storage_root>/<feature_name>/<consent_subdir>', where
  *     consent_subdir is the subdirectory that contains event data that we have consent
  *     to process and upload.
  *
- *     In `UploadThreadMain`, the upload thread waits until the next scheduled upload
- *     cycle is ready. At that time, it runs an upload cycle for the relevant feature,
- *     then schedules the next upload cycle for the same feature, adjusting the delay
- *     for that feature as needed based on the results of the cycle it just ran.
+ *     When a feature's upload cycle is due, the UploadWorker runs it, then schedules
+ *     the next upload cycle for the same feature, adjusting the delay for that feature
+ *     as needed based on the results of the cycle it just ran.
  *
- *     In each upload cycle, the upload thread scans through the target directory in
+ *     In each upload cycle, the upload queue scans through the target directory in
  *     order, starting from the oldest file, looking for batches of event data that are
  *     ready to be processed and uploaded. Files are not considered ready for upload
- *     until they've reached a certain age, and the storage thread refrains from writing
- *     to files once they're nearing that age, providing a time-based means of
- *     synchronizing access to the filesystem.
+ *     until they've reached a certain age, and storage refrains from writing to files
+ *     once they're nearing that age, providing a time-based means of synchronizing
+ *     access to the filesystem.
  *
- *     Each upload cycle may process multiple batches for a given feature. For each
- *     batch, the upload thread opens the relevant file for read, then defers to the
- *     feature implementation to read each event from the batch, along with any
- *     associated metadata, in order to build an HTTP request payload. The upload thread
- *     initiates an HTTP request as instructed by the feature implementation, streaming
- *     the request body directly over the HTTP connection.
+ *     Each upload cycle may process multiple batches for a given feature, each in its
+ *     own queue item. For each batch, the upload queue opens the relevant file for
+ *     read, then defers to the feature implementation to read each event from the
+ *     batch, along with any associated metadata, in order to build an HTTP request
+ *     payload. It then initiates an HTTP request as instructed by the feature
+ *     implementation, streaming the request body directly over the HTTP connection.
  *
- *     When the upload thread successfully processes a batch, or when it determines that
- *     the batch is malformed or unacceptable to the intake server, it deletes the batch
- *     from the storage directory. If the upload thread fails to upload a batch due to
- *     transient network problems, it retains the batch and aborts the upload cycle.
+ *     When a batch is processed successfully, or when it is malformed or unacceptable
+ * to the intake server, it is deleted from the storage directory. If a batch fails to
+ *     upload due to transient network problems, it is retained and the upload cycle is
+ *     aborted.
  *
- *     When the upload thread successfully uploads batches for a feature, it reduces the
- *     interval between upload cycles for that feature. When upload cycles fail, the
- *     storage thread increases the delay with which that feature's next upload cycle is
- *     scheduled.
+ *     When uploads for a feature succeed, the interval between upload cycles for that
+ *     feature is reduced. When upload cycles fail, the delay with which that feature's
+ *     next upload cycle is scheduled is increased, based on user-configurable values.
  *
- *     The upload thread makes decisions about the timing and throughput of upload
- *     cycles based on user-configurable values.
+ * Features may create further queues on the same executor through FeatureScope (e.g.
+ * RUM's vitals sampling), and own them.
  *
- *     When the upload thread is stopped in response to Core::Stop():
- *     - If there is an upload cycle in progress, it will be completed
- *     - The upload thread will exit
+ * Each queue has a stop policy (see `StopPolicy`). Core::Stop() first cancels all
+ * skippable work (the upload queue and feature queues such as vitals sampling), then
+ * drains the context, message bus and storage queues in that order, since each feeds
+ * the next. The only upload work it waits for is an HTTP request already in flight.
  *
- * All state shared between threads is owned by the core, whose lifetime exceeds that of
- * the threads. Aside from the storage queue and the upload scheduler, which are
- * thread-safe by design, the primary point of overlap between threads is the vector of
- * RegisteredFeature objects that is maintained by the Core and shared by reference
- * between threads.
+ * All state shared between queues is owned by the core, whose lifetime exceeds that of
+ * the executor. Aside from the queues themselves, which are thread-safe by design, the
+ * primary point of overlap between queues is the vector of RegisteredFeature objects
+ * that is maintained by the Core and shared by reference.
  *
  * The Core guarantees that this vector and all its RegisteredFeature objects will
- * remain immutable for the lifetime of all threads, and each thread treats these
- * state objects as read-only, obviating the need for synchronization. The storage
- * thread has exclusive access to a feature's `BatchWriter` interface, and the upload
- * thread has exclusive access to a feature's `UploadThreadState`.
+ * remain immutable while the executor is running, and each queue treats these state
+ * objects as read-only, obviating the need for synchronization. The storage queue has
+ * exclusive access to a feature's `BatchWriter` interface, and the upload queue has
+ * exclusive access to a feature's `UploadThreadState`.
  */
 class Core {
  public:
@@ -387,7 +389,7 @@ class Core {
    * Must be called after Init(), and after at least one feature has been successfully
    * registered. The core must not already be running.
    *
-   * If successful, starts the storage and upload threads, notifies all registered
+   * If successful, starts the executor and its queues, notifies all registered
    * features, and begins normal SDK operation.
    *
    * @returns whether the core was successfully started. If the core was already
@@ -402,10 +404,12 @@ class Core {
    * If the core is not actually running, including if the core is not initialized, has
    * no effect.
    *
-   * If the core is running: notifies all features; then signals the end of storage
-   * queue processing; waits for the storage thread to drain the queue and flush writes
-   * to disk; then signals the end of upload cycle scheduling and waits for the upload
-   * thread to complete any in-flight HTTP request and exit.
+   * If the core is running: cancels pending upload cycles and other skippable work;
+   * drains the context and message bus queues; notifies all features; drains the
+   * storage queue, flushing writes to disk; waits for any in-flight HTTP request to
+   * complete; then joins all worker threads.
+   *
+   * Must not be called from one of the SDK's worker threads.
    */
   void Stop();
 
@@ -435,18 +439,13 @@ class Core {
   // Initialized before Start in response to user-initiated feature registration
   std::vector<RegisteredFeature> _features;  // May not be modified while running
 
-  // Initialized on Start, cleaned up on Stop
+  // Initialized on Start, cleaned up on Stop. The executor is declared first so that
+  // it outlives the queues created from it.
+  std::unique_ptr<Executor> _executor;
   std::unique_ptr<StorageQueue> _storage_queue;
-  std::optional<std::thread> _storage_thread;
-
-  std::unique_ptr<Queue<std::function<void()>>> _context_queue;
-  std::optional<std::thread> _context_thread;
-
+  std::unique_ptr<TaskQueue> _context_queue;
   std::unique_ptr<MessageBus> _message_bus;
-  std::optional<std::thread> _message_bus_thread;
-
-  std::unique_ptr<UploadScheduler> _upload_scheduler;
-  std::optional<std::thread> _upload_thread;
+  std::unique_ptr<UploadWorker> _upload_worker;
 
  public:
   // Accessors for core-owned data and interfaces that need to be passed to feature

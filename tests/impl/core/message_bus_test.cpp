@@ -7,14 +7,15 @@
 #include "datadog/impl/core/message_bus.hpp"
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <thread>
 #include <vector>
 
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/feature_id.hpp"
 #include "datadog/impl/core/feature_message.hpp"
-#include "datadog/impl/core/messaging_thread.hpp"
 
 #include "support/catch.hpp"
 #include "support/context.hpp"
@@ -84,8 +85,8 @@ struct MessageBusTestFeature final : public Feature {
 };
 
 TEST_CASE("MessageBus - integration", "[unit][core]") {
-  DiagnosticMessageBuffer diagnostics;
-  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+  // Declared first, so that it outlives every bus created below
+  Executor executor;
 
   SECTION(
       "M deliver ContextChangedMessage W MakeMessageHandler() wired through "
@@ -100,8 +101,8 @@ TEST_CASE("MessageBus - integration", "[unit][core]") {
     std::vector<std::function<void(const FeatureMessage&)>> handlers;
     handlers.push_back(std::move(*handler));
 
-    MessageBus bus(std::move(handlers));
-    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
+    MessageBus bus(executor, std::move(handlers));
+    bus.Resume();
 
     CoreContextProvider context_provider(MOCK_CONTEXT);
     context_provider.SetMessageBus(&bus);
@@ -111,7 +112,6 @@ TEST_CASE("MessageBus - integration", "[unit][core]") {
 
     // Then the handler receives the message
     bus.Stop();
-    t.join();
     context_provider.SetMessageBus(nullptr);
 
     REQUIRE(received.size() == 1);
@@ -125,8 +125,8 @@ TEST_CASE("MessageBus - integration", "[unit][core]") {
       received.push_back(std::get<ContextChangedMessage>(msg));
     });
 
-    MessageBus bus(std::move(handlers));
-    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
+    MessageBus bus(executor, std::move(handlers));
+    bus.Resume();
 
     CoreContextProvider context_provider(MOCK_CONTEXT);
     context_provider.SetMessageBus(&bus);
@@ -139,7 +139,6 @@ TEST_CASE("MessageBus - integration", "[unit][core]") {
     });
 
     bus.Stop();
-    t.join();
     context_provider.SetMessageBus(nullptr);
 
     // Then the delivered snapshot carries that exact value
@@ -166,16 +165,14 @@ TEST_CASE("MessageBus - integration", "[unit][core]") {
     handlers.push_back([&](const FeatureMessage&) { other_count.fetch_add(1); });
 
     // Enqueue a message while the feature is still alive, then destroy it before the
-    // messaging thread has a chance to drain the queue. Running the thread function
-    // synchronously (after Stop()) guarantees the feature is gone when the handler
-    // runs.
-    MessageBus bus(std::move(handlers));
+    // message is delivered. The bus starts suspended, so delivery only happens once
+    // Stop() drains it, which guarantees the feature is gone when the handler runs.
+    MessageBus bus(executor, std::move(handlers));
     REQUIRE(bus.Send(MakeMessage(0x1)));
 
     feature.reset();  // weak_from_this() in handler now expires
 
     bus.Stop();
-    MessagingThreadMain(logger, bus);  // drain synchronously; no background thread
 
     // The TestFeature handler silently dropped the message; the other handler ran
     REQUIRE(received.empty());
@@ -191,8 +188,8 @@ TEST_CASE("MessageBus - integration", "[unit][core]") {
     std::vector<std::function<void(const FeatureMessage&)>> handlers;
     handlers.push_back([&](const FeatureMessage&) { delivered.fetch_add(1); });
 
-    MessageBus bus(std::move(handlers));
-    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
+    MessageBus bus(executor, std::move(handlers));
+    bus.Resume();
 
     CoreContextProvider context_provider(MOCK_CONTEXT);
     context_provider.SetMessageBus(&bus);
@@ -204,17 +201,16 @@ TEST_CASE("MessageBus - integration", "[unit][core]") {
     }
 
     bus.Stop();
-    t.join();
     context_provider.SetMessageBus(nullptr);
 
-    // Then all messages were delivered before the join returned
+    // Then all messages were delivered before Stop() returned
     REQUIRE(delivered.load() == num_updates);
   }
 }
 
 TEST_CASE("MessageBus", "[unit][core]") {
-  DiagnosticMessageBuffer diagnostics;
-  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+  // Declared first, so that it outlives every bus created below
+  Executor executor;
 
   SECTION("M deliver message to single handler W one handler registered") {
     // Given a bus with one handler that records delivered sentinel values
@@ -224,13 +220,12 @@ TEST_CASE("MessageBus", "[unit][core]") {
       received.push_back(ReadSentinel(std::get<ContextChangedMessage>(msg)));
     });
 
-    MessageBus bus(std::move(handlers));
-    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
+    MessageBus bus(executor, std::move(handlers));
+    bus.Resume();
 
     // When we send a message with a known sentinel and stop the bus
     REQUIRE(bus.Send(MakeMessage(0xbeef)));
     bus.Stop();
-    t.join();
 
     // Then the handler received exactly that message
     REQUIRE(received.size() == 1);
@@ -251,14 +246,13 @@ TEST_CASE("MessageBus", "[unit][core]") {
       received_c.push_back(ReadSentinel(std::get<ContextChangedMessage>(msg)));
     });
 
-    MessageBus bus(std::move(handlers));
-    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
+    MessageBus bus(executor, std::move(handlers));
+    bus.Resume();
 
     // When we send two messages and stop the bus
     REQUIRE(bus.Send(MakeMessage(1)));
     REQUIRE(bus.Send(MakeMessage(2)));
     bus.Stop();
-    t.join();
 
     // Then every handler received both messages, in order
     const std::vector<uint64_t> expected{1, 2};
@@ -267,14 +261,35 @@ TEST_CASE("MessageBus", "[unit][core]") {
     REQUIRE(received_c == expected);
   }
 
-  SECTION("M drain all queued messages before messaging thread exits") {
+  SECTION("M hold messages until resumed W messages sent before Resume()") {
+    // Given a bus that hasn't been resumed yet, with a handler that counts deliveries
+    std::atomic<int> count{0};
+    std::vector<std::function<void(const FeatureMessage&)>> handlers;
+    handlers.push_back([&](const FeatureMessage&) { count.fetch_add(1); });
+    MessageBus bus(executor, std::move(handlers));
+
+    // When we send a message and give the executor ample time to run it
+    REQUIRE(bus.Send(MakeMessage(1)));
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    const int count_before_resume = count.load();
+
+    // And then resume and stop the bus
+    bus.Resume();
+    bus.Stop();
+
+    // Then the message was only delivered after Resume()
+    REQUIRE(count_before_resume == 0);
+    REQUIRE(count.load() == 1);
+  }
+
+  SECTION("M drain all queued messages before Stop() returns") {
     // Given a bus with a handler that counts deliveries
     std::atomic<int> count{0};
     std::vector<std::function<void(const FeatureMessage&)>> handlers;
     handlers.push_back([&](const FeatureMessage&) { count.fetch_add(1); });
 
-    MessageBus bus(std::move(handlers));
-    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
+    MessageBus bus(executor, std::move(handlers));
+    bus.Resume();
 
     // When we enqueue several messages and then stop
     const int num_messages = 50;
@@ -282,20 +297,18 @@ TEST_CASE("MessageBus", "[unit][core]") {
       bus.Send(MakeMessage(static_cast<uint64_t>(i)));
     }
     bus.Stop();
-    t.join();
 
-    // Then all messages were delivered before the thread exited
+    // Then all messages were delivered before Stop() returned
     REQUIRE(count.load() == num_messages);
   }
 
   SECTION("M return false from Send() W bus is stopped") {
     // Given a bus with no handlers
-    MessageBus bus({});
-    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
+    MessageBus bus(executor, {});
+    bus.Resume();
 
     // When the bus is stopped
     bus.Stop();
-    t.join();
 
     // Then Send() returns false and the message is dropped
     REQUIRE_FALSE(bus.Send(MakeMessage(0xdead)));
@@ -314,12 +327,11 @@ TEST_CASE("MessageBus", "[unit][core]") {
       received.push_back(ReadSentinel(std::get<ContextChangedMessage>(msg)));
     });
 
-    MessageBus bus(std::move(handlers));
-    std::thread t(MessagingThreadMain, std::ref(logger), std::ref(bus));
+    MessageBus bus(executor, std::move(handlers));
+    bus.Resume();
 
     REQUIRE(bus.Send(MakeMessage(0x42)));
     bus.Stop();
-    t.join();
 
     // The active handler still received the message
     REQUIRE(received.size() == 1);

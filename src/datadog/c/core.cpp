@@ -36,6 +36,7 @@ static const dd_core_config_t DEFAULT_CORE_CONFIG = {
     DD_BATCH_SIZE_MEDIUM,              // batch_size
     DD_UPLOAD_FREQUENCY_AVERAGE,       // upload_frequency
     DD_BATCH_PROCESSING_LEVEL_MEDIUM,  // batch_processing_level
+    0,                                 // max_worker_threads
     {
         false,  // internal_options.flush_http_requests_on_stop
         "",     // internal_options.custom_endpoint_url
@@ -276,6 +277,13 @@ void dd_core_config_set_batch_processing_level(
     return;
   }
   config->batch_processing_level = value;
+}
+
+void dd_core_config_set_max_worker_threads(dd_core_config_t* config, uint32_t value) {
+  if (!config) {
+    return;
+  }
+  config->max_worker_threads = value;
 }
 
 void dd_core_config_internal_flush_http_requests_on_stop(dd_core_config_t* config) {

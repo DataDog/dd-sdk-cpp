@@ -197,7 +197,12 @@ void Rum::Start() {
   _application = RumApplicationScope(_deps);
 
   DATADOG_ASSERT(!_vital_scheduler, "_vital_scheduler already exists on Rum::Start");
-  _vital_scheduler = std::make_unique<Scheduler>(_deps.diagnostic_logger);
+  // The queue only gets a worker thread once a task is scheduled on it. Its pending
+  // samples are skippable, so the Core may discard them at the start of shutdown.
+  _vital_scheduler = std::make_unique<Scheduler>(
+      _scope->CreateTaskQueue({"rum-vitals", StopPolicy::DiscardPending}),
+      _deps.diagnostic_logger
+  );
 
   // Take a snapshot of our global attributes, and enqueue a
   // RumGlobalAttributesChangedMessage to ensure that downstream features have a

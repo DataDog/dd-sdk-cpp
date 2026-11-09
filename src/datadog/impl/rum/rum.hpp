@@ -224,9 +224,9 @@ class Rum final : public Feature {
   std::string _request_url;
   std::string _request_headers;
 
-  // Runs periodic RUM vitals sampling (e.g. CPU, memory); alive between Start() and
-  // Stop(). Declared last so it is destroyed first: ~Scheduler waits for a run in
-  // progress, which may still use the members above
+  // Runs periodic RUM vitals sampling (e.g. CPU, memory) on its own executor queue;
+  // alive between Start() and Stop(). Declared last so it is destroyed first:
+  // ~Scheduler waits for a run in progress, which may still use the members above
   std::unique_ptr<Scheduler> _vital_scheduler;
 };
 

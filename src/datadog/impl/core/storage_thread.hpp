@@ -14,20 +14,21 @@
 namespace datadog::impl {
 
 /**
- * Entry point for the storage thread. See description in `core.hpp`.
+ * Handles one item from the storage queue. See description in `core.hpp`.
+ *
+ * Must only be called serially: the storage queue runs its items one at a time, which
+ * makes it the only writer to each feature's BatchWriter.
  *
  * @param diagnostic_logger Interface for logging local status/warning messages.
- * @param queue Non-owning reference to the thread-safe queue that we should read from;
- *  guaranteed to outlive the thread.
- * @param features Non-owning reference to the array of features that may produce to
- *  that queue. All RegisteredFeature objects contained in the vector are guaranteed to
- *  outlive the thread, and both the objects and the vector itself are guaranteed to
- *  remain immutable for the lifetime of the thread.
+ * @param features Non-owning reference to the array of features that may produce
+ *  storage messages. The vector and its items remain immutable while the storage queue
+ *  exists.
+ * @param message The message to handle.
  */
-void StorageThreadMain(
+void HandleStorageMessage(
     const DiagnosticLogger& diagnostic_logger,
-    StorageQueue& queue,
-    std::vector<struct RegisteredFeature>& features
+    std::vector<struct RegisteredFeature>& features,
+    const StorageMessage& message
 );
 
 }  // namespace datadog::impl

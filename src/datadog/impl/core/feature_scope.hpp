@@ -8,11 +8,12 @@
 
 #include <cstdint>
 #include <functional>
+#include <memory>
 
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/core/feature_message.hpp"
-#include "datadog/impl/core/queue.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
@@ -69,7 +70,11 @@ class FeatureScope {
   EventWriter _event_generated_func;
   MessagePublisher _message_produced_func;
   ExecutionMode _mode;
-  Queue<std::function<void()>>* _context_queue;
+  TaskQueue* _context_queue;
+  Executor* _executor;
+  // In testing mode, the scope owns a private executor for the queues that features
+  // create; it spawns no threads unless a feature submits work to one
+  std::shared_ptr<Executor> _owned_executor;
 
  private:
   /**
@@ -81,7 +86,9 @@ class FeatureScope {
       const MessagePublisher& message_publisher,
       const DiagnosticLogger& in_diagnostic_logger,
       ExecutionMode mode,
-      Queue<std::function<void()>>* context_queue
+      TaskQueue* context_queue,
+      Executor* executor,
+      std::shared_ptr<Executor> owned_executor
   );
 
  public:
@@ -103,15 +110,18 @@ class FeatureScope {
    * @param event_writer Callback invoked when features generate events
    * @param message_publisher Callback invoked when features produce messages
    * @param diagnostic_logger Logger for diagnostic messages
-   * @param context_queue Queue containing thunks to be executed serially by the context
-   *  thread; must outlive the FeatureScope
+   * @param context_queue Queue whose functions are executed serially, one at a time;
+   *  must outlive the FeatureScope
+   * @param executor Executor on which the feature may create queues of its own; must
+   *  outlive the FeatureScope
    */
   static FeatureScope Create(
       CoreContextProvider& context_provider,
       const EventWriter& event_writer,
       const MessagePublisher& message_publisher,
       const DiagnosticLogger& diagnostic_logger,
-      Queue<std::function<void()>>& context_queue
+      TaskQueue& context_queue,
+      Executor& executor
   );
 
   /**
@@ -155,13 +165,23 @@ class FeatureScope {
    * function is executed at the appropriate time.
    *
    * In production usage, where _mode == OnContextThread, the function will be pushed
-   * onto the context queue, which the context thread processes serially until SDK
-   * shutdown.
+   * onto the context queue, which runs its functions serially, one at a time, until
+   * SDK shutdown.
    *
    * If initialized with FeatureScope::CreateForTesting(), where mode == Synchronous,
    * the function will be immediately executed on the calling thread.
    */
   void ExecuteOnContextThread(const ContextThreadFunc& func);
+
+  /**
+   * Creates a serial queue on the SDK's executor, for background work that the feature
+   * runs independently of the context queue (e.g. periodic sampling). Spawns no thread
+   * by itself; see Executor for how queues share worker threads.
+   *
+   * The feature owns the queue, and must destroy it no later than in its Stop(): the
+   * Core shuts the executor down after features have stopped.
+   */
+  std::unique_ptr<TaskQueue> CreateTaskQueue(const QueueOptions& options);
 };
 
 }  // namespace datadog::impl
