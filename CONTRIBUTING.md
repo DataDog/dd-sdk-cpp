@@ -210,3 +210,20 @@ Or to produce precompiled binaries using GCC 11:
 ```
 
 Run the script with no arguments for usage information.
+
+### Release artifacts
+
+Each release publishes precompiled libraries, built by the `package-*` jobs in [`ci/package.yml`](./ci/package.yml).
+
+On Windows, the `package-windows` job uses the `vs2022` image from [`ci/windows/`](./ci/windows/Dockerfile):
+
+- **`windows-x64-msvc143-md-shared-release`** and **`windows-x64-msvc143-md-static-release`** are built on Windows Server Core ltsc2022 with Visual Studio 2022 Build Tools 17.14 (MSVC v143) and Windows SDK 10.0.26100. Both link the dynamic CRT (`/MD`).
+
+On macOS, the `package-macos` job runs on a macOS 14 (Sonoma) VM image with Xcode 15.3 (Apple Clang 15.0.0):
+
+- **`macos-universal-clang-libc++-shared-release`** and **`macos-universal-clang-libc++-static-release`** are universal binaries for `arm64` and `x86_64`, against Apple's libc++, with a deployment target of macOS 14.0.
+
+On Linux, the `package-linux` job uses images from [`ci/linux/Dockerfile`](./ci/linux/Dockerfile):
+
+- **`linux-x64-clang-libstdc++-shared-release`** and **`linux-x64-clang-libstdc++-static-release`** are built in the `clang20` image: Clang 20 on Ubuntu 24.04, against GNU libstdc++, glibc 2.39, and Ubuntu's libcurl.
+- **`linux-x64-clang-libc++-static-release`** is built in the `ue-clang20` image, with the toolchain that Unreal Engine 5.7 and 5.8 use for Linux (`v26_clang-20.1.8-rockylinux8`): Clang 20.1.8, against LLVM libc++ and a Rocky Linux 8 sysroot with glibc 2.28. It compiles against libcurl 8.12.1 headers. [`tools/check-package`](./tools/check-package/main.py) fails the build if this library references any libstdc++ symbols or any glibc symbol versions newer than 2.28.
