@@ -12,9 +12,7 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/context_thread.hpp"
 #include "datadog/impl/core/http/client.hpp"
-#include "datadog/impl/core/messaging_thread.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/storage/filesystem_wrapper.hpp"
@@ -477,20 +475,20 @@ bool Core::Start() {
   DATADOG_ASSERT(_context_provider, "_context_provider is null on Start()");
   _context_provider->Update([](CoreContext& ctx) { ctx.Reset(); });
 
-  // Initialize a thread-safe queue that features can write to whenever they produce
-  // events that need to be written to disk
-  DATADOG_ASSERT(!_storage_queue, "_storage_queue already exists on Start()");
-  _storage_queue = std::make_unique<StorageQueue>();
+  // Create the executor that runs all background work. It spawns worker threads
+  // lazily, as queues receive work, up to the configured limit.
+  DATADOG_ASSERT(!_executor, "_executor already exists on Start()");
+  _executor =
+      std::make_unique<Executor>(_config.max_worker_threads, _diagnostic_logger);
 
-  // Start a thread that will read those events from the queue and write them to
-  // persistent storage: the thread accepts non-owning references to the queue and the
-  // vector of features, as both are stable for the lifetime of the thread
-  DATADOG_ASSERT(!_storage_thread, "_storage_thread already exists on Start()");
-  _storage_thread = std::thread(
-      StorageThreadMain,
-      std::ref(_diagnostic_logger),
-      std::ref(*_storage_queue),
-      std::ref(_features)
+  // Initialize a queue that features can write to whenever they produce events that
+  // need to be written to disk: its handler writes each one to persistent storage. The
+  // vector of features is stable for as long as the queue exists.
+  DATADOG_ASSERT(!_storage_queue, "_storage_queue already exists on Start()");
+  _storage_queue = _executor->CreateQueue<StorageMessage>(
+      {"storage", StopPolicy::Drain}, [this](StorageMessage& message) {
+        HandleStorageMessage(_diagnostic_logger, _features, message);
+      }
   );
 
   // Iterate through all registered features and call MakeMessageHandler(), allowing
@@ -505,9 +503,10 @@ bool Core::Start() {
   }
 
   // Create the message bus, which will queue all core-to-feature and feature-to-feature
-  // messages that need to be handled by interested features
+  // messages that need to be handled by interested features. Delivery stays suspended
+  // until every feature has started (see below).
   DATADOG_ASSERT(!_message_bus, "_message_bus already exists on Start()");
-  _message_bus = std::make_unique<MessageBus>(std::move(handlers));
+  _message_bus = std::make_unique<MessageBus>(*_executor, std::move(handlers));
 
   // Install the MessageBus into the CoreContextProvider so that it can send
   // ContextChangedMessage in response to updates: context thread doesn't exist yet, so
@@ -518,42 +517,31 @@ bool Core::Start() {
   // ContextChangeMessaged, ensuring that all features see an initial CoreContext
   // snapshot prior to the arrival of an feature-specific context updates.  Note that
   // there's no guarantee that features will see this message prior to Feature::Start(),
-  // as it's delivered by the messaging thread (see below) without any synchronization.
+  // as it's delivered asynchronously once the bus is resumed (see below).
   _context_provider->Update([](CoreContext&) {});
 
-  // Initialize a thread-safe queue for feature-submitted functions that will execute on
-  // the context thread
+  // Initialize a queue for feature-submitted functions, which run serially, one at a
+  // time
   DATADOG_ASSERT(!_context_queue, "_context_queue already exists on Start()");
-  _context_queue = std::make_unique<Queue<std::function<void()>>>();
+  _context_queue = _executor->CreateTaskQueue({"context", StopPolicy::Drain});
 
-  // Start the context thread that will execute functions submitted by features
-  DATADOG_ASSERT(!_context_thread, "_context_thread already exists on Start()");
-  _context_thread = std::thread(
-      ContextThreadMain, std::ref(_diagnostic_logger), std::ref(*_context_queue)
-  );
-
-  // Initialize an upload scheduler to manage the timing of upload cycles for each
-  // feature
-  DATADOG_ASSERT(!_upload_scheduler, "_upload_scheduler already exists on Start()");
-  _upload_scheduler = std::make_unique<UploadScheduler>(*_subsystems.clock);
-
-  // Start another thread that will schedule periodic upload cycles on a per-feature
-  // basis: each time an upload cycle runs, the thread will check the relevant storage
-  // directory for batches of events that are ready for read, processing them via the
-  // feature implementation and sending them to intake over HTTP
-  DATADOG_ASSERT(!_upload_thread, "_upload_thread already exists on Start()");
-  _upload_thread = std::thread(
-      UploadThreadMain,
-      std::ref(_diagnostic_logger),
+  // Schedule periodic upload cycles on a per-feature basis: each time an upload cycle
+  // runs, it checks the relevant storage directory for batches of events that are ready
+  // for read, processing them via the feature implementation and sending them to
+  // intake over HTTP
+  DATADOG_ASSERT(!_upload_worker, "_upload_worker already exists on Start()");
+  _upload_worker = std::make_unique<UploadWorker>(
+      *_executor,
+      _diagnostic_logger,
       UploadThreadConfig::FromCoreConfig(
           _config.batch_size, _config.batch_processing_level
       ),
-      std::ref(*_subsystems.clock),
-      std::ref(*_upload_scheduler),
-      std::ref(_features),
-      std::ref(*_subsystems.fs),
-      std::ref(*_http_client)
+      *_subsystems.clock,
+      _features,
+      *_subsystems.fs,
+      *_http_client
   );
+  _upload_worker->Start();
 
   _diagnostic_logger.Status(
       "Core started",
@@ -589,21 +577,18 @@ bool Core::Start() {
             event_writer,
             message_publisher,
             _diagnostic_logger,
-            *_context_queue
+            *_context_queue,
+            *_executor
         )
     );
   }
 
-  // Start the messaging thread only after all features have completed OnCoreStarted().
+  // Start delivering messages only after all features have completed OnCoreStarted().
   // This ensures that any ContextChangedMessages dispatched during startup (e.g. from
   // a feature calling UpdateContext in its Start()) are not delivered to a feature's
   // handler before that feature's own OnCoreStarted() has run. Messages enqueued
-  // during the loop above are buffered in the queue and will be drained once this
-  // thread starts.
-  DATADOG_ASSERT(!_message_bus_thread, "_message_bus_thread already exists on Start()");
-  _message_bus_thread = std::thread(
-      MessagingThreadMain, std::ref(_diagnostic_logger), std::ref(*_message_bus)
-  );
+  // during the loop above are buffered in the queue and will be delivered now.
+  _message_bus->Resume();
 
   return true;
 }
@@ -615,53 +600,43 @@ void Core::Stop() {
   }
   _diagnostic_logger.Debug("Beginning Core shutdown");
 
-  // If we were previously started, all background threads should be running
-  DATADOG_ASSERT(_context_queue, "_context_queue is invalid on Stop");
+  // Stop() blocks until background work drains, which a worker thread can't wait for
   DATADOG_ASSERT(
-      _context_thread && _context_thread->joinable(),
-      "_context_thread is non-joinable on Stop"
-  );
-  DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid on Stop");
-  DATADOG_ASSERT(
-      _storage_thread && _storage_thread->joinable(),
-      "_storage_thread is non-joinable on Stop"
-  );
-  DATADOG_ASSERT(_upload_scheduler, "_upload_scheduler is invalid on Stop");
-  DATADOG_ASSERT(
-      _upload_thread && _upload_thread->joinable(),
-      "_upload_thread is non-joinable on Stop"
+      !Executor::IsWorkerThread(), "Core::Stop() called from a worker thread"
   );
 
-  // Stop the context queue, then block until the context thread drains the queue and
-  // exits. This ensures all pending feature work completes before we stop the storage
-  // thread or tear down feature state.
+  // If we were previously started, the executor and all queues should exist
+  DATADOG_ASSERT(_executor, "_executor is invalid on Stop");
+  DATADOG_ASSERT(_context_queue, "_context_queue is invalid on Stop");
+  DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid on Stop");
+  DATADOG_ASSERT(_message_bus, "_message_bus is invalid on Stop");
+  DATADOG_ASSERT(_upload_worker, "_upload_worker is invalid on Stop");
+
+  // Before waiting for anything, cancel all work that's safe to skip: pending upload
+  // cycles, and feature queues such as periodic sampling. An HTTP request already in
+  // flight still finishes, but no further request starts. Unsent batches stay on disk.
+  _executor->CloseDiscardableQueues();
+
+  // Stop the context queue, then block until it has drained. This ensures all pending
+  // feature work completes before we stop the storage queue or tear down feature state.
   // TODO(RUM-15042): Other SDKs abandon the context thread and shut down in a
   // non-blocking fashion, without draining the context queue
-  _context_queue->Stop();
-  if (_context_thread) {
-    _diagnostic_logger.Debug("Joining on context thread");
-    _context_thread->join();
-  }
-  _context_thread.reset();
+  _diagnostic_logger.Debug("Draining context queue");
+  _context_queue->Close();
+  _context_queue->WaitIdle();
 
-  // Stop the messaging thread after the context thread exits: the context thread is
-  // the primary producer of messages (via Update()), so draining it first prevents new
-  // messages from arriving after we signal the messaging thread to stop. After joining,
-  // detach the bus from the context provider so any stray Update() calls (which should
-  // not happen at this point) do not reference the destroyed bus.
-  DATADOG_ASSERT(_message_bus, "_message_bus is invalid on Stop");
-  DATADOG_ASSERT(
-      _message_bus_thread && _message_bus_thread->joinable(),
-      "_message_bus_thread is non-joinable on Stop"
-  );
+  // Stop the message bus after the context queue drains: context work is the primary
+  // producer of messages (via Update()), so draining it first prevents new messages
+  // from arriving after we stop the bus. Then detach the bus from the context provider
+  // so any stray Update() calls (which should not happen at this point) do not
+  // reference the destroyed bus.
+  _diagnostic_logger.Debug("Draining message bus");
   _message_bus->Stop();
-  _diagnostic_logger.Debug("Joining on messaging thread");
-  _message_bus_thread->join();
-  _message_bus_thread.reset();
   _context_provider->SetMessageBus(nullptr);
 
   // Notify each registered feature that the core has stopped, now that no more
-  // context-thread functions enqueued by those features may be running
+  // context-queue functions enqueued by those features may be running. Features
+  // destroy the queues they created.
   for (const auto& feature : _features) {
     feature.impl->OnCoreStopping();
   }
@@ -670,32 +645,28 @@ void Core::Stop() {
   _context_queue.reset();
   _message_bus.reset();
 
-  // Stop all queue processing, then block until the consumer thread drains the queue
-  // and exits, at which point it's safe to release the queue
-  _storage_queue->Stop();
-  if (_storage_thread) {
-    _diagnostic_logger.Debug("Joining on storage thread");
-    _storage_thread->join();
-  }
-  _storage_thread.reset();
+  // Stop accepting storage writes, then block until every pending write is flushed to
+  // disk
+  _diagnostic_logger.Debug("Draining storage queue");
+  _storage_queue->Close();
+  _storage_queue->WaitIdle();
   _storage_queue.reset();
 
-  // Once the storage thread is fully shut down, signal to the upload thread (with
-  // synchronization) that it should exit, then wait for it to do so
-  _upload_scheduler->Stop();
-  if (_upload_thread) {
-    _diagnostic_logger.Debug("Joining on upload thread");
-    _upload_thread->join();
-  }
-  _upload_thread.reset();
-  _upload_scheduler.reset();
+  // Upload work was cancelled above: wait for a request that was already in flight
+  _diagnostic_logger.Debug("Waiting for in-flight upload");
+  _upload_worker->WaitIdle();
+  _upload_worker.reset();
+
+  // Every queue is now idle and destroyed: join the worker threads
+  _executor->Shutdown();
+  _executor.reset();
 
   // If we're configured to flush at shutdown, run one final upload cycle for each
   // registered feature, attempting to upload the next N batches, blocking the main
   // thread until done: this is useful for ensuring immediate uploads in unit tests
   if (_config.internal_options.num_http_requests_per_feature_to_flush_on_stop > 0) {
     // Adjust our config to allow reading all files, regardless of age (since we've
-    // joined on the storage thread; we now have exclusive access to batch files), and
+    // joined all worker threads; we now have exclusive access to batch files), and
     // to upload N batches up to our configured per-feature limit
     Duration min_file_age_for_read{0};
     UploadThreadConfig flush_config(
@@ -703,13 +674,13 @@ void Core::Stop() {
         _config.internal_options.num_http_requests_per_feature_to_flush_on_stop
     );
 
-    // We can't reuse buffers from the upload thread (unless we factor them out and make
+    // We can't reuse buffers from the upload worker (unless we factor them out and make
     // them owned by the core)
     std::vector<std::string> mut_filenames;
     std::vector<char> mut_read_buffer;
 
-    // Run our upload cycle procedure on the main thread, synchronously: now that
-    // we've joined on both threads, all state is synchronized
+    // Run our upload cycle procedure on the calling thread, synchronously: now that
+    // we've joined all worker threads, all state is synchronized
     for (const auto& feature : _features) {
       Internal_HandleUploadProc(
           _diagnostic_logger,

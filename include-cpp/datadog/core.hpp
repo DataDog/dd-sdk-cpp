@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -187,6 +188,7 @@ struct CoreConfig {
   BatchSize batch_size{BatchSize::Medium};
   UploadFrequency upload_frequency{UploadFrequency::Average};
   BatchProcessingLevel batch_processing_level{BatchProcessingLevel::Medium};
+  uint32_t max_worker_threads{0};
 
   struct InternalOptions {
     size_t num_http_requests_per_feature_to_flush_on_stop{0};
@@ -322,6 +324,25 @@ struct CoreConfig {
    * @see @ref datadog::BatchProcessingLevel
    */
   DATADOG_API CoreConfig& SetBatchProcessingLevel(BatchProcessingLevel value);
+
+  /**
+   * Limits the number of worker threads that the SDK spawns to run its background
+   * work: writing events to storage, uploading them, processing context updates and
+   * feature messages, and periodic sampling.
+   *
+   * Each kind of background work runs on its own serial queue, and the SDK's workers
+   * take turns between queues. By default (0), the SDK may spawn one worker per queue,
+   * so that no kind of work waits for another. Lower values reduce the number of
+   * threads, at the cost of latency: in particular, with a limit of 1, other background
+   * work may wait for an HTTP upload request in progress to complete, up to the HTTP
+   * timeout. A limit of 2 or more keeps uploads from delaying other work. Workers are
+   * only spawned as needed, so the SDK may use fewer threads than the limit.
+   *
+   * This limit only applies to the worker threads described above. It doesn't count
+   * threads created by other components, such as the HTTP library's internal threads,
+   * or the crash reporting handler.
+   */
+  DATADOG_API CoreConfig& SetMaxWorkerThreads(uint32_t value);
 
   /**
    * FOR INTERNAL USE ONLY - This function is not part of the public API and may change

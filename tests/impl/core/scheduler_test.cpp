@@ -54,26 +54,6 @@ class CallOnDestroy final {
   std::function<void()> _on_destroy;
 };
 
-// Sleeps in its destructor, which for a thread_local runs at thread exit, after the
-// thread function has returned
-struct SlowThreadLocalCleanup final {
-  std::atomic<bool>* cleaned = nullptr;
-
-  SlowThreadLocalCleanup() = default;
-  SlowThreadLocalCleanup(const SlowThreadLocalCleanup&) = delete;
-  SlowThreadLocalCleanup& operator=(const SlowThreadLocalCleanup&) = delete;
-  SlowThreadLocalCleanup(SlowThreadLocalCleanup&&) = delete;
-  SlowThreadLocalCleanup& operator=(SlowThreadLocalCleanup&&) = delete;
-
-  ~SlowThreadLocalCleanup() {
-    if (cleaned != nullptr) {
-      std::this_thread::sleep_for(50ms);
-      *cleaned = true;
-    }
-  }
-};
-
-// Throws from OnSuccess, counting the calls
 class ThrowingCallback final : public Callback<void> {
  public:
   void OnSuccess() override {
@@ -127,14 +107,21 @@ static std::optional<Scheduler::TaskId> ScheduleTask(
 }
 
 TEST_CASE("Scheduler", "[unit]") {
+  // Every section runs twice: with the default worker limit, and with a single worker
+  // thread. The executor is declared first, so that it outlives every scheduler.
+  Executor executor(GENERATE(0u, 1u));
+  auto make_queue = [&] {
+    return executor.CreateTaskQueue({"scheduler-test", StopPolicy::DiscardPending});
+  };
+
   // Tasks and their closures capture section locals by reference, so those locals are
   // declared before the Scheduler: ~Scheduler is Shutdown(true), which waits for the
-  // scheduler thread to exit and drops the closures, so being destroyed first it
-  // guarantees nothing runs against a local that has left scope.
+  // run in progress and drops the closures, so being destroyed first it guarantees
+  // nothing runs against a local that has left scope.
   SECTION("M run task repeatedly W task scheduled") {
     // Given a counter and a scheduler with a task scheduled every 5ms
     std::atomic<int> runs{0};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     auto id = ScheduleTask(scheduler, 5ms, [&] { runs++; });
 
     // Then the task gets an ID and runs repeatedly
@@ -145,7 +132,7 @@ TEST_CASE("Scheduler", "[unit]") {
   SECTION("M not run task before period elapses W long period") {
     // Given a counter and a scheduler with a task scheduled every 10 seconds
     std::atomic<int> runs{0};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     ScheduleTask(scheduler, 10s, [&] { runs++; });
 
     // When a short time passes
@@ -158,7 +145,7 @@ TEST_CASE("Scheduler", "[unit]") {
   SECTION("M run earlier task W added after a later one") {
     // Given a counter and a scheduler waiting on a task due in 10 seconds
     std::atomic<int> runs{0};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     ScheduleTask(scheduler, 10s, [] {});
     std::this_thread::sleep_for(5ms);
 
@@ -175,7 +162,7 @@ TEST_CASE("Scheduler", "[unit]") {
     std::promise<std::chrono::steady_clock::time_point> second_run;
     auto second_run_future = second_run.get_future();
     const auto scheduled_at = std::chrono::steady_clock::now();
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     ScheduleTask(scheduler, 100ms, [&] {
       const int run = ++runs;
       if (run == 1) {
@@ -196,7 +183,7 @@ TEST_CASE("Scheduler", "[unit]") {
   SECTION("M stop running task W cancelled") {
     // Given a counter and a task that has run at least once
     std::atomic<int> runs{0};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     auto id = ScheduleTask(scheduler, 1ms, [&] { runs++; });
     REQUIRE(WaitFor([&] { return runs >= 1; }));
 
@@ -217,7 +204,7 @@ TEST_CASE("Scheduler", "[unit]") {
     // Given a pair of counters and two scheduled tasks
     std::atomic<int> runs_a{0};
     std::atomic<int> runs_b{0};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     auto id_a = ScheduleTask(scheduler, 1ms, [&] { runs_a++; });
     ScheduleTask(scheduler, 1ms, [&] { runs_b++; });
 
@@ -234,7 +221,7 @@ TEST_CASE("Scheduler", "[unit]") {
     std::promise<void> started;
     std::promise<void> release;
     std::atomic<bool> finished{false};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     ScheduleTask(scheduler, 1ms, [&, release_future = release.get_future().share()] {
       if (finished) {
         return;
@@ -258,13 +245,13 @@ TEST_CASE("Scheduler", "[unit]") {
     REQUIRE(finished_when_shutdown_returned);
   }
 
-  SECTION("M wait for detached task W destroyed after shutdown without wait") {
+  SECTION("M wait for running task W destroyed after shutdown without wait") {
     // Given a task that is currently running and blocked
     std::promise<void> started;
     std::promise<void> release;
     std::atomic<int> runs{0};
     std::atomic<bool> task_finished{false};
-    auto scheduler = std::make_unique<Scheduler>();
+    auto scheduler = std::make_unique<Scheduler>(make_queue());
     ScheduleTask(*scheduler, 1ms, [&, release_future = release.get_future().share()] {
       if (runs++ == 0) {
         started.set_value();
@@ -300,12 +287,12 @@ TEST_CASE("Scheduler", "[unit]") {
     REQUIRE(runs == 1);
   }
 
-  SECTION("M wait for detached task W shutdown with wait after shutdown without wait") {
-    // Given a detached scheduler thread with a blocked task
+  SECTION("M wait for running task W shutdown with wait after shutdown without wait") {
+    // Given a scheduler shut down without waiting, with a blocked task
     std::promise<void> started;
     std::promise<void> release;
     std::atomic<bool> task_finished{false};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     ScheduleTask(scheduler, 1ms, [&, release_future = release.get_future().share()] {
       started.set_value();
       release_future.wait();
@@ -334,15 +321,15 @@ TEST_CASE("Scheduler", "[unit]") {
     REQUIRE(run_finished);
   }
 
-  SECTION("M wait for detached task W destroyed after shutdown from a task") {
+  SECTION("M wait for running task W destroyed after shutdown from a task") {
     // Given a task that shuts down its scheduler and then remains blocked
     std::promise<void> stopped;
     std::promise<void> release;
     std::atomic<bool> task_finished{false};
-    auto scheduler = std::make_unique<Scheduler>();
+    auto scheduler = std::make_unique<Scheduler>(make_queue());
     ScheduleTask(*scheduler, 1ms, [&, release_future = release.get_future().share()] {
       scheduler->Shutdown(true);
-      // A second call must still recognize the scheduler thread after detach
+      // A second call from the task must not wait either
       scheduler->Shutdown(true);
       stopped.set_value();
       release_future.wait();
@@ -375,7 +362,7 @@ TEST_CASE("Scheduler", "[unit]") {
     std::promise<void> started;
     std::promise<void> release;
     std::atomic<bool> task_finished{false};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     ScheduleTask(scheduler, 1ms, [&, release_future = release.get_future().share()] {
       started.set_value();
       release_future.wait();
@@ -397,31 +384,9 @@ TEST_CASE("Scheduler", "[unit]") {
     REQUIRE(finished_at_shutdown);
   }
 
-  SECTION(
-      "M wait for thread-local cleanup W shutdown with wait after shutdown without wait"
-  ) {
-    // Given a task that gives the scheduler thread a slow thread_local destructor
-    std::atomic<bool> ran{false};
-    std::atomic<bool> cleaned{false};
-    Scheduler scheduler;
-    ScheduleTask(scheduler, 1ms, [&] {
-      thread_local SlowThreadLocalCleanup cleanup;
-      cleanup.cleaned = &cleaned;
-      ran = true;
-    });
-    REQUIRE(WaitFor([&] { return ran.load(); }));
-
-    // When the thread is detached, then waited for
-    scheduler.Shutdown(false);
-    scheduler.Shutdown(true);
-
-    // Then the wait covered the thread-local destructors too
-    REQUIRE(cleaned);
-  }
-
   SECTION("M reject tasks W already shut down") {
     // Given a scheduler that has been shut down
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     scheduler.Shutdown(true);
 
     // Then new tasks are rejected
@@ -430,7 +395,7 @@ TEST_CASE("Scheduler", "[unit]") {
 
   SECTION("M reject task W period is not positive") {
     // Given a scheduler
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
 
     // When a task is scheduled with a zero period
     auto id = ScheduleTask(scheduler, 0ms, [] {});
@@ -445,7 +410,7 @@ TEST_CASE("Scheduler", "[unit]") {
     std::atomic<bool> sentinel_ran{false};
     std::atomic<bool> destroyed{false};
     std::optional<Scheduler::TaskId> sentinel;
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     sentinel = ScheduleTask(scheduler, 1ms, [&] { sentinel_ran = true; });
     auto cancel_sentinel_on_destroy = [&] {
       scheduler.Cancel(*sentinel);
@@ -459,7 +424,7 @@ TEST_CASE("Scheduler", "[unit]") {
     REQUIRE(id.has_value());
     REQUIRE(WaitFor([&] { return sentinel_ran.load(); }));
 
-    // When the task is cancelled while the scheduler thread is idle
+    // When the task is cancelled while the scheduler is idle
     REQUIRE(scheduler.Cancel(*id));
 
     // Then its closure was destroyed off the lock and its Cancel() went through
@@ -471,7 +436,7 @@ TEST_CASE("Scheduler", "[unit]") {
     // that sentinel when the closure is destroyed
     std::atomic<bool> destroyed{false};
     std::optional<Scheduler::TaskId> sentinel;
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     sentinel = ScheduleTask(scheduler, 10s, [] {});
     auto cancel_sentinel_on_destroy = [&] {
       scheduler.Cancel(*sentinel);
@@ -491,14 +456,14 @@ TEST_CASE("Scheduler", "[unit]") {
   }
 
   SECTION("M not deadlock W task cancels itself during its run") {
-    // Given a task that cancels itself, which leaves the scheduler thread holding the
+    // Given a task that cancels itself, which leaves the running worker holding the
     // last reference to its closure, and whose closure calls Cancel() on a sentinel
     // task when the closure is destroyed
     std::atomic<int> sentinel_runs{0};
     std::atomic<Scheduler::TaskId> self_id{0};
     std::atomic<bool> destroyed{false};
     std::optional<Scheduler::TaskId> sentinel;
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     sentinel = ScheduleTask(scheduler, 1ms, [&] { sentinel_runs++; });
     auto cancel_sentinel_on_destroy = [&] {
       scheduler.Cancel(*sentinel);
@@ -526,7 +491,7 @@ TEST_CASE("Scheduler", "[unit]") {
 
   SECTION("M reject task W period exceeds max") {
     // Given a scheduler
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
 
     // When tasks are scheduled with periods above MAX_PERIOD
     auto id_huge = ScheduleTask(scheduler, Duration::max(), [] {});
@@ -539,7 +504,7 @@ TEST_CASE("Scheduler", "[unit]") {
 
   SECTION("M accept task W period equals max") {
     // Given a scheduler
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
 
     // When a task is scheduled with a period of exactly MAX_PERIOD
     auto id = ScheduleTask(scheduler, Scheduler::MAX_PERIOD, [] {});
@@ -551,7 +516,7 @@ TEST_CASE("Scheduler", "[unit]") {
   SECTION("M not deadlock W shutdown called from a task") {
     // Given a flag and a task that shuts down its own scheduler
     std::atomic<bool> done{false};
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     ScheduleTask(scheduler, 1ms, [&] {
       scheduler.Shutdown(true);
       done = true;
@@ -564,7 +529,7 @@ TEST_CASE("Scheduler", "[unit]") {
   SECTION("M report result to OnSuccess W task returns") {
     // Given a scheduler with a task returning 42
     auto callback = std::make_shared<RecordingCallback>();
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     scheduler.Schedule<int>(1ms, [] { return 42; }, callback);
 
     // Then the result reaches OnSuccess and OnFailure is never called
@@ -576,7 +541,7 @@ TEST_CASE("Scheduler", "[unit]") {
   SECTION("M report exception to OnFailure W task throws") {
     // Given a scheduler with a task that always throws
     auto callback = std::make_shared<RecordingCallback>();
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     scheduler.Schedule<int>(
         1ms, []() -> int { throw std::runtime_error("boom"); }, callback
     );
@@ -588,7 +553,7 @@ TEST_CASE("Scheduler", "[unit]") {
 
   SECTION("M reject task W callback is null") {
     // Given a scheduler
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
 
     // When a task is scheduled without a callback
     auto id = scheduler.Schedule<int>(1ms, [] { return 0; }, nullptr);
@@ -602,7 +567,7 @@ TEST_CASE("Scheduler", "[unit]") {
     // Given a scheduler with a logger and a callback that throws from OnSuccess
     DiagnosticMessageBuffer diagnostics;
     auto callback = std::make_shared<ThrowingCallback>();
-    Scheduler scheduler(diagnostics.CreateTestLogger());
+    Scheduler scheduler(make_queue(), diagnostics.CreateTestLogger());
     scheduler.Schedule<void>(1ms, [] {}, callback);
 
     // Then the task keeps running and each exception is logged as an error
@@ -615,7 +580,7 @@ TEST_CASE("Scheduler", "[unit]") {
   SECTION("M call OnSuccess W void task returns") {
     // Given a scheduler with a task that returns nothing
     auto callback = std::make_shared<CountingCallback>();
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     scheduler.Schedule<void>(1ms, [] {}, callback);
 
     // Then OnSuccess is called for every run and OnFailure never is
@@ -626,7 +591,7 @@ TEST_CASE("Scheduler", "[unit]") {
   SECTION("M report exception to OnFailure W void task throws") {
     // Given a scheduler with a void task that always throws
     auto callback = std::make_shared<CountingCallback>();
-    Scheduler scheduler;
+    Scheduler scheduler(make_queue());
     scheduler.Schedule<void>(1ms, [] { throw std::runtime_error("boom"); }, callback);
 
     // Then every run reaches OnFailure and OnSuccess never runs

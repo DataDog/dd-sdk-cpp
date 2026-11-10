@@ -6,13 +6,13 @@
 
 #pragma once
 
-#include <atomic>
 #include <chrono>
-#include <condition_variable>
-#include <mutex>
-#include <queue>
+#include <deque>
+#include <memory>
+#include <string>
 #include <vector>
 
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/http/client.hpp"
 #include "datadog/impl/core/http/request_builder.hpp"
@@ -92,10 +92,12 @@ struct UploadThreadState {
 };
 
 /**
- * Initiates an upload cycle for the given feature.
+ * Runs a complete upload cycle for the given feature on the calling thread, blocking
+ * until it finishes, and returns the delay until the feature's next cycle.
  *
- * Called by UploadThreadMain when a feature is ready to be processed by the upload
- * thread. Exposed here to facilitate unit testing.
+ * Used for the final flush in Core::Stop(), once the executor has shut down, and
+ * exposed here to facilitate unit testing. UploadWorker runs the same steps, one batch
+ * per queue item.
  */
 Duration Internal_HandleUploadProc(
     DiagnosticLogger& diagnostic_logger,
@@ -110,29 +112,78 @@ Duration Internal_HandleUploadProc(
 );
 
 /**
- * Entry point for the upload thread. See description in `core.hpp`.
+ * Runs upload cycles for all registered features on the executor's "upload" queue.
+ * See description in `core.hpp`.
  *
- * @param diagnostic_logger Interface for logging local status/warning messages.
- * @param config Global configuration values for the upload thread.
- * @param clock Interface to the system clock.
- * @param scheduler Non-owning reference to the object used to coordinate the timing of
- *  upload cycles for each registered feature. The main thread owns the scheduler and
- *  uses it to signal shutdown; but actual scheduling state is exclusive to the upload
- *  thread.
- * @param features Non-owning reference to the array of registered features. The vector
- *  and its items are guaranteed to remain immutable and to persist for the lifetime of
- *  the thread.
- * @param http_client Non-owning reference to the HTTP client that will be used to
- *  initiate requests for each report.
+ * Each feature's next cycle is scheduled with a delay that depends on the outcome of
+ * its previous cycle (adaptive backoff). Cycles run one at a time, never interleaved,
+ * because they share one HTTP client and one set of reusable buffers. Within a cycle,
+ * each batch upload is a separate queue item, so that a cycle yields its worker thread
+ * between HTTP requests when other work is waiting.
+ *
+ * The upload queue's stop policy is DiscardPending: closing it cancels pending cycles,
+ * and abandons the current cycle after the HTTP request in flight, leaving unsent
+ * batches on disk for a later run.
  */
-void UploadThreadMain(
-    DiagnosticLogger& diagnostic_logger,
-    UploadThreadConfig config,
-    const platform::IClock& clock,
-    class UploadScheduler& scheduler,
-    std::vector<struct RegisteredFeature>& features,
-    class IFilesystem& fs,
-    IHttpClient& http_client
-);
+class UploadWorker final {
+ public:
+  /**
+   * @param features Non-owning reference to the array of registered features. The
+   *  vector and its items must remain immutable, and outlive the UploadWorker.
+   * @param http_client Non-owning reference to the HTTP client used for every upload;
+   *  only ever used for one request at a time.
+   */
+  UploadWorker(
+      Executor& executor,
+      DiagnosticLogger& diagnostic_logger,
+      UploadThreadConfig config,
+      const platform::IClock& clock,
+      std::vector<struct RegisteredFeature>& features,
+      class IFilesystem& fs,
+      IHttpClient& http_client
+  );
+
+  /** Closes the upload queue and waits for an in-progress request to finish. */
+  ~UploadWorker();
+
+  UploadWorker(const UploadWorker&) = delete;
+  UploadWorker& operator=(const UploadWorker&) = delete;
+  UploadWorker(UploadWorker&&) = delete;
+  UploadWorker& operator=(UploadWorker&&) = delete;
+
+  /** Schedules the first upload cycle for each feature. */
+  void Start();
+
+  /** Cancels all pending upload work, without blocking. */
+  void Close();
+
+  /** Blocks until no upload work is running. */
+  void WaitIdle();
+
+ private:
+  // All of these run on the upload queue
+  void ScheduleCycle(FeatureId feature_id, Duration delay);
+  void OnCycleDue(FeatureId feature_id);
+  void StartNextCycle();
+  void ContinueCycle();
+  void FinishCycle(Duration delay_until_next_cycle);
+
+  DiagnosticLogger& _diagnostic_logger;
+  const UploadThreadConfig _config;
+  const platform::IClock& _clock;
+  std::vector<struct RegisteredFeature>& _features;
+  class IFilesystem& _fs;
+  IHttpClient& _http_client;
+
+  // Only accessed from items running on _queue, which never run concurrently
+  std::vector<std::string> _filenames;
+  std::vector<char> _read_buffer;
+  std::deque<FeatureId> _due_features;
+  std::unique_ptr<class UploadCycle> _cycle;
+  FeatureId _cycle_feature_id{};
+
+  // Declared last so that it's destroyed first, while the state above still exists
+  std::unique_ptr<TaskQueue> _queue;
+};
 
 }  // namespace datadog::impl

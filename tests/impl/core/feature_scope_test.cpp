@@ -16,7 +16,7 @@
 #include "datadog/core.hpp"
 
 #include "datadog/impl/core/context.hpp"
-#include "datadog/impl/core/context_thread.hpp"
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/types/rum.hpp"
 
@@ -73,7 +73,9 @@ struct FeatureState {
    * implementation with the Core.
    */
   FeatureScope CreateScope(
-      CoreContextProvider& context_provider, Queue<std::function<void()>>& context_queue
+      CoreContextProvider& context_provider,
+      TaskQueue& context_queue,
+      Executor& executor
   ) {
     return FeatureScope::Create(
         context_provider,
@@ -85,7 +87,8 @@ struct FeatureState {
           return true;
         },
         DiagnosticLogger{},
-        context_queue
+        context_queue,
+        executor
     );
   }
 };
@@ -139,21 +142,20 @@ TEST_CASE("FeatureScope", "[unit][core]") {
   DiagnosticMessageBuffer diagnostics;
   DiagnosticLogger diagnostic_logger = diagnostics.CreateTestLogger();
 
-  // And a fully functional context thread that reads functions from a queue and
-  // executes them serially in the background
-  Queue<std::function<void()>> context_queue;
-  std::thread context_thread{
-      ContextThreadMain, std::ref(diagnostic_logger), std::ref(context_queue)
-  };
+  // And a fully functional context queue that executes functions serially in the
+  // background, on an executor limited to either one worker thread or the default
+  Executor executor(GENERATE(0u, 1u), diagnostic_logger);
+  auto context_queue_ptr = executor.CreateTaskQueue({"context", StopPolicy::Drain});
+  TaskQueue& context_queue = *context_queue_ptr;
   auto stop_context_thread = [&]() {
-    context_queue.Stop();
-    context_thread.join();
+    context_queue.Close();
+    context_queue.WaitIdle();
   };
 
   SECTION("M run function on context thread W enqueued via ExecuteOnContextThread") {
     // Given a single feature with a FeatureScope
     FeatureState feature;
-    FeatureScope scope = feature.CreateScope(context_provider, context_queue);
+    FeatureScope scope = feature.CreateScope(context_provider, context_queue, executor);
 
     // When we offload a function to be run on the context thread, and then join on the
     // context thread
@@ -180,7 +182,7 @@ TEST_CASE("FeatureScope", "[unit][core]") {
   ) {
     // Given a single feature with a FeatureScope
     FeatureState feature;
-    FeatureScope scope = feature.CreateScope(context_provider, context_queue);
+    FeatureScope scope = feature.CreateScope(context_provider, context_queue, executor);
 
     // When we enqueue a function that writes an arbitrary value to CoreContext
     int num_updates = 0;
@@ -217,9 +219,9 @@ TEST_CASE("FeatureScope", "[unit][core]") {
 
     // And the FeatureScope interfaces that would be used by each feature
     FeatureScope mutate_scope =
-        context_mutator.CreateScope(context_provider, context_queue);
+        context_mutator.CreateScope(context_provider, context_queue, executor);
     FeatureScope consume_scope =
-        context_consumer.CreateScope(context_provider, context_queue);
+        context_consumer.CreateScope(context_provider, context_queue, executor);
 
     uint64_t generation = 0;
     auto mutate = [&](CoreContext& ctx) {
@@ -255,7 +257,7 @@ TEST_CASE("FeatureScope", "[unit][core]") {
   SECTION("M publish messages produced from context-thread function") {
     // Given a single feature
     FeatureState feature;
-    FeatureScope scope = feature.CreateScope(context_provider, context_queue);
+    FeatureScope scope = feature.CreateScope(context_provider, context_queue, executor);
 
     // When that feature produces a message from the context thread
     scope.ExecuteOnContextThread(
@@ -276,9 +278,12 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     FeatureState feature_c;
 
     // And a separate scope for each feature, initialized from the same context provider
-    FeatureScope scope_a = feature_a.CreateScope(context_provider, context_queue);
-    FeatureScope scope_b = feature_b.CreateScope(context_provider, context_queue);
-    FeatureScope scope_c = feature_c.CreateScope(context_provider, context_queue);
+    FeatureScope scope_a =
+        feature_a.CreateScope(context_provider, context_queue, executor);
+    FeatureScope scope_b =
+        feature_b.CreateScope(context_provider, context_queue, executor);
+    FeatureScope scope_c =
+        feature_c.CreateScope(context_provider, context_queue, executor);
 
     // When we run three threads, each of which enqueues a different set of
     // context-thread functions on behalf of a different feature
@@ -338,7 +343,7 @@ TEST_CASE("FeatureScope", "[unit][core]") {
 
     // Given a single feature with a FeatureScope
     FeatureState feature;
-    FeatureScope scope = feature.CreateScope(context_provider, context_queue);
+    FeatureScope scope = feature.CreateScope(context_provider, context_queue, executor);
 
     // And a promise that will block the context thread until we explicitly resolve it
     std::promise<void> gate;
@@ -358,13 +363,13 @@ TEST_CASE("FeatureScope", "[unit][core]") {
 
     // And then we signal that the context queue should stop accepting new events due to
     // shutdown
-    context_queue.Stop();
+    context_queue.Close();
 
-    // And then we unblock queue processing on the context thread
+    // And then we unblock queue processing on the context queue
     gate.set_value();
 
-    // And then we join on the context thread
-    context_thread.join();
+    // And then we wait for the context queue to drain
+    context_queue.WaitIdle();
 
     // Then we end up with events produced by all functions
     REQUIRE(feature.num_events == MAX_EVENTS);

@@ -46,21 +46,19 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/core/tracing/span_id_generator.cpp
     datadog/impl/core/tracing/trace_id_generator.cpp
     datadog/impl/core/util/validation.cpp
-    datadog/impl/core/context_thread.cpp
     datadog/impl/core/context.cpp
     datadog/impl/core/core.cpp
+    datadog/impl/core/executor.cpp
     datadog/impl/core/feature_read.cpp
     datadog/impl/core/feature_scope.cpp
     datadog/impl/core/feature.cpp
     datadog/impl/core/message_bus.cpp
-    datadog/impl/core/messaging_thread.cpp
     datadog/impl/core/scheduler.cpp
     datadog/impl/core/storage_queue.cpp
     datadog/impl/core/storage_thread.cpp
     datadog/impl/core/storage_write.cpp
     datadog/impl/core/tlv.cpp
     datadog/impl/core/types.cpp
-    datadog/impl/core/upload_scheduler.cpp
     datadog/impl/core/upload_thread.cpp
 )
 

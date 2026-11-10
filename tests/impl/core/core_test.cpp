@@ -39,7 +39,8 @@ static impl::Core _make_core(
           .SetVersion("1.0.0")
           .SetBatchSize(BatchSize::Small)
           .SetUploadFrequency(UploadFrequency::Frequent)
-          .SetBatchProcessingLevel(BatchProcessingLevel::Low),
+          .SetBatchProcessingLevel(BatchProcessingLevel::Low)
+          .SetMaxWorkerThreads(TestMaxWorkerThreads()),
       initial_tracking_consent,
       CoreSubsystems(
           std::make_unique<MockClock>(),

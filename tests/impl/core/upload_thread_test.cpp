@@ -10,12 +10,15 @@
 #include <atomic>
 #include <chrono>
 #include <cinttypes>
+#include <condition_variable>
 #include <memory>
+#include <mutex>
 #include <thread>
 #include <utility>
 
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/core/storage/sdk.hpp"
 
 #include "mock/clock.hpp"
@@ -1139,4 +1142,167 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     // And this feature's upload delay is increased due to failure
     REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
   }
+}
+
+/**
+ * HTTP client whose requests each block until the test releases them, so that tests
+ * can observe what other background work does while an upload is in flight.
+ */
+class GatedHttpClient final : public MockHttpClient {
+ public:
+  impl::HttpResult Post(
+      const char* url, const char* headers, impl::HttpBodyWriter body_writer
+  ) override {
+    {
+      std::unique_lock lock(_mutex);
+      const int request_number = ++_num_started;
+      _cv.notify_all();
+      _cv.wait(lock, [&] { return _num_released >= request_number; });
+    }
+    return MockHttpClient::Post(url, headers, std::move(body_writer));
+  }
+
+  // Lets the next `n` requests complete
+  void Release(int n = 1) {
+    std::lock_guard lock(_mutex);
+    _num_released += n;
+    _cv.notify_all();
+  }
+
+  // Waits until at least `n` requests have started
+  bool WaitForStarted(int n) {
+    std::unique_lock lock(_mutex);
+    return _cv.wait_for(lock, std::chrono::seconds(5), [&] {
+      return _num_started >= n;
+    });
+  }
+
+  int NumStarted() {
+    std::lock_guard lock(_mutex);
+    return _num_started;
+  }
+
+ private:
+  std::mutex _mutex;
+  std::condition_variable _cv;
+  int _num_started{0};
+  int _num_released{0};
+};
+
+TEST_CASE("UploadWorker", "[unit][core]") {
+  // Given a frozen clock, and storage for two features
+  MockClock clock;
+  clock.FreezeAtMilliseconds(1700000000000);
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+  MockFilesystem fs;
+  fs.Mkdirs("app");
+  SdkStorage storage(fs, logger, 12345);
+  REQUIRE(storage.Initialize("app", "main"));
+
+  auto alpha = std::make_shared<MockFeature>(CreateFeatureId("ALFA"), "alpha");
+  auto bravo = std::make_shared<MockFeature>(CreateFeatureId("BRVO"), "bravo");
+  std::vector<RegisteredFeature> features;
+  for (const auto& feature : {alpha, bravo}) {
+    features.emplace_back(
+        feature->GetId(),
+        feature->GetName(),
+        storage.InitializeFeatureEventStorage(feature->GetName()),
+        feature,
+        nullptr,
+        std::make_unique<UploadThreadState>(MOCK_CONTEXT, UploadFrequency::Frequent)
+    );
+    // Start the first upload cycle right away
+    features.back().upload_state->current_delay = std::chrono::milliseconds(1);
+  }
+
+  // And three batches for each feature, all old enough to upload
+  auto add_batches = [&](const std::string& name) {
+    const std::string dir = "app/.datadog/main/12345/" + name + "/v1/";
+    for (const char* timestamp : {"1699999940000", "1699999941000", "1699999942000"}) {
+      fs.Touch(dir + timestamp, MockTLVFile().AppendEvent("event").ToString());
+    }
+    return dir.substr(0, dir.size() - 1);
+  };
+  const std::string alpha_dir = add_batches("alpha");
+
+  const UploadThreadConfig config = UploadThreadConfig::FromCoreConfig(
+      BatchSize::Medium, BatchProcessingLevel::Medium
+  );
+
+  // And an executor with a single worker thread, shared with a context queue
+  Executor executor(1, logger);
+  auto context_queue = executor.CreateTaskQueue({"context", StopPolicy::Drain});
+
+  SECTION("M let other queues run between batches W limited to one thread") {
+    // Given an upload worker whose requests block until released
+    GatedHttpClient client;
+    UploadWorker worker(executor, logger, config, clock, features, fs, client);
+    worker.Start();
+    REQUIRE(client.WaitForStarted(1));
+
+    // When context work arrives while the first request is in flight
+    std::atomic<int> requests_started_when_context_ran{-1};
+    context_queue->Push([&] {
+      requests_started_when_context_ran = client.NumStarted();
+    });
+
+    // And the first request then completes, having taken longer than the executor's
+    // time budget, as a real request would
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    client.Release();
+    REQUIRE(client.WaitForStarted(2));
+    client.Release(10);
+    context_queue->Close();
+    context_queue->WaitIdle();
+    worker.Close();
+    worker.WaitIdle();
+
+    // Then the context work ran right after the first request, before the second
+    REQUIRE(requests_started_when_context_ran.load() == 1);
+  }
+
+  SECTION("M wait only for the request in flight W closed mid-cycle") {
+    // Given an upload worker whose first request is in flight
+    GatedHttpClient client;
+    UploadWorker worker(executor, logger, config, clock, features, fs, client);
+    worker.Start();
+    REQUIRE(client.WaitForStarted(1));
+
+    // When the worker is closed, and the request is then released
+    worker.Close();
+    client.Release(10);
+    worker.WaitIdle();
+
+    // Then no further request was made, and the unsent batches are still on disk
+    REQUIRE(client.NumStarted() == 1);
+    REQUIRE(fs.Ls(alpha_dir).size() == 2);
+  }
+
+  SECTION(
+      "M upload every batch of every feature W two features' cycles are due together"
+  ) {
+    // Given both features have batches to upload, and both cycles are due at once
+    const std::string bravo_dir = add_batches("bravo");
+    GatedHttpClient client;
+    client.Release(6);
+    UploadWorker worker(executor, logger, config, clock, features, fs, client);
+
+    // When the worker runs both cycles, which share its buffers, until six requests
+    // have been made
+    worker.Start();
+    REQUIRE(client.WaitForStarted(6));
+    worker.Close();
+    worker.WaitIdle();
+
+    // Then the cycles didn't interfere: each batch was uploaded once, then deleted
+    REQUIRE(client.requests.size() == 6);
+    REQUIRE(alpha->reports.size() == 3);
+    REQUIRE(bravo->reports.size() == 3);
+    REQUIRE(fs.Ls(alpha_dir).empty());
+    REQUIRE(fs.Ls(bravo_dir).empty());
+  }
+
+  context_queue->Close();
+  context_queue->WaitIdle();
 }

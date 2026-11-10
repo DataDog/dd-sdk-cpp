@@ -32,13 +32,12 @@ class FeatureBravo : public MockFeature {
   FeatureBravo() : MockFeature(CreateFeatureId("BRVO"), "bravo") {}
 };
 
-TEST_CASE("StorageThreadMain", "[unit]") {
-  // StorageThreadMain consumes from a thread-safe blocking queue and dispatches
-  // function calls to the appropriate feature-specific state in response to message.
+TEST_CASE("HandleStorageMessage", "[unit]") {
+  // HandleStorageMessage dispatches function calls to the appropriate feature-specific
+  // state in response to each message from the storage queue.
 
-  // In these tests, we can push the desired set of messages into the queue, then stop
-  // queue processing, and then our thread entrypoint can read from the queue until
-  // it's drained.
+  // In these tests, we push the desired set of messages onto a storage queue, then
+  // close it and wait for it to drain.
 
   // Given a predictable, controllable system clock
   MockClock clock;
@@ -119,7 +118,13 @@ TEST_CASE("StorageThreadMain", "[unit]") {
     // - Change tracking consent to Pending for all features
     // - Handle write from "ALFA" (should be written to pending dir)
     // - Handle write from "BRVO" (should be written to pending dir)
-    StorageQueue queue;
+    Executor executor;
+    auto queue_ptr = executor.CreateQueue<StorageMessage>(
+        {"storage", StopPolicy::Drain}, [&](StorageMessage& message) {
+          HandleStorageMessage(DiagnosticLogger{}, features, message);
+        }
+    );
+    StorageQueue& queue = *queue_ptr;
     REQUIRE(queue.Push(
         StorageMessage::EventGenerated(CreateFeatureId("ALFA"), "alpha-0", {}, false)
     ));
@@ -136,9 +141,9 @@ TEST_CASE("StorageThreadMain", "[unit]") {
         StorageMessage::EventGenerated(CreateFeatureId("BRVO"), "bravo-1", {}, false)
     ));
 
-    // When we run the upload thread and drain the queue
-    queue.Stop();
-    StorageThreadMain(DiagnosticLogger{}, queue, features);
+    // When the storage queue drains
+    queue.Close();
+    queue.WaitIdle();
 
     // Then 'alpha/intermediate-v1' should contain 'alpha-1'
     auto alpha_pending_files = fs.Ls(alpha_prefix + "intermediate-v1");

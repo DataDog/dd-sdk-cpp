@@ -7,26 +7,25 @@
 #pragma once
 
 #include <chrono>
-#include <condition_variable>
 #include <cstdint>
 #include <exception>
 #include <functional>
 #include <memory>
 #include <mutex>
 #include <optional>
-#include <thread>
 #include <type_traits>
 #include <unordered_map>
 
 #include "datadog/timestamp.hpp"
 
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
 
 /**
  * Receives the outcome of every run of a scheduled task. Both methods are called on the
- * scheduler thread. An exception escaping either of them is logged and the task stays
+ * scheduler's queue. An exception escaping either of them is logged and the task stays
  * scheduled; without exception support it terminates the program.
  *
  * Common part of Callback<T> and Callback<void>, which differ only in OnSuccess.
@@ -68,15 +67,15 @@ class Callback<void> : public CallbackBase {
 };
 
 /**
- * Runs periodic tasks on a dedicated background thread.
+ * Runs periodic tasks on a serial queue of the SDK's executor.
  *
- * The thread sleeps on a condition variable until the earliest task is due (or until
- * a task is added/cancelled, or the scheduler is shut down), so it never busy-waits.
- * Tasks run serially on the scheduler thread, outside of any internal lock, and use a
- * monotonic clock so wall-clock changes don't affect their cadence.
+ * Each task's next run is a delayed task on the queue, so the scheduler owns no thread
+ * and never busy-waits. Tasks run serially, one at a time, and use a monotonic clock
+ * so that wall-clock changes don't affect their cadence. A run may start late if the
+ * queue or the executor is busy; see Executor.
  *
  * Schedule(), Cancel() and Shutdown() are thread-safe. The destructor must not run
- * concurrently with a Shutdown() called from another thread than the scheduler's.
+ * concurrently with a Shutdown() called from a thread other than one running a task.
  */
 class Scheduler final {
  public:
@@ -85,20 +84,23 @@ class Scheduler final {
   /** Longest accepted period; keeps deadline arithmetic far from clock overflow. */
   static constexpr Duration MAX_PERIOD = std::chrono::hours(24 * 365);
 
-  /** Starts the scheduler thread; `diagnostic_logger` reports exceptions from
-   * callbacks. */
-  explicit Scheduler(DiagnosticLogger diagnostic_logger = {});
+  /**
+   * Creates a scheduler that runs its tasks on `queue`, which it takes ownership of.
+   * `diagnostic_logger` reports exceptions from callbacks.
+   */
+  explicit Scheduler(
+      std::unique_ptr<TaskQueue> queue, DiagnosticLogger diagnostic_logger = {}
+  );
 
   /**
    * Equivalent to Shutdown(true), including after an earlier Shutdown(false). When run
-   * from a task on the scheduler thread, which cannot join itself, the thread finishes
-   * that run and exits on its own instead.
+   * from a task, which can't wait for itself, the run in progress finishes after the
+   * scheduler is destroyed, without touching it.
    */
   ~Scheduler();
 
-  // Non-copyable: the scheduler owns its thread, so a copy would mean two owners of it.
-  // Non-movable: a moved-from object would need null-state handling in every method;
-  // pinning the object keeps that out. Hold it in a std::unique_ptr if it must move.
+  // Non-copyable and non-movable: tasks in flight refer to the scheduler's state.
+  // Hold it in a std::unique_ptr if it must move.
   Scheduler(const Scheduler&) = delete;
   Scheduler& operator=(const Scheduler&) = delete;
   Scheduler(Scheduler&&) = delete;
@@ -108,7 +110,7 @@ class Scheduler final {
    * Schedules a task to run every `period`, first run one `period` from now. Runs are
    * fixed-rate: if a run overruns, the ticks it overran are skipped rather than run in
    * a burst, and the next run happens on the original grid. Tasks run serially, so
-   * keep them short and offload long work to another thread.
+   * keep them short and offload long work to another queue.
    * The outcome of each run is reported to `callback`.
    *
    * Returns the ID used to cancel the task, or std::nullopt if the scheduler has been
@@ -170,13 +172,12 @@ class Scheduler final {
   bool Cancel(TaskId id);
 
   /**
-   * Stops the scheduler thread and drops all scheduled tasks. A run in progress is not
+   * Stops the scheduler and drops all scheduled tasks. A run in progress is not
    * interrupted.
    *
-   * @param wait If true, blocks until the in-progress run (if any) finishes and the
-   *  thread has fully exited (it is joined). If false, returns immediately and the
-   *  thread exits on its own; destruction or a later Shutdown(true) joins it.
-   *  When called from a task on the scheduler thread, never blocks.
+   * @param wait If true, blocks until the in-progress run (if any) finishes. If false,
+   *  returns immediately; destruction or a later Shutdown(true) waits for it.
+   *  When called from a task, never blocks.
    */
   void Shutdown(bool wait);
 
@@ -188,32 +189,36 @@ class Scheduler final {
     Clock::duration period;
     // Shared so a run can proceed outside the lock even if the task is cancelled
     std::shared_ptr<std::function<void()>> fn;
+    // The delayed task on the queue that triggers the next run
+    std::optional<TaskQueue::TimerId> timer;
   };
 
-  // Shared with the thread so it never outlives the state, even once detached by a
-  // destructor running on it
+  // Shared with in-flight runs, which may outlive the scheduler when it's destroyed
+  // from a task
   struct State final {
     explicit State(DiagnosticLogger logger) : diagnostic_logger(std::move(logger)) {}
 
     std::mutex mutex;
-    std::condition_variable cv;
     bool stopped = false;
-    // Set once the thread has been joined, for Shutdown(true) callers that did not join
-    bool joined = false;
     TaskId next_id = 1;
     std::unordered_map<TaskId, Task> tasks;
+    // Valid while !stopped: the scheduler owns the queue, and sets `stopped` before
+    // releasing it
+    TaskQueue* queue = nullptr;
     const DiagnosticLogger diagnostic_logger;
   };
 
   // Callback-less entry point; private so every task reports its outcome
   std::optional<TaskId> ScheduleRun(Duration period, std::function<void()> run);
 
-  static void ThreadMain(const std::shared_ptr<State>& state);
+  // Arms the delayed task for `task`'s next run. Called with state->mutex held.
+  static bool ArmLocked(const std::shared_ptr<State>& state, TaskId id, Task& task);
+
+  // Runs on the queue when a task's delayed trigger fires
+  static void RunTask(const std::shared_ptr<State>& state, TaskId id);
 
   std::shared_ptr<State> _state;
-  // Guarded by _state->mutex; empty once a Shutdown(true) has taken it to join it
-  std::thread _thread;
-  const std::thread::id _worker_id;
+  std::unique_ptr<TaskQueue> _queue;
 };
 
 }  // namespace datadog::impl

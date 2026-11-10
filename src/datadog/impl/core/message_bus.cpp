@@ -8,11 +8,26 @@
 
 namespace datadog::impl {
 
-MessageBus::MessageBus(std::vector<std::function<void(const FeatureMessage&)>> handlers)
-    : _handlers(std::move(handlers)) {}
+MessageBus::MessageBus(
+    Executor& executor, std::vector<std::function<void(const FeatureMessage&)>> handlers
+)
+    : _handlers(std::move(handlers)),
+      _queue(executor.CreateQueue<FeatureMessage>(
+          {"message-bus", StopPolicy::Drain, /*start_suspended=*/true},
+          [this](FeatureMessage& msg) {
+            for (auto& handler : _handlers) {
+              handler(msg);
+            }
+          }
+      )) {}
 
-bool MessageBus::Send(FeatureMessage msg) { return _queue.Push(std::move(msg)); }
+bool MessageBus::Send(FeatureMessage msg) { return _queue->Push(std::move(msg)); }
 
-void MessageBus::Stop() { _queue.Stop(); }
+void MessageBus::Resume() { _queue->Resume(); }
+
+void MessageBus::Stop() {
+  _queue->Close();
+  _queue->WaitIdle();
+}
 
 }  // namespace datadog::impl

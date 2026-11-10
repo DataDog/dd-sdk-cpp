@@ -75,21 +75,18 @@ add_executable(tests
     impl/core/util/validation_test.cpp
     impl/core/block_test.cpp
     impl/core/context_test.cpp
-    impl/core/context_thread_test.cpp
     impl/core/message_bus_test.cpp
-    impl/core/messaging_thread_test.cpp
     impl/core/core_test.cpp
+    impl/core/executor_test.cpp
     impl/core/feature_id_test.cpp
     impl/core/feature_read_test.cpp
     impl/core/feature_scope_test.cpp
     impl/core/feature_test.cpp
-    impl/core/queue_test.cpp
     impl/core/scheduler_test.cpp
     impl/core/storage_queue_test.cpp
     impl/core/storage_thread_test.cpp
     impl/core/storage_write_test.cpp
     impl/core/tlv_test.cpp
-    impl/core/upload_scheduler_test.cpp
     impl/core/upload_thread_test.cpp
     impl/crash_reporting/data/crash_context_read_test.cpp
     impl/crash_reporting/data/crash_report_read_test.cpp
@@ -205,4 +202,13 @@ catch_discover_tests(tests
 catch_discover_tests(tests
     TEST_SPEC "[writes-to-cwd-datadog]"
     PROPERTIES RESOURCE_LOCK "cwd-datadog"
+)
+
+# Run the parallelizable tests again, as a single CTest test, with the SDK limited to
+# one worker thread (see TestMaxWorkerThreads() in support/core.hpp): checks that every
+# SDK configuration exercised by the suite also works when all background work shares
+# one thread
+add_test(NAME "All tests with 1 worker thread" COMMAND tests "~[writes-to-cwd-datadog]")
+set_tests_properties("All tests with 1 worker thread"
+    PROPERTIES ENVIRONMENT "DD_TEST_MAX_WORKER_THREADS=1"
 )

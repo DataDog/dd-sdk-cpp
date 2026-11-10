@@ -12,8 +12,8 @@
 
 #include "datadog/core.hpp"
 
+#include "datadog/impl/core/executor.hpp"
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/core/queue.hpp"
 
 namespace datadog::impl {
 
@@ -166,8 +166,9 @@ struct StorageMessage {
 };
 
 /**
- * Thread-safe queue used to push data into the storage thread.
+ * Serial queue whose items are written to storage, one at a time, by
+ * HandleStorageMessage().
  */
-using StorageQueue = Queue<StorageMessage>;
+using StorageQueue = SerialQueue<StorageMessage>;
 
 }  // namespace datadog::impl

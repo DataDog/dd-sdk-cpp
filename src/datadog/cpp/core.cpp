@@ -94,6 +94,11 @@ CoreConfig& CoreConfig::SetBatchProcessingLevel(BatchProcessingLevel value) {
   return *this;
 }
 
+CoreConfig& CoreConfig::SetMaxWorkerThreads(uint32_t value) {
+  max_worker_threads = value;
+  return *this;
+}
+
 CoreConfig& CoreConfig::Internal_FlushHttpRequestsOnStop() {
   const size_t value = std::numeric_limits<size_t>::max();
   internal_options.num_http_requests_per_feature_to_flush_on_stop = value;
