@@ -2758,4 +2758,433 @@ DATADOG_JSON_STRUCT(
     DATADOG_JSON_FIELD(vital)
 )
 
+// === Timeseries CPU Event ===
+
+struct RumTimeseriesCpuEvent {
+  struct Application {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> current_locale;
+
+    explicit Application(const UUID& in_id) : id(in_id) {}
+  };
+  struct Session {
+    // From _common-schema.json
+    UUID id;
+    StringRumSessionType type;
+    OmitIfFalse<bool> has_replay{false};
+    // TODO(RUM-19850): Report whether the SDK runs in the main or a secondary process;
+    // until then, every event is attributed to the main process.
+    bool is_main_process{true};
+    // Always true here: other events set it per session (RUM-19594)
+    bool has_timeseries{true};
+
+    explicit Session(const UUID& in_id, RumSessionType in_type)
+        : id(in_id), type(in_type) {}
+  };
+  struct Internal {
+    struct Session {
+      // From _common-schema.json
+      // Not set: plan, deprecated
+      OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
+
+      Session() {}
+    };
+    struct Configuration {
+      // From _common-schema.json
+      float session_sample_rate;
+      OmitIfNoValue<float> session_replay_sample_rate;
+      // Not set: profiling_sample_rate, the C++ SDK has no profiling
+      // Not set: trace_sample_rate, the C++ SDK has no SDK-wide trace sample rate
+      // Not set: session_replay_experimental_features, browser only
+
+      explicit Configuration(float in_session_sample_rate)
+          : session_sample_rate(in_session_sample_rate) {}
+    };
+    // From _common-schema.json
+    uint8_t format_version{2};
+    OmitIfNoValue<Session> session;
+    OmitIfNoValue<Configuration> configuration;
+    // Not set: browser_sdk_version, browser only
+    // Not set: sdk_name, browser only
+
+    Internal() {}
+  };
+  struct Timeseries {
+    struct Data {
+      struct Values {
+        // From timeseries-cpu-schema.json
+        std::vector<double> cpu_usage;
+
+        Values() {}
+      };
+      // From timeseries-cpu-schema.json
+      std::vector<NanoTimestamp> timestamps;
+      Values values;
+
+      Data() {}
+    };
+    // From timeseries-cpu-schema.json
+    UUID id;
+    std::string_view name{"cpu"};
+    std::string_view schema{"object-v2"};
+    NanoTimestamp start;
+    NanoTimestamp end;
+    Data data;
+
+    explicit Timeseries(const UUID& in_id, Timestamp in_start, Timestamp in_end)
+        : id(in_id), start(in_start), end(in_end) {}
+  };
+  // From _common-schema.json
+  MilliTimestamp date;
+  Application application;
+  OmitIfEmpty<std::string> service;
+  OmitIfEmpty<std::string> version;
+  OmitIfEmpty<std::string> build_version;
+  OmitIfEmpty<std::string> build_id;
+  OmitIfEmpty<std::string> ddtags;
+  Session session;
+  OmitIfNoValue<StringRumSource> source;
+  // Not set: view, a batch spans several views
+  // Not set: usr, not sent with timeseries events
+  // Not set: account, not sent with timeseries events
+  // Not set: tab, browser only
+  // Not set: connectivity, not sent with timeseries events
+  // Not set: display, not sent with timeseries events
+  OmitIfNoValue<RumSyntheticsProperties> synthetics;
+  // Not set: ci_test, not sent with timeseries events
+  OmitIfNoValue<RumOSProperties> os;
+  OmitIfNoValue<RumDeviceProperties> device;
+  Internal _dd;
+  // Not set: context, not sent with timeseries events
+  // Not set: stream, browser only
+  // Not set: execution_context, not sent with timeseries events
+
+  // From timeseries-cpu-schema.json
+  std::string_view type{"timeseries"};
+  Timeseries timeseries;
+
+  explicit RumTimeseriesCpuEvent(
+      Timestamp in_date,
+      const UUID& in_application_id,
+      const UUID& in_session_id,
+      RumSessionType in_session_type,
+      const UUID& in_timeseries_id,
+      Timestamp in_timeseries_start,
+      Timestamp in_timeseries_end
+  )
+      : date(in_date),
+        application(Application{in_application_id}),
+        session(Session{in_session_id, in_session_type}),
+        _dd(Internal{}),
+        timeseries(
+            Timeseries{in_timeseries_id, in_timeseries_start, in_timeseries_end}
+        ) {}
+};
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent::Application,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(current_locale)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(has_replay),
+    DATADOG_JSON_FIELD(is_main_process),
+    DATADOG_JSON_FIELD(has_timeseries)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent::Internal::Session,
+    // From _common-schema.json
+    // Not set: plan, deprecated
+    DATADOG_JSON_FIELD(session_precondition)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent::Internal::Configuration,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(session_sample_rate),
+    DATADOG_JSON_FIELD(session_replay_sample_rate)
+    // Not set: profiling_sample_rate, the C++ SDK has no profiling
+    // Not set: trace_sample_rate, the C++ SDK has no SDK-wide trace sample rate
+    // Not set: session_replay_experimental_features, browser only
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent::Internal,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(format_version),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(configuration)
+    // Not set: browser_sdk_version, browser only
+    // Not set: sdk_name, browser only
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent::Timeseries::Data::Values,
+    // From timeseries-cpu-schema.json
+    DATADOG_JSON_FIELD(cpu_usage)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent::Timeseries::Data,
+    // From timeseries-cpu-schema.json
+    DATADOG_JSON_FIELD(timestamps),
+    DATADOG_JSON_FIELD(values)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent::Timeseries,
+    // From timeseries-cpu-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(schema),
+    DATADOG_JSON_FIELD(start),
+    DATADOG_JSON_FIELD(end),
+    DATADOG_JSON_FIELD(data)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesCpuEvent,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(date),
+    DATADOG_JSON_FIELD(application),
+    DATADOG_JSON_FIELD(service),
+    DATADOG_JSON_FIELD(version),
+    DATADOG_JSON_FIELD(build_version),
+    DATADOG_JSON_FIELD(build_id),
+    DATADOG_JSON_FIELD(ddtags),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(source),
+    // Not set: view, a batch spans several views
+    // Not set: usr, not sent with timeseries events
+    // Not set: account, not sent with timeseries events
+    // Not set: tab, browser only
+    // Not set: connectivity, not sent with timeseries events
+    // Not set: display, not sent with timeseries events
+    DATADOG_JSON_FIELD(synthetics),
+    // Not set: ci_test, not sent with timeseries events
+    DATADOG_JSON_FIELD(os),
+    DATADOG_JSON_FIELD(device),
+    DATADOG_JSON_FIELD(_dd),
+    // Not set: context, not sent with timeseries events
+    // Not set: stream, browser only
+    // Not set: execution_context, not sent with timeseries events
+    // From timeseries-cpu-schema.json
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(timeseries)
+)
+
+// === Timeseries Memory Event ===
+
+struct RumTimeseriesMemoryEvent {
+  struct Application {
+    // From _common-schema.json
+    UUID id;
+    OmitIfEmpty<std::string> current_locale;
+
+    explicit Application(const UUID& in_id) : id(in_id) {}
+  };
+  struct Session {
+    // From _common-schema.json
+    UUID id;
+    StringRumSessionType type;
+    OmitIfFalse<bool> has_replay{false};
+    // TODO(RUM-19850): Report whether the SDK runs in the main or a secondary process
+    bool is_main_process{true};
+    // Always true here: other events set it per session (RUM-19594)
+    bool has_timeseries{true};
+
+    explicit Session(const UUID& in_id, RumSessionType in_type)
+        : id(in_id), type(in_type) {}
+  };
+  struct Internal {
+    struct Session {
+      // From _common-schema.json
+      // Not set: plan, deprecated
+      OmitIfNoValue<StringRumSessionPrecondition> session_precondition;
+
+      Session() {}
+    };
+    struct Configuration {
+      // From _common-schema.json
+      float session_sample_rate;
+      OmitIfNoValue<float> session_replay_sample_rate;
+      // Not set: profiling_sample_rate, the C++ SDK has no profiling
+      // Not set: trace_sample_rate, the C++ SDK has no SDK-wide trace sample rate
+      // Not set: session_replay_experimental_features, browser only
+
+      explicit Configuration(float in_session_sample_rate)
+          : session_sample_rate(in_session_sample_rate) {}
+    };
+    // From _common-schema.json
+    uint8_t format_version{2};
+    OmitIfNoValue<Session> session;
+    OmitIfNoValue<Configuration> configuration;
+    // Not set: browser_sdk_version, browser only
+    // Not set: sdk_name, browser only
+
+    Internal() {}
+  };
+  struct Timeseries {
+    struct Data {
+      struct Values {
+        // From timeseries-memory-schema.json
+        std::vector<double> memory_footprint;
+        std::vector<double> memory_percent;
+
+        Values() {}
+      };
+      // From timeseries-memory-schema.json
+      std::vector<NanoTimestamp> timestamps;
+      Values values;
+
+      Data() {}
+    };
+    // From timeseries-memory-schema.json
+    UUID id;
+    std::string_view name{"memory"};
+    std::string_view schema{"object-v2"};
+    NanoTimestamp start;
+    NanoTimestamp end;
+    Data data;
+
+    explicit Timeseries(const UUID& in_id, Timestamp in_start, Timestamp in_end)
+        : id(in_id), start(in_start), end(in_end) {}
+  };
+  // From _common-schema.json
+  MilliTimestamp date;
+  Application application;
+  OmitIfEmpty<std::string> service;
+  OmitIfEmpty<std::string> version;
+  OmitIfEmpty<std::string> build_version;
+  OmitIfEmpty<std::string> build_id;
+  OmitIfEmpty<std::string> ddtags;
+  Session session;
+  OmitIfNoValue<StringRumSource> source;
+  // Not set: view, a batch spans several views
+  // Not set: usr, not sent with timeseries events
+  // Not set: account, not sent with timeseries events
+  // Not set: tab, browser only
+  // Not set: connectivity, not sent with timeseries events
+  // Not set: display, not sent with timeseries events
+  OmitIfNoValue<RumSyntheticsProperties> synthetics;
+  // Not set: ci_test, not sent with timeseries events
+  OmitIfNoValue<RumOSProperties> os;
+  OmitIfNoValue<RumDeviceProperties> device;
+  Internal _dd;
+  // Not set: context, not sent with timeseries events
+  // Not set: stream, browser only
+  // Not set: execution_context, not sent with timeseries events
+
+  // From timeseries-memory-schema.json
+  std::string_view type{"timeseries"};
+  Timeseries timeseries;
+
+  explicit RumTimeseriesMemoryEvent(
+      Timestamp in_date,
+      const UUID& in_application_id,
+      const UUID& in_session_id,
+      RumSessionType in_session_type,
+      const UUID& in_timeseries_id,
+      Timestamp in_timeseries_start,
+      Timestamp in_timeseries_end
+  )
+      : date(in_date),
+        application(Application{in_application_id}),
+        session(Session{in_session_id, in_session_type}),
+        _dd(Internal{}),
+        timeseries(
+            Timeseries{in_timeseries_id, in_timeseries_start, in_timeseries_end}
+        ) {}
+};
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent::Application,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(current_locale)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent::Session,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(has_replay),
+    DATADOG_JSON_FIELD(is_main_process),
+    DATADOG_JSON_FIELD(has_timeseries)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent::Internal::Session,
+    // From _common-schema.json
+    // Not set: plan, deprecated
+    DATADOG_JSON_FIELD(session_precondition)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent::Internal::Configuration,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(session_sample_rate),
+    DATADOG_JSON_FIELD(session_replay_sample_rate)
+    // Not set: profiling_sample_rate, the C++ SDK has no profiling
+    // Not set: trace_sample_rate, the C++ SDK has no SDK-wide trace sample rate
+    // Not set: session_replay_experimental_features, browser only
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent::Internal,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(format_version),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(configuration)
+    // Not set: browser_sdk_version, browser only
+    // Not set: sdk_name, browser only
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent::Timeseries::Data::Values,
+    // From timeseries-memory-schema.json
+    DATADOG_JSON_FIELD(memory_footprint),
+    DATADOG_JSON_FIELD(memory_percent)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent::Timeseries::Data,
+    // From timeseries-memory-schema.json
+    DATADOG_JSON_FIELD(timestamps),
+    DATADOG_JSON_FIELD(values)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent::Timeseries,
+    // From timeseries-memory-schema.json
+    DATADOG_JSON_FIELD(id),
+    DATADOG_JSON_FIELD(name),
+    DATADOG_JSON_FIELD(schema),
+    DATADOG_JSON_FIELD(start),
+    DATADOG_JSON_FIELD(end),
+    DATADOG_JSON_FIELD(data)
+)
+DATADOG_JSON_STRUCT(
+    RumTimeseriesMemoryEvent,
+    // From _common-schema.json
+    DATADOG_JSON_FIELD(date),
+    DATADOG_JSON_FIELD(application),
+    DATADOG_JSON_FIELD(service),
+    DATADOG_JSON_FIELD(version),
+    DATADOG_JSON_FIELD(build_version),
+    DATADOG_JSON_FIELD(build_id),
+    DATADOG_JSON_FIELD(ddtags),
+    DATADOG_JSON_FIELD(session),
+    DATADOG_JSON_FIELD(source),
+    // Not set: view, a batch spans several views
+    // Not set: usr, not sent with timeseries events
+    // Not set: account, not sent with timeseries events
+    // Not set: tab, browser only
+    // Not set: connectivity, not sent with timeseries events
+    // Not set: display, not sent with timeseries events
+    DATADOG_JSON_FIELD(synthetics),
+    // Not set: ci_test, not sent with timeseries events
+    DATADOG_JSON_FIELD(os),
+    DATADOG_JSON_FIELD(device),
+    DATADOG_JSON_FIELD(_dd),
+    // Not set: context, not sent with timeseries events
+    // Not set: stream, browser only
+    // Not set: execution_context, not sent with timeseries events
+    // From timeseries-memory-schema.json
+    DATADOG_JSON_FIELD(type),
+    DATADOG_JSON_FIELD(timeseries)
+)
+
 }  // namespace datadog::impl

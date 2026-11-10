@@ -2075,3 +2075,371 @@ TEST_CASE("RumVitalEvent", "[unit][rum]") {
     })"));
   }
 }
+
+TEST_CASE("RumTimeseriesCpuEvent", "[unit][rum]") {
+  // Given a RumTimeseriesCpuEvent initialized with the minimum set of required
+  // properties
+  const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
+  const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+  const UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+  const RumSessionType session_type = RumSessionType::User;
+  const UUID timeseries_id = *UUID::Parse("7135e125-4554-4554-4554-beefbeefbeef");
+  const Timestamp start{std::chrono::nanoseconds(946684790000000000)};
+  const Timestamp end{std::chrono::nanoseconds(946684799000000000)};
+  RumTimeseriesCpuEvent ev{
+      date, application_id, session_id, session_type, timeseries_id, start, end
+  };
+
+  SECTION("M produce a minimal timeseries cpu event W only required values are set") {
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user",
+        "is_main_process": true,
+        "has_timeseries": true
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "timeseries",
+      "timeseries": {
+        "id": "7135e125-4554-4554-4554-beefbeefbeef",
+        "name": "cpu",
+        "schema": "object-v2",
+        "start": 946684790000000000,
+        "end": 946684799000000000,
+        "data": {
+          "timestamps": [],
+          "values": {
+            "cpu_usage": []
+          }
+        }
+      }
+    })"));
+  }
+
+  SECTION("M generate valid event W all supported values are set") {
+    // RumTimeseriesCpuEvent
+    ev.date = Timestamp{std::chrono::nanoseconds(1761829845132015612)};
+    ev.service = "my-service";
+    ev.version = "my-version";
+    ev.build_version = "my-build-version";
+    ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
+    ev.ddtags = "service:my-service,env:test,foo:bar";
+    ev.source = RumSource::RumCpp;
+
+    // RumSyntheticsProperties
+    ev.synthetics.value.emplace("test-8e81e7", "result-6049db");
+    ev.synthetics.value->injected = true;
+
+    // RumOSProperties
+    ev.os.value.emplace("Windows", "98", "4");
+    ev.os.value->build = "4.10.2222 A";
+
+    // RumDeviceProperties
+    ev.device.value.emplace();
+    ev.device.value->type = RumDeviceType::Desktop;
+    ev.device.value->name = "Packard Bell Legend 486";
+    ev.device.value->model = "486DX4-100";
+    ev.device.value->brand = "Packard Bell";
+    ev.device.value->architecture = "x86 [Intel 80486]";
+    ev.device.value->locale = "en-US";
+    ev.device.value->locales.value = {"en-US", "fr-FR"};
+    ev.device.value->time_zone = "Europe/Paris";
+    ev.device.value->battery_level = 0.5f;
+    ev.device.value->power_saving_mode = true;
+    ev.device.value->brightness_level = 0.25f;
+
+    // RumTimeseriesCpuEvent::Application
+    ev.application.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.application.current_locale = "en-US";
+
+    // RumTimeseriesCpuEvent::Session
+    ev.session.id = *UUID::Parse("f1f719db-ed81-4e63-9fe9-cf434c2af8e6");
+    ev.session.type = RumSessionType::Synthetics;
+    ev.session.has_replay = false;  // Session Replay is not supported
+    ev.session.is_main_process = true;
+
+    // RumTimeseriesCpuEvent::Internal::Session
+    ev._dd.session.value.emplace();
+    ev._dd.session.value->session_precondition =
+        RumSessionPrecondition::InactivityTimeout;
+
+    // RumTimeseriesCpuEvent::Internal::Configuration
+    ev._dd.configuration.value.emplace(10.0f);
+    ev._dd.configuration.value->session_replay_sample_rate = 5.0f;
+
+    // RumTimeseriesCpuEvent::Timeseries
+    ev.timeseries.id = *UUID::Parse("e1313013-4554-4554-4554-bbbbbb00eeff");
+    ev.timeseries.start = Timestamp{std::chrono::nanoseconds(1761829844000000001)};
+    ev.timeseries.end = Timestamp{std::chrono::nanoseconds(1761829845132015612)};
+
+    // RumTimeseriesCpuEvent::Timeseries::Data
+    ev.timeseries.data.timestamps = {
+        Timestamp{std::chrono::nanoseconds(1761829844000000001)},
+        Timestamp{std::chrono::nanoseconds(1761829844567000002)},
+        Timestamp{std::chrono::nanoseconds(1761829845132015612)},
+    };
+
+    // RumTimeseriesCpuEvent::Timeseries::Data::Values
+    ev.timeseries.data.values.cpu_usage = {12.5, 0.0, 99.75};
+
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 1761829845132,
+      "application": {
+        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "current_locale": "en-US"
+      },
+      "service": "my-service",
+      "version": "my-version",
+      "build_version": "my-build-version",
+      "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
+      "ddtags": "service:my-service,env:test,foo:bar",
+      "session": {
+        "id": "f1f719db-ed81-4e63-9fe9-cf434c2af8e6",
+        "type": "synthetics",
+        "is_main_process": true,
+        "has_timeseries": true
+      },
+      "source": "cpp",
+      "synthetics": {
+        "test_id": "test-8e81e7",
+        "result_id": "result-6049db",
+        "injected": true
+      },
+      "os": {
+        "name": "Windows",
+        "version": "98",
+        "build": "4.10.2222 A",
+        "version_major": "4"
+      },
+      "device": {
+        "type": "desktop",
+        "name": "Packard Bell Legend 486",
+        "model": "486DX4-100",
+        "brand": "Packard Bell",
+        "architecture": "x86 [Intel 80486]",
+        "locale": "en-US",
+        "locales": ["en-US", "fr-FR"],
+        "time_zone": "Europe/Paris",
+        "battery_level": 0.5,
+        "power_saving_mode": true,
+        "brightness_level": 0.25
+      },
+      "_dd": {
+        "format_version": 2,
+        "session": {
+          "session_precondition": "inactivity_timeout"
+        },
+        "configuration": {
+          "session_sample_rate": 10,
+          "session_replay_sample_rate": 5
+        }
+      },
+      "type": "timeseries",
+      "timeseries": {
+        "id": "e1313013-4554-4554-4554-bbbbbb00eeff",
+        "name": "cpu",
+        "schema": "object-v2",
+        "start": 1761829844000000001,
+        "end": 1761829845132015612,
+        "data": {
+          "timestamps": [1761829844000000001, 1761829844567000002, 1761829845132015612],
+          "values": {
+            "cpu_usage": [12.5, 0.0, 99.75]
+          }
+        }
+      }
+    })"));
+  }
+}
+
+TEST_CASE("RumTimeseriesMemoryEvent", "[unit][rum]") {
+  // Given a RumTimeseriesMemoryEvent initialized with the required properties
+  const Timestamp date{std::chrono::nanoseconds(946684799999999999)};
+  const UUID application_id = *UUID::Parse("a991ca10-4004-4004-4004-beefbeefbeef");
+  const UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
+  const RumSessionType session_type = RumSessionType::User;
+  const UUID timeseries_id = *UUID::Parse("7153e75e-4334-4334-4334-beeeeeeeeeef");
+  const Timestamp start{std::chrono::nanoseconds(946684799000000000)};
+  const Timestamp end{std::chrono::nanoseconds(946684799999999999)};
+  RumTimeseriesMemoryEvent ev{
+      date, application_id, session_id, session_type, timeseries_id, start, end
+  };
+
+  SECTION(
+      "M produce a minimal timeseries memory event W only required values are set"
+  ) {
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "date": 946684799999,
+      "application": {
+        "id": "a991ca10-4004-4004-4004-beefbeefbeef"
+      },
+      "session": {
+        "id": "5e551017-4114-4114-4114-beeeefbeeeef",
+        "type": "user",
+        "is_main_process": true,
+        "has_timeseries": true
+      },
+      "_dd": {
+        "format_version": 2
+      },
+      "type": "timeseries",
+      "timeseries": {
+        "id": "7153e75e-4334-4334-4334-beeeeeeeeeef",
+        "name": "memory",
+        "schema": "object-v2",
+        "start": 946684799000000000,
+        "end": 946684799999999999,
+        "data": {
+          "timestamps": [],
+          "values": {
+            "memory_footprint": [],
+            "memory_percent": []
+          }
+        }
+      }
+    })"));
+  }
+
+  SECTION("M generate valid event W all supported values are set") {
+    // RumTimeseriesMemoryEvent
+    ev.date = Timestamp{std::chrono::nanoseconds(1761829845132015612)};
+    ev.service = "my-service";
+    ev.version = "my-version";
+    ev.build_version = "my-build-version";
+    ev.build_id = "d2008244-7344-4313-a7df-b1c283c995c1";
+    ev.ddtags = "service:my-service,env:test,foo:bar";
+    ev.source = RumSource::RumCpp;
+
+    // RumSyntheticsProperties
+    ev.synthetics.value.emplace("test-8e81e7", "result-6049db");
+    ev.synthetics.value->injected = true;
+
+    // RumOSProperties
+    ev.os.value.emplace("Windows", "98", "4");
+    ev.os.value->build = "4.10.2222 A";
+
+    // RumDeviceProperties
+    ev.device.value.emplace();
+    ev.device.value->type = RumDeviceType::Desktop;
+    ev.device.value->name = "Packard Bell Legend 486";
+    ev.device.value->model = "486DX4-100";
+    ev.device.value->brand = "Packard Bell";
+    ev.device.value->architecture = "x86 [Intel 80486]";
+    ev.device.value->locale = "en-US";
+    ev.device.value->locales = std::vector<std::string>{"en-US", "fr-FR"};
+    ev.device.value->time_zone = "America/New_York";
+    ev.device.value->battery_level = 0.5f;
+    ev.device.value->power_saving_mode = true;
+    ev.device.value->brightness_level = 0.25f;
+
+    // RumTimeseriesMemoryEvent::Application
+    ev.application.id = *UUID::Parse("a4b9f39a-e5de-45b5-bb70-a6e616bfec6c");
+    ev.application.current_locale = "en-US";
+
+    // RumTimeseriesMemoryEvent::Session
+    ev.session.id = *UUID::Parse("f1f719db-ed81-4e63-9fe9-cf434c2af8e6");
+    ev.session.type = RumSessionType::Synthetics;
+    ev.session.has_replay = true;
+    ev.session.is_main_process = false;
+
+    // RumTimeseriesMemoryEvent::Internal::Session
+    ev._dd.session.value.emplace();
+    ev._dd.session.value->session_precondition =
+        RumSessionPrecondition::InactivityTimeout;
+
+    // RumTimeseriesMemoryEvent::Internal::Configuration
+    ev._dd.configuration.value.emplace(10.0f);
+    ev._dd.configuration.value->session_replay_sample_rate = 5.0f;
+
+    // RumTimeseriesMemoryEvent::Timeseries
+    ev.timeseries.id = *UUID::Parse("0e7a1b2c-3d4e-4f50-8a61-72b3c4d5e6f7");
+    ev.timeseries.start = Timestamp{std::chrono::nanoseconds(1761829845132015612)};
+    ev.timeseries.end = Timestamp{std::chrono::nanoseconds(1761829846132015613)};
+
+    // RumTimeseriesMemoryEvent::Timeseries::Data
+    ev.timeseries.data.timestamps = {
+        Timestamp{std::chrono::nanoseconds(1761829845132015612)},
+        Timestamp{std::chrono::nanoseconds(1761829846132015613)},
+    };
+
+    // RumTimeseriesMemoryEvent::Timeseries::Data::Values
+    ev.timeseries.data.values.memory_footprint = {184320.0, 204800.5};
+    ev.timeseries.data.values.memory_percent = {1.125, 1.25};
+
+    RequireJsonObject(ev, DATADOG_RUM_EVENT_LITERAL(R"({
+      "type": "timeseries",
+      "date": 1761829845132,
+      "service": "my-service",
+      "version": "my-version",
+      "build_version": "my-build-version",
+      "build_id": "d2008244-7344-4313-a7df-b1c283c995c1",
+      "ddtags": "service:my-service,env:test,foo:bar",
+      "source": "cpp",
+      "synthetics": {
+        "test_id": "test-8e81e7",
+        "result_id": "result-6049db",
+        "injected": true
+      },
+      "os": {
+        "name": "Windows",
+        "version": "98",
+        "build": "4.10.2222 A",
+        "version_major": "4"
+      },
+      "device": {
+        "type": "desktop",
+        "name": "Packard Bell Legend 486",
+        "model": "486DX4-100",
+        "brand": "Packard Bell",
+        "architecture": "x86 [Intel 80486]",
+        "locale": "en-US",
+        "locales": ["en-US", "fr-FR"],
+        "time_zone": "America/New_York",
+        "battery_level": 0.5,
+        "power_saving_mode": true,
+        "brightness_level": 0.25
+      },
+      "application": {
+        "id": "a4b9f39a-e5de-45b5-bb70-a6e616bfec6c",
+        "current_locale": "en-US"
+      },
+      "session": {
+        "id": "f1f719db-ed81-4e63-9fe9-cf434c2af8e6",
+        "type": "synthetics",
+        "has_replay": true,
+        "is_main_process": false,
+        "has_timeseries": true
+      },
+      "_dd": {
+        "format_version": 2,
+        "session": {
+          "session_precondition": "inactivity_timeout"
+        },
+        "configuration": {
+          "session_sample_rate": 10,
+          "session_replay_sample_rate": 5
+        }
+      },
+      "timeseries": {
+        "id": "0e7a1b2c-3d4e-4f50-8a61-72b3c4d5e6f7",
+        "name": "memory",
+        "schema": "object-v2",
+        "start": 1761829845132015612,
+        "end": 1761829846132015613,
+        "data": {
+          "timestamps": [1761829845132015612, 1761829846132015613],
+          "values": {
+            "memory_footprint": [184320.0, 204800.5],
+            "memory_percent": [1.125, 1.25]
+          }
+        }
+      }
+    })"));
+  }
+}
