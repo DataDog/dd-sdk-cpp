@@ -31,6 +31,14 @@ enum class SamplingPriority : int8_t {
 };
 
 /**
+ * `true` if the given priority represents a positive sampling decision, `false`
+ * otherwise.
+ */
+constexpr bool IsSampled(SamplingPriority priority) {
+  return priority >= SamplingPriority::AutoKeep;
+}
+
+/**
  * The mechanism used to make a span sampling decision.
  *
  * The raw values are the ones used in propagation headers like `_dd.p.dm`.

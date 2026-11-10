@@ -8,7 +8,9 @@
 
 #include <cinttypes>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "datadog/api.hpp"
@@ -18,6 +20,7 @@ namespace datadog {
 // Forward declarations
 namespace impl {
 class FirstPartyHostsMatcher;
+class HttpHeaderWriter;
 }  // namespace impl
 
 /**
@@ -27,6 +30,7 @@ class FirstPartyHostsMatcher;
  * https://docs.datadoghq.com/tracing/other_telemetry/rum/?tab=browserrum#opentelemetry-support
  */
 enum class TracingHeaderTypes : uint8_t {
+  None = 0,
   /** Datadog's propagator header type. */
   Datadog = (1 << 0),
   /**
@@ -59,6 +63,16 @@ enum class TracingHeaderTypes : uint8_t {
 constexpr TracingHeaderTypes operator|(TracingHeaderTypes lhs, TracingHeaderTypes rhs) {
   return static_cast<TracingHeaderTypes>(
       static_cast<std::underlying_type_t<TracingHeaderTypes>>(lhs) |
+      static_cast<std::underlying_type_t<TracingHeaderTypes>>(rhs)
+  );
+}
+
+/**
+ * Returns an intersection of the two given `TracingHeaderTypes`.
+ */
+constexpr TracingHeaderTypes operator&(TracingHeaderTypes lhs, TracingHeaderTypes rhs) {
+  return static_cast<TracingHeaderTypes>(
+      static_cast<std::underlying_type_t<TracingHeaderTypes>>(lhs) &
       static_cast<std::underlying_type_t<TracingHeaderTypes>>(rhs)
   );
 }
@@ -132,6 +146,49 @@ struct FirstPartyHosts {
   std::vector<FirstPartyHost> _hosts;
 
   friend class impl::FirstPartyHostsMatcher;
+};
+
+/**
+ * HTTP header used for distributed tracing.
+ */
+class HttpHeader {
+ public:
+  HttpHeader(const HttpHeader&) = default;
+  HttpHeader(HttpHeader&&) noexcept = default;
+  HttpHeader& operator=(const HttpHeader&) = default;
+  HttpHeader& operator=(HttpHeader&&) noexcept = default;
+
+  /**
+   * Obtains the header name.
+   *
+   * The returned `string_view` is based on a string guarenteed to exist throughout
+   * the lifetime of the program.
+   */
+  std::string_view GetName() const noexcept { return _name; }
+
+  /**
+   * Obtains the header value.
+   */
+  const std::string& GetValue() const noexcept { return _value; }
+
+ private:
+  HttpHeader(std::string_view name, std::string value)
+      : _name(name), _value(std::move(value)) {}
+
+  std::string_view _name;
+  std::string _value;
+
+  friend class impl::HttpHeaderWriter;
+};
+
+/**
+ * Policy for trace injection HTTP headers.
+ */
+enum class TraceInjectionPolicy : uint8_t {
+  /// Inject headers on all requests, sampled or not.
+  All,
+  /// Only inject headers on sampled requests.
+  Sampled
 };
 
 }  // namespace datadog

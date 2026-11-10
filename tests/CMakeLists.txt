@@ -65,10 +65,15 @@ if(TARGET ddsdkcpp_core)
         impl/core/storage/filesystem_wrapper_test.cpp
         impl/core/storage/path_test.cpp
         impl/core/storage/sdk_test.cpp
+        impl/core/tracing/b3_header_writer_test.cpp
+        impl/core/tracing/baggage_header_writer_test.cpp
+        impl/core/tracing/datadog_header_writer_test.cpp
         impl/core/tracing/first_party_hosts_matcher_tests.cpp
+        impl/core/tracing/http_header_writer_test.cpp
         impl/core/tracing/span_id_generator_test.cpp
         impl/core/tracing/trace_id_generator_test.cpp
         impl/core/tracing/types_test.cpp
+        impl/core/tracing/w3c_header_writer_test.cpp
         impl/core/util/validation_test.cpp
         impl/core/block_test.cpp
         impl/core/context_test.cpp
