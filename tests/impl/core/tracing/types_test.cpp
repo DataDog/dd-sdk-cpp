@@ -8,15 +8,33 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <iterator>
+#include <string>
+#include <string_view>
+#include <type_traits>
 
 #include "datadog/network_instrumentation.h"
 #include "datadog/network_instrumentation.hpp"
 
 #include "datadog/impl/core/tracing/first_party_hosts_matcher.hpp"
+#include "datadog/impl/core/tracing/http_header_factory.hpp"
 
 using datadog::FirstPartyHosts_FromC;
+using datadog::HttpHeader;
 using datadog::TracingHeaderTypes;
 using datadog::impl::FirstPartyHostsMatcher;
+using datadog::impl::HttpHeaderFactory;
+
+static_assert(!std::is_default_constructible_v<HttpHeader>);
+static_assert(!std::is_constructible_v<HttpHeader, std::string_view, std::string>);
+static_assert(std::is_copy_constructible_v<HttpHeader>);
+static_assert(std::is_move_constructible_v<HttpHeader>);
+
+TEST_CASE("HttpHeader", "[unit][tracing]") {
+  const auto header = HttpHeaderFactory::Create("header-name", "header-value");
+
+  REQUIRE(header.GetName() == "header-name");
+  REQUIRE(header.GetValue() == "header-value");
+}
 
 TEST_CASE("FirstPartyHosts_FromC", "[unit][tracing]") {
   SECTION("M convert first-party hosts") {

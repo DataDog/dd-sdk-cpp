@@ -8,7 +8,9 @@
 
 #include <cinttypes>
 #include <string>
+#include <string_view>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "datadog/api.hpp"
@@ -18,6 +20,7 @@ namespace datadog {
 // Forward declarations
 namespace impl {
 class FirstPartyHostsMatcher;
+class HttpHeaderFactory;
 }  // namespace impl
 
 /**
@@ -59,6 +62,16 @@ enum class TracingHeaderTypes : uint8_t {
 constexpr TracingHeaderTypes operator|(TracingHeaderTypes lhs, TracingHeaderTypes rhs) {
   return static_cast<TracingHeaderTypes>(
       static_cast<std::underlying_type_t<TracingHeaderTypes>>(lhs) |
+      static_cast<std::underlying_type_t<TracingHeaderTypes>>(rhs)
+  );
+}
+
+/**
+ * Returns an intersection of the two given `TracingHeaderTypes`.
+ */
+constexpr TracingHeaderTypes operator&(TracingHeaderTypes lhs, TracingHeaderTypes rhs) {
+  return static_cast<TracingHeaderTypes>(
+      static_cast<std::underlying_type_t<TracingHeaderTypes>>(lhs) &
       static_cast<std::underlying_type_t<TracingHeaderTypes>>(rhs)
   );
 }
@@ -133,5 +146,28 @@ struct FirstPartyHosts {
 
   friend class impl::FirstPartyHostsMatcher;
 };
+
+class HttpHeader {
+ public:
+  HttpHeader(const HttpHeader&) = default;
+  HttpHeader(HttpHeader&&) noexcept = default;
+  HttpHeader& operator=(const HttpHeader&) = default;
+  HttpHeader& operator=(HttpHeader&&) noexcept = default;
+
+  std::string_view GetName() const noexcept { return _name; }
+
+  const std::string& GetValue() const noexcept { return _value; }
+
+ private:
+  HttpHeader(std::string_view name, std::string value)
+      : _name(name), _value(std::move(value)) {}
+
+  std::string_view _name;
+  std::string _value;
+
+  friend class impl::HttpHeaderFactory;
+};
+
+enum class TraceInjectionPolicy : uint8_t { All, Sampled };
 
 }  // namespace datadog

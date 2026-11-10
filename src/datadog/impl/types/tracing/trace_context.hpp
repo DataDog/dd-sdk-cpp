@@ -30,6 +30,10 @@ enum class SamplingPriority : int8_t {
   ManualKeep = 2
 };
 
+constexpr bool IsSampled(SamplingPriority priority) {
+  return priority >= SamplingPriority::AutoKeep;
+}
+
 /**
  * The mechanism used to make a span sampling decision.
  *

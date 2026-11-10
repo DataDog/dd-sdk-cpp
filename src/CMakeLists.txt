@@ -45,10 +45,21 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/tracing/trace_id.cpp
     datadog/impl/types/upload_util.cpp
     datadog/impl/core/attribute/binary.cpp
+    datadog/impl/core/tracing/b3_header_writer.cpp
+    datadog/impl/core/tracing/b3_header_writer.hpp
+    datadog/impl/core/tracing/baggage_header_writer.cpp
+    datadog/impl/core/tracing/baggage_header_writer.hpp
+    datadog/impl/core/tracing/datadog_header_writer.cpp
+    datadog/impl/core/tracing/datadog_header_writer.hpp
     datadog/impl/core/tracing/deterministic_sampler.cpp
     datadog/impl/core/tracing/first_party_hosts_matcher.cpp
+    datadog/impl/core/tracing/http_header_factory.hpp
+    datadog/impl/core/tracing/http_header_writer.cpp
+    datadog/impl/core/tracing/http_header_writer.hpp
     datadog/impl/core/tracing/span_id_generator.cpp
     datadog/impl/core/tracing/trace_id_generator.cpp
+    datadog/impl/core/tracing/w3c_header_writer.cpp
+    datadog/impl/core/tracing/w3c_header_writer.hpp
     datadog/impl/core/util/validation.cpp
     datadog/impl/core/context_thread.cpp
     datadog/impl/core/context.cpp
