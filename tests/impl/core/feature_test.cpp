@@ -61,6 +61,29 @@ class StorageConfigFeature : public MockFeature {
   FeatureStorageConfig GetStorageConfig() const override { return storage_config; }
 };
 
+/**
+ * A feature that records the order of its lifecycle calls, and produces an event in
+ * each of PrepareToStop() and Stop().
+ */
+class ShutdownFeature : public MockFeature {
+ public:
+  std::vector<std::string> calls;
+
+  ShutdownFeature() : MockFeature(CreateFeatureId("SHUT"), "shutdown") {}
+
+  void Start() override { calls.emplace_back("start"); }
+
+  void PrepareToStop() override {
+    calls.emplace_back("prepare-to-stop");
+    GenerateEvent("from-prepare-to-stop");
+  }
+
+  void Stop() override {
+    calls.emplace_back("stop");
+    GenerateEvent("from-stop");
+  }
+};
+
 TEST_CASE("Feature", "[unit]") {
   SECTION(
       "M produce events to storage W FeatureScope::ExecuteOnContextThread is called"
@@ -312,6 +335,51 @@ TEST_CASE("Feature storage config", "[unit]") {
     REQUIRE(
         test.fs.Cat(storage_dir + "/" + names.front()) ==
         MockTLVFile().AppendEvent(large_event).ToString()
+    );
+  }
+}
+
+TEST_CASE("Feature shutdown", "[unit]") {
+  const std::string storage_dir = "app/.datadog/main/12345/shutdown/v1";
+  const bool flush_http_requests = false;
+  CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
+  auto feature = std::make_shared<ShutdownFeature>();
+  REQUIRE(test.core.RegisterFeature(feature));
+  REQUIRE(test.core.Start());
+
+  SECTION("M call the lifecycle functions in order W the core shuts down") {
+    test.core.Stop();
+
+    // A feature is told that the core is about to stop before it has stopped
+    REQUIRE(
+        feature->calls == std::vector<std::string>{"start", "prepare-to-stop", "stop"}
+    );
+  }
+
+  SECTION("M store the events W a feature produces them in PrepareToStop") {
+    test.core.Stop();
+
+    // Then the event produced in PrepareToStop() was stored, since the context thread
+    // was still running to process it, while the one produced in Stop(), after the
+    // context thread had stopped, was not
+    auto names = test.fs.Ls(storage_dir);
+    REQUIRE(names.size() == 1);
+    REQUIRE(
+        test.fs.Cat(storage_dir + "/" + names.front()) ==
+        MockTLVFile().AppendEvent("from-prepare-to-stop").ToString()
+    );
+  }
+
+  SECTION("M call the lifecycle functions again W the core starts again") {
+    test.core.Stop();
+    REQUIRE(test.core.Start());
+    test.core.Stop();
+
+    REQUIRE(
+        feature->calls ==
+        std::vector<std::string>{
+            "start", "prepare-to-stop", "stop", "start", "prepare-to-stop", "stop"
+        }
     );
   }
 }

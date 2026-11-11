@@ -66,6 +66,11 @@ FeatureScope FeatureScope::CreateForTesting(
   );
 }
 
+CoreContext FeatureScope::GetContext() const {
+  DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
+  return _context_provider->Get();
+}
+
 void FeatureScope::UpdateContext(const std::function<void(CoreContext&)>& callback) {
   DATADOG_ASSERT(_context_provider, "FeatureScope has no _context_provider");
 

@@ -20,9 +20,16 @@ using namespace datadog::impl;
 struct CapturedEvent {
   std::string data;
   std::string metadata;
+  // Whether the event asked to be stored regardless of the tracking consent, rather
+  // than where the consent in effect when it is stored says to
+  bool bypass_tracking_consent;
 
-  explicit CapturedEvent(Block event, Block event_metadata)
-      : data(event), metadata(event_metadata) {}
+  explicit CapturedEvent(
+      Block event, Block event_metadata, bool in_bypass_tracking_consent = false
+  )
+      : data(event),
+        metadata(event_metadata),
+        bypass_tracking_consent(in_bypass_tracking_consent) {}
 };
 
 struct CapturedDiagnosticMessage {
@@ -53,8 +60,8 @@ class FeatureTest {
     _context_provider.Update([](CoreContext& ctx) { ctx.Reset(); });
 
     auto event_writer =
-        [this](Block event, Block event_metadata, bool /*bypass_tracking_consent*/) {
-          events.emplace_back(event, event_metadata);
+        [this](Block event, Block event_metadata, bool bypass_tracking_consent) {
+          events.emplace_back(event, event_metadata, bypass_tracking_consent);
           return true;
         };
     auto message_publisher = [this](FeatureMessage message) {
@@ -74,7 +81,12 @@ class FeatureTest {
     );
   }
 
-  void Stop(const std::shared_ptr<Feature>& feature) { feature->OnCoreStopping(); }
+  void Stop(const std::shared_ptr<Feature>& feature) {
+    // Mirror Core::Stop(): features are told that the core is about to stop, and later
+    // that it has
+    feature->OnCoreStopRequested();
+    feature->OnCoreStopping();
+  }
 
   void UpdateContext(const std::function<void(CoreContext&)>& callback) {
     _context_provider.Update(callback);

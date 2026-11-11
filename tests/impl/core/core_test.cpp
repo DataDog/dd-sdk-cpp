@@ -62,6 +62,42 @@ class NameConflictFeature : public MockFeature {
   {}
 };
 
+TEST_CASE("Core tracking consent accessor", "[unit]") {
+  DiagnosticMessageBuffer diagnostics;
+
+  SECTION("M return the initial consent W the core is created") {
+    for (const auto consent :
+         {TrackingConsent::Granted,
+          TrackingConsent::Pending,
+          TrackingConsent::NotGranted}) {
+      impl::Core core = _make_core(diagnostics, consent);
+      REQUIRE(core.GetTrackingConsent() == consent);
+    }
+  }
+
+  SECTION("M return the latest consent W it is changed while the core is stopped") {
+    impl::Core core = _make_core(diagnostics, TrackingConsent::Pending);
+    REQUIRE(core.Init());
+
+    core.SetTrackingConsent(TrackingConsent::Granted);
+
+    REQUIRE(core.GetTrackingConsent() == TrackingConsent::Granted);
+  }
+
+  SECTION("M return the latest consent W it is changed while the core is running") {
+    impl::Core core = _make_core(diagnostics, TrackingConsent::Pending);
+    REQUIRE(core.Init());
+    auto feature = std::make_shared<TestFeature>();
+    REQUIRE(core.RegisterFeature(feature));
+    REQUIRE(core.Start());
+
+    core.SetTrackingConsent(TrackingConsent::NotGranted);
+
+    REQUIRE(core.GetTrackingConsent() == TrackingConsent::NotGranted);
+    core.Stop();
+  }
+}
+
 TEST_CASE("Core Lifecycle", "[unit]") {
   // Given a buffer where we'll accumulate all diagnostic messages emitted
   DiagnosticMessageBuffer diagnostics;

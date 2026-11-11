@@ -56,9 +56,13 @@ class DdWinProfBackend final : public IProfilerBackend {
     // is considered gone. Stopping is safe if the profiler is not running.
     StopProfiler();
     if (!SetupProfilingDataCallback({})) {
-      // dd-win-prof keeps calling the callback it has, which only holds what the
-      // callback's owner gave it, so there is nothing more to do than report it
-      _logger.Warning("Failed to remove the profiling callback from the profiler");
+      // dd-win-prof keeps the callback it has, which only holds what the callback's
+      // owner gave it, and the profiler is already stopped: nothing is affected, and
+      // there is nothing a user can do, so this is only worth a debug message
+      _logger.Debug(
+          "Could not remove the profile callback from the profiler as it shut down; a "
+          "profile delivered to it later is ignored"
+      );
     }
     s_backend_exists.store(false);
   }
@@ -80,9 +84,9 @@ class DdWinProfBackend final : public IProfilerBackend {
     ProfilerConfig config = {};
     config.size = sizeof(ProfilerConfig);
 
-    // Leave the endpoint, API key, and tuning parameters unset so that dd-win-prof
-    // takes them from its environment variables
-    config.noEnvVars = false;
+    // The SDK is the only source of configuration. No endpoint or API key is needed,
+    // because a profile callback was set before this (see SetProfileCallback()).
+    config.noEnvVars = true;
     config.serviceName = settings.service.c_str();
     config.serviceEnvironment = settings.env.c_str();
     // Only pass a version if the application provided one
@@ -111,7 +115,8 @@ std::unique_ptr<IProfilerBackend> CreateProfilerBackend(
   if (!s_backend_exists.compare_exchange_strong(expected, true)) {
     logger.Warning(
         "Profiling is already enabled for another SDK instance in this process: the "
-        "profiler is shared by the whole process, so only one instance can use it"
+        "profiler is shared by the whole process, so only one instance can use it. "
+        "Profiling will not run for this SDK instance"
     );
     return nullptr;
   }

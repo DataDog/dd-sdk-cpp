@@ -15,9 +15,9 @@ namespace datadog::impl {
  * Describes how the storage thread should enforce size limits and other constraints on
  * the batch files for a specific feature.
  *
- * Every value is an override of a default that the Core applies to all features: a value
- * that is not set leaves that default in place. A feature only needs to set the limits
- * that its events need to differ on.
+ * Every value is an override of a default that the Core applies to all features: a
+ * value that is not set leaves that default in place. A feature only needs to set the
+ * limits that its events need to differ on.
  */
 struct FeatureStorageConfig {
   /**

@@ -456,6 +456,7 @@ class Core {
   std::string_view GetIntakeOrigin() const;
   std::string_view GetClientToken() const;
   const ImmutableContext& GetImmutableContext() const;
+  TrackingConsent GetTrackingConsent() const;
 };
 
 }  // namespace datadog::impl

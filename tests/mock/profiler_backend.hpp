@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <optional>
 #include <utility>
 
 #include "datadog/impl/profiling/profiler_backend.hpp"
@@ -26,6 +27,14 @@ class MockProfilerBackend : public impl::IProfilerBackend {
   int start_calls = 0;
   int stop_calls = 0;
   impl::ProfilerBackendSettings last_settings;
+
+  // Whether a callback was set when Init() was last called: the profiler must have one
+  // before it is configured
+  bool callback_set_at_init = false;
+
+  // If set, Stop() delivers this profile to the callback, once, from inside Stop(), as
+  // the real profiler delivers the last profile of a run as it stops
+  std::optional<impl::ProfileData> profile_on_stop;
 
   /**
    * Delivers `profile` to the callback, from the calling thread, as the profiler would.
@@ -55,6 +64,7 @@ class MockProfilerBackend : public impl::IProfilerBackend {
   bool Init(const impl::ProfilerBackendSettings& settings) override {
     init_calls++;
     last_settings = settings;
+    callback_set_at_init = HasCallback();
     return init_result;
   }
 
@@ -63,7 +73,15 @@ class MockProfilerBackend : public impl::IProfilerBackend {
     return start_result;
   }
 
-  void Stop() override { stop_calls++; }
+  void Stop() override {
+    stop_calls++;
+    if (profile_on_stop) {
+      impl::ProfileData profile = std::move(*profile_on_stop);
+      profile_on_stop.reset();
+      profile.is_last = true;
+      DeliverProfile(std::move(profile));
+    }
+  }
 
  private:
   impl::ProfileCallback _callback;

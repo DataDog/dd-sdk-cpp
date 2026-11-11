@@ -99,6 +99,7 @@ class Feature : public std::enable_shared_from_this<Feature> {
   virtual FeatureStorageConfig GetStorageConfig() const { return {}; }
 
   void OnCoreStarted(FeatureScope&& feature_scope);
+  void OnCoreStopRequested();
   void OnCoreStopping();
 
  protected:
@@ -113,11 +114,28 @@ class Feature : public std::enable_shared_from_this<Feature> {
   virtual void Start() {}
 
   /**
+   * Called from the main thread at the start of the SDK's shutdown, before the context
+   * thread is stopped, and before Stop(). The context thread is still running, and the
+   * Core waits for it to finish everything enqueued before it shuts down, so work
+   * enqueued here via _scope->ExecuteOnContextThread(), including the events it
+   * generates, is processed and stored.
+   *
+   * This is the place to finish work that has to produce events as the SDK shuts down,
+   * which cannot be done in Stop(). Messages may still arrive until the Core finishes
+   * stopping its message bus, so a feature that stops something here should not let
+   * those messages restart it.
+   *
+   * The default implementation does nothing.
+   */
+  virtual void PrepareToStop() {}
+
+  /**
    * Called from the main thread when the SDK is shutting down. This is the last point
    * at which _scope is valid.
    *
    * Once Stop() is called, any work enqueued via _scope->ExecuteOnContextThread() will
-   * be ignored, and the feature may no longer generate events.
+   * be ignored, and the feature may no longer generate events. By then the Core has
+   * stopped its context thread: see PrepareToStop() for work that needs it.
    */
   virtual void Stop() {}
 

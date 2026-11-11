@@ -39,10 +39,15 @@ struct ProfileTimeRange {
  * intake: `event_json` as `event.json`, and `rum_events_json` as the
  * `rum-mobile-events.json` attachment that `event_json` lists. Both are encoded JSON
  * text.
+ *
+ * `has_rum_events` is whether any RUM vitals or long tasks were seen while the profile
+ * was collected, which is what a profile is correlated with. A profile with none has
+ * nothing to correlate it with, and is not kept.
  */
 struct ProfileMetadata {
   std::vector<uint8_t> event_json;
   std::vector<uint8_t> rum_events_json;
+  bool has_rum_events = false;
 };
 
 /**

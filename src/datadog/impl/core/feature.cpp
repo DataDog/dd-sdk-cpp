@@ -19,6 +19,15 @@ void Feature::OnCoreStarted(FeatureScope&& feature_scope) {
   Start();
 }
 
+void Feature::OnCoreStopRequested() {
+  // The core is still running, so we must still have our FeatureScope
+  DATADOG_ASSERT(_scope, "Feature has null _scope in OnCoreStopRequested");
+
+  // Notify the feature that the core is about to stop, while the context thread can
+  // still process what the feature enqueues
+  PrepareToStop();
+}
+
 void Feature::OnCoreStopping() {
   // Notify the feature that the core is stopping
   Stop();

@@ -132,6 +132,17 @@ class FeatureScope {
   );
 
   /**
+   * Returns a thread-safe snapshot of the SDK's current CoreContext value, as it is
+   * right now. Unlike the snapshot that ExecuteOnContextThread() provides, which is
+   * taken when the function runs, this is available at once to a caller that cannot
+   * wait for the context thread, such as a feature's Start().
+   *
+   * Updates that were made through UpdateContext() but are still queued for the context
+   * thread are not yet reflected.
+   */
+  CoreContext GetContext() const;
+
+  /**
    * Performs a thread-safe write to the SDK's global CoreContext value, allowing a
    * feature to populate up-to-date state that the core or other features may access.
    *

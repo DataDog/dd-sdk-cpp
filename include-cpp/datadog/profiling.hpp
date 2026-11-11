@@ -51,14 +51,17 @@ static_assert(
 /**
  * Interface to the Datadog SDK's Profiling feature.
  *
- * When Core::Start() is called, the feature configures the dd-win-prof profiler with
- * the service, environment, and version provided to the Core, and starts it, but only
- * while tracking consent is TrackingConsent::Granted. dd-win-prof uploads profiles
- * itself, so it cannot hold data back while consent is pending: the profiler does not
- * run at all under TrackingConsent::Pending or TrackingConsent::NotGranted, starts when
- * consent becomes granted, and stops if consent is later withdrawn. It is also stopped
- * when the Core stops. dd-win-prof uses the endpoint settings from its own environment
- * variables.
+ * When Core::Start() is called, the feature starts profiling the application, and
+ * attributes the profiles to the service, environment, and version provided to the
+ * Core. Each profile is correlated with the RUM events, such as vitals and long tasks,
+ * that occurred while it was collected. A profile with no such events to correlate it
+ * with is not kept.
+ *
+ * Profiling follows the Core's tracking consent. It does not run if consent is
+ * TrackingConsent::NotGranted, and stops if consent is later withdrawn. While consent
+ * is TrackingConsent::Pending it does run, and what it collects is held, like the data
+ * of other features, until consent is granted, or deleted if consent is not granted.
+ * Profiling also stops when the Core stops.
  */
 class Profiling {
  private:
@@ -82,10 +85,9 @@ class Profiling {
    * You MUST call this function after creating the Core and before calling
    * Core::Start().
    *
-   * The profiler is shared by the whole process, so only one Core can use it at a time.
-   * If another Core has already registered Profiling, this logs a warning and returns
-   * an object whose calls do nothing. The profiler becomes available again once that
-   * Core is destroyed.
+   * Only one Core in a process can use Profiling at a time. If another Core has
+   * already registered Profiling, this logs a warning and returns an object whose calls
+   * do nothing. Profiling becomes available again once that Core is destroyed.
    */
   DATADOG_API static std::shared_ptr<Profiling> Register(
       const std::shared_ptr<class Core>& core,

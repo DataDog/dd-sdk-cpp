@@ -80,7 +80,8 @@ class IProfilerBackend {
    * removes it, returning the profiler to its own default reporting mechanism.
    * Returns false if the profiler could not be given the callback.
    *
-   * Must be called while the profiler is stopped, and before the first Init(). The
+   * Must be called while the profiler is stopped. It may be called again for each run,
+   * after an earlier Init() and Stop(); the SDK does so every time it starts. The
    * callback stays in place across Stop() and Start(), until it is replaced, removed,
    * or the backend is destroyed.
    *
