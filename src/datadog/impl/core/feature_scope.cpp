@@ -12,6 +12,20 @@
 
 namespace datadog::impl {
 
+bool EventWriter::operator()(
+    std::vector<uint8_t>&& event, Block event_metadata, bool bypass_tracking_consent
+) const {
+  if (_write_move) {
+    return _write_move(std::move(event), event_metadata, bypass_tracking_consent);
+  }
+
+  // No function that takes ownership: have the copying function view the bytes. They
+  // stay in `event` for the duration of the call, as the caller handed them to us.
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  const Block view(reinterpret_cast<const char*>(event.data()), event.size());
+  return _write_copy(view, event_metadata, bypass_tracking_consent);
+}
+
 FeatureScope::FeatureScope(
     CoreContextProvider& context_provider,
     const EventWriter& event_writer,

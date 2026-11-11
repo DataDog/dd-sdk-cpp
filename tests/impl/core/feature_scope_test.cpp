@@ -11,7 +11,9 @@
 #include <charconv>
 #include <cinttypes>
 #include <cstring>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "datadog/core.hpp"
 
@@ -427,5 +429,97 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     for (size_t i = 0; i < MAX_EVENTS; i++) {
       REQUIRE(feature.events[i] == i);
     }
+  }
+}
+
+TEST_CASE("EventWriter", "[unit][core]") {
+  // A writer with both functions, which records which of them was called, and what it
+  // was given
+  std::string last_call;
+  std::string last_event;
+  std::string last_metadata;
+  bool last_bypass = false;
+  const uint8_t* moved_in_data = nullptr;
+  EventWriter writer(
+      [&](Block event, Block event_metadata, bool bypass) {
+        last_call = "copy";
+        last_event.assign(event.data(), event.size());
+        last_metadata.assign(event_metadata.data(), event_metadata.size());
+        last_bypass = bypass;
+        return true;
+      },
+      [&](std::vector<uint8_t>&& event, Block event_metadata, bool bypass) {
+        last_call = "move";
+        moved_in_data = event.data();
+        last_event.assign(event.begin(), event.end());
+        last_metadata.assign(event_metadata.data(), event_metadata.size());
+        last_bypass = bypass;
+        return true;
+      }
+  );
+
+  SECTION("M use the copying function W the event is a Block") {
+    REQUIRE(writer("some event", "some metadata", true));
+
+    REQUIRE(last_call == "copy");
+    REQUIRE(last_event == "some event");
+    REQUIRE(last_metadata == "some metadata");
+    REQUIRE(last_bypass);
+  }
+
+  SECTION("M use the moving function W the event is an rvalue vector") {
+    const std::string text = "some event";
+    std::vector<uint8_t> event(text.begin(), text.end());
+    const uint8_t* const event_bytes = event.data();
+
+    REQUIRE(writer(std::move(event), "some metadata", false));
+
+    // Then the function received the vector's own bytes, and the metadata as a Block
+    REQUIRE(last_call == "move");
+    REQUIRE(moved_in_data == event_bytes);
+    REQUIRE(last_event == text);
+    REQUIRE(last_metadata == "some metadata");
+    REQUIRE_FALSE(last_bypass);
+  }
+
+  SECTION("M return what the function returns W either form is called") {
+    EventWriter refusing(
+        [](Block, Block, bool) { return false; },
+        [](std::vector<uint8_t>&&, Block, bool) { return false; }
+    );
+
+    REQUIRE_FALSE(refusing("event", {}, false));
+    REQUIRE_FALSE(refusing(std::vector<uint8_t>{1, 2, 3}, {}, false));
+  }
+
+  SECTION("M give the copying function a view W there is no moving function") {
+    // Given a writer made from a single function, as most writers are
+    std::string seen;
+    EventWriter copy_only([&](Block event, Block, bool) {
+      seen.assign(event.data(), event.size());
+      return true;
+    });
+
+    // When it is given a vector
+    const std::string text = "bytes in a vector";
+    REQUIRE(copy_only(std::vector<uint8_t>(text.begin(), text.end()), {}, false));
+
+    // Then the function saw the vector's bytes
+    REQUIRE(seen == text);
+  }
+
+  SECTION("M be callable only W it was given a function") {
+    REQUIRE_FALSE(static_cast<bool>(EventWriter()));
+    REQUIRE(static_cast<bool>(writer));
+  }
+
+  SECTION("M copy W the writer is copied") {
+    // A FeatureScope keeps its own copy of the writer, so a copy must still work
+    const EventWriter copy = writer;
+
+    REQUIRE(copy("event", {}, false));
+    REQUIRE(last_call == "copy");
+    REQUIRE(copy(std::vector<uint8_t>{1}, {}, false));
+    REQUIRE(last_call == "move");
   }
 }

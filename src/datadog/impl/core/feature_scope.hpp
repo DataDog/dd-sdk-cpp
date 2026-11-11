@@ -8,6 +8,9 @@
 
 #include <cstdint>
 #include <functional>
+#include <type_traits>
+#include <utility>
+#include <vector>
 
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
@@ -18,21 +21,94 @@
 namespace datadog::impl {
 
 /**
- * Callback that writes an event to storage from the context thread.
+ * Callable that writes an event to storage from the context thread. It is called as
+ * `writer(event, event_metadata, bypass_tracking_consent)`, in one of two forms that
+ * differ in how the event's bytes reach the storage queue:
  *
- * @param event Arbitrary bytes. Must be non-empty. Will be copied into the storage
- *  queue. Eventually written to a batch with TLVBlockType::Event.
- * @param event_metadata Optional metadata to accompany the event; will be copied. When
- *  an event that has metadata is eventually written, the metadata will be prepended as
- *  a block of type TLVBlockType::Metadata.
- * @param bypass_tracking_consent When `true`, the event is always written to the
- *  granted-consent storage directory, regardless of the current `TrackingConsent`
- *  value. Intended for use by crash reporting, which must apply the consent that was
- *  active at crash time rather than the current live consent.
- * @returns whether the event was successfuly enqueued for storage.
+ * - When `event` is a `Block`, the bytes are copied into the storage queue, and the
+ *   caller keeps its own copy. This suits small events, and bytes that the caller still
+ *   needs.
+ * - When `event` is a `std::vector<uint8_t>&&`, the vector is moved into the storage
+ *   queue, which takes ownership of the bytes without copying them. This suits larger
+ *   events that the caller has built to hand to storage, such as a profile. The caller
+ *   must pass it with `std::move()`, and must not use it afterwards.
+ *
+ * In both forms, `event` must be non-empty, and is eventually written to a batch with
+ * TLVBlockType::Event. `event_metadata` is optional metadata to accompany the event,
+ * and is always copied. When an event that has metadata is eventually written, the
+ * metadata is prepended as a block of type TLVBlockType::Metadata.
+ * `bypass_tracking_consent`, when `true`, has the event always written to the
+ * granted-consent storage directory, regardless of the current `TrackingConsent` value.
+ * This is intended for use by crash reporting, which must apply the consent that was
+ * active at crash time rather than the current live consent.
+ *
+ * Both forms return whether the event was successfully enqueued for storage. A moved
+ * vector is consumed only if it was enqueued; if the result is false, the vector may
+ * have been left untouched or emptied, so the caller must not rely on its content.
+ *
+ * An EventWriter can be made from any callable that takes a `Block`, `Block` and `bool`
+ * and returns `bool`. Such a writer is always a "copying" writer: when it is called
+ * with a `vector`, it receives a view of the bytes in the form of a `Block`, and the
+ * bytes are copied by whatever that callable does with them. To avoid that copy,
+ * construct the EventWriter with two functions, one that performs a copy and one that
+ * accepts the moved bytes. See the two-function constructor.
  */
-using EventWriter = std::function<
-    bool(Block event, Block event_metadata, bool bypass_tracking_consent)>;
+class EventWriter {
+ public:
+  /** The function that writes an event given as a `Block`, copying its bytes. */
+  using CopyingFunc = std::function<
+      bool(Block event, Block event_metadata, bool bypass_tracking_consent)>;
+
+  /** The function that writes an event given as a vector, taking ownership of it. */
+  using MovingFunc = std::function<bool(
+      std::vector<uint8_t>&& event, Block event_metadata, bool bypass_tracking_consent
+  )>;
+
+  /** Creates a writer that is empty, and so cannot be called. */
+  EventWriter() = default;
+
+  /**
+   * Creates a writer from a callable that writes an event given as a `Block`. If the
+   * writer is called with a vector, the callable is given a `Block` that views it.
+   */
+  template <
+      typename Func,
+      typename = std::enable_if_t<
+          !std::is_same_v<std::decay_t<Func>, EventWriter> &&
+          std::is_invocable_r_v<bool, Func&, Block, Block, bool>>>
+  // Not explicit, so that a lambda can be passed where an EventWriter is expected
+  // NOLINTNEXTLINE(google-explicit-constructor, hicpp-explicit-conversions)
+  EventWriter(Func&& write_copy) : _write_copy(std::forward<Func>(write_copy)) {}
+
+  /**
+   * Creates a writer from a function that copies the bytes of an event given as a
+   * `Block`, and a function that takes ownership of an event given as a vector.
+   */
+  EventWriter(CopyingFunc write_copy, MovingFunc write_move)
+      : _write_copy(std::move(write_copy)), _write_move(std::move(write_move)) {}
+
+  /** Writes an event, copying the bytes of `event` into the storage queue. */
+  bool operator()(
+      Block event, Block event_metadata, bool bypass_tracking_consent
+  ) const {
+    return _write_copy(event, event_metadata, bypass_tracking_consent);
+  }
+
+  /**
+   * Writes an event, moving `event` into the storage queue if this writer has a moving
+   * function, and otherwise passing a `Block` that views it to the copying function.
+   */
+  bool operator()(
+      std::vector<uint8_t>&& event, Block event_metadata, bool bypass_tracking_consent
+  ) const;
+
+  /** Returns whether this writer can be called. */
+  explicit operator bool() const { return static_cast<bool>(_write_copy); }
+
+ private:
+  CopyingFunc _write_copy;
+  MovingFunc _write_move;
+};
 
 /**
  * Callback that publishes a message to the message bus from the context thread.

@@ -66,7 +66,8 @@ struct StorageMessage_EventGenerated {
   FeatureId feature_id;
   /**
    * The binary data representing the payload of this event, to be written to storage as
-   * a TLV block of type 'Event'. The message stores a copy of the source data.
+   * a TLV block of type 'Event'. The message holds a copy of the source data, or the
+   * source data itself if it was moved in.
    */
   std::vector<uint8_t> event;
   /**
@@ -87,6 +88,17 @@ struct StorageMessage_EventGenerated {
   explicit StorageMessage_EventGenerated(
       FeatureId in_feature_id,
       Block in_event,
+      Block in_event_metadata,
+      bool in_bypass_tracking_consent
+  );
+
+  /**
+   * Constructs a new 'EventGenerated' message, taking ownership of the provided event
+   * data without copying it, and copying the event metadata.
+   */
+  explicit StorageMessage_EventGenerated(
+      FeatureId in_feature_id,
+      std::vector<uint8_t>&& in_event,
       Block in_event_metadata,
       bool in_bypass_tracking_consent
   );
@@ -155,11 +167,22 @@ struct StorageMessage {
   static StorageMessage TrackingConsentChanged(TrackingConsent value);
 
   /**
-   * Creates a new EventGenerated message.
+   * Creates a new EventGenerated message, copying the event and its metadata.
    */
   static StorageMessage EventGenerated(
       FeatureId feature_id,
       Block event,
+      Block event_metadata,
+      bool bypass_tracking_consent
+  );
+
+  /**
+   * Creates a new EventGenerated message that takes ownership of `event` without
+   * copying it, and copies the event metadata.
+   */
+  static StorageMessage EventGenerated(
+      FeatureId feature_id,
+      std::vector<uint8_t>&& event,
       Block event_metadata,
       bool bypass_tracking_consent
   );
