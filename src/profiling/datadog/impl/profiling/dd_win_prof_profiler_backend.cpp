@@ -55,9 +55,10 @@ class DdWinProfBackend final : public IProfilerBackend {
     ProfilerConfig config = {};
     config.size = sizeof(ProfilerConfig);
 
-    // Leave the endpoint, API key, and tuning parameters unset so that dd-win-prof
-    // takes them from its environment variables
-    config.noEnvVars = false;
+    // The SDK is the only source of configuration, so dd-win-prof ignores its
+    // environment variables. It needs no endpoint or API key of its own, because a
+    // profile callback was set before this (see SetProfileCallback()).
+    config.noEnvVars = true;
     config.serviceName = settings.service.c_str();
     config.serviceEnvironment = settings.env.c_str();
     // Only pass a version if the application provided one

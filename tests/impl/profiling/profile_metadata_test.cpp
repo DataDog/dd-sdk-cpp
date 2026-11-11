@@ -322,6 +322,9 @@ TEST_CASE("ProfileMetadataSource", "[unit][profiling]") {
     REQUIRE(tags.find("sdk_version:1.2.3") != std::string::npos);
     REQUIRE(tags.find("runtime_version:2.3.4") != std::string::npos);
     REQUIRE(Text(metadata.rum_events_json) == "[]");
+
+    // And says that there were no RUM events to correlate the profile with
+    REQUIRE_FALSE(metadata.has_rum_events);
   }
 
   SECTION("M consume the RUM events W metadata is built") {
@@ -336,7 +339,8 @@ TEST_CASE("ProfileMetadataSource", "[unit][profiling]") {
     // When metadata is built
     const ProfileMetadata first = source->BuildMetadata(RANGE);
 
-    // Then it describes the long task
+    // Then it says that there were RUM events, and describes the long task
+    REQUIRE(first.has_rum_events);
     REQUIRE(
         json::parse(first.event_json)["long_task.id"][0] ==
         message.long_task_id.ToString()
@@ -347,8 +351,9 @@ TEST_CASE("ProfileMetadataSource", "[unit][profiling]") {
     REQUIRE(json::parse(first.event_json)["view.id"].size() == 1);
     REQUIRE_FALSE(json::parse(first.event_json).contains("view.name"));
 
-    // And the next profile does not
+    // And the next profile does not, and has no RUM events
     const ProfileMetadata second = source->BuildMetadata(RANGE);
+    REQUIRE_FALSE(second.has_rum_events);
     REQUIRE_FALSE(json::parse(second.event_json).contains("long_task.id"));
     REQUIRE(Text(second.rum_events_json) == "[]");
   }

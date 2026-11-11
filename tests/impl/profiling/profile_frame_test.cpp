@@ -56,7 +56,7 @@ ProfileMetadata MakeMetadata(std::string_view event_json, std::string_view rum_j
 //           13..16  size of pprof (3)
 //           17..19  pprof
 std::vector<uint8_t> SampleFrame() {
-  return EncodeProfileFrame(MakeMetadata("{}", "[]"), Bytes({1, 2, 3}));
+  return EncodeProfileFrame(MakeMetadata("{}", "[]"), Text(Bytes({1, 2, 3})));
 }
 
 }  // namespace
@@ -82,7 +82,8 @@ TEST_CASE("EncodeProfileFrame writes sizes big-endian", "[unit][profiling]") {
   // A part longer than 255 bytes shows which byte of the size is which. With the first
   // two parts empty, the pprof's size field is at offset 9.
   const std::vector<uint8_t> pprof(0x010203, 0xAB);
-  const std::vector<uint8_t> frame = EncodeProfileFrame(MakeMetadata("", ""), pprof);
+  const std::vector<uint8_t> frame =
+      EncodeProfileFrame(MakeMetadata("", ""), Text(pprof));
 
   REQUIRE(frame.size() == 13 + pprof.size());
   REQUIRE(frame[9] == 0x00);
@@ -101,7 +102,7 @@ TEST_CASE("DecodeProfileFrame round trip", "[unit][profiling]") {
     }
     const ProfileMetadata metadata =
         MakeMetadata(R"({"family":"windows"})", R"([{"id":"1"},{"id":"2"}])");
-    const std::vector<uint8_t> frame = EncodeProfileFrame(metadata, pprof);
+    const std::vector<uint8_t> frame = EncodeProfileFrame(metadata, Text(pprof));
 
     const auto decoded = DecodeProfileFrame(Text(frame));
     REQUIRE(decoded.has_value());
@@ -126,7 +127,7 @@ TEST_CASE("DecodeProfileFrame round trip", "[unit][profiling]") {
   SECTION("a large profile") {
     const std::vector<uint8_t> pprof(3 * 1024 * 1024, 0x5A);
     const std::vector<uint8_t> frame =
-        EncodeProfileFrame(MakeMetadata("{}", "[]"), pprof);
+        EncodeProfileFrame(MakeMetadata("{}", "[]"), Text(pprof));
 
     const auto decoded = DecodeProfileFrame(Text(frame));
     REQUIRE(decoded.has_value());
@@ -150,7 +151,7 @@ TEST_CASE("DecodeProfileFrame with empty parts", "[unit][profiling]") {
 
   SECTION("one part empty") {
     {
-      const auto frame = EncodeProfileFrame(MakeMetadata("", "[]"), Bytes({7}));
+      const auto frame = EncodeProfileFrame(MakeMetadata("", "[]"), Text(Bytes({7})));
       const auto decoded = DecodeProfileFrame(Text(frame));
       REQUIRE(decoded.has_value());
       REQUIRE(decoded->event_json.empty());
@@ -158,7 +159,7 @@ TEST_CASE("DecodeProfileFrame with empty parts", "[unit][profiling]") {
       REQUIRE(decoded->pprof == Text(Bytes({7})));
     }
     {
-      const auto frame = EncodeProfileFrame(MakeMetadata("{}", ""), Bytes({7}));
+      const auto frame = EncodeProfileFrame(MakeMetadata("{}", ""), Text(Bytes({7})));
       const auto decoded = DecodeProfileFrame(Text(frame));
       REQUIRE(decoded.has_value());
       REQUIRE(AsString(decoded->event_json) == "{}");

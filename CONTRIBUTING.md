@@ -157,7 +157,7 @@ Within a module's directory, `datadog/c/` and `datadog/cpp/` implement that modu
 - [`src/rum/`][rum] allows an application to keep track of application state and user interactions via Views, Actions, Resources, etc., sending RUM events to Datadog.
 - [`src/crash_reporting/`][crash-reporting] automatically detects application crashes and sends crash reports to Datadog as RUM Errors.
     - Multiple crash-handling mechanisms are planned; currently only `DD_CRASH_MODE=inprocess` is supported.
-- [`src/profiling/`][profiling] configures and starts the dd-win-prof Windows profiler when the SDK starts, and stops it when the SDK stops. Only available when building for Windows x64 with `DD_ENABLE_PROFILING=ON`; in all other builds the feature is a no-op.
+- [`src/profiling/`][profiling] configures and starts the dd-win-prof Windows profiler when the SDK starts, and stops it when the SDK stops. dd-win-prof hands each profile it produces to the feature, which stores it, with metadata describing it, for the Core to upload. Only available when building for Windows x64 with `DD_ENABLE_PROFILING=ON`; in all other builds the feature is a no-op.
 - [`tests/`][tests]: Unit tests for code in `src/`, along with test-only support code.
 - [`examples/`][examples] demonstrates usage of both C and C++ APIs.
 
