@@ -11,6 +11,7 @@
 #include <string_view>
 #include <vector>
 
+#include "datadog/impl/core/block.hpp"
 #include "datadog/impl/profiling/profile_metadata.hpp"
 
 namespace datadog::impl {
@@ -73,9 +74,7 @@ struct ProfileFrameView {
  * Returns an empty vector, which is never a valid frame, if a part is too large for its
  * size to be stored.
  */
-std::vector<uint8_t> EncodeProfileFrame(
-    const ProfileMetadata& metadata, const std::vector<uint8_t>& pprof
-);
+std::vector<uint8_t> EncodeProfileFrame(const ProfileMetadata& metadata, Block pprof);
 
 /**
  * Decodes a frame written by EncodeProfileFrame(), returning views of its parts, or

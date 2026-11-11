@@ -696,6 +696,13 @@ void Core::Stop() {
       "_upload_thread is non-joinable on Stop"
   );
 
+  // Tell each feature that we're about to stop, while the context thread is still
+  // running: anything that a feature enqueues in response, such as the events that it
+  // produces as it winds down, is processed when we drain the context queue below
+  for (const auto& feature : _features) {
+    feature.impl->OnCoreStopRequested();
+  }
+
   // Stop the context queue, then block until the context thread drains the queue and
   // exits. This ensures all pending feature work completes before we stop the storage
   // thread or tear down feature state.

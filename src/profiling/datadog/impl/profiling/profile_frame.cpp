@@ -24,16 +24,20 @@ static bool fits_in_size_field(size_t size) {
   return size <= std::numeric_limits<uint32_t>::max();
 }
 
-/** The number of bytes that a part takes in a frame: its size, then the part itself. */
-static size_t part_len(const std::vector<uint8_t>& part) {
-  return sizeof(uint32_t) + part.size();
+/** Views a buffer of bytes as a Block. */
+static Block as_block(const std::vector<uint8_t>& bytes) {
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+  return {reinterpret_cast<const char*>(bytes.data()), bytes.size()};
 }
+
+/** The number of bytes that a part takes in a frame: its size, then the part itself. */
+static size_t part_len(Block part) { return sizeof(uint32_t) + part.size(); }
 
 /**
  * Writes a part's size, then the part itself, to `dst`, which has `n` bytes available:
  * `part_len(part)` of them are needed. Returns the number of bytes written.
  */
-static size_t part_write(uint8_t* dst, size_t n, const std::vector<uint8_t>& part) {
+static size_t part_write(uint8_t* dst, size_t n, Block part) {
   const size_t num_bytes_written = part_len(part);
   DATADOG_ASSERT(
       num_bytes_written <= n, "buffer overflow on profile frame part encode"
@@ -65,11 +69,9 @@ static bool read_part(std::string_view& mut_remaining, std::string_view& out_par
   return true;
 }
 
-std::vector<uint8_t> EncodeProfileFrame(
-    const ProfileMetadata& metadata, const std::vector<uint8_t>& pprof
-) {
-  const std::vector<uint8_t>& event_json = metadata.event_json;
-  const std::vector<uint8_t>& rum_events_json = metadata.rum_events_json;
+std::vector<uint8_t> EncodeProfileFrame(const ProfileMetadata& metadata, Block pprof) {
+  const Block event_json = as_block(metadata.event_json);
+  const Block rum_events_json = as_block(metadata.rum_events_json);
 
   if (!fits_in_size_field(event_json.size()) ||
       !fits_in_size_field(rum_events_json.size()) ||
