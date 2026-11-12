@@ -17,6 +17,7 @@
 
 #include "mock/clock.hpp"
 #include "support/context.hpp"
+#include "support/event_writer.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -40,7 +41,7 @@ class ApplicationFixture {
         deps(config, clock),
         scope(deps),
         context(MOCK_CONTEXT),
-        writer([](Block, Block, bool) { return true; }) {
+        writer(MakeTestEventWriter()) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -247,7 +248,7 @@ class ViewTransferFixture {
         deps(config, clock),
         scope(deps),
         context(MOCK_CONTEXT),
-        writer([](Block, Block, bool) { return true; }) {
+        writer(MakeTestEventWriter()) {
     clock.FreezeAtMilliseconds(1700000000000);
 
     // Issue SDKInit to create an initial session

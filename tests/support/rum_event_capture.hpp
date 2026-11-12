@@ -21,6 +21,7 @@
 
 #include "support/context.hpp"
 #include "support/diagnostics.hpp"
+#include "support/event_writer.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -63,7 +64,7 @@ class RumEventCapture {
         session_id(session_id),
         view_id(view_id),
         context_provider(MOCK_CONTEXT),
-        _event_func(
+        _event_func(MakeTestEventWriter(
             [this](Block event, Block event_metadata, bool bypass_tracking_consent) {
               // RUM implementation doesn't produce events with metadata, nor does it
               // ever bypass tracking consent
@@ -90,7 +91,7 @@ class RumEventCapture {
               all_events.emplace_back(std::move(obj));
               return true;
             }
-        ),
+        )),
         feature_scope(
             FeatureScope::CreateForTesting(
                 context_provider,
