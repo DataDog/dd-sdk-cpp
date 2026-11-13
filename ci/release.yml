@@ -1,7 +1,10 @@
 publish-release:
   stage: publish-release
   rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
+    # The job's STS policy accepts only push pipelines, so the job is left out of
+    # pipelines started from the GitLab UI or a schedule, where it would fail to
+    # authenticate
+    - if: '$CI_COMMIT_BRANCH == "main" && $CI_PIPELINE_SOURCE == "push"'
   dependencies:
     - package-linux
     - package-macos
@@ -56,8 +59,12 @@ publish-release:
 prepare-release:
   stage: prepare-release
   rules:
-    - if: '$CI_COMMIT_BRANCH == "develop"'
+    # As with publish-release, the job's STS policy accepts only push pipelines
+    - if: '$CI_COMMIT_BRANCH == "develop" && $CI_PIPELINE_SOURCE == "push"'
       when: manual
+      # A manual job declared in rules blocks its pipeline until it runs, unless it's
+      # allowed to fail: without this, every develop pipeline would stay pending
+      allow_failure: true
   variables:
     # Custom values can be provided when manually triggering the job in the GitLab UI
     BUMP_TYPE: ""   # Set BUMP_TYPE=minor etc. to override conventional commits
