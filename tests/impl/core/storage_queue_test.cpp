@@ -8,6 +8,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 #include <memory>
+#include <string>
 #include <vector>
 
 #include "datadog/impl/core/core.hpp"
@@ -51,6 +52,36 @@ TEST_CASE("StorageMessage", "[unit]") {
     // And the metadata is copied correctly
     std::vector<uint8_t> expected_metadata(metadata_data.begin(), metadata_data.end());
     REQUIRE(message.payload.event_generated.event_metadata == expected_metadata);
+  }
+
+  SECTION("M take ownership of the event W EventGenerated created from a vector") {
+    // Given an event in a vector, and metadata that is not
+    FeatureId feature_id = CreateFeatureId("TEST");
+    const std::string text = "a large profile, let us say";
+    std::vector<uint8_t> event(text.begin(), text.end());
+    const uint8_t* const event_bytes = event.data();
+    Block metadata_data{"test metadata"};
+
+    // When creating an EventGenerated message from the moved vector
+    auto message = StorageMessage::EventGenerated(
+        feature_id, std::move(event), metadata_data, true
+    );
+
+    // Then the message holds the very same bytes, not a copy of them
+    REQUIRE(message.type == StorageMessageType::EventGenerated);
+    REQUIRE(message.payload.event_generated.feature_id == feature_id);
+    REQUIRE(message.payload.event_generated.event.data() == event_bytes);
+    REQUIRE(
+        message.payload.event_generated.event ==
+        std::vector<uint8_t>(text.begin(), text.end())
+    );
+    REQUIRE(message.payload.event_generated.bypass_tracking_consent);
+
+    // And the metadata is still copied
+    REQUIRE(
+        message.payload.event_generated.event_metadata ==
+        std::vector<uint8_t>(metadata_data.begin(), metadata_data.end())
+    );
   }
 
   SECTION("M handle empty metadata W EventGenerated message created") {
