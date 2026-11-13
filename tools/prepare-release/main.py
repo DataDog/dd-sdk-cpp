@@ -28,7 +28,7 @@ from lib.llm.costs import print_llm_costs
 
 
 def find_prs_since_last_release(last_release_tag: str) -> list[PR]:
-    # Use the git CLI to retrieve the set of PRs merged since the last release
+    # Use the git and gh CLIs to find the set of PRs merged since the last release
     numbers = merged_pr_numbers(last_release_tag)
     print(f"Found {len(numbers)} merged PRs", file=sys.stderr)
 
