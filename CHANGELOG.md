@@ -1,3 +1,11 @@
+## 0.9.0
+
+### Fixes
+
+- Linux builds no longer require `libuuid`; UUID generation now uses `getrandom()` directly with a `/dev/urandom`-based fallback, requiring glibc 2.25 or newer.
+- Linux shared-library builds with `DD_CRASH_MODE=crashpad` no longer fail due to the CMake `LINKER:` prefix being passed through to Clang/GN unchanged.
+- We now publish a static-library release artifact for Linux that's built with `clang/libc++` targeting a glibc 2.28 sysroot.
+
 ## 0.8.1
 
 ### Features
