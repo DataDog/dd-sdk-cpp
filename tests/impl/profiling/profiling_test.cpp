@@ -11,6 +11,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "datadog/impl/core/feature_message.hpp"
 
@@ -65,6 +66,9 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     send_consent(datadog::TrackingConsent::Granted);
 
     // Then the profiler is configured with the app's identity, then started
+    REQUIRE(profiler.calls[0] == "register");
+    REQUIRE(profiler.calls[1] == "init");
+    REQUIRE(profiler.calls[2] == "start");
     REQUIRE(profiler.init_calls == 1);
     REQUIRE(profiler.start_calls == 1);
     REQUIRE(profiler.last_settings.service == "my-service");
@@ -181,6 +185,10 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     REQUIRE(test.diagnostic_messages.size() == 1);
     REQUIRE(test.diagnostic_messages[0].level == datadog::DiagnosticLevel::Warning);
     REQUIRE(test.diagnostic_messages[0].text == "Failed to configure profiler");
+    REQUIRE(
+        profiler.calls == std::vector<std::string>{"register", "init", "unregister"}
+    );
+    REQUIRE_FALSE(profiler.HasCallback());
 
     // And a later stop doesn't touch a profiler that never started
     test.Stop(profiling);
@@ -202,6 +210,28 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     REQUIRE(test.diagnostic_messages[0].level == datadog::DiagnosticLevel::Warning);
     REQUIRE(test.diagnostic_messages[0].text == "Failed to start profiler");
     REQUIRE(profiler.stop_calls == 0);
+    REQUIRE(
+        profiler.calls ==
+        std::vector<std::string>{"register", "init", "start", "unregister"}
+    );
+    REQUIRE_FALSE(profiler.HasCallback());
+  }
+
+  SECTION("M diagnose registration failure W callback cannot be installed") {
+    profiler.set_callback_result = false;
+
+    test.Start(profiling);
+    send_consent(datadog::TrackingConsent::Granted);
+
+    REQUIRE(profiler.set_callback_calls == 1);
+    REQUIRE(profiler.init_calls == 0);
+    REQUIRE(profiler.start_calls == 0);
+    REQUIRE(test.diagnostic_messages.size() == 1);
+    REQUIRE(test.diagnostic_messages[0].level == datadog::DiagnosticLevel::Warning);
+    REQUIRE(
+        test.diagnostic_messages[0].text == "Failed to register profiling data callback"
+    );
+    REQUIRE_FALSE(profiler.HasCallback());
   }
 
   SECTION(

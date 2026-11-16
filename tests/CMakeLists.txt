@@ -254,6 +254,10 @@ unset(_dd_module_targets)
 if(DD_PROFILER_IMPL STREQUAL "dd-win-prof")
     # Enables the tests of how Profiling::Register claims the profiler
     target_compile_definitions(tests PRIVATE WITH_DATADOG_PROFILING_TESTS=1)
+    target_sources(tests PRIVATE
+        impl/profiling/dd_win_prof_profiler_backend_test.cpp
+    )
+    target_link_libraries(tests PRIVATE dd-win-prof)
 
     add_custom_command(TARGET tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

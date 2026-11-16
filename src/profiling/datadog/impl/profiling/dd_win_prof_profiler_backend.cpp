@@ -7,12 +7,15 @@
 // IProfilerBackend implementation backed by dd-win-prof. Only compiled into builds with
 // profiling support (see cmake/deps/dd-win-prof.cmake).
 
-#include <dd-win-prof.h>
+#include "datadog/impl/profiling/dd_win_prof_profiler_backend.hpp"
 
 #include <atomic>
+#include <chrono>
+#include <cstddef>
+#include <exception>
+#include <limits>
 #include <memory>
-
-#include "datadog/impl/profiling/profiler_backend.hpp"
+#include <utility>
 
 namespace datadog::impl {
 
@@ -21,9 +24,36 @@ namespace {
 // Whether a DdWinProfBackend exists: dd-win-prof is process-global
 std::atomic<bool> s_backend_exists{false};
 
+Timestamp FromUnixMs(int64_t unix_ms) {
+  return Timestamp{std::chrono::milliseconds(unix_ms)};
+}
+
 class DdWinProfBackend final : public IProfilerBackend {
  public:
-  ~DdWinProfBackend() override { s_backend_exists.store(false); }
+  DdWinProfBackend(const DiagnosticLogger& logger, DdWinProfApi api)
+      : _logger(logger), _api(api) {}
+
+  ~DdWinProfBackend() override {
+    Stop();
+    s_backend_exists.store(false);
+  }
+
+  bool SetProfileCallback(ProfileCallback callback) override {
+    if (!callback) {
+      return UnregisterCallback();
+    }
+
+    _callback = std::move(callback);
+    if (!_api.setup_callback(DeliverProfile, this)) {
+      _callback = {};
+      // Registration failure preserves the profiler's previous registration. This
+      // backend never installs another callback, but still request the empty state.
+      (void)_api.setup_callback(nullptr, nullptr);
+      return false;
+    }
+    _callback_registered = true;
+    return true;
+  }
 
   bool Init(const ProfilerBackendSettings& settings) override {
     ProfilerConfig config = {};
@@ -39,15 +69,116 @@ class DdWinProfBackend final : public IProfilerBackend {
         settings.version.empty() ? nullptr : settings.version.c_str();
 
     // dd-win-prof copies these strings, so they need only outlive this call
-    return SetupProfiler(&config);
+    if (_api.setup(&config)) {
+      return true;
+    }
+    UnregisterCallback();
+    return false;
   }
 
-  bool Start() override { return StartProfiler(); }
+  bool Start() override {
+    if (_api.start()) {
+      return true;
+    }
+    // Safe after a failed or partial start, and waits for any callback in progress.
+    _api.stop();
+    UnregisterCallback();
+    return false;
+  }
 
-  void Stop() override { StopProfiler(); }
+  void Stop() override {
+    if (!_callback && !_callback_registered) {
+      return;
+    }
+    _api.stop();
+    UnregisterCallback();
+  }
+
+ private:
+  static void DD_WIN_PROF_CALL
+  DeliverProfile(const ProfilingData* data, void* user_data) noexcept {
+    if (user_data == nullptr) {
+      return;
+    }
+    static_cast<DdWinProfBackend*>(user_data)->DeliverProfile(data);
+  }
+
+  void DeliverProfile(const ProfilingData* data) noexcept {
+    try {
+      if (data == nullptr || data->struct_size < sizeof(ProfilingData)) {
+        WarnNoexcept("Profiler delivered an invalid profiling data view");
+        return;
+      }
+      if (data->result == 0 && data->pprof_size != 0 &&
+          (data->pprof_bytes == nullptr ||
+           data->pprof_size >
+               static_cast<size_t>((std::numeric_limits<std::ptrdiff_t>::max)()))) {
+        WarnNoexcept("Profiler delivered an invalid pprof byte view");
+        return;
+      }
+
+      ProfileData profile;
+      if (data->result == 0) {
+        if (data->pprof_size != 0) {
+          profile.pprof.assign(data->pprof_bytes, data->pprof_bytes + data->pprof_size);
+        }
+      } else {
+        const char* message = _api.error_message(data->result);
+        if (message != nullptr) {
+          profile.error = message;
+        }
+      }
+      profile.start = FromUnixMs(data->start_unix_time_ms);
+      profile.end = FromUnixMs(data->end_unix_time_ms);
+      profile.is_last = data->is_last != 0;
+
+      if (_callback) {
+        _callback(std::move(profile));
+      }
+    } catch (const std::bad_alloc&) {
+      WarnNoexcept("Could not allocate memory for a profiler callback");
+    } catch (const std::exception&) {
+      WarnNoexcept("Profiling data callback threw an exception");
+    } catch (...) {
+      WarnNoexcept("Profiling data callback threw an unknown exception");
+    }
+  }
+
+  bool UnregisterCallback() noexcept {
+    if (!_callback_registered) {
+      _callback = {};
+      return true;
+    }
+    const bool unregistered = _api.setup_callback(nullptr, nullptr);
+    if (!unregistered) {
+      WarnNoexcept("Failed to unregister the profiling callback");
+    }
+    _callback_registered = false;
+    _callback = {};
+    return unregistered;
+  }
+
+  void WarnNoexcept(const char* message) const noexcept {
+    try {
+      _logger.Warning(message);
+    } catch (...) {
+      // Diagnostic handlers are application code; no exception may cross the C ABI.
+    }
+  }
+
+  DiagnosticLogger _logger;
+  DdWinProfApi _api;
+  ProfileCallback _callback;
+  bool _callback_registered = false;
 };
 
 }  // namespace
+
+std::unique_ptr<IProfilerBackend> CreateDdWinProfBackendForTest(
+    const DiagnosticLogger& logger, DdWinProfApi api
+) {
+  return std::make_unique<DdWinProfBackend>(logger, api);
+}
 
 std::unique_ptr<IProfilerBackend> CreateProfilerBackend(
     const DiagnosticLogger& logger
@@ -60,7 +191,16 @@ std::unique_ptr<IProfilerBackend> CreateProfilerBackend(
     );
     return nullptr;
   }
-  return std::make_unique<DdWinProfBackend>();
+  return std::make_unique<DdWinProfBackend>(
+      logger,
+      DdWinProfApi{
+          SetupProfilingDataCallback,
+          SetupProfiler,
+          StartProfiler,
+          StopProfiler,
+          GetProfilingErrorMessage
+      }
+  );
 }
 
 }  // namespace datadog::impl

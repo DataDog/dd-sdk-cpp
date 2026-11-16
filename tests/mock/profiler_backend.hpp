@@ -6,6 +6,10 @@
 
 #pragma once
 
+#include <string>
+#include <utility>
+#include <vector>
+
 #include "datadog/impl/profiling/profiler_backend.hpp"
 
 using namespace datadog;
@@ -16,24 +20,57 @@ using namespace datadog;
  */
 class MockProfilerBackend : public impl::IProfilerBackend {
  public:
+  bool set_callback_result = true;
   bool init_result = true;
   bool start_result = true;
+  int set_callback_calls = 0;
   int init_calls = 0;
   int start_calls = 0;
   int stop_calls = 0;
   impl::ProfilerBackendSettings last_settings;
+  std::vector<std::string> calls;
+
+  bool HasCallback() const { return static_cast<bool>(_callback); }
 
   // IProfilerBackend interface
+  bool SetProfileCallback(impl::ProfileCallback callback) override {
+    set_callback_calls++;
+    calls.push_back(callback ? "register" : "unregister");
+    if (!set_callback_result) {
+      return false;
+    }
+    _callback = std::move(callback);
+    return true;
+  }
+
   bool Init(const impl::ProfilerBackendSettings& settings) override {
     init_calls++;
+    calls.push_back("init");
     last_settings = settings;
+    if (!init_result) {
+      _callback = {};
+      calls.push_back("unregister");
+    }
     return init_result;
   }
 
   bool Start() override {
     start_calls++;
+    calls.push_back("start");
+    if (!start_result) {
+      _callback = {};
+      calls.push_back("unregister");
+    }
     return start_result;
   }
 
-  void Stop() override { stop_calls++; }
+  void Stop() override {
+    stop_calls++;
+    calls.push_back("stop");
+    _callback = {};
+    calls.push_back("unregister");
+  }
+
+ private:
+  impl::ProfileCallback _callback;
 };

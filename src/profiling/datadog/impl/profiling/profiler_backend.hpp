@@ -6,8 +6,13 @@
 
 #pragma once
 
+#include <cstdint>
+#include <functional>
 #include <memory>
 #include <string>
+#include <vector>
+
+#include "datadog/timestamp.hpp"
 
 #include "datadog/impl/types/diagnostics.hpp"
 
@@ -21,6 +26,22 @@ struct ProfilerBackendSettings {
   std::string env;
   std::string version;
 };
+
+/**
+ * A finished profile delivered by the profiler, or the error that prevented one.
+ *
+ * All data is owned by this object and remains valid after the profiler callback
+ * returns.
+ */
+struct ProfileData {
+  std::vector<uint8_t> pprof;
+  std::string error;
+  Timestamp start;
+  Timestamp end;
+  bool is_last = false;
+};
+
+using ProfileCallback = std::function<void(ProfileData)>;
 
 /**
  * Interface to a process-global sampling profiler.
@@ -41,6 +62,12 @@ class IProfilerBackend {
   IProfilerBackend& operator=(IProfilerBackend&&) = delete;
 
   /**
+   * Registers the SDK callback that receives owned profiles. Must be called before
+   * Init(). An empty callback unregisters the current callback.
+   */
+  virtual bool SetProfileCallback(ProfileCallback callback) = 0;
+
+  /**
    * Applies the given settings. Must be called before Start().
    */
   virtual bool Init(const ProfilerBackendSettings& settings) = 0;
@@ -51,7 +78,8 @@ class IProfilerBackend {
   virtual bool Start() = 0;
 
   /**
-   * Stops profiling. Safe to call if the profiler was never started.
+   * Stops profiling, waits for its final callback, then unregisters and clears the
+   * callback. Safe to call if the profiler was never started.
    */
   virtual void Stop() = 0;
 };
