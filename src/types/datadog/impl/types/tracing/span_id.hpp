@@ -21,9 +21,9 @@ struct SpanID {
   SpanID& operator=(const SpanID&) = default;
   SpanID& operator=(SpanID&&) = default;
 
-  bool operator==(const SpanID& other) const { return _value == other._value; };
+  bool operator==(const SpanID& other) const { return _value == other._value; }
 
-  bool operator!=(const SpanID& other) const { return !(*this == other); };
+  bool operator!=(const SpanID& other) const { return !(*this == other); }
 
   /** Encodes this SpanID as decimal number string. */
   [[nodiscard]] std::string ToDecimalString() const;
@@ -36,7 +36,7 @@ struct SpanID {
    *
    * An ID is valid if at least one bit is 1.
    */
-  [[nodiscard]] bool IsValid() const { return _value != 0; };
+  [[nodiscard]] bool IsValid() const { return _value != 0; }
 
  private:
   // The span ID 64 bit value.

@@ -23,9 +23,9 @@ struct TraceID {
 
   bool operator==(const TraceID& other) const {
     return _high == other._high && _low == other._low;
-  };
+  }
 
-  bool operator!=(const TraceID& other) const { return !(*this == other); };
+  bool operator!=(const TraceID& other) const { return !(*this == other); }
 
   /** Encodes this TraceID's least significant 64 bits as decimal string. */
   [[nodiscard]] std::string ToLowDecimalString() const;
@@ -38,7 +38,7 @@ struct TraceID {
    *
    * An ID is valid if at least one of the least 64 bits is 1.
    */
-  [[nodiscard]] bool IsValid() const { return _low != 0; };
+  [[nodiscard]] bool IsValid() const { return _low != 0; }
 
  private:
   // The most significant 64 bits.
