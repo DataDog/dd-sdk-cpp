@@ -40,7 +40,7 @@
 #elif defined(__linux__)
 #define DATADOG_BUILD_PLATFORM "linux"
 #else
-#define DATADOB_BUILD_PLATFORM "unsupported-platform"
+#define DATADOG_BUILD_PLATFORM "unsupported-platform"
 #endif
 
 // arch: e.g. 'x64', 'arm64', 'universal'
