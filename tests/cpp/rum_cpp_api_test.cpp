@@ -43,6 +43,32 @@ TEST_CASE("RumConfig::SetContextReceiver", "[unit][rum][cpp-api]") {
     REQUIRE(received.back().view_id != UUID::Zero);
   }
 
+  SECTION("M notify receiver of user and account IDs W set before SDK runs") {
+    // When we set user and account IDs, register RUM, and run the SDK
+    core->SetUserInfo("user-1");
+    core->SetAccountInfo("account-1");
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    core->Stop();
+
+    // Then the receiver saw both IDs
+    REQUIRE(!received.empty());
+    REQUIRE(received.back().user_id == "user-1");
+    REQUIRE(received.back().account_id == "account-1");
+  }
+
+  SECTION("M report empty user and account IDs W none are set") {
+    // When we register RUM and run the SDK without setting a user or account
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    core->Stop();
+
+    // Then the receiver saw empty IDs
+    REQUIRE(!received.empty());
+    REQUIRE(received.back().user_id.empty());
+    REQUIRE(received.back().account_id.empty());
+  }
+
   SECTION("M report zero anonymous ID W anonymous user tracking is disabled") {
     // When we register RUM with anonymous user tracking disabled, and run the SDK
     config.SetTrackAnonymousUser(false);

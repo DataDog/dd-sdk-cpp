@@ -780,12 +780,14 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     auto handler = *rum->MakeMessageHandler();
 
     // When we deliver a context, then the same context with the action, tracking
-    // consent, and user info changed
+    // consent, and the user and account names and emails changed
     auto ctx = MakeReceiverContext(UUID::Random(), UUID::Random());
     handler(ContextChangedMessage{ctx});
     ctx.rum->action_id = UUID::Random();
     ctx.tracking_consent = TrackingConsent::Granted;
-    ctx.user_info.id = "user-1";
+    ctx.user_info.name = "User One";
+    ctx.user_info.email = "user@example.com";
+    ctx.account_info.name = "Account One";
     handler(ContextChangedMessage{ctx});
 
     // Then the receiver was called only for the first
@@ -816,6 +818,70 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
     // Then the receiver is called for each change
     REQUIRE(calls == 4);
+  }
+
+  SECTION("M deliver user and account IDs W ContextChangedMessage is received") {
+    // Given a started Rum feature with a context receiver that records its messages
+    std::vector<RumContextMessage> deliveries;
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
+      deliveries.push_back(msg);
+    });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+
+    // When a context with no user or account is delivered, then one with both IDs
+    auto ctx = MakeReceiverContext(UUID::Random(), UUID::Random());
+    handler(ContextChangedMessage{ctx});
+    ctx.user_info.id = "user-1";
+    ctx.account_info.id = "account-1";
+    handler(ContextChangedMessage{ctx});
+
+    // Then the IDs are empty in the first delivery, and match the context in the second
+    REQUIRE(deliveries.size() == 2);
+    REQUIRE(deliveries[0].user_id.empty());
+    REQUIRE(deliveries[0].account_id.empty());
+    REQUIRE(deliveries[1].user_id == "user-1");
+    REQUIRE(deliveries[1].account_id == "account-1");
+  }
+
+  SECTION("M deliver again W user ID or account ID is set, changed, or cleared") {
+    // Given a started Rum feature with a context receiver that records its messages
+    std::vector<RumContextMessage> deliveries;
+    auto rum_config = RUM_CONFIG;
+    rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
+      deliveries.push_back(msg);
+    });
+    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    FeatureTest test(MOCK_CONTEXT);
+    test.Start(rum);
+    auto handler = *rum->MakeMessageHandler();
+    auto ctx = MakeReceiverContext(UUID::Random(), UUID::Random());
+    handler(ContextChangedMessage{ctx});
+    REQUIRE(deliveries.size() == 1);
+
+    // When the user ID is set, changed, then cleared, and the account ID is set, then
+    // cleared
+    ctx.user_info.id = "user-1";
+    handler(ContextChangedMessage{ctx});
+    ctx.user_info.id = "user-2";
+    handler(ContextChangedMessage{ctx});
+    ctx.user_info.id.clear();
+    handler(ContextChangedMessage{ctx});
+    ctx.account_info.id = "account-1";
+    handler(ContextChangedMessage{ctx});
+    ctx.account_info.id.clear();
+    handler(ContextChangedMessage{ctx});
+
+    // Then the receiver is called for each change, with the matching IDs
+    REQUIRE(deliveries.size() == 6);
+    REQUIRE(deliveries[1].user_id == "user-1");
+    REQUIRE(deliveries[2].user_id == "user-2");
+    REQUIRE(deliveries[3].user_id.empty());
+    REQUIRE(deliveries[4].account_id == "account-1");
+    REQUIRE(deliveries[5].account_id.empty());
   }
 
   SECTION("M deliver current state again W message handler is recreated") {

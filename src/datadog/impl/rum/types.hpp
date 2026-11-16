@@ -22,6 +22,11 @@ inline RumContextReceiver RumContextReceiver_FromC(
       dd_uuid_set(&c_msg.session_id, msg.session_id.bytes.data());
       dd_uuid_set(&c_msg.anonymous_id, msg.anonymous_id.bytes.data());
       dd_uuid_set(&c_msg.view_id, msg.view_id.bytes.data());
+
+      // The strings are owned by `msg`, and so are valid only for the duration of the
+      // call
+      c_msg.user_id = msg.user_id.c_str();
+      c_msg.account_id = msg.account_id.c_str();
       receiver(&c_msg, userdata);
     }
   };
