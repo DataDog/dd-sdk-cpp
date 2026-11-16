@@ -222,7 +222,7 @@ void RumActionScope::SendActionEvent(
 
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
-  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  writer.WriteCopy(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
   _has_sent_action_event = true;
 }
 

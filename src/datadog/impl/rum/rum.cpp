@@ -102,7 +102,7 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
               // it means consent _was_ granted when this crash occurred, so we write
               // these events to the consent-granted directory unconditionally.
               const bool bypass_consent = true;
-              return event_writer(event_data, {}, bypass_consent);
+              return event_writer.WriteCopy(event_data, {}, bypass_consent);
             }
         );
       });

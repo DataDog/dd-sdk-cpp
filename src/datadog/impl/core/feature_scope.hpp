@@ -8,6 +8,8 @@
 
 #include <cstdint>
 #include <functional>
+#include <utility>
+#include <vector>
 
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
@@ -18,21 +20,73 @@
 namespace datadog::impl {
 
 /**
- * Callback that writes an event to storage from the context thread.
+ * Writes events to storage from the context thread. There are two ways to write an
+ * event, which differ in how the event's bytes reach the storage queue:
  *
- * @param event Arbitrary bytes. Must be non-empty. Will be copied into the storage
- *  queue. Eventually written to a batch with TLVBlockType::Event.
- * @param event_metadata Optional metadata to accompany the event; will be copied. When
- *  an event that has metadata is eventually written, the metadata will be prepended as
- *  a block of type TLVBlockType::Metadata.
- * @param bypass_tracking_consent When `true`, the event is always written to the
- *  granted-consent storage directory, regardless of the current `TrackingConsent`
- *  value. Intended for use by crash reporting, which must apply the consent that was
- *  active at crash time rather than the current live consent.
- * @returns whether the event was successfuly enqueued for storage.
+ * - WriteCopy() takes the event as a `Block`, and copies the bytes into the storage
+ *   queue, so the caller keeps its own copy. This suits small events, and bytes that
+ *   the caller still needs.
+ * - WriteMove() takes the event as a `std::vector<uint8_t>&&`, and moves the vector
+ *   into the storage queue, which takes ownership of the bytes without copying them.
+ *   This suits larger events that the caller has built to hand to storage, such as a
+ *   profile. The caller must pass it with `std::move()`, and must not use it
+ *   afterwards.
+ *
+ * With both methods, `event` must be non-empty, and is eventually written to a batch
+ * with TLVBlockType::Event. `event_metadata` is optional metadata to accompany the
+ * event, and is always copied. When an event that has metadata is eventually written,
+ * the metadata is prepended as a block of type TLVBlockType::Metadata.
+ * `bypass_tracking_consent`, when `true`, has the event always written to the
+ * granted-consent storage directory, regardless of the current `TrackingConsent` value.
+ * This is intended for use by crash reporting, which must apply the consent that was
+ * active at crash time rather than the current live consent.
+ *
+ * Both methods return whether the event was successfully enqueued for storage. A moved
+ * vector is consumed only if it was enqueued; if the result is false, the vector may
+ * have been left untouched or emptied, so the caller must not rely on its content.
+ *
+ * An EventWriter is made from two functions, one for each method. Neither falls back to
+ * the other, so whoever creates a writer decides how each kind of write is handled.
  */
-using EventWriter = std::function<
-    bool(Block event, Block event_metadata, bool bypass_tracking_consent)>;
+class EventWriter {
+ public:
+  /** The function behind WriteCopy(): writes an event given as a `Block`. */
+  using CopyingFunc = std::function<
+      bool(Block event, Block event_metadata, bool bypass_tracking_consent)>;
+
+  /** The function behind WriteMove(): writes an event given as a vector. */
+  using MovingFunc = std::function<bool(
+      std::vector<uint8_t>&& event, Block event_metadata, bool bypass_tracking_consent
+  )>;
+
+  /** Creates a writer that is empty, and so cannot be called. */
+  EventWriter() = default;
+
+  /**
+   * Creates a writer from `write_copy`, which copies the bytes of an event given as a
+   * `Block`, and `write_move`, which takes ownership of an event given as a vector.
+   */
+  EventWriter(CopyingFunc write_copy, MovingFunc write_move)
+      : _write_copy(std::move(write_copy)), _write_move(std::move(write_move)) {}
+
+  /** Writes an event, copying the bytes of `event` into the storage queue. */
+  bool WriteCopy(
+      Block event, Block event_metadata, bool bypass_tracking_consent
+  ) const {
+    return _write_copy(event, event_metadata, bypass_tracking_consent);
+  }
+
+  /** Writes an event, moving `event` into the storage queue instead of copying it. */
+  bool WriteMove(
+      std::vector<uint8_t>&& event, Block event_metadata, bool bypass_tracking_consent
+  ) const {
+    return _write_move(std::move(event), event_metadata, bypass_tracking_consent);
+  }
+
+ private:
+  CopyingFunc _write_copy;
+  MovingFunc _write_move;
+};
 
 /**
  * Callback that publishes a message to the message bus from the context thread.

@@ -211,7 +211,7 @@ void RumResourceScope::SendResourceEvent(
 
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
-  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  writer.WriteCopy(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
   _result = Result::SentResourceEvent;
 }
 
@@ -296,7 +296,7 @@ void RumResourceScope::SendErrorEvent(
 
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
-  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  writer.WriteCopy(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
   _result = Result::SentErrorEvent;
 }
 

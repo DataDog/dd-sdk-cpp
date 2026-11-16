@@ -581,11 +581,23 @@ bool Core::Start() {
   // FeatureScope interface that it can use to interoperate with the core
   for (const auto& feature : _features) {
     const FeatureId id = feature.id;
-    EventWriter event_writer =
+    EventWriter event_writer(
         [this,
          id](Block event, Block event_metadata, bool bypass_tracking_consent) -> bool {
-      return EnqueueStorageWrite(id, event, event_metadata, bypass_tracking_consent);
-    };
+          return EnqueueStorageWrite(
+              id, event, event_metadata, bypass_tracking_consent
+          );
+        },
+        [this, id](
+            std::vector<uint8_t>&& event,
+            Block event_metadata,
+            bool bypass_tracking_consent
+        ) -> bool {
+          return EnqueueStorageWrite(
+              id, std::move(event), event_metadata, bypass_tracking_consent
+          );
+        }
+    );
     feature.impl->OnCoreStarted(
         FeatureScope::Create(
             *_context_provider,
@@ -740,11 +752,7 @@ bool Core::EnqueueStorageWrite(
     Block event_metadata,
     bool bypass_tracking_consent
 ) {
-  if (_state != CoreState::Started) {
-    _diagnostic_logger.Warning(
-        "Ignoring event generated while Core not running",
-        {{"feature_id", static_cast<int64_t>(feature_id)}}
-    );
+  if (!AcceptsStorageWrites(feature_id)) {
     return false;
   }
 
@@ -754,6 +762,35 @@ bool Core::EnqueueStorageWrite(
           feature_id, event, event_metadata, bypass_tracking_consent
       )
   );
+}
+
+bool Core::EnqueueStorageWrite(
+    FeatureId feature_id,
+    std::vector<uint8_t>&& event,
+    Block event_metadata,
+    bool bypass_tracking_consent
+) {
+  if (!AcceptsStorageWrites(feature_id)) {
+    return false;
+  }
+
+  DATADOG_ASSERT(_storage_queue, "_storage_queue is invalid while core is running");
+  return _storage_queue->Push(
+      StorageMessage::EventGenerated(
+          feature_id, std::move(event), event_metadata, bypass_tracking_consent
+      )
+  );
+}
+
+bool Core::AcceptsStorageWrites(FeatureId feature_id) const {
+  if (_state != CoreState::Started) {
+    _diagnostic_logger.Warning(
+        "Ignoring event generated while Core not running",
+        {{"feature_id", static_cast<int64_t>(feature_id)}}
+    );
+    return false;
+  }
+  return true;
 }
 
 void Core::UpdateContext(const std::function<void(CoreContext&)>& callback) {

@@ -410,12 +410,36 @@ class Core {
   void Stop();
 
  private:
+  /**
+   * Enqueues an event for the storage thread to write, copying `event` and
+   * `event_metadata`. Returns false if the Core is not running, or the queue does not
+   * accept it.
+   */
   bool EnqueueStorageWrite(
       FeatureId feature_id,
       Block event,
       Block event_metadata,
       bool bypass_tracking_consent
   );
+
+  /**
+   * Enqueues an event for the storage thread to write, moving `event` into the queue
+   * instead of copying it, and copying `event_metadata`. Returns false if the Core is
+   * not running, or the queue does not accept it; `event` is then not usable.
+   */
+  bool EnqueueStorageWrite(
+      FeatureId feature_id,
+      std::vector<uint8_t>&& event,
+      Block event_metadata,
+      bool bypass_tracking_consent
+  );
+
+  /**
+   * Returns whether an event may be enqueued for storage now, which is only while the
+   * Core is running. Otherwise logs a warning and returns false.
+   */
+  bool AcceptsStorageWrites(FeatureId feature_id) const;
+
   void UpdateContext(const std::function<void(CoreContext&)>& callback);
 
  private:

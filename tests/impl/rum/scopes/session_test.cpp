@@ -22,6 +22,7 @@
 
 #include "mock/clock.hpp"
 #include "support/context.hpp"
+#include "support/event_writer.hpp"
 #include "support/rum_event_capture.hpp"
 
 using namespace datadog;
@@ -62,7 +63,7 @@ class SessionFixture {
             std::nullopt
         ),
         context(MOCK_CONTEXT),
-        writer([](Block, Block, bool) { return true; }) {
+        writer(MakeTestEventWriter()) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -1668,7 +1669,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         std::nullopt
     );
     CoreContext local_context = MOCK_CONTEXT;
-    EventWriter local_writer = [](Block, Block, bool) { return true; };
+    EventWriter local_writer = MakeTestEventWriter();
 
     // When the session ends for any reason
     scope.Process(

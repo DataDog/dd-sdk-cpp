@@ -11,7 +11,9 @@
 #include <charconv>
 #include <cinttypes>
 #include <cstring>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "datadog/core.hpp"
 
@@ -23,6 +25,7 @@
 #include "support/catch.hpp"
 #include "support/context.hpp"
 #include "support/diagnostics.hpp"
+#include "support/event_writer.hpp"
 #include "support/threading.hpp"
 
 using namespace datadog;
@@ -77,9 +80,11 @@ struct FeatureState {
   ) {
     return FeatureScope::Create(
         context_provider,
-        [this](Block event, Block event_metadata, bool bypass_tracking_consent) {
-          return this->HandleEvent(event, event_metadata, bypass_tracking_consent);
-        },
+        MakeTestEventWriter(
+            [this](Block event, Block event_metadata, bool bypass_tracking_consent) {
+              return this->HandleEvent(event, event_metadata, bypass_tracking_consent);
+            }
+        ),
         [this](FeatureMessage) {
           this->num_messages_produced++;
           return true;
@@ -113,7 +118,7 @@ static bool GenerateUInt64Event(const EventWriter& event_writer, uint64_t value)
   auto res = std::to_chars(buf, buf + sizeof(buf), value);
   REQUIRE(res.ec == std::errc{});
   const bool bypass_tracking_consent = false;
-  return event_writer(Block(buf, res.ptr - buf), {}, bypass_tracking_consent);
+  return event_writer.WriteCopy(Block(buf, res.ptr - buf), {}, bypass_tracking_consent);
 }
 
 /**
@@ -290,7 +295,7 @@ TEST_CASE("FeatureScope", "[unit][core]") {
       auto res = std::to_chars(buf, buf + sizeof(buf), value);
       REQUIRE(res.ec == std::errc{});
       const bool bypass_tracking_consent = false;
-      event_writer(Block(buf, res.ptr - buf), {}, bypass_tracking_consent);
+      event_writer.WriteCopy(Block(buf, res.ptr - buf), {}, bypass_tracking_consent);
     };
 
     mutate_scope.UpdateContext(mutate);             // Stores generation 1 in context
@@ -427,5 +432,98 @@ TEST_CASE("FeatureScope", "[unit][core]") {
     for (size_t i = 0; i < MAX_EVENTS; i++) {
       REQUIRE(feature.events[i] == i);
     }
+  }
+}
+
+TEST_CASE("EventWriter", "[unit][core]") {
+  // A writer whose two functions record which of them was called, and what it was given
+  std::string last_call;
+  std::string last_event;
+  std::string last_metadata;
+  bool last_bypass = false;
+  const uint8_t* moved_in_data = nullptr;
+  EventWriter writer(
+      [&](Block event, Block event_metadata, bool bypass) {
+        last_call = "copy";
+        last_event.assign(event.data(), event.size());
+        last_metadata.assign(event_metadata.data(), event_metadata.size());
+        last_bypass = bypass;
+        return true;
+      },
+      [&](std::vector<uint8_t>&& event, Block event_metadata, bool bypass) {
+        last_call = "move";
+        moved_in_data = event.data();
+        last_event.assign(event.begin(), event.end());
+        last_metadata.assign(event_metadata.data(), event_metadata.size());
+        last_bypass = bypass;
+        return true;
+      }
+  );
+
+  SECTION("M call the copying function W WriteCopy is called") {
+    REQUIRE(writer.WriteCopy("some event", "some metadata", true));
+
+    REQUIRE(last_call == "copy");
+    REQUIRE(last_event == "some event");
+    REQUIRE(last_metadata == "some metadata");
+    REQUIRE(last_bypass);
+  }
+
+  SECTION("M call the moving function W WriteMove is called") {
+    const std::string text = "some event";
+    std::vector<uint8_t> event(text.begin(), text.end());
+    const uint8_t* const event_bytes = event.data();
+
+    REQUIRE(writer.WriteMove(std::move(event), "some metadata", false));
+
+    // Then the function received the vector's own bytes, and the metadata as a Block
+    REQUIRE(last_call == "move");
+    REQUIRE(moved_in_data == event_bytes);
+    REQUIRE(last_event == text);
+    REQUIRE(last_metadata == "some metadata");
+    REQUIRE_FALSE(last_bypass);
+  }
+
+  SECTION("M return what the function returns W either method is called") {
+    EventWriter refusing(
+        [](Block, Block, bool) { return false; },
+        [](std::vector<uint8_t>&&, Block, bool) { return false; }
+    );
+
+    REQUIRE_FALSE(refusing.WriteCopy("event", {}, false));
+    REQUIRE_FALSE(refusing.WriteMove(std::vector<uint8_t>{1, 2, 3}, {}, false));
+  }
+
+  SECTION("M keep both functions W the writer is copied") {
+    // A FeatureScope keeps its own copy of the writer, so a copy must still work
+    const EventWriter copy = writer;
+
+    REQUIRE(copy.WriteCopy("event", {}, false));
+    REQUIRE(last_call == "copy");
+    REQUIRE(copy.WriteMove(std::vector<uint8_t>{1}, {}, false));
+    REQUIRE(last_call == "move");
+  }
+}
+
+TEST_CASE("MakeTestEventWriter", "[unit][core]") {
+  // A writer made for a test delivers the event to its sink as a Block, whichever way
+  // the event was written
+  std::string seen;
+  const EventWriter writer = MakeTestEventWriter([&](Block event, Block, bool) {
+    seen.assign(event.data(), event.size());
+    return true;
+  });
+
+  SECTION("M deliver the bytes W an event is copied") {
+    REQUIRE(writer.WriteCopy("copied bytes", {}, false));
+    REQUIRE(seen == "copied bytes");
+  }
+
+  SECTION("M deliver the bytes W an event is moved") {
+    const std::string text = "moved bytes";
+    REQUIRE(
+        writer.WriteMove(std::vector<uint8_t>(text.begin(), text.end()), {}, false)
+    );
+    REQUIRE(seen == text);
   }
 }

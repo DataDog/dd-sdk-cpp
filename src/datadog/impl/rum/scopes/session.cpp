@@ -413,7 +413,7 @@ void RumSessionScope::SendVitalEvent(
   // Serialize and write the event
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
-  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  writer.WriteCopy(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
 
   // Announce the vital so that other features (e.g. Profiling) can correlate it
   deps.QueueMessage(
@@ -591,7 +591,7 @@ void RumSessionScope::SendAppLaunchVitalEvent(
   // Serialize and write
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
-  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  writer.WriteCopy(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
 
   // Announce the time to initial display so that other features (e.g. Profiling) can
   // correlate it. Profiling does not use time to full display.

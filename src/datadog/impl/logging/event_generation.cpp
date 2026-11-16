@@ -168,7 +168,7 @@ void ContextThread_GenerateLogEvent(
 
   // Enqueue the event for storage
   const bool bypass_tracking_consent = false;
-  event_writer(data, {}, bypass_tracking_consent);
+  event_writer.WriteCopy(data, {}, bypass_tracking_consent);
 
   // After writing the log event, forward it to RUM as an error event: LogEvent owns
   // strings and attributes that will simply go out of scope after this call, so we can

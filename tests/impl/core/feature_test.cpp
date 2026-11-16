@@ -42,7 +42,7 @@ class ChattyFeature : public MockFeature {
     _scope->ExecuteOnContextThread(
         [](const CoreContext&, const EventWriter& writer, const MessagePublisher&) {
           const bool bypass_tracking_consent = false;
-          writer("hello", {}, bypass_tracking_consent);
+          writer.WriteCopy("hello", {}, bypass_tracking_consent);
         }
     );
   }
@@ -76,6 +76,37 @@ TEST_CASE("Feature", "[unit]") {
 
     // And that file should contain the event data and metadata that our feature
     // generated, batched and encoded in TLV format
+    REQUIRE(
+        test.fs.Cat("app/.datadog/main/12345/coolfeature/v1/" + names.front()) ==
+        MockTLVFile()
+            .AppendEvent("event-0")
+            .AppendMetadata("metadata-1")
+            .AppendEvent("event-1")
+            .AppendEvent("event-2")
+            .ToString()
+    );
+  }
+
+  SECTION("M produce events to storage W an event is moved to the storage queue") {
+    // Given a running core with a registered feature
+    const bool flush_http_requests = false;
+    CoreTestHarness test = CoreTestHarness::Init(flush_http_requests);
+    test.clock.FreezeAtMilliseconds(1708675309000);
+    auto feature = std::make_shared<CoolFeature>();
+    REQUIRE(test.core.RegisterFeature(feature));
+    REQUIRE(test.core.Start());
+
+    // When we generate events, one of which hands over its bytes instead of copying
+    // them, along with metadata that is copied
+    REQUIRE(feature->GenerateEvent("event-0"));
+    const std::string moved = "event-1";
+    REQUIRE(feature->GenerateEventMoved({moved.begin(), moved.end()}, "metadata-1"));
+    REQUIRE(feature->GenerateEvent("event-2"));
+    test.core.Stop();
+
+    // Then the stored batch is the same as if every event had been copied
+    auto names = test.fs.Ls("app/.datadog/main/12345/coolfeature/v1");
+    REQUIRE(names.size() == 1);
     REQUIRE(
         test.fs.Cat("app/.datadog/main/12345/coolfeature/v1/" + names.front()) ==
         MockTLVFile()

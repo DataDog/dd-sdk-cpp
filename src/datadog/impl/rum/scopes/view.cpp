@@ -606,7 +606,7 @@ void RumViewScope::SendViewEvent(
   // writer callback
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
-  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  writer.WriteCopy(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
 
   // If we've just generated an update to the active view, and that view remains active,
   // we want to emit a `RumActiveViewUpdatedMessage` so that other features can have an
@@ -694,7 +694,7 @@ void RumViewScope::SendErrorEvent(
 
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
-  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  writer.WriteCopy(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
   _num_errors_reported++;
 }
 
@@ -757,7 +757,7 @@ void RumViewScope::SendLongTaskEvent(
 
   std::string_view json = deps.EncodeEvent(ev);
   const bool bypass_tracking_consent = false;
-  writer(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
+  writer.WriteCopy(Block{json.data(), json.size()}, Block{}, bypass_tracking_consent);
 
   // Announce the long task so that other features (e.g. Profiling) can correlate it
   RumEventContext event_context{

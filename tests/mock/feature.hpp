@@ -89,7 +89,25 @@ class MockFeature : public impl::Feature {
                                        const impl::MessagePublisher&
                                    ) {
       const bool bypass_tracking_consent = false;
-      writer(event_data, metadata, bypass_tracking_consent);
+      writer.WriteCopy(event_data, metadata, bypass_tracking_consent);
+    });
+    return true;
+  }
+
+  /**
+   * Allows tests to generate an event whose bytes are moved to the storage queue,
+   * rather than copied.
+   */
+  bool GenerateEventMoved(std::vector<uint8_t> event, impl::Block event_metadata = {}) {
+    if (!_scope) return false;
+    std::string metadata(event_metadata.data(), event_metadata.size());
+    _scope->ExecuteOnContextThread([event = std::move(event), metadata](
+                                       const impl::CoreContext&,
+                                       const impl::EventWriter& writer,
+                                       const impl::MessagePublisher&
+                                   ) mutable {
+      const bool bypass_tracking_consent = false;
+      writer.WriteMove(std::move(event), metadata, bypass_tracking_consent);
     });
     return true;
   }
