@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/tracing/deterministic_sampler.hpp"
+#include "datadog/impl/types/tracing/deterministic_sampler.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 #include <catch2/generators/catch_generators.hpp>
@@ -13,7 +13,7 @@
 #include <limits>
 #include <random>
 
-#include "datadog/impl/core/util/insecure_random_generator.hpp"
+#include "datadog/impl/types/util/insecure_random_generator.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;

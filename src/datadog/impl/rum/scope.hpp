@@ -21,9 +21,9 @@
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/tracing/deterministic_sampler.hpp"
 #include "datadog/impl/rum/command.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
+#include "datadog/impl/types/tracing/deterministic_sampler.hpp"
 
 namespace datadog {
 struct RumConfig;

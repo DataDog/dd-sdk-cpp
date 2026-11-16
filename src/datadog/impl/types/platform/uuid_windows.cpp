@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/platform/uuid.hpp"
+#include "datadog/impl/types/platform/uuid.hpp"
 
 // clang-format off
 #include "datadog/impl/types/windows_headers.hpp"

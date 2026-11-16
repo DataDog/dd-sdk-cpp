@@ -15,12 +15,12 @@
 #include "datadog/c/config_string.hpp"
 #include "datadog/c/core_glue.hpp"
 #include "datadog/c/logging_glue.hpp"
-#include "datadog/impl/core/attribute/types.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/logging/logger.hpp"
 #include "datadog/impl/logging/logging.hpp"
 #include "datadog/impl/logging/types.hpp"
+#include "datadog/impl/types/attribute/types.hpp"
 
 static const uint32_t LOGGER_CONFIG_VERSION = 1;
 

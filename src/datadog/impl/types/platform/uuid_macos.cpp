@@ -6,7 +6,7 @@
 
 #include <uuid/uuid.h>
 
-#include "datadog/impl/core/platform/uuid.hpp"
+#include "datadog/impl/types/platform/uuid.hpp"
 
 namespace datadog::platform {
 

@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/core/platform/uuid.hpp"
+#include "datadog/impl/types/platform/uuid.hpp"
 
 #include <array>
 #include <catch2/catch_test_macros.hpp>

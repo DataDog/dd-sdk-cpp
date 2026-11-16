@@ -13,6 +13,7 @@
 
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
+#include "datadog/impl/types/site.hpp"
 
 namespace datadog {
 
@@ -96,31 +97,6 @@ inline Site Site_FromC(dd_site_t value) {
   static_assert(static_cast<int>(Site::us2_fed) == DD_SITE_US2_FED);
   static_assert(static_cast<int>(Site::uk1) == DD_SITE_UK1);
   return static_cast<Site>(value);
-}
-
-inline const char* Site_ToString(Site value) {
-  switch (value) {
-    case Site::us1:
-      return "us1";
-    case Site::us3:
-      return "us3";
-    case Site::us5:
-      return "us5";
-    case Site::eu1:
-      return "eu1";
-    case Site::ap1:
-      return "ap1";
-    case Site::ap2:
-      return "ap2";
-    case Site::us1_fed:
-      return "us1_fed";
-    case Site::us2_fed:
-      return "us2_fed";
-    case Site::uk1:
-      return "uk1";
-    default:
-      return "";
-  }
 }
 
 inline BatchSize BatchSize_FromC(dd_batch_size_t value) {

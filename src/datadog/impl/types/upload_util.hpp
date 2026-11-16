@@ -9,7 +9,7 @@
 #include <string>
 #include <string_view>
 
-#include "datadog/impl/core/types.hpp"
+#include "datadog/impl/types/site.hpp"
 
 namespace datadog::impl {
 

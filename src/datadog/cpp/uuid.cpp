@@ -10,8 +10,8 @@
 #include <cstring>
 #include <string>
 
-#include "datadog/impl/core/platform/uuid.hpp"
 #include "datadog/impl/types/assert.hpp"
+#include "datadog/impl/types/platform/uuid.hpp"
 
 namespace datadog {
 
