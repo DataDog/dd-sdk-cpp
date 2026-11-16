@@ -1,371 +1,94 @@
-# We support building the library as either static or shared
-if(DD_BUILD_SHARED)
-    set(DD_LIBRARY_TYPE SHARED)
-else()
-    set(DD_LIBRARY_TYPE STATIC)
-endif()
+# Builds the SDK from its modules (see cmake/modules.cmake). Each module's subdirectory
+# defines its target, including any choice between implementations within that module
+# (e.g. DD_HTTP_CLIENT in core, DD_CRASH_MODE in crash_reporting). This file only
+# selects which modules to build, in dependency order, and defines the targets and
+# headers that span all of them.
 
-# Main library target, with both C and C++ APIs
-add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
-    datadog/c/attribute.cpp
-    datadog/c/core.cpp
-    datadog/c/crash_reporting.cpp
-    datadog/c/logging.cpp
-    datadog/c/profiling.cpp
-    datadog/c/rum.cpp
-    datadog/c/timestamp.cpp
-    datadog/c/uuid.cpp
-    datadog/c/version.cpp
-    datadog/cpp/attribute.cpp
-    datadog/cpp/core.cpp
-    datadog/cpp/crash_reporting.cpp
-    datadog/cpp/logging.cpp
-    datadog/cpp/network_instrumentation.cpp
-    datadog/cpp/profiling.cpp
-    datadog/cpp/rum.cpp
-    datadog/cpp/uuid.cpp
-    datadog/cpp/version.cpp
-    datadog/impl/types/attribute/cow.cpp
-    datadog/impl/types/attribute/merge.cpp
-    datadog/impl/types/json/primitives/bool.cpp
-    datadog/impl/types/json/primitives/float.cpp
-    datadog/impl/types/json/primitives/integer.cpp
-    datadog/impl/types/json/primitives/null.cpp
-    datadog/impl/types/json/primitives/string.cpp
-    datadog/impl/types/json/primitives/timestamp.cpp
-    datadog/impl/types/json/primitives/uuid.cpp
-    datadog/impl/types/json/attribute.cpp
-    datadog/impl/types/json/diagnostic_attribute.cpp
-    datadog/impl/types/json/json_scanner.cpp
-    datadog/impl/types/json/parse_attribute.cpp
-    datadog/impl/types/json/parse_primitives.cpp
-    datadog/impl/types/diagnostics.cpp
-    datadog/impl/types/tracing/deterministic_sampler.cpp
-    datadog/impl/types/tracing/span_id.cpp
-    datadog/impl/types/tracing/trace_context.cpp
-    datadog/impl/types/tracing/trace_id.cpp
-    datadog/impl/types/upload_util.cpp
-    datadog/impl/core/attribute/binary.cpp
-    datadog/impl/core/tracing/first_party_hosts_matcher.cpp
-    datadog/impl/core/tracing/span_id_generator.cpp
-    datadog/impl/core/tracing/trace_id_generator.cpp
-    datadog/impl/core/util/validation.cpp
-    datadog/impl/core/context_thread.cpp
-    datadog/impl/core/context.cpp
-    datadog/impl/core/core.cpp
-    datadog/impl/core/feature_read.cpp
-    datadog/impl/core/feature_scope.cpp
-    datadog/impl/core/feature.cpp
-    datadog/impl/core/message_bus.cpp
-    datadog/impl/core/messaging_thread.cpp
-    datadog/impl/core/storage_queue.cpp
-    datadog/impl/core/storage_thread.cpp
-    datadog/impl/core/storage_write.cpp
-    datadog/impl/core/tlv.cpp
-    datadog/impl/core/types.cpp
-    datadog/impl/core/upload_scheduler.cpp
-    datadog/impl/core/upload_thread.cpp
+# Umbrella headers are generated here, then exposed to the build with the public headers
+set(DD_GENERATED_INCLUDE_DIR ${CMAKE_CURRENT_BINARY_DIR}/generated/include)
+
+# Include paths and definitions for compiling against the public API. Both the types
+# module and `ddsdkcpp` declare them as PUBLIC: every other module links types (directly
+# or through core), so every module compiles with them, and code that links `ddsdkcpp`
+# gets them from it. `ddsdkcpp` links its modules PRIVATE, so it doesn't pass on what it
+# gets from types.
+set(DD_SDK_PUBLIC_INCLUDE_DIRS
+    $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-c>
+    $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-cpp>
+    $<BUILD_INTERFACE:${DD_GENERATED_INCLUDE_DIR}>
+    $<INSTALL_INTERFACE:include>
 )
-
-# The SDK runs its work on background threads. Before glibc 2.34, pthread functions live
-# in libpthread rather than libc, so link the platform's thread library explicitly: on
-# newer glibc, and on macOS and Windows, this adds nothing to the link.
-find_package(Threads REQUIRED)
-target_link_libraries(ddsdkcpp PRIVATE Threads::Threads)
-
-# core/storage, with IFilesystem implementation determined per-platform
-target_sources(ddsdkcpp PRIVATE
-    datadog/impl/core/storage/artifact.cpp
-    datadog/impl/core/storage/feature_event.cpp
-    datadog/impl/core/storage/filesystem_wrapper.cpp
-    datadog/impl/core/storage/path.cpp
-    datadog/impl/core/storage/sdk.cpp
-    datadog/impl/core/storage/util.cpp
-)
-if(WIN32)
-    target_sources(ddsdkcpp PRIVATE datadog/impl/core/storage/filesystem_windows.cpp)
-else()
-    target_sources(ddsdkcpp PRIVATE datadog/impl/core/storage/filesystem_posix.cpp)
-endif()
-
-# core/http, with IHttpClient implementation using libcurl on POSIX, WinHTTP on Win32
-target_sources(ddsdkcpp PRIVATE
-    datadog/impl/core/http/body_writer_string.cpp
-    datadog/impl/core/http/body_writer_tlv.cpp
-    datadog/impl/core/http/request_builder.cpp
-)
-
-# We support different HTTP client implementations:
-# - DD_HTTP_CLIENT=winhttp (default on Windows; uses the WinHTTP API built into the OS)
-# - DD_HTTP_CLIENT=libcurl (default elsewhere)
-# - DD_HTTP_CLIENT=none    (define no client; for use by cross-platform SDKs)
-if(WIN32)
-    set(DD_HTTP_CLIENT_DEFAULT "winhttp")
-else()
-    set(DD_HTTP_CLIENT_DEFAULT "libcurl")
-endif()
-set(DD_HTTP_CLIENT "${DD_HTTP_CLIENT_DEFAULT}" CACHE STRING "HTTP client backend (winhttp, libcurl, none)")
-set_property(CACHE DD_HTTP_CLIENT PROPERTY STRINGS "winhttp" "libcurl" "none")
-
-if(DD_HTTP_CLIENT STREQUAL "winhttp")
-    if(NOT WIN32)
-        message(FATAL_ERROR "DD_HTTP_CLIENT=winhttp is only supported on Windows")
-    endif()
-
-    # Use the internal IHttpClient implementation that depends on WinHTTP, which is
-    # installed with the operating system: nothing needs to be built or vendored
-    target_sources(ddsdkcpp PRIVATE datadog/impl/core/http/client_winhttp.cpp)
-    target_link_libraries(ddsdkcpp PRIVATE winhttp)
-elseif(DD_HTTP_CLIENT STREQUAL "libcurl")
-    # Use the internal IHttpClient implementation that depends on libcurl
-    target_sources(ddsdkcpp PRIVATE datadog/impl/core/http/client_curl.cpp)
-
-    # Default to vendoring libcurl if using it on Windows, since libcurl DLLs don't ship
-    # with Windows; default to using the system-installed libcurl on POSIX
-    if(WIN32)
-        set(DD_HTTP_USE_SYSTEM_LIBCURL_DEFAULT OFF)
-    else()
-        set(DD_HTTP_USE_SYSTEM_LIBCURL_DEFAULT ON)
-    endif()
-    option(DD_HTTP_USE_SYSTEM_LIBCURL "Link against the system-installed libcurl as a shared-library dependency" "${DD_HTTP_USE_SYSTEM_LIBCURL_DEFAULT}")
-    if(DD_HTTP_USE_SYSTEM_LIBCURL)
-        find_package(CURL REQUIRED)
-    else()
-        include(${DD_SDK_ROOT_DIR}/cmake/deps/libcurl.cmake)
-    endif()
-
-    # Add libcurl as a linker dependency and make its headers available
-    target_link_libraries(ddsdkcpp PRIVATE CURL::libcurl)
-    get_target_property(CURL_INCLUDE_DIRS CURL::libcurl INTERFACE_INCLUDE_DIRECTORIES)
-    target_include_directories(ddsdkcpp SYSTEM PRIVATE ${CURL_INCLUDE_DIRS})
-elseif(DD_HTTP_CLIENT STREQUAL "none")
-    # The SDK will be built without an HTTP client implementation. This option is
-    # intended for Datadog cross-platform SDKs that want to bring their own HTTP client
-    # implementation: they would build the SDK as a static library (with the relevant
-    # symbols referenced but not defined), then link a custom IHttpClient implementation
-    # into the final build alongside that static library.
-    if(DD_BUILD_SHARED)
-        message(FATAL_ERROR "DD_HTTP_CLIENT=none is incompatible with DD_BUILD_SHARED=ON: a shared library cannot have unresolved symbols")
-    endif()
-    message(WARNING "Configured with DD_HTTP_CLIENT=none; resulting static library will be unusable without defining an IHttpClient implementation in a downstream build")
-else()
-    message(FATAL_ERROR "Invalid DD_HTTP_CLIENT: ${DD_HTTP_CLIENT}. Must be 'winhttp', 'libcurl', or 'none'")
-endif()
-
 # Inject version number from CMake project config
-target_compile_definitions(ddsdkcpp PUBLIC DATADOG_BUILD_VERSION="${ddsdkcpp_VERSION}")
+set(DD_SDK_PUBLIC_DEFINITIONS DATADOG_BUILD_VERSION="${ddsdkcpp_VERSION}")
 if(DD_GIT_REVISION_ID)
-    target_compile_definitions(ddsdkcpp PUBLIC DATADOG_GIT_REVISION_ID="${DD_GIT_REVISION_ID}")
+    list(APPEND DD_SDK_PUBLIC_DEFINITIONS DATADOG_GIT_REVISION_ID="${DD_GIT_REVISION_ID}")
 endif()
-
 # When building a universal (multi-architecture) binary, the preprocessor arch
 # detection in version.hpp would resolve to whichever slice is being compiled.
 # Signal the universal case explicitly so the artifact name reflects it.
 list(LENGTH CMAKE_OSX_ARCHITECTURES _dd_arch_count)
 if(_dd_arch_count GREATER 1)
-    target_compile_definitions(ddsdkcpp PUBLIC DATADOG_BUILD_IS_UNIVERSAL)
+    list(APPEND DD_SDK_PUBLIC_DEFINITIONS DATADOG_BUILD_IS_UNIVERSAL)
 endif()
 
-# Enable position-independent code for ASLR, shared library usage, etc.
+add_subdirectory(types)
+if(DD_MODULE_CORE)
+    add_subdirectory(core)
+endif()
+if(DD_MODULE_CRASH_PROCESSING)
+    add_subdirectory(crash_processing)
+endif()
+if(DD_MODULE_LOGGING)
+    add_subdirectory(logging)
+endif()
+if(DD_MODULE_RUM)
+    add_subdirectory(rum)
+endif()
+if(DD_MODULE_CRASH_REPORTING)
+    add_subdirectory(crash_reporting)
+endif()
+if(DD_MODULE_PROFILING)
+    add_subdirectory(profiling)
+endif()
+
+# `ddsdkcpp` (Datadog::sdk) is the single library, static or shared, that contains every
+# module in the build. Linking each module's object library adds its objects to the
+# library, along with its link dependencies.
+if(DD_BUILD_SHARED)
+    set(DD_LIBRARY_TYPE SHARED)
+else()
+    set(DD_LIBRARY_TYPE STATIC)
+endif()
+dd_get_module_targets(DD_MODULE_TARGETS)
+add_library(ddsdkcpp ${DD_LIBRARY_TYPE})
+target_link_libraries(ddsdkcpp PRIVATE ${DD_MODULE_TARGETS})
 set_target_properties(ddsdkcpp PROPERTIES
     POSITION_INDEPENDENT_CODE ON
     OUTPUT_NAME ddsdkcpp
     EXPORT_NAME sdk
 )
+target_include_directories(ddsdkcpp PUBLIC ${DD_SDK_PUBLIC_INCLUDE_DIRS})
+target_compile_definitions(ddsdkcpp PUBLIC ${DD_SDK_PUBLIC_DEFINITIONS})
+dd_configure_sdk_target(ddsdkcpp)
 
-# Building the SDK requires either C++17 or C++20 at a minimum, depending on
-# configuration. (The C++ API adheres to C++17, and the C API adheres to C99.)
-if(DD_CRASH_MODE STREQUAL "crashpad")
-    target_compile_features(ddsdkcpp PUBLIC cxx_std_20)
-else()
-    target_compile_features(ddsdkcpp PUBLIC cxx_std_17)
-endif()
-
-# Add internal-only, header-only dependencies as PRIVATE SYSTEM includes
-target_include_external_deps(ddsdkcpp)
-
-# Use strict compiler warnings, warnings-as-errors, when building the SDK
-target_enable_strict_warnings(ddsdkcpp)
-target_enable_parallel_compilation(ddsdkcpp)
-
-# Conditionally define WITH_DATADOG_ASSERTS based on build config
-target_enable_datadog_assert(ddsdkcpp)
-
-# Conditionally define DATADOG_SHARED_LIB, WITH_DATADOG_EXPORTS
-target_enable_shared_library_support(ddsdkcpp)
-
-# Add clang-tidy to the build if enabled
-target_enable_clang_tidy(ddsdkcpp)
-
-# Compile and link with profile instrumentation if coverage is enabled
-target_enable_coverage(ddsdkcpp)
-
-# Compile and link with sanitizers if enabled
-target_enable_sanitizers(ddsdkcpp)
-
-# Configure include paths: when building the library, pull in public includes from
-# include-c/ and include-cpp/; when using an installed build, resolve public headers
-# from the build's include dir
-target_include_directories(ddsdkcpp
-    PUBLIC
-        $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-c>
-        $<BUILD_INTERFACE:${DD_SDK_ROOT_DIR}/include-cpp>
-        $<INSTALL_INTERFACE:include>
-    PRIVATE
-        .
-)
-
-# Platform-specific support for UUID generation
-option(DD_UUID_USE_DEFAULT "Use default UUID implementation. If disabled, you must supply an implementation of platform/uuid.hpp in a file specified as DD_UUID_SRC" ON)
-if(DD_UUID_USE_DEFAULT)
-    if(WIN32)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/types/platform/uuid_windows.cpp)
-    elseif(APPLE)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/types/platform/uuid_macos.cpp)
-    elseif(UNIX)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/types/platform/uuid_linux.cpp)
-    endif()
-else()
-    set(DD_UUID_SRC "" CACHE STRING "Path to custom implementation of platform/uuid.hpp")
-    if(DD_UUID_SRC)
-        target_sources(ddsdkcpp PRIVATE ${DD_UUID_SRC})
-    endif()
-endif()
-
-# Platform-specific support for system clock functionality
-option(DD_CLOCK_USE_DEFAULT "Use default clock implementation. If disabled, you must supply an implementation of platform/clock.hpp in a file specified as DD_CLOCK_SRC" ON)
-if(DD_CLOCK_USE_DEFAULT)
-    target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/clock_std.cpp)
-else()
-    set(DD_CLOCK_SRC "" CACHE STRING "Path to custom implementation of platform/clock.hpp")
-    if(DD_CLOCK_SRC)
-        target_sources(ddsdkcpp PRIVATE ${DD_CLOCK_SRC})
-    endif()
-endif()
-
-# Platform-specific support for system info
-option(DD_SYSTEMINFO_USE_DEFAULT "Use default system info implementation. If disabled, you must supply an implementation of platform/system_info.hpp in a file specified as DD_SYSTEMINFO_SRC" ON)
-if(DD_SYSTEMINFO_USE_DEFAULT)
-    if(WIN32)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/system_info_windows.cpp)
-    elseif(APPLE)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/system_info_macos.cpp)
-        target_link_libraries(ddsdkcpp PRIVATE "-framework CoreFoundation")
-    elseif(UNIX)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/system_info_linux.cpp)
-    endif()
-else()
-    set(DD_SYSTEMINFO_SRC "" CACHE STRING "Path to custom implementation of platform/system_info.hpp")
-    if(DD_SYSTEMINFO_SRC)
-        target_sources(ddsdkcpp PRIVATE ${DD_SYSTEMINFO_SRC})
-    endif()
-endif()
-
-# Common crash processing logic used by RUM as well as the Crashpad handler process:
-# depends only on impl/types/, not impl/core/
-
-target_sources(ddsdkcpp PRIVATE
-    datadog/impl/crash_processing/crash_context_annotations.cpp
-    datadog/impl/crash_processing/crash_events.cpp
-    datadog/impl/crash_processing/crash_formatting.cpp
-    datadog/impl/crash_processing/view_event_mutation.cpp
-    datadog/impl/crash_processing/view_event_parser.cpp
-)
-
-# === logging ===
-
-target_sources(ddsdkcpp PRIVATE
-    datadog/impl/logging/event_generation.cpp
-    datadog/impl/logging/logger.cpp
-    datadog/impl/logging/logging.cpp
-    datadog/impl/logging/tags.cpp
-)
-
-# === profiling ===
-
-target_sources(ddsdkcpp PRIVATE
-    datadog/impl/profiling/profile_metadata.cpp
-    datadog/impl/profiling/profiling.cpp
-    datadog/impl/profiling/rum_event_tracker.cpp
-)
-
-# === rum ===
-
-target_sources(ddsdkcpp PRIVATE
-    datadog/impl/rum/containers/resource_map.cpp
-    datadog/impl/rum/containers/view_array.cpp
-    datadog/impl/rum/scopes/action.cpp
-    datadog/impl/rum/scopes/application.cpp
-    datadog/impl/rum/scopes/resource.cpp
-    datadog/impl/rum/scopes/session.cpp
-    datadog/impl/rum/scopes/view.cpp
-    datadog/impl/rum/context.cpp
-    datadog/impl/rum/rum.cpp
-    datadog/impl/rum/scope.cpp
-)
-
-# === crash_reporting ===
-
-target_sources(ddsdkcpp PRIVATE
-    datadog/impl/crash_reporting/data/crash_context_read.cpp
-    datadog/impl/crash_reporting/data/crash_report_read.cpp
-    datadog/impl/crash_reporting/crash_handler_init.cpp
-    datadog/impl/crash_reporting/crash_processing.cpp
-    datadog/impl/crash_reporting/crash_reporting.cpp
-)
-
-if(DD_CRASH_MODE STREQUAL "noop")
-    # No-op crash handler implementation requires no additional code
-    target_sources(ddsdkcpp PRIVATE
-        datadog/impl/crash_reporting/handlers/noop/crash_handler_noop.cpp
-    )
-elseif(DD_CRASH_MODE STREQUAL "inprocess")
-    # In-process crash handler needs to write binary crash report files
-    target_sources(ddsdkcpp PRIVATE
-        datadog/impl/crash_reporting/data/crash_context_write.cpp
-        datadog/impl/crash_reporting/data/crash_report_write.cpp
-    )
-
-    # In-process crash handler needs to cache module build IDs, in addition to compiling
-    # a platform-specific ICrashHandler implementation (POSIX or Windows)
-    target_sources(ddsdkcpp PRIVATE
-        datadog/impl/crash_reporting/handlers/inprocess/buildid_cache.cpp
-    )
-    if(WIN32)
-        target_sources(ddsdkcpp PRIVATE
-            datadog/impl/crash_reporting/handlers/inprocess/crash_handler_inprocess_windows.cpp
-        )
-    elseif(UNIX)
-        target_sources(ddsdkcpp PRIVATE
-            datadog/impl/crash_reporting/handlers/inprocess/crash_handler_inprocess_posix.cpp
-        )
-        # POSIX stack-walking currently depends on intact frame pointers
-        target_compile_options(ddsdkcpp PRIVATE -fno-omit-frame-pointer)
-    else()
-        message(FATAL_ERROR "In-process crash handler not supported on this platform")
-    endif()
-elseif(DD_CRASH_MODE STREQUAL "crashpad")
-    # If building with crashpad support, integrate crashpad as a dependency: this
-    # adds an ExternalProject target that will build crashpad, then adds the
-    # resulting static lib as a dependency for ddsdkcpp. To ensure
-    # binary-compatible builds, this script must run after compile/link options for
-    # ddsdkcpp are fully configured.
-    include(${DD_SDK_ROOT_DIR}/cmake/crashpad.cmake)
-    target_sources(ddsdkcpp PRIVATE
-        datadog/impl/crash_reporting/handlers/crashpad/crash_handler_crashpad.cpp
-        datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.cpp
-    )
-else()
-    message(FATAL_ERROR "Invalid DD_CRASH_MODE: ${DD_CRASH_MODE}. Must be 'noop', 'inprocess', or 'crashpad'")
-endif()
-
-# If building with profiling support, build dd-win-prof and link it into ddsdkcpp;
-# otherwise, compile the CreateProfilerBackend() variant that reports profiling as unsupported
-if(DD_PROFILER_IMPL STREQUAL "dd-win-prof")
-    include(${DD_SDK_ROOT_DIR}/cmake/deps/dd-win-prof.cmake)
-else()
-    target_sources(ddsdkcpp PRIVATE datadog/impl/profiling/profiler_backend_unsupported.cpp)
-endif()
+# Generate datadog.h and datadog.hpp to include the public headers of every module in
+# the build, so that the umbrella headers never refer to headers that aren't installed
+set(DD_PUBLIC_HEADERS "")
+foreach(module_target IN LISTS DD_MODULE_TARGETS)
+    get_property(headers TARGET ${module_target} PROPERTY DD_PUBLIC_HEADERS)
+    list(APPEND DD_PUBLIC_HEADERS ${headers})
+endforeach()
+list(SORT DD_PUBLIC_HEADERS)
+set(DD_UMBRELLA_C_INCLUDES "")
+set(DD_UMBRELLA_CPP_INCLUDES "")
+foreach(header IN LISTS DD_PUBLIC_HEADERS)
+    string(APPEND DD_UMBRELLA_C_INCLUDES "#include \"datadog/${header}.h\"\n")
+    string(APPEND DD_UMBRELLA_CPP_INCLUDES "#include \"datadog/${header}.hpp\"\n")
+endforeach()
+configure_file(${DD_SDK_ROOT_DIR}/cmake/templates/datadog.h.in
+    ${DD_GENERATED_INCLUDE_DIR}/datadog.h @ONLY)
+configure_file(${DD_SDK_ROOT_DIR}/cmake/templates/datadog.hpp.in
+    ${DD_GENERATED_INCLUDE_DIR}/datadog.hpp @ONLY)
 
 # Install configuration
 if(DD_BUILD_INSTALL)
@@ -374,6 +97,11 @@ if(DD_BUILD_INSTALL)
         LIBRARY DESTINATION lib
         ARCHIVE DESTINATION lib
         RUNTIME DESTINATION bin
+    )
+    install(FILES
+        ${DD_GENERATED_INCLUDE_DIR}/datadog.h
+        ${DD_GENERATED_INCLUDE_DIR}/datadog.hpp
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
     )
 
     # Install debug info for shared-library builds as separate files alongside the

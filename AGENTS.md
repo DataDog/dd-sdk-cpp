@@ -24,9 +24,8 @@ To run a subset of unit tests, pass Catch2 tags to the binary, e.g. `build/tests
 
 | Path | Purpose |
 |---|---|
-| `include-cpp/`, `src/datadog/cpp/` | Public C++ API: headers and the thin layer implementing them |
-| `include-c/`, `src/datadog/c/` | Public C API: headers and the thin layer implementing them |
-| `src/datadog/impl/` | The SDK's implementation: `core/`, `rum/`, `logging/`, `crash_reporting/`, `crash_processing/`, shared `types/` |
+| `include-cpp/`, `include-c/` | Public C++ and C API headers |
+| `src/<module>/` | One directory per module: `types`, `core`, `crash_processing`, `logging`, `rum`, `crash_reporting`, `profiling`. Each holds `datadog/cpp/` and `datadog/c/` (its part of the C++ and C APIs), `datadog/impl/<module>/` (its implementation), and a `CMakeLists.txt` that declares the modules it depends on |
 | `tests/` | Catch2 unit tests, mirroring `src/` (`tests/c/`, `tests/cpp/`, `tests/impl/`) |
 | `tools/integration-test/tests/` | Python integration tests, one scenario per file (e.g. `rum_smoke.py`, `crash_smoke_inprocess.py`) |
 | `examples/` | C and C++ example programs, including the `repl` used by integration tests |
@@ -34,8 +33,9 @@ To run a subset of unit tests, pass Catch2 tags to the binary, e.g. `build/tests
 
 ## Design constraints
 
+- **Module boundaries are enforced by the build.** A module can only include headers from the modules listed in `DEPENDS` in its `CMakeLists.txt`, since only their source roots are on its include path. Code that several modules need belongs in a module they all depend on, such as `types`. See `cmake/modules.cmake`.
 - **API calls must not block the caller.** Public API functions enqueue work to the context thread, which updates SDK state and generates events. Storage and upload run on their own threads. See "Repository overview" in `CONTRIBUTING.md` for the thread model.
-- **Every public API function has both a C and a C++ surface.** A new function touches `include-cpp/` and `src/datadog/cpp/`, `include-c/` and `src/datadog/c/`, the `impl/` code behind them, and tests in both `tests/cpp/` and `tests/c/`.
+- **Every public API function has both a C and a C++ surface.** A new function touches `include-cpp/` and `include-c/`, the owning module's `datadog/cpp/` and `datadog/c/` directories (e.g. `src/rum/datadog/cpp/`), the `impl/` code behind them, and tests in both `tests/cpp/` and `tests/c/`.
 - **Code reachable from the in-process crash handler must be async-signal-safe**: no heap allocation, no locks, and no calls that aren't safe from a signal handler. This covers `crash_reporting/handlers/inprocess/` and the crash report writer it calls.
 - **Public headers are user-facing documentation.** `include-c/` and `include-cpp/` are read by SDK users and by the cross-platform SDKs built on dd-sdk-cpp, so document every public type and function there.
 

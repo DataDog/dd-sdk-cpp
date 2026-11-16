@@ -58,6 +58,18 @@ endif()
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
 set(DD_CRASH_MODE "inprocess" CACHE STRING "Crash handler mode: noop, inprocess, or crashpad")
 set_property(CACHE DD_CRASH_MODE PROPERTY STRINGS "noop" "inprocess" "crashpad")
+
+# Modules to build into the SDK's library (see cmake/modules.cmake). The types module is
+# always built. A module can only be enabled along with the modules it
+# depends on: core (types), crash_processing (types), logging (core), rum (core,
+# crash_processing), crash_reporting (core), and profiling (core).
+option(DD_MODULE_CORE "Build the core module, required by every feature" ON)
+option(DD_MODULE_CRASH_PROCESSING "Build the crash_processing module, required by rum" ON)
+option(DD_MODULE_LOGGING "Build the logging module (Logging feature)" ON)
+option(DD_MODULE_RUM "Build the rum module (RUM feature)" ON)
+option(DD_MODULE_CRASH_REPORTING "Build the crash_reporting module (Crash Reporting feature)" ON)
+option(DD_MODULE_PROFILING "Build the profiling module (Profiling feature)" ON)
+
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
 option(DD_BUILD_TOOLS "Build optional utilities from C++ source within tools/" ${DD_DEVELOPMENT})
@@ -77,6 +89,14 @@ option(DD_ENABLE_ASSERTS "Enable assertions in Datadog SDK implementation" ${DD_
 option(DD_ENABLE_MSVC_PARALLEL_BUILD "Enable parallel compilation within each MSVC target (/MP)" ON)
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
 option(DD_ENABLE_PROFILING "Build the dd-win-prof Windows profiler and link it into the SDK (Windows x64 only)" OFF)
+
+# The examples (including the repl used by the integration tests) call every feature's
+# API, so they can only be built along with every module
+foreach(_dd_module CORE CRASH_PROCESSING LOGGING RUM CRASH_REPORTING PROFILING)
+    if(DD_BUILD_EXAMPLES AND NOT DD_MODULE_${_dd_module})
+        message(FATAL_ERROR "DD_BUILD_EXAMPLES requires every module, but DD_MODULE_${_dd_module} is OFF: disable DD_BUILD_EXAMPLES (and DD_ENABLE_INTEGRATION_TEST)")
+    endif()
+endforeach()
 
 # DD_PROFILER_IMPL (internal) is the profiler implementation in use: "dd-win-prof" or
 # "none". Profiling only exists on Windows x64, so on other platforms the
@@ -167,6 +187,7 @@ include(${DD_SDK_ROOT_DIR}/cmake/compile.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/coverage.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/sanitizers.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/external.cmake)
+include(${DD_SDK_ROOT_DIR}/cmake/modules.cmake)
 
 # If we want to stamp the build git revision info, compute those details and save them
 # to variables at configure time
@@ -234,22 +255,16 @@ endif()
 
 # If configured to build developer tools, include the CMake targets defined in tools/
 # for utilities written in C++
-if(DD_BUILD_TOOLS)
+# print-system-info calls the core module's internal SystemInfo functions
+if(DD_BUILD_TOOLS AND TARGET ddsdkcpp_core)
     add_subdirectory(tools/print-system-info)
 endif()
 
 # Only install when DD_BUILD_INSTALL is enabled
 if(DD_BUILD_INSTALL)
-    # Install headers
-    install(DIRECTORY include-c/
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        FILES_MATCHING PATTERN "*.h"
-    )
-
-    install(DIRECTORY include-cpp/
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        FILES_MATCHING PATTERN "*.hpp"
-    )
+    # Public headers are installed per module (see cmake/modules.cmake), along with the
+    # generated umbrella headers (see src/CMakeLists.txt), so that an install contains
+    # only the headers of modules in the build
 
     # Install the SDK's own license and notice at the root of the install tree, and the
     # license text for each third-party component that's built into the SDK to
@@ -260,7 +275,7 @@ if(DD_BUILD_INSTALL)
     install(FILES licenses/date.txt DESTINATION licenses)
     if(WIN32)
         # Windows builds embed a timezone mapping table generated from Unicode CLDR data
-        # (see src/datadog/impl/core/platform/windows_timezone_mapping.hpp)
+        # (see src/core/datadog/impl/core/platform/windows_timezone_mapping.hpp)
         install(FILES licenses/unicode-cldr.txt DESTINATION licenses)
     endif()
 

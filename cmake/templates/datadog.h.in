@@ -7,16 +7,7 @@
 #ifndef DATADOG_INCLUDE_DATADOG_H
 #define DATADOG_INCLUDE_DATADOG_H
 
-#include "datadog/api.h"
-#include "datadog/attribute.h"
-#include "datadog/core.h"
-#include "datadog/crash_reporting.h"
-#include "datadog/logging.h"
-#include "datadog/network_instrumentation.h"
-#include "datadog/profiling.h"
-#include "datadog/rum.h"
-#include "datadog/timestamp.h"
-#include "datadog/uuid.h"
-#include "datadog/version.h"
+// The public headers of every module included in this build of the SDK
+@DD_UMBRELLA_C_INCLUDES@
 
 #endif  // DATADOG_INCLUDE_DATADOG_H
