@@ -11,7 +11,7 @@
 #include <utility>
 
 #include "datadog/impl/core/context.hpp"
-#include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/rum/rum_context.hpp"
 #include "datadog/impl/rum/scopes/application.hpp"
 #include "datadog/impl/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/types/assert.hpp"

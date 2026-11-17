@@ -4,8 +4,8 @@ dd_add_module(core
     DEPENDS types
     PUBLIC_HEADERS core
     SOURCES
-        datadog/c/core.cpp
-        datadog/cpp/core.cpp
+        datadog/c/core_c_api.cpp
+        datadog/cpp/core_cpp_api.cpp
         datadog/impl/core/attribute/binary.cpp
         datadog/impl/core/tracing/first_party_hosts_matcher.cpp
         datadog/impl/core/tracing/span_id_generator.cpp

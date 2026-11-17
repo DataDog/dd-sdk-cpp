@@ -5,14 +5,14 @@
 dd_add_module(types
     PUBLIC_HEADERS api attribute network_instrumentation timestamp uuid version
     SOURCES
-        datadog/c/attribute.cpp
-        datadog/c/timestamp.cpp
-        datadog/c/uuid.cpp
-        datadog/c/version.cpp
-        datadog/cpp/attribute.cpp
-        datadog/cpp/network_instrumentation.cpp
-        datadog/cpp/uuid.cpp
-        datadog/cpp/version.cpp
+        datadog/c/attribute_c_api.cpp
+        datadog/c/timestamp_c_api.cpp
+        datadog/c/uuid_c_api.cpp
+        datadog/c/version_c_api.cpp
+        datadog/cpp/attribute_cpp_api.cpp
+        datadog/cpp/network_instrumentation_cpp_api.cpp
+        datadog/cpp/uuid_cpp_api.cpp
+        datadog/cpp/version_cpp_api.cpp
         datadog/impl/types/attribute/cow.cpp
         datadog/impl/types/attribute/merge.cpp
         datadog/impl/types/json/primitives/bool.cpp

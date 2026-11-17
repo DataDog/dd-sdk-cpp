@@ -4,8 +4,8 @@ dd_add_module(rum
     DEPENDS core crash_processing
     PUBLIC_HEADERS rum
     SOURCES
-        datadog/c/rum.cpp
-        datadog/cpp/rum.cpp
+        datadog/c/rum_c_api.cpp
+        datadog/cpp/rum_cpp_api.cpp
         datadog/impl/rum/containers/resource_map.cpp
         datadog/impl/rum/containers/view_array.cpp
         datadog/impl/rum/scopes/action.cpp
@@ -13,7 +13,7 @@ dd_add_module(rum
         datadog/impl/rum/scopes/resource.cpp
         datadog/impl/rum/scopes/session.cpp
         datadog/impl/rum/scopes/view.cpp
-        datadog/impl/rum/context.cpp
+        datadog/impl/rum/rum_context.cpp
         datadog/impl/rum/rum.cpp
         datadog/impl/rum/scope.cpp
 )

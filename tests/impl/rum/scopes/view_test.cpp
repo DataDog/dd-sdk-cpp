@@ -16,7 +16,7 @@
 
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/rum/rum_context.hpp"
 #include "datadog/impl/rum/scopes/application.hpp"
 #include "datadog/impl/rum/scopes/session.hpp"
 

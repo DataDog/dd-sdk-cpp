@@ -9,7 +9,7 @@
 #include "datadog/timestamp.hpp"
 
 #include "datadog/impl/core/feature_scope.hpp"
-#include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/rum/rum_context.hpp"
 #include "datadog/impl/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/rum/scopes/session.hpp"
 #include "datadog/impl/types/rum.hpp"

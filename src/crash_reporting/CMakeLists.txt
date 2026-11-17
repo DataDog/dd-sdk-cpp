@@ -4,8 +4,8 @@ dd_add_module(crash_reporting
     DEPENDS core
     PUBLIC_HEADERS crash_reporting
     SOURCES
-        datadog/c/crash_reporting.cpp
-        datadog/cpp/crash_reporting.cpp
+        datadog/c/crash_reporting_c_api.cpp
+        datadog/cpp/crash_reporting_cpp_api.cpp
         datadog/impl/crash_reporting/data/crash_context_read.cpp
         datadog/impl/crash_reporting/data/crash_report_read.cpp
         datadog/impl/crash_reporting/crash_handler_init.cpp

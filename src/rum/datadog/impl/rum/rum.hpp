@@ -18,8 +18,8 @@
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/rum/command.hpp"
-#include "datadog/impl/rum/context.hpp"
 #include "datadog/impl/rum/resource_types.hpp"
+#include "datadog/impl/rum/rum_context.hpp"
 #include "datadog/impl/rum/scopes/application.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
