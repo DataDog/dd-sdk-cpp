@@ -38,6 +38,9 @@ std::optional<datadog::Site> ParseSite(std::string_view s) {
   if (s == "us2_fed" || s == "us2-fed") {
     return datadog::Site::us2_fed;
   }
+  if (s == "uk1") {
+    return datadog::Site::uk1;
+  }
   return std::nullopt;
 }
 

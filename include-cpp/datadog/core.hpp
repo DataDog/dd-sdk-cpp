@@ -94,6 +94,7 @@ enum class Site : uint8_t {
   ap2,
   us1_fed,
   us2_fed,
+  uk1,
 };
 
 /**
