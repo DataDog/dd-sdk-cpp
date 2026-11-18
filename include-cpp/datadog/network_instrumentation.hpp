@@ -161,8 +161,8 @@ class HttpHeader {
   /**
    * Obtains the header name.
    *
-   * The returned `string_view` is based on a string guarenteed to exist throughout
-   * the lifetime of the program.
+   * The returned `string_view` is based on a null-terminated string guaranteed to
+   * exist throughout the lifetime of the program.
    */
   std::string_view GetName() const noexcept { return _name; }
 

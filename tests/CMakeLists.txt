@@ -51,7 +51,9 @@ if(TARGET ddsdkcpp_core)
         # diagnostic types that core defines
         impl/types/diagnostics_test.cpp
         c/core_c_api_test.cpp
+        c/network_instrumentation_c_api_test.cpp
         cpp/core_cpp_api_test.cpp
+        cpp/network_instrumentation_cpp_api_test.cpp
         impl/core/attribute/binary_test.cpp
         impl/core/http/body_writer_string_test.cpp
         impl/core/http/body_writer_tlv_test.cpp
