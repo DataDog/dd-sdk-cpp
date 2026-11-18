@@ -48,7 +48,7 @@ Other important options include:
 
 - `-DCMAKE_BUILD_TYPE=Debug` (or `Release`, or `RelWithDbgInfo`)
 - `-DBUILD_SHARED_LIBS=ON` will build the SDK as a shared library; use `OFF` for a static library build
-- `-DDD_MODULE_<NAME>=OFF` (e.g. `-DDD_MODULE_RUM=OFF`) will leave a module out of the build, along with its public headers; a module can only be enabled along with the modules it depends on, and the examples and tests require every module. Options that select an implementation within a module, such as `DD_CRASH_MODE` or `DD_ENABLE_PROFILING`, have no effect when that module is left out
+- `-DDD_FEATURE_<NAME>=OFF` (e.g. `-DDD_FEATURE_RUM=OFF`) will leave a feature (`LOGGING`, `RUM`, `CRASH_REPORTING`, or `PROFILING`) out of the build, along with its public headers; the modules that features are built on are included as needed, and the examples and tests require every feature. Options that select an implementation within a feature, such as `DD_CRASH_MODE` or `DD_ENABLE_PROFILING`, have no effect when that feature is left out
 - `-DDD_HTTP_CLIENT=winhttp`, `libcurl`, or `none` selects the HTTP client implementation; the default is `winhttp` on Windows and `libcurl` elsewhere
 - `-DDD_HTTP_USE_SYSTEM_LIBCURL=ON` will link the SDK dynamically against the version of libcurl installed on your system; use `OFF` to download libcurl, build it from source, and link it into the `dd-sdk-cpp` binary (this applies only when `DD_HTTP_CLIENT=libcurl`)
 - `-DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON` will permit the CMake configuration process to download **clang-format** and **clang-tidy** if not already present on your system

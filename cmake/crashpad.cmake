@@ -106,9 +106,6 @@ endif()
 # into itself (see handler/BUILD.gn in datadog.patch). To keep that build in sync with
 # ours, list the sources and include dirs of those modules in a GN scope file, which the
 # handler's BUILD.gn reads via read_file(..., "scope").
-if(NOT TARGET ddsdkcpp_crash_processing)
-    message(FATAL_ERROR "DD_CRASH_MODE=crashpad requires DD_MODULE_CRASH_PROCESSING=ON, since the Crashpad handler compiles that module")
-endif()
 set(CRASHPAD_SDK_SOURCES "")
 set(CRASHPAD_SDK_INCLUDE_DIRS
     ${DD_SDK_ROOT_DIR}/include-cpp

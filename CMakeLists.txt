@@ -59,16 +59,15 @@ option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS
 set(DD_CRASH_MODE "inprocess" CACHE STRING "Crash handler mode: noop, inprocess, or crashpad")
 set_property(CACHE DD_CRASH_MODE PROPERTY STRINGS "noop" "inprocess" "crashpad")
 
-# Modules to build into the SDK's library (see cmake/modules.cmake). The types module is
-# always built. A module can only be enabled along with the modules it
-# depends on: core (types), crash_processing (types), logging (core), rum (core,
-# crash_processing), crash_reporting (core), and profiling (core).
-option(DD_MODULE_CORE "Build the core module, required by every feature" ON)
-option(DD_MODULE_CRASH_PROCESSING "Build the crash_processing module, required by rum" ON)
-option(DD_MODULE_LOGGING "Build the logging module (Logging feature)" ON)
-option(DD_MODULE_RUM "Build the rum module (RUM feature)" ON)
-option(DD_MODULE_CRASH_REPORTING "Build the crash_reporting module (Crash Reporting feature)" ON)
-option(DD_MODULE_PROFILING "Build the profiling module (Profiling feature)" ON)
+# Features to build into the SDK's library. Each feature is implemented by the module of
+# the same name (see cmake/modules.cmake); leaving a feature out of the build removes
+# that module along with its public headers. The modules that features are built on are
+# included as needed: types and core are always built, and crash_processing is built
+# when RUM or the Crashpad handler needs it.
+option(DD_FEATURE_LOGGING "Build the Logging feature" ON)
+option(DD_FEATURE_RUM "Build the RUM feature" ON)
+option(DD_FEATURE_CRASH_REPORTING "Build the Crash Reporting feature" ON)
+option(DD_FEATURE_PROFILING "Build the Profiling feature" ON)
 
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
@@ -92,26 +91,26 @@ option(DD_ENABLE_PROFILING "Build the dd-win-prof Windows profiler and link it i
 
 # The examples (including the repl used by the integration tests) call every feature's
 # API, and the unit tests exercise interactions between modules, so they can only be
-# built along with every module
-foreach(_dd_module CORE CRASH_PROCESSING LOGGING RUM CRASH_REPORTING PROFILING)
-    if(DD_BUILD_EXAMPLES AND NOT DD_MODULE_${_dd_module})
-        message(FATAL_ERROR "DD_BUILD_EXAMPLES requires every module, but DD_MODULE_${_dd_module} is OFF: disable DD_BUILD_EXAMPLES (and DD_ENABLE_INTEGRATION_TEST)")
+# built along with every feature
+foreach(_dd_feature LOGGING RUM CRASH_REPORTING PROFILING)
+    if(DD_BUILD_EXAMPLES AND NOT DD_FEATURE_${_dd_feature})
+        message(FATAL_ERROR "DD_BUILD_EXAMPLES requires every feature, but DD_FEATURE_${_dd_feature} is OFF: disable DD_BUILD_EXAMPLES (and DD_ENABLE_INTEGRATION_TEST)")
     endif()
-    if(DD_BUILD_TESTING AND NOT DD_MODULE_${_dd_module})
-        message(FATAL_ERROR "DD_BUILD_TESTING requires every module, but DD_MODULE_${_dd_module} is OFF: disable DD_BUILD_TESTING")
+    if(DD_BUILD_TESTING AND NOT DD_FEATURE_${_dd_feature})
+        message(FATAL_ERROR "DD_BUILD_TESTING requires every feature, but DD_FEATURE_${_dd_feature} is OFF: disable DD_BUILD_TESTING")
     endif()
 endforeach()
 
 # DD_PROFILER_IMPL (internal) is the profiler implementation in use: "dd-win-prof" or
 # "none". Profiling only exists on Windows x64, so on other platforms the
 # DD_ENABLE_PROFILING option is ignored rather than failing the build. It is likewise
-# ignored when the profiling module is left out of the build. It is an internal
+# ignored when the Profiling feature is left out of the build. It is an internal
 # cache variable so that it is also visible to a parent project that includes the SDK
 # via FetchContent or add_subdirectory (e.g. when calling datadog_enable()).
 set(DD_PROFILER_IMPL none CACHE INTERNAL "Profiler implementation in use")
 if(DD_ENABLE_PROFILING)
-    if(NOT DD_MODULE_PROFILING)
-        message(STATUS "DD_ENABLE_PROFILING has no effect when DD_MODULE_PROFILING is OFF; ignoring it")
+    if(NOT DD_FEATURE_PROFILING)
+        message(STATUS "DD_ENABLE_PROFILING has no effect when DD_FEATURE_PROFILING is OFF; ignoring it")
     elseif(NOT WIN32)
         message(STATUS "DD_ENABLE_PROFILING is only supported on Windows; ignoring it")
     elseif(NOT CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "x64")
@@ -130,7 +129,7 @@ if(PROJECT_IS_TOP_LEVEL)
 
     # Crashpad requires C++20, so building the SDK with crashpad support requires
     # targeting C++20
-    if(DD_MODULE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
+    if(DD_FEATURE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
         set(CMAKE_CXX_STANDARD 20)
     endif()
 endif()
@@ -262,8 +261,7 @@ endif()
 
 # If configured to build developer tools, include the CMake targets defined in tools/
 # for utilities written in C++
-# print-system-info calls the core module's internal SystemInfo functions
-if(DD_BUILD_TOOLS AND TARGET ddsdkcpp_core)
+if(DD_BUILD_TOOLS)
     add_subdirectory(tools/print-system-info)
 endif()
 
