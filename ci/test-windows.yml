@@ -39,16 +39,28 @@ test-windows-crashpad:
   script:
     - $ErrorActionPreference = "Stop"
     - if (Test-Path build) { remove-item -recurse -force build }
+    # TEMPORARY: collect MSBuild's node-failure diagnostics (MSBuild_*.failure.txt) and a
+    # binary log of the build (build.binlog), and sample memory use during the build
+    # (memory.log; see ci/temp-memory-sampler.ps1)
+    - if (Test-Path msbuild-diag) { remove-item -recurse -force msbuild-diag }
+    - New-Item -ItemType Directory -Force -Path msbuild-diag | Out-Null
     - $env:TOOLCHAIN_IMAGE = "${env:DISTRIBUTION_REGISTRY}/${env:TOOLCHAIN_IMAGE_PATH}:${env:TOOLCHAIN_TARGET}-${env:WINDOWS_TOOLCHAIN_IMAGE_VERSION}"
     - >
       docker run --rm
       -m 8192M
       -e NUM_PARALLEL_BUILD_JOBS
+      -e MSBUILDDEBUGPATH=C:\mnt\msbuild-diag
       -v "$(Get-Location):C:\mnt"
       -w C:\mnt
       ${env:TOOLCHAIN_IMAGE}
-      cmd /S /C "python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -DDD_CRASH_MODE=crashpad -DDD_RUN_CRASHPAD_TESTS=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} && ctest --test-dir build --build-config Debug --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py --crash-mode crashpad"
+      cmd /S /C "start /b powershell -NoProfile -ExecutionPolicy Bypass -File ci\temp-memory-sampler.ps1 & python -m venv .venv && .venv\Scripts\python.exe -m pip install -e .[integration-test] && cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreadedDebugDLL -DDD_ENABLE_ASSERTS=ON -DDD_BUILD_EXAMPLES=ON -DDD_BUILD_TESTING=ON -DDD_CRASH_MODE=crashpad -DDD_RUN_CRASHPAD_TESTS=ON -S . -B build && cmake --build build --config Debug --parallel ${env:NUM_PARALLEL_BUILD_JOBS} -- -bl:C:\mnt\msbuild-diag\build.binlog && ctest --test-dir build --build-config Debug --output-on-failure && .venv\Scripts\python.exe tools\integration-test\main.py --crash-mode crashpad"
     - If ($LASTEXITCODE -ne "0") { throw "docker run (test) returned $LASTEXITCODE" }
+  # TEMPORARY: upload MSBuild diagnostics even when the build fails
+  artifacts:
+    when: always
+    expire_in: 1 week
+    paths:
+      - msbuild-diag/
 
 compat-windows:
   # - COMPILE: Build with MSVC 17.14 on Windows x64
