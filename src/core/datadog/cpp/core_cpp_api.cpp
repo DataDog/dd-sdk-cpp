@@ -140,45 +140,10 @@ Core::~Core() = default;
 std::shared_ptr<Core> Core::Create(
     const CoreConfig& config, TrackingConsent tracking_consent
 ) {
-  // Prepare a diagnostic logger that will allow us to emit errors for invalid API usage
-  const impl::DiagnosticLogger diagnostic_logger{
-      config.diagnostic_handler, config.diagnostic_threshold
-  };
-
-  // Validate the config: if we don't have all required parameters, return a no-op Core
-  if (config.client_token.empty()) {
-    diagnostic_logger.Error(
-        "SDK initialization failed: application must supply a non-empty 'client_token' "
-        "value in CoreConfig"
-    );
-    return std::make_shared<Core>(Core::PrivateCtorTag{});
-  }
-  if (config.service.empty()) {
-    diagnostic_logger.Error(
-        "SDK initialization failed: application must supply a non-empty 'service' "
-        "value in CoreConfig"
-    );
-    return std::make_shared<Core>(Core::PrivateCtorTag{});
-  }
-  if (config.env.empty()) {
-    diagnostic_logger.Error(
-        "SDK initialization failed: application must supply a non-empty 'env' value in "
-        "CoreConfig"
-    );
-    return std::make_shared<Core>(Core::PrivateCtorTag{});
-  }
-
-  // Create core subsystems using default implementations
-  auto subsystems = impl::CoreSubsystems::Init(diagnostic_logger);
-  if (!subsystems.has_value()) {
-    return std::make_shared<Core>(Core::PrivateCtorTag{});
-  }
-
-  // Create the core implementation
-  auto impl =
-      std::make_unique<impl::Core>(config, tracking_consent, std::move(*subsystems));
-  if (!impl->Init()) {
-    // If subsystem initialization fails, return a no-op core
+  // Validate the config and create the core implementation, returning a no-op Core
+  // if either fails
+  auto impl = impl::Core::Create(config, tracking_consent);
+  if (!impl) {
     return std::make_shared<Core>(Core::PrivateCtorTag{});
   }
 

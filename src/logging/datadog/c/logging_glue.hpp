@@ -18,6 +18,14 @@ class Logger;
 class Logging;
 }  // namespace datadog::impl
 
+/**
+ * Implementation of the C API's opaque logger config handle, wrapping the C++ config
+ * that it forwards setter calls to.
+ */
+struct dd_logger_config {
+  datadog::LoggerConfig config;
+};
+
 struct dd_logger {
   std::unique_ptr<datadog::impl::Logger> impl;
   datadog::impl::DiagnosticLogger diagnostic_logger;

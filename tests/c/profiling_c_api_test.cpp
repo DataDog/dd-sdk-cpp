@@ -36,15 +36,15 @@ TEST_CASE("dd_profiling null safety", "[unit][profiling][c-api]") {
   SECTION("M safely do nothing W target object is null") {
     REQUIRE(dd_profiling_init(nullptr, nullptr) == nullptr);
     dd_profiling_destroy(nullptr);
-    dd_profiling_config_init(nullptr);
+    dd_profiling_config_destroy(nullptr);
   }
 }
 
-TEST_CASE("dd_profiling_config_init", "[unit][profiling][c-api]") {
-  SECTION("M set the config version W initialized") {
-    dd_profiling_config_t config = {};
-    dd_profiling_config_init(&config);
-    REQUIRE(config.version == 1);
+TEST_CASE("dd_profiling_config_create", "[unit][profiling][c-api]") {
+  SECTION("M return a config W called") {
+    dd_profiling_config_t* config = dd_profiling_config_create();
+    REQUIRE(config != nullptr);
+    dd_profiling_config_destroy(config);
   }
 }
 
@@ -57,9 +57,9 @@ TEST_CASE("dd_profiling_init without profiling support", "[unit][profiling][c-ap
     dd_core_t* core = CoreTestHarness::WrapForC(test);
 
     // When we register the profiling feature
-    dd_profiling_config_t config;
-    dd_profiling_config_init(&config);
-    dd_profiling_t* profiling = dd_profiling_init(core, &config);
+    dd_profiling_config_t* config = dd_profiling_config_create();
+    dd_profiling_t* profiling = dd_profiling_init(core, config);
+    dd_profiling_config_destroy(config);
 
     // Then we get no object, and a status message that explains why
     REQUIRE(profiling == nullptr);

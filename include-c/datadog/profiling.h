@@ -23,17 +23,23 @@ extern "C" {
 // calls are no-ops.
 
 /**
- * Profiling configuration struct: initialize with dd_profiling_config_init(). It has no
- * settings yet.
+ * Profiling configuration. It has no settings yet. Create a config with
+ * dd_profiling_config_create(), pass it to dd_profiling_init(), and then release it
+ * with dd_profiling_config_destroy().
  */
-typedef struct dd_profiling_config {
-  uint32_t version;
-} dd_profiling_config_t;
+typedef struct dd_profiling_config dd_profiling_config_t;
 
 /**
- * Initializes a dd_profiling_config_t struct with default values.
+ * Creates a new Profiling config with default settings. You MUST call
+ * dd_profiling_config_destroy() when finished with the config.
  */
-DATADOG_API void dd_profiling_config_init(dd_profiling_config_t* config);
+DATADOG_API dd_profiling_config_t* dd_profiling_config_create(void);
+
+/**
+ * Frees all memory allocated for the given config. A Profiling feature initialized from
+ * this config is unaffected. Has no effect if `config` is NULL.
+ */
+DATADOG_API void dd_profiling_config_destroy(dd_profiling_config_t* config);
 
 // === Profiling feature interface ===
 
@@ -56,6 +62,9 @@ typedef struct dd_profiling dd_profiling_t;
 /**
  * Registers the Profiling feature with the core of the Datadog SDK. MUST be matched
  * with a call to dd_profiling_destroy().
+ *
+ * If `config` is NULL, the default configuration values will be used. The caller may
+ * destroy `config` as soon as this call returns.
  *
  * The profiler is shared by the whole process, so only one core can use it at a time.
  * If another core has already registered Profiling, or if this build has no profiler,

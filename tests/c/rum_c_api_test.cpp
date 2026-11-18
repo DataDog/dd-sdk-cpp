@@ -27,8 +27,13 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
     dd_attribute_t obj = dd_attribute_object(1);
     dd_attribute_object_property_set(&obj, "bar", &int_100);
 
-    dd_rum_config_init(nullptr, "a991ca10-4004-4004-4004-beefbeefbeef");
+    REQUIRE(dd_rum_config_create(nullptr) == nullptr);
+    dd_rum_config_destroy(nullptr);
     dd_rum_config_set_application_id(nullptr, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_session_sample_rate(nullptr, 50.0f);
+    dd_rum_config_set_track_anonymous_user(nullptr, false);
+    dd_rum_config_set_context_receiver(nullptr, nullptr);
+    dd_rum_config_set_context_receiver_userdata(nullptr, nullptr);
 
     REQUIRE(dd_rum_init(nullptr, nullptr) == nullptr);
     dd_rum_destroy(nullptr);
@@ -74,17 +79,18 @@ TEST_CASE("dd_rum null safety", "[unit][rum][c-api]") {
 }
 
 TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
-  SECTION("M accept config W dd_rum_config_init was called") {
+  SECTION("M accept config W all required values are present") {
     // Given a valid core
     auto test = CoreTestHarness::Init();
     dd_core_t* core = CoreTestHarness::WrapForC(test);
 
-    // And a config struct that's been initialized with the bare-minimum set of values
-    dd_rum_config config;
-    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    // And a valid RUM config
+    dd_rum_config_t* config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
 
-    // When we attempt to register RUM with that config
-    dd_rum_t* rum = dd_rum_init(core, &config);
+    // When we register the RUM feature
+    dd_rum_t* rum = dd_rum_init(core, config);
+    dd_rum_config_destroy(config);
 
     // Then we get a valid dd_rum_t
     REQUIRE(rum != nullptr);
@@ -94,41 +100,19 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
     dd_core_destroy(core);
   }
 
-  SECTION("M accept config W version is 1") {
+  SECTION("M reject config W required value not set") {
     // Given a valid core
     auto test = CoreTestHarness::Init();
     dd_core_t* core = CoreTestHarness::WrapForC(test);
 
-    // And a config struct that's been initialized with the bare-minimum set of values
-    dd_rum_config config;
-    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    // And a RUM config that lacks a valid application ID
+    dd_rum_config_t* config = dd_rum_config_create(
+        "this-is-not-a-valid-uuid-so-application-id-will-default-to-zero"
+    );
 
-    // When we explicitly set the struct version to 1
-    config.version = 1;
-
-    // When we attempt to register RUM with that config
-    dd_rum_t* rum = dd_rum_init(core, &config);
-
-    // Then we get a valid dd_rum_t, even in a future where RUM_CONFIG_VERSION has been
-    // bumped and is no longer 1
-    REQUIRE(rum != nullptr);
-
-    // Cleanup
-    dd_rum_destroy(rum);
-    dd_core_destroy(core);
-  }
-
-  SECTION("M reject config W version not set") {
-    // Given a valid core
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-
-    // And a config struct that's just zero-filled
-    dd_rum_config config;
-    std::memset(&config, 0, sizeof(config));
-
-    // When we attempt to register RUM with that config
-    dd_rum_t* rum = dd_rum_init(core, &config);
+    // When we register the RUM feature
+    dd_rum_t* rum = dd_rum_init(core, config);
+    dd_rum_config_destroy(config);
 
     // Then we get null
     REQUIRE(rum == nullptr);
@@ -136,72 +120,43 @@ TEST_CASE("dd_rum_init", "[unit][rum][c-api]") {
     // Cleanup
     dd_core_destroy(core);
   }
-
-  SECTION("M reject config W required value not set") {
-    // Given either "" or null as our input value for application_id
-    const char* application_ids[2] = {"", nullptr};
-    for (const char* application_id : application_ids) {
-      // Given a valid core
-      auto test = CoreTestHarness::Init();
-      dd_core_t* core = CoreTestHarness::WrapForC(test);
-
-      // And a config struct that's initialized with our empty/zero application ID
-      dd_rum_config config;
-      dd_rum_config_init(&config, application_id);
-
-      // When we attempt to register RUM with that config
-      dd_rum_t* rum = dd_rum_init(core, &config);
-
-      // Then we get null
-      REQUIRE(rum == nullptr);
-
-      // Cleanup
-      dd_core_destroy(core);
-    }
-  }
 }
 
 TEST_CASE("dd_rum_config_set_context_receiver", "[unit][rum][c-api]") {
-  // Given a receiver that records the values it is given, along with the userdata
-  struct Received {
-    std::vector<dd_rum_context_message_t> messages;
-  };
-  Received received;
+  // Given a core, and a receiver that records the values it is given via its userdata
+  auto test = CoreTestHarness::Init();
+  dd_core_t* core = CoreTestHarness::WrapForC(test);
+  std::vector<dd_rum_context_message_t> received;
   auto receiver = [](const dd_rum_context_message_t* msg, void* userdata) {
-    static_cast<Received*>(userdata)->messages.push_back(*msg);
+    static_cast<std::vector<dd_rum_context_message_t>*>(userdata)->push_back(*msg);
   };
 
-  SECTION("M notify receiver with userdata W SDK runs") {
-    // Given a core with RUM configured with the receiver
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_config config;
-    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
-    dd_rum_config_set_context_receiver(&config, receiver);
-    dd_rum_config_set_context_receiver_userdata(&config, &received);
-    dd_rum_t* rum = dd_rum_init(core, &config);
-
-    // When the SDK runs and a view is started
+  SECTION("M notify receiver of session, anonymous ID, and view W SDK runs") {
+    // When we register RUM with the receiver, destroying the config as soon as RUM is
+    // initialized, then run the SDK and start a view
+    dd_rum_config_t* config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(config, receiver);
+    dd_rum_config_set_context_receiver_userdata(config, &received);
+    dd_rum_t* rum = dd_rum_init(core, config);
+    dd_rum_config_destroy(config);
     dd_core_start(core);
     dd_rum_start_view(rum, "main", nullptr, nullptr);
     dd_core_stop(core);
 
     // Then the receiver saw an active session, an anonymous ID, and an active view
-    // (stopping joins the thread that invokes the receiver, so all calls have
+    // (dd_core_stop joins the thread that invokes the receiver, so all calls have
     // completed)
-    REQUIRE(!received.messages.empty());
-    REQUIRE(!dd_uuid_is_zero(&received.messages.back().session_id));
-    REQUIRE(!dd_uuid_is_zero(&received.messages.back().anonymous_id));
-    REQUIRE(!dd_uuid_is_zero(&received.messages.back().view_id));
-
-    // Cleanup
+    REQUIRE(!received.empty());
+    REQUIRE(!dd_uuid_is_zero(&received.back().session_id));
+    REQUIRE(!dd_uuid_is_zero(&received.back().anonymous_id));
+    REQUIRE(!dd_uuid_is_zero(&received.back().view_id));
     dd_rum_destroy(rum);
-    dd_core_destroy(core);
   }
 
   SECTION("M pass user and account IDs W set before SDK runs") {
-    // Given a core with RUM configured with a receiver that copies the IDs, since the
-    // pointers are valid only during the callback
+    // Given RUM configured with a receiver that copies the IDs, since the pointers are
+    // valid only during the callback
     struct IdCapture {
       bool saw_null = false;
       std::string user_id;
@@ -214,13 +169,12 @@ TEST_CASE("dd_rum_config_set_context_receiver", "[unit][rum][c-api]") {
       c->user_id = msg->user_id ? msg->user_id : "";
       c->account_id = msg->account_id ? msg->account_id : "";
     };
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_config config;
-    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
-    dd_rum_config_set_context_receiver(&config, id_receiver);
-    dd_rum_config_set_context_receiver_userdata(&config, &captured);
-    dd_rum_t* rum = dd_rum_init(core, &config);
+    dd_rum_config_t* config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(config, id_receiver);
+    dd_rum_config_set_context_receiver_userdata(config, &captured);
+    dd_rum_t* rum = dd_rum_init(core, config);
+    dd_rum_config_destroy(config);
 
     // When the SDK runs with no user or account set
     dd_core_start(core);
@@ -241,29 +195,24 @@ TEST_CASE("dd_rum_config_set_context_receiver", "[unit][rum][c-api]") {
     REQUIRE(!captured.saw_null);
     REQUIRE(captured.user_id == "user-1");
     REQUIRE(captured.account_id == "account-1");
-
-    // Cleanup
     dd_rum_destroy(rum);
-    dd_core_destroy(core);
   }
 
   SECTION("M pass each change W user and account IDs change while running") {
-    // Given a core with RUM configured with a receiver that records each message's
-    // "user,account" IDs as a string, since the pointers are valid only during the
-    // callback
+    // Given RUM configured with a receiver that records each message's "user,account"
+    // IDs as a string, since the pointers are valid only during the callback
     std::vector<std::string> ids;
     auto id_receiver = [](const dd_rum_context_message_t* msg, void* userdata) {
       static_cast<std::vector<std::string>*>(userdata)->push_back(
           std::string(msg->user_id) + "," + msg->account_id
       );
     };
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_config config;
-    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
-    dd_rum_config_set_context_receiver(&config, id_receiver);
-    dd_rum_config_set_context_receiver_userdata(&config, &ids);
-    dd_rum_t* rum = dd_rum_init(core, &config);
+    dd_rum_config_t* config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(config, id_receiver);
+    dd_rum_config_set_context_receiver_userdata(config, &ids);
+    dd_rum_t* rum = dd_rum_init(core, config);
+    dd_rum_config_destroy(config);
     dd_core_start(core);
 
     // When we set, then clear, the user and account IDs
@@ -282,65 +231,80 @@ TEST_CASE("dd_rum_config_set_context_receiver", "[unit][rum][c-api]") {
         last_four ==
         std::vector<std::string>{"user-1,", "user-1,account-1", ",account-1", ","}
     );
-
-    // Cleanup
     dd_rum_destroy(rum);
-    dd_core_destroy(core);
   }
 
-  SECTION("M ignore receiver W config version is 1") {
-    // Given a config with a receiver set, whose version is then reset to 1, indicating
-    // a struct layout that has no receiver fields
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_config config;
-    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
-    dd_rum_config_set_context_receiver(&config, receiver);
-    dd_rum_config_set_context_receiver_userdata(&config, &received);
-    config.version = 1;
-    dd_rum_t* rum = dd_rum_init(core, &config);
-    REQUIRE(rum != nullptr);
+  SECTION("M notify receiver W userdata is set before receiver") {
+    // When we register RUM with the receiver, setting its userdata first, and run the
+    // SDK
+    dd_rum_config_t* config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver_userdata(config, &received);
+    dd_rum_config_set_context_receiver(config, receiver);
+    dd_rum_t* rum = dd_rum_init(core, config);
+    dd_rum_config_destroy(config);
+    dd_core_start(core);
+    dd_core_stop(core);
 
-    // When the SDK runs
+    // Then the receiver was called with our userdata
+    REQUIRE(!received.empty());
+    dd_rum_destroy(rum);
+  }
+
+  SECTION("M report zero anonymous ID W anonymous user tracking is disabled") {
+    // When we register RUM with the receiver and with anonymous user tracking disabled,
+    // and run the SDK
+    dd_rum_config_t* config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(config, receiver);
+    dd_rum_config_set_context_receiver_userdata(config, &received);
+    dd_rum_config_set_track_anonymous_user(config, false);
+    dd_rum_t* rum = dd_rum_init(core, config);
+    dd_rum_config_destroy(config);
+    dd_core_start(core);
+    dd_core_stop(core);
+
+    // Then the receiver never saw an anonymous ID
+    REQUIRE(!received.empty());
+    for (const auto& msg : received) {
+      REQUIRE(dd_uuid_is_zero(&msg.anonymous_id));
+    }
+    dd_rum_destroy(rum);
+  }
+
+  SECTION("M not notify receiver W receiver is cleared") {
+    // When we register RUM with a receiver that's set and then cleared, and run the SDK
+    dd_rum_config_t* config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(config, receiver);
+    dd_rum_config_set_context_receiver_userdata(config, &received);
+    dd_rum_config_set_context_receiver(config, nullptr);
+    dd_rum_t* rum = dd_rum_init(core, config);
+    dd_rum_config_destroy(config);
+    REQUIRE(rum != nullptr);
     dd_core_start(core);
     dd_core_stop(core);
 
     // Then the receiver is never called
-    REQUIRE(received.messages.empty());
-
-    // Cleanup
+    REQUIRE(received.empty());
     dd_rum_destroy(rum);
-    dd_core_destroy(core);
   }
 
-  SECTION("M not crash W no receiver is set") {
-    // Given RUM configured without a receiver
-    auto test = CoreTestHarness::Init();
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_rum_config config;
-    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
-    dd_rum_t* rum = dd_rum_init(core, &config);
-
-    // When the SDK runs, nothing goes wrong
-    dd_core_start(core);
-    dd_core_stop(core);
-
-    // Cleanup
-    dd_rum_destroy(rum);
-    dd_core_destroy(core);
-  }
+  // Cleanup
+  dd_core_destroy(core);
 }
 
 TEST_CASE("dd_rum usage when SDK not running", "[unit][rum][c-api]") {
   // Given an ordinary RUM config
-  dd_rum_config config;
-  dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+  dd_rum_config_t* config =
+      dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
 
   // And a started SDK with RUM initialized from that config
   auto test = CoreTestHarness::Init();
   test.clock.FreezeAtMilliseconds(1700000000000);
   dd_core_t* core = CoreTestHarness::WrapForC(test);
-  dd_rum_t* rum = dd_rum_init(core, &config);
+  dd_rum_t* rum = dd_rum_init(core, config);
+  dd_rum_config_destroy(config);
   REQUIRE(rum);
 
   // And a series of RUM API calls that should be no-ops when the SDK isn't running
@@ -413,12 +377,13 @@ TEST_CASE(
     "dd_rum_report_app_display_initialized once-only guard", "[unit][rum][c-api]"
 ) {
   // Given an SDK with RUM initialized and an active view
-  dd_rum_config config;
-  dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+  dd_rum_config_t* config =
+      dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
   auto test = CoreTestHarness::Init();
   test.clock.FreezeAtMilliseconds(1700000000000);
   dd_core_t* core = CoreTestHarness::WrapForC(test);
-  dd_rum_t* rum = dd_rum_init(core, &config);
+  dd_rum_t* rum = dd_rum_init(core, config);
+  dd_rum_config_destroy(config);
   REQUIRE(rum);
   REQUIRE(dd_core_start(core));
 
@@ -457,12 +422,13 @@ TEST_CASE(
 
 TEST_CASE("dd_rum_report_app_fully_displayed once-only guard", "[unit][rum][c-api]") {
   // Given an SDK with RUM initialized and an active view
-  dd_rum_config config;
-  dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+  dd_rum_config_t* config =
+      dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
   auto test = CoreTestHarness::Init();
   test.clock.FreezeAtMilliseconds(1700000000000);
   dd_core_t* core = CoreTestHarness::WrapForC(test);
-  dd_rum_t* rum = dd_rum_init(core, &config);
+  dd_rum_t* rum = dd_rum_init(core, config);
+  dd_rum_config_destroy(config);
   REQUIRE(rum);
   REQUIRE(dd_core_start(core));
 
@@ -562,14 +528,14 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
 
       // === dd_rum_init() ===
 
-      {"M print init error W dd_rum_config_t not properly initialized",
+      {"M print init error W config is null",
        [](dd_rum_config_t* config, dd_core_t* core) {
-         std::memset(config, 0, sizeof(dd_rum_config_t));
-         dd_rum_init(core, config);
+         (void)config;
+         dd_rum_init(core, nullptr);
        },
        {},
-       {"RUM initialization failed: dd_rum_config_t value must be initialized via "
-        "dd_rum_config_init"}},
+       {"RUM initialization failed: application must supply a dd_rum_config_t value to "
+        "dd_rum_init"}},
 
       {"M print init error W configured application_id is empty string",
        [](dd_rum_config_t* config, dd_core_t* core) {
@@ -577,8 +543,8 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
          dd_rum_init(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via dd_rum_config_t "
-        "must be a valid, nonzero UUID"}},
+       {"RUM initialization failed: application_id value supplied in the RUM "
+        "config must be a valid, nonzero UUID"}},
 
       {"M print init error W configured application_id is invalid UUID",
        [](dd_rum_config_t* config, dd_core_t* core) {
@@ -586,8 +552,8 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
          dd_rum_init(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via dd_rum_config_t "
-        "must be a valid, nonzero UUID"}},
+       {"RUM initialization failed: application_id value supplied in the RUM "
+        "config must be a valid, nonzero UUID"}},
 
       {"M print init error W configured application_id is nil UUID",
        [](dd_rum_config_t* config, dd_core_t* core) {
@@ -597,8 +563,8 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
          dd_rum_init(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via dd_rum_config_t "
-        "must be a valid, nonzero UUID"}},
+       {"RUM initialization failed: application_id value supplied in the RUM "
+        "config must be a valid, nonzero UUID"}},
 
       // === dd_rum_add_attribute() ===
 
@@ -1112,14 +1078,15 @@ TEST_CASE("dd_rum argument validation", "[unit][rum][c-api]") {
   for (const auto& tt : tests) {
     DYNAMIC_SECTION(tt.name) {
       // Given a default RUM config and a core
-      dd_rum_config config;
-      dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+      dd_rum_config_t* config =
+          dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
       auto test = CoreTestHarness::Init();
       test.clock.FreezeAtMilliseconds(1700000000000);
       dd_core_t* core = CoreTestHarness::WrapForC(test);
 
       // When we execute our test function to exercise the RUM API
-      tt.func(&config, core);
+      tt.func(config, core);
+      dd_rum_config_destroy(config);
 
       // Then we get the expected set of diagnostic warnings and errors
       REQUIRE(test.diagnostics.warning == tt.want_warnings);
@@ -4576,16 +4543,17 @@ TEST_CASE("dd_rum events", "[unit][rum][c-api]") {
       // Given a RUM config modified as our test case demands. Default
       // track_anonymous_user to false here so that unrelated test cases' event
       // assertions aren't disrupted by a usr.anonymous_id value they don't expect.
-      dd_rum_config config;
-      dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
-      config.track_anonymous_user = false;
-      tt.config_func(&config);
+      dd_rum_config_t* config =
+          dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+      dd_rum_config_set_track_anonymous_user(config, false);
+      tt.config_func(config);
 
       // And a started SDK with RUM initialized from that config
       auto test = CoreTestHarness::Init();
       test.clock.FreezeAtMilliseconds(1700000000000);
       dd_core_t* core = CoreTestHarness::WrapForC(test);
-      dd_rum_t* rum = dd_rum_init(core, &config);
+      dd_rum_t* rum = dd_rum_init(core, config);
+      dd_rum_config_destroy(config);
       REQUIRE(rum);
       REQUIRE(dd_core_start(core));
 

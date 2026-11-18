@@ -10,8 +10,6 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature.hpp"
-#include "datadog/impl/crash_reporting/crash_handler.hpp"
-#include "datadog/impl/crash_reporting/crash_handler_init.hpp"
 #include "datadog/impl/crash_reporting/crash_reporting.hpp"
 
 namespace datadog {
@@ -60,39 +58,14 @@ std::shared_ptr<CrashReporting> CrashReporting::Register(
     return std::make_shared<CrashReporting>(CrashReporting::PrivateCtorTag{});
   }
 
-  // Prepare a directory at <application-storage>/.datadog/.crashes/ to contain
-  // crash-related artifacts
-  auto storage = core->_impl->InitializeArtifactStorage(".crashes");
-  if (!storage) {
-    return std::make_shared<CrashReporting>(CrashReporting::PrivateCtorTag{});
-  }
-
-  // Initialize an ICrashHandler implementation and get a pointer to the global handler
-  // instance, which persists throughout the lifetime of the process: this will only
-  // return a valid pointer the first time it's called, ensuring that only a single
-  // instance of the CrashReporting feature is empowered to handle and upload crashes
-  impl::ICrashHandler* handler = impl::CrashHandler::InitializeOnce(
-      impl::DiagnosticLogger{core->_diagnostic_handler, core->_diagnostic_threshold},
-      core->_impl->GetFilesystem(),
-      storage->GetPath(),
-      config.handler_exe_path,
-      core->_impl->GetIntakeOrigin(),
-      core->_impl->GetClientToken()
+  // Create and register the feature, returning a no-op CrashReporting interface on
+  // failure
+  auto crash_reporting_impl = impl::CrashReporting::CreateAndRegister(
+      *core->_impl,
+      config,
+      impl::DiagnosticLogger{core->_diagnostic_handler, core->_diagnostic_threshold}
   );
-
-  // If handler initialization failed, or if crash reporting is being enabled for an SDK
-  // instance after the first, return a no-op CrashReporting interface
-  if (!handler) {
-    return std::make_shared<CrashReporting>(CrashReporting::PrivateCtorTag{});
-  }
-
-  // Initialize our CrashReporting feature implementation
-  auto crash_reporting_impl = std::make_shared<impl::CrashReporting>(
-      *handler, core->_impl->GetFilesystem(), storage->GetPath()
-  );
-
-  // Register the feature with the core, returning a no-op interface on failure
-  if (!core->_impl->RegisterFeature(crash_reporting_impl)) {
+  if (!crash_reporting_impl) {
     return std::make_shared<CrashReporting>(CrashReporting::PrivateCtorTag{});
   }
 

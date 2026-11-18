@@ -18,100 +18,6 @@
 
 using namespace datadog;
 
-TEST_CASE("RumConfig::SetContextReceiver", "[unit][rum][cpp-api]") {
-  // Given a core, and a RUM config whose receiver records the values it is given
-  auto test = CoreTestHarness::Init();
-  auto core = CoreTestHarness::WrapForCpp(test);
-  std::vector<RumContextMessage> received;
-  RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
-  config.SetContextReceiver([&](const RumContextMessage& msg) {
-    received.push_back(msg);
-  });
-
-  SECTION("M notify receiver of session, anonymous ID, and view W SDK runs") {
-    // When we register RUM, run the SDK, and start a view
-    auto rum = Rum::Register(core, config);
-    core->Start();
-    rum->StartView("main");
-    core->Stop();
-
-    // Then the receiver saw an active session, an anonymous ID, and an active view
-    // (Stop() joins the thread that invokes the receiver, so all calls have completed)
-    REQUIRE(!received.empty());
-    REQUIRE(received.back().session_id != UUID::Zero);
-    REQUIRE(received.back().anonymous_id != UUID::Zero);
-    REQUIRE(received.back().view_id != UUID::Zero);
-  }
-
-  SECTION("M notify receiver of user and account IDs W set before SDK runs") {
-    // When we set user and account IDs, register RUM, and run the SDK
-    core->SetUserInfo("user-1");
-    core->SetAccountInfo("account-1");
-    auto rum = Rum::Register(core, config);
-    core->Start();
-    core->Stop();
-
-    // Then the receiver saw both IDs
-    REQUIRE(!received.empty());
-    REQUIRE(received.back().user_id == "user-1");
-    REQUIRE(received.back().account_id == "account-1");
-  }
-
-  SECTION(
-      "M notify receiver of each change W user and account IDs change while running"
-  ) {
-    // Given RUM registered and the SDK running
-    auto rum = Rum::Register(core, config);
-    core->Start();
-
-    // When we set, then clear, the user and account IDs
-    core->SetUserInfo("user-1");
-    core->SetAccountInfo("account-1");
-    core->ClearUserInfo();
-    core->ClearAccountInfo();
-    core->Stop();
-
-    // Then the receiver saw each change, in order, ending with both IDs cleared
-    // (Stop() joins the thread that invokes the receiver, so all calls have completed)
-    REQUIRE(received.size() >= 4);
-    const auto n = received.size();
-    REQUIRE(received[n - 4].user_id == "user-1");
-    REQUIRE(received[n - 4].account_id.empty());
-    REQUIRE(received[n - 3].user_id == "user-1");
-    REQUIRE(received[n - 3].account_id == "account-1");
-    REQUIRE(received[n - 2].user_id.empty());
-    REQUIRE(received[n - 2].account_id == "account-1");
-    REQUIRE(received[n - 1].user_id.empty());
-    REQUIRE(received[n - 1].account_id.empty());
-  }
-
-  SECTION("M report empty user and account IDs W none are set") {
-    // When we register RUM and run the SDK without setting a user or account
-    auto rum = Rum::Register(core, config);
-    core->Start();
-    core->Stop();
-
-    // Then the receiver saw empty IDs
-    REQUIRE(!received.empty());
-    REQUIRE(received.back().user_id.empty());
-    REQUIRE(received.back().account_id.empty());
-  }
-
-  SECTION("M report zero anonymous ID W anonymous user tracking is disabled") {
-    // When we register RUM with anonymous user tracking disabled, and run the SDK
-    config.SetTrackAnonymousUser(false);
-    auto rum = Rum::Register(core, config);
-    core->Start();
-    core->Stop();
-
-    // Then the receiver never saw an anonymous ID
-    REQUIRE(!received.empty());
-    for (const auto& msg : received) {
-      REQUIRE(msg.anonymous_id == UUID::Zero);
-    }
-  }
-}
-
 TEST_CASE("Rum null safety", "[unit][rum][cpp-api]") {
   SECTION("M safely do nothing W this wraps nullptr") {
     // Given both a valid Core interface that has no valid implementation pointer, as
@@ -196,6 +102,122 @@ TEST_CASE("Rum::Register", "[unit][rum][cpp-api]") {
 
     // Then we get a valid pointer to a no-op Rum interface
     REQUIRE(rum != nullptr);
+  }
+}
+
+TEST_CASE("RumConfig::SetContextReceiver", "[unit][rum][cpp-api]") {
+  // Given a core, and a receiver that records the values it is given
+  auto test = CoreTestHarness::Init();
+  auto core = CoreTestHarness::WrapForCpp(test);
+  std::vector<RumContextMessage> received;
+  auto receiver = [&](const RumContextMessage& msg) { received.push_back(msg); };
+
+  SECTION("M notify receiver of session, anonymous ID, and view W SDK runs") {
+    // When we register RUM with the receiver, then run the SDK and start a view
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextReceiver(receiver);
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    rum->StartView("main");
+    core->Stop();
+
+    // Then the receiver saw an active session, an anonymous ID, and an active view
+    // (Stop() joins the thread that invokes the receiver, so all calls have completed)
+    REQUIRE(!received.empty());
+    REQUIRE(received.back().session_id != UUID::Zero);
+    REQUIRE(received.back().anonymous_id != UUID::Zero);
+    REQUIRE(received.back().view_id != UUID::Zero);
+  }
+
+  SECTION("M notify receiver of user and account IDs W set before SDK runs") {
+    // When we set user and account IDs, register RUM with the receiver, and run the SDK
+    core->SetUserInfo("user-1");
+    core->SetAccountInfo("account-1");
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextReceiver(receiver);
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    core->Stop();
+
+    // Then the receiver saw both IDs
+    REQUIRE(!received.empty());
+    REQUIRE(received.back().user_id == "user-1");
+    REQUIRE(received.back().account_id == "account-1");
+  }
+
+  SECTION(
+      "M notify receiver of each change W user and account IDs change while running"
+  ) {
+    // Given RUM registered with the receiver and the SDK running
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextReceiver(receiver);
+    auto rum = Rum::Register(core, config);
+    core->Start();
+
+    // When we set, then clear, the user and account IDs
+    core->SetUserInfo("user-1");
+    core->SetAccountInfo("account-1");
+    core->ClearUserInfo();
+    core->ClearAccountInfo();
+    core->Stop();
+
+    // Then the receiver saw each change, in order, ending with both IDs cleared
+    // (Stop() joins the thread that invokes the receiver, so all calls have completed)
+    REQUIRE(received.size() >= 4);
+    const auto n = received.size();
+    REQUIRE(received[n - 4].user_id == "user-1");
+    REQUIRE(received[n - 4].account_id.empty());
+    REQUIRE(received[n - 3].user_id == "user-1");
+    REQUIRE(received[n - 3].account_id == "account-1");
+    REQUIRE(received[n - 2].user_id.empty());
+    REQUIRE(received[n - 2].account_id == "account-1");
+    REQUIRE(received[n - 1].user_id.empty());
+    REQUIRE(received[n - 1].account_id.empty());
+  }
+
+  SECTION("M report empty user and account IDs W none are set") {
+    // When we register RUM with the receiver and run the SDK without setting a user or
+    // account
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextReceiver(receiver);
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    core->Stop();
+
+    // Then the receiver saw empty IDs
+    REQUIRE(!received.empty());
+    REQUIRE(received.back().user_id.empty());
+    REQUIRE(received.back().account_id.empty());
+  }
+
+  SECTION("M report zero anonymous ID W anonymous user tracking is disabled") {
+    // When we register RUM with the receiver and with anonymous user tracking disabled,
+    // and run the SDK
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextReceiver(receiver);
+    config.SetTrackAnonymousUser(false);
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    core->Stop();
+
+    // Then the receiver never saw an anonymous ID
+    REQUIRE(!received.empty());
+    for (const auto& msg : received) {
+      REQUIRE(msg.anonymous_id == UUID::Zero);
+    }
+  }
+
+  SECTION("M not notify receiver W receiver is cleared") {
+    // When we register RUM with a receiver that's set and then cleared, and run the SDK
+    RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+    config.SetContextReceiver(receiver);
+    config.SetContextReceiver(nullptr);
+    auto rum = Rum::Register(core, config);
+    core->Start();
+    core->Stop();
+
+    // Then the receiver is never called
+    REQUIRE(received.empty());
   }
 }
 
@@ -406,9 +428,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
          Rum::Register(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via RumConfig "
-        "must "
-        "be a valid, nonzero UUID"}},
+       {"RUM initialization failed: application_id value supplied in the RUM "
+        "config must be a valid, nonzero UUID"}},
 
       {"M print init error W configured application_id is invalid UUID",
        [](RumConfig& config, std::shared_ptr<Core>& core) {
@@ -416,9 +437,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
          Rum::Register(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via RumConfig "
-        "must "
-        "be a valid, nonzero UUID"}},
+       {"RUM initialization failed: application_id value supplied in the RUM "
+        "config must be a valid, nonzero UUID"}},
 
       {"M print init error W configured application_id is nil UUID",
        [](RumConfig& config, std::shared_ptr<Core>& core) {
@@ -426,9 +446,8 @@ TEST_CASE("Rum argument validation", "[unit][rum][cpp-api]") {
          Rum::Register(core, config);
        },
        {},
-       {"RUM initialization failed: application_id value supplied via RumConfig "
-        "must "
-        "be a valid, nonzero UUID"}},
+       {"RUM initialization failed: application_id value supplied in the RUM "
+        "config must be a valid, nonzero UUID"}},
 
       // === StartView() ===
 
