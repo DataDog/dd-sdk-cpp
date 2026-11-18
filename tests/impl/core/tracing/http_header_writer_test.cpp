@@ -116,7 +116,7 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
     );
 
     const std::multiset<std::string_view> expected{
-        "X-B3-TraceId", "X-B3-SpanId", "X-B3-Sampled", "X-B3-ParentSpanId"
+        "X-B3-TraceId", "X-B3-SpanId", "X-B3-Sampled"
     };
     REQUIRE(header_names(headers) == expected);
   }
@@ -173,7 +173,7 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
     );
 
     const std::multiset<std::string_view> expected{
-        "b3", "X-B3-TraceId", "X-B3-SpanId", "X-B3-Sampled", "X-B3-ParentSpanId"
+        "b3", "X-B3-TraceId", "X-B3-SpanId", "X-B3-Sampled"
     };
     REQUIRE(header_names(headers) == expected);
   }
@@ -198,7 +198,6 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
         "X-B3-TraceId",
         "X-B3-SpanId",
         "X-B3-Sampled",
-        "X-B3-ParentSpanId",
         "traceparent",
         "tracestate",
         "baggage"
@@ -234,7 +233,7 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
         DiagnosticLogger{}
     );
 
-    REQUIRE(headers.size() == 12);
+    REQUIRE(headers.size() == 11);
     REQUIRE(header_names(headers).count("baggage") == 1);
   }
 
@@ -250,7 +249,7 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
         DiagnosticLogger{}
     );
 
-    REQUIRE(headers.size() == 12);
+    REQUIRE(headers.size() == 11);
     REQUIRE(header_names(headers).count("baggage") == 1);
   }
 
@@ -266,7 +265,7 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
         DiagnosticLogger{}
     );
 
-    REQUIRE(headers.size() == 12);
+    REQUIRE(headers.size() == 11);
     REQUIRE(header_names(headers).count("baggage") == 1);
   }
 

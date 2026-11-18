@@ -18,7 +18,6 @@ namespace {
 
 constexpr std::string_view kTraceIdHeaderName = "X-B3-TraceId";
 constexpr std::string_view kSpanIdHeaderName = "X-B3-SpanId";
-constexpr std::string_view kParentSpanIdHeaderName = "X-B3-ParentSpanId";
 constexpr std::string_view kSampledHeaderName = "X-B3-Sampled";
 constexpr std::string_view kB3HeaderName = "b3";
 
@@ -30,8 +29,8 @@ constexpr std::size_t kTraceIdHexLength = 32;
 constexpr std::size_t kSpanIdHexLength = 16;
 constexpr std::size_t kSamplingValueLength = 1;
 constexpr std::size_t kMaxSingleHeaderValueLength =
-    kTraceIdHexLength + (2 * kSpanIdHexLength) + kSamplingValueLength +
-    (3 * kB3Separator.size());
+    kTraceIdHexLength + kSpanIdHexLength + kSamplingValueLength +
+    (2 * kB3Separator.size());
 
 }  // namespace
 
@@ -56,14 +55,6 @@ void B3HeaderWriter::AppendHeaders(
               kSpanIdHeaderName, context.span_id.ToHexString()
           )
       );
-
-      if (context.parent_span_id) {
-        out.push_back(
-            HttpHeaderWriter::CreateHeader(
-                kParentSpanIdHeaderName, context.parent_span_id->ToHexString()
-            )
-        );
-      }
       break;
 
     case Encoding::Single: {
@@ -74,12 +65,6 @@ void B3HeaderWriter::AppendHeaders(
       value.append(context.span_id.ToHexString());
       value.append(kB3Separator);
       value.append(sampled_value);
-
-      if (context.parent_span_id) {
-        value.append(kB3Separator);
-        value.append(context.parent_span_id->ToHexString());
-      }
-
       out.push_back(HttpHeaderWriter::CreateHeader(kB3HeaderName, std::move(value)));
       break;
     }

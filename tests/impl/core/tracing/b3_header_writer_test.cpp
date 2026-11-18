@@ -59,7 +59,7 @@ TEST_CASE("B3HeaderWriter single encoding", "[unit][tracing][header-writers]") {
     REQUIRE(output.front().GetName() == "b3");
     REQUIRE(
         output.front().GetValue() ==
-        "00000000000004d200000000000004d2-0000000000000929-1-000000000000162e"
+        "00000000000004d200000000000004d2-0000000000000929-1"
     );
   }
 
@@ -73,11 +73,11 @@ TEST_CASE("B3HeaderWriter single encoding", "[unit][tracing][header-writers]") {
     REQUIRE(output.front().GetName() == "b3");
     REQUIRE(
         output.front().GetValue() ==
-        "00000000000004d200000000000004d2-0000000000000929-0-000000000000162e"
+        "00000000000004d200000000000004d2-0000000000000929-0"
     );
   }
 
-  SECTION("M omit a missing parent span") {
+  SECTION("M write trace context without a parent span") {
     auto context = make_trace_context();
     context.parent_span_id.reset();
     std::vector<datadog::HttpHeader> output;
@@ -103,11 +103,11 @@ TEST_CASE("B3HeaderWriter single encoding", "[unit][tracing][header-writers]") {
     REQUIRE(output.front().GetName() == "b3");
     REQUIRE(
         output.front().GetValue() ==
-        "1234567890abcdef000000000000002a-0000000000000929-1-000000000000162e"
+        "1234567890abcdef000000000000002a-0000000000000929-1"
     );
   }
 
-  SECTION("M zero-pad a 64-bit trace ID and span IDs") {
+  SECTION("M zero-pad a 64-bit trace ID and span ID") {
     auto context = make_trace_context();
     context.trace_id = TraceID(0, 1);
     context.span_id = SpanID(2);
@@ -120,7 +120,7 @@ TEST_CASE("B3HeaderWriter single encoding", "[unit][tracing][header-writers]") {
     REQUIRE(output.front().GetName() == "b3");
     REQUIRE(
         output.front().GetValue() ==
-        "00000000000000000000000000000001-0000000000000002-1-0000000000000003"
+        "00000000000000000000000000000001-0000000000000002-1"
     );
   }
 
@@ -138,7 +138,7 @@ TEST_CASE("B3HeaderWriter single encoding", "[unit][tracing][header-writers]") {
     REQUIRE(output.front().GetName() == "b3");
     REQUIRE(
         output.front().GetValue() ==
-        "ffffffffffffffffffffffffffffffff-ffffffffffffffff-1-fffffffffffffffe"
+        "ffffffffffffffffffffffffffffffff-ffffffffffffffff-1"
     );
   }
 }
@@ -151,11 +151,11 @@ TEST_CASE("B3HeaderWriter multiple encoding", "[unit][tracing][header-writers]")
     B3HeaderWriter::AppendHeaders(context, B3HeaderWriter::Encoding::Multiple, output);
 
     auto headers = header_values(output);
-    REQUIRE(output.size() == 4);
+    REQUIRE(output.size() == 3);
     REQUIRE(headers["X-B3-TraceId"] == "00000000000004d200000000000004d2");
     REQUIRE(headers["X-B3-SpanId"] == "0000000000000929");
     REQUIRE(headers["X-B3-Sampled"] == "1");
-    REQUIRE(headers["X-B3-ParentSpanId"] == "000000000000162e");
+    REQUIRE(headers.count("X-B3-ParentSpanId") == 0);
   }
 
   SECTION("M write dropped trace context") {
@@ -165,14 +165,14 @@ TEST_CASE("B3HeaderWriter multiple encoding", "[unit][tracing][header-writers]")
     B3HeaderWriter::AppendHeaders(context, B3HeaderWriter::Encoding::Multiple, output);
 
     auto headers = header_values(output);
-    REQUIRE(output.size() == 4);
+    REQUIRE(output.size() == 3);
     REQUIRE(headers["X-B3-TraceId"] == "00000000000004d200000000000004d2");
     REQUIRE(headers["X-B3-SpanId"] == "0000000000000929");
     REQUIRE(headers["X-B3-Sampled"] == "0");
-    REQUIRE(headers["X-B3-ParentSpanId"] == "000000000000162e");
+    REQUIRE(headers.count("X-B3-ParentSpanId") == 0);
   }
 
-  SECTION("M omit a missing parent span") {
+  SECTION("M write trace context without a parent span") {
     auto context = make_trace_context();
     context.parent_span_id.reset();
     std::vector<datadog::HttpHeader> output;
@@ -195,14 +195,14 @@ TEST_CASE("B3HeaderWriter multiple encoding", "[unit][tracing][header-writers]")
     B3HeaderWriter::AppendHeaders(context, B3HeaderWriter::Encoding::Multiple, output);
 
     auto headers = header_values(output);
-    REQUIRE(output.size() == 4);
+    REQUIRE(output.size() == 3);
     REQUIRE(headers["X-B3-TraceId"] == "1234567890abcdef000000000000002a");
     REQUIRE(headers["X-B3-SpanId"] == "0000000000000929");
     REQUIRE(headers["X-B3-Sampled"] == "1");
-    REQUIRE(headers["X-B3-ParentSpanId"] == "000000000000162e");
+    REQUIRE(headers.count("X-B3-ParentSpanId") == 0);
   }
 
-  SECTION("M zero-pad a 64-bit trace ID and span IDs") {
+  SECTION("M zero-pad a 64-bit trace ID and span ID") {
     auto context = make_trace_context();
     context.trace_id = TraceID(0, 1);
     context.span_id = SpanID(2);
@@ -212,11 +212,11 @@ TEST_CASE("B3HeaderWriter multiple encoding", "[unit][tracing][header-writers]")
     B3HeaderWriter::AppendHeaders(context, B3HeaderWriter::Encoding::Multiple, output);
 
     auto headers = header_values(output);
-    REQUIRE(output.size() == 4);
+    REQUIRE(output.size() == 3);
     REQUIRE(headers["X-B3-TraceId"] == "00000000000000000000000000000001");
     REQUIRE(headers["X-B3-SpanId"] == "0000000000000002");
     REQUIRE(headers["X-B3-Sampled"] == "1");
-    REQUIRE(headers["X-B3-ParentSpanId"] == "0000000000000003");
+    REQUIRE(headers.count("X-B3-ParentSpanId") == 0);
   }
 
   SECTION("M serialize full-width unsigned IDs") {
@@ -230,10 +230,10 @@ TEST_CASE("B3HeaderWriter multiple encoding", "[unit][tracing][header-writers]")
     B3HeaderWriter::AppendHeaders(context, B3HeaderWriter::Encoding::Multiple, output);
 
     auto headers = header_values(output);
-    REQUIRE(output.size() == 4);
+    REQUIRE(output.size() == 3);
     REQUIRE(headers["X-B3-TraceId"] == "ffffffffffffffffffffffffffffffff");
     REQUIRE(headers["X-B3-SpanId"] == "ffffffffffffffff");
     REQUIRE(headers["X-B3-Sampled"] == "1");
-    REQUIRE(headers["X-B3-ParentSpanId"] == "fffffffffffffffe");
+    REQUIRE(headers.count("X-B3-ParentSpanId") == 0);
   }
 }
