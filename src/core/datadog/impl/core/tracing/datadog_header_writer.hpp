@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -22,6 +23,8 @@ namespace datadog::impl {
 class DatadogHeaderWriter {
  public:
   DatadogHeaderWriter() = delete;
+
+  static constexpr std::size_t GetMaxHeaderCount() { return 5; }
 
   /**
    * Appends the datadog headers to the given `out` vector, based on the data

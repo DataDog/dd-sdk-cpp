@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -24,6 +25,8 @@ namespace datadog::impl {
 class BaggageHeaderWriter {
  public:
   BaggageHeaderWriter() = delete;
+
+  static constexpr std::size_t GetMaxHeaderCount() { return 1; }
 
   /**
    * Appends the baggage headers to the given `out` vector, based on the data

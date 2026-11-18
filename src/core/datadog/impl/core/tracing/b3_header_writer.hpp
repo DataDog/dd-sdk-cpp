@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <vector>
 
 #include "datadog/network_instrumentation.hpp"
@@ -30,6 +31,10 @@ class B3HeaderWriter {
   };
 
   B3HeaderWriter() = delete;
+
+  static constexpr std::size_t GetMaxHeaderCount(Encoding encoding) {
+    return encoding == Encoding::Single ? 1 : 4;
+  }
 
   /**
    * Appends the B3 headers to the given `out` vector, based on the data

@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <cstddef>
 #include <optional>
 #include <string_view>
 #include <vector>
@@ -24,6 +25,8 @@ namespace datadog::impl {
 class W3CHeaderWriter {
  public:
   W3CHeaderWriter() = delete;
+
+  static constexpr std::size_t GetMaxHeaderCount() { return 2; }
 
   /**
    * Appends the W3C headers to the given `out` vector, based on the data

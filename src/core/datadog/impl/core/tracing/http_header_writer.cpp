@@ -6,6 +6,8 @@
 
 #include "datadog/impl/core/tracing/http_header_writer.hpp"
 
+#include <cstddef>
+
 #include "datadog/impl/core/tracing/b3_header_writer.hpp"
 #include "datadog/impl/core/tracing/baggage_header_writer.hpp"
 #include "datadog/impl/core/tracing/datadog_header_writer.hpp"
@@ -34,26 +36,56 @@ std::vector<HttpHeader> HttpHeaderWriter::CreateHeaders(
 
   using B3Encoding = B3HeaderWriter::Encoding;
 
-  std::vector<HttpHeader> headers;
+  const bool write_datadog = has_header_type(header_types, TracingHeaderTypes::Datadog);
+  const bool write_b3_single = has_header_type(header_types, TracingHeaderTypes::B3);
+  const bool write_b3_multiple =
+      has_header_type(header_types, TracingHeaderTypes::B3multi);
+  const bool write_w3c =
+      has_header_type(header_types, TracingHeaderTypes::Tracecontext);
+  const bool write_baggage = write_datadog || write_w3c;
 
-  if (has_header_type(header_types, TracingHeaderTypes::Datadog)) {
+  std::size_t max_header_count = 0;
+
+  if (write_datadog) {
+    max_header_count += DatadogHeaderWriter::GetMaxHeaderCount();
+  }
+
+  if (write_b3_single) {
+    max_header_count += B3HeaderWriter::GetMaxHeaderCount(B3Encoding::Single);
+  }
+
+  if (write_b3_multiple) {
+    max_header_count += B3HeaderWriter::GetMaxHeaderCount(B3Encoding::Multiple);
+  }
+
+  if (write_w3c) {
+    max_header_count += W3CHeaderWriter::GetMaxHeaderCount();
+  }
+
+  if (write_baggage) {
+    max_header_count += BaggageHeaderWriter::GetMaxHeaderCount();
+  }
+
+  std::vector<HttpHeader> headers;
+  headers.reserve(max_header_count);
+
+  if (write_datadog) {
     DatadogHeaderWriter::AppendHeaders(context, origin, headers);
   }
 
-  if (has_header_type(header_types, TracingHeaderTypes::B3)) {
+  if (write_b3_single) {
     B3HeaderWriter::AppendHeaders(context, B3Encoding::Single, headers);
   }
 
-  if (has_header_type(header_types, TracingHeaderTypes::B3multi)) {
+  if (write_b3_multiple) {
     B3HeaderWriter::AppendHeaders(context, B3Encoding::Multiple, headers);
   }
 
-  if (has_header_type(header_types, TracingHeaderTypes::Tracecontext)) {
+  if (write_w3c) {
     W3CHeaderWriter::AppendHeaders(context, origin, headers);
   }
 
-  if (has_header_type(header_types, TracingHeaderTypes::Tracecontext) ||
-      has_header_type(header_types, TracingHeaderTypes::Datadog)) {
+  if (write_baggage) {
     BaggageHeaderWriter::AppendHeaders(context, headers);
   }
 
