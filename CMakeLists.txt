@@ -126,7 +126,7 @@ if(PROJECT_IS_TOP_LEVEL)
 
     # Crashpad requires C++20, so building the SDK with crashpad support requires
     # targeting C++20
-    if(DD_CRASH_MODE STREQUAL "crashpad")
+    if(DD_MODULE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
         set(CMAKE_CXX_STANDARD 20)
     endif()
 endif()

@@ -88,7 +88,7 @@ endfunction()
 function(dd_configure_sdk_target target)
     # Building the SDK requires either C++17 or C++20 at a minimum, depending on
     # configuration. (The C++ API adheres to C++17, and the C API adheres to C99.)
-    if(DD_CRASH_MODE STREQUAL "crashpad")
+    if(DD_MODULE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
         target_compile_features(${target} PUBLIC cxx_std_20)
     else()
         target_compile_features(${target} PUBLIC cxx_std_17)

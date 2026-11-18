@@ -19,6 +19,21 @@ function(_datadog_find_dd_win_prof_target out_var)
     set(${out_var} "${_target}" PARENT_SCOPE)
 endfunction()
 
+# Internal: sets <out_var> to TRUE if the SDK was built with Crashpad support, or to
+# FALSE otherwise. DD_CRASH_MODE has no effect when the crash_reporting module is left
+# out of the build.
+function(_datadog_built_with_crashpad out_var)
+    set(_result FALSE)
+    if(DD_MODULE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
+        # SDK included via FetchContent / add_subdirectory
+        set(_result TRUE)
+    elseif(DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad")
+        # SDK included via find_package(Datadog)
+        set(_result TRUE)
+    endif()
+    set(${out_var} ${_result} PARENT_SCOPE)
+endfunction()
+
 # datadog_enable(my-app):
 #
 # - Adds the Datadog SDK as a linker dependency for `my-app`, allowing you to call SDK
@@ -49,7 +64,8 @@ function(datadog_enable target)
 
     # If the SDK was built with crashpad support, ensure that the crashpad_handler
     # executable is present alongside the application binary post-build
-    if((DD_CRASH_MODE STREQUAL "crashpad") OR (DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad"))
+    _datadog_built_with_crashpad(_dd_crashpad)
+    if(_dd_crashpad)
         if (TARGET crashpad::handler)
             add_custom_command(TARGET ${target} POST_BUILD
                 COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -185,7 +201,8 @@ function(datadog_install target)
 
     # If the SDK was built with Crashpad support, install the crashpad_handler
     # executable to RUNTIME_DESTINATION
-    if((DD_CRASH_MODE STREQUAL "crashpad") OR (DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad"))
+    _datadog_built_with_crashpad(_dd_crashpad)
+    if(_dd_crashpad)
         if(TARGET crashpad::handler)
             get_target_property(CRASHPAD_HANDLER_PATH crashpad::handler IMPORTED_LOCATION)
             install(PROGRAMS ${CRASHPAD_HANDLER_PATH} DESTINATION "${ARG_RUNTIME_DESTINATION}")
