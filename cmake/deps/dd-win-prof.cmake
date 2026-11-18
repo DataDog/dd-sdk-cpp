@@ -1,6 +1,7 @@
-# Builds dd-win-prof (the Windows profiler DLL) as a dependency and links it into
-# ddsdkcpp. Included from src/CMakeLists.txt, after ddsdkcpp is configured, only when
-# DD_PROFILER_IMPL is "dd-win-prof" (i.e. DD_ENABLE_PROFILING on Windows x64).
+# Builds dd-win-prof (the Windows profiler DLL) as a dependency and links it into the
+# profiling module. Included from src/profiling/CMakeLists.txt, after that module is
+# configured, only when DD_PROFILER_IMPL is "dd-win-prof" (i.e. DD_ENABLE_PROFILING on
+# Windows x64).
 #
 # dd-win-prof is linked normally rather than delay-loaded: it discovers threads through
 # DllMain, so it has to be loaded at process start to see the threads created before the
@@ -38,10 +39,10 @@ FetchContent_MakeAvailable(dd-win-prof)
 
 # Only dd-win-prof.h is exposed by the dd-win-prof target, and it stays private to the
 # SDK: it is not part of the SDK's public API
-target_link_libraries(ddsdkcpp PRIVATE dd-win-prof)
-target_compile_definitions(ddsdkcpp PRIVATE WITH_DATADOG_PROFILING=1)
-target_sources(ddsdkcpp PRIVATE
-    ${DD_SDK_ROOT_DIR}/src/datadog/impl/profiling/dd_win_prof_profiler_backend.cpp
+target_link_libraries(ddsdkcpp_profiling PRIVATE dd-win-prof)
+target_compile_definitions(ddsdkcpp_profiling PRIVATE WITH_DATADOG_PROFILING=1)
+target_sources(ddsdkcpp_profiling PRIVATE
+    ${DD_SDK_ROOT_DIR}/src/profiling/datadog/impl/profiling/dd_win_prof_profiler_backend.cpp
 )
 
 # dd-win-prof's own install rules are disabled when it is built as a dependency. The DLL

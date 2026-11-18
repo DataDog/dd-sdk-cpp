@@ -17,5 +17,9 @@ target_enable_sanitizers(system_info)
 target_link_libraries(system_info PRIVATE Datadog::sdk)
 
 # The SystemInfo interface is not publicly exposed: include the internal source of the
-# SDK so we can call SystemInfo functions directly
-target_include_directories(system_info PRIVATE ${DD_SDK_ROOT_DIR}/src)
+# core module (and of types, which it depends on) so we can call SystemInfo functions
+# directly
+target_include_directories(system_info PRIVATE
+    ${DD_SDK_ROOT_DIR}/src/core
+    ${DD_SDK_ROOT_DIR}/src/types
+)

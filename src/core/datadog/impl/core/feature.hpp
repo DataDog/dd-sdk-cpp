@@ -68,8 +68,12 @@ struct FeatureStorageConfig {
  *
  * To implement a new feature:
  *
- * - Establish a new source module `src/datadog/impl/features/foo`
- * - In that module, define `class Foo final : public Feature { ... };`
+ * - Establish a new module `src/foo/`, with a `CMakeLists.txt` that calls
+ *    `dd_add_module(foo DEPENDS core ...)` (see cmake/modules.cmake), a
+ *    `DD_MODULE_FOO` option in the root CMakeLists.txt, and an `add_subdirectory(foo)`
+ *    in src/CMakeLists.txt
+ * - In that module, under `datadog/impl/foo/`, define
+ *    `class Foo final : public Feature { ... };`
  * - Implement `GetId()` to return the globally unique FourCC code for that feature
  * - Implement `GetName()` to return the globally unique name for logs, storage, etc.
  * - If the feature has unique storage requirements, implement `GetStorageConfig()`
@@ -84,11 +88,12 @@ struct FeatureStorageConfig {
  * Additionally, for the user-facing operations that your new feature exposes:
  *
  * - Create `include-c/datadog/foo.h` and declare the feature's C API
- * - Add `#include "datadog/foo.h"` to `include-c/datadog.h`
- * - Create `src/datadog/c/foo.cpp` with bindings to the underlying implementation.
+ * - Create `src/foo/datadog/c/foo.cpp` with bindings to the underlying implementation.
  * - Create `include-cpp/datadog/foo.hpp` and declare the feature's C++ API
- * - Add `#include "datadog/foo.hpp"` to `include-cpp/datadog.hpp`
- * - Create `src/datadog/cpp/foo.cpp` with bindings to the underlying implementation.
+ * - Create `src/foo/datadog/cpp/foo.cpp` with bindings to the underlying
+ *    implementation.
+ * - List `foo` in the module's PUBLIC_HEADERS, so that both headers are installed and
+ *    included in the generated umbrella headers (datadog.h and datadog.hpp)
  */
 class Feature : public std::enable_shared_from_this<Feature> {
  public:

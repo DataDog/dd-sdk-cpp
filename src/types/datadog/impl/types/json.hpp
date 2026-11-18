@@ -39,7 +39,7 @@ namespace datadog::impl {
  *
  * To encode a value of any JSON-serializable type, use `EncodeJson`.
  *
- * The files within in `src/datadog/impl/types/json/` define JSON serialization
+ * The files within in `src/types/datadog/impl/types/json/` define JSON serialization
  * functions for all supported types. For each type, those definitions consists of three
  * functions:
  *

@@ -58,6 +58,18 @@ endif()
 option(DD_BUILD_SHARED "Build Datadog SDK as shared library" ${BUILD_SHARED_LIBS})
 set(DD_CRASH_MODE "inprocess" CACHE STRING "Crash handler mode: noop, inprocess, or crashpad")
 set_property(CACHE DD_CRASH_MODE PROPERTY STRINGS "noop" "inprocess" "crashpad")
+
+# Modules to build into the SDK's library (see cmake/modules.cmake). The types module is
+# always built. A module can only be enabled along with the modules it
+# depends on: core (types), crash_processing (types), logging (core), rum (core,
+# crash_processing), crash_reporting (core), and profiling (core).
+option(DD_MODULE_CORE "Build the core module, required by every feature" ON)
+option(DD_MODULE_CRASH_PROCESSING "Build the crash_processing module, required by rum" ON)
+option(DD_MODULE_LOGGING "Build the logging module (Logging feature)" ON)
+option(DD_MODULE_RUM "Build the rum module (RUM feature)" ON)
+option(DD_MODULE_CRASH_REPORTING "Build the crash_reporting module (Crash Reporting feature)" ON)
+option(DD_MODULE_PROFILING "Build the profiling module (Profiling feature)" ON)
+
 option(DD_BUILD_EXAMPLES "Build examples" ${DD_DEVELOPMENT})
 option(DD_BUILD_TESTING "Build tests" ${DD_DEVELOPMENT})
 option(DD_BUILD_TOOLS "Build optional utilities from C++ source within tools/" ${DD_DEVELOPMENT})
@@ -78,14 +90,29 @@ option(DD_ENABLE_MSVC_PARALLEL_BUILD "Enable parallel compilation within each MS
 option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instrumented new/delete) in test binaries" ON)
 option(DD_ENABLE_PROFILING "Build the dd-win-prof Windows profiler and link it into the SDK (Windows x64 only)" OFF)
 
+# The examples (including the repl used by the integration tests) call every feature's
+# API, and the unit tests exercise interactions between modules, so they can only be
+# built along with every module
+foreach(_dd_module CORE CRASH_PROCESSING LOGGING RUM CRASH_REPORTING PROFILING)
+    if(DD_BUILD_EXAMPLES AND NOT DD_MODULE_${_dd_module})
+        message(FATAL_ERROR "DD_BUILD_EXAMPLES requires every module, but DD_MODULE_${_dd_module} is OFF: disable DD_BUILD_EXAMPLES (and DD_ENABLE_INTEGRATION_TEST)")
+    endif()
+    if(DD_BUILD_TESTING AND NOT DD_MODULE_${_dd_module})
+        message(FATAL_ERROR "DD_BUILD_TESTING requires every module, but DD_MODULE_${_dd_module} is OFF: disable DD_BUILD_TESTING")
+    endif()
+endforeach()
+
 # DD_PROFILER_IMPL (internal) is the profiler implementation in use: "dd-win-prof" or
 # "none". Profiling only exists on Windows x64, so on other platforms the
-# DD_ENABLE_PROFILING option is ignored rather than failing the build. It is an internal
+# DD_ENABLE_PROFILING option is ignored rather than failing the build. It is likewise
+# ignored when the profiling module is left out of the build. It is an internal
 # cache variable so that it is also visible to a parent project that includes the SDK
 # via FetchContent or add_subdirectory (e.g. when calling datadog_enable()).
 set(DD_PROFILER_IMPL none CACHE INTERNAL "Profiler implementation in use")
 if(DD_ENABLE_PROFILING)
-    if(NOT WIN32)
+    if(NOT DD_MODULE_PROFILING)
+        message(STATUS "DD_ENABLE_PROFILING has no effect when DD_MODULE_PROFILING is OFF; ignoring it")
+    elseif(NOT WIN32)
         message(STATUS "DD_ENABLE_PROFILING is only supported on Windows; ignoring it")
     elseif(NOT CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "x64")
         message(FATAL_ERROR "DD_ENABLE_PROFILING requires a Windows x64 build (target architecture: '${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}')")
@@ -103,7 +130,7 @@ if(PROJECT_IS_TOP_LEVEL)
 
     # Crashpad requires C++20, so building the SDK with crashpad support requires
     # targeting C++20
-    if(DD_CRASH_MODE STREQUAL "crashpad")
+    if(DD_MODULE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
         set(CMAKE_CXX_STANDARD 20)
     endif()
 endif()
@@ -167,6 +194,7 @@ include(${DD_SDK_ROOT_DIR}/cmake/compile.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/coverage.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/sanitizers.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/external.cmake)
+include(${DD_SDK_ROOT_DIR}/cmake/modules.cmake)
 
 # If we want to stamp the build git revision info, compute those details and save them
 # to variables at configure time
@@ -234,22 +262,16 @@ endif()
 
 # If configured to build developer tools, include the CMake targets defined in tools/
 # for utilities written in C++
-if(DD_BUILD_TOOLS)
+# print-system-info calls the core module's internal SystemInfo functions
+if(DD_BUILD_TOOLS AND TARGET ddsdkcpp_core)
     add_subdirectory(tools/print-system-info)
 endif()
 
 # Only install when DD_BUILD_INSTALL is enabled
 if(DD_BUILD_INSTALL)
-    # Install headers
-    install(DIRECTORY include-c/
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        FILES_MATCHING PATTERN "*.h"
-    )
-
-    install(DIRECTORY include-cpp/
-        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
-        FILES_MATCHING PATTERN "*.hpp"
-    )
+    # Public headers are installed per module (see cmake/modules.cmake), along with the
+    # generated umbrella headers (see src/CMakeLists.txt), so that an install contains
+    # only the headers of modules in the build
 
     # Install the SDK's own license and notice at the root of the install tree, and the
     # license text for each third-party component that's built into the SDK to
@@ -260,7 +282,7 @@ if(DD_BUILD_INSTALL)
     install(FILES licenses/date.txt DESTINATION licenses)
     if(WIN32)
         # Windows builds embed a timezone mapping table generated from Unicode CLDR data
-        # (see src/datadog/impl/core/platform/windows_timezone_mapping.hpp)
+        # (see src/core/datadog/impl/core/platform/windows_timezone_mapping.hpp)
         install(FILES licenses/unicode-cldr.txt DESTINATION licenses)
     endif()
 

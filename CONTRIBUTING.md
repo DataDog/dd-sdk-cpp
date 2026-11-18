@@ -48,6 +48,7 @@ Other important options include:
 
 - `-DCMAKE_BUILD_TYPE=Debug` (or `Release`, or `RelWithDbgInfo`)
 - `-DBUILD_SHARED_LIBS=ON` will build the SDK as a shared library; use `OFF` for a static library build
+- `-DDD_MODULE_<NAME>=OFF` (e.g. `-DDD_MODULE_RUM=OFF`) will leave a module out of the build, along with its public headers; a module can only be enabled along with the modules it depends on, and the examples and tests require every module. Options that select an implementation within a module, such as `DD_CRASH_MODE` or `DD_ENABLE_PROFILING`, have no effect when that module is left out
 - `-DDD_HTTP_CLIENT=winhttp`, `libcurl`, or `none` selects the HTTP client implementation; the default is `winhttp` on Windows and `libcurl` elsewhere
 - `-DDD_HTTP_USE_SYSTEM_LIBCURL=ON` will link the SDK dynamically against the version of libcurl installed on your system; use `OFF` to download libcurl, build it from source, and link it into the `dd-sdk-cpp` binary (this applies only when `DD_HTTP_CLIENT=libcurl`)
 - `-DDD_DEVELOPMENT_ALLOW_AUTO_INSTALL=ON` will permit the CMake configuration process to download **clang-format** and **clang-tidy** if not already present on your system
@@ -124,70 +125,72 @@ On Windows, the formatting targets do not require a `--config` flag (they are co
 
 ## Repository overview
 
+The SDK is built from modules, each with its own directory under [`src/`][src]: [`types`][types], [`core`][core], [`crash_processing`][crash-processing], and one module per feature. Each module's `CMakeLists.txt` declares the modules it depends on, and a module can only include the headers of those modules and its own (see [`cmake/modules.cmake`][modules-cmake]). Each module compiles as an object library, and static and shared builds alike produce a single library (`libddsdkcpp`, linked as `Datadog::sdk`) containing every module in the build.
+
+Within a module's directory, `datadog/c/` and `datadog/cpp/` implement that module's part of the C and C++ APIs, and `datadog/impl/<module>/` holds its implementation. Every module has the same layout, so include paths such as `datadog/impl/rum/rum.hpp` don't change when code moves between modules.
+
 - [`include-c/`][include-c] contains public headers for the C API.
 - [`include-cpp/`][include-cpp] contains public headers for the C++ API.
-- [`src/datadog/c/`][src-c] implements the C API.
-- [`src/datadog/cpp/`][src-cpp] implements the C++ API.
-- [`src/datadog/impl/`][src-impl] implements the core business logic of the library, split into:
-    - [`types/`][impl-types] implements essential data types and related routines used across modules, including:
-        - [`attribute/`][types-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
-        - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
-        - [`events/`][types-events]: Utilities used to build JSON-serializable struct types for event payloads
-        - [`diagnostics.hpp`][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
-        - [`logging.hpp`][types-logging]: Logging-related data structures used across module boundaries
-        - [`rum.hpp`][types-rum]: RUM-related data structures, including RUM events adhering to [rum-events-format]
-        - [`crash_reporting.hpp`][types-crash-reporting]: CrashReporting-related data structures used across modules
-    - [`crash_processing/`][impl-crash-processing] defines common logic used to produce new and/or updated RUM events in response to a crash that's been detected by the SDK: this code is used within the [`rum/`][impl-rum] feature, but it's also shared with the modified Crashpad handler process when built with `DD_CRASH_MODE=crashpad`
-    - [`core/`][impl-core] implements the primary business logic of the SDK, including:
-        - [`util/`][core-util]: Internal utility code for commonly-used functionality
-        - [`storage/`][core-storage]: Code used to access the filesystem, prepare the SDK's `.datadog/` storage directory, and write and migrate event data
-        - [`platform/`][core-platform]: Implementations of platform-specific functionality like system info, HTTP client, and access to the system clock
-        - [`core.hpp`][core-hpp]: Internal core of the SDK, which handles initialization, feature registration, and which runs the storage and upload threads.
-        - [`context.hpp`][context-hpp]: Common types like `CoreContext`, which provides all features with a snapshot of the SDK's essential state.
-        - [`feature.hpp`][feature-hpp]: Interfaces used to implement specific features, allowing a feature implementation to register itself with the core, define how it generates events for storage and processes them for upload, and implement its user-facing API.
-        - [`feature_scope.hpp`][feature-scope-hpp]: Definition of `FeatureScope`, the interface that gives each feature to access to Core functionality required to access and update context, generate events, etc.
-        - [`context_thread.hpp`][context-thread-hpp]: The context thread, where work initiated by API calls is enqueued to be processed in the background (so as not to block the calling thread), ultimately modifying `CoreContext` and/or sending events to the storage thread.
-        - [`storage_thread.hpp`][storage-thread-hpp]: The storage thread, which asynchronously writes event payloads to disk, batched into TLV-formatted binary files, as those events are generated by feature implementations.
-        - [`upload_thread.hpp`][upload-thread-hpp]: The upload thread, which periodically reads batches of events from storage, passes them to the appropriate feature implementation for processing, then sends them to intake over HTTP.
-        - [`messaging_thread.hpp`][messaging-thread-hpp]: The messaging thread, where messages are routed and handled, allowing features to respond to state changes that have occurred in the Core or in other features.
-    - [`logging/`][impl-logging] allows an application to create loggers which will send messages to Datadog.
-    - [`rum/`][impl-rum] allows an application to keep track of application state and user interactions via Views, Actions, Resources, etc., sending RUM events to Datadog.
-    - [`crash_reporting/`][impl-crash-reporting] automatically detects application crashes and sends crash reports to Datadog as RUM Errors.
-        - Multiple crash-handling mechanisms are planned; currently only `DD_CRASH_MODE=inprocess` is supported.
-    - [`profiling/`][impl-profiling] configures and starts the dd-win-prof Windows profiler when the SDK starts, and stops it when the SDK stops. Only available when building for Windows x64 with `DD_ENABLE_PROFILING=ON`; in all other builds the feature is a no-op.
+- [`src/types/`][types] implements essential data types and related routines used across modules, with no dependency on any other module. The Crashpad handler process compiles this module, along with `crash_processing`, when built with `DD_CRASH_MODE=crashpad`. Its implementation includes:
+    - [`attribute/`][types-attribute]: Copy-on-Write implementation and other utilities used in conjunction with API-layer `datadog::Attribute` type
+    - [`json/`][types-json]: Minimal JSON serialization routines for encoding event data and attribute values
+    - [`events/`][types-events]: Utilities used to build JSON-serializable struct types for event payloads
+    - [`tracing/`][types-tracing]: Trace and span IDs, and the deterministic sampler used to make sampling decisions from IDs
+    - [`diagnostics.hpp`][types-diagnostics]: Internal code used when the SDK needs to log local-only diagnostic messages
+    - [`logging.hpp`][types-logging]: Logging-related data structures used across module boundaries
+    - [`rum.hpp`][types-rum]: RUM-related data structures, including RUM events adhering to [rum-events-format]
+    - [`crash_reporting.hpp`][types-crash-reporting]: CrashReporting-related data structures used across modules
+- [`src/crash_processing/`][crash-processing] defines common logic used to produce new and/or updated RUM events in response to a crash that's been detected by the SDK: this code is used within the [`rum`][rum] module, but it's also shared with the modified Crashpad handler process when built with `DD_CRASH_MODE=crashpad`
+- [`src/core/`][core] implements the primary business logic of the SDK, including:
+    - [`util/`][core-util]: Internal utility code for commonly-used functionality
+    - [`storage/`][core-storage]: Code used to access the filesystem, prepare the SDK's `.datadog/` storage directory, and write and migrate event data
+    - [`platform/`][core-platform]: Implementations of platform-specific functionality like system info, HTTP client, and access to the system clock
+    - [`core.hpp`][core-hpp]: Internal core of the SDK, which handles initialization, feature registration, and which runs the storage and upload threads.
+    - [`context.hpp`][context-hpp]: Common types like `CoreContext`, which provides all features with a snapshot of the SDK's essential state.
+    - [`feature.hpp`][feature-hpp]: Interfaces used to implement specific features, allowing a feature implementation to register itself with the core, define how it generates events for storage and processes them for upload, and implement its user-facing API.
+    - [`feature_scope.hpp`][feature-scope-hpp]: Definition of `FeatureScope`, the interface that gives each feature to access to Core functionality required to access and update context, generate events, etc.
+    - [`context_thread.hpp`][context-thread-hpp]: The context thread, where work initiated by API calls is enqueued to be processed in the background (so as not to block the calling thread), ultimately modifying `CoreContext` and/or sending events to the storage thread.
+    - [`storage_thread.hpp`][storage-thread-hpp]: The storage thread, which asynchronously writes event payloads to disk, batched into TLV-formatted binary files, as those events are generated by feature implementations.
+    - [`upload_thread.hpp`][upload-thread-hpp]: The upload thread, which periodically reads batches of events from storage, passes them to the appropriate feature implementation for processing, then sends them to intake over HTTP.
+    - [`messaging_thread.hpp`][messaging-thread-hpp]: The messaging thread, where messages are routed and handled, allowing features to respond to state changes that have occurred in the Core or in other features.
+- [`src/logging/`][logging] allows an application to create loggers which will send messages to Datadog.
+- [`src/rum/`][rum] allows an application to keep track of application state and user interactions via Views, Actions, Resources, etc., sending RUM events to Datadog.
+- [`src/crash_reporting/`][crash-reporting] automatically detects application crashes and sends crash reports to Datadog as RUM Errors.
+    - Multiple crash-handling mechanisms are planned; currently only `DD_CRASH_MODE=inprocess` is supported.
+- [`src/profiling/`][profiling] configures and starts the dd-win-prof Windows profiler when the SDK starts, and stops it when the SDK stops. Only available when building for Windows x64 with `DD_ENABLE_PROFILING=ON`; in all other builds the feature is a no-op.
 - [`tests/`][tests]: Unit tests for code in `src/`, along with test-only support code.
 - [`examples/`][examples] demonstrates usage of both C and C++ APIs.
 
 [include-c]: ./include-c/
 [include-cpp]: ./include-cpp/
-[src-c]: ./src/datadog/c/
-[src-cpp]: ./src/datadog/cpp/
-[src-impl]: ./src/datadog/impl/
-[impl-types]: ./src/datadog/impl/types/
-[types-attribute]: ./src/datadog/impl/types/attribute/
-[types-json]: ./src/datadog/impl/types/json/
-[types-events]: ./src/datadog/impl/types/events/
-[types-diagnostics]: ./src/datadog/impl/types/diagnostics.hpp
-[types-logging]: ./src/datadog/impl/types/logging.hpp
-[types-rum]: ./src/datadog/impl/types/rum.hpp
-[types-crash-reporting]: ./src/datadog/impl/types/crash_reporting.hpp
-[impl-crash-processing]: ./src/datadog/impl/crash_processing/
-[impl-core]: ./src/datadog/impl/core/
-[core-util]: ./src/datadog/impl/core/util/
-[core-storage]: ./src/datadog/impl/core/storage/
-[core-platform]: ./src/datadog/impl/core/platform/
-[core-hpp]: ./src/datadog/impl/core/core.hpp
-[context-hpp]: ./src/datadog/impl/core/context.hpp
-[feature-hpp]: ./src/datadog/impl/core/feature.hpp
-[feature-scope-hpp]: ./src/datadog/impl/core/feature_scope.hpp
-[context-thread-hpp]: ./src/datadog/impl/core/context_thread.hpp
-[storage-thread-hpp]: ./src/datadog/impl/core/storage_thread.hpp
-[upload-thread-hpp]: ./src/datadog/impl/core/upload_thread.hpp
-[messaging-thread-hpp]: ./src/datadog/impl/core/messaging_thread.hpp
-[impl-logging]: ./src/datadog/impl/logging/
-[impl-rum]: ./src/datadog/impl/rum/
-[impl-crash-reporting]: ./src/datadog/impl/crash_reporting/
-[impl-profiling]: ./src/datadog/impl/profiling/
+[src]: ./src/
+[modules-cmake]: ./cmake/modules.cmake
+[types]: ./src/types/
+[types-attribute]: ./src/types/datadog/impl/types/attribute/
+[types-json]: ./src/types/datadog/impl/types/json/
+[types-events]: ./src/types/datadog/impl/types/events/
+[types-tracing]: ./src/types/datadog/impl/types/tracing/
+[types-diagnostics]: ./src/types/datadog/impl/types/diagnostics.hpp
+[types-logging]: ./src/types/datadog/impl/types/logging.hpp
+[types-rum]: ./src/types/datadog/impl/types/rum.hpp
+[types-crash-reporting]: ./src/types/datadog/impl/types/crash_reporting.hpp
+[crash-processing]: ./src/crash_processing/
+[core]: ./src/core/
+[core-util]: ./src/core/datadog/impl/core/util/
+[core-storage]: ./src/core/datadog/impl/core/storage/
+[core-platform]: ./src/core/datadog/impl/core/platform/
+[core-hpp]: ./src/core/datadog/impl/core/core.hpp
+[context-hpp]: ./src/core/datadog/impl/core/context.hpp
+[feature-hpp]: ./src/core/datadog/impl/core/feature.hpp
+[feature-scope-hpp]: ./src/core/datadog/impl/core/feature_scope.hpp
+[context-thread-hpp]: ./src/core/datadog/impl/core/context_thread.hpp
+[storage-thread-hpp]: ./src/core/datadog/impl/core/storage_thread.hpp
+[upload-thread-hpp]: ./src/core/datadog/impl/core/upload_thread.hpp
+[messaging-thread-hpp]: ./src/core/datadog/impl/core/messaging_thread.hpp
+[logging]: ./src/logging/
+[rum]: ./src/rum/
+[crash-reporting]: ./src/crash_reporting/
+[profiling]: ./src/profiling/
 [tests]: ./tests/
 [examples]: ./examples/
 

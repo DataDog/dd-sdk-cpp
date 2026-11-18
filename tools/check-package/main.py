@@ -105,7 +105,9 @@ def expected_license_files(platform: str, cache: dict[str, str]) -> set[str]:
     names = {"date"}
     if platform == "windows":
         names.add("unicode-cldr")
-    if cache.get("DD_CRASH_MODE") == "crashpad":
+    # DD_CRASH_MODE has no effect when the crash_reporting module is left out
+    if (parse_cmake_bool(cache.get("DD_MODULE_CRASH_REPORTING", "ON"))
+            and cache.get("DD_CRASH_MODE") == "crashpad"):
         names |= {"crashpad", "mini_chromium"}
         if platform == "linux":
             names.add("lss")

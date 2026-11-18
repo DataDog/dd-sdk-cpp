@@ -89,7 +89,8 @@ __sdk_crashpad_out_dir__ = os.path.join(__repo_root__, 'build', '_deps', 'crashp
 
 __patch_file__ = os.path.join(
     __repo_root__,
-    'src', 'datadog', 'impl', 'crash_reporting', 'handlers', 'crashpad', 'datadog.patch'
+    'src', 'crash_reporting', 'datadog', 'impl', 'crash_reporting', 'handlers', 'crashpad',
+    'datadog.patch'
 )
 __gclient_file__         = os.path.join(__crashpad_build_root__, '.gclient')
 __gclient_entries_file__ = os.path.join(__crashpad_build_root__, '.gclient_entries')

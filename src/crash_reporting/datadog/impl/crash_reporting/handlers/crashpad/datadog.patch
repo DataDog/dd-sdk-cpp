@@ -44,7 +44,7 @@ index 80992a1b..1a36b151 100644
      crashpad_dependencies = "fuchsia"
    }
 diff --git a/handler/BUILD.gn b/handler/BUILD.gn
-index 9061c2cb..67a2622d 100644
+index 9061c2cb..0e49cbc3 100644
 --- a/handler/BUILD.gn
 +++ b/handler/BUILD.gn
 @@ -1,4 +1,6 @@
@@ -63,7 +63,7 @@ index 9061c2cb..67a2622d 100644
      "minidump_to_upload_parameters.cc",
      "minidump_to_upload_parameters.h",
      "user_stream_data_source.cc",
-@@ -31,6 +35,70 @@ static_library("common") {
+@@ -31,6 +35,71 @@ static_library("common") {
        "mac/file_limit_annotation.h",
      ]
    }
@@ -81,39 +81,40 @@ index 9061c2cb..67a2622d 100644
 +  if (dd_sdk_cpp_dir != "" && dd_sdk_cpp_external_include != "") {
 +    sources += [
 +      # cpp: minimal definitions of public C++ API types
-+      "$dd_sdk_cpp_dir/src/datadog/cpp/attribute.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/cpp/uuid.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/cpp/attribute.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/cpp/uuid.cpp",
 +
 +      # types: SDK data structures, serialization, and utility code
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/attribute/cow.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/attribute/merge.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/primitives/bool.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/primitives/float.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/primitives/integer.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/primitives/null.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/primitives/string.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/primitives/timestamp.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/primitives/uuid.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/attribute.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/diagnostic_attribute.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/json_scanner.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/parse_attribute.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/json/parse_primitives.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/diagnostics.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/tracing/deterministic_sampler.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/types/upload_util.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/attribute/cow.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/attribute/merge.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/primitives/bool.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/primitives/float.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/primitives/integer.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/primitives/null.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/primitives/string.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/primitives/timestamp.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/primitives/uuid.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/attribute.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/diagnostic_attribute.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/json_scanner.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/parse_attribute.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/json/parse_primitives.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/diagnostics.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/tracing/deterministic_sampler.cpp",
++      "$dd_sdk_cpp_dir/src/types/datadog/impl/types/upload_util.cpp",
 +
 +      # crash_processing: self-contained logic for producing RUM events from crash reports
-+      "$dd_sdk_cpp_dir/src/datadog/impl/crash_processing/crash_events.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/crash_processing/crash_formatting.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/crash_processing/crash_context_annotations.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/crash_processing/view_event_mutation.cpp",
-+      "$dd_sdk_cpp_dir/src/datadog/impl/crash_processing/view_event_parser.cpp"
++      "$dd_sdk_cpp_dir/src/crash_processing/datadog/impl/crash_processing/crash_events.cpp",
++      "$dd_sdk_cpp_dir/src/crash_processing/datadog/impl/crash_processing/crash_formatting.cpp",
++      "$dd_sdk_cpp_dir/src/crash_processing/datadog/impl/crash_processing/crash_context_annotations.cpp",
++      "$dd_sdk_cpp_dir/src/crash_processing/datadog/impl/crash_processing/view_event_mutation.cpp",
++      "$dd_sdk_cpp_dir/src/crash_processing/datadog/impl/crash_processing/view_event_parser.cpp"
 +    ]
 +    include_dirs = [
 +      "$dd_sdk_cpp_dir/include-cpp",
 +      "$dd_sdk_cpp_dir/include-c",
-+      "$dd_sdk_cpp_dir/src",
++      "$dd_sdk_cpp_dir/src/types",
++      "$dd_sdk_cpp_dir/src/crash_processing",
 +      "$dd_sdk_cpp_external_include",
 +    ]
 +    defines += [ "WITH_DATADOG_CRASH_PROCESSING=1" ]
@@ -121,20 +122,20 @@ index 9061c2cb..67a2622d 100644
 +    # dd-sdk-cpp's default UUID generator has one implementation per platform
 +    if (crashpad_is_win) {
 +      sources +=
-+          [ "$dd_sdk_cpp_dir/src/datadog/impl/types/platform/uuid_windows.cpp" ]
++          [ "$dd_sdk_cpp_dir/src/types/datadog/impl/types/platform/uuid_windows.cpp" ]
 +    } else if (crashpad_is_mac) {
 +      sources +=
-+          [ "$dd_sdk_cpp_dir/src/datadog/impl/types/platform/uuid_macos.cpp" ]
++          [ "$dd_sdk_cpp_dir/src/types/datadog/impl/types/platform/uuid_macos.cpp" ]
 +    } else if (crashpad_is_linux) {
 +      sources +=
-+          [ "$dd_sdk_cpp_dir/src/datadog/impl/types/platform/uuid_linux.cpp" ]
++          [ "$dd_sdk_cpp_dir/src/types/datadog/impl/types/platform/uuid_linux.cpp" ]
 +    }
 +  }
 +
    public_configs = [ "..:crashpad_config" ]
    public_deps = [
      "../third_party/mini_chromium:base",
-@@ -43,6 +111,11 @@ static_library("common") {
+@@ -43,6 +112,11 @@ static_library("common") {
      "../util",
      "../util:net",
    ]
@@ -146,7 +147,7 @@ index 9061c2cb..67a2622d 100644
    if (crashpad_is_win) {
      cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
    }
-@@ -110,6 +183,9 @@ if (!crashpad_is_ios) {
+@@ -110,6 +184,9 @@ if (!crashpad_is_ios) {
        "../tools:tool_support",
      ]
  
@@ -156,7 +157,7 @@ index 9061c2cb..67a2622d 100644
      if (crashpad_is_win) {
        cflags = [ "/wd4201" ]  # nonstandard extension used : nameless struct/union
      }
-@@ -122,6 +198,9 @@ if (!crashpad_is_ios) {
+@@ -122,6 +199,9 @@ if (!crashpad_is_ios) {
        sources = [ "crashpad_handler_main.cc" ]
  
        deps = [ ":handler" ]
@@ -166,7 +167,7 @@ index 9061c2cb..67a2622d 100644
      }
    }
  
-@@ -130,6 +209,8 @@ if (!crashpad_is_ios) {
+@@ -130,6 +210,8 @@ if (!crashpad_is_ios) {
  
      sources = [
        "crash_report_upload_rate_limit_test.cc",
@@ -175,7 +176,7 @@ index 9061c2cb..67a2622d 100644
        "minidump_to_upload_parameters_test.cc",
      ]
  
-@@ -141,6 +222,9 @@ if (!crashpad_is_ios) {
+@@ -141,6 +223,9 @@ if (!crashpad_is_ios) {
        sources += [ "crashpad_handler_test.cc" ]
      }
  
@@ -185,7 +186,7 @@ index 9061c2cb..67a2622d 100644
      deps = [
        ":handler",
        "../client",
-@@ -177,6 +261,9 @@ if (!crashpad_is_ios) {
+@@ -177,6 +262,9 @@ if (!crashpad_is_ios) {
        "../tools:tool_support",
      ]
  
@@ -195,7 +196,7 @@ index 9061c2cb..67a2622d 100644
      if (crashpad_is_win) {
        if (crashpad_is_in_chromium || crashpad_is_in_dart) {
          remove_configs = [ "//build/config/win:console" ]
-@@ -255,6 +342,9 @@ if (!crashpad_is_ios) {
+@@ -255,6 +343,9 @@ if (!crashpad_is_ios) {
        "../third_party/mini_chromium:base",
        "../tools:tool_support",
      ]
@@ -205,7 +206,7 @@ index 9061c2cb..67a2622d 100644
    }
  }
  
-@@ -262,6 +352,9 @@ if (crashpad_is_win) {
+@@ -262,6 +353,9 @@ if (crashpad_is_win) {
    crashpad_executable("crashpad_handler_com") {
      sources = [ "main.cc" ]
  
