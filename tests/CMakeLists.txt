@@ -2,9 +2,9 @@
 include(${DD_SDK_ROOT_DIR}/cmake/deps/catch2.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/deps/nlohmann-json.cmake)
 
-# Create the test executable, compiling the tests of each module in the build. The
-# types module is always built; every other module's tests are compiled only if that
-# module is enabled.
+# Create the test executable, grouping each module's tests by the module they belong to.
+# DD_BUILD_TESTING requires every module to be enabled (see the top-level
+# CMakeLists.txt), since some tests exercise more than one module.
 add_executable(tests
     c/attribute_c_api_test.cpp
     c/timestamp_c_api_test.cpp

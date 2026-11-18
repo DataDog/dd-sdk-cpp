@@ -91,10 +91,14 @@ option(DD_ENABLE_TEST_ALLOCATION_TRACKING "Enable allocation tracking (via instr
 option(DD_ENABLE_PROFILING "Build the dd-win-prof Windows profiler and link it into the SDK (Windows x64 only)" OFF)
 
 # The examples (including the repl used by the integration tests) call every feature's
-# API, so they can only be built along with every module
+# API, and the unit tests exercise interactions between modules, so they can only be
+# built along with every module
 foreach(_dd_module CORE CRASH_PROCESSING LOGGING RUM CRASH_REPORTING PROFILING)
     if(DD_BUILD_EXAMPLES AND NOT DD_MODULE_${_dd_module})
         message(FATAL_ERROR "DD_BUILD_EXAMPLES requires every module, but DD_MODULE_${_dd_module} is OFF: disable DD_BUILD_EXAMPLES (and DD_ENABLE_INTEGRATION_TEST)")
+    endif()
+    if(DD_BUILD_TESTING AND NOT DD_MODULE_${_dd_module})
+        message(FATAL_ERROR "DD_BUILD_TESTING requires every module, but DD_MODULE_${_dd_module} is OFF: disable DD_BUILD_TESTING")
     endif()
 endforeach()
 
