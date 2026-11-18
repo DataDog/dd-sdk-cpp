@@ -9,14 +9,14 @@
 #include <charconv>
 #include <chrono>
 
-#include "datadog/impl/core/tracing/deterministic_sampler.hpp"
-#include "datadog/impl/core/version.hpp"
 #include "datadog/impl/crash_processing/crash_formatting.hpp"
 #include "datadog/impl/crash_processing/view_event_mutation.hpp"
 #include "datadog/impl/crash_processing/view_event_parser.hpp"
 #include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json.hpp"
+#include "datadog/impl/types/tracing/deterministic_sampler.hpp"
 #include "datadog/impl/types/upload_util.hpp"
+#include "datadog/impl/types/version.hpp"
 
 namespace datadog::impl {
 

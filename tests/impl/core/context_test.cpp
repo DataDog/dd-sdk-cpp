@@ -12,7 +12,7 @@
 #include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/core/version.hpp"
+#include "datadog/impl/types/version.hpp"
 
 using namespace datadog::impl;
 using namespace datadog;

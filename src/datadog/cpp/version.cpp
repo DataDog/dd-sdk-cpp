@@ -6,7 +6,7 @@
 
 #include "datadog/version.hpp"
 
-#include "datadog/impl/core/version.hpp"
+#include "datadog/impl/types/version.hpp"
 
 namespace datadog {
 

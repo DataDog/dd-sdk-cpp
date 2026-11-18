@@ -11,9 +11,9 @@
 
 #include "datadog/c/config_string.hpp"
 #include "datadog/c/core_glue.hpp"
-#include "datadog/impl/core/attribute/types.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/types.hpp"
+#include "datadog/impl/types/attribute/types.hpp"
 
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
 // NOLINTBEGIN(cppcoreguidelines-pro-bounds-array-to-pointer-decay)

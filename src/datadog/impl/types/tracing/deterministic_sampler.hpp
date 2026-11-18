@@ -11,7 +11,7 @@
 
 #include "datadog/uuid.hpp"
 
-#include "datadog/impl/core/tracing/sampler.hpp"
+#include "datadog/impl/types/tracing/sampler.hpp"
 
 namespace datadog::impl {
 

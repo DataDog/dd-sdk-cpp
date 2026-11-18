@@ -21,9 +21,9 @@
 #include "datadog/impl/core/storage/util.hpp"
 #include "datadog/impl/core/storage_thread.hpp"
 #include "datadog/impl/core/types.hpp"
-#include "datadog/impl/core/version.hpp"
 #include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/attribute/merge.hpp"
+#include "datadog/impl/types/version.hpp"
 
 namespace datadog::impl {
 

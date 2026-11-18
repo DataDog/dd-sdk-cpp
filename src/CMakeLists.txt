@@ -40,12 +40,12 @@ add_library(ddsdkcpp ${DD_LIBRARY_TYPE}
     datadog/impl/types/json/parse_attribute.cpp
     datadog/impl/types/json/parse_primitives.cpp
     datadog/impl/types/diagnostics.cpp
+    datadog/impl/types/tracing/deterministic_sampler.cpp
     datadog/impl/types/tracing/span_id.cpp
     datadog/impl/types/tracing/trace_context.cpp
     datadog/impl/types/tracing/trace_id.cpp
     datadog/impl/types/upload_util.cpp
     datadog/impl/core/attribute/binary.cpp
-    datadog/impl/core/tracing/deterministic_sampler.cpp
     datadog/impl/core/tracing/first_party_hosts_matcher.cpp
     datadog/impl/core/tracing/span_id_generator.cpp
     datadog/impl/core/tracing/trace_id_generator.cpp
@@ -219,11 +219,11 @@ target_include_directories(ddsdkcpp
 option(DD_UUID_USE_DEFAULT "Use default UUID implementation. If disabled, you must supply an implementation of platform/uuid.hpp in a file specified as DD_UUID_SRC" ON)
 if(DD_UUID_USE_DEFAULT)
     if(WIN32)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_windows.cpp)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/types/platform/uuid_windows.cpp)
     elseif(APPLE)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_macos.cpp)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/types/platform/uuid_macos.cpp)
     elseif(UNIX)
-        target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/uuid_linux.cpp)
+        target_sources(ddsdkcpp PRIVATE datadog/impl/types/platform/uuid_linux.cpp)
     endif()
 else()
     set(DD_UUID_SRC "" CACHE STRING "Path to custom implementation of platform/uuid.hpp")

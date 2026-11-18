@@ -14,7 +14,7 @@
 
 #include "datadog/attribute.h"
 
-#include "datadog/impl/core/attribute/types.hpp"
+#include "datadog/impl/types/attribute/types.hpp"
 #include "datadog/impl/types/json.hpp"
 
 static const uint8_t bytes_ccb7[16] = {

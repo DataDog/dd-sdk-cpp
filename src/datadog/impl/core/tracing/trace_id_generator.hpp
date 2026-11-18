@@ -7,8 +7,8 @@
 #pragma once
 
 #include "datadog/impl/core/platform/clock.hpp"
-#include "datadog/impl/core/util/insecure_random_generator.hpp"
 #include "datadog/impl/types/tracing/trace_id.hpp"
+#include "datadog/impl/types/util/insecure_random_generator.hpp"
 
 namespace datadog::impl {
 

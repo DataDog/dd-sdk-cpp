@@ -11,8 +11,8 @@
 
 #include "datadog/logging.hpp"
 
-#include "datadog/impl/core/version.hpp"
 #include "datadog/impl/logging/logging.hpp"
+#include "datadog/impl/types/version.hpp"
 
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
