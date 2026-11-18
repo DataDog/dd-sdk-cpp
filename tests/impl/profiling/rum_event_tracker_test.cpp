@@ -590,14 +590,14 @@ TEST_CASE("RumEventTracker", "[unit][profiling]") {
 
   SECTION("M drop further events W a kind reaches its cap") {
     // When more long tasks arrive than the cap allows
-    for (size_t i = 0; i < RumEventTracker::kMaxEventsPerKind + 10; i++) {
+    for (size_t i = 0; i < RumEventTracker::MAX_EVENTS_PER_KIND + 10; i++) {
       tracker.OnLongTask(MakeLongTask(1000, 60));
     }
 
     // Then only those up to the cap are kept
     REQUIRE(
         tracker.TakeSnapshot(SNAPSHOT_TIME).long_tasks.size() ==
-        RumEventTracker::kMaxEventsPerKind
+        RumEventTracker::MAX_EVENTS_PER_KIND
     );
   }
 }

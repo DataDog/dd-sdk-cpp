@@ -11,8 +11,8 @@
 
 namespace datadog::impl {
 
-static constexpr size_t kMaxCachedModules = 256;
-static constexpr size_t kMaxBuildIdLength = 64;
+static constexpr size_t MAX_CACHED_MODULES = 256;
+static constexpr size_t MAX_BUILD_ID_LENGTH = 64;
 
 /**
  * Cache entry for single module's build ID.
@@ -22,9 +22,9 @@ static constexpr size_t kMaxBuildIdLength = 64;
  * build ID string.
  */
 struct CachedModuleBuildId {
-  uintptr_t base_address;            // Module load address (lookup key)
-  char build_id[kMaxBuildIdLength];  // Null-terminated build ID string
-  bool valid;                        // Entry contains valid data
+  uintptr_t base_address;              // Module load address (lookup key)
+  char build_id[MAX_BUILD_ID_LENGTH];  // Null-terminated build ID string
+  bool valid;                          // Entry contains valid data
 };
 
 /**
@@ -35,7 +35,7 @@ struct CachedModuleBuildId {
  * crash handler performs a simple linear search to find cached build IDs.
  */
 struct ModuleBuildIdCache {
-  CachedModuleBuildId entries[kMaxCachedModules];
+  CachedModuleBuildId entries[MAX_CACHED_MODULES];
   size_t num_entries;
 };
 

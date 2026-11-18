@@ -441,8 +441,8 @@ void RumSessionScope::HandleReportAppDisplayInitialized(
   const Timestamp& launch = context.process_launch_time;
   const double ttid_duration_ns = static_cast<double>((now - launch).count());
 
-  static constexpr double kMaxTTIDNs = 60.0 * 1'000'000'000.0;
-  if (ttid_duration_ns <= 0.0 || ttid_duration_ns >= kMaxTTIDNs) {
+  static constexpr double MAX_TTID_NS = 60.0 * 1'000'000'000.0;
+  if (ttid_duration_ns <= 0.0 || ttid_duration_ns >= MAX_TTID_NS) {
     _deps.get().diagnostic_logger.Warning(
         "Ignoring TTID; computed value falls outside expected range",
         {{"ttid_ns", ttid_duration_ns}}
@@ -505,8 +505,8 @@ void RumSessionScope::HandleReportAppFullyDisplayed(
   const Timestamp& launch = context.process_launch_time;
   const double duration_ns = static_cast<double>((now - launch).count());
 
-  static constexpr double kMaxTTFDNs = 90.0 * 1'000'000'000.0;
-  if (duration_ns <= 0.0 || duration_ns >= kMaxTTFDNs) {
+  static constexpr double MAX_TTFD_NS = 90.0 * 1'000'000'000.0;
+  if (duration_ns <= 0.0 || duration_ns >= MAX_TTFD_NS) {
     _deps.get().diagnostic_logger.Warning(
         "Ignoring TTFD; computed value falls outside expected range",
         {{"ttfd_ns", duration_ns}}

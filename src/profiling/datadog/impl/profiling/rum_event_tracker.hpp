@@ -82,7 +82,7 @@ struct RumEventSnapshot {
  * - The views that these events took place in are collected, each once.
  * - An operation that has not ended is not tracked forever. See `TakeSnapshot()`.
  *
- * Each kind of event is capped at `kMaxEventsPerKind` between snapshots: when the cap
+ * Each kind of event is capped at `MAX_EVENTS_PER_KIND` between snapshots: when the cap
  * is reached, further events of that kind are dropped.
  *
  * Events arrive on the messaging thread, while snapshots are taken from whichever
@@ -90,11 +90,11 @@ struct RumEventSnapshot {
  */
 class RumEventTracker {
  public:
-  static constexpr size_t kMaxEventsPerKind = 1000;
+  static constexpr size_t MAX_EVENTS_PER_KIND = 1000;
 
   // How long after its start an operation that has not ended is still expected to end;
   // matches the `cutOffTime` of dd-sdk-ios
-  static constexpr Duration kOngoingOperationCutoff = std::chrono::seconds(60);
+  static constexpr Duration ONGOING_OPERATION_CUTOFF = std::chrono::seconds(60);
 
   void OnVital(const RumVitalGeneratedMessage& message);
   void OnLongTask(const RumLongTaskGeneratedMessage& message);
@@ -110,9 +110,9 @@ class RumEventTracker {
    * each snapshot that reports them can say where they occurred.
    *
    * Operations are only kept while one of them started less than
-   * `kOngoingOperationCutoff` before `now`. When none did, they are all assumed to have
-   * been abandoned, and are reported this once and then forgotten, so that an operation
-   * that never ends does not appear in every profile that follows.
+   * `ONGOING_OPERATION_CUTOFF` before `now`. When none did, they are all assumed to
+   * have been abandoned, and are reported this once and then forgotten, so that an
+   * operation that never ends does not appear in every profile that follows.
    */
   RumEventSnapshot TakeSnapshot(const Timestamp& now);
 

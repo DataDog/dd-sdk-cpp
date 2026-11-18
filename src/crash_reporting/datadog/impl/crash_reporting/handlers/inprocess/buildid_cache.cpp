@@ -412,20 +412,20 @@ void PopulateBuildIdCache() {
   if (Module32First(snapshot, &entry)) {
     do {
       // Stop if we've reached our cache capacity
-      if (g_module_build_id_cache.num_entries >= kMaxCachedModules) {
+      if (g_module_build_id_cache.num_entries >= MAX_CACHED_MODULES) {
         break;
       }
 
       // Attempt to extract the build ID from this module's PE file (szExePath contains
       // the full path to the module's file on disk)
-      char build_id[kMaxBuildIdLength];
+      char build_id[MAX_BUILD_ID_LENGTH];
       if (extract_pe_build_id(entry.szExePath, build_id, sizeof(build_id))) {
         // Successfully extracted build ID: add this module to the cache, recording its
         // base address (where it's loaded in memory) and build ID string
         const size_t entry_idx = g_module_build_id_cache.num_entries;
         auto& cached = g_module_build_id_cache.entries[entry_idx];
         cached.base_address = reinterpret_cast<uintptr_t>(entry.modBaseAddr);
-        snprintf(cached.build_id, kMaxBuildIdLength, "%s", build_id);
+        snprintf(cached.build_id, MAX_BUILD_ID_LENGTH, "%s", build_id);
         cached.valid = true;
         // Make entry visible to readers only after fully written
         g_module_build_id_cache.num_entries = entry_idx + 1;
@@ -717,11 +717,11 @@ void PopulateBuildIdCache() {
   // A single binary/library typically has multiple memory mappings (code, data,
   // rodata), but we only need to cache the build ID once per unique pathname. Static
   // storage to avoid 64KB stack allocation.
-  static char cached_paths[kMaxCachedModules][256];
+  static char cached_paths[MAX_CACHED_MODULES][256];
   size_t num_cached_paths = 0;
 
   while (fgets(line, sizeof(line), maps) &&
-         g_module_build_id_cache.num_entries < kMaxCachedModules) {
+         g_module_build_id_cache.num_entries < MAX_CACHED_MODULES) {
     uintptr_t start_addr = 0;
     uintptr_t end_addr = 0;
     char perms[5] = {};
@@ -754,17 +754,17 @@ void PopulateBuildIdCache() {
           }
         }
 
-        if (!already_cached && num_cached_paths < kMaxCachedModules) {
+        if (!already_cached && num_cached_paths < MAX_CACHED_MODULES) {
           // Module not yet cached; attempt to extract the build ID from the ELF file on
           // disk
-          char build_id[kMaxBuildIdLength];
+          char build_id[MAX_BUILD_ID_LENGTH];
           if (extract_elf_build_id(pathname, build_id, sizeof(build_id))) {
             // Successfully extracted build ID: add this module to the cache, recording
             // its base address (where the first mapping starts) and build ID string
             const size_t entry_idx = g_module_build_id_cache.num_entries;
             auto& cached = g_module_build_id_cache.entries[entry_idx];
             cached.base_address = start_addr;
-            snprintf(cached.build_id, kMaxBuildIdLength, "%s", build_id);
+            snprintf(cached.build_id, MAX_BUILD_ID_LENGTH, "%s", build_id);
             cached.valid = true;
             // Make entry visible to readers only after fully written
             g_module_build_id_cache.num_entries = entry_idx + 1;

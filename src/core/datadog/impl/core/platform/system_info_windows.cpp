@@ -482,14 +482,14 @@ Timestamp QueryProcessLaunchTime(const impl::DiagnosticLogger& logger) {
 
   // Offset between Windows epoch (1601-01-01) and Unix epoch (1970-01-01),
   // expressed in 100-nanosecond intervals: 116444736000000000
-  constexpr uint64_t kWindowsToUnixEpochIntervals = 116444736000000000ULL;
-  if (ft < kWindowsToUnixEpochIntervals) {
+  constexpr uint64_t WINDOWS_TO_UNIX_EPOCH_INTERVALS = 116444736000000000ULL;
+  if (ft < WINDOWS_TO_UNIX_EPOCH_INTERVALS) {
     logger.Debug("Unable to resolve process launch time: FILETIME predates Unix epoch");
     return Timestamp{};
   }
 
   // Convert remaining 100-ns intervals to nanoseconds
-  int64_t ns = static_cast<int64_t>((ft - kWindowsToUnixEpochIntervals) * 100ULL);
+  int64_t ns = static_cast<int64_t>((ft - WINDOWS_TO_UNIX_EPOCH_INTERVALS) * 100ULL);
   return Timestamp{Duration{ns}};
 }
 

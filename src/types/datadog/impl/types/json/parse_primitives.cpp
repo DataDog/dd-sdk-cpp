@@ -59,11 +59,11 @@ bool ParseJsonDouble(std::string_view json_literal, double& out) {
   // std::to_chars on the encoding side always writes 'C'-locale decimal (.), so
   // strtod_l with an explicit 'C' locale is a safe and interchangeable substitute,
   // regardless of the process LC_NUMERIC setting.
-  static const locale_t kCLocale = newlocale(LC_NUMERIC_MASK, "C", nullptr);
+  static const locale_t C_LOCALE = newlocale(LC_NUMERIC_MASK, "C", nullptr);
   const std::string tmp(json_literal);
   char* end_ptr = nullptr;
   errno = 0;
-  const double val = strtod_l(tmp.c_str(), &end_ptr, kCLocale);
+  const double val = strtod_l(tmp.c_str(), &end_ptr, C_LOCALE);
   if (errno != 0 || end_ptr != tmp.c_str() + tmp.size()) {
     return false;
   }

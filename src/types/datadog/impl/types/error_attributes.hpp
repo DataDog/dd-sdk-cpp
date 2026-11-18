@@ -27,7 +27,7 @@ namespace datadog::impl {
  * Attribute key used by cross-platform wrapper SDKs (e.g. Unity, Flutter) to signal an
  * error's `source_type` when reporting through this SDK's native error/log APIs.
  */
-inline constexpr std::string_view kErrorSourceTypeAttributeKey =
+inline constexpr std::string_view ERROR_SOURCE_TYPE_ATTRIBUTE_KEY =
     "_dd.error.source_type";
 
 /**
@@ -52,14 +52,14 @@ inline std::optional<RumErrorSourceType> ExtractErrorSourceType(
       call_attribute_sets.begin(),
       call_attribute_sets.end(),
       [](const Attribute& attrs) {
-        return attrs.FindObjectProperty(kErrorSourceTypeAttributeKey) >= 0;
+        return attrs.FindObjectProperty(ERROR_SOURCE_TYPE_ATTRIBUTE_KEY) >= 0;
       }
   );
   if (!present) {
     return std::nullopt;
   }
 
-  const Attribute val = context.GetObjectProperty(kErrorSourceTypeAttributeKey);
+  const Attribute val = context.GetObjectProperty(ERROR_SOURCE_TYPE_ATTRIBUTE_KEY);
   std::optional<RumErrorSourceType> result;
   if (val.GetType() == ValueType::String) {
     result = ParseRumErrorSourceType(val.GetStringValue());
@@ -74,7 +74,7 @@ inline std::optional<RumErrorSourceType> ExtractErrorSourceType(
         "Ignoring _dd.error.source_type attribute: expected a string value"
     );
   }
-  context.DeleteObjectProperty(kErrorSourceTypeAttributeKey);
+  context.DeleteObjectProperty(ERROR_SOURCE_TYPE_ATTRIBUTE_KEY);
   return result;
 }
 
@@ -84,7 +84,7 @@ inline std::optional<RumErrorSourceType> ExtractErrorSourceType(
  * `RumAttributes::ErrorCustomFingerprintAttributeKey` and
  * `LogAttributes::ErrorFingerprintAttributeKey`.
  */
-inline constexpr std::string_view kErrorFingerprintAttributeKey =
+inline constexpr std::string_view ERROR_FINGERPRINT_ATTRIBUTE_KEY =
     "_dd.error.fingerprint";
 
 /**
@@ -96,7 +96,7 @@ inline constexpr std::string_view kErrorFingerprintAttributeKey =
 inline std::optional<std::string> ExtractErrorFingerprint(
     Attribute& context, const DiagnosticLogger& diagnostic_logger
 ) {
-  const Attribute val = context.GetObjectProperty(kErrorFingerprintAttributeKey);
+  const Attribute val = context.GetObjectProperty(ERROR_FINGERPRINT_ATTRIBUTE_KEY);
   std::optional<std::string> result;
   if (val.GetType() == ValueType::String) {
     result = std::string(val.GetStringValue());
@@ -105,7 +105,7 @@ inline std::optional<std::string> ExtractErrorFingerprint(
         "Ignoring _dd.error.fingerprint attribute: expected a string value"
     );
   }
-  context.DeleteObjectProperty(kErrorFingerprintAttributeKey);
+  context.DeleteObjectProperty(ERROR_FINGERPRINT_ATTRIBUTE_KEY);
   return result;
 }
 
