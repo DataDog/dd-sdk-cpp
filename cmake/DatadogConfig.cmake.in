@@ -34,10 +34,10 @@ endif()
 
 # If the SDK was built with Crashpad support, include CrashpadConfig.cmake, ensuring
 # that crashpad::client and crashpad::handler targets are defined. DD_CRASH_MODE has no
-# effect when the crash_reporting module is left out of the build, so in that case no
+# effect when the Crash Reporting feature is left out of the build, so in that case no
 # crash mode is recorded.
-set(DATADOG_BUILT_WITH_DD_MODULE_CRASH_REPORTING @DD_MODULE_CRASH_REPORTING@)
-if(DATADOG_BUILT_WITH_DD_MODULE_CRASH_REPORTING)
+set(DATADOG_BUILT_WITH_DD_FEATURE_CRASH_REPORTING @DD_FEATURE_CRASH_REPORTING@)
+if(DATADOG_BUILT_WITH_DD_FEATURE_CRASH_REPORTING)
     set(DATADOG_BUILT_WITH_DD_CRASH_MODE "@DD_CRASH_MODE@")
 else()
     set(DATADOG_BUILT_WITH_DD_CRASH_MODE "")

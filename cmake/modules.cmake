@@ -27,8 +27,7 @@
 # which modules are added.
 #
 # DEPENDS names the modules that this module's code includes and calls. Each must have
-# been added already: if one isn't in the build, configuration fails with a message that
-# names the option that enables it.
+# been added already.
 #
 # PUBLIC_HEADERS lists the header names (e.g. `rum`) that the module implements, from the
 # public API in include-c/ (as <name>.h) and include-cpp/ (as <name>.hpp). Only the
@@ -37,12 +36,10 @@
 function(dd_add_module name)
     cmake_parse_arguments(ARG "" "" "DEPENDS;PUBLIC_HEADERS;SOURCES" ${ARGN})
     set(target ddsdkcpp_${name})
-    string(TOUPPER "${name}" name_upper)
 
     foreach(dependency IN LISTS ARG_DEPENDS)
         if(NOT TARGET ddsdkcpp_${dependency})
-            string(TOUPPER "${dependency}" dependency_upper)
-            message(FATAL_ERROR "The '${name}' module depends on the '${dependency}' module, which is not enabled: set DD_MODULE_${dependency_upper}=ON, or disable DD_MODULE_${name_upper}")
+            message(FATAL_ERROR "The '${name}' module depends on the '${dependency}' module, which has not been added")
         endif()
     endforeach()
 
@@ -88,7 +85,7 @@ endfunction()
 function(dd_configure_sdk_target target)
     # Building the SDK requires either C++17 or C++20 at a minimum, depending on
     # configuration. (The C++ API adheres to C++17, and the C API adheres to C99.)
-    if(DD_MODULE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
+    if(DD_FEATURE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
         target_compile_features(${target} PUBLIC cxx_std_20)
     else()
         target_compile_features(${target} PUBLIC cxx_std_17)
@@ -107,7 +104,7 @@ function(dd_configure_sdk_target target)
 
     # The in-process crash handler's POSIX stack-walking depends on intact frame
     # pointers, and SDK code from any module may be on the stack when a crash occurs
-    if(DD_MODULE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "inprocess" AND UNIX)
+    if(DD_FEATURE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "inprocess" AND UNIX)
         target_compile_options(${target} PRIVATE -fno-omit-frame-pointer)
     endif()
 endfunction()

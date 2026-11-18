@@ -20,11 +20,11 @@ function(_datadog_find_dd_win_prof_target out_var)
 endfunction()
 
 # Internal: sets <out_var> to TRUE if the SDK was built with Crashpad support, or to
-# FALSE otherwise. DD_CRASH_MODE has no effect when the crash_reporting module is left
+# FALSE otherwise. DD_CRASH_MODE has no effect when the Crash Reporting feature is left
 # out of the build.
 function(_datadog_built_with_crashpad out_var)
     set(_result FALSE)
-    if(DD_MODULE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
+    if(DD_FEATURE_CRASH_REPORTING AND DD_CRASH_MODE STREQUAL "crashpad")
         # SDK included via FetchContent / add_subdirectory
         set(_result TRUE)
     elseif(DATADOG_BUILT_WITH_DD_CRASH_MODE STREQUAL "crashpad")

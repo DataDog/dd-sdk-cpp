@@ -70,7 +70,7 @@ struct FeatureStorageConfig {
  *
  * - Establish a new module `src/foo/`, with a `CMakeLists.txt` that calls
  *    `dd_add_module(foo DEPENDS core ...)` (see cmake/modules.cmake), a
- *    `DD_MODULE_FOO` option in the root CMakeLists.txt, and an `add_subdirectory(foo)`
+ *    `DD_FEATURE_FOO` option in the root CMakeLists.txt, and an `add_subdirectory(foo)`
  *    in src/CMakeLists.txt
  * - In that module, under `datadog/impl/foo/`, define
  *    `class Foo final : public Feature { ... };`
