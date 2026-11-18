@@ -122,7 +122,7 @@ void Profiling::UpdateBackendState() {
     // Register before setup so dd-win-prof selects callback delivery and does not
     // require HTTP credentials. Storage and upload of these owned profiles are added
     // separately; for now the callback establishes the safe DLL boundary.
-    if (!_backend->SetProfileCallback([](ProfileData) {})) {
+    if (!_backend->SetProfileCallback([](const ProfileData&) {})) {
       _scope->diagnostic_logger.Warning("Failed to register profiling data callback");
       return;
     }
