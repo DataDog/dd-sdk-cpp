@@ -88,9 +88,10 @@ struct FeatureStorageConfig {
  * Additionally, for the user-facing operations that your new feature exposes:
  *
  * - Create `include-c/datadog/foo.h` and declare the feature's C API
- * - Create `src/foo/datadog/c/foo.cpp` with bindings to the underlying implementation.
+ * - Create `src/foo/datadog/c/foo_c_api.cpp` with bindings to the underlying
+ *    implementation.
  * - Create `include-cpp/datadog/foo.hpp` and declare the feature's C++ API
- * - Create `src/foo/datadog/cpp/foo.cpp` with bindings to the underlying
+ * - Create `src/foo/datadog/cpp/foo_cpp_api.cpp` with bindings to the underlying
  *    implementation.
  * - List `foo` in the module's PUBLIC_HEADERS, so that both headers are installed and
  *    included in the generated umbrella headers (datadog.h and datadog.hpp)

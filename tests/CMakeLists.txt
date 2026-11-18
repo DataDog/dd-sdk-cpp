@@ -129,7 +129,7 @@ if(TARGET ddsdkcpp_rum)
         impl/rum/scopes/session_test.cpp
         impl/rum/scopes/view_test.cpp
         impl/rum/command_test.cpp
-        impl/rum/context_test.cpp
+        impl/rum/rum_context_test.cpp
         impl/rum/rum_messaging_test.cpp
         impl/rum/rum_test.cpp
     )

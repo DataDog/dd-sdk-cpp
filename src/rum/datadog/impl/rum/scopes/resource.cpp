@@ -6,7 +6,7 @@
 
 #include "datadog/impl/rum/scopes/resource.hpp"
 
-#include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/rum/rum_context.hpp"
 #include "datadog/impl/rum/scopes/event_enrichment.hpp"
 #include "datadog/impl/rum/scopes/session.hpp"
 #include "datadog/impl/rum/scopes/view.hpp"

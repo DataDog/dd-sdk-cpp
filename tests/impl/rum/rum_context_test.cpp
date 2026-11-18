@@ -4,7 +4,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
-#include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/rum/rum_context.hpp"
 
 #include <catch2/catch_test_macros.hpp>
 

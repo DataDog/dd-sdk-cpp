@@ -4,8 +4,8 @@ dd_add_module(profiling
     DEPENDS core
     PUBLIC_HEADERS profiling
     SOURCES
-        datadog/c/profiling.cpp
-        datadog/cpp/profiling.cpp
+        datadog/c/profiling_c_api.cpp
+        datadog/cpp/profiling_cpp_api.cpp
         datadog/impl/profiling/profile_metadata.cpp
         datadog/impl/profiling/profiling.cpp
         datadog/impl/profiling/rum_event_tracker.cpp

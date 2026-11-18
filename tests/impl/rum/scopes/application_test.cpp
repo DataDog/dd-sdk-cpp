@@ -13,7 +13,7 @@
 
 #include "datadog/rum.hpp"
 
-#include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/rum/rum_context.hpp"
 
 #include "mock/clock.hpp"
 #include "support/context.hpp"

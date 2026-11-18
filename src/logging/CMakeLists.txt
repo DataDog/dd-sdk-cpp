@@ -3,8 +3,8 @@ dd_add_module(logging
     DEPENDS core
     PUBLIC_HEADERS logging
     SOURCES
-        datadog/c/logging.cpp
-        datadog/cpp/logging.cpp
+        datadog/c/logging_c_api.cpp
+        datadog/cpp/logging_cpp_api.cpp
         datadog/impl/logging/event_generation.cpp
         datadog/impl/logging/logger.cpp
         datadog/impl/logging/logging.cpp
