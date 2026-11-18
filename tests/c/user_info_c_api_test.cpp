@@ -106,7 +106,7 @@ TEST_CASE("dd_core user info", "[unit][core]" FEATURE_TAGS "[c-api]") {
     for (const auto& rum_event : rum_events) {
       auto event_type = rum_event.value("type", nlohmann::json{});
       REQUIRE(event_type.is_string());
-      rum_event_types.insert(event_type);
+      rum_event_types.insert(event_type.get<std::string>());
       REQUIRE(rum_event.value("usr", nlohmann::json{}) == rum_user_info);
     }
     REQUIRE(rum_event_types == rum_event_types_tested);

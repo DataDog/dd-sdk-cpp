@@ -1636,7 +1636,7 @@ TEST_CASE("dd_logger thread-safety", "[unit][logging][c-api][thread-safety]") {
         if (!obj.contains("xyz")) {
           return false;
         }
-        std::string xyz = obj.at("xyz");
+        std::string xyz = obj.at("xyz").get<std::string>();
         REQUIRE(xyz.find("loop-") == 0);
         return true;
       });

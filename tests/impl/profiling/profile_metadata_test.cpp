@@ -315,7 +315,7 @@ TEST_CASE("ProfileMetadataSource", "[unit][profiling]") {
     const ProfileMetadata metadata = source->BuildMetadata(RANGE);
 
     const json event = json::parse(metadata.event_json);
-    const std::string tags = event["tags_profiler"];
+    const std::string tags = event["tags_profiler"].get<std::string>();
     REQUIRE(tags.find("service:mock-service") != std::string::npos);
     REQUIRE(tags.find("env:mock-env") != std::string::npos);
     REQUIRE(tags.find("source:mock-source") != std::string::npos);
