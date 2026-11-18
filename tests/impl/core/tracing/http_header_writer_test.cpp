@@ -16,7 +16,10 @@
 
 #include "datadog/network_instrumentation.hpp"
 
+#include "datadog/impl/types/diagnostics.hpp"
 #include "datadog/impl/types/tracing/trace_context.hpp"
+
+#include "support/diagnostics.hpp"
 
 using datadog::TraceInjectionPolicy;
 using datadog::TracingHeaderTypes;
@@ -69,7 +72,11 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
     auto context = make_trace_context();
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, TracingHeaderTypes::Datadog, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::Datadog,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     const std::multiset<std::string_view> expected{
@@ -86,7 +93,11 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
     auto context = make_trace_context();
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, TracingHeaderTypes::B3, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::B3,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     const std::multiset<std::string_view> expected{"b3"};
@@ -97,7 +108,11 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
     auto context = make_trace_context();
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, TracingHeaderTypes::B3multi, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::B3multi,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     const std::multiset<std::string_view> expected{
@@ -113,7 +128,8 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
         context,
         TraceInjectionPolicy::All,
         TracingHeaderTypes::Tracecontext,
-        std::nullopt
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     const std::multiset<std::string_view> expected{
@@ -126,7 +142,11 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
     auto context = make_trace_context();
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, TracingHeaderTypes::Default, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::Default,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     const std::multiset<std::string_view> expected{
@@ -148,7 +168,8 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
         context,
         TraceInjectionPolicy::All,
         TracingHeaderTypes::B3 | TracingHeaderTypes::B3multi,
-        "rum"
+        "rum",
+        DiagnosticLogger{}
     );
 
     const std::multiset<std::string_view> expected{
@@ -161,7 +182,11 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
     auto context = make_trace_context();
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, kAllHeaderTypes, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        kAllHeaderTypes,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     const std::multiset<std::string_view> expected{
@@ -188,7 +213,8 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
         context,
         TraceInjectionPolicy::All,
         static_cast<TracingHeaderTypes>(0),
-        std::nullopt
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     REQUIRE(headers.empty());
@@ -201,7 +227,11 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
         make_trace_context(SamplingPriority::AutoKeep, SamplingMechanism::AgentRate);
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, kAllHeaderTypes, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        kAllHeaderTypes,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     REQUIRE(headers.size() == 12);
@@ -213,7 +243,11 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
         make_trace_context(SamplingPriority::AutoDrop, SamplingMechanism::AgentRate);
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, kAllHeaderTypes, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        kAllHeaderTypes,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     REQUIRE(headers.size() == 12);
@@ -225,7 +259,11 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
         make_trace_context(SamplingPriority::AutoKeep, SamplingMechanism::AgentRate);
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::Sampled, kAllHeaderTypes, std::nullopt
+        context,
+        TraceInjectionPolicy::Sampled,
+        kAllHeaderTypes,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     REQUIRE(headers.size() == 12);
@@ -237,7 +275,11 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
         make_trace_context(SamplingPriority::AutoDrop, SamplingMechanism::AgentRate);
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::Sampled, kAllHeaderTypes, std::nullopt
+        context,
+        TraceInjectionPolicy::Sampled,
+        kAllHeaderTypes,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     REQUIRE(headers.empty());
@@ -245,11 +287,37 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
 }
 
 TEST_CASE("HttpHeaderWriter origin and baggage", "[unit][tracing][header-writers]") {
+  SECTION("M forward the logger and warn once W a baggage entry is omitted") {
+    DiagnosticMessageBuffer diagnostics;
+    auto context = make_trace_context();
+    context.user_id = std::string(10240, 'u');
+
+    const auto headers = HttpHeaderWriter::CreateHeaders(
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::Default,
+        "rum",
+        diagnostics.CreateTestLogger()
+    );
+
+    REQUIRE(header_names(headers).count("baggage") == 1);
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning.front() ==
+        "Baggage entry omitted: encoded header would exceed the size limit "
+        R"({"key":"user.id","max_size":8181})"
+    );
+  }
+
   SECTION("M forward the RUM origin to Datadog and W3C") {
     auto context = make_trace_context();
 
     const auto output = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, TracingHeaderTypes::Default, "rum"
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::Default,
+        "rum",
+        DiagnosticLogger{}
     );
 
     auto headers = header_values(output);
@@ -262,7 +330,11 @@ TEST_CASE("HttpHeaderWriter origin and baggage", "[unit][tracing][header-writers
     auto context = make_trace_context();
 
     const auto output = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, TracingHeaderTypes::Default, "synthetics"
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::Default,
+        "synthetics",
+        DiagnosticLogger{}
     );
 
     auto headers = header_values(output);
@@ -275,7 +347,11 @@ TEST_CASE("HttpHeaderWriter origin and baggage", "[unit][tracing][header-writers
     auto context = make_trace_context();
 
     const auto output = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, TracingHeaderTypes::Default, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::Default,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     auto headers = header_values(output);
@@ -291,7 +367,11 @@ TEST_CASE("HttpHeaderWriter origin and baggage", "[unit][tracing][header-writers
     context.account_id.reset();
 
     const auto headers = HttpHeaderWriter::CreateHeaders(
-        context, TraceInjectionPolicy::All, TracingHeaderTypes::Default, std::nullopt
+        context,
+        TraceInjectionPolicy::All,
+        TracingHeaderTypes::Default,
+        std::nullopt,
+        DiagnosticLogger{}
     );
 
     const std::multiset<std::string_view> expected{

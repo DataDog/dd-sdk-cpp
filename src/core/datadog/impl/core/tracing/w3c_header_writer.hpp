@@ -26,6 +26,9 @@ class W3CHeaderWriter {
  public:
   W3CHeaderWriter() = delete;
 
+  /**
+   * The maximum number of headers this writer may write.
+   */
   static constexpr std::size_t GetMaxHeaderCount() { return 2; }
 
   /**

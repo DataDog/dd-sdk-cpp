@@ -7,6 +7,7 @@
 #include "datadog/impl/core/tracing/baggage_header_writer.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -14,7 +15,10 @@
 
 #include "datadog/network_instrumentation.hpp"
 
+#include "datadog/impl/types/diagnostics.hpp"
 #include "datadog/impl/types/tracing/trace_context.hpp"
+
+#include "support/diagnostics.hpp"
 
 using namespace datadog::impl;
 
@@ -41,7 +45,7 @@ TEST_CASE("BaggageHeaderWriter fields", "[unit][tracing][header-writers]") {
     auto context = make_trace_context(std::nullopt, std::nullopt);
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.empty());
   }
@@ -52,7 +56,7 @@ TEST_CASE("BaggageHeaderWriter fields", "[unit][tracing][header-writers]") {
     REQUIRE(context.session_id.has_value());
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -65,7 +69,7 @@ TEST_CASE("BaggageHeaderWriter fields", "[unit][tracing][header-writers]") {
     auto context = make_trace_context("user-123", std::nullopt);
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -76,7 +80,7 @@ TEST_CASE("BaggageHeaderWriter fields", "[unit][tracing][header-writers]") {
     auto context = make_trace_context(std::nullopt, "account-456");
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -89,7 +93,7 @@ TEST_CASE("BaggageHeaderWriter fields", "[unit][tracing][header-writers]") {
     REQUIRE(context.session_id.has_value());
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -105,7 +109,7 @@ TEST_CASE("BaggageHeaderWriter fields", "[unit][tracing][header-writers]") {
     REQUIRE(context.session_id.has_value());
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -119,7 +123,7 @@ TEST_CASE("BaggageHeaderWriter fields", "[unit][tracing][header-writers]") {
     auto context = make_trace_context("user-123", "account-456");
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -132,7 +136,7 @@ TEST_CASE("BaggageHeaderWriter fields", "[unit][tracing][header-writers]") {
     REQUIRE(context.session_id.has_value());
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -151,7 +155,7 @@ TEST_CASE("BaggageHeaderWriter encodes raw values", "[unit][tracing][header-writ
     auto context = make_trace_context(value, value);
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -170,7 +174,7 @@ TEST_CASE("BaggageHeaderWriter encodes raw values", "[unit][tracing][header-writ
     auto context = make_trace_context(value, value);
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -188,7 +192,7 @@ TEST_CASE("BaggageHeaderWriter encodes raw values", "[unit][tracing][header-writ
     auto context = make_trace_context(value, value);
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -208,7 +212,7 @@ TEST_CASE("BaggageHeaderWriter encodes raw values", "[unit][tracing][header-writ
     auto context = make_trace_context(value, value);
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -244,7 +248,7 @@ TEST_CASE("BaggageHeaderWriter encodes raw values", "[unit][tracing][header-writ
     auto context = make_trace_context(value, value);
     std::vector<datadog::HttpHeader> headers;
 
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
 
     REQUIRE(headers.size() == 1);
     REQUIRE(headers.front().GetName() == "baggage");
@@ -253,5 +257,164 @@ TEST_CASE("BaggageHeaderWriter encodes raw values", "[unit][tracing][header-writ
     );
     REQUIRE(context.user_id == value);
     REQUIRE(context.account_id == value);
+  }
+}
+
+TEST_CASE(
+    "BaggageHeaderWriter preserves raw whitespace", "[unit][tracing][header-writers]"
+) {
+  SECTION("M encode surrounding spaces and tabs without changing the IDs") {
+    const std::string value = " \t user 123\t456 \t ";
+    auto context = make_trace_context(value, value);
+    std::vector<datadog::HttpHeader> headers;
+
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
+
+    REQUIRE(headers.size() == 1);
+    REQUIRE(
+        headers.front().GetValue() ==
+        "user.id=%20%09%20user%20123%09456%20%09%20,"
+        "account.id=%20%09%20user%20123%09456%20%09%20"
+    );
+    REQUIRE(context.user_id == value);
+    REQUIRE(context.account_id == value);
+  }
+
+  SECTION("M encode whitespace-only values") {
+    auto context = make_trace_context("\t \t ", " \t \t");
+    std::vector<datadog::HttpHeader> headers;
+
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
+
+    REQUIRE(headers.size() == 1);
+    REQUIRE(
+        headers.front().GetValue() == "user.id=%09%20%09%20,account.id=%20%09%20%09"
+    );
+  }
+
+  SECTION("M encode other whitespace at the boundaries") {
+    const std::string value = "\r\n\f\vuser\r\n\f\v";
+    auto context = make_trace_context(value, value);
+    std::vector<datadog::HttpHeader> headers;
+
+    BaggageHeaderWriter::AppendHeaders(context, DiagnosticLogger{}, headers);
+
+    REQUIRE(headers.size() == 1);
+    REQUIRE(
+        headers.front().GetValue() ==
+        "user.id=%0D%0A%0C%0Buser%0D%0A%0C%0B,"
+        "account.id=%0D%0A%0C%0Buser%0D%0A%0C%0B"
+    );
+  }
+}
+
+TEST_CASE(
+    "BaggageHeaderWriter limits encoded size", "[unit][tracing][header-writers]"
+) {
+  SECTION("M retain all entries W they fit") {
+    DiagnosticMessageBuffer diagnostics;
+    auto context = make_trace_context("user-123", "account-456");
+    context.session_id = datadog::UUID::Parse("abcdef01-2345-6789-abcd-ef0123456789");
+    std::vector<datadog::HttpHeader> headers;
+
+    BaggageHeaderWriter::AppendHeaders(
+        context, diagnostics.CreateTestLogger(), headers
+    );
+
+    REQUIRE(headers.size() == 1);
+    REQUIRE(
+        headers.front().GetValue() ==
+        "session.id=abcdef01-2345-6789-abcd-ef0123456789,user.id=user-123,"
+        "account.id=account-456"
+    );
+    REQUIRE(diagnostics.TotalSize() == 0);
+  }
+
+  SECTION("M retain a single 5 KiB unescaped value") {
+    DiagnosticMessageBuffer diagnostics;
+    const std::string user_id(5120, 'u');
+    auto context = make_trace_context(user_id, std::nullopt);
+    std::vector<datadog::HttpHeader> headers;
+
+    BaggageHeaderWriter::AppendHeaders(
+        context, diagnostics.CreateTestLogger(), headers
+    );
+
+    REQUIRE(headers.size() == 1);
+    REQUIRE(headers.front().GetValue() == "user.id=" + user_id);
+    REQUIRE(diagnostics.TotalSize() == 0);
+  }
+
+  SECTION("M omit a single 5 KiB value W encoding exceeds the limit") {
+    DiagnosticMessageBuffer diagnostics;
+    // Encodes to 15360 bytes, larget than the 8K limit.
+    const std::string user_id(5120, '%');
+    auto context = make_trace_context(user_id, std::nullopt);
+    std::vector<datadog::HttpHeader> headers;
+
+    BaggageHeaderWriter::AppendHeaders(
+        context, diagnostics.CreateTestLogger(), headers
+    );
+
+    REQUIRE(headers.empty());
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning.front() ==
+        "Baggage entry omitted: encoded header would exceed the size limit "
+        R"({"key":"user.id","max_size":8181})"
+    );
+  }
+
+  SECTION("M retain small entries before and after an oversized entry") {
+    DiagnosticMessageBuffer diagnostics;
+    const std::string user_id(10240, 'u');
+    auto context = make_trace_context(user_id, "account-456");
+    context.session_id = datadog::UUID::Parse("abcdef01-2345-6789-abcd-ef0123456789");
+    std::vector<datadog::HttpHeader> headers;
+
+    BaggageHeaderWriter::AppendHeaders(
+        context, diagnostics.CreateTestLogger(), headers
+    );
+
+    REQUIRE(headers.size() == 1);
+    REQUIRE(
+        headers.front().GetValue() ==
+        "session.id=abcdef01-2345-6789-abcd-ef0123456789,account.id=account-456"
+    );
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning.front() ==
+        "Baggage entry omitted: encoded header would exceed the size limit "
+        R"({"key":"user.id","max_size":8181})"
+    );
+  }
+
+  SECTION("M omit the last entry W the remaining space is insufficient") {
+    DiagnosticMessageBuffer diagnostics;
+    const std::string prefix =
+        "session.id=abcdef01-2345-6789-abcd-ef0123456789,user.id=";
+    const std::size_t remaining_size = 8;
+    const std::string user_id(8181 - remaining_size - prefix.size(), 'u');
+    auto context = make_trace_context(user_id, "account-456");
+    context.session_id = datadog::UUID::Parse("abcdef01-2345-6789-abcd-ef0123456789");
+    std::vector<datadog::HttpHeader> headers;
+
+    BaggageHeaderWriter::AppendHeaders(
+        context, diagnostics.CreateTestLogger(), headers
+    );
+
+    REQUIRE(headers.size() == 1);
+    REQUIRE(headers.front().GetValue() == prefix + user_id);
+    REQUIRE(headers.front().GetValue().size() == 8181 - remaining_size);
+    REQUIRE(
+        ("baggage: " + headers.front().GetValue() + "\r\n").size() ==
+        8192 - remaining_size
+    );
+    REQUIRE(diagnostics.warning.size() == 1);
+    REQUIRE(
+        diagnostics.warning.front() ==
+        "Baggage entry omitted: encoded header would exceed the size limit "
+        R"({"key":"account.id","max_size":8181})"
+    );
   }
 }

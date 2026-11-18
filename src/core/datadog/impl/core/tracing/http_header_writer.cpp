@@ -25,7 +25,8 @@ std::vector<HttpHeader> HttpHeaderWriter::CreateHeaders(
     TraceContext& context,
     TraceInjectionPolicy policy,
     TracingHeaderTypes header_types,
-    std::optional<std::string_view> origin
+    std::optional<std::string_view> origin,
+    const DiagnosticLogger& logger
 ) {
   // If the request is not sampled and the injection policy requires headers only on
   // sampled requests, there's nothing to be done.
@@ -86,7 +87,7 @@ std::vector<HttpHeader> HttpHeaderWriter::CreateHeaders(
   }
 
   if (write_baggage) {
-    BaggageHeaderWriter::AppendHeaders(context, headers);
+    BaggageHeaderWriter::AppendHeaders(context, logger, headers);
   }
 
   return headers;

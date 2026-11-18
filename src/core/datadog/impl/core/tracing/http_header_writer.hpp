@@ -19,6 +19,8 @@
 
 namespace datadog::impl {
 
+class DiagnosticLogger;
+
 /**
  * Class responsible for generating distributed tracing HTTP headers.
  */
@@ -73,7 +75,8 @@ class HttpHeaderWriter {
       TraceContext& context,
       TraceInjectionPolicy policy,
       TracingHeaderTypes header_types,
-      std::optional<std::string_view> origin
+      std::optional<std::string_view> origin,
+      const DiagnosticLogger& logger
   );
 };
 

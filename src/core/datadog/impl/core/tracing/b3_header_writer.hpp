@@ -32,6 +32,9 @@ class B3HeaderWriter {
 
   B3HeaderWriter() = delete;
 
+  /**
+   * The maximum number of headers this writer may write.
+   */
   static constexpr std::size_t GetMaxHeaderCount(Encoding encoding) {
     return encoding == Encoding::Single ? 1 : 4;
   }
