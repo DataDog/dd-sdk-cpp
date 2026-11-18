@@ -193,6 +193,13 @@ if(DD_ENABLE_STRICT_THREADING_CHECKS)
     target_compile_definitions(tests PRIVATE WITH_DATADOG_STRICT_THREADING_CHECKS=1)
 endif()
 
+# Disable nlohmann::json's implicit conversion operator, which can convert a json value
+# to almost any type. While it exists, the compiler must consider converting json to the
+# parameter type of every visible operator== overload whenever a test compares a json
+# value, which makes each comparison expensive to compile in both memory and time. Tests
+# read values with an explicit get<T>() instead.
+target_compile_definitions(tests PRIVATE JSON_USE_IMPLICIT_CONVERSIONS=0)
+
 target_include_directories(tests
     PRIVATE ${DD_SDK_ROOT_DIR}/src
     PRIVATE .
