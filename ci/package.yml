@@ -33,7 +33,7 @@ package-linux:
 package-macos:
   stage: package
   dependencies: []
-  tags: [macos:tart]
+  tags: [macos:tart-experimental]
   image: ${MACOS_TART_IMAGE}
   parallel:
     matrix:

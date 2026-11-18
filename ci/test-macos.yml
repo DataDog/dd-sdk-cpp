@@ -5,7 +5,7 @@ test-macos:
   # - RUNTIME: Run unit tests and integration tests
   stage: test
   dependencies: []
-  tags: [macos:tart]
+  tags: [macos:tart-experimental]
   image: ${MACOS_TART_IMAGE}
   script:
     - export PYENV_ROOT="$HOME/.pyenv"
@@ -31,7 +31,7 @@ test-macos-crashpad:
   # - RUNTIME: Run Crashpad tests, SDK unit tests, and integration tests
   stage: test
   dependencies: []
-  tags: [macos:tart]
+  tags: [macos:tart-experimental]
   image: ${MACOS_TART_IMAGE}
   script:
     - export PYENV_ROOT="$HOME/.pyenv"
@@ -60,7 +60,7 @@ compat-macos:
   # - RUNTIME: Run unit tests
   stage: test
   dependencies: []
-  tags: [macos:tart]
+  tags: [macos:tart-experimental]
   image: ${MACOS_TART_IMAGE}
   parallel:
     # Ensure that all targets build on macOS
