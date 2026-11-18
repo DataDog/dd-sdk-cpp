@@ -123,7 +123,9 @@ TEST_CASE("DdWinProfBackend copies borrowed callback data", "[unit][profiling]")
 
   SECTION("error text") {
     ProfilingData data = MakeData();
-    data.result = PROFILING_ERROR_SERIALIZATION_FAILED;
+    // Consumers may only distinguish success from failure and ask the profiler to
+    // explain an opaque nonzero result.
+    data.result = 42;
 
     callback(&data, callback_context);
     error_message.assign("overwritten");
