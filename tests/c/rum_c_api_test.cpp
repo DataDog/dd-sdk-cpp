@@ -199,6 +199,95 @@ TEST_CASE("dd_rum_config_set_context_receiver", "[unit][rum][c-api]") {
     dd_core_destroy(core);
   }
 
+  SECTION("M pass user and account IDs W set before SDK runs") {
+    // Given a core with RUM configured with a receiver that copies the IDs, since the
+    // pointers are valid only during the callback
+    struct IdCapture {
+      bool saw_null = false;
+      std::string user_id;
+      std::string account_id;
+    };
+    IdCapture captured;
+    auto id_receiver = [](const dd_rum_context_message_t* msg, void* userdata) {
+      auto* c = static_cast<IdCapture*>(userdata);
+      c->saw_null = msg->user_id == nullptr || msg->account_id == nullptr;
+      c->user_id = msg->user_id ? msg->user_id : "";
+      c->account_id = msg->account_id ? msg->account_id : "";
+    };
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config config;
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(&config, id_receiver);
+    dd_rum_config_set_context_receiver_userdata(&config, &captured);
+    dd_rum_t* rum = dd_rum_init(core, &config);
+
+    // When the SDK runs with no user or account set
+    dd_core_start(core);
+    dd_core_stop(core);
+
+    // Then both IDs are non-NULL empty strings
+    REQUIRE(!captured.saw_null);
+    REQUIRE(captured.user_id.empty());
+    REQUIRE(captured.account_id.empty());
+
+    // When the SDK runs again, with a user and account set
+    dd_core_set_user_info(core, "user-1", nullptr, nullptr, nullptr);
+    dd_core_set_account_info(core, "account-1", nullptr, nullptr);
+    dd_core_start(core);
+    dd_core_stop(core);
+
+    // Then the receiver saw both IDs
+    REQUIRE(!captured.saw_null);
+    REQUIRE(captured.user_id == "user-1");
+    REQUIRE(captured.account_id == "account-1");
+
+    // Cleanup
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
+  }
+
+  SECTION("M pass each change W user and account IDs change while running") {
+    // Given a core with RUM configured with a receiver that records each message's
+    // "user,account" IDs as a string, since the pointers are valid only during the
+    // callback
+    std::vector<std::string> ids;
+    auto id_receiver = [](const dd_rum_context_message_t* msg, void* userdata) {
+      static_cast<std::vector<std::string>*>(userdata)->push_back(
+          std::string(msg->user_id) + "," + msg->account_id
+      );
+    };
+    auto test = CoreTestHarness::Init();
+    dd_core_t* core = CoreTestHarness::WrapForC(test);
+    dd_rum_config config;
+    dd_rum_config_init(&config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_rum_config_set_context_receiver(&config, id_receiver);
+    dd_rum_config_set_context_receiver_userdata(&config, &ids);
+    dd_rum_t* rum = dd_rum_init(core, &config);
+    dd_core_start(core);
+
+    // When we set, then clear, the user and account IDs
+    dd_core_set_user_info(core, "user-1", nullptr, nullptr, nullptr);
+    dd_core_set_account_info(core, "account-1", nullptr, nullptr);
+    dd_core_clear_user_info(core);
+    dd_core_clear_account_info(core);
+    dd_core_stop(core);
+
+    // Then the receiver saw each change, in order, ending with both IDs cleared
+    // (stopping joins the thread that invokes the receiver, so all calls have
+    // completed)
+    REQUIRE(ids.size() >= 4);
+    const std::vector<std::string> last_four(ids.end() - 4, ids.end());
+    REQUIRE(
+        last_four ==
+        std::vector<std::string>{"user-1,", "user-1,account-1", ",account-1", ","}
+    );
+
+    // Cleanup
+    dd_rum_destroy(rum);
+    dd_core_destroy(core);
+  }
+
   SECTION("M ignore receiver W config version is 1") {
     // Given a config with a receiver set, whose version is then reset to 1, indicating
     // a struct layout that has no receiver fields

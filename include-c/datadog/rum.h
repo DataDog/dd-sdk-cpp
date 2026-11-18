@@ -48,6 +48,16 @@ typedef struct dd_rum_context_message {
    * session.
    */
   dd_uuid_t view_id;
+  /**
+   * ID of the current user, as set via dd_core_set_user_info(); an empty string if none
+   * is set. Never NULL. Valid only for the duration of the callback.
+   */
+  const char* user_id;
+  /**
+   * ID of the current account, as set via dd_core_set_account_info(); an empty string
+   * if none is set. Never NULL. Valid only for the duration of the callback.
+   */
+  const char* account_id;
 } dd_rum_context_message_t;
 
 /**
@@ -107,10 +117,10 @@ DATADOG_API void dd_rum_config_set_track_anonymous_user(
 
 /**
  * Registers a callback that is notified of changes to RUM state: the active session,
- * the anonymous user ID, and the active view. It is invoked once when the SDK starts,
- * with the current state, and again whenever any value in dd_rum_context_message_t
- * changes. It is never invoked after dd_core_stop() returns. Pass NULL to remove the
- * receiver.
+ * the anonymous user ID, the active view, the user ID, and the account ID. It is
+ * invoked once when the SDK starts, with the current state, and again whenever any
+ * value in dd_rum_context_message_t changes. It is never invoked after dd_core_stop()
+ * returns. Pass NULL to remove the receiver.
  */
 DATADOG_API void dd_rum_config_set_context_receiver(
     dd_rum_config_t* config, dd_rum_context_receiver_t receiver

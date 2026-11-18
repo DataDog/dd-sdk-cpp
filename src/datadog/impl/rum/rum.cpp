@@ -139,19 +139,24 @@ std::optional<std::function<void(const FeatureMessage&)>> Rum::MakeMessageHandle
       }
 
       // Project the context snapshot onto the public message. The anonymous id is
-      // exposed only if the app has enabled tracking it, as on RUM and Log events.
+      // exposed only if the app has enabled tracking it, as on RUM and Log events. Only
+      // the user and account IDs are exposed, not their other properties.
       const CoreContext& ctx = m->context;
       const RumContextMessage out{
           ctx.rum ? ctx.rum->session_id : UUID::Zero,
           ctx.anonymous_id_enabled ? ctx.anonymous_id : UUID::Zero,
-          ctx.rum ? ctx.rum->view_id : UUID::Zero
+          ctx.rum ? ctx.rum->view_id : UUID::Zero,
+          ctx.user_info.id,
+          ctx.account_info.id
       };
 
       // Most context changes don't affect the values we publish: skip the callback
       // unless something the receiver can observe has changed
       if (last_delivered.has_value() && last_delivered->session_id == out.session_id &&
           last_delivered->anonymous_id == out.anonymous_id &&
-          last_delivered->view_id == out.view_id) {
+          last_delivered->view_id == out.view_id &&
+          last_delivered->user_id == out.user_id &&
+          last_delivered->account_id == out.account_id) {
         return;
       }
       last_delivered = out;
