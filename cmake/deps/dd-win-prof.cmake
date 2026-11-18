@@ -16,7 +16,7 @@
 
 include(FetchContent)
 
-set(DD_WIN_PROF_GIT_TAG "057f5a7cc9d58e25f12b8868ba14251a050b2858" CACHE STRING
+set(DD_WIN_PROF_GIT_TAG "3d62818e15c196e029feb50026f77fe86092fd87" CACHE STRING
     "dd-win-prof revision (commit SHA) to build")
 
 # To work on dd-win-prof alongside the SDK, point this at a local checkout
