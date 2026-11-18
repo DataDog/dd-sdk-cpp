@@ -100,12 +100,15 @@ endforeach()
 
 # DD_PROFILER_IMPL (internal) is the profiler implementation in use: "dd-win-prof" or
 # "none". Profiling only exists on Windows x64, so on other platforms the
-# DD_ENABLE_PROFILING option is ignored rather than failing the build. It is an internal
+# DD_ENABLE_PROFILING option is ignored rather than failing the build. It is likewise
+# ignored when the profiling module is left out of the build. It is an internal
 # cache variable so that it is also visible to a parent project that includes the SDK
 # via FetchContent or add_subdirectory (e.g. when calling datadog_enable()).
 set(DD_PROFILER_IMPL none CACHE INTERNAL "Profiler implementation in use")
 if(DD_ENABLE_PROFILING)
-    if(NOT WIN32)
+    if(NOT DD_MODULE_PROFILING)
+        message(STATUS "DD_ENABLE_PROFILING has no effect when DD_MODULE_PROFILING is OFF; ignoring it")
+    elseif(NOT WIN32)
         message(STATUS "DD_ENABLE_PROFILING is only supported on Windows; ignoring it")
     elseif(NOT CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL "x64")
         message(FATAL_ERROR "DD_ENABLE_PROFILING requires a Windows x64 build (target architecture: '${CMAKE_CXX_COMPILER_ARCHITECTURE_ID}')")
