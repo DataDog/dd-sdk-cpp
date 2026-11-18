@@ -6,7 +6,9 @@
 
 #pragma once
 
+#include <algorithm>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -23,18 +25,17 @@ class MockProfilerBackend : public impl::IProfilerBackend {
   bool set_callback_result = true;
   bool init_result = true;
   bool start_result = true;
-  int set_callback_calls = 0;
-  int init_calls = 0;
-  int start_calls = 0;
-  int stop_calls = 0;
   impl::ProfilerBackendSettings last_settings;
   std::vector<std::string> calls;
+
+  int CountCalls(std::string_view name) const {
+    return static_cast<int>(std::count(calls.begin(), calls.end(), name));
+  }
 
   bool HasCallback() const { return static_cast<bool>(_callback); }
 
   // IProfilerBackend interface
   bool SetProfileCallback(impl::ProfileCallback callback) override {
-    set_callback_calls++;
     calls.push_back(callback ? "register" : "unregister");
     if (!set_callback_result) {
       return false;
@@ -44,7 +45,6 @@ class MockProfilerBackend : public impl::IProfilerBackend {
   }
 
   bool Init(const impl::ProfilerBackendSettings& settings) override {
-    init_calls++;
     calls.push_back("init");
     last_settings = settings;
     if (!init_result) {
@@ -55,7 +55,6 @@ class MockProfilerBackend : public impl::IProfilerBackend {
   }
 
   bool Start() override {
-    start_calls++;
     calls.push_back("start");
     if (!start_result) {
       _callback = {};
@@ -65,7 +64,6 @@ class MockProfilerBackend : public impl::IProfilerBackend {
   }
 
   void Stop() override {
-    stop_calls++;
     calls.push_back("stop");
     _callback = {};
     calls.push_back("unregister");

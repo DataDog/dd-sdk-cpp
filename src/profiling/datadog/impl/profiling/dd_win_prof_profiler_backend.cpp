@@ -7,8 +7,6 @@
 // IProfilerBackend implementation backed by dd-win-prof. Only compiled into builds with
 // profiling support (see cmake/deps/dd-win-prof.cmake).
 
-#include "datadog/impl/profiling/dd_win_prof_profiler_backend.hpp"
-
 #include <atomic>
 #include <chrono>
 #include <cstddef>
@@ -17,16 +15,15 @@
 #include <memory>
 #include <utility>
 
+// Keep the SDK and dd-win-prof declarations below the system headers.
+#include "datadog/impl/profiling/dd_win_prof_profiler_backend.hpp"
+
 namespace datadog::impl {
 
 namespace {
 
 // Whether a DdWinProfBackend exists: dd-win-prof is process-global
 std::atomic<bool> s_backend_exists{false};
-
-Timestamp FromUnixMs(int64_t unix_ms) {
-  return Timestamp{std::chrono::milliseconds(unix_ms)};
-}
 
 class DdWinProfBackend final : public IProfilerBackend {
  public:
@@ -87,9 +84,6 @@ class DdWinProfBackend final : public IProfilerBackend {
   }
 
   void Stop() override {
-    if (!_callback && !_callback_registered) {
-      return;
-    }
     _api.stop();
     UnregisterCallback();
   }
@@ -104,37 +98,9 @@ class DdWinProfBackend final : public IProfilerBackend {
   }
 
   void DeliverProfile(const ProfilingData* data) noexcept {
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
     try {
-      if (data == nullptr || data->struct_size < sizeof(ProfilingData)) {
-        WarnNoexcept("Profiler delivered an invalid profiling data view");
-        return;
-      }
-      if (data->result == 0 && data->pprof_size != 0 &&
-          (data->pprof_bytes == nullptr ||
-           data->pprof_size >
-               static_cast<size_t>((std::numeric_limits<std::ptrdiff_t>::max)()))) {
-        WarnNoexcept("Profiler delivered an invalid pprof byte view");
-        return;
-      }
-
-      ProfileData profile;
-      if (data->result == 0) {
-        if (data->pprof_size != 0) {
-          profile.pprof.assign(data->pprof_bytes, data->pprof_bytes + data->pprof_size);
-        }
-      } else {
-        const char* message = _api.error_message(data->result);
-        if (message != nullptr) {
-          profile.error = message;
-        }
-      }
-      profile.start = FromUnixMs(data->start_unix_time_ms);
-      profile.end = FromUnixMs(data->end_unix_time_ms);
-      profile.is_last = data->is_last != 0;
-
-      if (_callback) {
-        _callback(std::move(profile));
-      }
+      DeliverProfileImpl(data);
     } catch (const std::bad_alloc&) {
       WarnNoexcept("Could not allocate memory for a profiler callback");
     } catch (const std::exception&) {
@@ -142,6 +108,46 @@ class DdWinProfBackend final : public IProfilerBackend {
     } catch (...) {
       WarnNoexcept("Profiling data callback threw an unknown exception");
     }
+#else
+    DeliverProfileImpl(data);
+#endif
+  }
+
+  void DeliverProfileImpl(const ProfilingData* data) {
+    // Registration changes happen only while stopped, and StopProfiler waits for
+    // callbacks before UnregisterCallback clears this function.
+    if (!_callback) {
+      return;
+    }
+    // ProfilingData is append-only: reject missing fields but accept future tails.
+    if (data == nullptr || data->struct_size < sizeof(ProfilingData)) {
+      WarnNoexcept("Profiler delivered an invalid profiling data view");
+      return;
+    }
+    if (data->result == 0 && data->pprof_size != 0 &&
+        (data->pprof_bytes == nullptr ||
+         data->pprof_size >
+             static_cast<size_t>((std::numeric_limits<std::ptrdiff_t>::max)()))) {
+      WarnNoexcept("Profiler delivered an invalid pprof byte view");
+      return;
+    }
+
+    ProfileData profile;
+    if (data->result == 0) {
+      if (data->pprof_size != 0) {
+        profile.pprof.assign(data->pprof_bytes, data->pprof_bytes + data->pprof_size);
+      }
+    } else {
+      const char* message = _api.error_message(data->result);
+      if (message != nullptr) {
+        profile.error = message;
+      }
+    }
+    profile.start = Timestamp{std::chrono::milliseconds(data->start_unix_time_ms)};
+    profile.end = Timestamp{std::chrono::milliseconds(data->end_unix_time_ms)};
+    profile.is_last = data->is_last != 0;
+
+    _callback(std::move(profile));
   }
 
   bool UnregisterCallback() noexcept {
@@ -159,11 +165,15 @@ class DdWinProfBackend final : public IProfilerBackend {
   }
 
   void WarnNoexcept(const char* message) const noexcept {
+#if defined(__cpp_exceptions) || defined(_CPPUNWIND)
     try {
       _logger.Warning(message);
     } catch (...) {
       // Diagnostic handlers are application code; no exception may cross the C ABI.
     }
+#else
+    _logger.Warning(message);
+#endif
   }
 
   DiagnosticLogger _logger;

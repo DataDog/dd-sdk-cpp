@@ -166,14 +166,62 @@ TEST_CASE("DdWinProfBackend validates borrowed views", "[unit][profiling]") {
   int deliveries = 0;
   REQUIRE(backend->SetProfileCallback([&](ProfileData) { deliveries++; }));
 
-  ProfilingData data = MakeData();
-  data.pprof_size = 1;
-  callback(&data, callback_context);
+  SECTION("pprof pointer") {
+    ProfilingData data = MakeData();
+    data.pprof_size = 1;
+    callback(&data, callback_context);
+
+    REQUIRE(deliveries == 0);
+    REQUIRE(
+        diagnostics.warning.back() == "Profiler delivered an invalid pprof byte view"
+    );
+  }
+
+  SECTION("smaller structure") {
+    ProfilingData data = MakeData();
+    data.struct_size = sizeof(data) - 1;
+    callback(&data, callback_context);
+
+    REQUIRE(deliveries == 0);
+    REQUIRE(
+        diagnostics.warning.back() ==
+        "Profiler delivered an invalid profiling data view"
+    );
+  }
+
+  SECTION("larger append-only structure") {
+    ProfilingData data = MakeData();
+    data.struct_size = sizeof(data) + 1;
+    callback(&data, callback_context);
+
+    REQUIRE(deliveries == 1);
+    REQUIRE(diagnostics.warning.empty());
+  }
+}
+
+TEST_CASE("DdWinProfBackend ignores delivery without a callback", "[unit][profiling]") {
+  DiagnosticMessageBuffer diagnostics;
+  auto backend = MakeBackend(diagnostics.CreateTestLogger());
+  int deliveries = 0;
+  REQUIRE(backend->SetProfileCallback([&](ProfileData) { deliveries++; }));
+  const ProfilingDataCallback delivery = callback;
+  void* const context = callback_context;
+  REQUIRE(backend->SetProfileCallback({}));
+
+  delivery(nullptr, context);
 
   REQUIRE(deliveries == 0);
-  REQUIRE(
-      diagnostics.warning.back() == "Profiler delivered an invalid pprof byte view"
-  );
+  REQUIRE(diagnostics.TotalSize() == 0);
+}
+
+TEST_CASE("DdWinProfBackend stops without a callback", "[unit][profiling]") {
+  auto backend = MakeBackend();
+
+  backend->Stop();
+
+  REQUIRE(calls == std::vector<std::string>{"stop"});
+  backend.reset();
+  REQUIRE(calls == std::vector<std::string>{"stop", "stop"});
 }
 
 TEST_CASE(
@@ -190,7 +238,7 @@ TEST_CASE(
   REQUIRE(calls == std::vector<std::string>{"register", "stop", "unregister"});
   REQUIRE(weak_lifetime.expired());
   backend.reset();
-  REQUIRE(calls == std::vector<std::string>{"register", "stop", "unregister"});
+  REQUIRE(calls == std::vector<std::string>{"register", "stop", "unregister", "stop"});
 }
 
 TEST_CASE("DdWinProfBackend unregisters failure paths", "[unit][profiling]") {
