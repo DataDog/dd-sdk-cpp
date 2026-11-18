@@ -127,11 +127,24 @@ inline constexpr bool is_pair_like_v = is_pair_like<std::decay_t<T>>::value;
  * Those implementations forward to compiler-generated overloads of the
  * `template <typename... Fields>` functions defined below, based on the set of fields
  * defined via `DATADOG_JSON_FIELD`.
+ *
+ * Each definition is a function template whose only template parameter defaults to
+ * `Type`, so that callers use it exactly like an ordinary function. Rebinding `obj` as
+ * `const T&` makes every field expression depend on `T`, so the compiler only resolves
+ * and instantiates a type's serialization code in source files that actually call it.
+ * Without that, every source file that includes a header full of annotated types would
+ * pay to compile the serializers for all of them.
  */
-#define DATADOG_JSON_STRUCT(Type, ...)                                            \
-  inline size_t GetJsonSize(const Type& obj) { return GetJsonSize(__VA_ARGS__); } \
-  inline size_t WriteJson(char* dst, size_t n, const Type& obj) {                 \
-    return WriteJson(dst, n, __VA_ARGS__);                                        \
+#define DATADOG_JSON_STRUCT(Type, ...)                           \
+  template <typename T = Type>                                   \
+  inline size_t GetJsonSize(const Type& in) {                    \
+    const T& obj = in;                                           \
+    return GetJsonSize(__VA_ARGS__);                             \
+  }                                                              \
+  template <typename T = Type>                                   \
+  inline size_t WriteJson(char* dst, size_t n, const Type& in) { \
+    const T& obj = in;                                           \
+    return WriteJson(dst, n, __VA_ARGS__);                       \
   }
 
 /**
@@ -236,17 +249,26 @@ size_t WriteJson(char* dst, size_t n, const Fields&&... fields) {
  * The extra `Attribute` field should _NOT_ be listed in the set of `DATADOG_JSON_FIELD`
  * declarations; it should instead be provided as `Extra`, without being wrapped in any
  * macro.
+ *
+ * As with `DATADOG_JSON_STRUCT`, each definition is a function template so that its
+ * serialization code is only compiled where it's used.
  */
 #define DATADOG_JSON_STRUCT_WITH_EXTRA_ATTRIBUTES(Type, Extra, ...)          \
-  inline size_t GetJsonSize(const Type& obj) {                               \
+  template <typename T = Type>                                               \
+  inline size_t GetJsonSize(const Type& in) {                                \
+    const T& obj = in;                                                       \
     return GetJsonSizeWithExtraAttributes(obj.Extra, __VA_ARGS__);           \
   }                                                                          \
-  inline size_t WriteJson(char* dst, size_t n, const Type& obj) {            \
+  template <typename T = Type>                                               \
+  inline size_t WriteJson(char* dst, size_t n, const Type& in) {             \
+    const T& obj = in;                                                       \
     return WriteJsonWithExtraAttributes(obj.Extra, dst, n, __VA_ARGS__);     \
   }                                                                          \
+  template <typename T = Type>                                               \
   inline std::optional<StructEncodeResult> TryEncodeJson(                    \
-      char* dst, size_t n, const Type& obj                                   \
+      char* dst, size_t n, const Type& in                                    \
   ) {                                                                        \
+    const T& obj = in;                                                       \
     return TryEncodeJsonWithExtraAttributes(obj.Extra, dst, n, __VA_ARGS__); \
   }
 
