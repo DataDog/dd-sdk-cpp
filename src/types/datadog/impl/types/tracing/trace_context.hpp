@@ -13,6 +13,8 @@
 
 #include "datadog/uuid.hpp"
 
+#include "datadog/impl/types/unreachable.hpp"
+
 #include "span_id.hpp"
 #include "trace_id.hpp"
 
@@ -43,6 +45,8 @@ constexpr bool IsSampled(SamplingPriority priority) {
     case SamplingPriority::ManualKeep:
       return true;
   }
+  // The switch is exhaustive, guaranteed by the compiler.
+  DATADOG_UNREACHABLE;
 }
 
 /**
