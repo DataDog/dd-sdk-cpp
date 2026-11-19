@@ -7,8 +7,11 @@
 #ifndef DATADOG_INCLUDE_NETWORK_INSTRUMENTATION_H
 #define DATADOG_INCLUDE_NETWORK_INSTRUMENTATION_H
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+
+#include "datadog/api.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -21,6 +24,8 @@ extern "C" {
  * https://docs.datadoghq.com/tracing/other_telemetry/rum/?tab=browserrum#opentelemetry-support
  */
 typedef enum {
+  /** No tracing headers. */
+  DD_TRACING_HEADER_TYPES_NONE = 0,
   /** Datadog's propagator header type. */
   DD_TRACING_HEADER_TYPES_DATADOG = 1U << 0,
   /**
@@ -98,6 +103,53 @@ typedef struct dd_first_party_hosts {
    */
   size_t count;
 } dd_first_party_hosts_t;
+
+/**
+ * Borrowed view of an HTTP header used for distributed tracing. Both strings are
+ * null-terminated and remain valid until the owning `dd_http_headers_t` is destroyed.
+ * Do not modify or free the strings.
+ */
+typedef struct dd_http_header {
+  const char* name;
+  const char* value;
+} dd_http_header_t;
+
+/**
+ * Immutable collection of HTTP headers. The caller is responsible for releasing the
+ * collection with `dd_http_headers_destroy()` when finished.
+ */
+typedef struct dd_http_headers dd_http_headers_t;
+
+/**
+ * Returns the number of entries in `headers`. If `headers` is NULL, returns zero.
+ */
+DATADOG_API size_t dd_http_headers_count(const dd_http_headers_t* headers);
+
+/**
+ * Writes a borrowed view of the entry at `index` into `out_header`, preserving entry
+ * order and duplicate header names. On success, returns true. If `headers` or
+ * `out_header` is NULL, or `index` is out of bounds, returns false and clears both
+ * pointers in `out_header` when it is not NULL.
+ */
+DATADOG_API bool dd_http_headers_get(
+    const dd_http_headers_t* headers, size_t index, dd_http_header_t* out_header
+);
+
+/**
+ * Frees `headers` and invalidates all borrowed views obtained from it. If `headers`
+ * is NULL, has no effect.
+ */
+DATADOG_API void dd_http_headers_destroy(dd_http_headers_t* headers);
+
+/**
+ * Policy for trace injection HTTP headers.
+ */
+typedef enum {
+  /** Inject headers on all requests, sampled or not. */
+  DD_TRACE_INJECTION_POLICY_ALL,
+  /** Only inject headers on sampled requests. */
+  DD_TRACE_INJECTION_POLICY_SAMPLED
+} dd_trace_injection_policy_t;
 
 #ifdef __cplusplus
 }
