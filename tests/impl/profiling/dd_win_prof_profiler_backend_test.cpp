@@ -37,11 +37,13 @@ fake_setup_callback(ProfilingDataCallback new_callback, void* user_data) {
   if (new_callback == nullptr) {
     calls.push_back("unregister");
     if (!unregister_result) {
+      // Simulated unregistration failed; preserve the previous callback registration.
       return false;
     }
   } else {
     calls.push_back("register");
     if (!register_result) {
+      // Simulated registration failed; preserve the previous callback registration.
       return false;
     }
   }
