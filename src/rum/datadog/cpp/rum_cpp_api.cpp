@@ -84,26 +84,13 @@ std::shared_ptr<Rum> Rum::Register(
     return std::make_shared<Rum>(Rum::PrivateCtorTag{});
   }
 
-  // If we don't have all required config values, return a no-op Rum interface
-  if (config.application_id == UUID::Zero) {
-    impl::DiagnosticLogger diagnostic_logger{
-        core->_diagnostic_handler, core->_diagnostic_threshold
-    };
-    diagnostic_logger.Error(
-        "RUM initialization failed: application_id value supplied via RumConfig must "
-        "be a valid, nonzero UUID"
-    );
-    return std::make_shared<Rum>(Rum::PrivateCtorTag{});
-  }
-
-  // Get essential state from the Core
-  const platform::IClock& clock = core->_impl->GetClock();
-
-  // Initialize our RUM feature implementation
-  auto rum_impl = std::make_shared<impl::Rum>(config, clock);
-
-  // Register the feature with the core, returning a no-op interface on failure
-  if (!core->_impl->RegisterFeature(rum_impl)) {
+  // Create and register the feature, returning a no-op Rum interface if the config is
+  // invalid or registration fails
+  const impl::DiagnosticLogger diagnostic_logger{
+      core->_diagnostic_handler, core->_diagnostic_threshold
+  };
+  auto rum_impl = impl::Rum::CreateAndRegister(*core->_impl, config, diagnostic_logger);
+  if (!rum_impl) {
     return std::make_shared<Rum>(Rum::PrivateCtorTag{});
   }
 

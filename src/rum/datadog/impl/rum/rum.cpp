@@ -10,6 +10,7 @@
 #include <shared_mutex>
 #include <string_view>
 
+#include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/http/body_writer_tlv.hpp"
 #include "datadog/impl/core/http/request_builder.hpp"
@@ -22,6 +23,25 @@ Rum::Rum(const RumConfig& config, const platform::IClock& clock)
       _deps(config, clock),
       _application(_deps),
       _application_snapshot() {}
+
+std::shared_ptr<Rum> Rum::CreateAndRegister(
+    Core& core, const RumConfig& config, const DiagnosticLogger& logger
+) {
+  // RUM can't function without an application ID
+  if (config.application_id == UUID::Zero) {
+    logger.Error(
+        "RUM initialization failed: application_id value supplied in the RUM config "
+        "must be a valid, nonzero UUID"
+    );
+    return nullptr;
+  }
+
+  auto rum = std::make_shared<Rum>(config, core.GetClock());
+  if (!core.RegisterFeature(rum)) {
+    return nullptr;
+  }
+  return rum;
+}
 
 std::optional<Report> Rum::UploadThread_PrepareReport(
     BatchReader& reader, HttpRequestBuilder& builder

@@ -20,17 +20,6 @@
 #include "datadog/impl/rum/types.hpp"
 #include "datadog/impl/types/attribute/types.hpp"
 
-static const uint32_t RUM_CONFIG_VERSION = 2;
-
-static const dd_rum_config_t DEFAULT_RUM_CONFIG = {
-    RUM_CONFIG_VERSION,  // version
-    dd_uuid_t{},         // application_id
-    100.0f,              // session_sample_rate
-    true,                // track_anonymous_user
-    nullptr,             // context_receiver
-    nullptr              // context_receiver_userdata
-};
-
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
 
 extern "C" {
@@ -38,32 +27,30 @@ extern "C" {
 const char* const DD_RUM_ERROR_CUSTOM_FINGERPRINT_ATTRIBUTE_KEY =
     "_dd.error.fingerprint";
 
-void dd_rum_config_init(dd_rum_config_t* config, const char* application_id) {
-  // Require a valid config struct and valid string
-  if (!config || !application_id) {
-    return;
+dd_rum_config_t* dd_rum_config_create(const char* application_id) {
+  if (!application_id) {
+    return nullptr;
   }
-
-  // Parse application ID as a UUID value
-  const auto application_id_opt = datadog::UUID::Parse(application_id);
-  const datadog::UUID uuid_value = application_id_opt.value_or(datadog::UUID::Zero);
-
-  // Populate struct fields
-  *config = DEFAULT_RUM_CONFIG;
-  dd_uuid_set(&config->application_id, uuid_value.bytes.data());
+  return new dd_rum_config(application_id);
 }
+
+void dd_rum_config_destroy(dd_rum_config_t* config) { delete config; }
 
 void dd_rum_config_set_application_id(dd_rum_config_t* config, const char* value) {
   if (config && value) {
-    const auto value_opt = datadog::UUID::Parse(value);
-    const datadog::UUID uuid_value = value_opt.value_or(datadog::UUID::Zero);
-    dd_uuid_set(&config->application_id, uuid_value.bytes.data());
+    config->config.SetApplicationId(value);
   }
 }
 
 void dd_rum_config_set_session_sample_rate(dd_rum_config_t* config, float value) {
   if (config) {
-    config->session_sample_rate = value;
+    config->config.SetSessionSampleRate(value);
+  }
+}
+
+void dd_rum_config_set_track_anonymous_user(dd_rum_config_t* config, bool value) {
+  if (config) {
+    config->config.SetTrackAnonymousUser(value);
   }
 }
 
@@ -72,6 +59,7 @@ void dd_rum_config_set_context_receiver(
 ) {
   if (config) {
     config->context_receiver = receiver;
+    config->UpdateContextReceiver();
   }
 }
 
@@ -80,12 +68,7 @@ void dd_rum_config_set_context_receiver_userdata(
 ) {
   if (config) {
     config->context_receiver_userdata = userdata;
-  }
-}
-
-void dd_rum_config_set_track_anonymous_user(dd_rum_config_t* config, bool value) {
-  if (config) {
-    config->track_anonymous_user = value;
+    config->UpdateContextReceiver();
   }
 }
 
@@ -100,42 +83,17 @@ dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config) {
   // can't fall back to defaults
   if (!config) {
     core->diagnostic_logger.Error(
-        "RUM initialization failed: application must supply a valid dd_rum_config_t "
-        "value to dd_rum_init"
+        "RUM initialization failed: application must supply a dd_rum_config_t value to "
+        "dd_rum_init"
     );
     return nullptr;
   }
 
-  // If the config has an unrecognized version, it's not properly initialized in a form
-  // that we can safely read
-  if (config->version <= 0 || config->version > RUM_CONFIG_VERSION) {
-    core->diagnostic_logger.Error(
-        "RUM initialization failed: dd_rum_config_t value must be initialized via "
-        "dd_rum_config_init"
-    );
-    return nullptr;
-  }
-
-  // If the config doesn't specify an application ID as a valid, nonzero UUID, reject it
-  if (dd_uuid_is_zero(&config->application_id)) {
-    core->diagnostic_logger.Error(
-        "RUM initialization failed: application_id value supplied via dd_rum_config_t "
-        "must be a valid, nonzero UUID"
-    );
-    return nullptr;
-  }
-
-  // Convert from dd_rum_config_t to datadog::RumConfig
-  datadog::RumConfig cpp_config = datadog::RumConfig_FromC(*config);
-
-  // Get essential state from the Core
-  const datadog::platform::IClock& clock = core->impl->GetClock();
-
-  // Initialize our RUM feature implementation
-  auto rum_impl = std::make_shared<datadog::impl::Rum>(cpp_config, clock);
-
-  // Register the feature with the core, returning a no-op interface on failure
-  if (!core->impl->RegisterFeature(rum_impl)) {
+  // Create and register the feature, which logs the reason for any failure
+  auto rum_impl = datadog::impl::Rum::CreateAndRegister(
+      *core->impl, config->config, core->diagnostic_logger
+  );
+  if (!rum_impl) {
     return nullptr;
   }
 

@@ -15,11 +15,12 @@ int main(int argc, char* argv[]) {
   printf("Datadog Native SDK C Example\n");
 
   // Prepare our configuration and create the Datadog SDK Core
-  dd_core_config_t config;
-  dd_core_config_init(&config, "fake-client-token", "example-service", "development");
-  dd_core_config_set_version(&config, "1.0.0");
+  dd_core_config_t* config =
+      dd_core_config_create("fake-client-token", "example-service", "development");
+  dd_core_config_set_version(config, "1.0.0");
 
-  dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+  dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+  dd_core_config_destroy(config);
   if (!core) {
     printf("Failed to create dd_core\n");
     return 1;
@@ -40,9 +41,10 @@ int main(int argc, char* argv[]) {
   }
 
   // Register the RUM feature
-  dd_rum_config_t rum_config;
-  dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
-  dd_rum_t* rum = dd_rum_init(core, &rum_config);
+  dd_rum_config_t* rum_config =
+      dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+  dd_rum_t* rum = dd_rum_init(core, rum_config);
+  dd_rum_config_destroy(rum_config);
   if (!rum) {
     printf("Failed to register RUM\n");
     return 1;

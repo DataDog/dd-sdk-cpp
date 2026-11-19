@@ -143,6 +143,8 @@ if(TARGET ddsdkcpp_rum)
 endif()
 if(TARGET ddsdkcpp_crash_reporting)
     target_sources(tests PRIVATE
+        c/crash_reporting_c_api_test.cpp
+        cpp/crash_reporting_cpp_api_test.cpp
         impl/crash_reporting/data/crash_context_read_test.cpp
         impl/crash_reporting/data/crash_report_read_test.cpp
         impl/crash_reporting/crash_processing_test.cpp

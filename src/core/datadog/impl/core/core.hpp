@@ -304,6 +304,18 @@ class Core {
   Core& operator=(Core&&) noexcept = delete;
 
   /**
+   * Validates `config`, initializes the platform subsystems compiled into this build,
+   * and creates and initializes a core that uses them. This is the shared body of the C
+   * and C++ APIs' core creation functions.
+   *
+   * Returns null, after logging the reason through the config's diagnostic handler, if
+   * `config` is missing a required value or if initialization fails.
+   */
+  static std::unique_ptr<Core> Create(
+      const CoreConfig& config, TrackingConsent tracking_consent
+  );
+
+  /**
    * Updates the configured tracking consent value.
    *
    * May be called at any time from the main thread. If the core is running, the state
@@ -480,6 +492,7 @@ class Core {
   std::string_view GetIntakeOrigin() const;
   std::string_view GetClientToken() const;
   const ImmutableContext& GetImmutableContext() const;
+  const DiagnosticLogger& GetDiagnosticLogger() const;
 };
 
 }  // namespace datadog::impl

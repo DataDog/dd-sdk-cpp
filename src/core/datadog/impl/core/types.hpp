@@ -209,52 +209,6 @@ inline const char* BatchProcessingLevel_ToString(BatchProcessingLevel value) {
   }
 }
 
-inline CoreConfig CoreConfig_FromC(const dd_core_config_t& config) {
-  // Initialize a C++ config struct from our input values
-  auto cpp_config =
-      CoreConfig(config.client_token, config.service, config.env)
-          .SetDiagnosticHandler(DiagnosticHandler_FromC(
-              config.diagnostic_handler, config.diagnostic_handler_userdata
-          ))
-          .SetDiagnosticThreshold(DiagnosticLevel_FromC(config.diagnostic_threshold))
-          .SetApplicationStoragePath(config.application_storage_path)
-          .SetSite(Site_FromC(config.site))
-          .SetVersion(config.application_version)
-          .SetVariant(config.variant)
-          .SetBatchSize(BatchSize_FromC(config.batch_size))
-          .SetUploadFrequency(UploadFrequency_FromC(config.upload_frequency))
-          .SetBatchProcessingLevel(
-              BatchProcessingLevel_FromC(config.batch_processing_level)
-          );
-
-  // Handle internal options
-  if (config.internal_options.flush_http_requests_on_stop) {
-    cpp_config.Internal_FlushHttpRequestsOnStop();
-  }
-  if (config.internal_options.custom_endpoint_url[0]) {
-    cpp_config.Internal_UseCustomEndpoint(config.internal_options.custom_endpoint_url);
-  }
-  if (config.internal_options.source[0]) {
-    cpp_config.Internal_SetSource(config.internal_options.source);
-  }
-  if (config.internal_options.sdk_version[0]) {
-    cpp_config.Internal_SetSdkVersion(config.internal_options.sdk_version);
-  }
-  // Copy the borrowed CA certificate data into the C++ config, which owns it from here
-  // on: the C API only requires the caller's buffer to outlive this conversion
-  if (config.internal_options.ca_certificates &&
-      config.internal_options.ca_certificates_size > 0) {
-    cpp_config.Internal_SetCaCertificates(
-        std::string_view{
-            config.internal_options.ca_certificates,
-            config.internal_options.ca_certificates_size
-        }
-    );
-  }
-
-  return cpp_config;
-}
-
 namespace impl {
 /**
  * Initializes a new diagnostic-logger interface from a C-style callback. The C API

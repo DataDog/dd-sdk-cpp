@@ -14,10 +14,6 @@
 #include "datadog/attribute.h"
 #include "datadog/core.h"
 
-// These values establish the size of string buffers in the C API; they do not imply
-// that the Datadog platform imposes any such limits
-#define DATADOG_MAX_LOGGER_NAME_LEN 63
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -37,23 +33,26 @@ typedef enum {
 } dd_log_level_t;
 
 /**
- * Logger configuration struct: initialize with dd_logger_config_init(), then call
- * dd_logger_config_set_<value>().
+ * Logger configuration. Create a config with dd_logger_config_create(), set optional
+ * values with dd_logger_config_set_<value>(), pass it to dd_logger_create(), and then
+ * release it with dd_logger_config_destroy().
+ *
+ * Setters copy any string arguments, so the caller needs to keep those arguments valid
+ * only for the duration of the call. Setters have no effect when given a NULL config.
  */
-typedef struct dd_logger_config {
-  uint32_t version;
-  float remote_sample_rate;
-  char service[DATADOG_MAX_SERVICE_LEN + 1];
-  char name[DATADOG_MAX_LOGGER_NAME_LEN + 1];
-  dd_log_level_t remote_log_threshold;
-  size_t initial_attribute_capacity;
-  bool enrich_with_rum_context;
-} dd_logger_config_t;
+typedef struct dd_logger_config dd_logger_config_t;
 
 /**
- * Initializes a dd_logger_config_t with default settings.
+ * Creates a new logger config with default settings. You MUST call
+ * dd_logger_config_destroy() when finished with the config.
  */
-DATADOG_API void dd_logger_config_init(dd_logger_config_t* config);
+DATADOG_API dd_logger_config_t* dd_logger_config_create(void);
+
+/**
+ * Frees all memory allocated for the given config. A logger created from this config is
+ * unaffected. Has no effect if `config` is NULL.
+ */
+DATADOG_API void dd_logger_config_destroy(dd_logger_config_t* config);
 
 /**
  * Sets the remote sample rate to a value between 0.0 and 100.0, indicating what
@@ -68,9 +67,8 @@ DATADOG_API void dd_logger_config_set_remote_sample_rate(
  * Sets the service name to be used on messages emitted by a logger. If omitted, the
  * logger will use the service name configured globally via dd_core_config_t.
  *
- * Config stores a copy of provided string value. If the given string value exceeds
- * DATADOG_MAX_SERVICE_LEN, it will be truncated to that length. Both NULL and "" will
- * be interepreted as no value, causing the logger to use the default service name.
+ * Both NULL and "" will be interpreted as no value, causing the logger to use the
+ * default service name.
  */
 DATADOG_API void dd_logger_config_set_service(
     dd_logger_config_t* config, const char* value
@@ -80,9 +78,7 @@ DATADOG_API void dd_logger_config_set_service(
  * Sets the name used to identify a logger in messages emitted by that logger. If
  * omitted, no 'logger.name' property will be present on log events.
  *
- * Config stores a copy of provided string value. If the given string value exceeds
- * DATADOG_MAX_LOGGER_NAME_LEN, it will be truncated to that length. Both NULL and ""
- * will be interpreted as no value.
+ * Both NULL and "" will be interpreted as no value.
  */
 DATADOG_API void dd_logger_config_set_name(
     dd_logger_config_t* config, const char* value
@@ -168,7 +164,9 @@ DATADOG_API void dd_logging_remove_attribute(dd_logging_t* logging, const char* 
  * Creates and returns a new logger with the given configuration. You MUST call
  * dd_logger_destroy() when finished with the logger.
  *
- * If config is NULL, the default configuration values will be used.
+ * If config is NULL, the default configuration values will be used. Otherwise, the
+ * logger keeps its own copy of the configuration, so the caller may destroy `config` as
+ * soon as this call returns.
  */
 DATADOG_API dd_logger_t* dd_logger_create(
     dd_logging_t* logging, const dd_logger_config_t* config

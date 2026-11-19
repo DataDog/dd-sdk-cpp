@@ -24,9 +24,8 @@ TEST_CASE(
   SECTION("M invoke handler callback W API usage error occurs on core init") {
     // Given an SDK config with a missing client token, which should result in a
     // diagnostic error before the Core can be initialized
-    dd_core_config_t config;
-    dd_core_config_init(&config, "", "my-service", "my-env");
-    dd_core_config_set_application_storage_path(&config, ".");
+    dd_core_config_t* config = dd_core_config_create("", "my-service", "my-env");
+    dd_core_config_set_application_storage_path(config, ".");
 
     // And a user-supplied diagnostic message handler callback that will validate the
     // expected message and increment a count so we can verify that it was called
@@ -41,14 +40,15 @@ TEST_CASE(
       REQUIRE(
           std::string_view{message->text} ==
           "SDK initialization failed: application must supply a non-empty "
-          "'client_token' value in dd_core_config_t"
+          "'client_token' value in the core config"
       );
     };
-    dd_core_config_set_diagnostic_handler(&config, callback);
-    dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
+    dd_core_config_set_diagnostic_handler(config, callback);
+    dd_core_config_set_diagnostic_handler_userdata(config, &callback_count);
 
     // When we attempt to use our improperly-initialized SDK config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
     REQUIRE(!core);
 
     // Then we get exactly one callback invocation with the expected diagnostic message
@@ -57,14 +57,13 @@ TEST_CASE(
 
   SECTION("M invoke handler callback W API usage error occurs on feature init") {
     // Given a valid core config
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    dd_core_config_set_application_storage_path(&config, ".");
+    dd_core_config_t* config =
+        dd_core_config_create("my-client-token", "my-service", "my-env");
+    dd_core_config_set_application_storage_path(config, ".");
 
     // And a RUM config that will cause RUM initialization to fail and produce a
     // diagnostic error
-    dd_rum_config_t rum_config;
-    dd_rum_config_init(&rum_config, "not-a-valid-uuid");
+    dd_rum_config_t* rum_config = dd_rum_config_create("not-a-valid-uuid");
 
     // And a handler callback that will increment callback_count and validate that we
     // get the expected error on RUM init
@@ -78,20 +77,22 @@ TEST_CASE(
       REQUIRE(message->level == DD_DIAGNOSTIC_LEVEL_ERROR);
       REQUIRE(
           std::string_view{message->text} ==
-          "RUM initialization failed: application_id value supplied via "
-          "dd_rum_config_t must be a valid, nonzero UUID"
+          "RUM initialization failed: application_id value supplied in the RUM "
+          "config must be a valid, nonzero UUID"
       );
     };
-    dd_core_config_set_diagnostic_handler(&config, callback);
-    dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
+    dd_core_config_set_diagnostic_handler(config, callback);
+    dd_core_config_set_diagnostic_handler_userdata(config, &callback_count);
 
     // When we successfully create the core
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
     REQUIRE(core);
     REQUIRE(callback_count == 0);
 
     // And then we attempt to register RUM with our invalid config
-    dd_rum_t* rum = dd_rum_init(core, &rum_config);
+    dd_rum_t* rum = dd_rum_init(core, rum_config);
+    dd_rum_config_destroy(rum_config);
     REQUIRE(!rum);
 
     // Then we get the expected diagnostic message
@@ -107,11 +108,11 @@ TEST_CASE(
 
   SECTION("M invoke handler callback W API usage warning occurs after feature init") {
     // Given a valid core config and a valid RUM config
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    dd_core_config_set_application_storage_path(&config, ".");
-    dd_rum_config_t rum_config;
-    dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_core_config_t* config =
+        dd_core_config_create("my-client-token", "my-service", "my-env");
+    dd_core_config_set_application_storage_path(config, ".");
+    dd_rum_config_t* rum_config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
 
     // And a handler callback that will increment callback_count and validate that we
     // get the expected warning on our call to dd_rum_start_view with bad args
@@ -128,14 +129,16 @@ TEST_CASE(
           "dd_rum_start_view call ignored: application must supply a non-empty view key"
       );
     };
-    dd_core_config_set_diagnostic_handler(&config, callback);
-    dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
+    dd_core_config_set_diagnostic_handler(config, callback);
+    dd_core_config_set_diagnostic_handler_userdata(config, &callback_count);
 
     // When we successfully create the core, initialize RUM, and start the SDK
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
     REQUIRE(core);
     REQUIRE(callback_count == 0);
-    dd_rum_t* rum = dd_rum_init(core, &rum_config);
+    dd_rum_t* rum = dd_rum_init(core, rum_config);
+    dd_rum_config_destroy(rum_config);
     REQUIRE(rum);
     REQUIRE(callback_count == 0);
     REQUIRE(dd_core_start(core));
@@ -160,11 +163,11 @@ TEST_CASE(
       "M not invoke handler callback for warnings W configured threshold is error"
   ) {
     // Given a valid core config and a valid RUM config
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    dd_core_config_set_application_storage_path(&config, ".");
-    dd_rum_config_t rum_config;
-    dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
+    dd_core_config_t* config =
+        dd_core_config_create("my-client-token", "my-service", "my-env");
+    dd_core_config_set_application_storage_path(config, ".");
+    dd_rum_config_t* rum_config =
+        dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
 
     // And a handler callback that will increment callback_count when called
     size_t callback_count = 0;
@@ -173,18 +176,20 @@ TEST_CASE(
       size_t& callback_count = *reinterpret_cast<size_t*>(userdata);
       callback_count++;
     };
-    dd_core_config_set_diagnostic_handler(&config, callback);
-    dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
+    dd_core_config_set_diagnostic_handler(config, callback);
+    dd_core_config_set_diagnostic_handler_userdata(config, &callback_count);
 
     // And a configured threshold of 'error', indicating that we don't want to receive
     // debug, status, or warning messages
-    dd_core_config_set_diagnostic_threshold(&config, DD_DIAGNOSTIC_LEVEL_ERROR);
+    dd_core_config_set_diagnostic_threshold(config, DD_DIAGNOSTIC_LEVEL_ERROR);
 
     // When we initialize RUM and make the same bad call to dd_rum_start_view
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
     REQUIRE(core);
     REQUIRE(callback_count == 0);
-    dd_rum_t* rum = dd_rum_init(core, &rum_config);
+    dd_rum_t* rum = dd_rum_init(core, rum_config);
+    dd_rum_config_destroy(rum_config);
     REQUIRE(rum);
     REQUIRE(callback_count == 0);
     REQUIRE(dd_core_start(core));
@@ -206,9 +211,9 @@ TEST_CASE(
 
   SECTION("M invoke handler callback W error occurs in implementation layer") {
     // Given a valid core config
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    dd_core_config_set_application_storage_path(&config, ".");
+    dd_core_config_t* config =
+        dd_core_config_create("my-client-token", "my-service", "my-env");
+    dd_core_config_set_application_storage_path(config, ".");
 
     // And a handler callback that will increment callback_count and validate that we
     // get the expected error on SDK start
@@ -226,11 +231,12 @@ TEST_CASE(
           "feature"
       );
     };
-    dd_core_config_set_diagnostic_handler(&config, callback);
-    dd_core_config_set_diagnostic_handler_userdata(&config, &callback_count);
+    dd_core_config_set_diagnostic_handler(config, callback);
+    dd_core_config_set_diagnostic_handler_userdata(config, &callback_count);
 
     // When we attempt to start the SDK without registering any features
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
     REQUIRE(core);
     REQUIRE(callback_count == 0);
     const bool started = dd_core_start(core);

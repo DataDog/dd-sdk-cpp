@@ -16,9 +16,6 @@
 extern "C" {
 #endif
 
-// These values establish the size of string buffers in the C API
-#define DATADOG_MAX_CRASH_REPORTING_HANDLER_EXE_PATH_LEN 1023
-
 // === Crash Reporting configuration ===
 
 // The exact crash reporting mechanism varies depending on which crash handler
@@ -39,18 +36,27 @@ extern "C" {
 //     crashpad_handler with your application; does not yet upload reports to Datadog.
 
 /**
- * Crash reporting configuration struct: initialize with
- * dd_crash_reporting_config_init(), then call dd_crash_reporting_config_set_<value>().
+ * Crash Reporting configuration. Create a config with
+ * dd_crash_reporting_config_create(), set optional values with
+ * dd_crash_reporting_config_set_<value>(), pass it to dd_crash_reporting_init(), and
+ * then release it with dd_crash_reporting_config_destroy().
+ *
+ * Setters copy any string arguments, so the caller needs to keep those arguments valid
+ * only for the duration of the call. Setters have no effect when given a NULL config.
  */
-typedef struct dd_crash_reporting_config {
-  uint32_t version;
-  char handler_exe_path[DATADOG_MAX_CRASH_REPORTING_HANDLER_EXE_PATH_LEN + 1];
-} dd_crash_reporting_config_t;
+typedef struct dd_crash_reporting_config dd_crash_reporting_config_t;
 
 /**
- * Initializes a dd_crash_reporting_config_t struct with default values.
+ * Creates a new Crash Reporting config with default settings. You MUST call
+ * dd_crash_reporting_config_destroy() when finished with the config.
  */
-DATADOG_API void dd_crash_reporting_config_init(dd_crash_reporting_config_t* config);
+DATADOG_API dd_crash_reporting_config_t* dd_crash_reporting_config_create(void);
+
+/**
+ * Frees all memory allocated for the given config. A Crash Reporting feature
+ * initialized from this config is unaffected. Has no effect if `config` is NULL.
+ */
+DATADOG_API void dd_crash_reporting_config_destroy(dd_crash_reporting_config_t* config);
 
 /**
  * Sets the path to the crash handler executable, overriding the default path.
@@ -61,7 +67,8 @@ DATADOG_API void dd_crash_reporting_config_init(dd_crash_reporting_config_t* con
  * 'crashpad_handler.exe' (Windows) in the same directory as your application's
  * executable.
  *
- * If using DD_CRASH_MODE=noop or DD_CRASH_MODE=inprocess, this value is ignored.
+ * If using DD_CRASH_MODE=noop or DD_CRASH_MODE=inprocess, this value is ignored. Both
+ * NULL and "" restore the default path.
  */
 DATADOG_API void dd_crash_reporting_config_set_handler_exe_path(
     dd_crash_reporting_config_t* config, const char* value
@@ -82,6 +89,10 @@ typedef struct dd_crash_reporting dd_crash_reporting_t;
 /**
  * Registers the Crash Reporting feature with the core of the Datadog SDK. MUST be
  * matched with a call to dd_crash_reporting_destroy().
+ *
+ * If `config` is NULL, the default configuration values will be used. Otherwise, the
+ * feature keeps its own copy of the configuration, so the caller may destroy `config`
+ * as soon as this call returns.
  */
 DATADOG_API dd_crash_reporting_t* dd_crash_reporting_init(
     dd_core_t* core, const dd_crash_reporting_config_t* config

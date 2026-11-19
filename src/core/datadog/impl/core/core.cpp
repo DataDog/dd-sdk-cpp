@@ -168,6 +168,53 @@ Core::Core(
 
 Core::~Core() { Stop(); }
 
+std::unique_ptr<Core> Core::Create(
+    const CoreConfig& config, TrackingConsent tracking_consent
+) {
+  // Prepare a diagnostic logger that will allow us to emit errors for invalid API usage
+  const DiagnosticLogger diagnostic_logger{
+      config.diagnostic_handler, config.diagnostic_threshold
+  };
+
+  // Validate the config: if we don't have all required parameters, create no core
+  if (config.client_token.empty()) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'client_token' "
+        "value in the core config"
+    );
+    return nullptr;
+  }
+  if (config.service.empty()) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'service' "
+        "value in the core config"
+    );
+    return nullptr;
+  }
+  if (config.env.empty()) {
+    diagnostic_logger.Error(
+        "SDK initialization failed: application must supply a non-empty 'env' value in "
+        "the core config"
+    );
+    return nullptr;
+  }
+
+  // Create core subsystems using the platform-specific implementations compiled in this
+  // build
+  auto subsystems = CoreSubsystems::Init(diagnostic_logger);
+  if (!subsystems.has_value()) {
+    return nullptr;
+  }
+
+  // Perform mandatory initialization routines that might fail: this may include
+  // migration of event data from <old-pid>/ to <new-pid>/
+  auto core = std::make_unique<Core>(config, tracking_consent, std::move(*subsystems));
+  if (!core->Init()) {
+    return nullptr;
+  }
+  return core;
+}
+
 void Core::SetTrackingConsent(TrackingConsent value) {
   if (_tracking_consent != value) {
     // Store the updated consent value, which we use to initialize storage-thread state
@@ -831,5 +878,7 @@ std::string_view Core::GetClientToken() const {
 }
 
 const ImmutableContext& Core::GetImmutableContext() const { return _immutable_context; }
+
+const DiagnosticLogger& Core::GetDiagnosticLogger() const { return _diagnostic_logger; }
 
 }  // namespace datadog::impl

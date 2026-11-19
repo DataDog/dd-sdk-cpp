@@ -25,12 +25,25 @@
 
 namespace datadog::impl {
 
+class Core;
+
 /**
  * RUM feature implementation.
  */
 class Rum final : public Feature {
  public:
   explicit Rum(const RumConfig& config, const platform::IClock& clock);
+
+  /**
+   * Creates the RUM feature from `config` and registers it with `core`. This is the
+   * shared body of the C and C++ APIs' registration functions.
+   *
+   * Returns null, after logging the reason, if `config` has no valid application ID or
+   * if registration fails.
+   */
+  static std::shared_ptr<Rum> CreateAndRegister(
+      Core& core, const RumConfig& config, const DiagnosticLogger& logger
+  );
 
   FeatureId GetId() const override { return CreateFeatureId("RUMM"); }
 

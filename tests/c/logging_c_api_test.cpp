@@ -52,7 +52,7 @@ TEST_CASE("dd_logging null safety", "[unit][logging][c-api]") {
     dd_logging_add_attribute(nullptr, "foo", &int_100);
     dd_logging_remove_attribute(nullptr, "foo");
 
-    dd_logger_config_init(nullptr);
+    dd_logger_config_destroy(nullptr);
     dd_logger_config_set_remote_sample_rate(nullptr, 0.5f);
     dd_logger_config_set_service(nullptr, "service");
     dd_logger_config_set_name(nullptr, "logger");
@@ -128,11 +128,11 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
     REQUIRE(dd_core_start(core));
 
     // When we call dd_logger_create
-    dd_logger_config_t logger_config;
-    dd_logger_config_init(&logger_config);
-    dd_logger_config_set_service(&logger_config, "my-cool-service");
-    dd_logger_config_set_name(&logger_config, "my-cool-logger");
-    dd_logger_t* logger = dd_logger_create(logging, &logger_config);
+    dd_logger_config_t* logger_config = dd_logger_config_create();
+    dd_logger_config_set_service(logger_config, "my-cool-service");
+    dd_logger_config_set_name(logger_config, "my-cool-logger");
+    dd_logger_t* logger = dd_logger_create(logging, logger_config);
+    dd_logger_config_destroy(logger_config);
 
     // Then we get a valid logger
     REQUIRE(logger);
@@ -155,11 +155,11 @@ TEST_CASE("dd_logger_create", "[unit][logging][c-api]") {
     dd_logging_t* logging = dd_logging_init(core);
 
     // When we call dd_logger_create
-    dd_logger_config_t logger_config;
-    dd_logger_config_init(&logger_config);
-    dd_logger_config_set_service(&logger_config, "my-cool-service");
-    dd_logger_config_set_name(&logger_config, "my-cool-logger");
-    dd_logger_t* logger = dd_logger_create(logging, &logger_config);
+    dd_logger_config_t* logger_config = dd_logger_config_create();
+    dd_logger_config_set_service(logger_config, "my-cool-service");
+    dd_logger_config_set_name(logger_config, "my-cool-logger");
+    dd_logger_t* logger = dd_logger_create(logging, logger_config);
+    dd_logger_config_destroy(logger_config);
 
     // Then we get a valid logger, even though the SDK isn't running yet
     REQUIRE(logger);
@@ -221,14 +221,14 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
          dd_logger_t* logger_a = dd_logger_create(logging, nullptr);
 
          // Create a logger with a custom config
-         dd_logger_config_t config;
-         dd_logger_config_init(&config);
-         dd_logger_config_set_remote_sample_rate(&config, 100.0f);
-         dd_logger_config_set_service(&config, "my-service");
-         dd_logger_config_set_name(&config, "my-logger");
-         dd_logger_config_set_remote_log_threshold(&config, DD_LOG_LEVEL_DEBUG);
-         dd_logger_config_set_initial_attribute_capacity(&config, 8);
-         dd_logger_t* logger_b = dd_logger_create(logging, &config);
+         dd_logger_config_t* config = dd_logger_config_create();
+         dd_logger_config_set_remote_sample_rate(config, 100.0f);
+         dd_logger_config_set_service(config, "my-service");
+         dd_logger_config_set_name(config, "my-logger");
+         dd_logger_config_set_remote_log_threshold(config, DD_LOG_LEVEL_DEBUG);
+         dd_logger_config_set_initial_attribute_capacity(config, 8);
+         dd_logger_t* logger_b = dd_logger_create(logging, config);
+         dd_logger_config_destroy(config);
 
          // Add and remove logger attributes
          dd_attribute_t str_val = dd_attribute_string("hello");
@@ -280,20 +280,6 @@ TEST_CASE("dd_logging argument validation", "[unit][logging][c-api]") {
        [](dd_logging_t* logging) { dd_logging_remove_attribute(logging, nullptr); },
        {"dd_logging_remove_attribute call ignored: application must supply an "
         "attribute name"},
-       {}},
-
-      // === dd_logger_create() ===
-
-      {"M print warning W dd_logger_config_t not properly initialized",
-       [](dd_logging_t* logging) {
-         dd_logger_config_t config;
-         std::memset(&config, 0, sizeof(config));
-         dd_logger_t* logger = dd_logger_create(logging, &config);
-         REQUIRE(logger);
-         dd_logger_destroy(logger);
-       },
-       {"dd_logger_create falling back to default config: application must initialize "
-        "dd_logger_config_t value via dd_logger_config_init"},
        {}},
 
       // === dd_logger_add_attribute() ===
@@ -599,17 +585,17 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
 
   SECTION("M use name and service W provided via logger config") {
     // Given a logger config that sets 'name' and 'service'
-    dd_logger_config_t config;
-    dd_logger_config_init(&config);
-    dd_logger_config_set_service(&config, "overridden-service");
-    dd_logger_config_set_name(&config, "my-logger");
+    dd_logger_config_t* config = dd_logger_config_create();
+    dd_logger_config_set_service(config, "overridden-service");
+    dd_logger_config_set_name(config, "my-logger");
 
     // And a started core running a logger initialized from that config
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     dd_core_t* core = CoreTestHarness::WrapForC(test);
     dd_logging_t* logging = dd_logging_init(core);
-    dd_logger_t* logger = dd_logger_create(logging, &config);
+    dd_logger_t* logger = dd_logger_create(logging, config);
+    dd_logger_config_destroy(config);
     dd_core_start(core);
 
     // When we emit a log message and stop the core
@@ -648,19 +634,19 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     for (const char* value : values) {
       // When we set both 'name' and 'service' on a logger config to a valid string,
       // then set our null/empty value
-      dd_logger_config_t config;
-      dd_logger_config_init(&config);
-      dd_logger_config_set_service(&config, "unused-service-name");
-      dd_logger_config_set_name(&config, "unused-logger-name");
-      dd_logger_config_set_service(&config, value);
-      dd_logger_config_set_name(&config, value);
+      dd_logger_config_t* config = dd_logger_config_create();
+      dd_logger_config_set_service(config, "unused-service-name");
+      dd_logger_config_set_name(config, "unused-logger-name");
+      dd_logger_config_set_service(config, value);
+      dd_logger_config_set_name(config, value);
 
       // And we start a core running a logger with that config
       auto test = CoreTestHarness::Init();
       test.clock.FreezeAtMilliseconds(1700000000000);
       dd_core_t* core = CoreTestHarness::WrapForC(test);
       dd_logging_t* logging = dd_logging_init(core);
-      dd_logger_t* logger = dd_logger_create(logging, &config);
+      dd_logger_t* logger = dd_logger_create(logging, config);
+      dd_logger_config_destroy(config);
       dd_core_start(core);
 
       // And we emit a log message and stop the core
@@ -691,74 +677,18 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
     }
   }
 
-  SECTION("M truncate name and service W provided values exceed supported lengths") {
-    // Given an input string of length 208 (8 * 26)
-    static const char* long_string =
-        "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhhhiiiiiiiijjjjjj"
-        "jjkkkkkkkkllllllllmmmmmmmmnnnnnnnnooooooooppppppppqqqqqqqqrrrrrrrrsssssssstttt"
-        "ttttuuuuuuuuvvvvvvvvwwwwwwwwxxxxxxxxyyyyyyyyzzzzzzzz";
-
-    // And a logger config that sets both 'name' and 'service' to that very long value
-    dd_logger_config_t config;
-    dd_logger_config_init(&config);
-    dd_logger_config_set_service(&config, long_string);
-    dd_logger_config_set_name(&config, long_string);
-
-    // And a started core running a logger initialized from that config
-    auto test = CoreTestHarness::Init();
-    test.clock.FreezeAtMilliseconds(1700000000000);
-    dd_core_t* core = CoreTestHarness::WrapForC(test);
-    dd_logging_t* logging = dd_logging_init(core);
-    dd_logger_t* logger = dd_logger_create(logging, &config);
-    dd_core_start(core);
-
-    // When we emit a log message and stop the core
-    dd_logger_info(logger, "hello", nullptr, nullptr);
-    dd_core_stop(core);
-
-    // Then the 'name' and 'service' values reflected in the resulting log event are
-    // exactly 63 characters and 127 characters, respectively, as the input values were
-    // silently truncated at the character limit
-    REQUIRE(test.client.requests.size() == 1);
-    REQUIRE(
-        MergeJsonArrays(test.client.requests) ==
-        nlohmann::json::array({nlohmann::json{
-            {"os", OS_PROPERTIES},
-            {"device", DEVICE_PROPERTIES},
-            {"status", "info"},
-            {"service",
-             "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhhhiiiiiiiij"
-             "jjjjjjjkkkkkkkkllllllllmmmmmmmmnnnnnnnnooooooooppppppp"},
-            {"date", "2023-11-14T22:13:20.000Z"},
-            {"message", "hello"},
-            {"logger.name",
-             "aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggghhhhhhh"},
-            {"logger.version", "1.2.3"},
-            {"ddtags",
-             "service:aaaaaaaabbbbbbbbccccccccddddddddeeeeeeeeffffffffgggggggg"
-             "hhhhhhhhiiiiiiiijjjjjjjjkkkkkkkkllllllllmmmmmmmmnnnnnnnnooooooooppppppp,"
-             "version:mock-application-version,env:mock-env,sdk_version:1.2.3"}
-        }})
-    );
-
-    // Cleanup
-    dd_logger_destroy(logger);
-    dd_logging_destroy(logging);
-    dd_core_destroy(core);
-  }
-
   SECTION("M emit only messages at or above threshold W log threshold is set") {
     // Given a logger config that sets a remote log threshold at 'error'
-    dd_logger_config_t config;
-    dd_logger_config_init(&config);
-    dd_logger_config_set_remote_log_threshold(&config, DD_LOG_LEVEL_ERROR);
+    dd_logger_config_t* config = dd_logger_config_create();
+    dd_logger_config_set_remote_log_threshold(config, DD_LOG_LEVEL_ERROR);
 
     // And a started core running a logger initialized from that config
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     dd_core_t* core = CoreTestHarness::WrapForC(test);
     dd_logging_t* logging = dd_logging_init(core);
-    dd_logger_t* logger = dd_logger_create(logging, &config);
+    dd_logger_t* logger = dd_logger_create(logging, config);
+    dd_logger_config_destroy(config);
     dd_core_start(core);
 
     // When we emit 10 warning messages, 10 error messages, and 10 critical
@@ -796,16 +726,16 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
 
   SECTION("M emit only a subset of messages W sampling rate is <1") {
     // Given a logger config that sets a remote sampling rate of 50%
-    dd_logger_config_t config;
-    dd_logger_config_init(&config);
-    dd_logger_config_set_remote_sample_rate(&config, 50.0f);
+    dd_logger_config_t* config = dd_logger_config_create();
+    dd_logger_config_set_remote_sample_rate(config, 50.0f);
 
     // And a started core running a logger initialized from that config
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     dd_core_t* core = CoreTestHarness::WrapForC(test);
     dd_logging_t* logging = dd_logging_init(core);
-    dd_logger_t* logger = dd_logger_create(logging, &config);
+    dd_logger_t* logger = dd_logger_create(logging, config);
+    dd_logger_config_destroy(config);
     dd_core_start(core);
 
     // When we emit 1000 log messages and stop the core
@@ -828,16 +758,16 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
 
   SECTION("M emit no messages W sampling rate is 0") {
     // Given a logger config that sets a remote sampling rate of 0%
-    dd_logger_config_t config;
-    dd_logger_config_init(&config);
-    dd_logger_config_set_remote_sample_rate(&config, 0.0f);
+    dd_logger_config_t* config = dd_logger_config_create();
+    dd_logger_config_set_remote_sample_rate(config, 0.0f);
 
     // And a started core running a logger initialized from that config
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     dd_core_t* core = CoreTestHarness::WrapForC(test);
     dd_logging_t* logging = dd_logging_init(core);
-    dd_logger_t* logger = dd_logger_create(logging, &config);
+    dd_logger_t* logger = dd_logger_create(logging, config);
+    dd_logger_config_destroy(config);
     dd_core_start(core);
 
     // When we emit 1000 log messages and stop the core
@@ -858,17 +788,17 @@ TEST_CASE("dd_logger_log", "[unit][logging][c-api]") {
   SECTION("M apply sampling rate after log threshold W both are set") {
     // Given a logger config that sets a remote sampling rate of 50% and a remote
     // log threshold at 'info' and above
-    dd_logger_config_t config;
-    dd_logger_config_init(&config);
-    dd_logger_config_set_remote_sample_rate(&config, 50.0f);
-    dd_logger_config_set_remote_log_threshold(&config, DD_LOG_LEVEL_INFO);
+    dd_logger_config_t* config = dd_logger_config_create();
+    dd_logger_config_set_remote_sample_rate(config, 50.0f);
+    dd_logger_config_set_remote_log_threshold(config, DD_LOG_LEVEL_INFO);
 
     // And a started core running a logger initialized from that config
     auto test = CoreTestHarness::Init();
     test.clock.FreezeAtMilliseconds(1700000000000);
     dd_core_t* core = CoreTestHarness::WrapForC(test);
     dd_logging_t* logging = dd_logging_init(core);
-    dd_logger_t* logger = dd_logger_create(logging, &config);
+    dd_logger_t* logger = dd_logger_create(logging, config);
+    dd_logger_config_destroy(config);
     dd_core_start(core);
 
     // When we emit 500 debug message and 500 log messages, then stop the core
@@ -1583,11 +1513,11 @@ TEST_CASE("dd_logger thread-safety", "[unit][logging][c-api][thread-safety]") {
   // And 20 threads that each create their own loggers and emit 100 messages each
   auto threads = RunParallel(20, [logging](size_t thread_id) {
     const std::string name = "logger-" + std::to_string(thread_id);
-    dd_logger_config_t config;
-    dd_logger_config_init(&config);
-    dd_logger_config_set_service(&config, "svc");
-    dd_logger_config_set_name(&config, name.c_str());
-    dd_logger_t* logger = dd_logger_create(logging, &config);
+    dd_logger_config_t* config = dd_logger_config_create();
+    dd_logger_config_set_service(config, "svc");
+    dd_logger_config_set_name(config, name.c_str());
+    dd_logger_t* logger = dd_logger_create(logging, config);
+    dd_logger_config_destroy(config);
     for (int i = 0; i < 100; ++i) {
       const std::string message = "message " + std::to_string(i);
       dd_logger_info(logger, message.c_str(), nullptr, nullptr);

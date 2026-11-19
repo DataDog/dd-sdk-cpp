@@ -28,10 +28,6 @@ extern "C" {
 // -> Manage Applications -> [Your Application] -> SDK Configuration.
 
 /**
- * RUM configuration struct: initialize with dd_rum_config_init(), then call
- * dd_rum_config_set_<value>().
- */
-/**
  * Snapshot of RUM state delivered to a dd_rum_context_receiver_t.
  */
 typedef struct dd_rum_context_message {
@@ -70,27 +66,32 @@ typedef void (*dd_rum_context_receiver_t)(
     const dd_rum_context_message_t* message, void* userdata
 );
 
-typedef struct dd_rum_config {
-  uint32_t version;
-  dd_uuid_t application_id;
-  float session_sample_rate;
-  bool track_anonymous_user;
-  // Fields below are present only when version >= 2
-  dd_rum_context_receiver_t context_receiver;
-  void* context_receiver_userdata;
-} dd_rum_config_t;
-
 /**
- * Initializes a dd_rum_config_t with all required settings.
- *
- * @param application_id The ID of your RUM Application.
+ * RUM configuration. Create a config with dd_rum_config_create(), set optional values
+ * with dd_rum_config_set_<value>(), pass it to dd_rum_init(), and then release it with
+ * dd_rum_config_destroy(). Setters have no effect when given a NULL config.
  */
-DATADOG_API void dd_rum_config_init(
-    dd_rum_config_t* config, const char* application_id
-);
+typedef struct dd_rum_config dd_rum_config_t;
 
 /**
- * Sets the RUM Application ID, overriding the value passed to dd_rum_config_init().
+ * Creates a new RUM config with all required settings. You MUST call
+ * dd_rum_config_destroy() when finished with the config.
+ *
+ * @param application_id The ID of your RUM Application, as a UUID string. If the value
+ *  is not a valid UUID, dd_rum_init() will reject the config.
+ *
+ * If `application_id` is NULL, returns NULL.
+ */
+DATADOG_API dd_rum_config_t* dd_rum_config_create(const char* application_id);
+
+/**
+ * Frees all memory allocated for the given config. A RUM feature initialized from this
+ * config is unaffected. Has no effect if `config` is NULL.
+ */
+DATADOG_API void dd_rum_config_destroy(dd_rum_config_t* config);
+
+/**
+ * Sets the RUM Application ID, overriding the value passed to dd_rum_config_create().
  */
 DATADOG_API void dd_rum_config_set_application_id(
     dd_rum_config_t* config, const char* value
@@ -154,6 +155,12 @@ DATADOG_API extern const char* const DD_RUM_ERROR_CUSTOM_FINGERPRINT_ATTRIBUTE_K
 /**
  * Registers the RUM feature with the core of the Datadog SDK. MUST be matched with
  * a call to dd_rum_destroy().
+ *
+ * The feature keeps its own copy of the configuration, so the caller may destroy
+ * `config` as soon as this call returns.
+ *
+ * Returns NULL if `core` or `config` is NULL, if the config has no valid application
+ * ID, or if registration fails. NULL is safe to pass to all other dd_rum functions.
  */
 DATADOG_API dd_rum_t* dd_rum_init(dd_core_t* core, const dd_rum_config_t* config);
 

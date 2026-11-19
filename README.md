@@ -83,12 +83,14 @@ You can peruse the public C headers [here](./include-c/datadog/).
 void your_application_code() {
   // Initialize SDK configuration, specifying the path to a directory where your
   // application can store transient files: the SDK will create .datadog/ there
-  dd_core_config_t config;
-  dd_core_config_init(&config, "<your-client-id>", "<your-service>", "<your-env>");
-  dd_core_config_set_application_storage_path(&config, "<your-storage-directory>");
+  dd_core_config_t* config =
+      dd_core_config_create("<your-client-id>", "<your-service>", "<your-env>");
+  dd_core_config_set_application_storage_path(config, "<your-storage-directory>");
 
-  // Create the core with initial tracking consent
-  dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+  // Create the core with initial tracking consent; the core keeps its own copy of the
+  // config, so the config can be destroyed right away
+  dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+  dd_core_config_destroy(config);
 
   // Register features and call feature-specific APIs
   dd_logging_t* logging = dd_logging_init(core);
