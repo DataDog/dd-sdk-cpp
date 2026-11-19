@@ -30,7 +30,7 @@ class HttpHeaderWriter;
  * https://docs.datadoghq.com/tracing/other_telemetry/rum/?tab=browserrum#opentelemetry-support
  */
 enum class TracingHeaderTypes : uint8_t {
-  NoHeaders = 0,
+  None = 0,
   /** Datadog's propagator header type. */
   Datadog = (1 << 0),
   /**

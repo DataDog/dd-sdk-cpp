@@ -15,7 +15,7 @@ namespace datadog {
 
 inline TracingHeaderTypes TracingHeaderTypes_FromC(dd_tracing_header_types_t value) {
   static_assert(
-      static_cast<int>(TracingHeaderTypes::NoHeaders) == DD_TRACING_HEADER_TYPES_NONE
+      static_cast<int>(TracingHeaderTypes::None) == DD_TRACING_HEADER_TYPES_NONE
   );
   static_assert(
       static_cast<int>(TracingHeaderTypes::Datadog) == DD_TRACING_HEADER_TYPES_DATADOG

@@ -25,9 +25,9 @@ using datadog::TraceInjectionPolicy;
 using datadog::TracingHeaderTypes;
 using namespace datadog::impl;
 
-constexpr auto kAllHeaderTypes = TracingHeaderTypes::Datadog | TracingHeaderTypes::B3 |
-                                 TracingHeaderTypes::B3multi |
-                                 TracingHeaderTypes::Tracecontext;
+constexpr auto ALL_HEADER_TYPES = TracingHeaderTypes::Datadog | TracingHeaderTypes::B3 |
+                                  TracingHeaderTypes::B3multi |
+                                  TracingHeaderTypes::Tracecontext;
 
 static TraceContext make_trace_context(
     SamplingPriority priority = SamplingPriority::AutoKeep,
@@ -184,7 +184,7 @@ TEST_CASE("HttpHeaderWriter header selection", "[unit][tracing][header-writers]"
     const auto headers = HttpHeaderWriter::CreateHeaders(
         context,
         TraceInjectionPolicy::All,
-        kAllHeaderTypes,
+        ALL_HEADER_TYPES,
         std::nullopt,
         DiagnosticLogger{}
     );
@@ -228,7 +228,7 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
     const auto headers = HttpHeaderWriter::CreateHeaders(
         context,
         TraceInjectionPolicy::All,
-        kAllHeaderTypes,
+        ALL_HEADER_TYPES,
         std::nullopt,
         DiagnosticLogger{}
     );
@@ -244,7 +244,7 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
     const auto headers = HttpHeaderWriter::CreateHeaders(
         context,
         TraceInjectionPolicy::All,
-        kAllHeaderTypes,
+        ALL_HEADER_TYPES,
         std::nullopt,
         DiagnosticLogger{}
     );
@@ -260,7 +260,7 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
     const auto headers = HttpHeaderWriter::CreateHeaders(
         context,
         TraceInjectionPolicy::Sampled,
-        kAllHeaderTypes,
+        ALL_HEADER_TYPES,
         std::nullopt,
         DiagnosticLogger{}
     );
@@ -276,7 +276,7 @@ TEST_CASE("HttpHeaderWriter injection policy", "[unit][tracing][header-writers]"
     const auto headers = HttpHeaderWriter::CreateHeaders(
         context,
         TraceInjectionPolicy::Sampled,
-        kAllHeaderTypes,
+        ALL_HEADER_TYPES,
         std::nullopt,
         DiagnosticLogger{}
     );

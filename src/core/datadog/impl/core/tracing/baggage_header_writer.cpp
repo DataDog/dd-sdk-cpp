@@ -18,15 +18,17 @@ namespace datadog::impl {
 
 namespace {
 
-constexpr std::string_view kRumSessionBaggageKey = "session.id";
-constexpr std::string_view kAccountBaggageKey = "account.id";
-constexpr std::string_view kUserBaggageKey = "user.id";
+constexpr std::string_view RUM_SESSION_BAGGAGE_KEY = "session.id";
+constexpr std::string_view ACCOUNT_BAGGAGE_KEY = "account.id";
+constexpr std::string_view USER_BAGGAGE_KEY = "user.id";
 
-constexpr std::string_view kBaggageHeaderName = "baggage";
+constexpr const char* BAGGAGE_HEADER_NAME = "baggage";
+constexpr std::size_t BAGGAGE_HEADER_NAME_LENGTH =
+    std::char_traits<char>::length(BAGGAGE_HEADER_NAME);
 
 // Keep the complete HTTP/1.1 header line within 8 KiB, including
 // the header name, ": ", and the terminating CRLF.
-constexpr std::size_t kMaxBaggageSize = 8192 - kBaggageHeaderName.size() - 2 - 2;
+constexpr std::size_t MAX_BAGGAGE_SIZE = 8192 - BAGGAGE_HEADER_NAME_LENGTH - 2 - 2;
 
 }  // namespace
 
@@ -36,22 +38,25 @@ void BaggageHeaderWriter::AppendHeaders(
   std::string baggage;
 
   if (context.session_id) {
-    baggage.append(kRumSessionBaggageKey);
+    baggage.append(RUM_SESSION_BAGGAGE_KEY);
     baggage.append("=");
     baggage.append(context.session_id->ToString());
   }
 
   if (const auto& user_id = context.user_id) {
-    AppendEntryWithLogging(kUserBaggageKey, *user_id, logger, baggage);
+    AppendEntryWithLogging(USER_BAGGAGE_KEY, *user_id, logger, baggage);
   }
 
   if (const auto& account_id = context.account_id) {
-    AppendEntryWithLogging(kAccountBaggageKey, *account_id, logger, baggage);
+    AppendEntryWithLogging(ACCOUNT_BAGGAGE_KEY, *account_id, logger, baggage);
   }
 
   if (!baggage.empty()) {
     out.push_back(
-        HttpHeaderWriter::CreateHeader(kBaggageHeaderName, std::move(baggage))
+        HttpHeaderWriter::CreateHeader(
+            std::string_view{BAGGAGE_HEADER_NAME, BAGGAGE_HEADER_NAME_LENGTH},
+            std::move(baggage)
+        )
     );
   }
 }
@@ -65,7 +70,7 @@ void BaggageHeaderWriter::AppendEntryWithLogging(
   if (!AppendEntry(key, value, out)) {
     logger.Warning(
         "Baggage entry omitted: encoded header would exceed the size limit",
-        {{"key", key}, {"max_size", kMaxBaggageSize}}
+        {{"key", key}, {"max_size", MAX_BAGGAGE_SIZE}}
     );
   }
 }
@@ -77,7 +82,7 @@ bool BaggageHeaderWriter::AppendEntry(
   // Start by the "[,]key=" part.
   const std::size_t separator_size = out.empty() ? 0 : 1;
   const std::size_t prefix_size = separator_size + key.size() + 1;
-  std::size_t remaining_size = kMaxBaggageSize - out.size();
+  std::size_t remaining_size = MAX_BAGGAGE_SIZE - out.size();
   if (prefix_size > remaining_size) {
     return false;
   }
@@ -114,7 +119,7 @@ bool BaggageHeaderWriter::IsUnescapedValueByte(unsigned char byte) {
 }
 
 void BaggageHeaderWriter::AppendEncodedValue(std::string_view value, std::string& out) {
-  constexpr std::string_view kHexDigits = "0123456789ABCDEF";
+  constexpr std::string_view HEX_DIGITS = "0123456789ABCDEF";
 
   for (const char character : value) {
     const auto byte = static_cast<unsigned char>(character);
@@ -122,8 +127,8 @@ void BaggageHeaderWriter::AppendEncodedValue(std::string_view value, std::string
       out.push_back(character);
     } else {
       out.push_back('%');
-      out.push_back(kHexDigits[byte >> 4]);
-      out.push_back(kHexDigits[byte & 0x0F]);
+      out.push_back(HEX_DIGITS[byte >> 4]);
+      out.push_back(HEX_DIGITS[byte & 0x0F]);
     }
   }
 }

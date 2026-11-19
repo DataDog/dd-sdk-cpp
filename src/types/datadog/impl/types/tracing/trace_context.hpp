@@ -35,7 +35,14 @@ enum class SamplingPriority : int8_t {
  * otherwise.
  */
 constexpr bool IsSampled(SamplingPriority priority) {
-  return priority >= SamplingPriority::AutoKeep;
+  switch (priority) {
+    case SamplingPriority::ManualDrop:
+    case SamplingPriority::AutoDrop:
+      return false;
+    case SamplingPriority::AutoKeep:
+    case SamplingPriority::ManualKeep:
+      return true;
+  }
 }
 
 /**

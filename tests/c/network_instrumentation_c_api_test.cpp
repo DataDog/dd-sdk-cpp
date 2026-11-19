@@ -5,6 +5,7 @@
 // Copyright 2026-Present Datadog, Inc.
 
 #include <catch2/catch_test_macros.hpp>
+#include <cstddef>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -38,15 +39,18 @@ static HeadersPtr make_headers(std::vector<HttpHeader> headers) {
 
 TEST_CASE("dd_http_headers", "[unit][tracing][c-api]") {
   SECTION("M reference the original header name") {
-    static constexpr std::string_view kHeaderName = "header-name";
-    const auto headers =
-        make_headers({HttpHeaderWriter::CreateHeader(kHeaderName, "header-value")});
+    static constexpr const char* HEADER_NAME = "header-name";
+    static constexpr std::size_t HEADER_NAME_LENGTH =
+        std::char_traits<char>::length(HEADER_NAME);
+    const auto headers = make_headers({HttpHeaderWriter::CreateHeader(
+        std::string_view{HEADER_NAME, HEADER_NAME_LENGTH}, "header-value"
+    )});
     dd_http_header_t header{};
 
     const bool success = dd_http_headers_get(headers.get(), 0, &header);
 
     REQUIRE(success);
-    REQUIRE(header.name == kHeaderName.data());
+    REQUIRE(header.name == HEADER_NAME);
   }
 
   SECTION("M retain a copied value after the original is destroyed") {

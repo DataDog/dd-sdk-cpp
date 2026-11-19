@@ -46,8 +46,8 @@ class BaggageHeaderWriter {
  private:
   /**
    * Append a key/value pair to the `out` string if the resulting string is smaller
-   * than the size limit `kMaxBaggageSize`. Otherwise, `out` is left as is, and `logger`
-   * logs a warning.
+   * than the size limit `MAX_BAGGAGE_SIZE`. Otherwise, `out` is left as is, and
+   * `logger` logs a warning.
    *
    * The sizes are calculated based on the escaped value.
    */
@@ -60,12 +60,12 @@ class BaggageHeaderWriter {
 
   /**
    * Append a key/value pair to the `out` string if the resulting string is smaller
-   * than the size limit `kMaxBaggageSize`. Otherwise, `out` is left as is.
+   * than the size limit `MAX_BAGGAGE_SIZE`. Otherwise, `out` is left as is.
    *
    * The sizes are calculated based on the escaped value.
    *
    * @returns `true` if the key/value pair is successully appended, `false` if the
-   * resulting string would go over the `kMaxBaggageSize` size limit.
+   * resulting string would go over the `MAX_BAGGAGE_SIZE` size limit.
    */
   static bool AppendEntry(
       std::string_view key, std::string_view value, std::string& out
