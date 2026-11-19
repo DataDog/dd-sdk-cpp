@@ -45,13 +45,13 @@ target_compile_definitions(ddsdkcpp_types PUBLIC ${DD_SDK_PUBLIC_DEFINITIONS})
 # Platform-specific support for UUID generation
 option(DD_UUID_USE_DEFAULT "Use default UUID implementation. If disabled, you must supply an implementation of platform/uuid.hpp in a file specified as DD_UUID_SRC" ON)
 if(DD_UUID_USE_DEFAULT)
-    if(WIN32)
-        target_sources(ddsdkcpp_types PRIVATE datadog/impl/types/platform/uuid_windows.cpp)
-    elseif(APPLE)
-        target_sources(ddsdkcpp_types PRIVATE datadog/impl/types/platform/uuid_macos.cpp)
-    elseif(UNIX)
-        target_sources(ddsdkcpp_types PRIVATE datadog/impl/types/platform/uuid_linux.cpp)
-    endif()
+    # Include every implementation: each one is guarded by preprocessor checks for its
+    # platform
+    target_sources(ddsdkcpp_types PRIVATE
+        datadog/impl/types/platform/uuid_linux.cpp
+        datadog/impl/types/platform/uuid_macos.cpp
+        datadog/impl/types/platform/uuid_windows.cpp
+    )
 else()
     set(DD_UUID_SRC "" CACHE STRING "Path to custom implementation of platform/uuid.hpp")
     if(DD_UUID_SRC)
