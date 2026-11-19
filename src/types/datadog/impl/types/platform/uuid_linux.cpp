@@ -21,6 +21,15 @@
 
 #include "datadog/impl/types/platform/uuid.hpp"
 
+// Android's libc (bionic) declares getrandom() only from API level 28, so below that
+// level we make the syscall directly. If the kernel lacks the syscall or a seccomp
+// filter blocks it, read_getrandom() reports it as unsupported, and UuidGenerate()
+// falls back to /dev/urandom as it does on Linux.
+#if defined(__ANDROID__) && __ANDROID_API__ < 28
+#define DD_GETRANDOM_VIA_SYSCALL
+#include <sys/syscall.h>
+#endif
+
 namespace datadog::platform {
 
 static constexpr size_t UUID_SIZE = 16;
@@ -39,6 +48,16 @@ enum class KernelRandomResult : uint8_t {
   Failed,
 };
 
+/** Calls getrandom(), or makes the equivalent syscall where libc doesn't declare it. */
+static ssize_t call_getrandom(void* buffer, size_t size, unsigned int flags) {
+#ifdef DD_GETRANDOM_VIA_SYSCALL
+  // NOLINTNEXTLINE(cppcoreguidelines-pro-type-vararg)
+  return static_cast<ssize_t>(syscall(SYS_getrandom, buffer, size, flags));
+#else
+  return getrandom(buffer, size, flags);
+#endif
+}
+
 /**
  * Fills `out` with `size` bytes from getrandom(), without blocking. Returns
  * `Unsupported` if the syscall is unavailable, and `Failed` if the random pool isn't
@@ -47,7 +66,7 @@ enum class KernelRandomResult : uint8_t {
 static KernelRandomResult read_getrandom(uint8_t* out, size_t size) {
   size_t filled = 0;
   while (filled < size) {
-    const ssize_t n = getrandom(out + filled, size - filled, GRND_NONBLOCK);
+    const ssize_t n = call_getrandom(out + filled, size - filled, GRND_NONBLOCK);
     if (n > 0) {
       filled += static_cast<size_t>(n);
       continue;
