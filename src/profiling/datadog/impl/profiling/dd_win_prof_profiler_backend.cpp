@@ -92,6 +92,7 @@ class DdWinProfBackend final : public IProfilerBackend {
   static void DD_WIN_PROF_CALL
   DeliverProfile(const ProfilingData* data, void* user_data) noexcept {
     if (user_data == nullptr) {
+      // Missing backend context; unable to deliver the profile.
       return;
     }
     static_cast<DdWinProfBackend*>(user_data)->DeliverProfile(data);
@@ -117,11 +118,13 @@ class DdWinProfBackend final : public IProfilerBackend {
     // Registration changes happen only while stopped, and StopProfiler waits for
     // callbacks before UnregisterCallback clears this function.
     if (!_callback) {
+      // No SDK consumer is registered; unable to deliver the profile.
       return;
     }
     // ProfilingData is append-only: reject missing fields but accept future tails.
     if (data == nullptr || data->struct_size < sizeof(ProfilingData)) {
       WarnNoexcept("Profiler delivered an invalid profiling data view");
+      // Invalid view; borrowed profile data cannot be read safely.
       return;
     }
     if (data->result == 0 && data->pprof_size != 0 &&
@@ -129,6 +132,7 @@ class DdWinProfBackend final : public IProfilerBackend {
          data->pprof_size >
              static_cast<size_t>((std::numeric_limits<std::ptrdiff_t>::max)()))) {
       WarnNoexcept("Profiler delivered an invalid pprof byte view");
+      // Invalid byte range; borrowed profile data cannot be copied safely.
       return;
     }
 
