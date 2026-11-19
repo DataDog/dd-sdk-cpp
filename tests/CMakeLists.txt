@@ -51,7 +51,9 @@ if(TARGET ddsdkcpp_core)
         # diagnostic types that core defines
         impl/types/diagnostics_test.cpp
         c/core_c_api_test.cpp
+        c/network_instrumentation_c_api_test.cpp
         cpp/core_cpp_api_test.cpp
+        cpp/network_instrumentation_cpp_api_test.cpp
         impl/core/attribute/binary_test.cpp
         impl/core/http/body_writer_string_test.cpp
         impl/core/http/body_writer_tlv_test.cpp
@@ -65,10 +67,15 @@ if(TARGET ddsdkcpp_core)
         impl/core/storage/filesystem_wrapper_test.cpp
         impl/core/storage/path_test.cpp
         impl/core/storage/sdk_test.cpp
+        impl/core/tracing/b3_header_writer_test.cpp
+        impl/core/tracing/baggage_header_writer_test.cpp
+        impl/core/tracing/datadog_header_writer_test.cpp
         impl/core/tracing/first_party_hosts_matcher_tests.cpp
+        impl/core/tracing/http_header_writer_test.cpp
         impl/core/tracing/span_id_generator_test.cpp
         impl/core/tracing/trace_id_generator_test.cpp
         impl/core/tracing/types_test.cpp
+        impl/core/tracing/w3c_header_writer_test.cpp
         impl/core/util/validation_test.cpp
         impl/core/block_test.cpp
         impl/core/context_test.cpp
@@ -136,6 +143,8 @@ if(TARGET ddsdkcpp_rum)
 endif()
 if(TARGET ddsdkcpp_crash_reporting)
     target_sources(tests PRIVATE
+        c/crash_reporting_c_api_test.cpp
+        cpp/crash_reporting_cpp_api_test.cpp
         impl/crash_reporting/data/crash_context_read_test.cpp
         impl/crash_reporting/data/crash_report_read_test.cpp
         impl/crash_reporting/crash_processing_test.cpp

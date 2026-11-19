@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "datadog/profiling.h"
+#include "datadog/profiling.hpp"
 
 #include "datadog/c/core_glue.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
@@ -16,6 +17,14 @@
 namespace datadog::impl {
 class Profiling;
 }  // namespace datadog::impl
+
+/**
+ * Implementation of the C API's opaque Profiling config handle, wrapping the C++ config
+ * that it forwards setter calls to.
+ */
+struct dd_profiling_config {
+  datadog::ProfilingConfig config;
+};
 
 struct dd_profiling {
   // Held weakly, so that the core's own reference is the only thing that keeps the

@@ -8,9 +8,11 @@
 
 #include <memory>
 
+#include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/core/storage/filesystem.hpp"
+#include "datadog/impl/crash_reporting/crash_handler_init.hpp"
 #include "datadog/impl/crash_reporting/crash_processing.hpp"
 #include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/json.hpp"
@@ -29,6 +31,44 @@ CrashReporting::CrashReporting(
 )
     : _handler(handler), _fs(fs) {
   _crash_storage_dir_path.MustSet(crash_storage_dir_path);
+}
+
+std::shared_ptr<CrashReporting> CrashReporting::CreateAndRegister(
+    Core& core, const CrashReportingConfig& config, const DiagnosticLogger& logger
+) {
+  // Prepare a directory at <application-storage>/.datadog/.crashes/ to contain
+  // crash-related artifacts
+  auto storage = core.InitializeArtifactStorage(".crashes");
+  if (!storage) {
+    return nullptr;
+  }
+
+  // Initialize an ICrashHandler implementation and get a pointer to the global handler
+  // instance, which persists throughout the lifetime of the process: this will only
+  // return a valid pointer the first time it's called, ensuring that only a single
+  // instance of the CrashReporting feature is empowered to handle and upload crashes
+  ICrashHandler* handler = CrashHandler::InitializeOnce(
+      logger,
+      core.GetFilesystem(),
+      storage->GetPath(),
+      config.handler_exe_path,
+      core.GetIntakeOrigin(),
+      core.GetClientToken()
+  );
+
+  // If handler initialization failed, or if crash reporting is being enabled for an SDK
+  // instance after the first, create no feature
+  if (!handler) {
+    return nullptr;
+  }
+
+  auto crash_reporting = std::make_shared<CrashReporting>(
+      *handler, core.GetFilesystem(), storage->GetPath()
+  );
+  if (!core.RegisterFeature(crash_reporting)) {
+    return nullptr;
+  }
+  return crash_reporting;
 }
 
 std::optional<Report> CrashReporting::UploadThread_PrepareReport(

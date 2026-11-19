@@ -37,8 +37,9 @@ else()
 endif()
 FetchContent_MakeAvailable(dd-win-prof)
 
-# Only dd-win-prof.h is exposed by the dd-win-prof target, and it stays private to the
-# SDK: it is not part of the SDK's public API
+# The dd-win-prof target exposes dd-win-prof.h and the SDK-only internal/ headers (the
+# profiling data callback and error messages). They stay private to the SDK: they are
+# not part of the SDK's public API
 target_link_libraries(ddsdkcpp_profiling PRIVATE dd-win-prof)
 target_compile_definitions(ddsdkcpp_profiling PRIVATE WITH_DATADOG_PROFILING=1)
 target_sources(ddsdkcpp_profiling PRIVATE

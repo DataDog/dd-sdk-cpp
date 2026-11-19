@@ -41,9 +41,10 @@ TEST_CASE("dd_core account info", "[unit][core]" FEATURE_TAGS "[c-api]") {
   dd_logger_t* logger = dd_logger_create(logging, nullptr);
 
   // And an active RUM API
-  dd_rum_config_t rum_config;
-  dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
-  dd_rum_t* rum = dd_rum_init(core, &rum_config);
+  dd_rum_config_t* rum_config =
+      dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+  dd_rum_t* rum = dd_rum_init(core, rum_config);
+  dd_rum_config_destroy(rum_config);
 
   // And a helper function that will cause each feature to produce one or more event
   // payloads, then resolve those event payloads, parse the value assigned to "account",

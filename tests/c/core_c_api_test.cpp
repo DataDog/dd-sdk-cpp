@@ -9,6 +9,7 @@
 #include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "datadog/core.h"
@@ -49,23 +50,6 @@ TEST_CASE("dd_core user info null safety", "[unit][core][c-api]") {
   }
 }
 
-TEST_CASE("dd_core_config internal_options source/sdk_version", "[unit][core][c-api]") {
-  SECTION("M apply source override W internal_options.source set") {
-    // Given a config with a source override in internal_options
-    dd_core_config_t config;
-    dd_core_config_init(&config, "token", "service", "env");
-    dd_core_config_set_application_storage_path(&config, ".");
-    dd_core_config_internal_set_source(&config, "unity");
-
-    // When we create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
-
-    // Then the core is valid (source override doesn't prevent initialization)
-    REQUIRE(core != nullptr);
-    dd_core_destroy(core);
-  }
-}
-
 TEST_CASE("dd_core null safety", "[unit][core][c-api]") {
   SECTION("M safely do nothing W target object is null") {
     REQUIRE(dd_core_create(nullptr, DD_TRACKING_CONSENT_PENDING) == nullptr);
@@ -82,17 +66,18 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
   DiagnosticMessageBuffer diagnostics;
 
   SECTION(
-      "M accept config but print application-storage-path warning W "
-      "dd_core_config_init called"
+      "M accept config but print application-storage-path warning W initialized with "
+      "required values"
   ) {
     // Given a config struct that's been initialized with the bare-minimum set of
     // values, without an explicit application storage path being configured
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    diagnostics.ConfigureC(&config);
+    dd_core_config_t* config =
+        dd_core_config_create("my-client-token", "my-service", "my-env");
+    diagnostics.ConfigureC(config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
 
     // Then we get a valid dd_core_t
     REQUIRE(core != nullptr);
@@ -115,18 +100,19 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
   }
 
   SECTION(
-      "M accept config w/o warning W dd_core_config_init + "
+      "M accept config w/o warning W initialized with required values and "
       "dd_core_config_set_application_storage_path called"
   ) {
     // Given a config struct that's been initialized with the bare-minimum set of
     // values, with an application storage path explicitly configured
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    dd_core_config_set_application_storage_path(&config, ".");
-    diagnostics.ConfigureC(&config);
+    dd_core_config_t* config =
+        dd_core_config_create("my-client-token", "my-service", "my-env");
+    dd_core_config_set_application_storage_path(config, ".");
+    diagnostics.ConfigureC(config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
 
     // Then we get a valid dd_core_t
     REQUIRE(core != nullptr);
@@ -139,55 +125,14 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     PruneDotDatadogDir();
   }
 
-  SECTION("M accept config W version is 1") {
-    // Given a properly-initialized config struct
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
-    dd_core_config_set_application_storage_path(&config, ".");
-    diagnostics.ConfigureC(&config);
-
-    // When we explicitly set the struct version to 1
-    config.version = 1;
-
-    // And we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
-
-    // Then we get a valid dd_core_t, even in a future where CORE_CONFIG_VERSION has
-    // been bumped and is no longer 1
-    REQUIRE(core != nullptr);
-    dd_core_destroy(core);
-    REQUIRE(diagnostics.TotalSize() == 0);
-
-    // And we find (and remove) a .datadog/main/<pid>/ directory
-    PruneDotDatadogDir();
-  }
-
-  SECTION("M reject config W version not set") {
-    // Given a config struct that's just zero-filled
-    dd_core_config_t config;
-    std::memset(&config, 0, sizeof(config));
-    diagnostics.ConfigureC(&config);
-
-    // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
-
-    // Then we get null
-    REQUIRE(core == nullptr);
-
-    // And we receive no diagnostic messages: our handler callback is stored in the
-    // config struct, which the SDK can't be sure was properly initialized
-    REQUIRE(diagnostics.TotalSize() == 0);
-  }
-
   SECTION("M reject config W client_token is missing") {
     // Given a config that's missing a client_token value
-    auto client_token = GENERATE("", nullptr);
-    dd_core_config_t config;
-    dd_core_config_init(&config, client_token, "my-service", "my-env");
-    diagnostics.ConfigureC(&config);
+    dd_core_config_t* config = dd_core_config_create("", "my-service", "my-env");
+    diagnostics.ConfigureC(config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
 
     // Then we get null
     REQUIRE(core == nullptr);
@@ -198,19 +143,18 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     REQUIRE(
         diagnostics.error[0] ==
         "SDK initialization failed: application must supply a non-empty 'client_token' "
-        "value in dd_core_config_t"
+        "value in the core config"
     );
   }
 
   SECTION("M reject config W service is missing") {
     // Given a config that's missing a service value
-    auto service = GENERATE("", nullptr);
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", service, "my-env");
-    diagnostics.ConfigureC(&config);
+    dd_core_config_t* config = dd_core_config_create("my-client-token", "", "my-env");
+    diagnostics.ConfigureC(config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
 
     // Then we get null
     REQUIRE(core == nullptr);
@@ -221,19 +165,19 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     REQUIRE(
         diagnostics.error[0] ==
         "SDK initialization failed: application must supply a non-empty 'service' "
-        "value in dd_core_config_t"
+        "value in the core config"
     );
   }
 
   SECTION("M reject config W env is missing") {
     // Given a config that's missing an env value
-    auto env = GENERATE("", nullptr);
-    dd_core_config_t config;
-    dd_core_config_init(&config, "my-client-token", "my-service", env);
-    diagnostics.ConfigureC(&config);
+    dd_core_config_t* config =
+        dd_core_config_create("my-client-token", "my-service", "");
+    diagnostics.ConfigureC(config);
 
     // When we attempt to create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
 
     // Then we get null
     REQUIRE(core == nullptr);
@@ -244,7 +188,7 @@ TEST_CASE("dd_core_config validation", "[unit][core][c-api][writes-to-cwd-datado
     REQUIRE(
         diagnostics.error[0] ==
         "SDK initialization failed: application must supply a non-empty 'env' value in "
-        "dd_core_config_t"
+        "the core config"
     );
   }
 }
@@ -427,16 +371,17 @@ TEST_CASE("dd_core application storage path", "[unit][core][c-api]") {
       TempDirectory tmpdir;
 
       // And an SDK configuration with all required values for normal operation
-      dd_core_config_t config;
-      dd_core_config_init(&config, "my-client-token", "my-service", "my-env");
+      dd_core_config_t* config =
+          dd_core_config_create("my-client-token", "my-service", "my-env");
       DiagnosticMessageBuffer diagnostics;
-      diagnostics.ConfigureC(&config);
+      diagnostics.ConfigureC(config);
 
       // When we configure the application storage path used by this test case
-      const dd_tracking_consent_t tracking_consent = tt.setup_func(&config, tmpdir);
+      const dd_tracking_consent_t tracking_consent = tt.setup_func(config, tmpdir);
 
       // And then we register logging, create a logger, and attempt to start the core
-      dd_core_t* core = dd_core_create(&config, tracking_consent);
+      dd_core_t* core = dd_core_create(config, tracking_consent);
+      dd_core_config_destroy(config);
       dd_logging_t* logging = dd_logging_init(core);
       dd_logger_t* logger = dd_logger_create(logging, NULL);
       const bool started = dd_core_start(core);
@@ -465,16 +410,52 @@ TEST_CASE("dd_core application storage path", "[unit][core][c-api]") {
 }
 
 TEST_CASE(
-    "dd_core_config internal_options overrides in network requests",
+    "dd_core_config_internal_set_source / dd_core_config_internal_set_sdk_version",
     "[unit][core][c-api]"
 ) {
+  SECTION("M apply source override W dd_core_config_internal_set_source called") {
+    // Given a config with a source override
+    dd_core_config_t* config = dd_core_config_create("token", "service", "env");
+    dd_core_config_set_application_storage_path(config, ".");
+    dd_core_config_internal_set_source(config, "unity");
+
+    // When we create a core from that config
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
+
+    // Then the core is valid
+    REQUIRE(core != nullptr);
+    dd_core_destroy(core);
+  }
+
   SECTION(
-      "M use overridden source in request URL and headers W internal_options.source set"
+      "M overwrite existing value W dd_core_config_internal_set_source called twice"
   ) {
-    // Given a core configured with a source override in internal_options
-    CoreConfig config = MOCK_CORE_CONFIG;
-    config.Internal_SetSource("unity");
-    auto test = CoreTestHarness::Init(config);
+    dd_core_config_t* config = dd_core_config_create("token", "service", "env");
+    dd_core_config_internal_set_source(config, "unity");
+    dd_core_config_internal_set_source(config, "flutter");
+
+    // The second call should silently overwrite the first; creation should succeed
+    dd_core_config_set_application_storage_path(config, ".");
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
+    REQUIRE(core != nullptr);
+    dd_core_destroy(core);
+  }
+}
+
+TEST_CASE(
+    "dd_core_config_internal_set_source / dd_core_config_internal_set_sdk_version in "
+    "network requests",
+    "[unit][core][c-api]"
+) {
+  SECTION("M use overridden source in request URL and headers W source set") {
+    // Given a core configured with a source override
+    dd_core_config_t* config = dd_core_config_create("token", "service", "env");
+    dd_core_config_set_application_storage_path(config, "app");
+    dd_core_config_internal_set_source(config, "unity");
+    auto test = CoreTestHarness::Init(config->config);
+    dd_core_config_destroy(config);
     dd_core_t* core = CoreTestHarness::WrapForC(test);
     dd_logging_t* logging = dd_logging_init(core);
     dd_logger_t* logger = dd_logger_create(logging, nullptr);
@@ -495,14 +476,13 @@ TEST_CASE(
     dd_core_destroy(core);
   }
 
-  SECTION(
-      "M use overridden sdk_version in request headers W internal_options.sdk_version "
-      "set"
-  ) {
-    // Given a core configured with a sdk_version override in internal_options
-    CoreConfig config = MOCK_CORE_CONFIG;
-    config.Internal_SetSdkVersion("99.0.0");
-    auto test = CoreTestHarness::Init(config);
+  SECTION("M use overridden sdk_version in request headers W sdk_version set") {
+    // Given a core configured with an sdk_version override
+    dd_core_config_t* config = dd_core_config_create("token", "service", "env");
+    dd_core_config_set_application_storage_path(config, "app");
+    dd_core_config_internal_set_sdk_version(config, "99.0.0");
+    auto test = CoreTestHarness::Init(config->config);
+    dd_core_config_destroy(config);
     dd_core_t* core = CoreTestHarness::WrapForC(test);
     dd_logging_t* logging = dd_logging_init(core);
     dd_logger_t* logger = dd_logger_create(logging, nullptr);
@@ -524,74 +504,51 @@ TEST_CASE(
 }
 
 TEST_CASE("dd_core_config_internal_set_ca_certificates", "[unit][core][c-api]") {
-  // Given an initialized config
-  dd_core_config_t config;
-  dd_core_config_init(&config, "token", "service", "env");
-
-  SECTION("M leave option unset W config initialized") {
-    // Then the config holds no CA certificate data
-    REQUIRE(config.internal_options.ca_certificates == nullptr);
-    REQUIRE(config.internal_options.ca_certificates_size == 0);
-  }
+  // Given a config that stores data in the directory that CoreTestHarness prepares
+  dd_core_config_t* config = dd_core_config_create("token", "service", "env");
+  dd_core_config_set_application_storage_path(config, "app");
 
   SECTION("M safely do nothing W config is null") {
     const char data[] = "pem-data";
     dd_core_config_internal_set_ca_certificates(nullptr, data, sizeof(data) - 1);
   }
 
-  SECTION("M borrow the caller's buffer W data set") {
-    // When we set CA certificates
-    const char data[] = "pem-data";
-    dd_core_config_internal_set_ca_certificates(&config, data, sizeof(data) - 1);
+  SECTION("M pass no CA certificates to HTTP client W option not set") {
+    // When we create a core from a config without CA certificates
+    auto test = CoreTestHarness::Init(config->config);
 
-    // Then the config references the caller's buffer, without copying it
-    REQUIRE(config.internal_options.ca_certificates == data);
-    REQUIRE(config.internal_options.ca_certificates_size == sizeof(data) - 1);
-  }
-
-  SECTION("M clear the option W data is null or size is 0") {
-    const char data[] = "pem-data";
-
-    // When we set CA certificates, then pass a null pointer
-    dd_core_config_internal_set_ca_certificates(&config, data, sizeof(data) - 1);
-    dd_core_config_internal_set_ca_certificates(&config, nullptr, sizeof(data) - 1);
-
-    // Then the option is cleared
-    REQUIRE(config.internal_options.ca_certificates == nullptr);
-    REQUIRE(config.internal_options.ca_certificates_size == 0);
-
-    // When we set CA certificates, then pass a size of 0
-    dd_core_config_internal_set_ca_certificates(&config, data, sizeof(data) - 1);
-    dd_core_config_internal_set_ca_certificates(&config, data, 0);
-
-    // Then the option is cleared
-    REQUIRE(config.internal_options.ca_certificates == nullptr);
-    REQUIRE(config.internal_options.ca_certificates_size == 0);
+    // Then the HTTP client is created with no CA certificate data
+    REQUIRE(test.client.ca_certificates.empty());
   }
 
   SECTION(
-      "M pass a copy of the data to HTTP client W buffer changed after conversion"
+      "M pass a copy of the data to HTTP client W caller's buffer changed after set"
   ) {
-    // Given a config that borrows a buffer which isn't null-terminated, and whose
-    // length is given only by the size argument
+    // Given CA certificates set from a buffer which isn't null-terminated, and whose
+    // length is given only by the size argument, which is then overwritten
     std::vector<char> buffer = {'p', 'e', 'm', '-', 'd', 'a', 't', 'a'};
-    dd_core_config_internal_set_ca_certificates(&config, buffer.data(), 3);
-    dd_core_config_set_application_storage_path(&config, "app");
-
-    // When the config is converted, as dd_core_create does, and the caller then
-    // overwrites its buffer
-    CoreConfig cpp_config = CoreConfig_FromC(config);
+    dd_core_config_internal_set_ca_certificates(config, buffer.data(), 3);
     std::fill(buffer.begin(), buffer.end(), 'x');
 
+    // When we create a core from that config
+    auto test = CoreTestHarness::Init(config->config);
+
     // Then the HTTP client is created with exactly `size` bytes of the original data
-    auto test = CoreTestHarness::Init(cpp_config);
     REQUIRE(test.client.ca_certificates == "pem");
   }
 
-  SECTION("M pass no CA certificates to HTTP client W option not set") {
-    // When a config without CA certificates is converted
-    dd_core_config_set_application_storage_path(&config, "app");
-    auto test = CoreTestHarness::Init(CoreConfig_FromC(config));
+  SECTION("M pass no CA certificates to HTTP client W option cleared") {
+    // Given a config whose CA certificates were set, then cleared with either a null
+    // pointer or a size of 0
+    const char data[] = "pem-data";
+    dd_core_config_internal_set_ca_certificates(config, data, sizeof(data) - 1);
+    using Arguments = std::pair<const char*, size_t>;
+    auto clear =
+        GENERATE(Arguments{nullptr, sizeof(data) - 1}, Arguments{"pem-data", 0});
+    dd_core_config_internal_set_ca_certificates(config, clear.first, clear.second);
+
+    // When we create a core from that config
+    auto test = CoreTestHarness::Init(config->config);
 
     // Then the HTTP client is created with no CA certificate data
     REQUIRE(test.client.ca_certificates.empty());
@@ -600,15 +557,63 @@ TEST_CASE("dd_core_config_internal_set_ca_certificates", "[unit][core][c-api]") 
   SECTION("M create a core W option set") {
     // Given a config with CA certificates, storing data in a temp directory
     TempDirectory tmpdir;
+    dd_core_config_set_application_storage_path(config, tmpdir.path.c_str());
     const char data[] = "pem-data";
-    dd_core_config_set_application_storage_path(&config, tmpdir.path.c_str());
-    dd_core_config_internal_set_ca_certificates(&config, data, sizeof(data) - 1);
+    dd_core_config_internal_set_ca_certificates(config, data, sizeof(data) - 1);
 
     // When we create a core from that config
-    dd_core_t* core = dd_core_create(&config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
 
     // Then the core is valid
     REQUIRE(core != nullptr);
     dd_core_destroy(core);
+  }
+
+  dd_core_config_destroy(config);
+}
+
+TEST_CASE("dd_core_config null safety", "[unit][core][c-api]") {
+  SECTION("M return null W a required argument is null") {
+    REQUIRE(dd_core_config_create(nullptr, "service", "env") == nullptr);
+    REQUIRE(dd_core_config_create("token", nullptr, "env") == nullptr);
+    REQUIRE(dd_core_config_create("token", "service", nullptr) == nullptr);
+  }
+
+  SECTION("M safely do nothing W config is null") {
+    dd_core_config_destroy(nullptr);
+    dd_core_config_set_diagnostic_handler(nullptr, dd_stderr_diagnostic_handler);
+    dd_core_config_set_diagnostic_handler_userdata(nullptr, nullptr);
+    dd_core_config_set_diagnostic_threshold(nullptr, DD_DIAGNOSTIC_LEVEL_DEBUG);
+    dd_core_config_set_application_storage_path(nullptr, ".");
+    dd_core_config_set_site(nullptr, DD_SITE_EU1);
+    dd_core_config_set_client_token(nullptr, "token");
+    dd_core_config_set_service(nullptr, "service");
+    dd_core_config_set_env(nullptr, "env");
+    dd_core_config_set_version(nullptr, "1.0.0");
+    dd_core_config_set_variant(nullptr, "variant");
+    dd_core_config_set_batch_size(nullptr, DD_BATCH_SIZE_SMALL);
+    dd_core_config_set_upload_frequency(nullptr, DD_UPLOAD_FREQUENCY_FREQUENT);
+    dd_core_config_set_batch_processing_level(nullptr, DD_BATCH_PROCESSING_LEVEL_LOW);
+    dd_core_config_internal_flush_http_requests_on_stop(nullptr);
+    dd_core_config_internal_set_custom_endpoint_url(nullptr, "http://localhost");
+    dd_core_config_internal_set_source(nullptr, "source");
+    dd_core_config_internal_set_sdk_version(nullptr, "1.0.0");
+  }
+
+  SECTION("M treat a null string as empty W setter is given null") {
+    // Given a config whose service is then set to null
+    DiagnosticMessageBuffer diagnostics;
+    dd_core_config_t* config = dd_core_config_create("token", "service", "env");
+    diagnostics.ConfigureC(config);
+    dd_core_config_set_service(config, nullptr);
+
+    // When we attempt to create a core from that config
+    dd_core_t* core = dd_core_create(config, DD_TRACKING_CONSENT_PENDING);
+    dd_core_config_destroy(config);
+
+    // Then the config is rejected for having an empty service
+    REQUIRE(core == nullptr);
+    REQUIRE(diagnostics.error.size() == 1);
+    REQUIRE(diagnostics.error[0].find("'service'") != std::string::npos);
   }
 }

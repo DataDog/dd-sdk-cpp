@@ -9,6 +9,8 @@
 #include <memory>
 #include <string_view>
 
+#include "datadog/crash_reporting.hpp"
+
 #include "datadog/impl/core/feature.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/core/storage/path.hpp"
@@ -17,6 +19,7 @@
 
 namespace datadog::impl {
 
+class Core;
 class IFilesystem;
 
 /**
@@ -56,6 +59,18 @@ class CrashReporting final : public Feature {
  public:
   explicit CrashReporting(
       ICrashHandler& handler, IFilesystem& fs, const StoragePath& crash_storage_dir_path
+  );
+
+  /**
+   * Initializes the process-global crash handler from `config`, then creates the Crash
+   * Reporting feature and registers it with `core`. This is the shared body of the C
+   * and C++ APIs' registration functions.
+   *
+   * Returns null if crash storage or the handler can't be initialized, if another Core
+   * already holds the handler, or if registration fails.
+   */
+  static std::shared_ptr<CrashReporting> CreateAndRegister(
+      Core& core, const CrashReportingConfig& config, const DiagnosticLogger& logger
   );
 
   // Feature interface

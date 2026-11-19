@@ -12,27 +12,15 @@
 
 #include "datadog/core.h"
 
-#include "datadog/c/config_string.hpp"
 #include "datadog/c/core_glue.hpp"
 #include "datadog/c/logging_glue.hpp"
+#include "datadog/c/string_arg.hpp"
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/logging/logger.hpp"
 #include "datadog/impl/logging/logging.hpp"
 #include "datadog/impl/logging/types.hpp"
 #include "datadog/impl/types/attribute/types.hpp"
-
-static const uint32_t LOGGER_CONFIG_VERSION = 1;
-
-static const dd_logger_config_t DEFAULT_LOGGER_CONFIG = {
-    LOGGER_CONFIG_VERSION,  // version
-    100.0f,                 // remote_sample_rate
-    "",                     // service
-    "",                     // name
-    DD_LOG_LEVEL_DEBUG,     // remote_log_threshold
-    0,                      // initial_attribute_capacity
-    true                    // enrich_with_rum_context
-};
 
 // This C API necessarily uses C-style idioms for memory management and strings.
 // NOLINTBEGIN(cppcoreguidelines-owning-memory)
@@ -44,51 +32,33 @@ extern "C" {
 
 const char* const DD_LOG_ERROR_FINGERPRINT_ATTRIBUTE_KEY = "_dd.error.fingerprint";
 
-void dd_logger_config_init(dd_logger_config_t* config) {
-  // Require an input value
-  if (!config) {
-    return;
-  }
-  *config = DEFAULT_LOGGER_CONFIG;
-}
+dd_logger_config_t* dd_logger_config_create(void) { return new dd_logger_config{}; }
+
+void dd_logger_config_destroy(dd_logger_config_t* config) { delete config; }
 
 void dd_logger_config_set_remote_sample_rate(dd_logger_config_t* config, float value) {
   if (config) {
-    config->remote_sample_rate = value;
+    config->config.SetRemoteSampleRate(value);
   }
 }
 
 void dd_logger_config_set_service(dd_logger_config_t* config, const char* value) {
-  if (!config) {
-    return;
+  if (config) {
+    config->config.SetService(to_string_view(value));
   }
-  assign_string_truncate(
-      config->service,
-      sizeof(config->service),
-      value,
-      datadog::impl::DiagnosticLogger{},
-      nullptr
-  );
 }
 
 void dd_logger_config_set_name(dd_logger_config_t* config, const char* value) {
-  if (!config) {
-    return;
+  if (config) {
+    config->config.SetName(to_string_view(value));
   }
-  assign_string_truncate(
-      config->name,
-      sizeof(config->name),
-      value,
-      datadog::impl::DiagnosticLogger{},
-      nullptr
-  );
 }
 
 void dd_logger_config_set_remote_log_threshold(
     dd_logger_config_t* config, dd_log_level_t value
 ) {
   if (config) {
-    config->remote_log_threshold = value;
+    config->config.SetRemoteLogThreshold(datadog::LogLevel_FromC(value));
   }
 }
 
@@ -96,7 +66,7 @@ void dd_logger_config_set_initial_attribute_capacity(
     dd_logger_config_t* config, size_t value
 ) {
   if (config) {
-    config->initial_attribute_capacity = value;
+    config->config.SetInitialAttributeCapacity(value);
   }
 }
 
@@ -104,7 +74,7 @@ void dd_logger_config_set_enrich_with_rum_context(
     dd_logger_config_t* config, bool value
 ) {
   if (config) {
-    config->enrich_with_rum_context = value;
+    config->config.SetEnrichWithRumContext(value);
   }
 }
 
@@ -191,22 +161,8 @@ dd_logger_t* dd_logger_create(dd_logging_t* logging, const dd_logger_config_t* c
   }
 
   // If no config was given, use the default config
-  if (!config) {
-    config = &DEFAULT_LOGGER_CONFIG;
-  }
-
-  // If we were given a config struct with an invalid version number, assume it was not
-  // properly initialized and fall back to the default config
-  if (config->version <= 0 || config->version > LOGGER_CONFIG_VERSION) {
-    logging->diagnostic_logger.Warning(
-        "dd_logger_create falling back to default config: application must initialize "
-        "dd_logger_config_t value via dd_logger_config_init"
-    );
-    config = &DEFAULT_LOGGER_CONFIG;
-  }
-
-  // Convert from dd_logger_config_t to datadog::LoggerConfig and create our logger
-  const auto cpp_config = datadog::LoggerConfig_FromC(*config);
+  const datadog::LoggerConfig cpp_config =
+      config ? config->config : datadog::LoggerConfig();
   return new dd_logger(
       logging->impl->CreateLogger(cpp_config), logging->diagnostic_logger
   );

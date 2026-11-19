@@ -43,7 +43,7 @@ To run a subset of unit tests, pass Catch2 tags to the binary, e.g. `build/tests
 
 clang-format (Google-based, 88 columns) and clang-tidy enforce formatting and many lint rules. Beyond those:
 
-- **Naming:** types and methods are `PascalCase`; parameters and locals are `snake_case`; data members are `_snake_case`. File-local helpers are `static` functions named in `snake_case`.
+- **Naming:** types and methods are `PascalCase`; parameters and locals are `snake_case`; private and protected data members are `_snake_case`, while public data members (such as the fields of a plain struct) are `snake_case`. File-local helpers are `static` functions named in `snake_case`.
 - **Doc comments:** use `/** ... */` blocks for types and functions, with narrative prose that weaves parameters in with backticks and ends with return behavior ("On success, returns X. On failure, returns Y."). Use `@param`/`@return` only when a parameter's constraints would be awkward in prose. Note constraints like thread-safety or async-signal-safety inline. Omit docs on helpers whose name and body are self-explanatory.
 - **Comment width:** write comments to fit 88 columns, so that clang-format doesn't reflow them awkwardly.
 - **Error paths:** after an early return, add a brief comment saying what failed and why we stop: `// Invalid signature; unable to parse`.

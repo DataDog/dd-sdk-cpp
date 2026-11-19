@@ -113,7 +113,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
     REQUIRE(
         diagnostics.error[0] ==
         "SDK initialization failed: application must supply a non-empty 'client_token' "
-        "value in CoreConfig"
+        "value in the core config"
     );
   }
 
@@ -131,7 +131,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
     REQUIRE(
         diagnostics.error[0] ==
         "SDK initialization failed: application must supply a non-empty 'service' "
-        "value in CoreConfig"
+        "value in the core config"
     );
   }
 
@@ -149,7 +149,7 @@ TEST_CASE("Core validation", "[unit][core][cpp-api][writes-to-cwd-datadog]") {
     REQUIRE(
         diagnostics.error[0] ==
         "SDK initialization failed: application must supply a non-empty 'env' value in "
-        "CoreConfig"
+        "the core config"
     );
   }
 }
@@ -366,12 +366,12 @@ TEST_CASE(
     "CoreConfig Internal_SetSource / Internal_SetSdkVersion", "[unit][core][cpp-api]"
 ) {
   SECTION("M apply source override W Internal_SetSource called") {
-    // Given a config with a _dd.source override
+    // Given a config with a source override
     CoreConfig config("token", "service", "env");
     config.SetApplicationStoragePath(".");
     config.Internal_SetSource("unity");
 
-    // When we create a core from that config (no crash / rejection)
+    // When we create a core from that config
     auto core = Core::Create(config, TrackingConsent::Pending);
 
     // Then the core is valid
@@ -394,9 +394,10 @@ TEST_CASE(
     "CoreConfig Internal_SetSource / Internal_SetSdkVersion in network requests",
     "[unit][core][cpp-api]"
 ) {
-  SECTION("M use overridden source in request URL and headers W _dd.source set") {
-    // Given a core configured with a _dd.source override
-    CoreConfig config = MOCK_CORE_CONFIG;
+  SECTION("M use overridden source in request URL and headers W source set") {
+    // Given a core configured with a source override
+    CoreConfig config("token", "service", "env");
+    config.SetApplicationStoragePath("app");
     config.Internal_SetSource("unity");
     auto test = CoreTestHarness::Init(config);
     auto core = CoreTestHarness::WrapForCpp(test);
@@ -414,9 +415,10 @@ TEST_CASE(
     REQUIRE(req.headers.find("DD-EVP-ORIGIN: unity\r\n") != std::string::npos);
   }
 
-  SECTION("M use overridden sdk_version in request headers W _dd.sdk_version set") {
-    // Given a core configured with a _dd.sdk_version override
-    CoreConfig config = MOCK_CORE_CONFIG;
+  SECTION("M use overridden sdk_version in request headers W sdk_version set") {
+    // Given a core configured with an sdk_version override
+    CoreConfig config("token", "service", "env");
+    config.SetApplicationStoragePath("app");
     config.Internal_SetSdkVersion("99.0.0");
     auto test = CoreTestHarness::Init(config);
     auto core = CoreTestHarness::WrapForCpp(test);
@@ -435,37 +437,35 @@ TEST_CASE(
 }
 
 TEST_CASE("CoreConfig Internal_SetCaCertificates", "[unit][core][cpp-api]") {
+  // Given a config that stores data in the directory that CoreTestHarness prepares
+  CoreConfig config("token", "service", "env");
+  config.SetApplicationStoragePath("app");
+
   SECTION("M pass no CA certificates to HTTP client W option not set") {
-    // Given a core created from a config without CA certificates
-    auto test = CoreTestHarness::Init(MOCK_CORE_CONFIG);
+    // When we create a core from a config without CA certificates
+    auto test = CoreTestHarness::Init(config);
 
     // Then the HTTP client is created with no CA certificate data
     REQUIRE(test.client.ca_certificates.empty());
   }
 
-  SECTION("M pass a copy of the data to HTTP client W caller's buffer released") {
-    // Given a config whose CA certificates came from a buffer that no longer exists
-    CoreConfig config = MOCK_CORE_CONFIG;
-    {
-      std::string pem =
-          "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n";
-      config.Internal_SetCaCertificates(pem);
-      pem.assign(pem.size(), 'x');
-    }
+  SECTION(
+      "M pass a copy of the data to HTTP client W caller's buffer changed after set"
+  ) {
+    // Given CA certificates set from a buffer, which is then overwritten
+    std::string buffer = "pem-data";
+    config.Internal_SetCaCertificates(std::string_view{buffer}.substr(0, 3));
+    buffer.assign(buffer.size(), 'x');
 
     // When we create a core from that config
     auto test = CoreTestHarness::Init(config);
 
     // Then the HTTP client is created with the original data
-    REQUIRE(
-        test.client.ca_certificates ==
-        "-----BEGIN CERTIFICATE-----\nAAAA\n-----END CERTIFICATE-----\n"
-    );
+    REQUIRE(test.client.ca_certificates == "pem");
   }
 
   SECTION("M pass no CA certificates to HTTP client W option cleared") {
     // Given a config whose CA certificates were set, then cleared with an empty value
-    CoreConfig config = MOCK_CORE_CONFIG;
     config.Internal_SetCaCertificates("pem-data");
     config.Internal_SetCaCertificates("");
 
@@ -474,5 +474,18 @@ TEST_CASE("CoreConfig Internal_SetCaCertificates", "[unit][core][cpp-api]") {
 
     // Then the HTTP client is created with no CA certificate data
     REQUIRE(test.client.ca_certificates.empty());
+  }
+
+  SECTION("M create a core W option set") {
+    // Given a config with CA certificates, storing data in a temp directory
+    TempDirectory tmpdir;
+    config.SetApplicationStoragePath(tmpdir.path);
+    config.Internal_SetCaCertificates("pem-data");
+
+    // When we create a core from that config
+    auto core = Core::Create(config, TrackingConsent::Pending);
+
+    // Then the core is valid
+    REQUIRE(core != nullptr);
   }
 }

@@ -72,6 +72,25 @@ TEST_CASE("TraceID", "[unit][tracing]") {
     );
   }
 
+  SECTION("M Generate padded high hex 16-characters representation") {
+    REQUIRE(TraceID(0, 0).ToHighHexString() == "0000000000000000");
+    REQUIRE(TraceID(1, 0).ToHighHexString() == "0000000000000001");
+    REQUIRE(TraceID(15, 0).ToHighHexString() == "000000000000000f");
+    REQUIRE(TraceID(16, 0).ToHighHexString() == "0000000000000010");
+    REQUIRE(TraceID(123, 0).ToHighHexString() == "000000000000007b");
+    REQUIRE(TraceID(123'456, 0).ToHighHexString() == "000000000001e240");
+    REQUIRE(
+        TraceID(std::numeric_limits<uint64_t>::max(), 0).ToHighHexString() ==
+        "ffffffffffffffff"
+    );
+
+    // The low bits do not affect the high representation.
+    REQUIRE(
+        TraceID(123'456, std::numeric_limits<uint64_t>::max()).ToHighHexString() ==
+        "000000000001e240"
+    );
+  }
+
   SECTION("M Generate low decimal representation") {
     REQUIRE(TraceID(0, 0).ToLowDecimalString() == "0");
     REQUIRE(TraceID(42, 1).ToLowDecimalString() == "1");

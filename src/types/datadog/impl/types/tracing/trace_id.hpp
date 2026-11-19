@@ -30,6 +30,9 @@ struct TraceID {
   /** Encodes this TraceID's least significant 64 bits as decimal string. */
   [[nodiscard]] std::string ToLowDecimalString() const;
 
+  /** Encodes this TraceID's most significant 64 bits as 16 lowercase hex digits. */
+  [[nodiscard]] std::string ToHighHexString() const;
+
   /** Encodes this TraceID as a 32-characters string of lowercase hex digits. */
   [[nodiscard]] std::string ToHexString() const;
 

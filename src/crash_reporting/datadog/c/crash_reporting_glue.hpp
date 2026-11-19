@@ -9,6 +9,7 @@
 #include <memory>
 
 #include "datadog/crash_reporting.h"
+#include "datadog/crash_reporting.hpp"
 
 #include "datadog/c/core_glue.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
@@ -16,6 +17,14 @@
 namespace datadog::impl {
 class CrashReporting;
 }  // namespace datadog::impl
+
+/**
+ * Implementation of the C API's opaque Crash Reporting config handle, wrapping the C++
+ * config that it forwards setter calls to.
+ */
+struct dd_crash_reporting_config {
+  datadog::CrashReportingConfig config;
+};
 
 struct dd_crash_reporting {
   std::shared_ptr<datadog::impl::CrashReporting> impl;

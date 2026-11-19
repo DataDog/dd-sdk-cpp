@@ -13,6 +13,8 @@
 
 #include "datadog/uuid.hpp"
 
+#include "datadog/impl/types/unreachable.hpp"
+
 #include "span_id.hpp"
 #include "trace_id.hpp"
 
@@ -29,6 +31,23 @@ enum class SamplingPriority : int8_t {
   /** The span is sampled based on a manual override. */
   ManualKeep = 2
 };
+
+/**
+ * `true` if the given priority represents a positive sampling decision, `false`
+ * otherwise.
+ */
+constexpr bool IsSampled(SamplingPriority priority) {
+  switch (priority) {
+    case SamplingPriority::ManualDrop:
+    case SamplingPriority::AutoDrop:
+      return false;
+    case SamplingPriority::AutoKeep:
+    case SamplingPriority::ManualKeep:
+      return true;
+  }
+  // The switch is exhaustive, guaranteed by the compiler.
+  DATADOG_UNREACHABLE;
+}
 
 /**
  * The mechanism used to make a span sampling decision.
