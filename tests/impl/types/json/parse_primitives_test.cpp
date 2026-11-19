@@ -6,9 +6,12 @@
 
 #include "datadog/impl/types/json/parse_primitives.hpp"
 
+#include <cmath>
 #include <cstdint>
 #include <limits>
 #include <string>
+
+#include "datadog/impl/types/json/primitives/float.hpp"
 
 #include "support/catch.hpp"
 
@@ -215,6 +218,35 @@ TEST_CASE("ParseJsonDouble", "[unit][json][parse_primitives]") {
   SECTION("M reject non-numeric") { REQUIRE_FALSE(ParseJsonDouble("abc", out)); }
 
   SECTION("M reject quoted value") { REQUIRE_FALSE(ParseJsonDouble("\"1.0\"", out)); }
+
+  SECTION("M parse subnormal values") {
+    REQUIRE(ParseJsonDouble("5e-324", out));
+    REQUIRE(out == std::numeric_limits<double>::denorm_min());
+
+    REQUIRE(ParseJsonDouble("-5e-324", out));
+    REQUIRE(out == -std::numeric_limits<double>::denorm_min());
+
+    // The largest subnormal value
+    REQUIRE(ParseJsonDouble("2.2250738585072009e-308", out));
+    REQUIRE(out == std::nextafter(std::numeric_limits<double>::min(), 0.0));
+
+    REQUIRE(ParseJsonDouble("2.5e-310", out));
+    REQUIRE(std::fpclassify(out) == FP_SUBNORMAL);
+  }
+
+  SECTION("M round-trip the smallest subnormal value through WriteJson") {
+    const double value = std::numeric_limits<double>::denorm_min();
+    char buffer[32];
+    const size_t len = WriteJson(buffer, GetJsonSize(value), value);
+    REQUIRE(ParseJsonDouble(std::string_view(buffer, len), out));
+    REQUIRE(out == value);
+  }
+
+  SECTION("M reject values that overflow, or underflow to zero") {
+    REQUIRE_FALSE(ParseJsonDouble("1e400", out));
+    REQUIRE_FALSE(ParseJsonDouble("-1e400", out));
+    REQUIRE_FALSE(ParseJsonDouble("1e-400", out));
+  }
 }
 
 TEST_CASE("ParseJsonBool", "[unit][json][parse_primitives]") {

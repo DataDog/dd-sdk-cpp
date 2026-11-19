@@ -8,19 +8,32 @@
 
 #include <cerrno>
 #include <charconv>
+#include <cmath>
 #include <cstdint>
 #include <cstdlib>
 #include <string>
 
-// C++17 introduced <charconv>, but macOS's libc++ implementation lacked proper support
-// for from_chars with floating-point values until macOS 15 (Sequoia). If we're
-// compiling for an older macOS build, we'll need to use strtod_l() in place of
-// from_chars when parsing floating-point values, which requires creating an explicit
-// locale_t to ensure that we parse standard JSON values regardless of system locale
-// (e.g. we want to parse '1.23' even on systems where that value is formatted '1,23'.)
-#if defined(__APPLE__) && (!defined(__cpp_lib_to_chars) || __cpp_lib_to_chars < 201611L)
+// With C++17, we can call std::from_chars from <charconv>, but not every C++ stdlib
+// implementation supports floating-point from_chars. PARSE_JSON_DOUBLE_WITH_STRTOD
+// controls which implementation we use:
+//
+// - MSVC: always std::from_chars (available from VS 2017 15.8)
+// - libstdc++: always std::from_chars (available from GCC 11.1)
+// - libc++: std::from_chars if 20.0 or newer and, on Apple platforms, available for
+//   the deployment target; strtod_l otherwise. (Releases older than 20 don't define
+//   _LIBCPP_AVAILABILITY_HAS_FROM_CHARS_FLOATING_POINT, hence the version check.)
+//   - LLVM: std::from_chars if 20.1 or newer; strtod_l otherwise
+//   - Android NDK: std::from_chars if r29 or newer; strtod_l otherwise
+//   - Apple: std::from_chars if targeting macOS or iOS 26 or newer; strtod_l otherwise
+#if defined(_LIBCPP_VERSION) &&                                      \
+    (_LIBCPP_VERSION < 200000 ||                                     \
+     (defined(_LIBCPP_AVAILABILITY_HAS_FROM_CHARS_FLOATING_POINT) && \
+      !_LIBCPP_AVAILABILITY_HAS_FROM_CHARS_FLOATING_POINT))
 #define PARSE_JSON_DOUBLE_WITH_STRTOD
+#include <locale.h>
+#ifdef __APPLE__
 #include <xlocale.h>
+#endif
 #endif
 
 namespace datadog::impl {
@@ -55,16 +68,24 @@ bool ParseJsonUInt64(std::string_view json_literal, uint64_t& out) {
 
 bool ParseJsonDouble(std::string_view json_literal, double& out) {
 #ifdef PARSE_JSON_DOUBLE_WITH_STRTOD
-  // Fallback for platforms without floating-point from_chars (e.g. Apple < macOS 15).
-  // std::to_chars on the encoding side always writes 'C'-locale decimal (.), so
-  // strtod_l with an explicit 'C' locale is a safe and interchangeable substitute,
-  // regardless of the process LC_NUMERIC setting.
+  // Fallback for libc++ without floating-point from_chars. We need an explicit locale
+  // to ensure we always parse '1.23', not '1,23' etc. std::to_chars on the encoding
+  // side always writes 'C'-locale decimal (.), so strtod_l with an explicit 'C' locale
+  // is a safe and interchangeable substitute, regardless of the process's LC_NUMERIC.
   static const locale_t C_LOCALE = newlocale(LC_NUMERIC_MASK, "C", nullptr);
   const std::string tmp(json_literal);
   char* end_ptr = nullptr;
   errno = 0;
   const double val = strtod_l(tmp.c_str(), &end_ptr, C_LOCALE);
-  if (errno != 0 || end_ptr != tmp.c_str() + tmp.size()) {
+  if (end_ptr != tmp.c_str() + tmp.size()) {
+    // Not a complete number literal; reject it
+    return false;
+  }
+  // strtod_l reports ERANGE for subnormal results as well as for overflow (which
+  // returns ±HUGE_VAL) and underflow to zero. Subnormals are valid doubles, which
+  // WriteJson() can write, so accept them, and reject any other error.
+  const bool is_subnormal = errno == ERANGE && std::isfinite(val) && val != 0.0;
+  if (errno != 0 && !is_subnormal) {
     return false;
   }
   out = val;
