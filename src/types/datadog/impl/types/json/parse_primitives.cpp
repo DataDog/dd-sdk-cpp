@@ -71,7 +71,7 @@ bool ParseJsonUInt64(std::string_view json_literal, uint64_t& out) {
 bool ParseJsonDouble(std::string_view json_literal, double& out) {
 #ifdef PARSE_JSON_DOUBLE_WITH_STRTOD
   // Fallback for libc++ without floating-point from_chars. We need an explicit locale
-  // to ensure we always parse '1.23', not '1,23' etc. std::to_chars on the encoding
+  // to ensure we always parse '1.23', not '1,23' etc. WriteJson() on the encoding
   // side always writes 'C'-locale decimal (.), so strtod_l with an explicit 'C' locale
   // is a safe and interchangeable substitute, regardless of the process's LC_NUMERIC.
   static const locale_t C_LOCALE = newlocale(LC_NUMERIC_MASK, "C", nullptr);
