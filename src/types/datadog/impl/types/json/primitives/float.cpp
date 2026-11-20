@@ -14,6 +14,7 @@
 #if DATADOG_HAS_DOUBLE_WRITE_FALLBACK
 #include <locale.h>
 
+#include <cfenv>
 #include <cstdio>
 #include <cstdlib>
 #ifdef __APPLE__
@@ -90,7 +91,9 @@ size_t WriteJson(char* dst, size_t n, const double& value) {
 // We find the shortest digits by reading the double's exact decimal expansion from
 // snprintf, then trying each length from 1 digit up, keeping the first candidate that
 // strtod parses back to the same double. Both run in the "C" locale, so that the
-// decimal separator is always '.'.
+// decimal separator is always '.', and in round-to-nearest mode, since some libcs
+// (including Apple's) round according to the calling thread's rounding mode, and
+// std::to_chars doesn't.
 
 // A double's exact decimal expansion has at most 767 significant digits
 static constexpr size_t MAX_EXACT_DIGITS = 767;
@@ -148,7 +151,7 @@ static void get_exact_digits(double value, DecimalDigits<MAX_EXACT_DIGITS>& out)
 
 /**
  * Returns true if `candidate`, parsed as a decimal, yields exactly `value`. Must be
- * called with the "C" locale in effect.
+ * called with the "C" locale and round-to-nearest mode in effect.
  */
 static bool parses_to(
     const DecimalDigits<MAX_SHORTEST_DIGITS>& candidate, double value
@@ -195,7 +198,7 @@ static void round_up_last_digit(
  * given its exact expansion `exact`, and writes it to `out` without trailing zeros. If
  * two decimals of that length both parse back to `value`, chooses the one closer to
  * the exact value, breaking a tie toward an even last digit. Must be called with the
- * "C" locale in effect.
+ * "C" locale and round-to-nearest mode in effect.
  */
 static void find_shortest_digits(
     const DecimalDigits<MAX_EXACT_DIGITS>& exact,
@@ -333,16 +336,20 @@ size_t WriteDoubleWithoutToChars(char* dst, size_t n, double value) {
     // Zero has no significant digits to search for
     *p++ = '0';
   } else {
-    // Format and parse in the "C" locale, restoring this thread's locale afterward
+    // Format and parse in the "C" locale and round-to-nearest mode, restoring this
+    // thread's locale and rounding mode afterward
     const locale_t locale = c_locale();
     DATADOG_ASSERT(locale != nullptr, "unable to create the C locale");
     const locale_t previous_locale = uselocale(locale);
+    const int previous_rounding = std::fegetround();
+    std::fesetround(FE_TONEAREST);
 
     DecimalDigits<MAX_EXACT_DIGITS> exact{};
     get_exact_digits(value, exact);
     DecimalDigits<MAX_SHORTEST_DIGITS> shortest{};
     find_shortest_digits(exact, value, shortest);
 
+    std::fesetround(previous_rounding);
     uselocale(previous_locale);
     p += write_general(shortest, p);
   }
