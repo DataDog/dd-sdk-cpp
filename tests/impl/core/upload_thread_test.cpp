@@ -44,13 +44,10 @@ TEST_CASE("UploadThreadState", "[unit]") {
   REQUIRE(state.current_delay > Duration{0});
   REQUIRE(state.max_delay > Duration{0});
 
-  // And max should be not be less than min
-  REQUIRE(state.max_delay >= state.min_delay);
-
-  // And initial delay should be somewhere in the middle
+  // And the initial delay should be 5x the min, and the max should be 10x the min
   const Duration initial_delay = state.current_delay;
-  REQUIRE(initial_delay > state.min_delay);
-  REQUIRE(initial_delay < state.max_delay);
+  REQUIRE(initial_delay == state.min_delay * 5);
+  REQUIRE(state.max_delay == state.min_delay * 10);
 
   // And incrementing the delay should increase it toward max
   const Duration increased_delay = state.IncreaseDelayTowardMax();
@@ -161,7 +158,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(fs.Ls(alpha_granted_dir).empty());
 
     // And our next cycle for the feature is scheduled with the default delay
-    REQUIRE(delay_until_next_cycle == std::chrono::seconds(50));
+    REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
   }
 
   SECTION("M process available batch files W batch files are present") {
@@ -228,7 +225,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
     // And our next cycle for the feature is scheduled with the minimum delay,
     // because we successfully uploaded a batch
-    REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
+    REQUIRE(delay_until_next_cycle == std::chrono::seconds(2));
   }
 
   SECTION(
@@ -325,7 +322,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         REQUIRE(names == tt.want_remaining_batch_files);
 
         // And our delay is reduced to minimum due to successful cycle
-        REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
+        REQUIRE(delay_until_next_cycle == std::chrono::seconds(2));
       }
     }
   }
@@ -385,7 +382,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(names[0] == "1699999999000");
 
     // And our delay is reduced to minimum due to successful cycle
-    REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
+    REQUIRE(delay_until_next_cycle == std::chrono::seconds(2));
   }
 
   SECTION(
@@ -397,12 +394,12 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     struct TestParams {
       std::string_view name;
       UploadFrequency upload_frequency;
-      int64_t want_num_seconds;
+      int64_t want_num_milliseconds;
     };
     std::vector<TestParams> tests = {
-        {"{UploadFrequency::Frequent ~ 3s}", UploadFrequency::Frequent, 3},
-        {"{UploadFrequency::Average ~ 10s}", UploadFrequency::Average, 10},
-        {"{UploadFrequency::Rare ~ 35s}", UploadFrequency::Rare, 35},
+        {"{UploadFrequency::Frequent ~ 0.5s}", UploadFrequency::Frequent, 500},
+        {"{UploadFrequency::Average ~ 2s}", UploadFrequency::Average, 2000},
+        {"{UploadFrequency::Rare ~ 5s}", UploadFrequency::Rare, 5000},
     };
     for (const auto& tt : tests) {
       DYNAMIC_SECTION(tt.name) {
@@ -439,9 +436,12 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         REQUIRE(client.requests.size() == 1);
         REQUIRE(fs.Ls(alpha_granted_dir).empty());
 
-        // And our delay is reduced to the appropriate minimum interval for our
-        // given batch size
-        REQUIRE(delay_until_next_cycle == std::chrono::seconds(tt.want_num_seconds));
+        // And our delay is reduced to the minimum interval for our given upload
+        // frequency
+        REQUIRE(
+            delay_until_next_cycle ==
+            std::chrono::milliseconds(tt.want_num_milliseconds)
+        );
       }
     }
   }
@@ -458,12 +458,12 @@ TEST_CASE("HandleUploadProc", "[unit]") {
       int64_t want_num_milliseconds;
     };
     std::vector<TestParams> tests = {
-        // Min 3s; initial 15s; after one failed attempt: 15s * 1.1 => 16.5s
-        {"{UploadFrequency::Frequent ~ 3s}", UploadFrequency::Frequent, 16500},
-        // Min 10s; initial 50s; after one failed attempt: 50s * 1.1 => 55s
-        {"{UploadFrequency::Average ~ 10s}", UploadFrequency::Average, 55000},
-        // Min 35s; initial 175s; after one failed attempt: 175s * 1.1 => 192.5s
-        {"{UploadFrequency::Rare ~ 35s}", UploadFrequency::Rare, 192500},
+        // Min 0.5s; initial 2.5s; after one failed attempt: 2.5s * 1.1 => 2.75s
+        {"{UploadFrequency::Frequent ~ 2.75s}", UploadFrequency::Frequent, 2750},
+        // Min 2s; initial 10s; after one failed attempt: 10s * 1.1 => 11s
+        {"{UploadFrequency::Average ~ 11s}", UploadFrequency::Average, 11000},
+        // Min 5s; initial 25s; after one failed attempt: 25s * 1.1 => 27.5s
+        {"{UploadFrequency::Rare ~ 27.5s}", UploadFrequency::Rare, 27500},
     };
     for (const auto& tt : tests) {
       DYNAMIC_SECTION(tt.name) {
@@ -504,8 +504,8 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         REQUIRE(client.requests.size() == 1);
         REQUIRE(fs.Ls(alpha_granted_dir).size() == 1);
 
-        // And our delay is reduced to the appropriate minimum interval for our
-        // given batch size
+        // And our delay is increased from the initial interval for our given upload
+        // frequency
         REQUIRE(
             std::chrono::round<std::chrono::milliseconds>(delay_until_next_cycle) ==
             std::chrono::milliseconds(tt.want_num_milliseconds)
@@ -588,7 +588,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
         REQUIRE(names == want_names);
 
         // And our delay is reduced to minimum due to successful cycle
-        REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
+        REQUIRE(delay_until_next_cycle == std::chrono::seconds(2));
       }
     }
   }
@@ -633,7 +633,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(names[0] == "1699999955000");
 
     // And our initial delay remains unmodified
-    REQUIRE(delay_until_next_cycle == std::chrono::seconds(50));
+    REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
   }
 
   SECTION("M retain batch and halt processing W unable to open batch file for read") {
@@ -690,7 +690,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(names[1] == "1699999957000");
 
     // And this feature's upload delay is increased due to failure
-    REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
+    REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(11000));
   }
 
   SECTION(
@@ -755,7 +755,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
     // And this feature's upload delay is reduced because the cycle finished with a
     // successful upload
-    REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
+    REQUIRE(delay_until_next_cycle == std::chrono::seconds(2));
   }
 
   SECTION("M reject batch and continue processing W unable to process batch") {
@@ -804,7 +804,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
 
     // And this feature's upload delay is reduced because the cycle finished with a
     // successful upload
-    REQUIRE(delay_until_next_cycle == std::chrono::seconds(10));
+    REQUIRE(delay_until_next_cycle == std::chrono::seconds(2));
   }
 
   SECTION("M retain batch and halt processing W upload fails due to network error") {
@@ -849,7 +849,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(names[0] == "1699999955000");
 
     // And this feature's upload delay is increased due to failure
-    REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
+    REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(11000));
   }
 
   SECTION("M retain batch and halt processing W upload gets HTTP server error") {
@@ -894,7 +894,7 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(names[0] == "1699999955000");
 
     // And this feature's upload delay is increased due to failure
-    REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
+    REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(11000));
   }
 
   SECTION("M delete outdated files W pending directory contains stale batch files") {
@@ -1137,6 +1137,6 @@ TEST_CASE("HandleUploadProc", "[unit]") {
     REQUIRE(fs.Ls(alpha_granted_dir).empty());
 
     // And this feature's upload delay is increased due to failure
-    REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(55000));
+    REQUIRE(delay_until_next_cycle == std::chrono::milliseconds(11000));
   }
 }

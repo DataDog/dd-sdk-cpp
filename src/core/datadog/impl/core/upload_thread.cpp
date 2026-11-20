@@ -478,13 +478,13 @@ UploadThreadState::UploadThreadState(
   // and uploads are succeeding
   switch (upload_frequency) {
     case UploadFrequency::Frequent:
-      min_delay = from_seconds(3.0);
+      min_delay = from_seconds(0.5);
       break;
     case UploadFrequency::Average:
-      min_delay = from_seconds(10.0);
+      min_delay = from_seconds(2.0);
       break;
     case UploadFrequency::Rare:
-      min_delay = from_seconds(35.0);
+      min_delay = from_seconds(5.0);
       break;
   }
 
