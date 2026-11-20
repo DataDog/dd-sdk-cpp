@@ -191,8 +191,11 @@ class DdWinProfBackend final : public IProfilerBackend {
 
 }  // namespace
 
-// Claims the process-wide backend slot, then creates a backend that calls `api`. The
-// backend releases the slot when destroyed.
+/**
+ * Claims the process-wide backend slot, then creates a backend that calls `api`. The
+ * backend releases the slot when destroyed. On success, returns the new backend. If
+ * another backend already holds the slot, logs a warning and returns null.
+ */
 static std::unique_ptr<IProfilerBackend> create_backend(
     const DiagnosticLogger& logger, DdWinProfApi api
 ) {
