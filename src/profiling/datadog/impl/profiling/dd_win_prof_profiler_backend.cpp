@@ -9,10 +9,10 @@
 
 #include <atomic>
 #include <chrono>
-#include <cstddef>
+#include <cstdint>
 #include <exception>
-#include <limits>
 #include <memory>
+#include <string_view>
 #include <utility>
 
 // Keep the SDK and dd-win-prof declarations below the system headers.
@@ -42,10 +42,9 @@ class DdWinProfBackend final : public IProfilerBackend {
 
     _callback = std::move(callback);
     if (!_api.setup_callback(DeliverProfile, this)) {
+      // Registration failed, and dd-win-prof keeps its previous (empty) registration;
+      // drop the callback that will never be called
       _callback = {};
-      // Registration failure preserves the profiler's previous registration. This
-      // backend never installs another callback, but still request the empty state.
-      (void)_api.setup_callback(nullptr, nullptr);
       return false;
     }
     _callback_registered = true;
@@ -102,8 +101,6 @@ class DdWinProfBackend final : public IProfilerBackend {
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND)
     try {
       DeliverProfileImpl(data);
-    } catch (const std::bad_alloc&) {
-      WarnNoexcept("Could not allocate memory for a profiler callback");
     } catch (const std::exception&) {
       WarnNoexcept("Profiling data callback threw an exception");
     } catch (...) {
@@ -127,31 +124,35 @@ class DdWinProfBackend final : public IProfilerBackend {
       // Invalid view; borrowed profile data cannot be read safely.
       return;
     }
-    if (data->result == 0 && data->pprof_size != 0 &&
-        (data->pprof_bytes == nullptr ||
-         data->pprof_size >
-             static_cast<size_t>((std::numeric_limits<std::ptrdiff_t>::max)()))) {
-      WarnNoexcept("Profiler delivered an invalid pprof byte view");
-      // Invalid byte range; borrowed profile data cannot be copied safely.
-      return;
-    }
-
-    ProfileData profile;
-    if (data->result == 0) {
-      if (data->pprof_size != 0) {
-        profile.pprof.assign(data->pprof_bytes, data->pprof_bytes + data->pprof_size);
-      }
-    } else {
-      const char* message = _api.error_message(data->result);
-      if (message != nullptr) {
-        profile.error = message;
-      }
-    }
+    ProfileView profile;
     profile.start = Timestamp{std::chrono::milliseconds(data->start_unix_time_ms)};
     profile.end = Timestamp{std::chrono::milliseconds(data->end_unix_time_ms)};
     profile.is_last = data->is_last != 0;
 
-    _callback(std::move(profile));
+    if (data->result != 0) {
+      // dd-win-prof returns static text that's valid until the DLL is unloaded, which
+      // happens only at process exit
+      const char* message = _api.error_message(data->result);
+      profile.error = (message != nullptr && message[0] != '\0')
+                          ? std::string_view(message)
+                          : std::string_view("Unknown profiler error");
+      WarnNoexcept(
+          "Profiler failed to export a profile",
+          {{"result", static_cast<uint64_t>(data->result)}, {"error", profile.error}}
+      );
+    } else if (data->pprof_size != 0 && data->pprof_bytes == nullptr) {
+      // Invalid byte range; report the period as failed rather than read the bytes.
+      static constexpr const char* INVALID_PPROF_VIEW_ERROR =
+          "Profiler delivered an invalid pprof byte view";
+      profile.error = INVALID_PPROF_VIEW_ERROR;
+      WarnNoexcept(INVALID_PPROF_VIEW_ERROR);
+    } else if (data->pprof_size != 0) {
+      // NOLINTNEXTLINE(cppcoreguidelines-pro-type-reinterpret-cast)
+      const auto* pprof_bytes = reinterpret_cast<const char*>(data->pprof_bytes);
+      profile.pprof = Block(pprof_bytes, data->pprof_size);
+    }
+
+    _callback(profile);
   }
 
   bool UnregisterCallback() noexcept {
@@ -168,15 +169,17 @@ class DdWinProfBackend final : public IProfilerBackend {
     return unregistered;
   }
 
-  void WarnNoexcept(const char* message) const noexcept {
+  void WarnNoexcept(
+      const char* message, DiagnosticAttributeList attributes = {}
+  ) const noexcept {
 #if defined(__cpp_exceptions) || defined(_CPPUNWIND)
     try {
-      _logger.Warning(message);
+      _logger.Warning(message, attributes);
     } catch (...) {
       // Diagnostic handlers are application code; no exception may cross the C ABI.
     }
 #else
-    _logger.Warning(message);
+    _logger.Warning(message, attributes);
 #endif
   }
 
@@ -188,14 +191,10 @@ class DdWinProfBackend final : public IProfilerBackend {
 
 }  // namespace
 
-std::unique_ptr<IProfilerBackend> CreateDdWinProfBackendForTest(
+// Claims the process-wide backend slot, then creates a backend that calls `api`. The
+// backend releases the slot when destroyed.
+static std::unique_ptr<IProfilerBackend> create_backend(
     const DiagnosticLogger& logger, DdWinProfApi api
-) {
-  return std::make_unique<DdWinProfBackend>(logger, api);
-}
-
-std::unique_ptr<IProfilerBackend> CreateProfilerBackend(
-    const DiagnosticLogger& logger
 ) {
   bool expected = false;
   if (!s_backend_exists.compare_exchange_strong(expected, true)) {
@@ -203,9 +202,22 @@ std::unique_ptr<IProfilerBackend> CreateProfilerBackend(
         "Profiling is already enabled for another SDK instance in this process: the "
         "profiler is shared by the whole process, so only one instance can use it"
     );
+    // Another backend holds the slot; only one may drive dd-win-prof at a time.
     return nullptr;
   }
-  return std::make_unique<DdWinProfBackend>(
+  return std::make_unique<DdWinProfBackend>(logger, api);
+}
+
+std::unique_ptr<IProfilerBackend> CreateDdWinProfBackendForTest(
+    const DiagnosticLogger& logger, DdWinProfApi api
+) {
+  return create_backend(logger, api);
+}
+
+std::unique_ptr<IProfilerBackend> CreateProfilerBackend(
+    const DiagnosticLogger& logger
+) {
+  return create_backend(
       logger,
       DdWinProfApi{
           SetupProfilingDataCallback,

@@ -9,8 +9,6 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
-#include <new>
-#include <optional>
 #include <stdexcept>
 #include <string>
 #include <utility>
@@ -83,7 +81,10 @@ static std::unique_ptr<IProfilerBackend> make_backend(
   start_result = true;
   error_message = "profile failed";
   calls.clear();
-  return CreateDdWinProfBackendForTest(logger, fake_api());
+  auto backend = CreateDdWinProfBackendForTest(logger, fake_api());
+  // Fails if an earlier test leaked a backend, which would still hold the slot
+  REQUIRE(backend != nullptr);
+  return backend;
 }
 
 static ProfilingData make_data() {
@@ -97,47 +98,89 @@ static ProfilingData make_data() {
 
 }  // namespace
 
-TEST_CASE("DdWinProfBackend copies borrowed callback data", "[unit][profiling]") {
-  auto backend = make_backend();
-  std::optional<ProfileData> received;
-  REQUIRE(backend->SetProfileCallback([&](ProfileData profile) {
-    received = std::move(profile);
+TEST_CASE("DdWinProfBackend delivers borrowed callback data", "[unit][profiling]") {
+  DiagnosticMessageBuffer diagnostics;
+  auto backend = make_backend(diagnostics.CreateTestLogger());
+  int deliveries = 0;
+  std::vector<uint8_t> received_pprof;
+  std::string received_error;
+  Timestamp received_start;
+  Timestamp received_end;
+  bool received_is_last = false;
+  REQUIRE(backend->SetProfileCallback([&](const ProfileView& profile) {
+    deliveries++;
+    // The view is only valid during the callback, so copy what the test checks
+    received_pprof.assign(profile.pprof.begin(), profile.pprof.end());
+    received_error = profile.error;
+    received_start = profile.start;
+    received_end = profile.end;
+    received_is_last = profile.is_last;
   }));
 
   SECTION("profile bytes, timestamps, and final flag") {
-    std::vector<uint8_t> borrowed{1, 2, 3, 4};
+    const std::vector<uint8_t> borrowed{1, 2, 3, 4};
     ProfilingData data = make_data();
     data.pprof_bytes = borrowed.data();
     data.pprof_size = borrowed.size();
 
     callback(&data, callback_context);
-    borrowed.assign(borrowed.size(), 0);
 
-    REQUIRE(received.has_value());
-    REQUIRE(received->pprof == std::vector<uint8_t>{1, 2, 3, 4});
-    REQUIRE(received->error.empty());
+    REQUIRE(deliveries == 1);
+    REQUIRE(received_pprof == borrowed);
+    REQUIRE(received_error.empty());
     REQUIRE(
-        received->start.time_since_epoch() == std::chrono::milliseconds(1700000000123)
+        received_start.time_since_epoch() == std::chrono::milliseconds(1700000000123)
     );
     REQUIRE(
-        received->end.time_since_epoch() == std::chrono::milliseconds(1700000060456)
+        received_end.time_since_epoch() == std::chrono::milliseconds(1700000060456)
     );
-    REQUIRE(received->is_last);
+    REQUIRE(received_is_last);
   }
 
-  SECTION("error text") {
+  SECTION("empty profile") {
+    ProfilingData data = make_data();
+
+    callback(&data, callback_context);
+
+    REQUIRE(deliveries == 1);
+    REQUIRE(received_pprof.empty());
+    REQUIRE(diagnostics.warning.empty());
+  }
+
+  SECTION("export error") {
     ProfilingData data = make_data();
     // Consumers may only distinguish success from failure and ask the profiler to
     // explain an opaque nonzero result.
     data.result = 42;
 
     callback(&data, callback_context);
-    error_message.assign("overwritten");
 
-    REQUIRE(received.has_value());
-    REQUIRE(received->pprof.empty());
-    REQUIRE(received->error == "profile failed");
-    REQUIRE(received->is_last);
+    // The failed period is still delivered, so the consumer can discard its data
+    REQUIRE(deliveries == 1);
+    REQUIRE(received_error == "profile failed");
+    REQUIRE(received_pprof.empty());
+    REQUIRE(
+        received_start.time_since_epoch() == std::chrono::milliseconds(1700000000123)
+    );
+    REQUIRE(
+        received_end.time_since_epoch() == std::chrono::milliseconds(1700000060456)
+    );
+    REQUIRE(received_is_last);
+    REQUIRE(
+        diagnostics.warning.back() ==
+        R"(Profiler failed to export a profile {"result":42,"error":"profile failed"})"
+    );
+  }
+
+  SECTION("export error without a description") {
+    ProfilingData data = make_data();
+    data.result = 42;
+    error_message.clear();
+
+    callback(&data, callback_context);
+
+    REQUIRE(deliveries == 1);
+    REQUIRE(received_error == "Unknown profiler error");
   }
 }
 
@@ -147,20 +190,11 @@ TEST_CASE("DdWinProfBackend contains callback exceptions", "[unit][profiling]") 
   ProfilingData data = make_data();
 
   SECTION("standard exception") {
-    REQUIRE(backend->SetProfileCallback([](ProfileData) {
+    REQUIRE(backend->SetProfileCallback([](const ProfileView&) {
       throw std::runtime_error("consumer failed");
     }));
     REQUIRE_NOTHROW(callback(&data, callback_context));
     REQUIRE(diagnostics.warning.back() == "Profiling data callback threw an exception");
-  }
-
-  SECTION("allocation failure") {
-    REQUIRE(backend->SetProfileCallback([](ProfileData) { throw std::bad_alloc(); }));
-    REQUIRE_NOTHROW(callback(&data, callback_context));
-    REQUIRE(
-        diagnostics.warning.back() ==
-        "Could not allocate memory for a profiler callback"
-    );
   }
 }
 
@@ -168,14 +202,20 @@ TEST_CASE("DdWinProfBackend validates borrowed views", "[unit][profiling]") {
   DiagnosticMessageBuffer diagnostics;
   auto backend = make_backend(diagnostics.CreateTestLogger());
   int deliveries = 0;
-  REQUIRE(backend->SetProfileCallback([&](ProfileData) { deliveries++; }));
+  std::string received_error;
+  REQUIRE(backend->SetProfileCallback([&](const ProfileView& profile) {
+    deliveries++;
+    received_error = profile.error;
+  }));
 
   SECTION("pprof pointer") {
     ProfilingData data = make_data();
     data.pprof_size = 1;
     callback(&data, callback_context);
 
-    REQUIRE(deliveries == 0);
+    // The period is reported as failed rather than dropped
+    REQUIRE(deliveries == 1);
+    REQUIRE(received_error == "Profiler delivered an invalid pprof byte view");
     REQUIRE(
         diagnostics.warning.back() == "Profiler delivered an invalid pprof byte view"
     );
@@ -207,7 +247,7 @@ TEST_CASE("DdWinProfBackend ignores delivery without a callback", "[unit][profil
   DiagnosticMessageBuffer diagnostics;
   auto backend = make_backend(diagnostics.CreateTestLogger());
   int deliveries = 0;
-  REQUIRE(backend->SetProfileCallback([&](ProfileData) { deliveries++; }));
+  REQUIRE(backend->SetProfileCallback([&](const ProfileView&) { deliveries++; }));
   const ProfilingDataCallback delivery = callback;
   void* const context = callback_context;
   REQUIRE(backend->SetProfileCallback({}));
@@ -234,7 +274,7 @@ TEST_CASE(
   auto backend = make_backend();
   auto lifetime = std::make_shared<int>(0);
   std::weak_ptr<int> weak_lifetime = lifetime;
-  REQUIRE(backend->SetProfileCallback([lifetime](ProfileData) {}));
+  REQUIRE(backend->SetProfileCallback([lifetime](const ProfileView&) {}));
   lifetime.reset();
 
   backend->Stop();
@@ -250,13 +290,17 @@ TEST_CASE("DdWinProfBackend unregisters failure paths", "[unit][profiling]") {
     auto backend = make_backend();
     register_result = false;
 
-    REQUIRE_FALSE(backend->SetProfileCallback([](ProfileData) {}));
-    REQUIRE(calls == std::vector<std::string>{"register", "unregister"});
+    REQUIRE_FALSE(backend->SetProfileCallback([](const ProfileView&) {}));
+    REQUIRE(calls == std::vector<std::string>{"register"});
+
+    // A callback that was never registered isn't unregistered at teardown
+    backend.reset();
+    REQUIRE(calls == std::vector<std::string>{"register", "stop"});
   }
 
   SECTION("setup failure") {
     auto backend = make_backend();
-    REQUIRE(backend->SetProfileCallback([](ProfileData) {}));
+    REQUIRE(backend->SetProfileCallback([](const ProfileView&) {}));
     setup_result = false;
 
     REQUIRE_FALSE(backend->Init({}));
@@ -265,7 +309,7 @@ TEST_CASE("DdWinProfBackend unregisters failure paths", "[unit][profiling]") {
 
   SECTION("partial start failure") {
     auto backend = make_backend();
-    REQUIRE(backend->SetProfileCallback([](ProfileData) {}));
+    REQUIRE(backend->SetProfileCallback([](const ProfileView&) {}));
     REQUIRE(backend->Init({}));
     start_result = false;
 
@@ -275,4 +319,19 @@ TEST_CASE("DdWinProfBackend unregisters failure paths", "[unit][profiling]") {
         std::vector<std::string>{"register", "setup", "start", "stop", "unregister"}
     );
   }
+}
+
+TEST_CASE(
+    "DdWinProfBackend test backends claim the process-wide slot", "[unit][profiling]"
+) {
+  DiagnosticMessageBuffer diagnostics;
+
+  // When a test backend exists
+  auto backend = make_backend();
+
+  // Then no other backend can be created until it's destroyed
+  REQUIRE(CreateProfilerBackend(diagnostics.CreateTestLogger()) == nullptr);
+  REQUIRE(CreateDdWinProfBackendForTest(DiagnosticLogger{}, fake_api()) == nullptr);
+  backend.reset();
+  REQUIRE(CreateDdWinProfBackendForTest(DiagnosticLogger{}, fake_api()) != nullptr);
 }

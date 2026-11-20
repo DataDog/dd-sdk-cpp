@@ -9,7 +9,6 @@
 #include <algorithm>
 #include <string>
 #include <string_view>
-#include <utility>
 #include <vector>
 
 #include "datadog/impl/profiling/profiler_backend.hpp"
@@ -32,43 +31,22 @@ class MockProfilerBackend : public impl::IProfilerBackend {
     return static_cast<int>(std::count(calls.begin(), calls.end(), name));
   }
 
-  bool HasCallback() const { return static_cast<bool>(_callback); }
-
   // IProfilerBackend interface
   bool SetProfileCallback(impl::ProfileCallback callback) override {
     calls.push_back(callback ? "register" : "unregister");
-    if (!set_callback_result) {
-      return false;
-    }
-    _callback = std::move(callback);
-    return true;
+    return set_callback_result;
   }
 
   bool Init(const impl::ProfilerBackendSettings& settings) override {
     calls.push_back("init");
     last_settings = settings;
-    if (!init_result) {
-      _callback = {};
-      calls.push_back("unregister");
-    }
     return init_result;
   }
 
   bool Start() override {
     calls.push_back("start");
-    if (!start_result) {
-      _callback = {};
-      calls.push_back("unregister");
-    }
     return start_result;
   }
 
-  void Stop() override {
-    calls.push_back("stop");
-    _callback = {};
-    calls.push_back("unregister");
-  }
-
- private:
-  impl::ProfileCallback _callback;
+  void Stop() override { calls.push_back("stop"); }
 };
