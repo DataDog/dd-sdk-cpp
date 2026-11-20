@@ -7,10 +7,12 @@
 #include "datadog/impl/types/json/parse_primitives.hpp"
 
 #include <cerrno>
+#include <cfenv>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <limits>
 #include <string>
 
 // With C++17, we can call std::from_chars from <charconv>, but not every C++ stdlib
@@ -74,18 +76,30 @@ bool ParseJsonDouble(std::string_view json_literal, double& out) {
   // is a safe and interchangeable substitute, regardless of the process's LC_NUMERIC.
   static const locale_t C_LOCALE = newlocale(LC_NUMERIC_MASK, "C", nullptr);
   const std::string tmp(json_literal);
+
+  // Some libcs (including Apple's) round according to the calling thread's rounding
+  // mode, which the application may have changed, and which threads inherit from the
+  // thread that creates them. Parse in the default round-to-nearest mode, so that the
+  // result doesn't depend on it, then restore the caller's mode.
+  const int previous_rounding = std::fegetround();
+  std::fesetround(FE_TONEAREST);
   char* end_ptr = nullptr;
   errno = 0;
   const double val = strtod_l(tmp.c_str(), &end_ptr, C_LOCALE);
+  const int parse_errno = errno;
+  std::fesetround(previous_rounding);
+
   if (end_ptr != tmp.c_str() + tmp.size()) {
     // Not a complete number literal; reject it
     return false;
   }
-  // strtod_l reports ERANGE for subnormal results as well as for overflow (which
-  // returns ±HUGE_VAL) and underflow to zero. Subnormals are valid doubles, which
-  // WriteJson() can write, so accept them, and reject any other error.
-  const bool is_subnormal = errno == ERANGE && std::isfinite(val) && val != 0.0;
-  if (errno != 0 && !is_subnormal) {
+  // strtod_l reports ERANGE for overflow and for underflow, including subnormal
+  // results. Subnormals are valid doubles, which WriteJson() can write, so accept
+  // nonzero results no larger than the smallest normal double. Reject any other error,
+  // including overflow, even if a libc returns a finite value for it.
+  const bool is_subnormal = parse_errno == ERANGE && val != 0.0 &&
+                            std::abs(val) <= std::numeric_limits<double>::min();
+  if (parse_errno != 0 && !is_subnormal) {
     return false;
   }
   out = val;

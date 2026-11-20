@@ -6,6 +6,7 @@
 
 #include "datadog/impl/types/json/parse_primitives.hpp"
 
+#include <cfenv>
 #include <cmath>
 #include <cstdint>
 #include <limits>
@@ -246,6 +247,30 @@ TEST_CASE("ParseJsonDouble", "[unit][json][parse_primitives]") {
     REQUIRE_FALSE(ParseJsonDouble("1e400", out));
     REQUIRE_FALSE(ParseJsonDouble("-1e400", out));
     REQUIRE_FALSE(ParseJsonDouble("1e-400", out));
+  }
+
+  SECTION("M reject overflow and underflow to zero in every rounding mode") {
+    const int previous_rounding = std::fegetround();
+    for (const int mode : {FE_TOWARDZERO, FE_DOWNWARD, FE_UPWARD}) {
+      // Record results before restoring the rounding mode, so that a failed check
+      // can't leave it changed for later tests
+      REQUIRE(std::fesetround(mode) == 0);
+      double smallest = 0.0;
+      const bool parsed_smallest = ParseJsonDouble("5e-324", smallest);
+      const bool parsed_overflow = ParseJsonDouble("1e400", out);
+      const bool parsed_negative_overflow = ParseJsonDouble("-1e400", out);
+      const bool parsed_underflow = ParseJsonDouble("1e-400", out);
+      const bool parsed_negative_underflow = ParseJsonDouble("-1e-400", out);
+      std::fesetround(previous_rounding);
+
+      INFO("rounding mode " << mode);
+      CHECK(parsed_smallest);
+      CHECK(smallest == std::numeric_limits<double>::denorm_min());
+      CHECK_FALSE(parsed_overflow);
+      CHECK_FALSE(parsed_negative_overflow);
+      CHECK_FALSE(parsed_underflow);
+      CHECK_FALSE(parsed_negative_underflow);
+    }
   }
 }
 
