@@ -69,7 +69,7 @@ void RumEventTracker::OnVital(const RumVitalGeneratedMessage& message) {
   // arrived. Anything else is added if there is room for it.
   if (existing != _vitals.end()) {
     _vitals.erase(existing);
-  } else if (_vitals.size() >= kMaxEventsPerKind) {
+  } else if (_vitals.size() >= MAX_EVENTS_PER_KIND) {
     return;
   }
   _vitals.push_back(
@@ -89,7 +89,7 @@ void RumEventTracker::OnVital(const RumVitalGeneratedMessage& message) {
 
 void RumEventTracker::OnLongTask(const RumLongTaskGeneratedMessage& message) {
   std::lock_guard<std::mutex> lock(_mutex);
-  if (_long_tasks.size() >= kMaxEventsPerKind) {
+  if (_long_tasks.size() >= MAX_EVENTS_PER_KIND) {
     return;
   }
   _long_tasks.push_back({message.long_task_id, message.start, message.duration});
@@ -119,7 +119,7 @@ RumEventSnapshot RumEventTracker::TakeSnapshot(const Timestamp& now) {
   // recent enough to still be expected to end
   const bool keep_pending =
       std::any_of(_vitals.begin(), _vitals.end(), [&](const TrackedRumVital& vital) {
-        return is_pending(vital) && now - vital.start < kOngoingOperationCutoff;
+        return is_pending(vital) && now - vital.start < ONGOING_OPERATION_CUTOFF;
       });
 
   // Hand over every vital in order, moving those that are done with, and copying (and
@@ -163,7 +163,7 @@ void RumEventTracker::NoteView(const RumEventContext& context) {
       std::find_if(_views.begin(), _views.end(), [&](const TrackedRumView& view) {
         return view.id == context.view_id;
       });
-  if (known != _views.end() || _views.size() >= kMaxEventsPerKind) {
+  if (known != _views.end() || _views.size() >= MAX_EVENTS_PER_KIND) {
     return;
   }
   _views.push_back({context.view_id, context.view_name});

@@ -341,7 +341,7 @@ TEST_CASE("Core anonymous_id", "[unit]") {
   // Whether that id is ever exposed on events is a decision made later by RUM (see
   // cpp/rum_cpp_api_test.cpp); these tests only cover the underlying persistence.
   DiagnosticMessageBuffer diagnostics;
-  static const char* kIdFilePath = "app/.datadog/.core/id";
+  static const char* ID_FILE_PATH = "app/.datadog/.core/id";
 
   SECTION("M generate and persist a new id W Init is called and none exists") {
     // Given a core with no anonymous_id file yet
@@ -352,8 +352,8 @@ TEST_CASE("Core anonymous_id", "[unit]") {
     REQUIRE(core.Init());
 
     // Then a valid, persisted UUID text value now exists on disk
-    REQUIRE(fs->IsFile(kIdFilePath));
-    std::string id = fs->Cat(kIdFilePath);
+    REQUIRE(fs->IsFile(ID_FILE_PATH));
+    std::string id = fs->Cat(ID_FILE_PATH);
     REQUIRE(id.size() == 36);
     REQUIRE(UUID::Parse(id).has_value());
   }
@@ -364,13 +364,13 @@ TEST_CASE("Core anonymous_id", "[unit]") {
     impl::Core core = _make_core_with_fs(diagnostics, fs);
     const UUID existing = UUID::Random();
     fs->Mkdirs("app/.datadog/.core");
-    fs->Touch(kIdFilePath, existing.ToString());
+    fs->Touch(ID_FILE_PATH, existing.ToString());
 
     // When Init() is called
     REQUIRE(core.Init());
 
     // Then the persisted value is left unchanged
-    REQUIRE(fs->Cat(kIdFilePath) == existing.ToString());
+    REQUIRE(fs->Cat(ID_FILE_PATH) == existing.ToString());
   }
 
   SECTION("M regenerate the id W Init is called and the existing id file is corrupt") {
@@ -378,13 +378,13 @@ TEST_CASE("Core anonymous_id", "[unit]") {
     MockFilesystem* fs = nullptr;
     impl::Core core = _make_core_with_fs(diagnostics, fs);
     fs->Mkdirs("app/.datadog/.core");
-    fs->Touch(kIdFilePath, "not-a-valid-uuid");
+    fs->Touch(ID_FILE_PATH, "not-a-valid-uuid");
 
     // When Init() is called
     REQUIRE(core.Init());
 
     // Then the corrupt file is overwritten with a newly-generated, valid id
-    std::string id = fs->Cat(kIdFilePath);
+    std::string id = fs->Cat(ID_FILE_PATH);
     REQUIRE(UUID::Parse(id).has_value());
   }
 
@@ -404,7 +404,7 @@ TEST_CASE("Core anonymous_id", "[unit]") {
     REQUIRE(core.Init());
 
     // But no anonymous_id file is ever produced
-    REQUIRE_FALSE(fs->IsFile(kIdFilePath));
+    REQUIRE_FALSE(fs->IsFile(ID_FILE_PATH));
   }
 }
 

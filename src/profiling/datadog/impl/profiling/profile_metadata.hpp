@@ -63,8 +63,8 @@ class ProfileTags {
  private:
   // ProfilingOperationValues lists every value of the ProfilingOperation enum, which is
   // declared with DATADOG_STRING_ENUM. One tags string is stored for each value.
-  static constexpr size_t kNumOperations = std::size(ProfilingOperationValues);
-  std::array<std::string, kNumOperations> _tags_by_operation;
+  static constexpr size_t NUM_OPERATIONS = std::size(ProfilingOperationValues);
+  std::array<std::string, NUM_OPERATIONS> _tags_by_operation;
 };
 
 /**

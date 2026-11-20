@@ -74,8 +74,8 @@ ProfileRumEvent MakeRumEvent(const TrackedRumLongTask& task) {
 
 ProfileTags ProfileTags::FromContext(const CoreContext& context) {
   ProfileTags tags;
-  for (size_t i = 0; i < kNumOperations; i++) {
-    // i is less than kNumOperations, the number of ProfilingOperation values
+  for (size_t i = 0; i < NUM_OPERATIONS; i++) {
+    // i is less than NUM_OPERATIONS, the number of ProfilingOperation values
     // NOLINTNEXTLINE(cppcoreguidelines-pro-bounds-constant-array-index)
     tags._tags_by_operation[i] = BuildTags(context, static_cast<ProfilingOperation>(i));
   }
