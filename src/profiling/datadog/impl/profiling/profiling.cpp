@@ -119,12 +119,25 @@ void Profiling::UpdateBackendState() {
   const bool should_run = _scope.has_value() && _consent == TrackingConsent::Granted;
 
   if (should_run && !_backend_running) {
+    // Register before setup so dd-win-prof selects callback delivery and does not
+    // require HTTP credentials. Storage and upload of these profiles are added
+    // separately; until then, profiles are discarded without being copied.
+    if (!_backend->SetProfileCallback([](const ProfileView&) {})) {
+      _scope->diagnostic_logger.Warning("Failed to register profiling data callback");
+      // Without callback delivery, dd-win-prof would fall back to HTTP upload; don't
+      // start.
+      return;
+    }
     if (!_backend->Init(_settings)) {
       _scope->diagnostic_logger.Warning("Failed to configure profiler");
+      // The backend unregistered its callback; profiling stays off until consent
+      // changes.
       return;
     }
     if (!_backend->Start()) {
       _scope->diagnostic_logger.Warning("Failed to start profiler");
+      // The backend stopped and unregistered; profiling stays off until consent
+      // changes.
       return;
     }
     _backend_running = true;

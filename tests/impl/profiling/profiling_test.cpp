@@ -53,8 +53,8 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     test.Start(profiling);
 
     // Then the profiler is untouched
-    REQUIRE(profiler.init_calls == 0);
-    REQUIRE(profiler.start_calls == 0);
+    REQUIRE(profiler.CountCalls("init") == 0);
+    REQUIRE(profiler.CountCalls("start") == 0);
   }
 
   SECTION(
@@ -65,8 +65,11 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     send_consent(datadog::TrackingConsent::Granted);
 
     // Then the profiler is configured with the app's identity, then started
-    REQUIRE(profiler.init_calls == 1);
-    REQUIRE(profiler.start_calls == 1);
+    REQUIRE(profiler.calls[0] == "register");
+    REQUIRE(profiler.calls[1] == "init");
+    REQUIRE(profiler.calls[2] == "start");
+    REQUIRE(profiler.CountCalls("init") == 1);
+    REQUIRE(profiler.CountCalls("start") == 1);
     REQUIRE(profiler.last_settings.service == "my-service");
     REQUIRE(profiler.last_settings.env == "staging");
     REQUIRE(profiler.last_settings.version == "1.2.3");
@@ -76,12 +79,12 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
   SECTION("M start the profiler W the core starts after consent is granted") {
     // When consent is granted before the core's Start() is called
     send_consent(datadog::TrackingConsent::Granted);
-    REQUIRE(profiler.start_calls == 0);
+    REQUIRE(profiler.CountCalls("start") == 0);
     test.Start(profiling);
 
     // Then the profiler starts once the core does
-    REQUIRE(profiler.init_calls == 1);
-    REQUIRE(profiler.start_calls == 1);
+    REQUIRE(profiler.CountCalls("init") == 1);
+    REQUIRE(profiler.CountCalls("start") == 1);
   }
 
   SECTION("M not start the profiler W consent is pending or not granted") {
@@ -91,9 +94,9 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     send_consent(datadog::TrackingConsent::NotGranted);
 
     // Then the profiler is never touched
-    REQUIRE(profiler.init_calls == 0);
-    REQUIRE(profiler.start_calls == 0);
-    REQUIRE(profiler.stop_calls == 0);
+    REQUIRE(profiler.CountCalls("init") == 0);
+    REQUIRE(profiler.CountCalls("start") == 0);
+    REQUIRE(profiler.CountCalls("stop") == 0);
   }
 
   SECTION("M stop the profiler W consent is withdrawn") {
@@ -103,7 +106,7 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     send_consent(datadog::TrackingConsent::NotGranted);
 
     // Then the profiler is stopped
-    REQUIRE(profiler.stop_calls == 1);
+    REQUIRE(profiler.CountCalls("stop") == 1);
   }
 
   SECTION("M restart the profiler W consent is granted again") {
@@ -114,9 +117,9 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     send_consent(datadog::TrackingConsent::Granted);
 
     // Then the profiler has been set up and started twice, and stopped once
-    REQUIRE(profiler.init_calls == 2);
-    REQUIRE(profiler.start_calls == 2);
-    REQUIRE(profiler.stop_calls == 1);
+    REQUIRE(profiler.CountCalls("init") == 2);
+    REQUIRE(profiler.CountCalls("start") == 2);
+    REQUIRE(profiler.CountCalls("stop") == 1);
   }
 
   SECTION("M stop the profiler W the core stops") {
@@ -126,7 +129,7 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     test.Stop(profiling);
 
     // Then the profiler is stopped
-    REQUIRE(profiler.stop_calls == 1);
+    REQUIRE(profiler.CountCalls("stop") == 1);
   }
 
   SECTION("M not start the profiler W consent arrives after the core stops") {
@@ -136,8 +139,8 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     send_consent(datadog::TrackingConsent::Granted);
 
     // Then the profiler is not started
-    REQUIRE(profiler.init_calls == 0);
-    REQUIRE(profiler.start_calls == 0);
+    REQUIRE(profiler.CountCalls("init") == 0);
+    REQUIRE(profiler.CountCalls("start") == 0);
   }
 
   SECTION("M start and stop the profiler for each run W the core is restarted") {
@@ -150,9 +153,9 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     test.Stop(profiling);
 
     // Then the profiler has been set up, started, and stopped once per run
-    REQUIRE(profiler.init_calls == 2);
-    REQUIRE(profiler.start_calls == 2);
-    REQUIRE(profiler.stop_calls == 2);
+    REQUIRE(profiler.CountCalls("init") == 2);
+    REQUIRE(profiler.CountCalls("start") == 2);
+    REQUIRE(profiler.CountCalls("stop") == 2);
     REQUIRE(test.diagnostic_messages.empty());
   }
 
@@ -164,9 +167,9 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     test.Start(profiling);
 
     // Then the profiler isn't started again until the new run reports its consent
-    REQUIRE(profiler.start_calls == 1);
+    REQUIRE(profiler.CountCalls("start") == 1);
     send_consent(datadog::TrackingConsent::Granted);
-    REQUIRE(profiler.start_calls == 2);
+    REQUIRE(profiler.CountCalls("start") == 2);
   }
 
   SECTION("M warn and not start W init fails") {
@@ -177,14 +180,14 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     send_consent(datadog::TrackingConsent::Granted);
 
     // Then a warning is logged and the profiler is not started
-    REQUIRE(profiler.start_calls == 0);
+    REQUIRE(profiler.CountCalls("start") == 0);
     REQUIRE(test.diagnostic_messages.size() == 1);
     REQUIRE(test.diagnostic_messages[0].level == datadog::DiagnosticLevel::Warning);
     REQUIRE(test.diagnostic_messages[0].text == "Failed to configure profiler");
 
     // And a later stop doesn't touch a profiler that never started
     test.Stop(profiling);
-    REQUIRE(profiler.stop_calls == 0);
+    REQUIRE(profiler.CountCalls("stop") == 0);
   }
 
   SECTION("M warn and not stop W start fails") {
@@ -196,12 +199,28 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     test.Stop(profiling);
 
     // Then a warning is logged and the profiler is never stopped
-    REQUIRE(profiler.init_calls == 1);
-    REQUIRE(profiler.start_calls == 1);
+    REQUIRE(profiler.CountCalls("init") == 1);
+    REQUIRE(profiler.CountCalls("start") == 1);
     REQUIRE(test.diagnostic_messages.size() == 1);
     REQUIRE(test.diagnostic_messages[0].level == datadog::DiagnosticLevel::Warning);
     REQUIRE(test.diagnostic_messages[0].text == "Failed to start profiler");
-    REQUIRE(profiler.stop_calls == 0);
+    REQUIRE(profiler.CountCalls("stop") == 0);
+  }
+
+  SECTION("M diagnose registration failure W callback cannot be installed") {
+    profiler.set_callback_result = false;
+
+    test.Start(profiling);
+    send_consent(datadog::TrackingConsent::Granted);
+
+    REQUIRE(profiler.CountCalls("register") == 1);
+    REQUIRE(profiler.CountCalls("init") == 0);
+    REQUIRE(profiler.CountCalls("start") == 0);
+    REQUIRE(test.diagnostic_messages.size() == 1);
+    REQUIRE(test.diagnostic_messages[0].level == datadog::DiagnosticLevel::Warning);
+    REQUIRE(
+        test.diagnostic_messages[0].text == "Failed to register profiling data callback"
+    );
   }
 
   SECTION(
@@ -216,7 +235,7 @@ TEST_CASE("Profiling feature lifecycle", "[unit][profiling]") {
     send_consent(datadog::TrackingConsent::Granted);
 
     // Then the start isn't retried and the warning isn't repeated
-    REQUIRE(profiler.start_calls == 1);
+    REQUIRE(profiler.CountCalls("start") == 1);
     REQUIRE(test.diagnostic_messages.size() == 1);
   }
 }

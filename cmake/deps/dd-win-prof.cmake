@@ -16,7 +16,7 @@
 
 include(FetchContent)
 
-set(DD_WIN_PROF_GIT_TAG "7caf25bfce0e55e9df3d60c9baf0b1dfa408f97e" CACHE STRING
+set(DD_WIN_PROF_GIT_TAG "3d62818e15c196e029feb50026f77fe86092fd87" CACHE STRING
     "dd-win-prof revision (commit SHA) to build")
 
 # To work on dd-win-prof alongside the SDK, point this at a local checkout
@@ -37,8 +37,9 @@ else()
 endif()
 FetchContent_MakeAvailable(dd-win-prof)
 
-# Only dd-win-prof.h is exposed by the dd-win-prof target, and it stays private to the
-# SDK: it is not part of the SDK's public API
+# The dd-win-prof target exposes dd-win-prof.h and the SDK-only internal/ headers (the
+# profiling data callback and error messages). They stay private to the SDK: they are
+# not part of the SDK's public API
 target_link_libraries(ddsdkcpp_profiling PRIVATE dd-win-prof)
 target_compile_definitions(ddsdkcpp_profiling PRIVATE WITH_DATADOG_PROFILING=1)
 target_sources(ddsdkcpp_profiling PRIVATE

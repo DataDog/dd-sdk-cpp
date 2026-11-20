@@ -6,9 +6,14 @@
 
 #pragma once
 
+#include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 
+#include "datadog/timestamp.hpp"
+
+#include "datadog/impl/core/block.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
 namespace datadog::impl {
@@ -21,6 +26,33 @@ struct ProfilerBackendSettings {
   std::string env;
   std::string version;
 };
+
+/**
+ * A profile exported by the profiler for the period from `start` to `end`, or the
+ * error that prevented one.
+ *
+ * On success, `error` is empty and `pprof` borrows profiler-owned bytes that are valid
+ * only until the callback returns: a consumer that retains the profile, or passes it to
+ * another thread, must copy them first (see Block). `pprof` may be empty if the
+ * profiler exported an empty profile.
+ *
+ * On failure, `error` is non-empty and `pprof` is empty. The error text is static and
+ * remains valid for the lifetime of the process, so it can be retained without copying.
+ * The consumer should discard any data it tracked for the failed period.
+ */
+struct ProfileView {
+  Block pprof;
+  std::string_view error;
+  Timestamp start;
+  Timestamp end;
+  bool is_last = false;
+};
+
+/**
+ * Receives each profile the profiler exports, including failed exports. Called on the
+ * profiler's exporter thread, or on the thread that calls Stop() for the final export.
+ */
+using ProfileCallback = std::function<void(const ProfileView&)>;
 
 /**
  * Interface to a process-global sampling profiler.
@@ -41,6 +73,12 @@ class IProfilerBackend {
   IProfilerBackend& operator=(IProfilerBackend&&) = delete;
 
   /**
+   * Registers the SDK callback that receives each exported profile. Must be called
+   * before Init(). An empty callback unregisters the current callback.
+   */
+  virtual bool SetProfileCallback(ProfileCallback callback) = 0;
+
+  /**
    * Applies the given settings. Must be called before Start().
    */
   virtual bool Init(const ProfilerBackendSettings& settings) = 0;
@@ -51,7 +89,8 @@ class IProfilerBackend {
   virtual bool Start() = 0;
 
   /**
-   * Stops profiling. Safe to call if the profiler was never started.
+   * Stops profiling, waits for its final callback, then unregisters and clears the
+   * callback. Safe to call if the profiler was never started.
    */
   virtual void Stop() = 0;
 };
