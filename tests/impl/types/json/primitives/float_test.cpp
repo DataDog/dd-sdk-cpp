@@ -7,6 +7,7 @@
 #include "datadog/impl/types/json/primitives/float.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cfenv>
 #include <charconv>
 #include <cmath>
 #include <cstdint>
@@ -236,6 +237,49 @@ TEST_CASE("WriteDoubleWithoutToChars", "[unit][json]") {
     CHECK(got == "1.5");
     CHECK(got_scientific == "1.5e-10");
     CHECK(locale_restored);
+  }
+
+  SECTION("M write the same output regardless of this thread's rounding mode") {
+    // Compute the expected output in the default round-to-nearest mode
+    std::mt19937_64 rng(20303);
+    std::vector<double> values = {0.1, 100.0, 1234567.0, 5.434935501336305};
+    for (int i = 0; i < 2000; ++i) {
+      const uint64_t bits = rng();
+      double value = 0.0;
+      std::memcpy(&value, &bits, sizeof(value));
+      if (std::isfinite(value)) {
+        values.push_back(value);
+      }
+    }
+    std::vector<std::string> expected;
+    expected.reserve(values.size());
+    for (const double value : values) {
+      expected.push_back(write_with_to_chars(value));
+    }
+
+    const int previous_rounding = std::fegetround();
+    for (const int mode : {FE_TOWARDZERO, FE_DOWNWARD, FE_UPWARD}) {
+      // Record results before restoring the rounding mode, so that a failed check
+      // can't leave it changed for later tests
+      REQUIRE(std::fesetround(mode) == 0);
+      size_t mismatches = 0;
+      std::string first_mismatch;
+      for (size_t i = 0; i < values.size(); ++i) {
+        const std::string got = write_without_to_chars(values[i]);
+        if (got != expected[i]) {
+          if (mismatches == 0) {
+            first_mismatch = "expected " + expected[i] + ", got " + got;
+          }
+          ++mismatches;
+        }
+      }
+      const bool rounding_restored = std::fegetround() == mode;
+      std::fesetround(previous_rounding);
+
+      INFO("rounding mode " << mode << ": " << first_mismatch);
+      CHECK(mismatches == 0);
+      CHECK(rounding_restored);
+    }
   }
 }
 
