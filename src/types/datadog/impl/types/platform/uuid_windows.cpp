@@ -4,6 +4,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+// Only define this implementation on Windows
+#if defined(_WIN32)
+
 #include "datadog/impl/types/platform/uuid.hpp"
 
 // clang-format off
@@ -39,3 +42,5 @@ void UuidGenerate(uint8_t out[16]) {
 }
 
 }  // namespace datadog::platform
+
+#endif  // defined(_WIN32)

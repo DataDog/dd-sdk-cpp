@@ -4,6 +4,9 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-Present Datadog, Inc.
 
+// Only define this implementation on Linux
+#if defined(__linux__)
+
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -213,3 +216,5 @@ void UuidGenerate(uint8_t out[16]) {
 }
 
 }  // namespace datadog::platform
+
+#endif  // defined(__linux__)
