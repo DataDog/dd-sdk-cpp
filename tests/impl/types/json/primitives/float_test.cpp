@@ -7,6 +7,7 @@
 #include "datadog/impl/types/json/primitives/float.hpp"
 
 #include <catch2/catch_test_macros.hpp>
+#include <cerrno>
 #include <cfenv>
 #include <charconv>
 #include <cmath>
@@ -280,6 +281,40 @@ TEST_CASE("WriteDoubleWithoutToChars", "[unit][json]") {
       CHECK(mismatches == 0);
       CHECK(rounding_restored);
     }
+  }
+
+  SECTION("M leave this thread's floating-point exception flags and errno unchanged") {
+    // These values' shortest-digit searches try candidates that overflow (2e308 for
+    // DBL_MAX) or underflow (below the smallest subnormal)
+    const double values[] = {
+        std::numeric_limits<double>::max(),
+        -std::numeric_limits<double>::max(),
+        std::numeric_limits<double>::min(),
+        std::numeric_limits<double>::denorm_min(),
+        0.1
+    };
+    std::vector<std::string> expected;
+    for (const double value : values) {
+      expected.push_back(write_with_to_chars(value));
+    }
+
+    // Start with one flag raised and errno set, which the fallback must preserve.
+    // Record results before checking them, so that Catch2 can't change the state.
+    std::feclearexcept(FE_ALL_EXCEPT);
+    std::feraiseexcept(FE_DIVBYZERO);
+    errno = EDOM;
+    std::vector<std::string> got;
+    for (const double value : values) {
+      got.push_back(write_without_to_chars(value));
+    }
+    const int flags_after = std::fetestexcept(FE_ALL_EXCEPT);
+    const int errno_after = errno;
+    std::feclearexcept(FE_ALL_EXCEPT);
+    errno = 0;
+
+    CHECK(got == expected);
+    CHECK(flags_after == FE_DIVBYZERO);
+    CHECK(errno_after == EDOM);
   }
 }
 
