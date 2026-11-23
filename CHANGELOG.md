@@ -3,20 +3,17 @@
 ### Breaking Changes
 
 - The C API config types (`dd_core_config_t`, `dd_rum_config_t`, `dd_logger_config_t`, `dd_crash_reporting_config_t`, `dd_profiling_config_t`) are now opaque handles: callers must use the new `dd_*_config_create()` / `dd_*_config_destroy()` functions instead of stack-allocating structs and calling `dd_*_config_init()`.
-- `EventWriter` now exposes `WriteMove()` for zero-copy submission of event bytes and `WriteCopy()` for the previous copy-based behavior; any existing calls to the old write method must be updated to use one of these two replacements.
 
 ### Features
 
-- Distributed tracing is now supported: configure first-party hosts with `FirstPartyHosts` (a list of `FirstPartyHost` entries pairing a hostname with its trace header types) and inject trace context into outgoing HTTP requests via `HttpHeaderWriter.CreateHeaders()`, with support for Datadog, B3 single-header, B3 multi-header, and W3C propagation formats.
 - Individual SDK features (`DD_FEATURE_LOGGING`, `DD_FEATURE_RUM`, `DD_FEATURE_CRASH_REPORTING`, `DD_FEATURE_PROFILING`) can now be disabled at CMake configure-time to produce a smaller library that omits the corresponding APIs and implementation code.
-- Windows CPU profiling data is now collected and delivered through the native C callback interface, enabling profiling support on Windows.
 - The context-changed callback now includes the current user ID and account ID, providing empty strings when those values have not been set.
-- `DD_SITE_UK1` and `datadog::Site::uk1` are now supported; when configured, the SDK uploads data to `https://browser-intake-uk1-datadoghq.com`.
+- `DD_SITE_UK1` and `datadog::Site::uk1` are now supported.
 
 ### Fixes
 
-- Upload scheduling delays now match the iOS and Android SDKs: the minimum, initial, and maximum intervals for each `UploadFrequency` level (`Frequent`, `Average`, `Rare`) are corrected to 0.5s/2.5s/5.0s, 2.0s/10.0s/20.0s, and 5.0s/25.0s/50.0s respectively, replacing the previously too-large values.
-- Subnormal `double` values (e.g. `5e-324`) now parse correctly on platforms that use the `strtod_l` fallback (macOS, iOS, and Android with older NDKs), fixing a round-trip bug where such values written by the SDK could not be read back.
+- The SDK nows uploads data at more frequent intervals, consistent with the iOS and Android SDKs.
+- Fixed a bug where JSON values parsed as `double` could be parsed incorrectly on certain platforms when the value was subnormal.
 
 ## 0.9.0
 
