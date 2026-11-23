@@ -16,6 +16,9 @@ BinPackParameters: false
 
 # Specify a consistent ordering for include directives
 SortIncludes: true
+# Keep each file's main header first: e.g. foo_c_api.cpp and foo_cpp_api.cpp implement
+# foo.h and foo.hpp. The test suffixes are Google style's defaults.
+IncludeIsMainRegex: '(_c_api|_cpp_api|[-_](test|unittest))?$'
 IncludeBlocks: Regroup
 IncludeCategories:
   # System headers ending in .h

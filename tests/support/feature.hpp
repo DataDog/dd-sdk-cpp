@@ -14,6 +14,7 @@
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/types/assert.hpp"
 
+#include "support/event_writer.hpp"
 using namespace datadog;
 using namespace datadog::impl;
 
@@ -52,11 +53,12 @@ class FeatureTest {
     // observe the same clean-slate guarantee that production code provides
     _context_provider.Update([](CoreContext& ctx) { ctx.Reset(); });
 
-    auto event_writer =
+    auto event_writer = MakeTestEventWriter(
         [this](Block event, Block event_metadata, bool /*bypass_tracking_consent*/) {
           events.emplace_back(event, event_metadata);
           return true;
-        };
+        }
+    );
     auto message_publisher = [this](FeatureMessage message) {
       feature_messages.emplace_back(std::move(message));
       return true;

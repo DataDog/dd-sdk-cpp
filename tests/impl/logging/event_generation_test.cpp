@@ -15,6 +15,7 @@
 #include "support/catch.hpp"
 #include "support/context.hpp"
 #include "support/diagnostics.hpp"
+#include "support/event_writer.hpp"
 #include "support/json_serialization.hpp"
 
 using namespace datadog;
@@ -24,7 +25,7 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
   // Given an EventWriter function that will capture all JSON objects produced by our
   // event-generation routine, failing if we produce anything other than a JSON object
   std::vector<nlohmann::json> events;
-  EventWriter event_writer =
+  EventWriter event_writer = MakeTestEventWriter(
       [&](Block event_data, Block event_metadata, bool bypass_tracking_consent) {
         // Loggers don't generate event metadata or bypass tracking consent
         REQUIRE(bypass_tracking_consent == false);
@@ -37,7 +38,8 @@ TEST_CASE("ContextThread_GenerateLogEvent", "[unit][logging]") {
         // Capture the event so our test can examine it
         events.push_back(obj);
         return true;
-      };
+      }
+  );
 
   // And basic config details from a Logger, which individual test cases can modify
   LoggerConfigDetails logger{"my-overridden-service", "my-logger", true};

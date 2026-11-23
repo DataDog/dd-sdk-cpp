@@ -47,6 +47,16 @@ struct RumContextMessage {
    * no active, sampled session.
    */
   UUID view_id;
+  /**
+   * ID of the current user, as set via Core::SetUserInfo(), or an empty string if none
+   * is set.
+   */
+  std::string user_id;
+  /**
+   * ID of the current account, as set via Core::SetAccountInfo(), or an empty string if
+   * none is set.
+   */
+  std::string account_id;
 };
 
 /**
@@ -111,7 +121,7 @@ struct RumConfig {
 
   /**
    * Registers a callback that is notified of changes to RUM state: the active session,
-   * the anonymous user ID, and the active view.
+   * the anonymous user ID, the active view, the user ID, and the account ID.
    *
    * The receiver is invoked once when the SDK starts, with the current state, and again
    * whenever any value in RumContextMessage changes. It runs on an SDK-internal

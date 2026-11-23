@@ -6,6 +6,11 @@
 
 #pragma once
 
+#include <algorithm>
+#include <string>
+#include <string_view>
+#include <vector>
+
 #include "datadog/impl/profiling/profiler_backend.hpp"
 
 using namespace datadog;
@@ -16,24 +21,32 @@ using namespace datadog;
  */
 class MockProfilerBackend : public impl::IProfilerBackend {
  public:
+  bool set_callback_result = true;
   bool init_result = true;
   bool start_result = true;
-  int init_calls = 0;
-  int start_calls = 0;
-  int stop_calls = 0;
   impl::ProfilerBackendSettings last_settings;
+  std::vector<std::string> calls;
+
+  int CountCalls(std::string_view name) const {
+    return static_cast<int>(std::count(calls.begin(), calls.end(), name));
+  }
 
   // IProfilerBackend interface
+  bool SetProfileCallback(impl::ProfileCallback callback) override {
+    calls.push_back(callback ? "register" : "unregister");
+    return set_callback_result;
+  }
+
   bool Init(const impl::ProfilerBackendSettings& settings) override {
-    init_calls++;
+    calls.push_back("init");
     last_settings = settings;
     return init_result;
   }
 
   bool Start() override {
-    start_calls++;
+    calls.push_back("start");
     return start_result;
   }
 
-  void Stop() override { stop_calls++; }
+  void Stop() override { calls.push_back("stop"); }
 };

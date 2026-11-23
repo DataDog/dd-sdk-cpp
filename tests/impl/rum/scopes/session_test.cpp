@@ -16,12 +16,13 @@
 
 #include "datadog/impl/core/feature_scope.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
-#include "datadog/impl/rum/context.hpp"
+#include "datadog/impl/rum/rum_context.hpp"
 #include "datadog/impl/rum/scopes/application.hpp"
 #include "datadog/impl/rum/scopes/view.hpp"
 
 #include "mock/clock.hpp"
 #include "support/context.hpp"
+#include "support/event_writer.hpp"
 #include "support/rum_event_capture.hpp"
 
 using namespace datadog;
@@ -62,7 +63,7 @@ class SessionFixture {
             std::nullopt
         ),
         context(MOCK_CONTEXT),
-        writer([](Block, Block, bool) { return true; }) {
+        writer(MakeTestEventWriter()) {
     clock.FreezeAtMilliseconds(1700000000000);
   }
 
@@ -511,7 +512,7 @@ TEST_CASE_METHOD(
     REQUIRE(ev["vital"]["duration"].get<double>() == 5000000000.0);
 
     // With a valid, non-zero vital ID
-    const std::string vital_id_str = ev["vital"]["id"];
+    const std::string vital_id_str = ev["vital"]["id"].get<std::string>();
     const auto vital_id = UUID::Parse(vital_id_str);
     REQUIRE(vital_id.has_value());
     REQUIRE(*vital_id != UUID::Zero);
@@ -716,7 +717,7 @@ TEST_CASE_METHOD(
     REQUIRE(ev["vital"]["duration"].get<double>() == 5000000000.0);
 
     // With a valid, non-zero vital ID
-    const std::string vital_id_str = ev["vital"]["id"];
+    const std::string vital_id_str = ev["vital"]["id"].get<std::string>();
     const auto vital_id = UUID::Parse(vital_id_str);
     REQUIRE(vital_id.has_value());
     REQUIRE(*vital_id != UUID::Zero);
@@ -1239,7 +1240,7 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     REQUIRE(ev["vital"]["type"] == "operation_step");
     REQUIRE(ev["vital"]["step_type"] == "start");
     // Vital ID is a valid, nonzero UUID
-    const std::string vital_id_str = ev["vital"]["id"];
+    const std::string vital_id_str = ev["vital"]["id"].get<std::string>();
     const auto vital_id = UUID::Parse(vital_id_str);
     REQUIRE(vital_id.has_value());
     REQUIRE(*vital_id != UUID::Zero);
@@ -1273,12 +1274,12 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     const auto& end_ev = vitals[1];
     REQUIRE(end_ev["vital"]["step_type"] == "end");
     // Vital ID is a valid, nonzero UUID
-    const std::string end_vital_id_str = end_ev["vital"]["id"];
+    const std::string end_vital_id_str = end_ev["vital"]["id"].get<std::string>();
     const auto end_vital_id = UUID::Parse(end_vital_id_str);
     REQUIRE(end_vital_id.has_value());
     REQUIRE(*end_vital_id != UUID::Zero);
     // End vital ID is distinct from start vital ID
-    const std::string start_vital_id_str = start_ev["vital"]["id"];
+    const std::string start_vital_id_str = start_ev["vital"]["id"].get<std::string>();
     const auto start_vital_id = UUID::Parse(start_vital_id_str);
     REQUIRE(start_vital_id.has_value());
     REQUIRE(*end_vital_id != *start_vital_id);
@@ -1311,8 +1312,8 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     REQUIRE(end_ev["vital"]["step_type"] == "end");
     REQUIRE(end_ev["vital"]["failure_reason"] == "error");
     // End vital ID is distinct from start vital ID
-    const std::string start_vital_id_str = start_ev["vital"]["id"];
-    const std::string end_vital_id_str = end_ev["vital"]["id"];
+    const std::string start_vital_id_str = start_ev["vital"]["id"].get<std::string>();
+    const std::string end_vital_id_str = end_ev["vital"]["id"].get<std::string>();
     const auto start_vital_id = UUID::Parse(start_vital_id_str);
     const auto end_vital_id = UUID::Parse(end_vital_id_str);
     REQUIRE(start_vital_id.has_value());
@@ -1357,8 +1358,8 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     const auto& end_ev = vitals[1];
     REQUIRE(end_ev["vital"]["failure_reason"] == "abandoned");
     // End vital ID is distinct from start vital ID
-    const std::string start_vital_id_str = start_ev["vital"]["id"];
-    const std::string end_vital_id_str = end_ev["vital"]["id"];
+    const std::string start_vital_id_str = start_ev["vital"]["id"].get<std::string>();
+    const std::string end_vital_id_str = end_ev["vital"]["id"].get<std::string>();
     const auto start_vital_id = UUID::Parse(start_vital_id_str);
     const auto end_vital_id = UUID::Parse(end_vital_id_str);
     REQUIRE(start_vital_id.has_value());
@@ -1546,8 +1547,8 @@ TEST_CASE_METHOD(SessionEventFixture, "RumSessionScope operations", "[unit][rum]
     REQUIRE(end_ev["vital"]["step_type"] == "end");
     REQUIRE(end_ev["view"]["id"] != "00000000-0000-0000-0000-000000000000");
     // End vital ID is distinct from start vital ID
-    const std::string start_vital_id_str = start_ev["vital"]["id"];
-    const std::string end_vital_id_str = end_ev["vital"]["id"];
+    const std::string start_vital_id_str = start_ev["vital"]["id"].get<std::string>();
+    const std::string end_vital_id_str = end_ev["vital"]["id"].get<std::string>();
     const auto start_vital_id = UUID::Parse(start_vital_id_str);
     const auto end_vital_id = UUID::Parse(end_vital_id_str);
     REQUIRE(start_vital_id.has_value());
@@ -1668,7 +1669,7 @@ TEST_CASE("RumSessionScope::PopulateContext", "[unit][rum]") {
         std::nullopt
     );
     CoreContext local_context = MOCK_CONTEXT;
-    EventWriter local_writer = [](Block, Block, bool) { return true; };
+    EventWriter local_writer = MakeTestEventWriter();
 
     // When the session ends for any reason
     scope.Process(

@@ -2,28 +2,16 @@
 include(${DD_SDK_ROOT_DIR}/cmake/deps/catch2.cmake)
 include(${DD_SDK_ROOT_DIR}/cmake/deps/nlohmann-json.cmake)
 
-# Create test executable
+# Create the test executable, grouping each module's tests by the module they belong to.
+# DD_BUILD_TESTING requires every module to be enabled (see the top-level
+# CMakeLists.txt), since some tests exercise more than one module.
 add_executable(tests
     c/attribute_c_api_test.cpp
-    c/core_c_api_test.cpp
-    c/diagnostics_c_api_test.cpp
-    c/logging_c_api_test.cpp
-    c/profiling_c_api_test.cpp
-    c/rum_c_api_test.cpp
     c/timestamp_c_api_test.cpp
-    c/account_info_c_api_test.cpp
-    c/user_info_c_api_test.cpp
     c/uuid_c_api_test.cpp
     c/version_c_api_test.cpp
     cpp/attribute_cpp_api_test.cpp
-    cpp/core_cpp_api_test.cpp
-    cpp/diagnostics_cpp_api_test.cpp
-    cpp/logging_cpp_api_test.cpp
-    cpp/profiling_cpp_api_test.cpp
-    cpp/rum_cpp_api_test.cpp
     cpp/timestamp_cpp_api_test.cpp
-    cpp/account_info_cpp_api_test.cpp
-    cpp/user_info_cpp_api_test.cpp
     cpp/uuid_cpp_api_test.cpp
     cpp/version_cpp_api_test.cpp
     impl/types/attribute/cow_test.cpp
@@ -45,113 +33,169 @@ add_executable(tests
     impl/types/events/omissible_test.cpp
     impl/types/events/struct_test.cpp
     impl/types/events/timestamp_test.cpp
-    impl/types/diagnostics_test.cpp
     impl/types/json/json_scanner_test.cpp
     impl/types/json_test.cpp
     impl/types/profiling_test.cpp
     impl/types/rum_test.cpp
     impl/types/tracing/span_id_test.cpp
     impl/types/tracing/trace_id_test.cpp
+    impl/types/util/insecure_random_generator_test.cpp
     impl/types/upload_util_test.cpp
-    impl/crash_processing/crash_context_annotations_test.cpp
-    impl/crash_processing/crash_events_test.cpp
-    impl/crash_processing/crash_formatting_test.cpp
-    impl/crash_processing/view_event_mutation_test.cpp
-    impl/crash_processing/view_event_parser_test.cpp
-    impl/core/attribute/binary_test.cpp
-    impl/core/http/body_writer_string_test.cpp
-    impl/core/http/body_writer_tlv_test.cpp
-    impl/core/http/client_test.cpp
-    impl/core/http/request_builder_test.cpp
-    impl/core/platform/clock_test.cpp
-    impl/core/platform/system_info_test.cpp
-    impl/core/storage/artifact_test.cpp
-    impl/core/storage/feature_event_test.cpp
-    impl/core/storage/filesystem_test.cpp
-    impl/core/storage/filesystem_wrapper_test.cpp
-    impl/core/storage/path_test.cpp
-    impl/core/storage/sdk_test.cpp
-    impl/core/tracing/deterministic_sampler_test.cpp
-    impl/core/tracing/span_id_generator_test.cpp
-    impl/core/tracing/trace_id_generator_test.cpp
-    impl/core/util/insecure_random_generator_test.cpp
-    impl/core/util/validation_test.cpp
-    impl/core/block_test.cpp
-    impl/core/context_test.cpp
-    impl/core/context_thread_test.cpp
-    impl/core/message_bus_test.cpp
-    impl/core/messaging_thread_test.cpp
-    impl/core/core_test.cpp
-    impl/core/feature_id_test.cpp
-    impl/core/feature_read_test.cpp
-    impl/core/feature_scope_test.cpp
-    impl/core/feature_test.cpp
-    impl/core/queue_test.cpp
-    impl/core/storage_queue_test.cpp
-    impl/core/storage_thread_test.cpp
-    impl/core/storage_write_test.cpp
-    impl/core/tlv_test.cpp
-    impl/core/upload_scheduler_test.cpp
-    impl/core/upload_thread_test.cpp
-    impl/crash_reporting/data/crash_context_read_test.cpp
-    impl/crash_reporting/data/crash_report_read_test.cpp
-    impl/crash_reporting/crash_processing_test.cpp
-    impl/crash_reporting/crash_reporting_test.cpp
-    impl/logging/event_generation_test.cpp
-    impl/logging/logger_test.cpp
-    impl/logging/tags_test.cpp
-    impl/profiling/profile_metadata_test.cpp
-    impl/profiling/profiling_test.cpp
-    impl/profiling/rum_event_tracker_test.cpp
-    impl/rum/containers/resource_map_test.cpp
-    impl/rum/containers/view_array_test.cpp
-    impl/rum/scopes/action_test.cpp
-    impl/rum/scopes/application_test.cpp
-    impl/rum/scopes/resource_test.cpp
-    impl/rum/scopes/session_test.cpp
-    impl/rum/scopes/view_test.cpp
-    impl/rum/command_test.cpp
-    impl/rum/context_test.cpp
-    impl/rum/rum_messaging_test.cpp
-    impl/rum/rum_test.cpp
-    mock/filesystem.cpp
-    mock/http_client_mock_test.cpp
+    impl/types/tracing/deterministic_sampler_test.cpp
     support/allocation_tracker.cpp
     support/attribute_debug.cpp
 )
+if(TARGET ddsdkcpp_core)
+    target_sources(tests PRIVATE
+        # Tests DiagnosticLogger (types) along with the C conversions of
+        # diagnostic types that core defines
+        impl/types/diagnostics_test.cpp
+        c/core_c_api_test.cpp
+        c/network_instrumentation_c_api_test.cpp
+        cpp/core_cpp_api_test.cpp
+        cpp/network_instrumentation_cpp_api_test.cpp
+        impl/core/attribute/binary_test.cpp
+        impl/core/http/body_writer_string_test.cpp
+        impl/core/http/body_writer_tlv_test.cpp
+        impl/core/http/client_test.cpp
+        impl/core/http/request_builder_test.cpp
+        impl/core/platform/clock_test.cpp
+        impl/core/platform/system_info_test.cpp
+        impl/core/storage/artifact_test.cpp
+        impl/core/storage/feature_event_test.cpp
+        impl/core/storage/filesystem_test.cpp
+        impl/core/storage/filesystem_wrapper_test.cpp
+        impl/core/storage/path_test.cpp
+        impl/core/storage/sdk_test.cpp
+        impl/core/tracing/b3_header_writer_test.cpp
+        impl/core/tracing/baggage_header_writer_test.cpp
+        impl/core/tracing/datadog_header_writer_test.cpp
+        impl/core/tracing/first_party_hosts_matcher_tests.cpp
+        impl/core/tracing/http_header_writer_test.cpp
+        impl/core/tracing/span_id_generator_test.cpp
+        impl/core/tracing/trace_id_generator_test.cpp
+        impl/core/tracing/types_test.cpp
+        impl/core/tracing/w3c_header_writer_test.cpp
+        impl/core/util/validation_test.cpp
+        impl/core/block_test.cpp
+        impl/core/context_test.cpp
+        impl/core/context_thread_test.cpp
+        impl/core/message_bus_test.cpp
+        impl/core/messaging_thread_test.cpp
+        impl/core/core_test.cpp
+        impl/core/feature_id_test.cpp
+        impl/core/feature_read_test.cpp
+        impl/core/feature_scope_test.cpp
+        impl/core/feature_test.cpp
+        impl/core/queue_test.cpp
+        impl/core/storage_queue_test.cpp
+        impl/core/storage_thread_test.cpp
+        impl/core/storage_write_test.cpp
+        impl/core/tlv_test.cpp
+        impl/core/upload_scheduler_test.cpp
+        impl/core/upload_thread_test.cpp
+        mock/filesystem.cpp
+        mock/http_client_mock_test.cpp
+    )
+endif()
+if(TARGET ddsdkcpp_crash_processing)
+    target_sources(tests PRIVATE
+        impl/crash_processing/crash_context_annotations_test.cpp
+        impl/crash_processing/crash_events_test.cpp
+        impl/crash_processing/crash_formatting_test.cpp
+        impl/crash_processing/view_event_mutation_test.cpp
+        impl/crash_processing/view_event_parser_test.cpp
+    )
+endif()
+if(TARGET ddsdkcpp_logging)
+    target_sources(tests PRIVATE
+        c/logging_c_api_test.cpp
+        cpp/logging_cpp_api_test.cpp
+        impl/logging/event_generation_test.cpp
+        impl/logging/logger_test.cpp
+        impl/logging/tags_test.cpp
+    )
+endif()
+if(TARGET ddsdkcpp_rum)
+    target_sources(tests PRIVATE
+        # These test Core APIs (account info, user info, diagnostics) by
+        # observing their effects on RUM events
+        c/account_info_c_api_test.cpp
+        c/diagnostics_c_api_test.cpp
+        c/user_info_c_api_test.cpp
+        cpp/account_info_cpp_api_test.cpp
+        cpp/diagnostics_cpp_api_test.cpp
+        cpp/user_info_cpp_api_test.cpp
+        c/rum_c_api_test.cpp
+        cpp/rum_cpp_api_test.cpp
+        impl/rum/containers/resource_map_test.cpp
+        impl/rum/containers/view_array_test.cpp
+        impl/rum/scopes/action_test.cpp
+        impl/rum/scopes/application_test.cpp
+        impl/rum/scopes/resource_test.cpp
+        impl/rum/scopes/session_test.cpp
+        impl/rum/scopes/view_test.cpp
+        impl/rum/command_test.cpp
+        impl/rum/rum_context_test.cpp
+        impl/rum/rum_messaging_test.cpp
+        impl/rum/rum_test.cpp
+    )
+endif()
+if(TARGET ddsdkcpp_crash_reporting)
+    target_sources(tests PRIVATE
+        c/crash_reporting_c_api_test.cpp
+        cpp/crash_reporting_cpp_api_test.cpp
+        impl/crash_reporting/data/crash_context_read_test.cpp
+        impl/crash_reporting/data/crash_report_read_test.cpp
+        impl/crash_reporting/crash_processing_test.cpp
+        impl/crash_reporting/crash_reporting_test.cpp
+    )
+endif()
+if(TARGET ddsdkcpp_profiling)
+    target_sources(tests PRIVATE
+        c/profiling_c_api_test.cpp
+        cpp/profiling_cpp_api_test.cpp
+        impl/profiling/profile_metadata_test.cpp
+        impl/profiling/profiling_test.cpp
+        impl/profiling/rum_event_tracker_test.cpp
+    )
+endif()
 
-# crash_context_write and crash_report_write are only compiled into sdk when using
-# the in-process crash handler; only include their tests if they're present in the build
-get_target_property(_sdk_sources ddsdkcpp SOURCES)
-set(_crash_src_dir "datadog/impl/crash_reporting/data")
-if("${_crash_src_dir}/crash_context_write.cpp" IN_LIST _sdk_sources)
-    target_sources(tests PRIVATE
-        impl/crash_reporting/data/crash_context_write_test.cpp
-    )
+# crash_context_write and crash_report_write are only compiled into the crash_reporting
+# module when using the in-process crash handler, and view_event_fit only when using
+# Crashpad; only include their tests if they're present in the build
+if(TARGET ddsdkcpp_crash_reporting)
+    get_target_property(_sdk_sources ddsdkcpp_crash_reporting SOURCES)
+    set(_crash_src_dir "datadog/impl/crash_reporting/data")
+    if("${_crash_src_dir}/crash_context_write.cpp" IN_LIST _sdk_sources)
+        target_sources(tests PRIVATE
+            impl/crash_reporting/data/crash_context_write_test.cpp
+        )
+    endif()
+    if("${_crash_src_dir}/crash_report_write.cpp" IN_LIST _sdk_sources)
+        target_sources(tests PRIVATE
+            impl/crash_reporting/data/crash_report_write_test.cpp
+        )
+    endif()
+    unset(_crash_src_dir)
+    if("datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.cpp" IN_LIST _sdk_sources)
+        target_sources(tests PRIVATE
+            impl/crash_reporting/view_event_fit_test.cpp
+        )
+    endif()
+    unset(_sdk_sources)
 endif()
-if("${_crash_src_dir}/crash_report_write.cpp" IN_LIST _sdk_sources)
-    target_sources(tests PRIVATE
-        impl/crash_reporting/data/crash_report_write_test.cpp
-    )
-endif()
-unset(_crash_src_dir)
-if("datadog/impl/crash_reporting/handlers/crashpad/view_event_fit.cpp" IN_LIST _sdk_sources)
-    target_sources(tests PRIVATE
-        impl/crash_reporting/view_event_fit_test.cpp
-    )
-endif()
-unset(_sdk_sources)
 
 # The default UUID implementations generate version 4 UUIDs; a custom implementation
 # supplied via DD_UUID_SRC isn't required to
 if(DD_UUID_USE_DEFAULT)
     target_sources(tests PRIVATE
-        impl/core/platform/uuid_test.cpp
+        impl/types/platform/uuid_test.cpp
     )
 endif()
 
 # Add Windows-specific tests
-if(WIN32)
+if(WIN32 AND TARGET ddsdkcpp_core)
     target_sources(tests PRIVATE
         impl/core/platform/windows_timezone_mapping_test.cpp
     )
@@ -191,22 +235,38 @@ if(DD_ENABLE_STRICT_THREADING_CHECKS)
     target_compile_definitions(tests PRIVATE WITH_DATADOG_STRICT_THREADING_CHECKS=1)
 endif()
 
+# Disable nlohmann::json's implicit conversion operator, which can convert a json value
+# to almost any type. While it exists, the compiler must consider converting json to the
+# parameter type of every visible operator== overload whenever a test compares a json
+# value, which makes each comparison expensive to compile in both memory and time. Tests
+# read values with an explicit get<T>() instead.
+target_compile_definitions(tests PRIVATE JSON_USE_IMPLICIT_CONVERSIONS=0)
+
 target_include_directories(tests
-    PRIVATE ${DD_SDK_ROOT_DIR}/src
     PRIVATE .
 )
 
+# Tests call the internal functions of the modules they test, so they link each module's
+# object library directly (rather than Datadog::sdk), which compiles the module's code
+# into the tests and exposes its source root for its internal headers. A shared
+# Datadog::sdk only exports the public API.
+dd_get_module_targets(_dd_module_targets)
 target_link_libraries(tests
     PRIVATE
-    ddsdkcpp
+    ${_dd_module_targets}
     Catch2::Catch2WithMain
 )
+unset(_dd_module_targets)
 
 # If the SDK was built with profiling support, ensure that dd-win-prof.dll is present
 # alongside the test binary post-build
 if(DD_PROFILER_IMPL STREQUAL "dd-win-prof")
     # Enables the tests of how Profiling::Register claims the profiler
     target_compile_definitions(tests PRIVATE WITH_DATADOG_PROFILING_TESTS=1)
+    target_sources(tests PRIVATE
+        impl/profiling/dd_win_prof_profiler_backend_test.cpp
+    )
+    target_link_libraries(tests PRIVATE dd-win-prof)
 
     add_custom_command(TARGET tests POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different

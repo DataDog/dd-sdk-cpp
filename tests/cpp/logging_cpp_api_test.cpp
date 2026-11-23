@@ -11,8 +11,8 @@
 
 #include "datadog/logging.hpp"
 
-#include "datadog/impl/core/version.hpp"
 #include "datadog/impl/logging/logging.hpp"
+#include "datadog/impl/types/version.hpp"
 
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
@@ -1277,7 +1277,7 @@ TEST_CASE("Logger thread-safety", "[unit][logging][cpp-api][thread-safety]") {
         if (!obj.contains("xyz")) {
           return false;
         }
-        std::string xyz = obj.at("xyz");
+        std::string xyz = obj.at("xyz").get<std::string>();
         REQUIRE(xyz.find("loop-") == 0);
         return true;
       });

@@ -37,7 +37,7 @@ TEST_CASE(
       REQUIRE(
           std::string_view{message.text} ==
           "SDK initialization failed: application must supply a non-empty "
-          "'client_token' value in CoreConfig"
+          "'client_token' value in the core config"
       );
     });
 
@@ -65,8 +65,8 @@ TEST_CASE(
       REQUIRE(message.level == DiagnosticLevel::Error);
       REQUIRE(
           std::string_view{message.text} ==
-          "RUM initialization failed: application_id value supplied via RumConfig must "
-          "be a valid, nonzero UUID"
+          "RUM initialization failed: application_id value supplied in the RUM config "
+          "must be a valid, nonzero UUID"
       );
     });
 

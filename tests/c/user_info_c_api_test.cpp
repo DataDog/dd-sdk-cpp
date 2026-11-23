@@ -42,12 +42,13 @@ TEST_CASE("dd_core user info", "[unit][core]" FEATURE_TAGS "[c-api]") {
   dd_logger_t* logger = dd_logger_create(logging, nullptr);
 
   // And an active RUM API
-  dd_rum_config_t rum_config;
-  dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
+  dd_rum_config_t* rum_config =
+      dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
   // Disable anonymous id tracking: these tests are specifically about UserInfo and
   // don't expect a usr.anonymous_id value to show up alongside it.
-  rum_config.track_anonymous_user = false;
-  dd_rum_t* rum = dd_rum_init(core, &rum_config);
+  dd_rum_config_set_track_anonymous_user(rum_config, false);
+  dd_rum_t* rum = dd_rum_init(core, rum_config);
+  dd_rum_config_destroy(rum_config);
 
   // And a helper function that will cause each feature to produce a one or more event
   // payloads, then resolve those event payloads, parse the value assigned to "usr" (or
@@ -106,7 +107,7 @@ TEST_CASE("dd_core user info", "[unit][core]" FEATURE_TAGS "[c-api]") {
     for (const auto& rum_event : rum_events) {
       auto event_type = rum_event.value("type", nlohmann::json{});
       REQUIRE(event_type.is_string());
-      rum_event_types.insert(event_type);
+      rum_event_types.insert(event_type.get<std::string>());
       REQUIRE(rum_event.value("usr", nlohmann::json{}) == rum_user_info);
     }
     REQUIRE(rum_event_types == rum_event_types_tested);
@@ -478,10 +479,11 @@ TEST_CASE(
   dd_logger_t* logger = dd_logger_create(logging, nullptr);
 
   auto track_anonymous_user = GENERATE(true, false);
-  dd_rum_config_t rum_config;
-  dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
-  rum_config.track_anonymous_user = track_anonymous_user;
-  dd_rum_t* rum = dd_rum_init(core, &rum_config);
+  dd_rum_config_t* rum_config =
+      dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+  dd_rum_config_set_track_anonymous_user(rum_config, track_anonymous_user);
+  dd_rum_t* rum = dd_rum_init(core, rum_config);
+  dd_rum_config_destroy(rum_config);
   REQUIRE(dd_core_start(core));
 
   // When we produce a log event and a RUM event, then stop the core to flush everything
@@ -532,10 +534,11 @@ TEST_CASE(
   dd_logging_t* logging = dd_logging_init(core);
   dd_logger_t* logger = dd_logger_create(logging, nullptr);
 
-  dd_rum_config_t rum_config;
-  dd_rum_config_init(&rum_config, "a991ca10-4004-4004-4004-beefbeefbeef");
-  rum_config.track_anonymous_user = false;
-  dd_rum_t* rum = dd_rum_init(core, &rum_config);
+  dd_rum_config_t* rum_config =
+      dd_rum_config_create("a991ca10-4004-4004-4004-beefbeefbeef");
+  dd_rum_config_set_track_anonymous_user(rum_config, false);
+  dd_rum_t* rum = dd_rum_init(core, rum_config);
+  dd_rum_config_destroy(rum_config);
   REQUIRE(dd_core_start(core));
 
   // And real UserInfo supplied, so that 'usr' *is* populated on events for another

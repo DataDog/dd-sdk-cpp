@@ -11,8 +11,8 @@
 #include <string_view>
 #include <vector>
 
-#include "datadog/impl/core/version.hpp"
 #include "datadog/impl/types/json.hpp"
+#include "datadog/impl/types/version.hpp"
 
 /**
  * Given a value of any JSON-serializable type T, serializes it with `EncodeJson` and
@@ -74,7 +74,7 @@ enum class TemplateVar : uint8_t {
    */
   NONZERO_UUID,
   /**
-   * Evaluates to the value of DATADOG_BUILD_ARCH as defined in impl/core/version.hpp.
+   * Evaluates to the value of DATADOG_BUILD_ARCH as defined in impl/types/version.hpp.
    */
   CPU_ARCH,
   /**

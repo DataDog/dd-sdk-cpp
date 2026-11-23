@@ -1,0 +1,322 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+//
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2025-Present Datadog, Inc.
+
+#pragma once
+
+#include <cinttypes>
+#include <functional>
+#include <optional>
+#include <string>
+#include <unordered_set>
+
+#include "datadog/uuid.hpp"
+
+#include "datadog/impl/core/context.hpp"
+#include "datadog/impl/core/feature_scope.hpp"
+#include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/rum/containers/view_array.hpp"
+#include "datadog/impl/rum/scope.hpp"
+#include "datadog/impl/rum/scopes/view.hpp"
+#include "datadog/impl/types/rum.hpp"
+#include "datadog/impl/types/tracing/deterministic_sampler.hpp"
+
+namespace datadog::impl {
+
+/**
+ * Node in the RUM scope tree modeling a 'Session', which represents a contiguous series
+ * of user interactions. The session scope is responsible for creating and managing the
+ * lifetime of child RumViewScopes in response to RUM API calls, and for propagating
+ * events to the relevant views.
+ *
+ * == SESSION LIFECYCLE ==
+ *
+ * See `RumApplicationScope` for a top-down description of the RUM Session lifecycle.
+ *
+ * Key details of the session lifecycle as it concerns `RumSessionScope`:
+ *
+ * - The decision to close a session is made by the session itself, in response to
+ *   a `RumCommand`.
+ *   - See `RumSessionScope::ShouldCloseRatherThanProcessing()`.
+ *
+ * - When a session scope is closed, it MUST also set an `EndReason`. If the session has
+ *   a valid end reason, then it is no longer active. There is no distinction:
+ *   - If a session is active, its scope is open.
+ *   - If a session is no longer active, its scope is closed.
+ *
+ * - Whether the closing of the session is propagated to child views depends on the
+ *   session's end reason:
+ *   - If a session expires, its views are _NOT_ notified and they do _NOT_ get the
+ *     chance to send events to the backend recording their final state.
+ *   - If a session is explicitly stopped, we _DO_ propagate the `StopSession` command
+ *     to child views and allow them to send final view events.
+ *
+ * == VIEW LIFECYCLE ==
+ *
+ * See `RumApplicationScope` for a top-down description of session refresh and
+ * view transfer.
+ *
+ * Key details of the RUM View lifecycle as it concerns `RumSessionScope`:
+ *
+ * - When a session is closed for any reason: if the session has an active view, the
+ *   essential details of that view are stored in `_active_view_on_close`.
+ *   - See `RumSessionScope::OnClose()`.
+ *
+ * - If `RumApplicationScope` handles a `StopView` command for that view thereafter, it
+ *   will force `_active_view_on_close` to be cleared.
+ *   - See `RumApplicationScope::Process()`.
+ *
+ * - When the `RumApplicationScope` creates a new session, if the previous session has
+ *   `_active_view_on_close` details cached, _and_ the new session is sampled, those
+ *   details will be conveyed to the new session scope and stored as
+ *   `_active_view_from_predecessor`.
+ *   - See `RumApplicationScope::CreateSession()`.
+ *
+ * - When the new session processes a command that `RequiresActiveView`, it may create
+ *   a new view if:
+ *   - `_active_view_from_predecessor` details are cached, and
+ *   - There is no active view, and
+ *   - No views have ever been created in the scope of the new session, and
+ *   - No StopView commands have been processed for that view.
+ *   - See `RumSessionScope::AttemptViewTransfer()`.
+ */
+class RumSessionScope {
+ public:
+  static const Duration INACTIVITY_TIMEOUT_DURATION;
+  static const Duration MAX_SESSION_DURATION;
+
+  /**
+   * Reason that a session has ended.
+   */
+  enum class EndReason : uint8_t {
+    /** The session received no user interaction for the configured timeout duration. */
+    TimedOutDueToInactivity,
+    /** The duration of the session exceeded the configured maximum. */
+    ExceededMaxDuration,
+    /** The session was explicitly stopped via a StopSession() API call. */
+    Stopped
+  };
+
+  /**
+   * Essential details of a RUM view scope that was previously active. Used to
+   * facilitate view transfer, i.e. the recreation of the last-active view after session
+   * refresh.
+   */
+  struct ViewDetails {
+    std::string key;
+    std::string name;
+    Attribute attributes;
+
+    explicit ViewDetails(
+        std::string_view in_key,
+        std::string_view in_name,
+        const Attribute& in_attributes
+    )
+        : key(in_key), name(in_name), attributes(in_attributes) {}
+  };
+
+ public:
+  explicit RumSessionScope(
+      const RumScopeDependencies& deps,
+      class RumApplicationScope& parent,
+      bool is_initial_session,
+      const DeterministicSampler& sampler,
+      const UUID& session_id,
+      RumSessionPrecondition start_precondition,
+      Timestamp start_time,
+      const std::optional<ViewDetails>& active_view_from_predecessor
+  );
+
+ public:
+  // Scopes are non-copyable but movable
+  ~RumSessionScope() = default;
+  RumSessionScope(const RumSessionScope&) = delete;
+  RumSessionScope& operator=(const RumSessionScope&) = delete;
+  RumSessionScope(RumSessionScope&&) = default;
+  RumSessionScope& operator=(RumSessionScope&&) = default;
+
+  // RumContextProvider interface
+  void PopulateContext(struct RumContext& out_context) const;
+
+  // RumScope interface
+  RumScopeResult Process(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
+
+ private:
+  /**
+   * Given a command, returns a valid end reason if the session should close in response
+   * to that command rather than processing it. Returns std::nullopt if session should
+   * remain open and process the command.
+   */
+  std::optional<EndReason> ShouldCloseRatherThanProcessing(
+      const RumCommand& command
+  ) const;
+
+  /**
+   * Updates internal state when the session scope is about to be closed. The provided
+   * `command` will _not_ be propagated to child scopes via the normal code path in
+   * `Process()`, so `OnClose()` has a chance to do so explicitly if desired.
+   */
+  void OnClose(
+      const RumCommand& command,
+      EndReason end_reason,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
+
+  /**
+   * Attempts to create a new active view scope that's initialized from the details of
+   * a previous view. The new view will have a unique UUID, and its start time will
+   * correspond with the timestamp of the given command, but its essential details will
+   * be preserved from the previous scope.
+   */
+  void AttemptViewTransfer(
+      const RumCommand& command,
+      const ViewDetails& prev_view,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
+
+  /**
+   * Handles the ReportAppDisplayInitialized command: computes the TTID duration,
+   * emits the TTID app-launch vital event, and - if a TTFD call arrived earlier -
+   * emits the deferred TTFD event immediately after.
+   */
+  void HandleReportAppDisplayInitialized(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
+
+  /**
+   * Handles the ReportAppFullyDisplayed command: computes the TTFD duration and
+   * either emits the TTFD vital event immediately (if TTID has already fired) or
+   * stores it for deferred emission when TTID fires. If no view is active at emit
+   * time, the event is emitted with `view.id` set to `UUID::Zero` and
+   * `view.url` set to `""`.
+   */
+  void HandleReportAppFullyDisplayed(
+      const RumCommand& command, const CoreContext& context, const EventWriter& writer
+  );
+
+  /**
+   * Constructs and emits an app-launch vital event (TTID or TTFD).
+   * `view` may be null when no view is active; in that case the event is emitted
+   * with `view.id` set to `UUID::Zero` and `view.url` set to `""`, matching the
+   * behavior of the iOS and Android SDKs.
+   * `duration_ns` is the computed nanosecond duration from process launch to now.
+   * `metric` selects between TTID and TTFD; `vital_name` is the corresponding
+   * human-readable name (e.g. `"time_to_initial_display"`).
+   */
+  void SendAppLaunchVitalEvent(
+      const RumCommandParams& base,
+      const RumViewScope* view,
+      double duration_ns,
+      RumVitalAppLaunchMetric metric,
+      std::string_view vital_name,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
+
+  /**
+   * Constructs and emits a RUM vital event in the context of the current session.
+   * If there is an active view, the event will include view context; otherwise,
+   * view fields will be empty/zero.
+   */
+  void SendVitalEvent(
+      const RumCommandParams& base,
+      std::string_view name,
+      RumVitalStepType step_type,
+      const std::optional<std::string>& operation_key,
+      std::optional<RumVitalFailureReason> failure_reason,
+      const CoreContext& context,
+      const EventWriter& writer
+  );
+
+ private:
+  std::reference_wrapper<const RumScopeDependencies> _deps;
+  std::reference_wrapper<class RumApplicationScope> _parent;
+
+  // Essential session state
+  bool _is_initial_session;
+  DeterministicSampler _sampler;
+  UUID _session_id;
+  RumSessionPrecondition _precondition;
+  Timestamp _started_at;
+  Timestamp _last_interaction_at;
+  std::optional<EndReason> _end_reason;
+
+  // View details for session/view lifecycle transitions: if the previous session had an
+  // active view when it was closed, it will be stored here so we can recreate it if
+  // necessary in response to a command that requires an active view.
+  std::optional<ViewDetails> _active_view_from_predecessor;
+  // When _we_ are closed, the details of any active view are stored here so they can
+  // be conveyed to the next session.
+  std::optional<ViewDetails> _active_view_on_close;
+
+  // Active operations tracking: set of composite keys (name + operationKey) for
+  // developer warnings about duplicate starts or stop-without-start
+  std::unordered_set<std::string> _active_operations;
+
+  // TTID/TTFD ordering state. Both live on the context thread; no locking needed.
+  //
+  // Set to true after a successful TTID emit. Consulted by
+  // HandleReportAppFullyDisplayed to decide whether to emit immediately or defer.
+  bool _ttid_has_fired{false};
+  // Duration (ns) of the successfully-emitted TTID vital. Written once by
+  // HandleReportAppDisplayInitialized immediately before _ttid_has_fired is set.
+  // Read by HandleReportAppFullyDisplayed to clamp TTFD when TTID has already fired.
+  double _ttid_duration_ns{0.0};
+  // State captured when ReportAppFullyDisplayed fires before
+  // ReportAppDisplayInitialized. Consumed and cleared when TTID subsequently fires.
+  // `base` preserves the attribute snapshot from TTFD-call time so the deferred
+  // TTFD event carries the correct `context` values. `base.issued_at` is captured
+  // but not used: the event timestamp is always set to process_launch_time.
+  struct PendingTTFD {
+    double duration_ns;
+    RumCommandParams base;
+  };
+  std::optional<PendingTTFD> _pending_ttfd;
+
+  // Total number of foreground views explicitly opened in this session scope
+  // TODO(RUM-12242): Ensure that ApplicationLaunch view doesn't count toward this
+  // figure
+  size_t _num_views_opened{0};
+  std::optional<RumViewEvent> _last_active_view_event;
+
+  RumViewArray _view_scopes;
+
+ public:
+  bool IsInitialSession() const { return _is_initial_session; }
+  bool IsSampled() const { return _sampler.Sample(); }
+  UUID GetSessionID() const { return _session_id; }
+  RumSessionPrecondition GetStartReason() const { return _precondition; }
+  std::optional<EndReason> GetEndReason() const { return _end_reason; }
+  bool IsActive() const { return !_end_reason.has_value(); }
+  size_t GetNumViewsOpened() const { return _num_views_opened; }
+
+  std::optional<ViewDetails> GetActiveViewOnClose() const {
+    return _active_view_on_close;
+  }
+  void ClearActiveViewOnClose() { _active_view_on_close.reset(); }
+
+  ScopeRef<const RumViewScope> GetActiveView() const {
+    return _view_scopes.FindActive();
+  }
+
+  /**
+   * Takes ownership of `ev`, storing it as the view event that was most recently
+   * generated by an active view in the context of this session.
+   */
+  void StoreLastActiveViewEvent(RumViewEvent ev);
+
+  /**
+   * Returns the most recently captured view event and clears the stored value. Returns
+   * std::nullopt if no view event has been generated by an active view since the last
+   * call.
+   */
+  std::optional<RumViewEvent> ConsumeLastActiveViewEvent();
+};
+
+}  // namespace datadog::impl

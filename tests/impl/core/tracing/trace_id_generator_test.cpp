@@ -34,7 +34,7 @@ TEST_CASE("DefaultTraceIDGenerator", "[unit][tracing]") {
     std::unordered_set<std::string> low_values;
     for (std::size_t iteration = 0; iteration < RUN_COUNT; ++iteration) {
       const TraceID id = generator.Generate();
-      const uint64_t high = std::stoull(id.ToHexString().substr(0, 16), nullptr, 16);
+      const uint64_t high = std::stoull(id.ToHighHexString(), nullptr, 16);
 
       const auto seconds = static_cast<uint32_t>(high >> 32);
       REQUIRE(seconds >= lower_time_bound);
@@ -58,7 +58,7 @@ TEST_CASE("DefaultTraceIDGenerator", "[unit][tracing]") {
 
     DefaultTraceIDGenerator generator(clock);
     const TraceID id = generator.Generate();
-    const uint64_t high = std::stoull(id.ToHexString().substr(0, 16), nullptr, 16);
+    const uint64_t high = std::stoull(id.ToHighHexString(), nullptr, 16);
 
     REQUIRE(static_cast<uint32_t>(high >> 32) == KNOWN_SECONDS);
     REQUIRE(static_cast<uint32_t>(high) == 0);

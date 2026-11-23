@@ -14,18 +14,6 @@
 #include "datadog/api.h"
 #include "datadog/attribute.h"
 
-// These values establish the size of string buffers in the C API; they do not imply
-// that the Datadog platform imposes any such limits
-#define DATADOG_MAX_APPLICATION_STORAGE_PATH_LEN 511
-#define DATADOG_MAX_CLIENT_TOKEN_LEN 63
-#define DATADOG_MAX_SERVICE_LEN 127
-#define DATADOG_MAX_ENV_LEN 127
-#define DATADOG_MAX_VERSION_LEN 127
-#define DATADOG_MAX_VARIANT_LEN 127
-#define DATADOG_INTERNAL_MAX_CUSTOM_ENDPOINT_URL_LEN 255
-#define DATADOG_INTERNAL_MAX_SOURCE_LEN 15
-#define DATADOG_INTERNAL_MAX_SDK_VERSION_LEN 31
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -101,6 +89,7 @@ typedef enum {
   DD_SITE_AP2,
   DD_SITE_US1_FED,
   DD_SITE_US2_FED,
+  DD_SITE_UK1,
 } dd_site_t;
 
 /**
@@ -133,56 +122,36 @@ typedef enum {
 } dd_batch_processing_level_t;
 
 /**
- * FOR INTERNAL USE ONLY - These values are not part of the public API and may change
- * without notice. Do not use in production code.
+ * Top-level configuration options for the Datadog SDK. Create a config with
+ * dd_core_config_create(), set optional values with dd_core_config_set_<value>(), pass
+ * it to dd_core_create(), and then release it with dd_core_config_destroy().
+ *
+ * Setters copy any string or byte arguments, so the caller needs to keep those
+ * arguments valid only for the duration of the call. Passing NULL for a string has the
+ * same effect as passing "". Setters have no effect when given a NULL config.
  */
-typedef struct dd_internal_options {
-  bool flush_http_requests_on_stop;
-  char custom_endpoint_url[DATADOG_INTERNAL_MAX_CUSTOM_ENDPOINT_URL_LEN + 1];
-  char source[DATADOG_INTERNAL_MAX_SOURCE_LEN + 1];
-  char sdk_version[DATADOG_INTERNAL_MAX_SDK_VERSION_LEN + 1];
-  const char* ca_certificates;
-  size_t ca_certificates_size;
-} dd_internal_options_t;
+typedef struct dd_core_config dd_core_config_t;
 
 /**
- * Top-level configuration options for the Datadog SDK. Initialize with
- * dd_core_config_init(), then call dd_core_config_set_<value>().
- */
-typedef struct dd_core_config {
-  uint32_t version;
-  dd_diagnostic_handler_t diagnostic_handler;
-  void* diagnostic_handler_userdata;
-  dd_diagnostic_level_t diagnostic_threshold;
-  dd_tracking_consent_t tracking_consent;
-  char application_storage_path[DATADOG_MAX_APPLICATION_STORAGE_PATH_LEN + 1];
-  dd_site_t site;
-  char client_token[DATADOG_MAX_CLIENT_TOKEN_LEN + 1];
-  char service[DATADOG_MAX_SERVICE_LEN + 1];
-  char env[DATADOG_MAX_ENV_LEN + 1];
-  char application_version[DATADOG_MAX_VERSION_LEN + 1];
-  char variant[DATADOG_MAX_VARIANT_LEN + 1];
-  dd_batch_size_t batch_size;
-  dd_upload_frequency_t upload_frequency;
-  dd_batch_processing_level_t batch_processing_level;
-  dd_internal_options_t internal_options;
-} dd_core_config_t;
-
-/**
- * Initializes a new dd_core_config_t with the set of values that are required for the
- * SDK to function.
+ * Creates a new config with the set of values that are required for the SDK to
+ * function. You MUST call dd_core_config_destroy() when finished with the config.
  *
  * @param client_token The client token associated with your application.
  * @param service The name of the application, service, or component being monitored.
- * @param in_env The environment in which this application is running, e.g. 'prod',
+ * @param env The environment in which this application is running, e.g. 'prod',
  *  'dev', 'staging', 'testing', etc.
+ *
+ * If any argument is NULL, returns NULL.
  */
-DATADOG_API void dd_core_config_init(
-    dd_core_config_t* config,
-    const char* client_token,
-    const char* service,
-    const char* env
+DATADOG_API dd_core_config_t* dd_core_config_create(
+    const char* client_token, const char* service, const char* env
 );
+
+/**
+ * Frees all memory allocated for the given config. A core created from this config is
+ * unaffected. Has no effect if `config` is NULL.
+ */
+DATADOG_API void dd_core_config_destroy(dd_core_config_t* config);
 
 /**
  * Supplies a callback function that will be invoked whenever the SDK emits a diagnostic
@@ -235,7 +204,7 @@ DATADOG_API void dd_core_config_set_diagnostic_threshold(
  * configuring an instance of the SDK. If you do not, the SDK will print a warning, but
  * it will attempt to create a .datadog/ subdirectory within the working directory for
  * the current process. If you prefer to use the current working directory, explicitly
- * configure the SDK with dd_core_config_set_application_storage_path(&config, ".").
+ * configure the SDK with dd_core_config_set_application_storage_path(config, ".").
  */
 DATADOG_API void dd_core_config_set_application_storage_path(
     dd_core_config_t* config, const char* value
@@ -248,21 +217,21 @@ DATADOG_API void dd_core_config_set_application_storage_path(
 DATADOG_API void dd_core_config_set_site(dd_core_config_t* config, dd_site_t value);
 
 /**
- * Sets the client token value, overriding the value passed to dd_core_config_init().
+ * Sets the client token value, overriding the value passed to dd_core_config_create().
  */
 DATADOG_API void dd_core_config_set_client_token(
     dd_core_config_t* config, const char* value
 );
 
 /**
- * Sets the 'service' value, overriding the value passed to dd_core_config_init().
+ * Sets the 'service' value, overriding the value passed to dd_core_config_create().
  */
 DATADOG_API void dd_core_config_set_service(
     dd_core_config_t* config, const char* value
 );
 
 /**
- * Sets the 'env' value, overriding the value passed to dd_core_config_init().
+ * Sets the 'env' value, overriding the value passed to dd_core_config_create().
  */
 DATADOG_API void dd_core_config_set_env(dd_core_config_t* config, const char* value);
 
@@ -348,10 +317,8 @@ DATADOG_API void dd_core_config_internal_set_sdk_version(
  * null-terminated. Passing NULL or a `size` of 0 restores the default, in which libcurl
  * uses the CA bundle or directory it was built with.
  *
- * The config stores only the pointer and size, without copying the data. The caller
- * must keep `data` valid and unchanged until dd_core_create() returns for this config.
- * dd_core_create() makes its own copy of the data, so the caller may release it as
- * soon as that call returns.
+ * The config keeps its own copy of the data, so the caller may release `data` as soon
+ * as this call returns.
  *
  * Use this option when the SDK is linked against a libcurl that has no default CA
  * location. If libcurl rejects the data, the SDK reports an error through diagnostic
@@ -376,7 +343,13 @@ typedef struct dd_core dd_core_t;
 /**
  * Creates a new instance of the Datadog SDK, with the provided configuration and
  * initial tracking consent. The resulting core is used as a top-level handle to the
- * SDK.
+ * SDK. You MUST call dd_core_destroy() when finished with the core.
+ *
+ * The core keeps its own copy of the configuration, so the caller may destroy `config`
+ * as soon as this call returns.
+ *
+ * Returns NULL if `config` is NULL, if it's missing a required value, or if the SDK
+ * fails to initialize. NULL is safe to pass to all other dd_core functions.
  */
 DATADOG_API dd_core_t* dd_core_create(
     const dd_core_config_t* config, dd_tracking_consent_t tracking_consent

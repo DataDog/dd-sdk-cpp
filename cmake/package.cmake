@@ -5,8 +5,9 @@ target_enable_strict_warnings(version)
 target_enable_parallel_compilation(version)
 target_enable_coverage(version)
 target_enable_sanitizers(version)
-target_link_libraries(version PRIVATE ddsdkcpp)
-target_include_directories(version PRIVATE ${DD_SDK_ROOT_DIR}/src)
+# The build details it reports (version.hpp) come from the types module, which
+# carries the compile definitions that stamp them
+target_link_libraries(version PRIVATE ddsdkcpp_types)
 
 # When that target is finished building, run `./version -e artifact` to write the
 # artifact name (e.g. 'ddsdkcpp-v0.2.0-macos-arm64-clang-libc++-static-release') to a
