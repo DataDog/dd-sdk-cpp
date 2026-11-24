@@ -52,11 +52,9 @@ DATADOG_API void dd_profiling_config_destroy(dd_profiling_config_t* config);
 // that occurred while it was collected. A profile with no such events to correlate it
 // with is not kept.
 //
-// Profiling follows the core's tracking consent. It does not run if consent is
-// DD_TRACKING_CONSENT_NOT_GRANTED, and stops if consent is later withdrawn. While
-// consent is DD_TRACKING_CONSENT_PENDING it does run, and what it collects is held,
-// like the data of other features, until consent is granted, or deleted if consent is
-// not granted. Profiling also stops when the core stops.
+// Profiling data may be gathered while the core is running and tracking consent is
+// DD_TRACKING_CONSENT_GRANTED or DD_TRACKING_CONSENT_PENDING. The profiler does not run
+// while tracking consent is DD_TRACKING_CONSENT_NOT_GRANTED.
 
 /**
  * Interface to the Datadog SDK's Profiling feature. Use dd_profiling_init() to register

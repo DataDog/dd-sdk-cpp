@@ -57,11 +57,9 @@ static_assert(
  * that occurred while it was collected. A profile with no such events to correlate it
  * with is not kept.
  *
- * Profiling follows the Core's tracking consent. It does not run if consent is
- * TrackingConsent::NotGranted, and stops if consent is later withdrawn. While consent
- * is TrackingConsent::Pending it does run, and what it collects is held, like the data
- * of other features, until consent is granted, or deleted if consent is not granted.
- * Profiling also stops when the Core stops.
+ * Profiling data may be gathered while the Core is running and tracking consent is
+ * TrackingConsent::Granted or TrackingConsent::Pending. The profiler does not run while
+ * tracking consent is TrackingConsent::NotGranted.
  */
 class Profiling {
  private:

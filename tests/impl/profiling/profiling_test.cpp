@@ -832,6 +832,34 @@ TEST_CASE("Profiling shutdown", "[unit][profiling]") {
     REQUIRE(frame->pprof == std::string_view("\x09\x09\x09", 3));
   }
 
+  SECTION("M drop the last profile W consent is refused") {
+    // Given a long task, and a profiler that delivers a last profile as it stops
+    send_long_task(message_handler_func);
+    profiler.profile_on_stop = make_profile({9, 9, 9});
+
+    // When consent is refused, stopping the profiler
+    send_consent(datadog::TrackingConsent::NotGranted);
+
+    // Then the last profile is not stored: if consent were granted again before it
+    // reached storage, storage would keep it as granted
+    REQUIRE(profiler.CountCalls("stop") == 1);
+    REQUIRE(test.events.empty());
+  }
+
+  SECTION("M store profiles again W consent is granted after being refused") {
+    // Given a profiler that was stopped because consent was refused
+    send_consent(datadog::TrackingConsent::NotGranted);
+
+    // When consent is granted again, and the profiler delivers a profile
+    send_consent(datadog::TrackingConsent::Granted);
+    send_long_task(message_handler_func);
+    REQUIRE(profiler.DeliverProfile(make_profile({5})));
+
+    // Then it is stored
+    REQUIRE(profiler.CountCalls("start") == 2);
+    REQUIRE(test.events.size() == 1);
+  }
+
   SECTION("M stop the profiler W the core is about to stop") {
     // When the feature is told that the core is about to stop, which is before it is
     // stopped

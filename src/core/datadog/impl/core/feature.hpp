@@ -104,8 +104,23 @@ class Feature : public std::enable_shared_from_this<Feature> {
   virtual std::string_view GetName() const = 0;
   virtual FeatureStorageConfig GetStorageConfig() const { return {}; }
 
+  /**
+   * Called by the Core once it has started. Gives the feature its scope, then calls
+   * Start().
+   */
   void OnCoreStarted(FeatureScope&& feature_scope);
+
+  /**
+   * Called in Core::Stop(), while its context thread and message bus are still running
+   * so that features can still enqueue work to be processed before a full "Stop". Calls
+   * PrepareToStop().
+   */
   void OnCoreStopRequested();
+
+  /**
+   * Called by Core::Stop() once its context thread and message bus have stopped. Calls
+   * Stop(), then drops the feature's scope.
+   */
   void OnCoreStopping();
 
  protected:

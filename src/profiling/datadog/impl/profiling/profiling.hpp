@@ -6,6 +6,7 @@
 
 #pragma once
 
+#include <atomic>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -104,7 +105,8 @@ class Profiling final : public Feature {
    * that would have been associated with the profile.
    *
    * A profile is also dropped if no RUM events, such as vitals or long tasks, were
-   * recorded while it was collected, since there is nothing to correlate it with.
+   * recorded while it was collected, since there is nothing to correlate it with, or if
+   * the profiler delivers it as it stops because consent was refused.
    *
    * `profile` borrows the profiler's bytes, which are valid only until this returns, so
    * a profile that is stored is copied into its frame before then.
@@ -153,6 +155,11 @@ class Profiling final : public Feature {
   // True once the SDK is shutting down, until the next Start(): the profiler has been
   // stopped, and a context update that grants consent must not restart it.
   bool _stopping = false;
+
+  // True while the profiler is being stopped because consent was refused, until it next
+  // starts: the last profile, which it delivers as it stops, is dropped. Atomic because
+  // OnProfile() reads it without holding _mutex.
+  std::atomic<bool> _discard_profiles = false;
 };
 
 }  // namespace datadog::impl

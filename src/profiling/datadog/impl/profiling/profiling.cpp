@@ -148,6 +148,19 @@ void Profiling::OnProfile(const ProfileView& profile) {
   FeatureScope& scope = *_scope;
   const DiagnosticLogger& logger = scope.diagnostic_logger;
 
+  // Drop the last profile of a run that stopped because consent was refused. Storage
+  // decides where to keep a profile by the consent that it has when the profile reaches
+  // it, but the Core tells storage of a consent change before we hear of it. If consent
+  // was refused and then quickly granted, storage already has both changes, and would
+  // keep this profile, which was collected before the refusal, as granted.
+  if (_discard_profiles) {
+    logger.Debug(
+        "Dropped the last profile because tracking consent was refused; profiling "
+        "stops"
+    );
+    return;
+  }
+
   // Drop a profile that the profiler failed to produce, that has no data, or that is
   // too large to store. Forget any RUM events that were collected so that they don't
   // mistakenly get associated to the next profile.
@@ -246,6 +259,8 @@ void Profiling::UpdateBackendState() {
       _scope.has_value() && !_stopping && _consent != TrackingConsent::NotGranted;
 
   if (should_run && !_backend_running) {
+    _discard_profiles = false;
+
     // The profiler hands us each profile that it produces. Give it the function that
     // does so before it is configured, so that dd-win-prof selects callback delivery
     // and does not require HTTP credentials: it must not be running yet. It drops the
@@ -286,6 +301,9 @@ void Profiling::UpdateBackendState() {
     }
     _backend_running = true;
   } else if (!should_run && _backend_running) {
+    // If consent was refused, drop the profile that the profiler delivers as it stops
+    // (see OnProfile()). On shutdown, it is stored.
+    _discard_profiles = _consent == TrackingConsent::NotGranted;
     _backend->Stop();
     _backend_running = false;
     _metadata_source.ResetRumEvents();
