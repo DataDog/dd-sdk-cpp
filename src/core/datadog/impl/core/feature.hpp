@@ -17,6 +17,7 @@
 #include "datadog/impl/core/feature_id.hpp"
 #include "datadog/impl/core/feature_message.hpp"
 #include "datadog/impl/core/feature_scope.hpp"
+#include "datadog/impl/core/feature_storage_config.hpp"
 #include "datadog/impl/core/http/body_writer.hpp"
 #include "datadog/impl/core/tlv.hpp"
 #include "datadog/impl/types/assert.hpp"
@@ -48,14 +49,6 @@ struct Report {
    * copies.
    */
   HttpBodyWriter body_writer;
-};
-
-/**
- * Describes how the storage thread should enforce size limits and other constraints on
- * the batch files for a specific feature.
- */
-struct FeatureStorageConfig {
-  // TODO: Implement defaults, use these values in BatchWriter
 };
 
 /**
@@ -111,7 +104,23 @@ class Feature : public std::enable_shared_from_this<Feature> {
   virtual std::string_view GetName() const = 0;
   virtual FeatureStorageConfig GetStorageConfig() const { return {}; }
 
+  /**
+   * Called by the Core once it has started. Gives the feature its scope, then calls
+   * Start().
+   */
   void OnCoreStarted(FeatureScope&& feature_scope);
+
+  /**
+   * Called in Core::Stop(), while its context thread and message bus are still running
+   * so that features can still enqueue work to be processed before a full "Stop". Calls
+   * PrepareToStop().
+   */
+  void OnCoreStopRequested();
+
+  /**
+   * Called by Core::Stop() once its context thread and message bus have stopped. Calls
+   * Stop(), then drops the feature's scope.
+   */
   void OnCoreStopping();
 
  protected:
@@ -126,11 +135,28 @@ class Feature : public std::enable_shared_from_this<Feature> {
   virtual void Start() {}
 
   /**
+   * Called from the main thread at the start of the SDK's shutdown, before the context
+   * thread is stopped, and before Stop(). The context thread is still running, and the
+   * Core waits for it to finish everything enqueued before it shuts down, so work
+   * enqueued here via _scope->ExecuteOnContextThread(), including the events it
+   * generates, is processed and stored.
+   *
+   * This is the place to finish work that has to produce events as the SDK shuts down,
+   * which cannot be done in Stop(). Messages may still arrive until the Core finishes
+   * stopping its message bus, so a feature that stops something here should not let
+   * those messages restart it.
+   *
+   * The default implementation does nothing.
+   */
+  virtual void PrepareToStop() {}
+
+  /**
    * Called from the main thread when the SDK is shutting down. This is the last point
    * at which _scope is valid.
    *
    * Once Stop() is called, any work enqueued via _scope->ExecuteOnContextThread() will
-   * be ignored, and the feature may no longer generate events.
+   * be ignored, and the feature may no longer generate events. By then the Core has
+   * stopped its context thread: see PrepareToStop() for work that needs it.
    */
   virtual void Stop() {}
 

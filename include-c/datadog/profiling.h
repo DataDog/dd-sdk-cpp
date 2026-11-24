@@ -46,12 +46,15 @@ DATADOG_API void dd_profiling_config_destroy(dd_profiling_config_t* config);
 // You must register Profiling as a feature after calling dd_core_create() and before
 // calling dd_core_start().
 //
-// When dd_core_start() is called, the feature configures the dd-win-prof profiler with
-// the service, environment, and version provided to the core, and starts it, but only
-// while tracking consent is DD_TRACKING_CONSENT_GRANTED. The profiler does not run at
-// all under DD_TRACKING_CONSENT_PENDING or DD_TRACKING_CONSENT_NOT_GRANTED, starts when
-// consent becomes granted, and stops if consent is later withdrawn. It is also stopped
-// when the core stops.
+// When dd_core_start() is called, the feature starts profiling the application, and
+// attributes the profiles to the service, environment, and version provided to the
+// core. Each profile is correlated with the RUM events, such as vitals and long tasks,
+// that occurred while it was collected. A profile with no such events to correlate it
+// with is not kept.
+//
+// Profiling data may be gathered while the core is running and tracking consent is
+// DD_TRACKING_CONSENT_GRANTED or DD_TRACKING_CONSENT_PENDING. The profiler does not run
+// while tracking consent is DD_TRACKING_CONSENT_NOT_GRANTED.
 
 /**
  * Interface to the Datadog SDK's Profiling feature. Use dd_profiling_init() to register

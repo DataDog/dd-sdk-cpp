@@ -162,8 +162,8 @@ ProfileMetadata ProfileMetadataSource::BuildMetadata(const ProfileTimeRange& ran
     }
   }
 
-  // A profile is only recorded after a context has arrived, so the tags are always set;
-  // if not, the event goes without them
+  // A profile is only kept if it has RUM events, which reach us after the context on
+  // the message bus, so the tags are set by then; if not, the event goes without them
   const std::string_view tags_profiler =
       tags != nullptr ? tags->Get(ProfilingOperation::Continuous) : std::string_view();
 
@@ -171,6 +171,7 @@ ProfileMetadata ProfileMetadataSource::BuildMetadata(const ProfileTimeRange& ran
   ProfileMetadata metadata;
   BuildProfileEventJson(metadata.event_json, tags_profiler, range, events);
   BuildRumEventsJson(metadata.rum_events_json, events);
+  metadata.has_rum_events = !events.IsEmpty();
   return metadata;
 }
 

@@ -73,9 +73,18 @@ static uint64_t _timestamp_to_ms(Timestamp timestamp) {
   return std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
 }
 
-BatchWriterConfig BatchWriterConfig::FromBatchSize(BatchSize batch_size) {
+BatchWriterConfig BatchWriterConfig::FromBatchSize(
+    BatchSize batch_size, const FeatureStorageConfig& feature_config
+) {
   const Duration max_file_age = BatchSize_ToMaxFileAgeForWrite(batch_size);
-  return BatchWriterConfig(max_file_age);
+  BatchWriterConfig config(max_file_age);
+
+  // Apply the limits that the feature overrides, leaving the defaults for the rest
+  config.max_writes_per_file =
+      feature_config.max_writes_per_file.value_or(config.max_writes_per_file);
+  config.max_event_size = feature_config.max_event_size.value_or(config.max_event_size);
+  config.max_file_size = feature_config.max_file_size.value_or(config.max_file_size);
+  return config;
 }
 
 BatchWriter::BatchWriter(
