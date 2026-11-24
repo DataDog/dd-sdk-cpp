@@ -1,3 +1,20 @@
+## 0.10.0
+
+### Breaking Changes
+
+- The C API config types (`dd_core_config_t`, `dd_rum_config_t`, `dd_logger_config_t`, `dd_crash_reporting_config_t`, `dd_profiling_config_t`) are now opaque handles: callers must use the new `dd_*_config_create()` / `dd_*_config_destroy()` functions instead of stack-allocating structs and calling `dd_*_config_init()`.
+
+### Features
+
+- Individual SDK features (`DD_FEATURE_LOGGING`, `DD_FEATURE_RUM`, `DD_FEATURE_CRASH_REPORTING`, `DD_FEATURE_PROFILING`) can now be disabled at CMake configure-time to produce a smaller library that omits the corresponding APIs and implementation code.
+- The context-changed callback now includes the current user ID and account ID, providing empty strings when those values have not been set.
+- `DD_SITE_UK1` and `datadog::Site::uk1` are now supported.
+
+### Fixes
+
+- The SDK nows uploads data at more frequent intervals, consistent with the iOS and Android SDKs.
+- Fixed a bug where JSON values parsed as `double` could be parsed incorrectly on certain platforms when the value was subnormal.
+
 ## 0.9.0
 
 ### Fixes
