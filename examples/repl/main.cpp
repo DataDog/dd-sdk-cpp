@@ -176,6 +176,11 @@ CommandResult Handle(State& state, const CommandInput& input) {
     return HandleCrash(state, input.Shift());
   }
 
+  // datadog::Profiling
+  if (input.Peek() == "register-profiling") {
+    return HandleRegisterProfiling(state, input.Shift());
+  }
+
   return CommandResult::Error("Unrecognized command.");
 }
 

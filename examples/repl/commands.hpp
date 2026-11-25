@@ -76,3 +76,6 @@ CommandResult HandleReportAppFullyDisplayed(State& state, const CommandInput& ar
 // crash
 CommandResult HandleRegisterCrashReporting(State& state, const CommandInput& args);
 CommandResult HandleCrash(State& state, const CommandInput& args);
+
+// profiling (the SDK feature)
+CommandResult HandleRegisterProfiling(State& state, const CommandInput& args);

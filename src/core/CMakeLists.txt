@@ -56,6 +56,7 @@ endif()
 
 # core/http, with IHttpClient implementation using libcurl on POSIX, WinHTTP on Win32
 target_sources(ddsdkcpp_core PRIVATE
+    datadog/impl/core/http/body_writer_multipart.cpp
     datadog/impl/core/http/body_writer_string.cpp
     datadog/impl/core/http/body_writer_tlv.cpp
     datadog/impl/core/http/request_builder.cpp

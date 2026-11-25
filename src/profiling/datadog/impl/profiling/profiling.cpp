@@ -6,9 +6,12 @@
 
 #include "datadog/impl/profiling/profiling.hpp"
 
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 #include <utility>
 #include <variant>
@@ -16,6 +19,9 @@
 
 #include "datadog/impl/core/core.hpp"
 #include "datadog/impl/core/feature_message.hpp"
+#include "datadog/impl/core/feature_read.hpp"
+#include "datadog/impl/core/http/body_writer_multipart.hpp"
+#include "datadog/impl/core/http/request_builder.hpp"
 #include "datadog/impl/profiling/profile_frame.hpp"
 #include "datadog/impl/types/assert.hpp"
 
@@ -61,6 +67,13 @@ static constexpr size_t MAX_PROFILE_SIZE = static_cast<size_t>(10) * 1024 * 1024
 static constexpr size_t MAX_STORED_PROFILE_SIZE =
     MAX_PROFILE_SIZE + (static_cast<size_t>(5) * 1024 * 1024);
 
+// The names of the parts of an upload, which are the same in dd-sdk-ios: the name of
+// the event part, and the filenames of all three
+static constexpr std::string_view UPLOAD_EVENT_PART_NAME = "event";
+static constexpr std::string_view UPLOAD_EVENT_FILENAME = "event.json";
+static constexpr std::string_view UPLOAD_PPROF_FILENAME = "profile.pprof";
+static constexpr std::string_view UPLOAD_RUM_EVENTS_FILENAME = "rum-mobile-events.json";
+
 FeatureStorageConfig Profiling::GetStorageConfig() const {
   FeatureStorageConfig config;
   config.max_writes_per_file = 1;
@@ -72,10 +85,62 @@ FeatureStorageConfig Profiling::GetStorageConfig() const {
 std::optional<Report> Profiling::UploadThread_PrepareReport(
     BatchReader& reader, HttpRequestBuilder& builder
 ) {
-  // Uploading stored profiles is not implemented yet, so there is nothing to report
-  (void)reader;
-  (void)builder;
-  return std::nullopt;
+  // Each batch file holds one profile, stored as a single event (see
+  // GetStorageConfig()), with nothing else but possibly metadata blocks, which we don't
+  // use. Read until we find that event.
+  Block event;
+  while (true) {
+    const BatchReader::Result next = reader.ReadNext();
+    if (next.status != BatchReader::Result::Status::Success) {
+      // Unreadable, or it ends without a profile; the batch can't be uploaded
+      return std::nullopt;
+    }
+    if (next.block.type == TLVBlockType::Event) {
+      event = next.block.data;
+      break;
+    }
+  }
+
+  // The parts that we upload are views into the batch reader's buffer, which holds this
+  // block until the next read: we make none, and the reader outlives the request
+  const std::optional<ProfileFrameView> frame = DecodeProfileFrame(event);
+  if (!frame) {
+    // Not a profile frame that we can read; the batch can't be uploaded
+    return std::nullopt;
+  }
+
+  // The parts that the profiling intake takes, as dd-sdk-ios and dd-sdk-android send
+  // them: the event, the profile itself, and the RUM events that it is correlated with.
+  // The RUM events are always sent, because the event lists them as an attachment, and
+  // a profile is only stored if there are RUM events to correlate it with.
+  const std::array<MultipartPart, 3> parts = {{
+      {UPLOAD_EVENT_PART_NAME,
+       UPLOAD_EVENT_FILENAME,
+       "application/json",
+       frame->event_json},
+      {UPLOAD_PPROF_FILENAME,
+       UPLOAD_PPROF_FILENAME,
+       "application/octet-stream",
+       frame->pprof},
+      {UPLOAD_RUM_EVENTS_FILENAME,
+       UPLOAD_RUM_EVENTS_FILENAME,
+       "application/json",
+       frame->rum_events_json},
+  }};
+
+  // The boundary that separates the parts is in the Content-Type header, which the
+  // builder copies, and in the writer, which writes it into its own part headers
+  const MultipartBoundary boundary = MultipartBoundary::Random();
+  builder.Reset("/api/v2/profile", boundary.ContentType());
+
+  // The body is sent as is, with no Content-Encoding, like the requests of every other
+  // feature of this SDK. The profiler has already compressed the pprof, which is by far
+  // most of it.
+  return Report{
+      builder.GetUrl(),
+      builder.GetHeaders(),
+      MultipartBodyWriter{boundary.Boundary(), parts.data(), parts.size()}
+  };
 }
 
 std::optional<std::function<void(const FeatureMessage&)>>

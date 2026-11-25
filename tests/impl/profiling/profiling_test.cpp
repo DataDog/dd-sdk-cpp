@@ -10,16 +10,25 @@
 #include <functional>
 #include <memory>
 #include <nlohmann/json.hpp>
+#include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
+#include <vector>
 
 #include "datadog/impl/core/feature_message.hpp"
+#include "datadog/impl/core/feature_read.hpp"
+#include "datadog/impl/core/http/body_writer.hpp"
+#include "datadog/impl/core/http/request_builder.hpp"
 #include "datadog/impl/profiling/profile_frame.hpp"
 
+#include "mock/filesystem.hpp"
 #include "mock/profiler_backend.hpp"
+#include "mock/tlv.hpp"
 #include "support/catch.hpp"
 #include "support/context.hpp"
 #include "support/core.hpp"
+#include "support/diagnostics.hpp"
 #include "support/feature.hpp"
 
 using namespace datadog::impl;
@@ -1014,5 +1023,230 @@ TEST_CASE("Profiling consent with a running core", "[unit][profiling]") {
 
     // Then the profiler does not start for the second run
     REQUIRE(profiler.CountCalls("start") == 1);
+  }
+}
+
+// A profile whose parts are easy to tell apart, and whose pprof has every byte value
+// that matters to a binary body: zero, and bytes above 0x7F
+static const std::string UPLOAD_EVENT_JSON = R"({"family":"windows"})";
+static const std::string UPLOAD_RUM_EVENTS_JSON = R"([{"id":"1"}])";
+static const std::string UPLOAD_PPROF("\x00\x01\x7F\x80\xFF pprof", 10);
+
+static std::vector<uint8_t> to_byte_vector(std::string_view text) {
+  return std::vector<uint8_t>(text.begin(), text.end());
+}
+
+/** Encodes a stored profile, which `rum_events_json` is the RUM events of. */
+static std::string make_stored_frame(std::string_view rum_events_json) {
+  ProfileMetadata metadata;
+  metadata.event_json = to_byte_vector(UPLOAD_EVENT_JSON);
+  metadata.rum_events_json = to_byte_vector(rum_events_json);
+  const std::vector<uint8_t> frame = EncodeProfileFrame(metadata, UPLOAD_PPROF);
+  return std::string(frame.begin(), frame.end());
+}
+
+/** Reads the whole body of a report, `chunk_size` bytes at a time. */
+static std::string read_report_body(const Report& report, size_t chunk_size) {
+  HttpBodyWriter writer = report.body_writer;
+  std::string body;
+  std::vector<char> buffer(chunk_size);
+  while (true) {
+    const size_t num_bytes_written = writer(buffer.data(), buffer.size());
+    REQUIRE(num_bytes_written != HTTP_WRITE_RESULT_ABORT);
+    if (num_bytes_written == HTTP_WRITE_RESULT_EOF) {
+      return body;
+    }
+    body.append(buffer.data(), num_bytes_written);
+  }
+}
+
+/** Returns the boundary that the Content-Type header of a report names. */
+static std::string boundary_of(const Report& report) {
+  const std::string headers = report.headers;
+  const std::string marker = "Content-Type: multipart/form-data; boundary=";
+  const size_t start = headers.find(marker);
+  REQUIRE(start != std::string::npos);
+  const size_t value_start = start + marker.size();
+  return headers.substr(value_start, headers.find("\r\n", value_start) - value_start);
+}
+
+/** One part of the upload, as the body spells it. */
+static std::string expected_part(
+    const std::string& boundary,
+    std::string_view disposition,
+    std::string_view content_type,
+    std::string_view data,
+    bool is_first
+) {
+  std::string part = is_first ? "" : "\r\n";
+  part += "--" + boundary + "\r\n";
+  part += "Content-Disposition: form-data; " + std::string(disposition) + "\r\n";
+  part += "Content-Type: " + std::string(content_type) + "\r\n\r\n";
+  part += data;
+  return part;
+}
+
+TEST_CASE("Profiling upload", "[unit][profiling]") {
+  // Given a Profiling feature, which has no state that an upload needs
+  auto profiling = std::make_shared<impl::Profiling>(
+      std::make_unique<MockProfilerBackend>(), ProfilerBackendSettings{}
+  );
+
+  // And a logger, a mock filesystem, and the buffer that a BatchReader reads into
+  DiagnosticMessageBuffer diagnostics;
+  DiagnosticLogger logger = diagnostics.CreateTestLogger();
+  MockFilesystem fs;
+  std::vector<char> batch_reader_buffer;
+
+  // And a builder for the request, as the upload thread makes one
+  HttpRequestBuilder builder(MOCK_CONTEXT);
+
+  // A function that prepares a report from a batch file with the given contents
+  auto prepare_report = [&](const MockTLVFile& file) -> std::optional<Report> {
+    MockTLVFile(file).WriteTo(fs, "batch.dat");
+    auto infile = fs.Wrapper().OpenForRead("batch.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
+    return profiling->UploadThread_PrepareReport(reader, builder);
+  };
+
+  SECTION("M upload the event, the profile and the RUM events W a profile is stored") {
+    // When a report is prepared for a batch file that holds a stored profile
+    const std::string frame = make_stored_frame(UPLOAD_RUM_EVENTS_JSON);
+    const auto report = prepare_report(MockTLVFile().AppendEvent(frame));
+    REQUIRE(report.has_value());
+
+    // Then the request goes to the profile intake, on the same origin as the requests
+    // of other features, with no query parameters, as a multipart form
+    HttpRequestBuilder expected_url_builder(MOCK_CONTEXT);
+    expected_url_builder.Reset("/api/v2/profile", "multipart/form-data");
+    REQUIRE(std::string(report->url) == std::string(expected_url_builder.GetUrl()));
+    const std::string boundary = boundary_of(*report);
+    REQUIRE_FALSE(boundary.empty());
+
+    // And the standard headers are in place
+    REQUIRE_THAT(
+        std::string(report->headers), Catch::Matchers::ContainsSubstring("DD-API-KEY: ")
+    );
+
+    // And the body is not compressed
+    REQUIRE_THAT(
+        std::string(report->headers),
+        !Catch::Matchers::ContainsSubstring("Content-Encoding")
+    );
+
+    // And the body has the three parts that dd-sdk-ios sends, the profile unchanged
+    std::string expected = expected_part(
+        boundary,
+        R"(name="event"; filename="event.json")",
+        "application/json",
+        UPLOAD_EVENT_JSON,
+        true
+    );
+    expected += expected_part(
+        boundary,
+        R"(name="profile.pprof"; filename="profile.pprof")",
+        "application/octet-stream",
+        UPLOAD_PPROF,
+        false
+    );
+    expected += expected_part(
+        boundary,
+        R"(name="rum-mobile-events.json"; filename="rum-mobile-events.json")",
+        "application/json",
+        UPLOAD_RUM_EVENTS_JSON,
+        false
+    );
+    expected += "\r\n--" + boundary + "--\r\n";
+    REQUIRE(read_report_body(*report, 4096) == expected);
+
+    // And the body is the same however the HTTP client asks for it
+    REQUIRE(read_report_body(*report, 1) == expected);
+    REQUIRE(read_report_body(*report, 7) == expected);
+  }
+
+  SECTION("M still upload the RUM events part W the list of events is empty") {
+    // The event that is uploaded names this part as an attachment, so it is always sent
+    const auto report =
+        prepare_report(MockTLVFile().AppendEvent(make_stored_frame("[]")));
+    REQUIRE(report.has_value());
+
+    const std::string body = read_report_body(*report, 4096);
+    REQUIRE_THAT(body, Catch::Matchers::ContainsSubstring(R"(name="event")"));
+    REQUIRE_THAT(body, Catch::Matchers::ContainsSubstring(R"(name="profile.pprof")"));
+    REQUIRE_THAT(
+        body,
+        Catch::Matchers::ContainsSubstring(
+            "name=\"rum-mobile-events.json\"; filename=\"rum-mobile-events.json\""
+        )
+    );
+  }
+
+  SECTION("M skip metadata blocks W the batch has them before the profile") {
+    const std::string frame = make_stored_frame(UPLOAD_RUM_EVENTS_JSON);
+    const auto report = prepare_report(
+        MockTLVFile().AppendMetadata("some metadata").AppendEvent(frame)
+    );
+
+    REQUIRE(report.has_value());
+    REQUIRE_THAT(
+        read_report_body(*report, 4096),
+        Catch::Matchers::ContainsSubstring(UPLOAD_PPROF)
+    );
+  }
+
+  SECTION("M use a different boundary W another profile is uploaded") {
+    const std::string frame = make_stored_frame(UPLOAD_RUM_EVENTS_JSON);
+    const auto first = prepare_report(MockTLVFile().AppendEvent(frame));
+    REQUIRE(first.has_value());
+    const std::string first_boundary = boundary_of(*first);
+
+    // Preparing another report resets the builder, so `first` is not used after this
+    // point: its URL and headers refer to the builder's buffers
+    const auto second = prepare_report(MockTLVFile().AppendEvent(frame));
+    REQUIRE(second.has_value());
+    REQUIRE(boundary_of(*second) != first_boundary);
+  }
+
+  SECTION("M upload only the first profile W the batch somehow has more than one") {
+    // A batch file holds one profile because of the storage limits, so this is not
+    // expected, but the first is the one that is uploaded
+    const std::string first = make_stored_frame(R"([{"id":"first"}])");
+    const std::string second = make_stored_frame(R"([{"id":"second"}])");
+    const auto report =
+        prepare_report(MockTLVFile().AppendEvent(first).AppendEvent(second));
+
+    REQUIRE(report.has_value());
+    const std::string body = read_report_body(*report, 4096);
+    REQUIRE_THAT(body, Catch::Matchers::ContainsSubstring(R"({"id":"first"})"));
+    REQUIRE_THAT(body, !Catch::Matchers::ContainsSubstring(R"({"id":"second"})"));
+  }
+
+  SECTION("M report nothing W the batch has no profile") {
+    // An empty batch file, and one that has only metadata
+    REQUIRE_FALSE(prepare_report(MockTLVFile()).has_value());
+    REQUIRE_FALSE(
+        prepare_report(MockTLVFile().AppendMetadata("some metadata")).has_value()
+    );
+  }
+
+  SECTION("M report nothing W the stored event is not a profile frame") {
+    // An event that is not a frame at all, and a frame that ends early
+    REQUIRE_FALSE(
+        prepare_report(MockTLVFile().AppendEvent("not a profile frame")).has_value()
+    );
+
+    std::string truncated = make_stored_frame(UPLOAD_RUM_EVENTS_JSON);
+    truncated.resize(truncated.size() - 1);
+    REQUIRE_FALSE(prepare_report(MockTLVFile().AppendEvent(truncated)).has_value());
+  }
+
+  SECTION("M report nothing W the batch file is not readable") {
+    fs.Touch("batch.dat", "hello world");
+    auto infile = fs.Wrapper().OpenForRead("batch.dat", false);
+    REQUIRE(infile.value == FilesystemResult::OK);
+    BatchReader reader{logger, std::move(infile.file), batch_reader_buffer};
+
+    REQUIRE_FALSE(profiling->UploadThread_PrepareReport(reader, builder).has_value());
   }
 }

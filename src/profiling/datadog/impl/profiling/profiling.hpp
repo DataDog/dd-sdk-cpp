@@ -33,8 +33,10 @@ class Core;
  * refused.
  *
  * The profiling backend hands each finished profile to this feature, which stores it,
- * with metadata describing it, as one event in storage, which the Core uploads like
- * events from any other feature.
+ * with metadata describing it, as one event in storage. The Core's upload thread then
+ * asks this feature to prepare the request for each stored profile, which is a
+ * `multipart/form-data` POST to the profiling intake with the event, the profile, and
+ * the RUM events that it is correlated with.
  *
  * While the feature is active and the profiler is running, it records the RUM events
  * that RUM announces (vitals and long tasks), along with the application's identifying
@@ -83,6 +85,16 @@ class Profiling final : public Feature {
    */
   FeatureStorageConfig GetStorageConfig() const override;
 
+  /**
+   * Prepares the upload of the profile in the batch file, as a `multipart/form-data`
+   * request to the profiling intake whose body is streamed from the stored profile
+   * without copying it. The body is not compressed, like the requests of other
+   * features; the profiler has already compressed the profile.
+   *
+   * Returns nothing, so that the Core treats the batch as unusable and deletes it, if
+   * the file can't be read, has no event, or has an event that is not a stored profile.
+   * Called on the upload thread. It reads no state of this feature.
+   */
   std::optional<Report> UploadThread_PrepareReport(
       BatchReader& reader, HttpRequestBuilder& builder
   ) override;
