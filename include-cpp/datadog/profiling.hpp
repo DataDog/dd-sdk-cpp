@@ -57,6 +57,11 @@ static_assert(
  * that occurred while it was collected. A profile with no such events to correlate it
  * with is not kept.
  *
+ * The SDK uploads the profiles that the profiler produces, to the same intake, and with
+ * the same client token, as the data of its other features. The profiler does not
+ * upload anything itself, and ignores its own environment variables, such as the ones
+ * that configure an API key or an endpoint.
+ *
  * Profiling data may be gathered while the Core is running and tracking consent is
  * TrackingConsent::Granted or TrackingConsent::Pending. The profiler does not run while
  * tracking consent is TrackingConsent::NotGranted.

@@ -52,6 +52,11 @@ DATADOG_API void dd_profiling_config_destroy(dd_profiling_config_t* config);
 // that occurred while it was collected. A profile with no such events to correlate it
 // with is not kept.
 //
+// The SDK uploads the profiles that the profiler produces, to the same intake, and with
+// the same client token, as the data of its other features. The profiler does not
+// upload anything itself, and ignores its own environment variables, such as the ones
+// that configure an API key or an endpoint.
+//
 // Profiling data may be gathered while the core is running and tracking consent is
 // DD_TRACKING_CONSENT_GRANTED or DD_TRACKING_CONSENT_PENDING. The profiler does not run
 // while tracking consent is DD_TRACKING_CONSENT_NOT_GRANTED.

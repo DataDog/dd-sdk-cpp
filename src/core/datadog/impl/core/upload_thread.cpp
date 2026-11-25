@@ -138,12 +138,14 @@ static _process_and_upload_batch_result _process_and_upload_batch(
   // the batch file directly to the socket, without intermediate copies. As a result,
   // our open file handle MUST remain in scope until the HTTP request is finished.
 
-  // Initiate an HTTP request, blocking until it finishes
+  // Initiate an HTTP request, blocking until it finishes. The body writer is moved into
+  // the request rather than copied, since copying it could copy everything it holds,
+  // and nothing uses it after the request.
   diagnostic_logger.Debug(
       "Initiating HTTP request", {{"method", "POST"}, {"url", report->url}}
   );
   const HttpResult res =
-      http_client.Post(report->url, report->headers, report->body_writer);
+      http_client.Post(report->url, report->headers, std::move(report->body_writer));
   switch (res.type) {
     case HttpResultType::SentNoRequest:
       diagnostic_logger.Debug("Failed to send HTTP request", {{"url", report->url}});

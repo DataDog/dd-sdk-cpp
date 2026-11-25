@@ -54,4 +54,7 @@ struct State {
 
   // Crash Reporting API
   std::shared_ptr<datadog::CrashReporting> crash_reporting;
+
+  // Profiling API (the SDK feature, unrelated to start-profile and stop-profile above)
+  std::shared_ptr<datadog::Profiling> profiling;
 };

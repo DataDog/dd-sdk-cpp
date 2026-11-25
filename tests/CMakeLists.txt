@@ -56,6 +56,7 @@ if(TARGET ddsdkcpp_core)
         cpp/core_cpp_api_test.cpp
         cpp/network_instrumentation_cpp_api_test.cpp
         impl/core/attribute/binary_test.cpp
+        impl/core/http/body_writer_multipart_test.cpp
         impl/core/http/body_writer_string_test.cpp
         impl/core/http/body_writer_tlv_test.cpp
         impl/core/http/client_test.cpp

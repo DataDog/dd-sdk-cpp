@@ -31,6 +31,7 @@ add_executable(repl
     repl/commands_crash.cpp
     repl/commands_logging.cpp
     repl/commands_profile.cpp
+    repl/commands_profiling.cpp
     repl/commands_rum.cpp
     repl/commands_util.cpp
 )
