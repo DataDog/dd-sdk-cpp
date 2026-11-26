@@ -11,11 +11,11 @@ Running this script will:
 
 1. Prepare a local clone of the rum-events-format repo at the specified revision
    (latest if no revision specified)
-2. Use python-jsonschema to parse rum-events-format/schemas/rum-events-schema.json
+2. Use python-jsonschema to parse the rum-events-format schema files configured below
 3. Find every invocation of the `DATADOG_RUM_EVENT_LITERAL` macro in the subset of .cpp
    test files configured below, each of which must wrap a C++ raw-string literal
    representing the exact value of a RUM event's JSON object literal
-4. Use python-jsonschema to validate that JSON object literal against the schema
+4. Use python-jsonschema to validate that JSON object literal against any of those schemas
 
 This validation process does not directly exercise the functionality of the C++ SDK. The
 C++ unit test is responsible for validating that the SDK produces the expected JSON
@@ -36,7 +36,13 @@ from lib.cpp import discover_rum_event_literals
 
 __schema_repo__ = 'rum-events-format'
 __schema_repo_default_branch__ = 'master'
-__schema_relpath__ = os.path.join('schemas', 'rum-events-schema.json')
+# The first file is the base for $ref resolution; every other file must be within its
+# directory. An event is valid if it matches any of these schemas
+__schema_relpaths__ = [
+    os.path.join('schemas', 'rum-events-schema.json'),
+    os.path.join('schemas', 'rum', 'timeseries-cpu-schema.json'),
+    os.path.join('schemas', 'rum', 'timeseries-memory-schema.json'),
+]
 __schema_test_event_relpath__ = os.path.join('samples', 'rum-events', 'view.json')
 
 __cpp_test_relpaths__ = [
@@ -65,10 +71,9 @@ if __name__ == '__main__':
     repo = fetch_repo(__schema_repo__, args.commit_ref)
     print(f'{repo.working_dir} @ {repo.head.commit}')
 
-    # Load rum-events-schema.json from that repo
-    print_section(f'Parsing {__schema_relpath__}')
-    root_schema_json_path = os.path.join(repo.working_dir, __schema_relpath__)
-    schema = Schema.load(root_schema_json_path)
+    # Load the schema files from that repo
+    print_section(f'Parsing {", ".join(__schema_relpaths__)}')
+    schema = Schema.load([os.path.join(repo.working_dir, relpath) for relpath in __schema_relpaths__])
 
     # Sanity-check: validate an example event from the rum-events-format repo
     print_section(f'Validating {__schema_test_event_relpath__}')
