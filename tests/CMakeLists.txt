@@ -105,6 +105,13 @@ add_executable(tests
     impl/rum/scopes/resource_test.cpp
     impl/rum/scopes/session_test.cpp
     impl/rum/scopes/view_test.cpp
+    impl/rum/timeseries/buffer_test.cpp
+    impl/rum/timeseries/collected_session_registry_test.cpp
+    impl/rum/timeseries/data_points_reader_test.cpp
+    impl/rum/timeseries/pipeline_corner_test.cpp
+    impl/rum/timeseries/pipeline_e2e_test.cpp
+    impl/rum/timeseries/pipeline_factory_test.cpp
+    impl/rum/timeseries/pipeline_test.cpp
     impl/rum/command_test.cpp
     impl/rum/context_test.cpp
     impl/rum/rum_messaging_test.cpp
