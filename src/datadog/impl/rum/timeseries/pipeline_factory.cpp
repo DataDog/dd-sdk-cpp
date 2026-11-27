@@ -8,14 +8,14 @@
 
 #include <utility>
 
+#include "datadog/impl/rum/timeseries/buffer.hpp"
+#include "datadog/impl/rum/timeseries/cpu_event_factory.hpp"
+#include "datadog/impl/rum/timeseries/cpu_reader.hpp"
+#include "datadog/impl/types/assert.hpp"
+
 namespace datadog::impl {
 
 namespace {
-
-std::shared_ptr<IPipeline> CreateCpuPipeline() {
-  // TODO(RUM-19589): create the CPU pipeline
-  return nullptr;
-}
 
 std::shared_ptr<IPipeline> CreateMemoryPipeline() {
   // TODO(RUM-19588): create the memory pipeline
@@ -26,15 +26,22 @@ std::shared_ptr<IPipeline> CreateMemoryPipeline() {
 
 PipelineFactory::PipelineFactory(
     TimeseriesConfig config,
-    const platform::IClock& /*clock*/,
+    const platform::IClock& clock,
+    std::shared_ptr<const platform::ICpuInfoProvider> cpu_info_provider,
     std::shared_ptr<CollectedTimeseriesSessionRegistry> collected_sessions,
     RunOnContextThread run_on_context_thread,
     DiagnosticLogger logger
 )
     : _config(std::move(config)),
+      _clock(&clock),
+      _cpu_info_provider(std::move(cpu_info_provider)),
       _collected_sessions(std::move(collected_sessions)),
       _run_on_context_thread(std::move(run_on_context_thread)),
-      _logger(std::move(logger)) {}
+      _logger(std::move(logger)) {
+  DATADOG_ASSERT(
+      _cpu_info_provider != nullptr, "pipeline factory requires a CPU info provider"
+  );
+}
 
 std::vector<std::shared_ptr<IPipeline>> PipelineFactory::Create(
     const TimeseriesBoundSession& session
@@ -50,7 +57,7 @@ std::vector<std::shared_ptr<IPipeline>> PipelineFactory::Create(
     std::shared_ptr<IPipeline> pipeline;
     switch (type) {
       case TimeseriesType::Cpu:
-        pipeline = CreateCpuPipeline();
+        pipeline = CreateCpuPipeline(session);
         break;
       case TimeseriesType::Memory:
         pipeline = CreateMemoryPipeline();
@@ -65,6 +72,23 @@ std::vector<std::shared_ptr<IPipeline>> PipelineFactory::Create(
     pipelines.push_back(std::move(pipeline));
   }
   return pipelines;
+}
+
+std::shared_ptr<IPipeline> PipelineFactory::CreateCpuPipeline(
+    const TimeseriesBoundSession& session
+) const {
+  // The reader also uses the interval to detect gaps between samples
+  return Pipeline<double>::Create(
+      session,
+      std::make_unique<CpuReader>(
+          *_clock, _config.sampling_interval, _cpu_info_provider
+      ),
+      std::make_unique<CpuEventFactory>(),
+      Buffer<double>(_config.buffer_size),
+      _collected_sessions,
+      _run_on_context_thread,
+      _logger
+  );
 }
 
 }  // namespace datadog::impl

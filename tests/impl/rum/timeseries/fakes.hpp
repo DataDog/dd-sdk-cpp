@@ -98,7 +98,8 @@ inline TimeseriesBoundSession BoundSession() {
       SomeApplication(),
       SomeSession(),
       RumSessionType::User,
-      RumSessionPrecondition::InactivityTimeout,  // not the default, to be observable
+      RumSessionPrecondition::InactivityTimeout,
+      25.0f,
   };
 }
 

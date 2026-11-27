@@ -10,6 +10,7 @@
 #include <vector>
 
 #include "datadog/impl/core/platform/clock.hpp"
+#include "datadog/impl/core/platform/cpu_info_provider.hpp"
 #include "datadog/impl/rum/timeseries/collected_session_registry.hpp"
 #include "datadog/impl/rum/timeseries/configuration.hpp"
 #include "datadog/impl/rum/timeseries/pipeline.hpp"
@@ -23,12 +24,13 @@ namespace datadog::impl {
 class PipelineFactory final {
  public:
   /**
-   * `clock` must outlive the factory and the pipelines it creates. (Currently unused:
-   * it is only needed once the concrete pipelines exist.)
+   * `clock` stamps the data points; it must outlive the factory and the pipelines it
+   * creates. `cpu_info_provider` is shared by the CPU pipelines; must be set.
    */
   PipelineFactory(
       TimeseriesConfig config,
       const platform::IClock& clock,
+      std::shared_ptr<const platform::ICpuInfoProvider> cpu_info_provider,
       std::shared_ptr<CollectedTimeseriesSessionRegistry> collected_sessions,
       RunOnContextThread run_on_context_thread,
       DiagnosticLogger logger
@@ -47,10 +49,13 @@ class PipelineFactory final {
   ) const;
 
  private:
+  std::shared_ptr<IPipeline> CreateCpuPipeline(
+      const TimeseriesBoundSession& session
+  ) const;
+
   TimeseriesConfig _config;
-  // _collected_sessions and _run_on_context_thread are unused until the concrete
-  // CPU/memory pipelines land. The clock is not stored yet for the same reason
-  // (RUM-19589 adds it back)
+  const platform::IClock* _clock;
+  std::shared_ptr<const platform::ICpuInfoProvider> _cpu_info_provider;
   std::shared_ptr<CollectedTimeseriesSessionRegistry> _collected_sessions;
   RunOnContextThread _run_on_context_thread;
   DiagnosticLogger _logger;

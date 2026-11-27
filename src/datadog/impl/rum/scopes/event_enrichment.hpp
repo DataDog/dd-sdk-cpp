@@ -120,18 +120,27 @@ struct RumEventEnrichment {
    */
   template <typename T>
   static void PopulateCommonProperties(const CoreContext& context, T& ev) {
-    // Set 'ddtags' to reflect config: 'service:<service>,env:<env>' etc.
-    ev.ddtags = context.per_event_ddtags;
-
-    // If SystemInfo details are available, populate 'os' and 'device' properties
-    PopulateOsProperties(context, ev);
-    PopulateDeviceProperties(context, ev);
+    PopulateSystemProperties(context, ev);
 
     // If the SDK has been configured with UserInfo, populate 'usr'
     PopulateUserProperties(context, ev);
 
     // If we have AccountInfo, populate 'account'
     PopulateAccountProperties(context, ev);
+  }
+
+  /**
+   * Populates the SDK-wide fields of a RUM event that has no `usr` or `account`
+   * field (e.g. a timeseries event): `ddtags`, `os` and `device`.
+   */
+  template <typename T>
+  static void PopulateSystemProperties(const CoreContext& context, T& ev) {
+    // Set 'ddtags' to reflect config: 'service:<service>,env:<env>' etc.
+    ev.ddtags = context.per_event_ddtags;
+
+    // If SystemInfo details are available, populate 'os' and 'device' properties
+    PopulateOsProperties(context, ev);
+    PopulateDeviceProperties(context, ev);
   }
 
  private:

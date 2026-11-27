@@ -266,6 +266,15 @@ else()
     endif()
 endif()
 
+# Platform-specific support for reading the CPU usage of the process
+if(WIN32)
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/cpu_info_provider_windows.cpp)
+elseif(APPLE)
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/cpu_info_provider_macos.cpp)
+elseif(UNIX)
+    target_sources(ddsdkcpp PRIVATE datadog/impl/core/platform/cpu_info_provider_linux.cpp)
+endif()
+
 # Common crash processing logic used by RUM as well as the Crashpad handler process:
 # depends only on impl/types/, not impl/core/
 
@@ -296,6 +305,8 @@ target_sources(ddsdkcpp PRIVATE
     datadog/impl/rum/scopes/resource.cpp
     datadog/impl/rum/scopes/session.cpp
     datadog/impl/rum/scopes/view.cpp
+    datadog/impl/rum/timeseries/cpu_event_factory.cpp
+    datadog/impl/rum/timeseries/cpu_reader.cpp
     datadog/impl/rum/timeseries/pipeline_factory.cpp
     datadog/impl/rum/context.cpp
     datadog/impl/rum/rum.cpp
