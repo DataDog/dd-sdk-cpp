@@ -21,11 +21,30 @@ namespace datadog::impl {
  * session's RumContext: RumFeatureContext lacks the precondition.
  */
 struct TimeseriesBoundSession final {
+  /** Every value is required, so none can be forgotten when the session is built. */
+  TimeseriesBoundSession(
+      const UUID& in_application_id,
+      const UUID& in_session_id,
+      RumSessionType in_type,
+      RumSessionPrecondition in_precondition,
+      float in_session_sample_rate
+  )
+      : application_id(in_application_id),
+        session_id(in_session_id),
+        type(in_type),
+        precondition(in_precondition),
+        session_sample_rate(in_session_sample_rate) {}
+
   UUID application_id;
   UUID session_id;
-  RumSessionType type = RumSessionType::User;
+  RumSessionType type;
   /** Why the session started; serialized as `_dd.session.session_precondition`. */
-  RumSessionPrecondition precondition = RumSessionPrecondition::UserAppLaunch;
+  RumSessionPrecondition precondition;
+  /**
+   * RumConfig::session_sample_rate in [0, 100] when the session started, serialized
+   * as `_dd.configuration.session_sample_rate`.
+   */
+  float session_sample_rate;
 };
 
 }  // namespace datadog::impl

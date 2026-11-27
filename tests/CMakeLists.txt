@@ -62,6 +62,7 @@ add_executable(tests
     impl/core/http/client_test.cpp
     impl/core/http/request_builder_test.cpp
     impl/core/platform/clock_test.cpp
+    impl/core/platform/cpu_info_provider_test.cpp
     impl/core/platform/system_info_test.cpp
     impl/core/storage/artifact_test.cpp
     impl/core/storage/feature_event_test.cpp
@@ -107,6 +108,8 @@ add_executable(tests
     impl/rum/scopes/view_test.cpp
     impl/rum/timeseries/buffer_test.cpp
     impl/rum/timeseries/collected_session_registry_test.cpp
+    impl/rum/timeseries/cpu_event_factory_test.cpp
+    impl/rum/timeseries/cpu_reader_test.cpp
     impl/rum/timeseries/data_points_reader_test.cpp
     impl/rum/timeseries/pipeline_corner_test.cpp
     impl/rum/timeseries/pipeline_e2e_test.cpp

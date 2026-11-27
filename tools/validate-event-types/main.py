@@ -49,6 +49,7 @@ __cpp_test_relpaths__ = [
     os.path.join('impl', 'types', 'rum_test.cpp'),
     os.path.join('impl', 'crash_processing', 'crash_events_test.cpp'),
     os.path.join('impl', 'crash_processing', 'view_event_mutation_test.cpp'),
+    os.path.join('impl', 'rum', 'timeseries', 'cpu_event_factory_test.cpp'),
     os.path.join('c', 'rum_c_api_test.cpp'),
     os.path.join('cpp', 'rum_cpp_api_test.cpp'),
 ]
