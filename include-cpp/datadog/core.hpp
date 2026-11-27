@@ -8,11 +8,14 @@
 
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include "datadog/api.hpp"
 #include "datadog/attribute.hpp"
+#include "datadog/network_adapter.hpp"
+#include "datadog/network_instrumentation.hpp"
 
 struct CoreTestHarness;
 
@@ -404,6 +407,21 @@ class Core {
    */
   DATADOG_API static std::shared_ptr<Core> Create(
       const CoreConfig& config, TrackingConsent tracking_consent
+  );
+
+  /**
+   * Creates a network adapter using `policy`, a `sample_rate` percentage from 0 to
+   * 100. May be called before or after Start().
+   *
+   * Copies `custom_first_party_hosts`, if supplied, as an adapter-specific override.
+   * The returned handle owns the adapter and does not keep the Core alive.
+   *
+   * Returns a new adapter handle, or a no-op handle if this Core is a no-op instance.
+   */
+  DATADOG_API std::shared_ptr<NetworkAdapter> CreateNetworkAdapter(
+      TraceInjectionPolicy policy,
+      float sample_rate,
+      std::optional<FirstPartyHosts> custom_first_party_hosts = std::nullopt
   );
 
   /**

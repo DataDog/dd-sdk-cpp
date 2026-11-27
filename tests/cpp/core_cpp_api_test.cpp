@@ -6,6 +6,7 @@
 
 #include <nlohmann/json.hpp>
 #include <string>
+#include <vector>
 
 #include "datadog/core.hpp"
 #include "datadog/logging.hpp"
@@ -34,12 +35,40 @@ TEST_CASE("Core null safety", "[unit][core][cpp-api]") {
 
     // Then we get a valid object that handles all member functions calls as a no-op
     REQUIRE(core != nullptr);
+    REQUIRE(core->CreateNetworkAdapter(TraceInjectionPolicy::All, 50.0F));
     REQUIRE(core->Start() == false);
     core->SetTrackingConsent(datadog::TrackingConsent::Granted);
     core->SetUserInfo("id", "name", "email");
     core->AddUserExtraInfo(Attribute::Object(0));
     core->ClearUserInfo();
     core->Stop();
+  }
+}
+
+TEST_CASE("Core network adapter C++ API", "[unit][core][tracing][cpp-api]") {
+  auto test = CoreTestHarness::Init();
+  auto core = CoreTestHarness::WrapForCpp(test);
+  auto adapter = core->CreateNetworkAdapter(TraceInjectionPolicy::All, 50.0F);
+  REQUIRE(adapter);
+
+  SECTION("M create distinct adapters W custom hosts supplied") {
+    auto custom_adapter = core->CreateNetworkAdapter(
+        TraceInjectionPolicy::Sampled,
+        75.0F,
+        FirstPartyHosts(
+            std::vector<FirstPartyHost>{
+                {"example.com", TracingHeaderTypes::Tracecontext}
+            }
+        )
+    );
+    REQUIRE(custom_adapter);
+    REQUIRE(custom_adapter != adapter);
+  }
+
+  SECTION("M safely release an adapter W Core is already destroyed") {
+    core.reset();
+    REQUIRE(adapter);
+    adapter.reset();
   }
 }
 

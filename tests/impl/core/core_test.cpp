@@ -7,7 +7,9 @@
 #include "datadog/impl/core/core.hpp"
 
 #include <atomic>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "datadog/uuid.hpp"
 
@@ -21,6 +23,7 @@
 #include "support/catch.hpp"
 #include "support/core.hpp"
 #include "support/diagnostics.hpp"
+#include "support/threading.hpp"
 
 using namespace datadog;
 using namespace datadog::impl;
@@ -61,6 +64,66 @@ class NameConflictFeature : public MockFeature {
       : MockFeature(CreateFeatureId("NAME"), "testfeature")  // same name as above
   {}
 };
+
+TEST_CASE("Core network adapters", "[unit][core][tracing]") {
+  auto test = CoreTestHarness::Init();
+
+  SECTION("M destroy adapters W callers release references") {
+    std::weak_ptr<impl::NetworkAdapter> first;
+    std::weak_ptr<impl::NetworkAdapter> second;
+    {
+      auto first_adapter =
+          test.core.CreateNetworkAdapter(TraceInjectionPolicy::All, 50.0F);
+      auto second_adapter = test.core.CreateNetworkAdapter(
+          TraceInjectionPolicy::Sampled,
+          75.0F,
+          FirstPartyHosts(std::vector<std::string>{"example.com"})
+      );
+      REQUIRE(first_adapter);
+      REQUIRE(second_adapter);
+      REQUIRE(first_adapter != second_adapter);
+      first = first_adapter;
+      second = second_adapter;
+    }
+
+    REQUIRE(first.expired());
+    REQUIRE(second.expired());
+  }
+
+  SECTION("M release sampling provider W an adapter outlives Core") {
+    auto provider = test.core.GetSamplingDecisionProvider();
+    auto adapter = test.core.CreateNetworkAdapter(TraceInjectionPolicy::All, 50.0F);
+
+    REQUIRE(!provider.expired());
+    test._core.reset();
+    REQUIRE(adapter);
+    REQUIRE(provider.expired());
+  }
+
+  SECTION("M keep adapters alive W concurrent callers outlive Core") {
+    std::vector<std::shared_ptr<impl::NetworkAdapter>> adapters(16);
+    auto threads = RunParallel(adapters.size(), [&](size_t i) {
+      adapters[i] = test.core.CreateNetworkAdapter(TraceInjectionPolicy::All, 50.0F);
+    });
+    for (auto& thread : threads) {
+      thread.join();
+    }
+
+    std::vector<std::weak_ptr<impl::NetworkAdapter>> weak_adapters;
+    for (const auto& adapter : adapters) {
+      REQUIRE(adapter);
+      weak_adapters.push_back(adapter);
+    }
+    test._core.reset();
+    for (const auto& adapter : weak_adapters) {
+      REQUIRE(!adapter.expired());
+    }
+    adapters.clear();
+    for (const auto& adapter : weak_adapters) {
+      REQUIRE(adapter.expired());
+    }
+  }
+}
 
 TEST_CASE("Core Lifecycle", "[unit]") {
   // Given a buffer where we'll accumulate all diagnostic messages emitted

@@ -13,6 +13,19 @@
 
 namespace datadog {
 
+inline TraceInjectionPolicy TraceInjectionPolicy_FromC(
+    dd_trace_injection_policy_t value
+) {
+  static_assert(
+      static_cast<int>(TraceInjectionPolicy::All) == DD_TRACE_INJECTION_POLICY_ALL
+  );
+  static_assert(
+      static_cast<int>(TraceInjectionPolicy::Sampled) ==
+      DD_TRACE_INJECTION_POLICY_SAMPLED
+  );
+  return static_cast<TraceInjectionPolicy>(value);
+}
+
 inline TracingHeaderTypes TracingHeaderTypes_FromC(dd_tracing_header_types_t value) {
   static_assert(
       static_cast<int>(TracingHeaderTypes::None) == DD_TRACING_HEADER_TYPES_NONE

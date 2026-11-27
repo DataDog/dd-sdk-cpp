@@ -6,6 +6,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <memory>
 #include <nlohmann/json.hpp>
 #include <string>
 #include <thread>
@@ -15,6 +16,7 @@
 #include "datadog/core.h"
 #include "datadog/logging.h"
 
+#include "datadog/c/network_adapter_glue.hpp"
 #include "datadog/impl/core/platform/system_info.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 
@@ -54,10 +56,78 @@ TEST_CASE("dd_core null safety", "[unit][core][c-api]") {
   SECTION("M safely do nothing W target object is null") {
     REQUIRE(dd_core_create(nullptr, DD_TRACKING_CONSENT_PENDING) == nullptr);
     dd_core_destroy(nullptr);
+    REQUIRE(
+        dd_core_create_network_adapter(
+            nullptr, DD_TRACE_INJECTION_POLICY_ALL, 50.0F, nullptr
+        ) == nullptr
+    );
+    dd_network_adapter_destroy(nullptr);
 
     dd_core_set_tracking_consent(nullptr, DD_TRACKING_CONSENT_GRANTED);
     REQUIRE(dd_core_start(nullptr) == false);
     dd_core_stop(nullptr);
+  }
+}
+
+TEST_CASE("dd_core_create_network_adapter", "[unit][core][tracing][c-api]") {
+  auto test = CoreTestHarness::Init();
+  std::unique_ptr<dd_core_t, decltype(&dd_core_destroy)> core(
+      CoreTestHarness::WrapForC(test), dd_core_destroy
+  );
+  using AdapterPtr =
+      std::unique_ptr<dd_network_adapter_t, decltype(&dd_network_adapter_destroy)>;
+  AdapterPtr adapter(
+      dd_core_create_network_adapter(
+          core.get(), DD_TRACE_INJECTION_POLICY_ALL, 50.0F, nullptr
+      ),
+      dd_network_adapter_destroy
+  );
+  REQUIRE(adapter);
+  REQUIRE(adapter->impl);
+
+  SECTION("M create distinct adapters W custom hosts supplied") {
+    const dd_first_party_host_t entries[] = {
+        {"example.com", DD_TRACING_HEADER_TYPES_TRACE_CONTEXT}
+    };
+    const dd_first_party_hosts_t hosts{entries, 1};
+    AdapterPtr custom_adapter(
+        dd_core_create_network_adapter(
+            core.get(), DD_TRACE_INJECTION_POLICY_SAMPLED, 75.0F, &hosts
+        ),
+        dd_network_adapter_destroy
+    );
+    REQUIRE(custom_adapter);
+    REQUIRE(custom_adapter->impl);
+    REQUIRE(custom_adapter->impl != adapter->impl);
+  }
+
+  SECTION("M create an adapter W custom hosts are explicitly empty") {
+    const dd_first_party_hosts_t hosts{nullptr, 0};
+    AdapterPtr custom_adapter(
+        dd_core_create_network_adapter(
+            core.get(), DD_TRACE_INJECTION_POLICY_ALL, 50.0F, &hosts
+        ),
+        dd_network_adapter_destroy
+    );
+    REQUIRE(custom_adapter);
+    REQUIRE(custom_adapter->impl);
+  }
+
+  SECTION("M return null W Core has no implementation") {
+    core->impl.reset();
+    REQUIRE(
+        dd_core_create_network_adapter(
+            core.get(), DD_TRACE_INJECTION_POLICY_ALL, 50.0F, nullptr
+        ) == nullptr
+    );
+  }
+
+  SECTION("M release the implementation W adapter is destroyed after Core") {
+    std::weak_ptr<datadog::impl::NetworkAdapter> impl = adapter->impl;
+    core.reset();
+    REQUIRE(!impl.expired());
+    adapter.reset();
+    REQUIRE(impl.expired());
   }
 }
 

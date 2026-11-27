@@ -23,6 +23,8 @@
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/types/assert.hpp"
 #include "datadog/impl/types/attribute/merge.hpp"
+#include "datadog/impl/types/tracing/network_adapter.hpp"
+#include "datadog/impl/types/tracing/network_adapter_state.hpp"
 #include "datadog/impl/types/version.hpp"
 
 namespace datadog::impl {
@@ -159,6 +161,15 @@ Core::Core(
           )
       ),
       _sampling_decision_provider(std::make_shared<SamplingDecisionProvider>()),
+      _network_adapter_state(
+          std::make_shared<NetworkAdapterState>(
+              _sampling_decision_provider,
+              false,
+              _tracking_consent,
+              std::string{},
+              std::string{}
+          )
+      ),
       _subsystems(std::move(subsystems)) {
   DATADOG_ASSERT(_subsystems.fs, "Core created with no filesystem interface");
   DATADOG_ASSERT(_subsystems.http, "Core created with no HTTP subsystem");
@@ -216,11 +227,26 @@ std::unique_ptr<Core> Core::Create(
   return core;
 }
 
+std::shared_ptr<NetworkAdapter> Core::CreateNetworkAdapter(
+    TraceInjectionPolicy policy,
+    float sample_rate,
+    std::optional<FirstPartyHosts> custom_first_party_hosts
+) {
+  return std::make_shared<NetworkAdapter>(
+      policy,
+      sample_rate,
+      std::move(custom_first_party_hosts),
+      _network_adapter_state,
+      _diagnostic_logger
+  );
+}
+
 void Core::SetTrackingConsent(TrackingConsent value) {
   if (_tracking_consent != value) {
     // Store the updated consent value, which we use to initialize storage-thread state
     // on core start
     _tracking_consent = value;
+    _network_adapter_state->SetTrackingConsent(value);
 
     // If we're already started, send a message to the storage thread so it can handle
     // the state change
@@ -263,6 +289,8 @@ void Core::SetUserInfo(
       extra.GetType() == ValueType::Object ? extra : Attribute::Object(0)
   };
 
+  _network_adapter_state->SetUserId(id);
+
   // Enqueue a context-thread callback that will write our UserInfo value into the
   // CoreContext, moving the value in the process
   UpdateContext([user_info = std::move(user_info)](CoreContext& ctx) mutable {
@@ -287,6 +315,8 @@ void Core::AddUserExtraInfo(const Attribute& extra) {
 }
 
 void Core::ClearUserInfo() {
+  _network_adapter_state->SetUserId("");
+
   // Enqueue a context-thread callback that will reset CoreContext::user_info to its
   // initial set of empty values
   UpdateContext([](CoreContext& ctx) { ctx.user_info = UserInfo{}; });
@@ -300,6 +330,9 @@ void Core::SetAccountInfo(
       std::string{name},
       extra.GetType() == ValueType::Object ? extra : Attribute::Object(0)
   };
+
+  _network_adapter_state->SetAccountId(id);
+
   UpdateContext([account_info = std::move(account_info)](CoreContext& ctx) mutable {
     ctx.account_info = std::move(account_info);
   });
@@ -317,6 +350,7 @@ void Core::AddAccountExtraInfo(const Attribute& extra) {
 }
 
 void Core::ClearAccountInfo() {
+  _network_adapter_state->SetAccountId("");
   UpdateContext([](CoreContext& ctx) { ctx.account_info = AccountInfo{}; });
 }
 
@@ -670,6 +704,8 @@ bool Core::Start() {
       MessagingThreadMain, std::ref(_diagnostic_logger), std::ref(*_message_bus)
   );
 
+  _network_adapter_state->SetIsRunning(true);
+
   return true;
 }
 
@@ -678,6 +714,7 @@ void Core::Stop() {
   if (_state != CoreState::Started) {
     return;
   }
+  _network_adapter_state->SetIsRunning(false);
   _diagnostic_logger.Debug("Beginning Core shutdown");
 
   // If we were previously started, all background threads should be running

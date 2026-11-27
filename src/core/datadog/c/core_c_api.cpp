@@ -8,10 +8,13 @@
 
 #include <iostream>
 #include <memory>
+#include <optional>
 
 #include "datadog/c/core_glue.hpp"
+#include "datadog/c/network_adapter_glue.hpp"
 #include "datadog/c/string_arg.hpp"
 #include "datadog/impl/core/core.hpp"
+#include "datadog/impl/core/tracing/types.hpp"
 #include "datadog/impl/core/types.hpp"
 #include "datadog/impl/types/attribute/types.hpp"
 
@@ -195,6 +198,26 @@ dd_core_t* dd_core_create(
 }
 
 void dd_core_destroy(dd_core_t* core) { delete core; }
+
+dd_network_adapter_t* dd_core_create_network_adapter(
+    dd_core_t* core,
+    dd_trace_injection_policy_t policy,
+    float sample_rate,
+    const dd_first_party_hosts_t* custom_first_party_hosts
+) {
+  if (!core || !core->impl) {
+    // No Core implementation; unable to create an adapter.
+    return nullptr;
+  }
+
+  std::optional<datadog::FirstPartyHosts> hosts;
+  if (custom_first_party_hosts) {
+    hosts = datadog::FirstPartyHosts_FromC(*custom_first_party_hosts);
+  }
+  return new dd_network_adapter(core->impl->CreateNetworkAdapter(
+      datadog::TraceInjectionPolicy_FromC(policy), sample_rate, std::move(hosts)
+  ));
+}
 
 void dd_core_set_tracking_consent(dd_core_t* core, dd_tracking_consent_t value) {
   if (core && core->impl) {

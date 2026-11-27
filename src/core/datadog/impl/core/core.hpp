@@ -15,6 +15,8 @@
 #include <thread>
 #include <vector>
 
+#include "datadog/network_instrumentation.hpp"
+
 #include "datadog/impl/core/block.hpp"
 #include "datadog/impl/core/context.hpp"
 #include "datadog/impl/core/feature.hpp"
@@ -41,6 +43,8 @@ namespace datadog::impl {
 // Forward declarations
 class IHttpSubsystem;
 class IHttpClient;
+class NetworkAdapter;
+class NetworkAdapterState;
 
 /**
  * Describes the lifecycle of the Core.
@@ -316,6 +320,12 @@ class Core {
       const CoreConfig& config, TrackingConsent tracking_consent
   );
 
+  std::shared_ptr<NetworkAdapter> CreateNetworkAdapter(
+      TraceInjectionPolicy policy,
+      float sample_rate,
+      std::optional<FirstPartyHosts> custom_first_party_hosts = std::nullopt
+  );
+
   /**
    * Updates the configured tracking consent value.
    *
@@ -464,6 +474,7 @@ class Core {
   DiagnosticLogger _diagnostic_logger;
   std::unique_ptr<CoreContextProvider> _context_provider;
   std::shared_ptr<SamplingDecisionProvider> _sampling_decision_provider;
+  std::shared_ptr<NetworkAdapterState> _network_adapter_state;
   CoreSubsystems _subsystems;
 
   // Initialized on Init, before features can be registered

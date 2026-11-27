@@ -3,14 +3,16 @@
 # dependency on the SDK's core or on any feature. The Crashpad handler process also
 # compiles this module (see handlers/crashpad/datadog.patch in crash_reporting).
 dd_add_module(types
-    PUBLIC_HEADERS api attribute network_instrumentation timestamp uuid version
+    PUBLIC_HEADERS api attribute network_adapter network_instrumentation timestamp uuid version
     SOURCES
         datadog/c/attribute_c_api.cpp
+        datadog/c/network_adapter_c_api.cpp
         datadog/c/network_instrumentation_c_api.cpp
         datadog/c/timestamp_c_api.cpp
         datadog/c/uuid_c_api.cpp
         datadog/c/version_c_api.cpp
         datadog/cpp/attribute_cpp_api.cpp
+        datadog/cpp/network_adapter_cpp_api.cpp
         datadog/cpp/network_instrumentation_cpp_api.cpp
         datadog/cpp/uuid_cpp_api.cpp
         datadog/cpp/version_cpp_api.cpp
@@ -30,6 +32,8 @@ dd_add_module(types
         datadog/impl/types/json/parse_primitives.cpp
         datadog/impl/types/diagnostics.cpp
         datadog/impl/types/tracing/deterministic_sampler.cpp
+        datadog/impl/types/tracing/network_adapter.cpp
+        datadog/impl/types/tracing/network_adapter_state.cpp
         datadog/impl/types/tracing/sampling_decision_provider.cpp
         datadog/impl/types/tracing/span_id.cpp
         datadog/impl/types/tracing/trace_context.cpp

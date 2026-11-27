@@ -157,6 +157,22 @@ std::shared_ptr<Core> Core::Create(
   );
 }
 
+std::shared_ptr<NetworkAdapter> Core::CreateNetworkAdapter(
+    TraceInjectionPolicy policy,
+    float sample_rate,
+    std::optional<FirstPartyHosts> custom_first_party_hosts
+) {
+  if (!_impl) {
+    return std::make_shared<NetworkAdapter>(NetworkAdapter::PrivateCtorTag{});
+  }
+  return std::make_shared<NetworkAdapter>(
+      _impl->CreateNetworkAdapter(
+          policy, sample_rate, std::move(custom_first_party_hosts)
+      ),
+      NetworkAdapter::PrivateCtorTag{}
+  );
+}
+
 void Core::SetTrackingConsent(TrackingConsent value) {
   if (_impl) {
     _impl->SetTrackingConsent(value);

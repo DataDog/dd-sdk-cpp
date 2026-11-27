@@ -13,6 +13,8 @@
 
 #include "datadog/api.h"
 #include "datadog/attribute.h"
+#include "datadog/network_adapter.h"
+#include "datadog/network_instrumentation.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -356,6 +358,25 @@ DATADOG_API dd_core_t* dd_core_create(
 );
 
 DATADOG_API void dd_core_destroy(dd_core_t* core);
+
+/**
+ * Creates a network adapter using `policy`, a `sample_rate` percentage from 0 to 100.
+ * May be called before or after dd_core_start().
+ *
+ * Copies `custom_first_party_hosts` and its strings if supplied, as an adapter-specific
+ * override. Pass NULL for no override, or an empty list to override with no hosts.
+ * The caller may release the host data as soon as this function returns.
+ *
+ * The caller owns the returned handle and must release it with
+ * dd_network_adapter_destroy(). The handle does not keep the Core alive and may be
+ * destroyed after the Core. Returns NULL if `core` is NULL or has no implementation.
+ */
+DATADOG_API dd_network_adapter_t* dd_core_create_network_adapter(
+    dd_core_t* core,
+    dd_trace_injection_policy_t policy,
+    float sample_rate,
+    const dd_first_party_hosts_t* custom_first_party_hosts
+);
 
 /**
  * Informs the SDK of a change in the user's consent to tracking. This function may be
