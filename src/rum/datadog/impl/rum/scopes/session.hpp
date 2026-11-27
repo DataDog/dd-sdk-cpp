@@ -72,7 +72,7 @@ namespace datadog::impl {
  *   `_active_view_on_close` details cached, _and_ the new session is sampled, those
  *   details will be conveyed to the new session scope and stored as
  *   `_active_view_from_predecessor`.
- *   - See `RumApplicationScope::CreateSession()`.
+ *   - See `RumApplicationScope::CreateNextSession()`.
  *
  * - When the new session processes a command that `RequiresActiveView`, it may create
  *   a new view if:

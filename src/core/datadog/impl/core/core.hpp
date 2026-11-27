@@ -29,6 +29,7 @@
 #include "datadog/impl/core/upload_scheduler.hpp"
 #include "datadog/impl/core/upload_thread.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
+#include "datadog/impl/types/tracing/sampling_decision_provider.hpp"
 
 // Forward declarations
 namespace datadog::platform {
@@ -462,6 +463,7 @@ class Core {
   ImmutableContext _immutable_context;
   DiagnosticLogger _diagnostic_logger;
   std::unique_ptr<CoreContextProvider> _context_provider;
+  std::shared_ptr<SamplingDecisionProvider> _sampling_decision_provider;
   CoreSubsystems _subsystems;
 
   // Initialized on Init, before features can be registered
@@ -493,6 +495,7 @@ class Core {
   std::string_view GetClientToken() const;
   const ImmutableContext& GetImmutableContext() const;
   const DiagnosticLogger& GetDiagnosticLogger() const;
+  std::weak_ptr<SamplingDecisionProvider> GetSamplingDecisionProvider() const;
 };
 
 }  // namespace datadog::impl

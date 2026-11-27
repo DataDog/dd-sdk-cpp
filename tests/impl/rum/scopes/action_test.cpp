@@ -51,7 +51,7 @@ class ActionFixture {
   EventWriter GetTestWriter() { return event_capture.GetWriter(); }
   ActionFixture()
       : config(APPLICATION_ID),
-        deps(config, clock),
+        deps(config, clock, {}),
         root(deps),
         session_id(*UUID::Parse(SESSION_ID)),
         session(
@@ -405,7 +405,7 @@ TEST_CASE("RumActionScope::PopulateContext", "[unit][rum]") {
     SECTION("M set application_id and session_id W session is active") {
       // Given a RumApplicationScope
       RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
-      RumScopeDependencies deps(config, MockClock());
+      RumScopeDependencies deps(config, MockClock(), {});
       RumApplicationScope application_scope(deps);
 
       // And a RumSessionScope

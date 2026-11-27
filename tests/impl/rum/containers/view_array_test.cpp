@@ -67,7 +67,7 @@ TEST_CASE("RumViewArray", "[unit][rum]") {
   EventWriter writer = MakeTestEventWriter();
 
   clock.FreezeAtMilliseconds(1700000000000);
-  RumScopeDependencies deps(config, clock);
+  RumScopeDependencies deps(config, clock, {});
   RumApplicationScope application(deps);
   UUID session_id = *UUID::Parse("5e551017-4114-4114-4114-beeeefbeeeef");
   RumSessionScope session(

@@ -84,7 +84,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "is_active=true W SDK starts"
   ) {
     // Given a Rum feature with default config (incl. session sample rate of 100%)
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK, causing an SDKInit command to be processed
@@ -113,7 +115,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     // Given a Rum feature with a session sample rate of 0%
     auto rum_config = RUM_CONFIG;
     rum_config.SetSessionSampleRate(0.0f);
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK, causing an SDKInit command to be processed, creating an
@@ -139,7 +143,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "W StopSession() is called"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK and get an initial RumSessionStateChangedMessage
@@ -167,7 +173,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "is called after inactivity timeout"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK and record our initial session ID
@@ -200,7 +208,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "StartView() is called during session lifetime"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK and get an initial RumSessionStateChangedMessage
@@ -228,7 +238,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "is_initial_session=false W session refresh occurs"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK and get an initial RumSessionStateChangedMessage
@@ -267,7 +279,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "unchanged"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK, then start a view in our initial session
@@ -295,7 +309,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
   SECTION("M emit RumActiveViewUpdatedMessage W StartView() causes a view event") {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK and then track a view called 'foo'
@@ -317,7 +333,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "StartView()"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK, track a view called 'foo', and then explicitly stop that
@@ -348,7 +366,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "M not emit RumActiveViewLostMessage W StartView() immediately follows StopView()"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK, track a view called 'foo', and then explicitly start
@@ -378,7 +398,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "completes on it"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK, track 'foo', and start a resource on it before switching
@@ -417,7 +439,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "new view event"
   ) {
     // Given a Rum feature with default config
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // When we start the SDK and create an initial view called 'foo'
@@ -462,7 +486,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
   SECTION("M emit RumLongTaskGeneratedMessage W AddLongTask() is called") {
     // Given a Rum feature with a started view
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     rum->StartView("foo");
@@ -491,7 +517,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
       "AddLongTask() updates the view"
   ) {
     // Given a Rum feature with a started view
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     rum->StartView("foo");
@@ -517,7 +545,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
   SECTION("M emit RumVitalGeneratedMessage W an operation starts and stops") {
     // Given a Rum feature with a started view
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     rum->StartView("foo");
@@ -553,7 +583,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
   SECTION("M emit RumGlobalAttributesChangedMessage W AddAttribute() is called") {
     // Given a started Rum feature
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
 
@@ -581,7 +613,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
   SECTION("M emit RumGlobalAttributesChangedMessage W RemoveAttribute() is called") {
     // Given a started Rum feature
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
 
@@ -610,7 +644,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
   SECTION("M emit RumGlobalAttributesChangedMessage W attributes exist on SDK start") {
     // Given a Rum feature that is not yet started
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
 
     // And a set of custom attributes that are initialized prior to SDK start, when
@@ -641,7 +677,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
   SECTION("M produce a RUM error event W LogErrorGeneratedMessage is received") {
     // Given a started Rum feature with an active view
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     rum->StartView("main");
@@ -702,7 +740,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
       deliveries.push_back(msg);
     });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();
@@ -729,7 +769,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
       session_ids.push_back(msg.session_id);
     });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();
@@ -754,7 +796,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
       deliveries.push_back(msg);
     });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();
@@ -774,7 +818,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     int calls = 0;
     auto rum_config = RUM_CONFIG;
     rum_config.SetContextReceiver([&](const RumContextMessage&) { ++calls; });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();
@@ -799,7 +845,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     int calls = 0;
     auto rum_config = RUM_CONFIG;
     rum_config.SetContextReceiver([&](const RumContextMessage&) { ++calls; });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();
@@ -827,7 +875,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
       deliveries.push_back(msg);
     });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();
@@ -854,7 +904,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     rum_config.SetContextReceiver([&](const RumContextMessage& msg) {
       deliveries.push_back(msg);
     });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();
@@ -889,7 +941,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     int calls = 0;
     auto rum_config = RUM_CONFIG;
     rum_config.SetContextReceiver([&](const RumContextMessage&) { ++calls; });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     const auto ctx = MakeReceiverContext(UUID::Random(), UUID::Random());
@@ -912,7 +966,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
     rum_config.SetContextReceiver([](const RumContextMessage&) {
       throw std::runtime_error("boom");
     });
-    auto rum = std::make_shared<impl::Rum>(rum_config, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        rum_config, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();
@@ -939,7 +995,9 @@ TEST_CASE("Rum messaging", "[unit][rum]") {
 
   SECTION("M do nothing W no context receiver is configured") {
     // Given a started Rum feature with no receiver
-    auto rum = std::make_shared<impl::Rum>(RUM_CONFIG, clock);
+    auto rum = std::make_shared<impl::Rum>(
+        RUM_CONFIG, clock, std::weak_ptr<SamplingDecisionProvider>{}
+    );
     FeatureTest test(MOCK_CONTEXT);
     test.Start(rum);
     auto handler = *rum->MakeMessageHandler();

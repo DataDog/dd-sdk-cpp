@@ -32,7 +32,11 @@ class Core;
  */
 class Rum final : public Feature {
  public:
-  explicit Rum(const RumConfig& config, const platform::IClock& clock);
+  explicit Rum(
+      const RumConfig& config,
+      const platform::IClock& clock,
+      std::weak_ptr<SamplingDecisionProvider> sampling_decision_provider
+  );
 
   /**
    * Creates the RUM feature from `config` and registers it with `core`. This is the

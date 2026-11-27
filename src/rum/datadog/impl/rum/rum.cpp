@@ -18,9 +18,13 @@
 #include "datadog/impl/rum/resource_types.hpp"
 
 namespace datadog::impl {
-Rum::Rum(const RumConfig& config, const platform::IClock& clock)
+Rum::Rum(
+    const RumConfig& config,
+    const platform::IClock& clock,
+    std::weak_ptr<SamplingDecisionProvider> sampling_decision_provider
+)
     : _global_attributes(Attribute::Object(8)),
-      _deps(config, clock),
+      _deps(config, clock, std::move(sampling_decision_provider)),
       _application(_deps),
       _application_snapshot() {}
 
@@ -36,7 +40,9 @@ std::shared_ptr<Rum> Rum::CreateAndRegister(
     return nullptr;
   }
 
-  auto rum = std::make_shared<Rum>(config, core.GetClock());
+  auto rum = std::make_shared<Rum>(
+      config, core.GetClock(), core.GetSamplingDecisionProvider()
+  );
   if (!core.RegisterFeature(rum)) {
     return nullptr;
   }
@@ -239,8 +245,14 @@ void Rum::Start() {
       }
   );
 
+  const UUID session_id = UUID::Random();
+  const DeterministicSampler sampler(session_id, _deps.GetSessionSampleRate());
+  if (auto sampling_decision_provider = _deps.sampling_decision_provider.lock()) {
+    sampling_decision_provider->SetSessionSnapshot(session_id, sampler);
+  }
+
   // Dispatch SDKInit to start first session
-  DispatchAsync(RumCommand::SDKInit(GetBaseCommandParams()));
+  DispatchAsync(RumCommand::SDKInit(GetBaseCommandParams(), session_id, sampler));
 };
 
 void Rum::Stop() {

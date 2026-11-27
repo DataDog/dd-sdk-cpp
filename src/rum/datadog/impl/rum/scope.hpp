@@ -24,6 +24,7 @@
 #include "datadog/impl/rum/command.hpp"
 #include "datadog/impl/types/diagnostics.hpp"
 #include "datadog/impl/types/tracing/deterministic_sampler.hpp"
+#include "datadog/impl/types/tracing/sampling_decision_provider.hpp"
 
 namespace datadog {
 struct RumConfig;
@@ -42,6 +43,7 @@ struct RumScopeDependencies {
   UUID application_id;
   DiagnosticLogger diagnostic_logger;
   const platform::IClock& clock;
+  std::weak_ptr<SamplingDecisionProvider> sampling_decision_provider;
   bool track_anonymous_user;  // From RumConfig::track_anonymous_user
   std::shared_ptr<const RumContextReceiver> context_receiver;  // May be null
 
@@ -57,7 +59,9 @@ struct RumScopeDependencies {
 
  public:
   explicit RumScopeDependencies(
-      const RumConfig& config, const platform::IClock& in_clock
+      const RumConfig& config,
+      const platform::IClock& in_clock,
+      std::weak_ptr<SamplingDecisionProvider> in_sampling_decision_provider
   );
 
  public:

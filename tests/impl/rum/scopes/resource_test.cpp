@@ -51,7 +51,7 @@ class ResourceFixture {
   EventWriter GetTestWriter() { return event_capture.GetWriter(); }
   ResourceFixture()
       : config(APPLICATION_ID),
-        deps(config, clock),
+        deps(config, clock, {}),
         root(deps),
         session_id(*UUID::Parse(SESSION_ID)),
         session(

@@ -13,9 +13,11 @@
 #include <variant>
 
 #include "datadog/rum.hpp"
+#include "datadog/uuid.hpp"
 
 #include "datadog/impl/core/platform/clock.hpp"
 #include "datadog/impl/rum/resource_types.hpp"
+#include "datadog/impl/types/tracing/deterministic_sampler.hpp"
 
 namespace datadog::impl {
 
@@ -86,10 +88,23 @@ struct RumCommandParams {
 
 /**
  * On SDKInit, the SDK has been initialized with RUM as a registered feature.
+ *
+ * The payload includes the initial Session ID and deterministic sampler, as they are
+ * determined synchronously and made available immediately after RUM is enabled.
  */
 struct RumSDKInitPayload {
   static constexpr const char* COMMAND_NAME = "SDKInit";
   static constexpr RumCommandFlags FLAGS = RumCommandFlags::None;
+
+  UUID initial_session_id;
+  DeterministicSampler initial_session_sampler;
+
+  explicit RumSDKInitPayload(
+      const UUID& in_initial_session_id,
+      const DeterministicSampler& in_initial_session_sampler
+  )
+      : initial_session_id(in_initial_session_id),
+        initial_session_sampler(in_initial_session_sampler) {}
 };
 
 /**
@@ -372,8 +387,14 @@ struct RumCommand {
       : base(std::move(in_base)), payload(std::move(in_payload)) {}
 
   /** Creates a new 'SDKInit' command. */
-  static RumCommand SDKInit(RumCommandParams&& base) {
-    return RumCommand(std::move(base), RumSDKInitPayload());
+  static RumCommand SDKInit(
+      RumCommandParams&& base,
+      const UUID& initial_session_id,
+      const DeterministicSampler& initial_session_sampler
+  ) {
+    return RumCommand(
+        std::move(base), RumSDKInitPayload(initial_session_id, initial_session_sampler)
+    );
   }
 
   // TODO(RUM-12242): Add 'ApplicationStart'

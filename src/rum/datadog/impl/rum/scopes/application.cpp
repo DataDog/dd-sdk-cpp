@@ -7,6 +7,7 @@
 #include "datadog/impl/rum/scopes/application.hpp"
 
 #include <utility>
+#include <variant>
 
 #include "datadog/rum.hpp"
 #include "datadog/uuid.hpp"
@@ -29,11 +30,13 @@ RumScopeResult RumApplicationScope::Process(
     const RumCommand& command, const CoreContext& context, const EventWriter& writer
 ) {
   // On SDK init, create an initial session
-  if (command.Is<RumSDKInitPayload>()) {
+  if (const auto* payload = std::get_if<RumSDKInitPayload>(&command.payload)) {
     // Open a brand new session scope
     DATADOG_ASSERT(!_active_session, "Received SDKInit with valid session");
     DATADOG_ASSERT(!_prev_session, "Received SDKInit with valid previous session");
-    _active_session = CreateSession(command);
+    _active_session = CreateInitialSession(
+        command, payload->initial_session_id, payload->initial_session_sampler
+    );
     DATADOG_ASSERT(_active_session, "Failed to create initial session on SDKInit");
 
     // TODO(RUM-12243): If the app was launched in the foreground, issue an
@@ -116,68 +119,76 @@ RumScopeResult RumApplicationScope::Process(
   return RumScopeResult::RemainOpen;
 }
 
-RumSessionScope RumApplicationScope::CreateSession(
-    const RumCommand& command, const RumSessionScope* prev_session
+RumSessionScope RumApplicationScope::CreateInitialSession(
+    const RumCommand& command,
+    const UUID& session_id,
+    const DeterministicSampler& sampler
+) {
+  // If this is the initial session: just assume 'UserAppLaunch'
+  // TODO(RUM-12245): Use 'BackgroundLaunch' if config indicates that app was launched
+  // in the background
+  return RumSessionScope(
+      _deps.get(),
+      *this,
+      true,
+      sampler,
+      session_id,
+      RumSessionPrecondition::UserAppLaunch,
+      command.base.issued_at,
+      std::nullopt
+  );
+}
+
+RumSessionScope RumApplicationScope::CreateNextSession(
+    const RumCommand& command, const RumSessionScope& prev_session
 ) {
   // Establish basic session details
-  const bool is_initial_session = prev_session == nullptr;
   const UUID session_id = UUID::Random();
 
   // Make a deterministic sampling decision for this session based on its ID
-  const RumScopeDependencies& deps = _deps;
-  DeterministicSampler sampler{session_id, deps.GetSessionSampleRate()};
+  const DeterministicSampler sampler{session_id, _deps.get().GetSessionSampleRate()};
+  if (auto sampling_decision_provider = _deps.get().sampling_decision_provider.lock()) {
+    sampling_decision_provider->SetSessionSnapshot(session_id, sampler);
+  }
+
+  // This is not the initial session: figure out why the previous session ended
+  const auto end_reason = prev_session.GetEndReason();
+  DATADOG_ASSERT(end_reason, "previous session has no end reason");
 
   // Determine the proper "session precondition" value, which indicates the reason
   // the session was started
   RumSessionPrecondition precondition{RumSessionPrecondition::UserAppLaunch};
-  if (!prev_session) {
-    // If this is the initial session: just assume 'UserAppLaunch'
-    // TODO(RUM-12245): Use 'BackgroundLaunch' if config indicates that app was launched
-    // in the background
-    precondition = RumSessionPrecondition::UserAppLaunch;
-  } else {
-    // This is not the initial session: figure out why the previous session ended
-    RumSessionScope::EndReason end_reason = RumSessionScope::EndReason::Stopped;
-    const auto end_reason_opt = prev_session->GetEndReason();
-    DATADOG_ASSERT(end_reason_opt, "previous session has no end reason");
-    if (end_reason_opt) {
-      end_reason = *end_reason_opt;
-    }
-
-    // And initialize our start precondition based on that end reason
-    switch (end_reason) {
-      case RumSessionScope::EndReason::TimedOutDueToInactivity:
-        precondition = RumSessionPrecondition::InactivityTimeout;
-        break;
-      case RumSessionScope::EndReason::ExceededMaxDuration:
-        precondition = RumSessionPrecondition::MaxDuration;
-        break;
-      case RumSessionScope::EndReason::Stopped:
-        precondition = RumSessionPrecondition::ExplicitStop;
-        break;
-    }
+  switch (end_reason.value_or(RumSessionScope::EndReason::Stopped)) {
+    case RumSessionScope::EndReason::TimedOutDueToInactivity:
+      precondition = RumSessionPrecondition::InactivityTimeout;
+      break;
+    case RumSessionScope::EndReason::ExceededMaxDuration:
+      precondition = RumSessionPrecondition::MaxDuration;
+      break;
+    case RumSessionScope::EndReason::Stopped:
+      precondition = RumSessionPrecondition::ExplicitStop;
+      break;
   }
 
   // If this new session is succeeding a previous session, and it's sampled, convey the
   // details of its last active view (if any) so that the new session can recreate it if
   // needed
   std::optional<RumSessionScope::ViewDetails> last_active_view;
-  if (prev_session && sampler.Sample()) {
+  if (sampler.Sample()) {
     // TODO(RUM-12245): Views are only transferred if the app is in the foreground
     // TODO(RUM-12246): Views are only transferred if the app is in the foreground
-    last_active_view = prev_session->GetActiveViewOnClose();
+    last_active_view = prev_session.GetActiveViewOnClose();
   }
 
   // Open a new RumSessionScope with these details
-  const Timestamp start_time = command.base.issued_at;
   return RumSessionScope(
-      deps,
+      _deps.get(),
       *this,
-      is_initial_session,
+      false,
       sampler,
       session_id,
       precondition,
-      start_time,
+      command.base.issued_at,
       last_active_view
   );
 }
@@ -218,8 +229,7 @@ void RumApplicationScope::AttemptSessionRefresh(const RumCommand& command) {
   // Create a new session to succeed the previous one, effectively refreshing it, and
   // potentially conveying the details of the last-active view in case the new session
   // need to recreate that view's state
-  const RumSessionScope& prev_session = *_prev_session;
-  _active_session = CreateSession(command, &prev_session);
+  _active_session = CreateNextSession(command, *_prev_session);
 
   // The previous session no longer needs to exist: all its resources and actions are
   // simply lost when the session stops

@@ -12,10 +12,13 @@
 namespace datadog::impl {
 
 RumScopeDependencies::RumScopeDependencies(
-    const RumConfig& config, const platform::IClock& in_clock
+    const RumConfig& config,
+    const platform::IClock& in_clock,
+    std::weak_ptr<SamplingDecisionProvider> in_sampling_decision_provider
 )
     : application_id(config.application_id),
       clock(in_clock),
+      sampling_decision_provider(std::move(in_sampling_decision_provider)),
       track_anonymous_user(config.track_anonymous_user),
       context_receiver(config.context_receiver),
       _sampling_rate(config.session_sample_rate) {

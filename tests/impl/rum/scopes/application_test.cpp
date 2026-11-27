@@ -22,6 +22,9 @@
 using namespace datadog;
 using namespace datadog::impl;
 
+static const UUID INITIAL_SESSION_ID =
+    *UUID::Parse("458f9d68-e3ce-4540-b65a-b7834046fb18");
+
 class ApplicationFixture {
  protected:
   static constexpr const char* APPLICATION_ID = "a991ca10-4004-4004-4004-beefbeefbeef";
@@ -38,7 +41,7 @@ class ApplicationFixture {
  public:
   ApplicationFixture()
       : config(APPLICATION_ID),
-        deps(config, clock),
+        deps(config, clock, {}),
         scope(deps),
         context(MOCK_CONTEXT),
         writer(MakeTestEventWriter()) {
@@ -54,7 +57,15 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     REQUIRE(scope.GetActiveSession() == std::nullopt);
 
     // When we process SDKInit
-    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
+    scope.Process(
+        RumCommand::SDKInit(
+            GetBaseParams(),
+            INITIAL_SESSION_ID,
+            DeterministicSampler(INITIAL_SESSION_ID, 100)
+        ),
+        context,
+        writer
+    );
 
     // Then a new session is created
     auto session_opt = scope.GetActiveSession();
@@ -64,14 +75,22 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     // And the session is flagged as the very first session, with the default
     // 'UserAppLaunch' start precondition, and it remains active
     REQUIRE(session.IsInitialSession() == true);
-    REQUIRE(session.GetSessionID() != UUID::Zero);
+    REQUIRE(session.GetSessionID() == INITIAL_SESSION_ID);
     REQUIRE(session.GetStartReason() == RumSessionPrecondition::UserAppLaunch);
     REQUIRE(session.GetEndReason() == std::nullopt);
   }
 
   SECTION("M end existing session W StopSession is processed") {
     // Given a RumApplicationScope with an active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
+    scope.Process(
+        RumCommand::SDKInit(
+            GetBaseParams(),
+            INITIAL_SESSION_ID,
+            DeterministicSampler(INITIAL_SESSION_ID, 100)
+        ),
+        context,
+        writer
+    );
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
 
@@ -92,7 +111,15 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
 
   SECTION("M start new session W user interaction is processed after StopSession") {
     // Given a RumApplicationScope with an active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
+    scope.Process(
+        RumCommand::SDKInit(
+            GetBaseParams(),
+            INITIAL_SESSION_ID,
+            DeterministicSampler(INITIAL_SESSION_ID, 100)
+        ),
+        context,
+        writer
+    );
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
 
@@ -125,7 +152,15 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
   SECTION("M do nothing W StopSession is processed after StopSession") {
     // Given a RumApplicationScope that's received StopSession, and therefore has no
     // active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
+    scope.Process(
+        RumCommand::SDKInit(
+            GetBaseParams(),
+            INITIAL_SESSION_ID,
+            DeterministicSampler(INITIAL_SESSION_ID, 100)
+        ),
+        context,
+        writer
+    );
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
     scope.Process(RumCommand::StopSession(GetBaseParams()), context, writer);
@@ -153,7 +188,15 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
       "15m+ of inactivity"
   ) {
     // Given a RumApplicationScope with an active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
+    scope.Process(
+        RumCommand::SDKInit(
+            GetBaseParams(),
+            INITIAL_SESSION_ID,
+            DeterministicSampler(INITIAL_SESSION_ID, 100)
+        ),
+        context,
+        writer
+    );
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
 
@@ -175,7 +218,15 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
 
   SECTION("M end existing session and start new one W session duration is 4h+") {
     // Given a RumApplicationScope with an active session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
+    scope.Process(
+        RumCommand::SDKInit(
+            GetBaseParams(),
+            INITIAL_SESSION_ID,
+            DeterministicSampler(INITIAL_SESSION_ID, 100)
+        ),
+        context,
+        writer
+    );
     REQUIRE(scope.GetActiveSession());
     const UUID initial_session_id = (*scope.GetActiveSession()).get().GetSessionID();
 
@@ -206,6 +257,57 @@ TEST_CASE_METHOD(ApplicationFixture, "RumApplicationScope::Process", "[unit][rum
     REQUIRE(new_session.GetStartReason() == RumSessionPrecondition::MaxDuration);
     REQUIRE(new_session.GetEndReason() == std::nullopt);
   }
+}
+
+TEST_CASE("RumApplicationScope session sampling", "[unit][rum]") {
+  const float sample_rate = GENERATE(59.0F, 60.0F);
+  CAPTURE(sample_rate);
+  RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
+  config.SetSessionSampleRate(sample_rate);
+
+  MockClock clock;
+  clock.FreezeAtMilliseconds(1700000000000);
+  RumScopeDependencies deps(config, clock, {});
+  RumApplicationScope scope(deps);
+  const auto writer = MakeTestEventWriter();
+
+  scope.Process(
+      RumCommand::SDKInit(
+          RumCommandParams(clock.Now(), {}, {}),
+          INITIAL_SESSION_ID,
+          DeterministicSampler(INITIAL_SESSION_ID, sample_rate)
+      ),
+      MOCK_CONTEXT,
+      writer
+  );
+
+  REQUIRE(scope.GetActiveSession());
+  const RumSessionScope& initial_session = *scope.GetActiveSession();
+  REQUIRE(initial_session.GetSessionID() == INITIAL_SESSION_ID);
+  REQUIRE(initial_session.IsInitialSession());
+  REQUIRE(initial_session.IsSampled() == (sample_rate == 60.0F));
+
+  scope.Process(
+      RumCommand::StopSession(RumCommandParams(clock.Now(), {}, {})),
+      MOCK_CONTEXT,
+      writer
+  );
+  REQUIRE(!scope.GetActiveSession());
+
+  scope.Process(
+      RumCommand::StartView(RumCommandParams(clock.Now(), {}, {}), "foo", "Foo"),
+      MOCK_CONTEXT,
+      writer
+  );
+
+  REQUIRE(scope.GetActiveSession());
+  const RumSessionScope& next_session = *scope.GetActiveSession();
+  REQUIRE(next_session.GetSessionID() != INITIAL_SESSION_ID);
+  REQUIRE(next_session.GetSessionID() != UUID::Zero);
+  REQUIRE(!next_session.IsInitialSession());
+  const DeterministicSampler expected_sampler{next_session.GetSessionID(), sample_rate};
+  REQUIRE(next_session.IsSampled() == expected_sampler.Sample());
+  REQUIRE(next_session.GetStartReason() == RumSessionPrecondition::ExplicitStop);
 }
 
 /**
@@ -245,14 +347,22 @@ class ViewTransferFixture {
  public:
   ViewTransferFixture()
       : config(APPLICATION_ID),
-        deps(config, clock),
+        deps(config, clock, {}),
         scope(deps),
         context(MOCK_CONTEXT),
         writer(MakeTestEventWriter()) {
     clock.FreezeAtMilliseconds(1700000000000);
 
     // Issue SDKInit to create an initial session
-    scope.Process(RumCommand::SDKInit(GetBaseParams()), context, writer);
+    scope.Process(
+        RumCommand::SDKInit(
+            GetBaseParams(),
+            INITIAL_SESSION_ID,
+            DeterministicSampler(INITIAL_SESSION_ID, 100)
+        ),
+        context,
+        writer
+    );
     auto session_opt = scope.GetActiveSession();
     REQUIRE(session_opt.has_value());
     const RumSessionScope& session = session_opt->get();
@@ -850,7 +960,7 @@ TEST_CASE("RumApplicationScope::PopulateContext", "[unit][rum]") {
   SECTION("M set application_id") {
     // Given a RumApplicationScope configured with a specific app ID
     RumConfig config("a991ca10-4004-4004-4004-beefbeefbeef");
-    RumScopeDependencies deps(config, MockClock());
+    RumScopeDependencies deps(config, MockClock(), {});
     RumApplicationScope scope(deps);
 
     // When we populate a RumContext from that application scope

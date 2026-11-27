@@ -97,7 +97,7 @@ namespace datadog::impl {
  *       - Any `StartView` call is issued
  *   - For exact details of view transfer implementation, see:
  *     - `RumSessionScope::OnClose()` -> caches last-active view state in Session A
- *     - `RumApplicationScope::CreateSession()` -> conveys that state to Session B
+ *     - `RumApplicationScope::CreateNextSession()` -> conveys that state to Session B
  *     - `RumSessionScope::AttemptViewTransfer()` -> uses that state if applicable
  *
  * For more details on view lifecycle, see `RumSessionScope`.
@@ -116,12 +116,26 @@ class RumApplicationScope {
 
  private:
   /**
-   * Creates and returns a new session scope. If prev_session is null, the session will
-   * be treated as the first session in the application; otherwise the newly-created
-   * session will succeed prev_session, potentially inheriting its last active view.
+   * Creates the initial session from the Session ID and determinisitc sampler created
+   * synchronously.
+   *
+   * Call this function to create the initial session only. Use `CreateNextSession` to
+   * create all the subsequent sessions.
    */
-  RumSessionScope CreateSession(
-      const RumCommand& command, const RumSessionScope* prev_session = nullptr
+  RumSessionScope CreateInitialSession(
+      const RumCommand& command,
+      const UUID& session_id,
+      const DeterministicSampler& sampler
+  );
+
+  /**
+   * Creates the session that follows the given `prev_session`.
+   *
+   * Call this function to create all sessions except the first one. Use
+   * `CreateInitialSession` to create the initial session.
+   */
+  RumSessionScope CreateNextSession(
+      const RumCommand& command, const RumSessionScope& prev_session
   );
 
   /**

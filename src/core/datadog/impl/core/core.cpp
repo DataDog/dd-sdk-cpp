@@ -158,6 +158,7 @@ Core::Core(
               CoreContext(_immutable_context, _tracking_consent)
           )
       ),
+      _sampling_decision_provider(std::make_shared<SamplingDecisionProvider>()),
       _subsystems(std::move(subsystems)) {
   DATADOG_ASSERT(_subsystems.fs, "Core created with no filesystem interface");
   DATADOG_ASSERT(_subsystems.http, "Core created with no HTTP subsystem");
@@ -889,5 +890,9 @@ std::string_view Core::GetClientToken() const {
 const ImmutableContext& Core::GetImmutableContext() const { return _immutable_context; }
 
 const DiagnosticLogger& Core::GetDiagnosticLogger() const { return _diagnostic_logger; }
+
+std::weak_ptr<SamplingDecisionProvider> Core::GetSamplingDecisionProvider() const {
+  return _sampling_decision_provider;
+}
 
 }  // namespace datadog::impl

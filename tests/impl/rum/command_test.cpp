@@ -31,7 +31,8 @@ TEST_CASE("RumCommand::HasFlag", "[unit][rum]") {
   // Spot-check a few flag types to verify that HasFlag resolves type traits and does
   // bitwise comparison correctly
   {
-    const RumCommand sdk_init = RumCommand::SDKInit(Base());
+    const RumCommand sdk_init =
+        RumCommand::SDKInit(Base(), UUID::Zero, DeterministicSampler(UUID::Zero, 100));
     REQUIRE(!sdk_init.HasFlag(RumCommandFlags::UserInteraction));
     REQUIRE(!sdk_init.HasFlag(RumCommandFlags::RequiresActiveSession));
     REQUIRE(!sdk_init.HasFlag(RumCommandFlags::RequiresActiveView));
